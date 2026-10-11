@@ -58,6 +58,16 @@ pi's preamble with "operating as a coding assistant". Unpatched: "You are Claude
 
 Type checking does not run on the phone (TypeScript 7 and Biome lack Android binaries); tests do.
 
+## Chord replicated state, from scripts and the app
+
+- `state.subscribe(cb)` delivers the current value synchronously inside the call. Never call the returned
+  unsubscribe from that first delivery (`const stop = subscribe(() => stop())` is a TDZ error that the binding
+  swallows, so the wait hangs). Use a flag and `queueMicrotask(stop)`, or React's `useEffect` cleanup.
+- Keyed services (`PhoneTranscript`) arrive through `services.observe(Service, handler)`, one call per live
+  instance; the instance's own state says which key it is (`conversationId`). Singletons are `services.use()`.
+- A new worker takes 10-15 s to spawn on the phone; a hung script is a bug, not slowness. Put step logs and a
+  `timeout 60` on new smoke scripts.
+
 ## Metro and Expo Go
 
 ```bash

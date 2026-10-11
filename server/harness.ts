@@ -16,6 +16,7 @@ import {
 import { createSessionPluginFacetLoader } from "pi-src/experimental/plugins/bundled.ts";
 import type { CreateSessionWorkerHarness } from "pi-src/experimental/session-worker.ts";
 import { createProvidersFacet } from "./facets/providers.ts";
+import { createAgentFacet, createTranscriptsFacet } from "./facets/transcripts.ts";
 import { withPhoneTransforms } from "./models.ts";
 import { DATA_DIR_ENV, PhoneSettingsFile } from "./settings.ts";
 
@@ -65,7 +66,11 @@ export const createPhoneHarness: CreateSessionWorkerHarness = async (databasePat
 			modelRuntime,
 			settingsManager,
 			facetLoader: combineFacetLoaders([
-				createStaticFacetLoader([createProvidersFacet(baseRuntime, settingsManager)]),
+				createStaticFacetLoader([
+					createProvidersFacet(baseRuntime, settingsManager),
+					createTranscriptsFacet(harness),
+					createAgentFacet(harness),
+				]),
 				...(plugins === undefined ? [] : [plugins]),
 			]),
 			cleanup: (context) => envs.cleanup(context),
