@@ -303,6 +303,17 @@ uploads. The Session directory is the cleanup unit (`SessionManagement.remove`).
 - **Gap**: nothing shrinks inside a Session. `VACUUM` on idle is cheap. Pruning needs an upstream storage write;
   propose after the monitor gives numbers, minding fork lineage.
 
+## 8b. Building and updating the app from the phone only
+
+- JS-only phases run in Expo Go with Metro in Termux (`localhost:8081`); no build.
+- The native shell (foreground service, notification listener, accessibility, share target) is built once by a
+  GitHub Actions workflow (`expo prebuild` + Gradle on an Ubuntu runner, APK as artifact) triggered by `git push`
+  from the phone; the workflow also runs `tsc` and lint, which cannot run on the phone. EAS Build is the
+  alternative. No laptop or Android Studio.
+- After that build, the dev client loads from Metro like Expo Go, and release use gets JS updates through
+  `expo-updates` served by our own Termux HTTP server (`/updates/manifest` + assets). A new APK is needed only
+  when native modules change.
+
 ## 9. Known gaps and risks
 
 - API churn in `experimental/` and pi-durable ("API changes without notice"); pin the checkout commit and

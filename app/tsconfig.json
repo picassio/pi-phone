@@ -1,0 +1,36 @@
+{
+	"extends": "expo/tsconfig.base",
+	"compilerOptions": {
+		"strict": true,
+		"paths": {
+			"@/*": [
+				"./src/*"
+			],
+			"@/assets/*": [
+				"./assets/*"
+			],
+			"pi-src/*": [
+				"../../pi/packages/coding-agent/src/*"
+			],
+			"@earendil-works/pi-durable": [
+				"../../pi/packages/durable/src/index.ts"
+			],
+			"@earendil-works/pi-durable/*": [
+				"../../pi/packages/durable/src/*"
+			],
+			"@earendil-works/pi-ai": [
+				"../../pi/packages/ai/src/index.ts"
+			]
+		},
+		"allowImportingTsExtensions": true,
+		"noEmit": true
+	},
+	"include": [
+		"**/*.ts",
+		"**/*.tsx",
+		".expo/types/**/*.ts",
+		"expo-env.d.ts",
+		"../contracts/**/*.ts",
+		"../client/**/*.ts"
+	]
+}
