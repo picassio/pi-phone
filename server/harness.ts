@@ -1,5 +1,6 @@
 // The Session worker's Harness: pi's model runtime, settings, coding tools, and system prompt, composed here so
 // pi-phone can add its own pieces (billing patch, subagents, guard, facets) without changing pi.
+import { combineFacetLoaders, createStaticFacetLoader } from "@earendil-works/chord";
 import { TODO_CONTEXT } from "@earendil-works/chord/context";
 import { Harness, ROOT_CONVERSATION_ID } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
@@ -14,6 +15,7 @@ import {
 } from "pi-src/experimental/durable/harness-setup.ts";
 import { createSessionPluginFacetLoader } from "pi-src/experimental/plugins/bundled.ts";
 import type { CreateSessionWorkerHarness } from "pi-src/experimental/session-worker.ts";
+import { createProvidersFacet } from "./facets/providers.ts";
 import { withPhoneTransforms } from "./models.ts";
 import { DATA_DIR_ENV, PhoneSettingsFile } from "./settings.ts";
 
@@ -22,7 +24,9 @@ export const createPhoneHarness: CreateSessionWorkerHarness = async (databasePat
 	const dataDir = process.env[DATA_DIR_ENV];
 	if (dataDir === undefined) throw new Error(`${DATA_DIR_ENV} is not set; workers must be spawned by server/main.ts`);
 	const settings = new PhoneSettingsFile(dataDir);
-	const modelRuntime = withPhoneTransforms(await ModelRuntime.create(), settings);
+	const plugins = createSessionPluginFacetLoader(options.pluginManifestPaths);
+	const baseRuntime = await ModelRuntime.create();
+	const modelRuntime = withPhoneTransforms(baseRuntime, settings);
 	const settingsManager = SettingsManager.create(cwd);
 	configureHarnessHttp(settingsManager);
 	const envs = new ExecutionEnvs(cwd);
@@ -60,7 +64,10 @@ export const createPhoneHarness: CreateSessionWorkerHarness = async (databasePat
 			conversation,
 			modelRuntime,
 			settingsManager,
-			facetLoader: createSessionPluginFacetLoader(options.pluginManifestPaths),
+			facetLoader: combineFacetLoaders([
+				createStaticFacetLoader([createProvidersFacet(baseRuntime, settingsManager)]),
+				...(plugins === undefined ? [] : [plugins]),
+			]),
 			cleanup: (context) => envs.cleanup(context),
 		};
 	} catch (error) {
