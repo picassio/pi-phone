@@ -9,6 +9,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { startForegroundServer } from "pi-src/experimental/server.ts";
 import { createHttpHandler } from "./http.ts";
+import { DATA_DIR_ENV } from "./settings.ts";
 import { loadToken } from "./token.ts";
 import { attachWebSocketListener, WS_PATH } from "./ws-listener.ts";
 
@@ -36,6 +37,8 @@ async function main(): Promise<void> {
 	const listen = parseListen(values.listen);
 	const dataDir = resolve(values["data-dir"]);
 	const token = await loadToken(dataDir);
+	// Inherited by the workers pi spawns.
+	process.env[DATA_DIR_ENV] = dataDir;
 	const startedAt = Date.now();
 
 	const runtime = await startForegroundServer({

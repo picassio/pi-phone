@@ -14,10 +14,15 @@ import {
 } from "pi-src/experimental/durable/harness-setup.ts";
 import { createSessionPluginFacetLoader } from "pi-src/experimental/plugins/bundled.ts";
 import type { CreateSessionWorkerHarness } from "pi-src/experimental/session-worker.ts";
+import { withPhoneTransforms } from "./models.ts";
+import { DATA_DIR_ENV, PhoneSettingsFile } from "./settings.ts";
 
 export const createPhoneHarness: CreateSessionWorkerHarness = async (databasePath, options) => {
 	const { cwd } = options.metadata;
-	const modelRuntime = await ModelRuntime.create();
+	const dataDir = process.env[DATA_DIR_ENV];
+	if (dataDir === undefined) throw new Error(`${DATA_DIR_ENV} is not set; workers must be spawned by server/main.ts`);
+	const settings = new PhoneSettingsFile(dataDir);
+	const modelRuntime = withPhoneTransforms(await ModelRuntime.create(), settings);
 	const settingsManager = SettingsManager.create(cwd);
 	configureHarnessHttp(settingsManager);
 	const envs = new ExecutionEnvs(cwd);
