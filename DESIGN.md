@@ -56,14 +56,19 @@ pi-phone/
   android/       foreground service, notifications, share target (Expo config plugin + Kotlin module)
 ```
 
-### Required pi change (small PR)
+### No changes to the pi checkout
 
-`StartServerOptions.workerEntryUrl` -> `SessionWorkerManager` -> `spawnInternalProcess("session-worker", args,
-{ entryUrl })`. `spawnInternalProcess` already supports `entryUrl`; only the plumbing is missing. Until merged,
-run from a branch of the checkout.
+Two things pi's stack does not allow from outside are done by the module hooks in `bin/resolver.mjs`, preloaded
+through `NODE_OPTIONS` into every process pi spawns (coordinator, server, workers):
 
-Optional upstream proposals, in order of value: `onPayload` in `ConversationStreamOptions`; `SessionDirectory`
-entries carrying `cwd` and worker activity; a `prune(before)` storage write (section 8).
+- pi's `SessionWorkerManager` spawns a fixed worker module. The resolve hook redirects that main entry to
+  `server/worker.ts` (and rewrites `process.argv[1]` so pi's module does not take itself for the entry), which runs
+  `runSessionWorkerWithHarness()` with our Harness and facets.
+- pi-server's Unix listener publishes its socket with a hard link, which Android forbids in app data (tested: fails
+  on every writable path). The load hook replaces that one line with `rename` (same atomic publish, same inode).
+
+Each hook asserts the exact text or URL it expects and throws at startup if a pi update changes it. Worth
+proposing upstream (a `workerEntryUrl` option; `rename` in the listener), but nothing here depends on that.
 
 ### Transport
 
@@ -325,16 +330,16 @@ uploads. The Session directory is the cleanup unit (`SessionManagement.remove`).
 
 1. **Baseline** (done). Findings: `npm install --ignore-scripts` plus `npm run hydrate-model-data` in
    `packages/ai` are needed; Biome and TypeScript 7 have no Android binaries (type check on the laptop); tests
-   run on the phone. pi fix: the Unix listener used a hard link, which Android forbids; now `rename`
-   (`packages/server/src/transports/unix/listener.ts`, changelog entry). Coordinator, server, worker spawn,
-   lock, SQLite, model call, `-c` resume, and worker retirement all work under Termux.
-2. **Server** (done). pi change: `StartServerOptions.workerEntryUrl` plumbed to `SessionWorkerManager`.
-   pi-phone: `bin/run.mjs` (preloads pi's resolver and ours through `NODE_OPTIONS`, so spawned workers get
-   them), `bin/resolver.mjs` (`pi-src/*` -> checkout `packages/coding-agent/src/*`), `server/main.ts`
+   run on the phone. Android forbids hard links, which pi-server's Unix listener used; patched at load time (see
+   "No changes to the pi checkout"). Coordinator, server, worker spawn, lock, SQLite, model call, `-c` resume,
+   and worker retirement all work under Termux.
+2. **Server** (done). `bin/run.mjs` (preloads pi's resolver and `bin/resolver.mjs` through `NODE_OPTIONS`),
+   `bin/resolver.mjs` (`pi-src/*` imports, worker redirect, listener patch), `server/main.ts`
    (`startForegroundServer` + `ws` listener on `127.0.0.1:7741/pi` + `/health` + `/admin/shutdown`, token in
-   `~/.pi-phone/token`), `server/worker.ts` + `server/harness.ts` (our composition, same as pi's for now),
-   `client/ws-transport.ts` (runtime-neutral, for the app). `scripts/ws-smoke.ts` attaches over WebSocket,
-   streams the Transcript, gets an answer from our worker. `npm test` covers token and transport.
+   `~/.pi-phone/token`), `server/worker.ts` (`process.title` `pi-phone-worker`) + `server/harness.ts` (our
+   composition, same as pi's for now), `client/ws-transport.ts` (runtime-neutral, for the app).
+   `scripts/ws-smoke.ts` attaches over WebSocket, streams the Transcript, gets an answer from our worker.
+   `npm test` covers token and transport.
 3. **Login + billing**: `Providers` facet, `cc-patch.ts` + Proxy, tests. Verify Claude OAuth via loopback and
    one Opus prompt on the subscription. Blocks the app.
 4. **App skeleton**: Expo, WS transport, bindings, connect, attach, raw Transcript view, send a prompt. Then

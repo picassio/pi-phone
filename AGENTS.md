@@ -7,8 +7,9 @@
 - TypeScript only, erasable syntax (Node strip-only): no `enum`, `namespace`, parameter properties. No `any`.
 - Top-level imports only; no `await import()`.
 - Pin direct dependencies to exact versions. Install with `npm install --ignore-scripts`.
-- The pi checkout (`PI_CHECKOUT`, default `~/projects/pi`) is a dependency; its `experimental/` modules are
-  imported from source through `bin/run.mjs`, which preloads the checkout's source resolver.
+- Never modify the pi checkout (`PI_CHECKOUT`, default `~/projects/pi`). It is a read-only dependency whose
+  source modules are imported through `bin/run.mjs`. Anything pi does not allow from outside is done by the
+  module hooks in `bin/resolver.mjs`, each asserting the exact text or URL it patches.
 - Type checking does not run on the phone (TypeScript 7 and Biome have no Android binaries); run `tsc` on the
   laptop or in CI. Tests run on the phone: `npm test`.
 - Design lives in DESIGN.md and UI.md; update them when a decision changes.

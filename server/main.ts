@@ -1,11 +1,11 @@
 // pi-phone server: pi's experimental server (coordinator, session workers, services) plus a WebSocket transport
-// and a small HTTP API, both token protected.
+// and a small HTTP API, both token protected. Session workers run server/worker.ts through the hooks in
+// bin/resolver.mjs.
 //
 //   node bin/pi-phone-server.mjs [--listen host:port] [--data-dir dir] [--session-dir dir]
 import { createServer } from "node:http";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { startForegroundServer } from "pi-src/experimental/server.ts";
 import { createHttpHandler } from "./http.ts";
@@ -40,7 +40,6 @@ async function main(): Promise<void> {
 
 	const runtime = await startForegroundServer({
 		...(values["session-dir"] === undefined ? {} : { sessionDir: resolve(values["session-dir"]) }),
-		workerEntryUrl: new URL("./worker.ts", import.meta.url),
 		onRelayStatus(status) {
 			console.log(`radius: ${status.status}`);
 		},
@@ -75,7 +74,6 @@ async function main(): Promise<void> {
 	console.log(`socket:   ${runtime.socketPath}`);
 	console.log(`sessions: ${runtime.sessionDir}`);
 	console.log(`ws:       ws://${listen.host}:${listen.port}${WS_PATH}?token=<${dataDir}/token>`);
-	console.log(`worker:   ${fileURLToPath(new URL("./worker.ts", import.meta.url))}`);
 
 	process.once("SIGINT", () => void stop());
 	process.once("SIGTERM", () => void stop());

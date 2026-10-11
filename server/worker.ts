@@ -1,9 +1,10 @@
-// Session worker entry, spawned by pi's SessionWorkerManager through `workerEntryUrl`. Same control protocol as
-// pi's worker; only the Harness composition is ours.
+// Session worker entry. pi's SessionWorkerManager spawns its own worker module; bin/resolver.mjs redirects that
+// entry here. Same control protocol as pi's worker; only the Harness composition is ours.
 import { consumeInternalProcessRole } from "pi-src/experimental/process.ts";
 import { runSessionWorkerWithHarness } from "pi-src/experimental/session-worker.ts";
 import { createPhoneHarness } from "./harness.ts";
 
+process.title = "pi-phone-worker";
 const role = consumeInternalProcessRole();
 if (role !== "session-worker") throw new Error("pi-phone worker requires an internal session-worker invocation");
 
