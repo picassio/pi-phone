@@ -13,4 +13,6 @@
 - Type checking does not run on the phone (TypeScript 7 and Biome have no Android binaries); run `tsc` on the
   laptop or in CI. Tests run on the phone: `npm test`.
 - Design lives in DESIGN.md and UI.md; update them when a decision changes.
+- For running, testing, and driving the app on the phone (server, Metro, Expo Go, ADB), load and follow
+  [.pi/skills/pi-phone-dev.md](.pi/skills/pi-phone-dev.md).
 - Never commit unless asked. Stage explicit paths.
