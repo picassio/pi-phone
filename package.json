@@ -1,0 +1,21 @@
+{
+	"name": "pi-phone",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"description": "pi agent for Android: pi-durable server in Termux, React Native app",
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"scripts": {
+		"server": "node bin/pi-phone-server.mjs",
+		"smoke": "node bin/run.mjs scripts/ws-smoke.ts",
+		"test": "node bin/run.mjs --test --test-timeout=10000 server/*.test.ts"
+	},
+	"dependencies": {
+		"ws": "8.22.0"
+	},
+	"devDependencies": {
+		"@types/ws": "8.18.2"
+	}
+}
