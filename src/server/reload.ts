@@ -596,7 +596,7 @@ export class ExtensionLoader {
 
         if (needs !== undefined && (typeof needs !== "number" || !(needs <= POCKET_API))) {
             throw new Error(
-                `the module needs version ${String(needs)} of Pi Pocket's extension API, and this Pi Pocket has ${POCKET_API}: update Pi Pocket`,
+                `the module needs version ${String(needs)} of pi-phone's extension API, and this pi-phone has ${POCKET_API}: update pi-phone`,
             );
         }
 
@@ -793,7 +793,7 @@ export class ExtensionLoader {
         for (const extension of extensions) {
             if (RESERVED_EXTENSIONS.test(extension.name)) {
                 throw new Error(
-                    `the extension name ${extension.name} is Pi Pocket's own: give it a name of your own`,
+                    `the extension name ${extension.name} is pi-phone's own: give it a name of your own`,
                 );
             }
 

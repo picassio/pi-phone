@@ -128,7 +128,7 @@ export function transcriptMarkdown(input: ExportInput): string {
     const when = input.exportedAt.toISOString().slice(0, 16).replace("T", " ");
     const sections: string[] = [
         `# ${input.title}`,
-        `_Exported from Pi Pocket on ${when} UTC. Folder \`${input.cwd}\`${input.model === undefined ? "" : `, model \`${input.model}\``}._`,
+        `_Exported from pi-phone on ${when} UTC. Folder \`${input.cwd}\`${input.model === undefined ? "" : `, model \`${input.model}\``}._`,
     ];
     // One answer is often several model responses with tool calls between them: one "Pi" heading for all of them.
     let piSpeaking = false;

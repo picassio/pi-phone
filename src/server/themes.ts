@@ -517,7 +517,7 @@ export class Themes {
             if (seen.has(id) || (!builtIn && this.#reserved.has(id))) {
                 misnamed.set(
                     dir,
-                    "its folder has the name of a theme or colors that come with Pi Pocket",
+                    "its folder has the name of a theme or colors that come with pi-phone",
                 );
                 continue;
             }

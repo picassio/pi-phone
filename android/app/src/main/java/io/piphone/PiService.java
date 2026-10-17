@@ -151,6 +151,8 @@ public final class PiService extends Service {
         env.put("LD_PRELOAD", new File(prefix, "lib/libtermux-exec-ld-preload.so").getAbsolutePath());
         env.put("LANG", "en_US.UTF-8");
         env.put("TERM", "xterm-256color");
+        // This service starts the server again when it exits with 75: the menu's Restart server works (`main.ts`).
+        env.put("PI_POCKET_SUPERVISED", "1");
         builder.directory(home);
         builder.redirectErrorStream(true);
         builder.redirectOutput(ProcessBuilder.Redirect.appendTo(log));

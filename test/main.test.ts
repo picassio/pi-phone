@@ -146,7 +146,7 @@ test(
         const port = await freePort();
         const { proc, data, output } = server("hup", port);
 
-        await until(() => output().includes("Pi Pocket is running."), "the server to start");
+        await until(() => output().includes("pi-phone is running."), "the server to start");
         assert.equal((await fetch(`http://127.0.0.1:${port}/`)).status, 200);
         proc.kill("SIGHUP");
         assert.deepEqual(await exit(proc), { code: 0, signal: null });

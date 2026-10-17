@@ -110,6 +110,33 @@ for (const file of files(WEB)) {
     }
 }
 
+// Components a file renders (`<${Name}`) must be defined or imported there: a removed one is only a blank screen.
+for (const file of files(WEB)) {
+    const text = readFileSync(file, "utf8");
+    const where = relative(WEB, file);
+    const known = new Set<string>();
+
+    for (const match of text.matchAll(/(?:function\*?|class|const|let|var)\s+([A-Z][\w$]*)/g)) {
+        known.add(match[1]!);
+    }
+
+    for (const match of text.matchAll(/^import\s+([^;"']*?)\s+from\s+["'][^"']+["']/gm)) {
+        for (const name of match[1]!.replace(/[{}]/g, ",").split(",")) {
+            const local = name.trim().split(/\s+as\s+/).pop()?.trim();
+
+            if (local) {
+                known.add(local);
+            }
+        }
+    }
+
+    for (const match of text.matchAll(/<\$\{([A-Z][\w$]*)\}/g)) {
+        if (!known.has(match[1]!)) {
+            problems.push(`${where}: renders ${match[1]}, which is neither defined nor imported`);
+        }
+    }
+}
+
 if (problems.length > 0) {
     console.error(problems.join("\n"));
     process.exit(1);

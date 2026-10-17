@@ -44,7 +44,6 @@ export function setFilesOpen(open, tab) {
         // Someone asked for the tile just now: Changes takes the keys (`DiffReview`).
         ...(open
             ? {
-                  browserOpen: false,
                   sheet: null,
                   filesAsk: { tab: tab ?? store.state.filesTab, at: Date.now() },
               }

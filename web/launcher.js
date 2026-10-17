@@ -552,7 +552,6 @@ export function Launcher({ leaving, returnTo }) {
         view.branch,
         conversationId,
         store.state.pinned,
-        store.state.browserOpen,
         store.state.filesOpen,
         store.state.filesTab,
         store.state.desktopTheme,

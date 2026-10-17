@@ -181,7 +181,7 @@ export function readPiSession(text: string): PiSession {
     }
 
     if ((header.version ?? 1) > CURRENT_SESSION_VERSION) {
-        throw new PiSessionError("A newer Pi wrote this session. Update Pi Pocket to continue it.");
+        throw new PiSessionError("A newer Pi wrote this session. Update pi-phone to continue it.");
     }
 
     // In memory only: older files get the current format, as Pi gives them when it opens one.

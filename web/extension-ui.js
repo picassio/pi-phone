@@ -1616,7 +1616,7 @@ export function ExtensionPage() {
     // heard it. Not while a character is being composed (an input method's Esc cancels that).
     useEffect(() => {
         const onKey = (event) => {
-            const { sheet, launcher, pipOpen } = store.state;
+            const { sheet, launcher } = store.state;
 
             if (
                 event.key === "Escape" &&
@@ -1625,7 +1625,6 @@ export function ExtensionPage() {
                 !event.defaultPrevented &&
                 !sheet &&
                 !launcher &&
-                !pipOpen &&
                 !keepsEscape.current
             ) {
                 event.preventDefault();

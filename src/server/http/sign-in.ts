@@ -31,7 +31,7 @@ export async function login(
     const posted = request.method === "POST";
 
     if (posted && crossSite(request)) {
-        throw new HttpError(403, "Sign in from Pi Pocket's own page.");
+        throw new HttpError(403, "Sign in from pi-phone's own page.");
     }
 
     const form = posted
@@ -46,8 +46,8 @@ export async function login(
             response,
             401,
             page(
-                "Pi Pocket",
-                `<h1>Link expired</h1><p>That login link is not valid. Use the link Pi Pocket prints when it starts, or ask someone signed in for a new invite.</p>`,
+                "pi-phone",
+                `<h1>Link expired</h1><p>That login link is not valid. Close the pi-phone app and open it again: it signs in by itself.</p>`,
             ),
             "text/html; charset=utf-8",
         );
@@ -61,7 +61,7 @@ export async function login(
             response,
             200,
             page(
-                "Switch account? · Pi Pocket",
+                "Switch account? · pi-phone",
                 `<h1>Switch account?</h1><p>This browser is signed in as ${escapeHtml(current.name)}. The link you opened signs it in as ${escapeHtml(signingIn.name)} instead.</p><form method="post" action="/login"><input type="hidden" name="token" value="${escapeHtml(token)}"><input type="hidden" name="next" value="${escapeHtml(next)}"><button type="submit">Sign in as ${escapeHtml(signingIn.name)}</button></form><p><a href="/">Stay signed in as ${escapeHtml(current.name)}</a></p>`,
             ),
             "text/html; charset=utf-8",
@@ -86,7 +86,7 @@ export async function join(
 ): Promise<void> {
     if (request.method === "POST") {
         if (crossSite(request)) {
-            throw new HttpError(403, "Join from Pi Pocket's own page.");
+            throw new HttpError(403, "Join from pi-phone's own page.");
         }
 
         const form = new URLSearchParams((await readBody(request, 10_000)).toString("utf8"));
@@ -96,7 +96,7 @@ export async function join(
             return send(
                 response,
                 410,
-                page("Pi Pocket", "<h1>Invite expired</h1><p>Ask for a new one.</p>"),
+                page("pi-phone", "<h1>Invite expired</h1><p>Ask for a new one.</p>"),
                 "text/html; charset=utf-8",
             );
         }
@@ -122,7 +122,7 @@ export async function join(
             response,
             410,
             page(
-                "Pi Pocket",
+                "pi-phone",
                 "<h1>Invite expired</h1><p>Each invite works once, and only until it expires. Ask for a new one.</p>",
             ),
             "text/html; charset=utf-8",
@@ -141,8 +141,8 @@ export async function join(
             response,
             200,
             page(
-                "Sign in as owner · Pi Pocket",
-                `<h1>Sign in as owner</h1><p>This device will sign in as you, the owner. It gets full control of Pi Pocket and of this machine.</p>${switching}<form method="post"><button type="submit">Sign in as owner</button></form>`,
+                "Sign in as owner · pi-phone",
+                `<h1>Sign in as owner</h1><p>This device will sign in as you, the owner. It gets full control of pi-phone and of this machine.</p>${switching}<form method="post"><button type="submit">Sign in as owner</button></form>`,
             ),
             "text/html; charset=utf-8",
             { "referrer-policy": "no-referrer" },
@@ -162,8 +162,8 @@ export async function join(
         response,
         200,
         page(
-            "Join Pi Pocket",
-            `<h1>Join Pi Pocket</h1><p>This device will be able to ${can}.</p><form method="post"><label>Your name<input name="name" maxlength="40" autofocus required placeholder="e.g. Alex"></label><button type="submit">Join</button></form>`,
+            "Join pi-phone",
+            `<h1>Join pi-phone</h1><p>This device will be able to ${can}.</p><form method="post"><label>Your name<input name="name" maxlength="40" autofocus required placeholder="e.g. Alex"></label><button type="submit">Join</button></form>`,
         ),
         "text/html; charset=utf-8",
     );
@@ -176,7 +176,7 @@ export function sharePage(response: ServerResponse): void {
         200,
         page(
             "Share to Pi",
-            `<h1>Open Pi Pocket first</h1><p>Sharing works once Pi Pocket has been opened on this device over https. Open it, then share again.</p><p><a href="/">Open Pi Pocket</a></p>`,
+            `<h1>Open pi-phone first</h1><p>Open the app, then share again.</p><p><a href="/">Open pi-phone</a></p>`,
         ),
         "text/html; charset=utf-8",
     );

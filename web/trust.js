@@ -191,7 +191,7 @@ function ownSkillsText(info) {
         : [
               info.settings
                   ? "It has no skills of its own."
-                  : "It has no skills of its own, so this changes nothing in Pi Pocket here.",
+                  : "It has no skills of its own, so this changes nothing in pi-phone here.",
           ];
 }
 
@@ -211,7 +211,7 @@ function status(info, short) {
         }
 
         return info.skills.length > 0
-            ? "No decision yet. Until there is one, Pi Pocket leaves its skills in .agents/skills off."
+            ? "No decision yet. Until there is one, pi-phone leaves its skills in .agents/skills off."
             : "No decision yet.";
     }
 

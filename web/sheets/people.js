@@ -106,7 +106,7 @@ export function InviteSheet({ session = null }) {
             if (asOwner && answer.grant?.role !== "owner") {
                 setFailed(true);
 
-                throw new Error("Restart Pi Pocket to sign in another device as the owner.");
+                throw new Error("Restart pi-phone to sign in another device as the owner.");
             }
 
             shown.current = answer;
@@ -226,7 +226,7 @@ export function InviteSheet({ session = null }) {
                     ${
                         invite.local &&
                         html`<div class="error-box">
-                            This link only works on this device. To let other devices in, press <span class="mono">a</span> in the Pi Pocket terminal (or start it with <span class="mono">--access</span>) and pick Local network, Cloudflare Tunnel, or Tailscale. Then make a new invite.
+                            This link only works on this phone: pi-phone's server listens only here, so other devices cannot open it.
                         </div>`
                     }
                     <div class="invite-details">
@@ -399,11 +399,5 @@ export function PeopleSheet() {
             </button>`
         }
         <${PeopleList} />
-        <button
-            class="button ghost wide sheet-footer"
-            onClick=${() => openSheet({ type: "notifications" })}
-        >
-            Notifications on this device…
-        </button>
     <//>`;
 }

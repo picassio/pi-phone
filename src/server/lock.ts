@@ -34,7 +34,7 @@ export function takeLock(lockFile: string): void {
 
         if (lockHolder(pid)) {
             throw new Error(
-                `Pi Pocket is already running on this data directory (pid ${pid}). If it is not, delete ${lockFile}.`,
+                `pi-phone is already running on this data directory (pid ${pid}). If it is not, delete ${lockFile}.`,
             );
         }
 
@@ -49,7 +49,7 @@ export function takeLock(lockFile: string): void {
         }
 
         throw new Error(
-            "Pi Pocket is already running on this data directory: another one started at the same moment.",
+            "pi-phone is already running on this data directory: another one started at the same moment.",
         );
     }
 }

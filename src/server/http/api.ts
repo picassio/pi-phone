@@ -890,7 +890,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
             if (!app.supervised) {
                 throw new HttpError(
                     409,
-                    "Start Pi Pocket with bin/pi-pocket.js to restart from the app.",
+                    "Restarting from here needs the pi-phone app, which starts the server again.",
                 );
             }
 

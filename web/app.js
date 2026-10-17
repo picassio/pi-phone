@@ -407,8 +407,8 @@ function App() {
 
     useEffect(() => {
         document.title = state.view.conversation?.title
-            ? `${state.view.conversation.title} · Pi Pocket`
-            : "Pi Pocket";
+            ? `${state.view.conversation.title} · pi-phone`
+            : "pi-phone";
     }, [state.view.conversation?.title]);
 
     if (state.me === undefined) {

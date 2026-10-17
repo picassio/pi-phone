@@ -96,7 +96,7 @@ export function parseManifest(text: string, pocketVersion: string): Manifest {
     }
 
     if (api > THEME_API) {
-        throw new ThemeProblem(`it needs theme API ${api}: this Pi Pocket has ${THEME_API}`);
+        throw new ThemeProblem(`it needs theme API ${api}: this pi-phone has ${THEME_API}`);
     }
 
     const manifest: Manifest = { themeApi: api, name: plainLine(fields.name, "Its name", 60) };
@@ -120,7 +120,7 @@ export function parseManifest(text: string, pocketVersion: string): Manifest {
     }
 
     if (manifest.minPocket !== undefined && !atLeast(pocketVersion, manifest.minPocket)) {
-        throw new ThemeProblem(`it needs Pi Pocket ${manifest.minPocket} or newer`);
+        throw new ThemeProblem(`it needs pi-pocket ${manifest.minPocket} or newer (its minPocket)`);
     }
 
     return manifest;

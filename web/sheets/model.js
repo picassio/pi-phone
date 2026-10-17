@@ -1,7 +1,7 @@
 // The model picker: a menu over the model chip, searchable once there are many models; and the same menu for the model
 // and thinking level new sessions start with.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { actions, api, attempt, closeSheet, openSheet, store } from "../store.js";
+import { actions, attempt, closeSheet, openSheet, store } from "../store.js";
 import { useDragToClose } from "../gestures.js";
 import {
     anchorStyle,
@@ -67,17 +67,8 @@ const matches = (model, query) => {
  */
 export function ModelPicker() {
     const { models, server, me } = store.state;
-    const [pipId] = useState(() => store.state.sheet?.pipId);
-    const view = pipId === undefined ? store.state.view : store.state.pipView;
-    const locked =
-        pipId !== undefined &&
-        (view.conversation?.id !== pipId ||
-            view.live?.busy === true ||
-            (view.live?.compactions?.length ?? 0) > 0);
-    const configure = (change) =>
-        pipId === undefined
-            ? actions.configure(change)
-            : api(`c/${pipId}/configure`, { ...change, pipPanel: true });
+    const view = store.state.view;
+    const configure = (change) => actions.configure(change);
     // While the picker animates out, the store has no sheet any more.
     const [query, setQuery] = useState(store.state.sheet?.query ?? "");
     const [forDefault] = useState(() => store.state.sheet?.forDefault === true);
@@ -91,7 +82,7 @@ export function ModelPicker() {
     const [searchable] = useState(() => models.length > MODEL_SEARCH_AT || query !== "");
     const [picked, setPicked] = useState(0);
     const [anchor, setAnchor] = useState(() =>
-        forDefault || pipId !== undefined ? null : modelAnchor(),
+        forDefault ? null : modelAnchor(),
     );
     const box = useRef(null);
     const search = useRef(null);
@@ -142,7 +133,7 @@ export function ModelPicker() {
 
     useEffect(() => {
         // The default's picker has no chip to open from: it stays in the middle.
-        const place = () => setAnchor(forDefault || pipId !== undefined ? null : modelAnchor());
+        const place = () => setAnchor(forDefault ? null : modelAnchor());
         const onKey = (event) => event.key === "Escape" && closeSheet();
 
         addEventListener("resize", place);
@@ -169,10 +160,6 @@ export function ModelPicker() {
     }, [active]);
 
     const pick = (model) => {
-        if (locked) {
-            return;
-        }
-
         // The default's picker stays open, for its thinking level.
         if (forDefault) {
             return isCurrent(model) ? undefined : setDefault(model, level);
@@ -325,7 +312,6 @@ export function ModelPicker() {
                         class=${`pop-menu-row ${index === active ? "on" : ""} ${isCurrent(model) ? "current" : ""}`}
                         role="option"
                         aria-selected=${isCurrent(model)}
-                        disabled=${locked}
                         title=${`${model.provider}/${model.id} · ${formatTokens(model.contextWindow)} context${model.images ? " · images" : ""}`}
                         onMouseMove=${() => index !== active && setPicked(index)}
                         onClick=${() => pick(model)}
@@ -350,7 +336,6 @@ export function ModelPicker() {
                                 html`<button
                                     role="radio"
                                     aria-checked=${level === each}
-                                    disabled=${locked}
                                     class=${level === each ? "on" : ""}
                                     onClick=${() => think(each)}
                                 >
@@ -361,7 +346,7 @@ export function ModelPicker() {
                 </div>`
             }
             ${
-                pipId !== undefined || !defaultsKept()
+                !defaultsKept()
                     ? null
                     : forDefault
                       ? html`<div class="pop-menu-foot pop-menu-default">

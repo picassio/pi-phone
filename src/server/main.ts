@@ -140,7 +140,7 @@ const server = createServer((request, response) => {
         "retry-after": "2",
         "cache-control": "no-store",
     });
-    response.end("Pi Pocket is starting…");
+    response.end("pi-phone is starting…");
 });
 
 // The whole request must arrive within this: long enough for a 50 MB upload on a slow phone connection. Event streams
@@ -163,7 +163,7 @@ try {
 
     console.error(
         code === "EADDRINUSE"
-            ? `Port ${options.port} is already in use on ${options.host}. Is Pi Pocket already running? Pick another with --port.`
+            ? `Port ${options.port} is already in use on ${options.host}. Is pi-phone already running? Pick another with --port.`
             : `Could not listen on ${options.host}:${options.port}: ${(error as Error).message}`,
     );
     process.exit(CONFIG_ERROR_CODE);
@@ -226,7 +226,7 @@ const token = encodeURIComponent(opened.config.ownerToken);
         }
     }
 
-    console.log("\nPi Pocket is running.");
+    console.log("\npi-phone is running.");
     console.log(`  data:     ${options.data}`);
     console.log(`  sessions: new sessions start in ${options.cwd}`);
     console.log(

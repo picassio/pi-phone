@@ -116,11 +116,7 @@ export const store = {
         filesLoaded: 0,
         /** `!` commands this tab started that have no entry yet: `{ taskId, command, conversationId, at }`. */
         pendingShells: [],
-        /** The session's browser page as the server last told: address, title, loading, size (`browser.js`). */
-        browser: null,
-        /** The Browser panel shows; kept per tab, so the reload after a live edit keeps it. */
-        browserOpen: sessionStorage.getItem("pocket.browser") === "1",
-        /** The Files tile shows (`files-panel.js`); kept per tab, like the browser's. */
+        /** The Files tile shows (`files-panel.js`); kept per tab, so the reload after a live edit keeps it. */
         filesOpen: sessionStorage.getItem("pocket.files") === "1",
         /** The Files tile's tab: `files` or `changes`. */
         filesTab: sessionStorage.getItem("pocket.filesTab") === "changes" ? "changes" : "files",
@@ -128,16 +124,10 @@ export const store = {
         filesTarget: null,
         /** When someone last asked for the Files tile, and for which tab: `{ tab, at }`. */
         filesAsk: null,
-        /** The People panel shows beside the conversation on wide screens; kept per tab, like the browser's. */
+        /** The People panel shows beside the conversation on wide screens; kept per tab, like the Files tile. */
         peopleOpen: sessionStorage.getItem("pocket.people") === "1",
         /** The last request to show the People panel: which tab and chat message, and a count that tells requests apart. */
         peopleAsk: { tab: null, highlight: null, n: 0 },
-        /** This person's PiP, as the server last told (`{ id, busy, endedAt }`); null when they have none yet. */
-        pip: null,
-        /** The PiP panel shows; kept per tab, like the browser's, so the reload after a live edit keeps it. */
-        pipOpen: sessionStorage.getItem("pocket.pip") === "1",
-        /** PiP's conversation, while the panel shows. */
-        pipView: emptyView(),
     },
     listeners: new Set(),
     /**
@@ -471,11 +461,6 @@ function applyView(data) {
     store.set((state) => ({ view: mergeView(state.view, data), missing: null }));
 }
 
-/** PiP's conversation, for its panel (`pip.js`): the same view, from a view of its own beside the session's. */
-function applyPipView(data) {
-    store.set((state) => ({ pipView: mergeView(state.pipView, data) }));
-}
-
 /** A view after an update from the server: the full view, or what changed since the last one. */
 function mergeView(current, data) {
     const base =
@@ -582,17 +567,13 @@ const handlers = {
     subagents: (agents) => store.state.board && store.set({ boardAgents: agents }),
     view: applyView,
     // This person's PiP: its conversation, whether it works, and when it last answered (`pip.js`); null for none.
-    pip: (pip) => store.set({ pip }),
     // PiP's conversation, while this tab's PiP panel is open.
-    pipview: applyPipView,
     chat: applyChat,
     presence: (data) =>
         data.conversationId === store.state.conversationId && store.set({ presence: data.people }),
     notes: (data) =>
         data.conversationId === store.state.conversationId &&
         store.set({ notes: { text: data.text, rev: data.rev, by: data.by, at: data.at } }),
-    browser: (data) =>
-        data.conversationId === store.state.conversationId && store.set({ browser: data }),
     // Another session as its peek tile shows it (`peeks.js`): kept after it scrolls away, as the tile's last look.
     peek: (data) =>
         store.set((state) => ({ peeks: { ...state.peeks, [data.conversationId]: data } })),
@@ -1157,13 +1138,11 @@ function sheetChange(sheet, state) {
     }
 
     sessionStorage.setItem(PEOPLE_KEY, "1");
-    sessionStorage.removeItem("pocket.browser");
     sessionStorage.removeItem("pocket.files");
 
     return {
         sheet: null,
         peopleOpen: true,
-        browserOpen: false,
         filesOpen: false,
         peopleAsk: {
             tab: sheet.tab ?? null,
@@ -1178,16 +1157,11 @@ function sheetChange(sheet, state) {
  * place (one panel at a time). `App` draws it by this, and `openFile` opens files in it by this.
  */
 export function filesShown(state = store.state) {
-    // `browserAvailable()` (browser.js), which imports this module.
-    const browsing =
-        state.browserOpen && state.server?.extensions?.includes("pocket-browser") === true;
-
     return (
         state.filesOpen &&
         state.conversationId !== null &&
         !state.missing &&
-        state.me?.role !== "viewer" &&
-        !browsing
+        state.me?.role !== "viewer"
     );
 }
 
