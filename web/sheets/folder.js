@@ -17,6 +17,7 @@ import {
 } from "../store.js";
 import { APPLE, html, Icon, Sheet, shortPath } from "../ui.js";
 import { piSessionsAvailable } from "./pi-sessions.js";
+import { continueInPiAt } from "./pi-handoff.js";
 import { joinPlace, splitPlace } from "../place.js";
 
 /** Whether hidden folders show: kept for the next time the picker opens. */
@@ -120,11 +121,13 @@ function LineInput({ value, placeholder, label, onSubmit, onCancel, class: class
     </form>`;
 }
 
-export function CwdSheet({ mode }) {
+export function CwdSheet({ mode, start }) {
     const { view, server, folderFavorites: favorites } = store.state;
-    const changing = mode === "change";
+    // "pi": where on a machine the session continues in Pi (sheets/pi-handoff.js), from `start`.
+    const forPi = mode === "pi";
+    const changing = mode === "change" || forPi;
     const initial =
-        (changing ? (view.agent?.cwd ?? server?.defaultCwd) : server?.defaultCwd) ?? "~";
+        (forPi ? start : changing ? (view.agent?.cwd ?? server?.defaultCwd) : server?.defaultCwd) ?? "~";
     const [listing, setListing] = useState(null);
     const [failed, setFailed] = useState(null);
     // The folder a click selected (mouse only): Open takes it over the one you are in.
@@ -151,7 +154,8 @@ export function CwdSheet({ mode }) {
     const folder = listing?.path ?? null;
     const dirs = listing?.dirs ?? [];
     const target = selected ?? folder;
-    const here = changing && target !== null && target === view.agent?.cwd;
+    const here = !forPi && changing && target !== null && target === view.agent?.cwd;
+    const offMachine = forPi && target !== null && splitPlace(target).machineId === undefined;
 
     /** Show a folder; `select`, a folder in it to select (the one stepped up from, with a mouse). */
     const load = (path, { showHidden = hidden, select = null } = {}) => {
@@ -238,7 +242,7 @@ export function CwdSheet({ mode }) {
 
     /** Start the session in the folder Open names (or a favorite's), or move this one there. */
     const use = async (path = target) => {
-        if (path === null || starting.current || (changing && path === view.agent?.cwd)) {
+        if (path === null || starting.current || (!forPi && changing && path === view.agent?.cwd) || (forPi && splitPlace(path).machineId === undefined)) {
             return;
         }
 
@@ -246,7 +250,9 @@ export function CwdSheet({ mode }) {
         setBusy(true);
 
         try {
-            if (changing) {
+            if (forPi) {
+                await continueInPiAt(path);
+            } else if (changing) {
                 await actions.configure({ cwd: path });
                 closeSheet();
             } else {
@@ -426,7 +432,7 @@ export function CwdSheet({ mode }) {
     </button>`;
 
     return html`<${Sheet}
-        title=${changing ? "Move this session: pick a folder" : "New session: pick a folder"}
+        title=${forPi ? "Continue in Pi: pick a folder on a machine" : changing ? "Move this session: pick a folder" : "New session: pick a folder"}
         onClose=${closeSheet}
         wide=${true}
         className="folder-sheet"
@@ -682,10 +688,10 @@ export function CwdSheet({ mode }) {
                     type="button"
                     class="button primary"
                     title=${touch ? undefined : "Ctrl+Enter"}
-                    disabled=${target === null || busy || here}
+                    disabled=${target === null || busy || here || offMachine}
                     onClick=${() => use()}
                 >
-                    ${here ? "Already here" : changing ? "Move here" : "Open"}
+                    ${offMachine ? "Pick a machine" : here ? "Already here" : forPi ? (busy ? "Writing…" : "Continue in Pi here") : changing ? "Move here" : "Open"}
                 </button>
             </div>
         </div>

@@ -124,6 +124,14 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   through its environment (first lines only: id, folder, first message as title), copies the chosen file into the
   imported folder with an `.origin.json` beside it, and the preview then defaults to the session's folder on that
   machine (checked there).
+- **Continue in Pi, and back** (`src/server/pi-handoff.ts`, `web/sheets/pi-handoff.js`): the session's context as
+  the model has it (no system messages) becomes a Pi session file (format 3) in the machine's
+  `~/.pi/agent/sessions/--<folder>--/`, with a `custom` entry naming the session and entries named `pp<entry>-<n>`;
+  `SessionMeta.piLink` keeps the file, Pi's last message both have, the session's last model entry, and the file's
+  size. Bring back appends Pi's messages after that one (compactions keep their message, edits apply) when neither
+  side went another way; otherwise only as a new session (the machine import). Continue again appends the session's
+  new messages to the same file, refused while Pi has unseen messages or after the session compacted past the link.
+  The dock's Pi bar checks the file (one `stat`) when the session opens or the app comes to the front.
 - **Terminal** (`src/server/terminal.ts`, `web/terminal.js`): a shell in a pseudo-terminal through pi-env's
   `openTerminal`, on a machine over its connection or on the phone through a local daemon (pi-env's Android build;
   PiService sets `SHELL` to the bundled bash). One WebSocket per terminal at `/api/terminal`, owner only and only

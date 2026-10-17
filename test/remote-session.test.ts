@@ -280,3 +280,99 @@ test("an attachment to a session on a machine is copied there, and the message n
         rmSync(join(home, ".pi", "mobile", "uploads", String(id)), { recursive: true, force: true });
     }
 });
+
+test("a session goes to Pi on a machine, comes back with what Pi did there, and goes again to the same file", { skip }, async () => {
+    const { SessionManager } = await import("@earendil-works/pi-coding-agent");
+    const project = join(remoteHome, "project");
+    const place = `machine:${machineId}:${project}`;
+    const { id } = await app.commands.createSession(owner(app), { cwd: place });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    const turn = async (text: string) => {
+        const { submissionId } = await app.commands.submit(id, owner(app), { text, requestId: crypto.randomUUID() });
+
+        await (await app.harness.submission(submissionId, context))!.wait(context);
+        await app.harness.waitForIdle(context);
+    };
+
+    await turn("where are you");
+    const home = app.machines.get(machineId).remote!.home;
+    const folder = join(home, ".pi", "agent", "sessions", `--${project.replace(/^\//, "").replace(/[/:]/g, "-")}--`);
+
+    try {
+        const gone = await app.piHandoff.continueInPi(owner(app), id, place);
+
+        assert.equal(gone.cwd, project);
+        assert.ok(gone.path.startsWith(`${folder}/`), gone.path);
+
+        // Pi itself opens it: the conversation with its tool call and result, its name and model.
+        const pi = SessionManager.open(gone.path);
+        const opened = pi.buildSessionContext();
+
+        assert.deepEqual(opened.messages.map((message) => message.role), ["user", "assistant", "toolResult", "assistant"]);
+        assert.equal(pi.getSessionName(), app.sessionMeta(id)!.title);
+        assert.deepEqual(opened.model, { provider: "faux", modelId: "faux-1" });
+        assert.equal((await app.piHandoff.status(owner(app), id)).link!.added, 0);
+        assert.equal(app.sessions(owner(app)).find((each) => each.id === Number(id))?.inPi, machineId);
+        assert.equal(app.sessions(app.config.addUser("Guest", "guest").user).find((each) => each.id === Number(id))?.inPi, undefined);
+
+        // Pi goes on there, and compacts, keeping the last answer it was given from here.
+        const kept = pi.getBranch().findLast((entry) => entry.type === "message")!.id;
+
+        pi.appendMessage({ role: "user", content: "and now in pi", timestamp: Date.now() });
+        pi.appendMessage({ role: "assistant", content: [{ type: "text", text: "pi answers" }], stopReason: "stop", timestamp: Date.now() } as never);
+        pi.appendCompaction("what happened so far", kept, 1000);
+        pi.appendMessage({ role: "user", content: "after the compaction", timestamp: Date.now() });
+
+        const status = (await app.piHandoff.status(owner(app), id)).link!;
+
+        assert.equal(status.machine, "box");
+        assert.equal(status.added, 4);
+        assert.equal(status.sessionWentOn, false);
+        assert.equal(status.branchMoved, false);
+
+        const back = await app.piHandoff.bringBack(owner(app), id);
+
+        assert.deepEqual(back, { id: Number(id), added: 4 });
+        const texts = (await modelTexts(app, id)).join("\n");
+
+        assert.match(texts, /what happened so far/);
+        assert.match(texts, /after the compaction/);
+        assert.match(texts, /saw: /, "the kept answer from here stays");
+        // The model gets what Pi's own context of the file is: the summary, and everything from the kept message on.
+        const piTexts = SessionManager.open(gone.path)
+            .buildSessionContext()
+            .messages.map((message) => JSON.stringify((message as { content: unknown }).content));
+
+        // (Pi's summary is a message of its own kind, which becomes the user message above for the model.)
+        assert.deepEqual((await modelTexts(app, id)).slice(1), piTexts.slice(1));
+        assert.equal((await app.piHandoff.status(owner(app), id)).link!.added, 0);
+
+        // A turn here, and to Pi again: the same file, which Pi continues from where it was.
+        await turn("hello again");
+        const again = await app.piHandoff.continueInPi(owner(app), id);
+
+        assert.equal(again.path, gone.path);
+        const reopened = SessionManager.open(gone.path).buildSessionContext();
+
+        assert.deepEqual(reopened.messages.slice(-2).map((message) => message.role), ["user", "assistant"]);
+        assert.match(JSON.stringify(reopened.messages.at(-2)), /hello again/);
+        assert.match(JSON.stringify(reopened.messages), /what happened so far/);
+
+        // Both go on: it cannot come back into this session, only as a new one.
+        const pi2 = SessionManager.open(gone.path);
+
+        pi2.appendMessage({ role: "user", content: "pi went on", timestamp: Date.now() });
+        await turn("so did the phone");
+        assert.equal((await app.piHandoff.status(owner(app), id)).link!.sessionWentOn, true);
+        await assert.rejects(app.piHandoff.bringBack(owner(app), id), /went on here too/);
+        await assert.rejects(app.piHandoff.continueInPi(owner(app), id), /Pi went on/);
+
+        const copy = await app.piHandoff.bringBack(owner(app), id, true);
+
+        assert.notEqual(copy.id, Number(id));
+        assert.match((await modelTexts(app, copy.id as never)).join("\n"), /pi went on/);
+    } finally {
+        rmSync(folder, { recursive: true, force: true });
+    }
+});

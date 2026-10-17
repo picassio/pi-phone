@@ -14,6 +14,7 @@ import { loadFiles, mentionAt, mentionText, suggestFiles } from "./files.js";
 import { remember, searchHistory, sentHistory } from "./history.js";
 import {
     actions,
+    api,
     attempt,
     canSteer,
     collab,
@@ -281,6 +282,52 @@ function CiWatchBar() {
                 }
             </div>`,
         )}
+    </div>`;
+}
+
+/**
+ * Pi went on with this session on a machine (`sheets/pi-handoff.js`): how many messages it added there, and the way to
+ * bring them back. Looked at when the session opens and when the app comes back to the front.
+ */
+function PiBar() {
+    const { conversationId, sessions, me } = store.state;
+    const machineId = sessions.find((each) => each.id === conversationId)?.inPi;
+    const [status, setStatus] = useState(null);
+
+    useEffect(() => {
+        setStatus(null);
+
+        if (machineId === undefined || me?.role !== "owner") {
+            return undefined;
+        }
+
+        let live = true;
+        const look = () =>
+            document.visibilityState === "visible" &&
+            api(`pi-handoff/${conversationId}`).then(
+                (answer) => live && setStatus(answer.link),
+                // Unreachable machine: nothing to say here; the sheet says why.
+                () => live && setStatus(null),
+            );
+
+        look();
+        document.addEventListener("visibilitychange", look);
+
+        return () => {
+            live = false;
+            document.removeEventListener("visibilitychange", look);
+        };
+    }, [conversationId, machineId, store.state.view.entries.size]);
+
+    if (!status || status.added === 0) {
+        return null;
+    }
+
+    return html`<div class="watch-bar" data-part="pi-bar">
+        <span class="grow">
+            <strong>Pi went on</strong> on ${status.machine}: ${status.added} new message${status.added === 1 ? "" : "s"}.
+        </span>
+        <button class="link small" onClick=${() => openSheet({ type: "pi-handoff" })}>Bring back</button>
     </div>`;
 }
 
@@ -1097,6 +1144,7 @@ export function Composer() {
             ${collab() && html`<${DriverBar} />`}
             <${PlanBar} blocked=${blocked} />
             <${GoalBar} />
+            <${PiBar} />
             <${CiWatchBar} />
             <${SubagentsBar} />
             <${TrustBar} />

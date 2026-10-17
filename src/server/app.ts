@@ -66,6 +66,7 @@ import { ExtensionWebs, mayUse } from "./extension-web.ts";
 import { defang, quoted } from "./fence.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
 import { GitHubLogin } from "./github-login.ts";
+import { PiHandoff } from "./pi-handoff.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { parsePlace, Places } from "./places.ts";
@@ -251,6 +252,7 @@ export class PocketApp {
     readonly transcripts = new Transcripts(this);
     /** Pi's sessions, from this phone's Pi folder or imported from elsewhere, which the owner can continue here. */
     readonly piSessions = new PiSessions(this);
+    readonly piHandoff = new PiHandoff(this);
     /** Each person's favorite working folders, shared by their devices. */
     readonly folderFavorites = new FolderFavorites(this);
     /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */
@@ -1631,7 +1633,7 @@ export class PocketApp {
                 const endedAt = this.#endedAt.get(Number(id) as unknown as ConversationId);
                 const counts = countSubagents(subagents.get(id) ?? []);
                 // Which of Pi's sessions it continues is the owner's to know (the Pi sessions sheet), not the list's.
-                const { fromPi: _fromPi, linkedFrom, ...shown } = meta;
+                const { fromPi: _fromPi, piLink, linkedFrom, ...shown } = meta;
                 // Linking does not share the origin: do not leak its id to someone who only sees the new chat.
                 const origin =
                     linkedFrom === undefined ? undefined : this.#sessions[String(linkedFrom.id)];
@@ -1652,6 +1654,8 @@ export class PocketApp {
                     id: Number(id),
                     ...shown,
                     ...linkage,
+                    // Gone to Pi on a machine (`pi-handoff.ts`): the owner's to know, so the session can check on it.
+                    ...(piLink !== undefined && user?.role === "owner" ? { inPi: piLink.machineId } : {}),
                     busy,
                     waiting: waiting.has(id),
                     ...(endedAt === undefined ? {} : { endedAt }),

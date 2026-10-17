@@ -55,8 +55,8 @@ const KEYS = [
 const withCtrl = (data) =>
     data.length === 1 && /[a-z@[\\\]^_]/i.test(data) ? String.fromCharCode(data.toUpperCase().charCodeAt(0) & 0x1f) : data;
 
-/** A shell at `place` (a folder here, or `machine:<id>:<path>`), full screen. */
-export function TerminalSheet({ place }) {
+/** A shell at `place` (a folder here, or `machine:<id>:<path>`), full screen; `run`, a command it starts with. */
+export function TerminalSheet({ place, run }) {
     const box = useRef(null);
     const socket = useRef(null);
     const term = useRef(null);
@@ -98,6 +98,12 @@ export function TerminalSheet({ place }) {
         socket.current = ws;
         ws.onopen = () => {
             setState("open");
+
+            // A command to start with (Continue in Pi's "Open Pi in a terminal"), typed as if by hand.
+            if (run) {
+                ws.send(JSON.stringify({ type: "input", data: `${run}\n` }));
+            }
+
             terminal.focus();
         };
         ws.onmessage = (event) => {

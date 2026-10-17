@@ -4,6 +4,7 @@
  *
  * Kinds are part of the stored data: rename one and old sessions lose it.
  */
+import type { PiLink } from "./pi-handoff.ts";
 import {
     type ConversationId,
     defineDoc,
@@ -31,6 +32,8 @@ export type SessionMeta = {
     worktree?: Worktree;
     /** The session of Pi's in the terminal this one continues, and how many messages its file had then. */
     fromPi?: { session: string; count: number };
+    /** Where the session went in Pi on a machine, and how far the two agree (`pi-handoff.ts`). */
+    piLink?: PiLink;
     /**
      * The id of the person whose PiP this is: their assistant, which looks after their other sessions (`pip.ts`). PiP is
      * kept out of the session list; an older Pi Pocket, which does not know this field, lists it as a session.

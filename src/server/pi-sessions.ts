@@ -310,22 +310,36 @@ export function readPiSession(text: string): PiSession {
     };
 }
 
-/** Write a Pi session's copy into a new conversation, from its `init`: its messages, then where it came from. */
+/**
+ * Write a Pi session's copy into a new conversation, from its `init`: its messages, then where it came from. Or, to
+ * bring back what Pi did after a session went to Pi (`pi-handoff.ts`), only `entries`, after what the conversation
+ * has: `known` then finds the conversation's entry for an entry of Pi's written before, which a compaction may keep or
+ * an edit change. Answers the last entry written with messages for the model.
+ */
 export async function writePiSession(
     tx: Tx,
     id: ConversationId,
     session: PiSession,
     data: FromPiData,
-): Promise<void> {
+    { entries = session.entries, known = () => undefined }: { entries?: readonly PiEntry[]; known?: (from: string) => EntryId | undefined } = {},
+): Promise<EntryId | undefined> {
     const made = new Map<string, EntryId>();
+    const find = (from: string) => made.get(from) ?? known(from);
+    let last: EntryId | undefined;
 
-    for (const entry of session.entries) {
+    for (const entry of entries) {
+        const head = entry.kind === "compaction" && entry.head !== null ? find(entry.head) : undefined;
+
+        if (entry.kind === "compaction" && entry.head !== null && head === undefined) {
+            throw new PiSessionError("Pi's compaction keeps a message this session does not have.");
+        }
+
         const written =
             entry.kind === "compaction"
                 ? await tx.appendEntry(CompactionEntry, id, {
                       model: [entry.message],
                       // A kept entry is written before its compaction, as Pi keeps them.
-                      head: entry.head === null ? "self" : made.get(entry.head)!,
+                      head: head ?? "self",
                       data: { reason: "threshold" },
                   })
                 : entry.kind === "toolResult"
@@ -340,10 +354,12 @@ export async function writePiSession(
         if (entry.from !== undefined && !made.has(entry.from)) {
             made.set(entry.from, written.id);
         }
+
+        last = written.id;
     }
 
     const edits: ContextEdit[] = session.edits.flatMap(({ target, messages }) => {
-        const entry = made.get(target);
+        const entry = find(target);
 
         if (entry === undefined) {
             return [];
@@ -362,6 +378,8 @@ export async function writePiSession(
         data,
         ...(edits.length === 0 ? {} : { edits }),
     });
+
+    return last;
 }
 
 /** A Pi session as the list shows it. */

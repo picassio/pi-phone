@@ -397,6 +397,12 @@ export function MenuSheet({ places = true }) {
                     "a shell in this session's folder",
                 )
             }
+            ${
+                conversation?.kind === "session" &&
+                me?.role === "owner" &&
+                (store.state.server?.machines?.length ?? 0) > 0 &&
+                item("Continue in Pi", () => openSheet({ type: "pi-handoff" }), "in pi on a machine, and back")
+            }
             ${conversation && trustAvailable() && item("Project trust", () => openSheet({ type: "trust" }), trustHint())}
             ${session && steer && driving && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
             ${conversation && steer && driving && item("Compact context", () => openSheet({ type: "compact" }), "summarize older messages")}

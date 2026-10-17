@@ -370,6 +370,27 @@ export function createApi(options: HttpOptions, auth: Auth) {
             );
         }
 
+        // A session to Pi on a machine and back (`pi-handoff.ts`): where it is there, continue it there, bring it back.
+        if (first === "pi-handoff" && second !== undefined && third === undefined && method === "GET") {
+            return json(response, 200, await app.piHandoff.status(user, conversationId(second)));
+        }
+
+        if (first === "pi-handoff" && second !== undefined && third === "continue" && method === "POST") {
+            const body = await readJson<{ place?: unknown }>(request);
+
+            if (body.place !== undefined && typeof body.place !== "string") {
+                throw new HttpError(400, "place must be a folder on a machine");
+            }
+
+            return json(response, 200, await app.piHandoff.continueInPi(user, conversationId(second), body.place));
+        }
+
+        if (first === "pi-handoff" && second !== undefined && third === "bring-back" && method === "POST") {
+            const body = await readJson<{ asNew?: unknown }>(request);
+
+            return json(response, 200, await app.piHandoff.bringBack(user, conversationId(second), body.asNew === true));
+        }
+
         // Pi's sessions on a machine (`machines.ts`): listed through its environment; one copied here to continue.
         if (first === "pi-sessions" && second === "machine" && third !== undefined && method === "GET") {
             return json(response, 200, await app.piSessions.listOnMachine(user, third));
