@@ -20,7 +20,6 @@ import { clip, defang, quoted } from "./fence.ts";
 
 const context = BACKGROUND_CONTEXT;
 
-const SENDS_PER_HOUR = 30;
 /** The longest a wait for a run lasts. */
 export const MAX_WAIT_MS = 30 * 60_000;
 /** A run that has not started this long after a wait began is taken as not coming: the session is idle. */
@@ -109,13 +108,30 @@ export class SessionControl {
         return { user, root, target };
     }
 
+    /** A session's hourly limit: its own, else the owner's for all sessions; null, none. */
+    limitOf(root: ConversationId): { limit: number | null; own: boolean } {
+        const own = this.#app.sessionMeta(root)?.sendLimit;
+
+        return own === undefined ? { limit: this.#app.config.sessionSendLimit, own: false } : { limit: own, own: true };
+    }
+
+    /** How many messages and starts a session sent in the last hour. */
+    used(root: ConversationId): number {
+        const now = Date.now();
+
+        return (this.#sent.get(Number(root)) ?? []).filter((at) => now - at < 3_600_000).length;
+    }
+
     /** Count a message or start against the hourly limit, or refuse it. */
     #spend(root: ConversationId): void {
         const now = Date.now();
         const recent = (this.#sent.get(Number(root)) ?? []).filter((at) => now - at < 3_600_000);
+        const { limit, own } = this.limitOf(root);
 
-        if (recent.length >= SENDS_PER_HOUR) {
-            throw new Error(`This session sent or started ${SENDS_PER_HOUR} times in the last hour: that is the most. Ask your person before more.`);
+        if (limit !== null && recent.length >= limit) {
+            throw new Error(
+                `This session sent or started ${limit} times in the last hour, the most ${own ? "it may" : "a session may"}: ask your person before more (they can change the limit in the session menu, Other sessions).`,
+            );
         }
 
         recent.push(now);

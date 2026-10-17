@@ -92,3 +92,33 @@ test("a session works for its person with their rights: someone invited to one s
         /invited to one session/,
     );
 });
+
+test("the limit on messages to other sessions: the owner's for all, a session's own, or none", async () => {
+    const caller = await session("limits");
+    const target = await session("the one messaged");
+    const control = app.sessionControl;
+    const send = () => control.send(caller, Number(target), "again", false, crypto.randomUUID());
+
+    assert.deepEqual(control.limitOf(caller), { limit: 30, own: false });
+    await app.setSessionSendLimit(owner(app), 2);
+    await send();
+    await send();
+    await assert.rejects(send(), /sent or started 2 times in the last hour, the most a session may/);
+    assert.equal(control.used(caller), 2);
+
+    // Its own: none, then a number of its own, then the setting again.
+    await app.setSendLimit(caller, owner(app), null);
+    await send();
+    await app.setSendLimit(caller, owner(app), 3);
+    await assert.rejects(send(), /the most it may/);
+    await app.setSendLimit(caller, owner(app), "inherit");
+    assert.deepEqual(control.limitOf(caller), { limit: 2, own: false });
+
+    await assert.rejects(app.setSendLimit(caller, owner(app), 0), /whole number from 1 to 10000/);
+    const { user: guest } = app.config.addUser("Someone", "guest");
+
+    await assert.rejects(app.setSessionSendLimit(guest, null), /Only the owner/);
+    await app.setSessionSendLimit(owner(app), null);
+    assert.deepEqual(control.limitOf(caller), { limit: null, own: false });
+    await app.setSessionSendLimit(owner(app), 30);
+});

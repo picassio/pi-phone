@@ -405,6 +405,17 @@ export function MenuSheet({ places = true }) {
                 item("Continue in Pi", () => openSheet({ type: "pi-handoff" }), "in pi on a machine, and back")
             }
             ${
+                conversation?.kind === "session" &&
+                me?.role === "owner" &&
+                item(
+                    "Other sessions",
+                    () => openSheet({ type: "send-limit" }),
+                    (conversation.sendLimit === undefined ? server?.sessionSendLimit : conversation.sendLimit) === null
+                        ? "no limit on messages to them"
+                        : `up to ${conversation.sendLimit ?? server?.sessionSendLimit ?? 30} messages an hour to them`,
+                )
+            }
+            ${
                 me?.role === "owner" &&
                 isRemotePlace(view.agent?.cwd ?? conversation?.cwd) &&
                 item(

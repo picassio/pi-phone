@@ -82,7 +82,14 @@ interface PocketConfig {
      * Absent or empty: none, and subagents always run on their session's model.
      */
     subagentModels?: string[];
+    /**
+     * How many messages and new sessions one session may send other sessions in an hour (`session-control.ts`); null:
+     * no limit. Absent: `DEFAULT_SEND_LIMIT`. A session's own (`SessionMeta.sendLimit`) comes first.
+     */
+    sessionSendLimit?: number | null;
 }
+
+export const DEFAULT_SEND_LIMIT = 30;
 
 /** Who may allow a risky tool call: anyone who can steer, or (for guests) only someone other than who asked. */
 export type ApprovalRule = "anyone" | "others";
@@ -209,6 +216,22 @@ export class ConfigStore {
             delete this.#config.subagentModels;
         } else {
             this.#config.subagentModels = [...models];
+        }
+
+        this.save();
+    }
+
+    get sessionSendLimit(): number | null {
+        const limit = this.#config.sessionSendLimit;
+
+        return limit === null ? null : typeof limit === "number" && Number.isInteger(limit) && limit > 0 ? limit : DEFAULT_SEND_LIMIT;
+    }
+
+    set sessionSendLimit(limit: number | null) {
+        if (limit === DEFAULT_SEND_LIMIT) {
+            delete this.#config.sessionSendLimit;
+        } else {
+            this.#config.sessionSendLimit = limit;
         }
 
         this.save();

@@ -617,6 +617,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 approvalRule?: unknown;
                 defaultModel?: unknown;
                 subagentModels?: unknown;
+                sessionSendLimit?: unknown;
             }>(request);
 
             // One at a time: a second that fails must not leave the first changed.
@@ -625,6 +626,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.approvalRule,
                     body.defaultModel,
                     body.subagentModels,
+                    body.sessionSendLimit,
                 ].filter((value) => value !== undefined).length > 1
             ) {
                 throw new HttpError(400, "Change one setting at a time.");
@@ -637,6 +639,10 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
             if (body.approvalRule !== undefined) {
                 await app.setApprovalRule(user, body.approvalRule);
+            }
+
+            if (body.sessionSendLimit !== undefined) {
+                await app.setSessionSendLimit(user, body.sessionSendLimit);
             }
 
             // Null clears it: new sessions start with the last model picked again.

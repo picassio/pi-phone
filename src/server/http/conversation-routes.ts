@@ -39,6 +39,25 @@ export async function conversationRoutes(
     const method = request.method ?? "GET";
     const [, , third, fourth] = parts;
 
+    // Its limit for messages to other sessions (`session-control.ts`): what it is, and how much of it went this hour.
+    if (third === "send-limit" && method === "GET") {
+        const root = app.rootOf(id);
+
+        return json(response, 200, {
+            ...app.sessionControl.limitOf(root),
+            used: app.sessionControl.used(root),
+            global: app.config.sessionSendLimit,
+        });
+    }
+
+    if (third === "send-limit" && method === "POST") {
+        const body = await readJson<{ limit?: unknown }>(request);
+
+        await app.setSendLimit(id, user, body.limit);
+
+        return json(response, 200, { ok: true });
+    }
+
     // Whether the session's machine answers (`places.ts`): the dock says so when it does not.
     if (third === "machine" && method === "GET") {
         const machine = app.places.machineOf(app.cwdOf(id));

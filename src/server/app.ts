@@ -226,6 +226,19 @@ export interface OpenOptions {
     home?: string;
 }
 
+/** A send limit as given: a whole number of 1 to 10000 an hour, or null for none. */
+function checkSendLimit(limit: unknown): number | null {
+    if (limit === null) {
+        return null;
+    }
+
+    if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > 10_000) {
+        throw new HttpError(400, "The limit is a whole number from 1 to 10000 an hour, or null for none.");
+    }
+
+    return limit;
+}
+
 export class PocketApp {
     readonly config: ConfigStore;
     readonly approvals = new Approvals((id) => this.attribution.requesterOf(id));
@@ -1609,6 +1622,8 @@ export class PocketApp {
                 collab: 2,
                 reactions: REACTIONS,
                 approvalRule: this.config.approvalRule,
+                // How many messages and new sessions a session may send others in an hour (`session-control.ts`).
+                sessionSendLimit: this.config.sessionSendLimit,
                 // The model and thinking level new sessions start with, or null for the last one picked.
                 defaultModel: this.config.defaultModel ?? null,
                 // The theme and colors of browsers that have not chosen their own, or null for the app's own.
@@ -1824,6 +1839,8 @@ export class PocketApp {
             ...(meta?.worktree === undefined
                 ? {}
                 : { worktree: { branch: meta.worktree.branch, source: meta.worktree.source } }),
+            // Its own limit on messages to other sessions (`session-control.ts`); absent, the setting for all.
+            ...(meta?.sendLimit === undefined ? {} : { sendLimit: meta.sendLimit }),
             // Whether a fork could get a worktree of its own.
             ...(meta === undefined
                 ? {}
@@ -2292,6 +2309,39 @@ export class PocketApp {
     }
 
     /** The owner changes who may allow risky calls. */
+    /** The owner's hourly limit for every session's messages to other sessions: a number, or null for none. */
+    async setSessionSendLimit(user: User, limit: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        this.config.sessionSendLimit = checkSendLimit(limit);
+        await this.#refreshClients();
+    }
+
+    /** One session's own limit: a number, null for none, or "inherit" for the owner's setting. */
+    async setSendLimit(id: ConversationId, user: User, limit: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        const value = limit === "inherit" ? undefined : checkSendLimit(limit);
+
+        await this.harness.commit(async (tx) => {
+            const meta = (await tx.doc(SessionsDoc)).items[String(id)];
+
+            if (meta === undefined) {
+                throw new HttpError(404, "There is no such session.");
+            }
+
+            if (value === undefined) {
+                delete meta.sendLimit;
+            } else {
+                meta.sendLimit = value;
+            }
+        }, context);
+    }
+
     async setApprovalRule(user: User, rule: unknown): Promise<void> {
         if (user.role !== "owner") {
             throw new HttpError(403, "Only the owner can do that");

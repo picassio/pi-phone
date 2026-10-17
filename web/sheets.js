@@ -16,6 +16,7 @@ import { TerminalSheet } from "./terminal.js";
 import { PiHandoffSheet } from "./sheets/pi-handoff.js";
 import { ForwardsSheet } from "./sheets/forwards.js";
 import { PhoneSheet } from "./sheets/phone.js";
+import { SendLimitSheet } from "./sheets/send-limit.js";
 import { CwdSheet } from "./sheets/folder.js";
 import { MenuSheet, PlacesSheet } from "./sheets/menu.js";
 import { MessageSheet } from "./sheets/message.js";
@@ -212,6 +213,9 @@ function sheetBody(sheet) {
         // A shell, full screen (terminal.js): the owner's, as it reaches everything.
         case "terminal":
             body = store.state.me?.role === "owner" ? html`<${TerminalSheet} key=${sheet.place} place=${sheet.place} run=${sheet.run} />` : null;
+            break;
+        case "send-limit":
+            body = html`<${SendLimitSheet} />`;
             break;
         case "phone":
             body = html`<${PhoneSheet} />`;

@@ -32,6 +32,11 @@ export type SessionMeta = {
     worktree?: Worktree;
     /** The session of Pi's in the terminal this one continues, and how many messages its file had then. */
     fromPi?: { session: string; count: number };
+    /**
+     * How many messages and new sessions this session may send other sessions in an hour (`session-control.ts`):
+     * a number, or null for no limit. Absent: the owner's setting for all sessions.
+     */
+    sendLimit?: number | null;
     /** Where the session went in Pi on a machine, and how far the two agree (`pi-handoff.ts`). */
     piLink?: PiLink;
     /**

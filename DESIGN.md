@@ -138,8 +138,9 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;
-  a session never messages or stops itself; messages carry `[via session #N "title"]`; 30 sends and starts an hour
-  per session; what is read is fenced as data. No panel, no follows, no repository watches.
+  a session never messages or stops itself; messages carry `[via session #N "title"]`; an hourly limit on sends and starts
+  per session (the owner's `sessionSendLimit` in config.json, 30 by default or none; a session's own `sendLimit`
+  first; the session menu's Other sessions sheet); what is read is fenced as data. No panel, no follows, no repository watches.
 - **Notifications** (`src/server/phone-events.ts`, PiService): a session's run ending (with the end of its answer),
   failing, or waiting for an approval becomes an event; PiService long-polls `GET /api/phone/events` with the owner
   token and posts a notification per session while the app is not in front. Tapping one opens the session
