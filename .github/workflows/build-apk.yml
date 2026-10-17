@@ -29,6 +29,8 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -45,12 +47,30 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Android SDK
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      # The rootfs changes only with scripts/package-rootfs.ts (its version): the latest release's is reused while
+      # that is the same, so phones download a new rootfs only when the package list changed (DESIGN.md section 5).
       - name: Termux rootfs
-        run: node scripts/package-rootfs.ts
+        run: |
+          version=$(node scripts/versions.ts rootfs)
+          assets=android/app/src/main/assets
+          mkdir -p "$assets" previous
+          if gh release view --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release download --repo "$GITHUB_REPOSITORY" --pattern manifest.json --dir previous
+          fi
+          if [ -f previous/manifest.json ] && [ "$(jq -r .rootfsVersion previous/manifest.json)" = "$version" ]; then
+            echo "rootfs $version: reusing the latest release's"
+            gh release download --repo "$GITHUB_REPOSITORY" --pattern rootfs.bin --pattern termux-packages.json --dir "$assets"
+            test "$(sha256sum "$assets/rootfs.bin" | cut -d' ' -f1)" = "$(jq -r .rootfs.sha256 previous/manifest.json)"
+          else
+            echo "rootfs $version: building"
+            node scripts/package-rootfs.ts
+          fi
       - name: Server dependencies for Android arm64, no lifecycle scripts
         run: npm ci --omit=dev --ignore-scripts --os=android --cpu=arm64
       - name: Server runtime
         run: node scripts/package-runtime.ts
+      - name: Versions
+        run: node scripts/versions.ts assets
       - name: Signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -62,12 +82,42 @@ jobs:
           PI_PHONE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           PI_PHONE_VERSION_CODE: ${{ github.run_number }}
         run: bash ./gradlew --no-daemon assembleDebug
+      - name: Release files
+        run: |
+          assets=android/app/src/main/assets
+          mkdir release
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/pi-phone.apk
+          cp "$assets/rootfs.bin" "$assets/runtime.bin" "$assets/termux-packages.json" release/
+          node scripts/versions.ts manifest release "build-${{ github.run_number }}" "${{ github.run_number }}"
       - uses: actions/upload-artifact@v4
         with:
-          name: pi-phone-aarch64
-          path: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            android/app/src/main/assets/termux-packages.json
-            android/app/src/main/assets/runtime-version
+          name: pi-phone-release
+          path: release/
           if-no-files-found: error
           retention-days: 14
+
+  # Phones update from the latest release (android/.../Updater.java): only a build whose tests passed becomes one.
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [check, apk]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: build-${{ github.run_number }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pi-phone-release
+          path: release
+      - name: Publish
+        run: |
+          gh release create "$TAG" release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
+            --title "pi-phone $TAG" --notes "Build of $GITHUB_SHA."
+      - name: Keep the last 10 releases
+        run: |
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[10:] | .[].tagName' |
+            while read -r tag; do gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes; done

@@ -5,19 +5,22 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.util.Log;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 
 /**
- * Foreground service that owns the server process (DESIGN.md section 2). Installs the runtime when the APK carries a
- * new one, then runs `node runtime/src/server/main.ts`, and starts it again when it exits with code 75 (the app asked
- * for a restart). Any other exit is a failure the activity shows, with the log.
+ * Foreground service that owns the server process (DESIGN.md section 2). Extracts the APK's runtime when the APK is
+ * new, then runs `node runtime/src/server/main.ts`, and starts it again when it exits with code 75 (the app asked for
+ * a restart) or after applying a downloaded update. Any other exit is a failure the activity shows, with the log.
  */
 public final class PiService extends Service {
 
@@ -25,14 +28,39 @@ public final class PiService extends Service {
     private static final int RESTART_CODE = 75;
     private static final String CHANNEL = "pi-runtime";
     private static final String TAG = "pi-phone";
+    private static final String ACTION_UPDATE = "io.piphone.UPDATE";
 
-    enum State { STOPPED, INSTALLING, STARTING, RUNNING, FAILED }
+    enum State { STOPPED, INSTALLING, STARTING, RUNNING, UPDATING, FAILED }
+
+    /** Downloaded parts waiting to be swapped in: each file is a gzipped tar of its part, with its version. */
+    static final class Update {
+        final File rootfs;
+        final String rootfsVersion;
+        final File runtime;
+        final String runtimeVersion;
+
+        Update(File rootfs, String rootfsVersion, File runtime, String runtimeVersion) {
+            this.rootfs = rootfs;
+            this.rootfsVersion = rootfsVersion;
+            this.runtime = runtime;
+            this.runtimeVersion = runtimeVersion;
+        }
+    }
 
     private static volatile State state = State.STOPPED;
     private static volatile String failure = null;
+    private static volatile Update pending = null;
 
     static State state() { return state; }
     static String failure() { return failure; }
+
+    /** Stop the server, swap in the update, and start the server again. */
+    static void applyUpdate(Context context, Update update) {
+        pending = update;
+        // Before the old server stops: the activity waits for the new one, not for the old one to answer again.
+        state = State.UPDATING;
+        context.startForegroundService(new Intent(context, PiService.class).setAction(ACTION_UPDATE));
+    }
 
     private PowerManager.WakeLock wakeLock;
     private Thread runner;
@@ -48,6 +76,10 @@ public final class PiService extends Service {
             acquireWakeLock();
             runner = new Thread(this::run, "pi-server");
             runner.start();
+        } else if (intent != null && ACTION_UPDATE.equals(intent.getAction())) {
+            // The runner swaps the update in once the server has stopped.
+            Process running = server;
+            if (running != null) running.destroy();
         }
         return START_STICKY;
     }
@@ -61,16 +93,17 @@ public final class PiService extends Service {
             if (!log.getParentFile().isDirectory() && !log.getParentFile().mkdirs()) {
                 throw new IOException("cannot create " + log.getParentFile());
             }
-            if (!RuntimeInstaller.isCurrent(this)) {
+            if (RuntimeInstaller.needsBundled(this)) {
                 state = State.INSTALLING;
-                RuntimeInstaller.install(this, log);
+                RuntimeInstaller.installBundled(this, log);
             }
             while (true) {
+                swapInPending(log);
                 state = State.STARTING;
                 server = start(files, log);
                 int code = server.waitFor();
                 server = null;
-                if (code != RESTART_CODE) {
+                if (pending == null && code != RESTART_CODE) {
                     throw new IOException("server exited with code " + code + "; see " + log);
                 }
             }
@@ -81,6 +114,22 @@ public final class PiService extends Service {
             failure = e.toString();
             state = State.FAILED;
         }
+    }
+
+    private void swapInPending(File log) throws Exception {
+        Update update = pending;
+        if (update == null) return;
+        state = State.UPDATING;
+        if (update.rootfs != null) swap(RuntimeInstaller.Part.ROOTFS, update.rootfs, update.rootfsVersion, log);
+        if (update.runtime != null) swap(RuntimeInstaller.Part.RUNTIME, update.runtime, update.runtimeVersion, log);
+        pending = null;
+    }
+
+    private void swap(RuntimeInstaller.Part part, File archive, String version, File log) throws Exception {
+        try (InputStream in = new FileInputStream(archive)) {
+            RuntimeInstaller.install(this, part, in, version, log);
+        }
+        if (!archive.delete()) throw new IOException("cannot remove " + archive);
     }
 
     private Process start(File files, File log) throws IOException {

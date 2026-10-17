@@ -37,8 +37,10 @@ files/tmp/        TMPDIR
 ```
 
 - targetSdk 28: Android 10+ forbids `execve()` of files in app data for targetSdk >= 29. Sideload only.
-- `RuntimeInstaller` extracts both assets with the system `tar` when the stamp differs from the APK's
-  `runtime-version` asset (written by CI from the commit). A failed extraction is an error, never ignored.
+- `RuntimeInstaller` keeps two parts, rootfs (`files/usr`) and runtime (`files/runtime`), each with a version stamp.
+  The APK's own parts are extracted when the APK is new (its versionCode differs from `files/.apk-version`); a
+  downloaded update replaces one part later. Each extraction goes to a staging folder with the system `tar` and is
+  swapped in, so a failed one leaves the part before it whole. A failed extraction is an error, never ignored.
   `home/` is never touched by an update.
 - `PiService`: foreground service with a partial wake lock; runs
   `usr/bin/node runtime/src/server/main.ts --host 127.0.0.1 --port 8787 --cwd home/work`
@@ -79,8 +81,11 @@ pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   wraps `ModelRuntime.streamSimple` to add `onPayload`. Gated on the OAuth identity block, so API-key and other
   providers are untouched. Toggle and Claude Code version in `~/.pi-pocket/phone.json`
   (`{"claudeCodeBilling":{"enabled":true,"version":"2.1.280"}}`), re-read on change.
-- **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI builds the APK. Web and
-  server changes can be tried in place (pi-pocket reloads the web app; the server restarts with exit code 75).
+- **GitHub sign-in** (`src/server/github-login.ts`, `web/sheets/github.js`): GitHub's device flow with `gh`'s own
+  OAuth app; the token goes to `gh auth login --with-token`, then `gh auth setup-git`. The agent's `git` and `gh`
+  use it for private repositories; it lives in the app's home folder, where the agent can read it.
+- **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI publishes a release, and
+  the app updates from it (section 5).
 
 ## 5. Build
 
@@ -91,8 +96,27 @@ pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
    (Android forbids hard links in app data) to `rootfs.bin`, manifest `termux-packages.json`.
 2. `npm ci --omit=dev --ignore-scripts --os=android --cpu=arm64`, then `scripts/package-runtime.ts` tars
    `src/`, `web/`, `package.json`, `node_modules` to `runtime.bin` and writes `runtime-version`.
-3. `gradle assembleRelease` signed with the fixed key from secrets (`ANDROID_KEYSTORE_BASE64`,
-   `ANDROID_KEYSTORE_PASSWORD`, alias `pi-phone`); APK as artifact.
+3. `scripts/versions.ts assets` writes the shell, rootfs, and runtime versions into the APK's assets.
+4. `gradle assembleDebug` (one variant: debuggable, for `run-as` over adb) signed with the fixed key from secrets
+   (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, alias `pi-phone`).
+5. When the tests and the build pass on `master`, a GitHub release `build-<run>` with `pi-phone.apk`, `rootfs.bin`,
+   `runtime.bin`, `termux-packages.json`, and `manifest.json`; the last 10 are kept. The repository is public, so
+   the phone downloads without credentials.
+
+### Updates
+
+Three versions (`scripts/versions.ts`): shell (the tracked files under `android/`), rootfs
+(`scripts/package-rootfs.ts`, which holds the package list), runtime (the commit). CI reuses the latest release's
+`rootfs.bin` while the rootfs version is the same, so a code change does not ship newer Termux packages by accident.
+
+The app (`Updater.java`) reads `releases/latest/download/manifest.json` once per process after the UI loads, and
+when the web menu asks (`window.PiPhoneApp.checkForUpdates()`, owner only, shown only inside the app):
+
+- Same shell, different rootfs or runtime: "Update available"; on yes, the parts are downloaded, checked against
+  the manifest's size and SHA-256, and handed to `PiService`, which stops the server, swaps them in, and starts it
+  again. A few seconds; durable runs continue after.
+- Different shell, newer versionCode: "App update available"; the APK is downloaded, checked, and committed through
+  `PackageInstaller`; Android asks the user to confirm (needs "install unknown apps" for pi once). Data stays.
 
 Type checking (`tsc`) runs in CI; tests run on the phone (`npm test`) and in CI.
 
@@ -106,4 +130,5 @@ Type checking (`tsc`) runs in CI; tests run on the phone (`npm test`) and in CI.
 6. Install on the phone; verify: runtime extracts, server starts, UI loads, Claude login, one prompt, bash/git/rg
    from the agent, the billing patch on an Opus prompt.
 7. Cut the rest (section 3, "still to cut").
-8. Self-hosting: clone + push credentials in the app, in-app APK install.
+8. Done: GitHub sign-in for the app's `git` and `gh` (`github-login.ts`, the GitHub sheet); updates from releases.
+9. Self-hosting: the agent works on a clone of this repo in `home/projects` and pushes; the release reaches the app.

@@ -248,6 +248,13 @@ function actionItems() {
             icon: "key",
             run: () => openSheet({ type: "github" }),
         },
+        // The Android shell's bridge (android/.../MainActivity.java): only inside the app.
+        me?.role === "owner" &&
+            window.PiPhoneApp && {
+                label: "Check for app updates",
+                icon: "reload",
+                run: () => window.PiPhoneApp.checkForUpdates(),
+            },
         modelRefreshAvailable() && {
             label: "Refresh models",
             detail: store.state.modelRefresh.loading

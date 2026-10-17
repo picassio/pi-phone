@@ -443,6 +443,15 @@ export function MenuSheet({ places = true }) {
             ${item("Spend", () => openSheet({ type: "spend" }), me?.role === "owner" ? "by person and session, limits" : "yours")}
             ${me?.role === "owner" && item("Providers", () => openSheet({ type: "providers" }))}
             ${me?.role === "owner" && item("GitHub", () => openSheet({ type: "github" }), "for Pi's git and gh")}
+            ${
+                // The Android shell's bridge (android/.../MainActivity.java): only inside the app.
+                me?.role === "owner" &&
+                window.PiPhoneApp &&
+                item("Check for app updates", () => {
+                    closeSheet();
+                    window.PiPhoneApp.checkForUpdates();
+                })
+            }
             ${modelRefreshAvailable() && item("Refresh models", refreshModels, store.state.modelRefresh.loading ? "refreshing…" : "models.json and providers")}
             ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
             ${item("Extensions", () => openSheet({ type: "extensions" }), extensionsHint())}

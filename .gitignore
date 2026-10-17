@@ -7,3 +7,5 @@ android/local.properties
 android/app/src/main/assets/*.bin
 android/app/src/main/assets/runtime-version
 android/app/src/main/assets/termux-packages.json
+android/app/src/main/assets/shell-version
+android/app/src/main/assets/rootfs-version
