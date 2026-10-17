@@ -146,6 +146,9 @@ public final class PiService extends Service {
         env.put("PREFIX", prefix.getAbsolutePath());
         env.put("TMPDIR", new File(files, "tmp").getAbsolutePath());
         env.put("PATH", prefix.getAbsolutePath() + "/bin:/system/bin");
+        // termux-exec (in the rootfs, its prefix rewritten to ours) maps /usr/bin and /bin in exec() to the prefix, so
+        // scripts starting with `#!/usr/bin/env node` (every npm CLI, `npm run`) run, as they do in Termux.
+        env.put("LD_PRELOAD", new File(prefix, "lib/libtermux-exec-ld-preload.so").getAbsolutePath());
         env.put("LANG", "en_US.UTF-8");
         env.put("TERM", "xterm-256color");
         builder.directory(home);

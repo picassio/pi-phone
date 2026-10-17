@@ -9,18 +9,19 @@ You run inside the app (`io.piphone`), not in Termux. The history before this no
 
 | Termux (history) | App (now) |
 | --- | --- |
-| `/data/data/com.termux/files/home/projects/pi-phone` | `/data/data/io.piphone/files/home/projects/pi-phone` (a clone) |
+| `/data/data/com.termux/files/home/projects/pi-phone` | `~/work/pi-phone` (a clone); upstreams in `~/work/pi-pocket`, `~/work/pi-termux-mobile` |
 | `/data/data/com.termux/files/usr` | `/data/data/io.piphone/files/usr` (the bundled Termux rootfs) |
 | `~/.pi/agent/auth.json` (Termux's) | the app's own `~/.pi/agent/auth.json` (Claude login made in the app) |
 | `gh` signed in as picassio | the app's `gh`: sign in through Settings > GitHub, then `gh auth status` |
 | adb, `termux-open`, `~/storage/downloads` | not available here |
+| `/tmp` | not writable: use `$TMPDIR` (`files/tmp`) |
 
 The server you are running in is `files/runtime` (replaced by every update). Never edit it; change the clone, push,
 and let the release reach the app.
 
 ## The loop from here
 
-1. Work in `~/projects/pi-phone` (clone of `github.com/picassio/pi-phone`, public).
+1. Work in `~/work/pi-phone` (clone of `github.com/picassio/pi-phone`, public).
 2. `npm install --ignore-scripts` once in the clone, then `npm run check` (tsc 6 + web import check, ~30 s) and
    `npm test` (UI tests skip without Chromium).
 3. To try a server or web change before shipping, run the clone on another port with its own data folder:
@@ -59,6 +60,9 @@ Next, in order:
 5. "Pi Pocket" still appears in user-facing text (exports, a few sheets); rename to pi-phone where it is shown.
 
 ## Rules that bit before
+
+- Until a build with `LD_PRELOAD` in PiService is installed, `#!/usr/bin/env` scripts (`npm run`, npm CLIs) fail with
+  "not found": `export LD_PRELOAD=$PREFIX/lib/libtermux-exec-ld-preload.so` first.
 
 - Never fall back; fail with a clear error (AGENTS.md). Don't migrate removed pi-pocket features back unless asked.
 - `pkill -f` with a pattern matching your own command line kills your own shell. Use `pkill -f "main.ts --port 878[8]"`.

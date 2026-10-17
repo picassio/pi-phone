@@ -74,6 +74,8 @@ const REQUIRED = [
     "usr/bin/gh",
     "usr/lib/node_modules/npm/bin/npm-cli.js",
     "usr/etc/tls/cert.pem",
+    // PiService preloads it so `#!/usr/bin/env` scripts run.
+    "usr/lib/libtermux-exec-ld-preload.so",
 ];
 
 if (TERMUX.length !== APP.length) {
