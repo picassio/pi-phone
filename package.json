@@ -1,21 +1,57 @@
 {
-	"name": "pi-phone",
-	"version": "0.0.1",
-	"private": true,
-	"type": "module",
-	"description": "pi agent for Android: pi-durable server in Termux, React Native app",
-	"engines": {
-		"node": ">=22.19.0"
-	},
-	"scripts": {
-		"server": "node bin/pi-phone-server.mjs",
-		"smoke": "node bin/run.mjs scripts/ws-smoke.ts",
-		"test": "node bin/run.mjs --test --test-timeout=10000 server/*.test.ts app/src/model/*.test.ts"
-	},
-	"dependencies": {
-		"ws": "8.22.0"
-	},
-	"devDependencies": {
-		"@types/ws": "8.18.2"
-	}
+    "name": "pi-pocket",
+    "version": "0.14.0",
+    "description": "A durable, multiplayer, mobile-first web app for Pi agents, built on Pi Durable",
+    "private": true,
+    "type": "module",
+    "license": "MIT",
+    "author": "Tanner Middleton",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/TannerMidd/pi-pocket.git"
+    },
+    "homepage": "https://tannermidd.github.io/pi-pocket/",
+    "bugs": {
+        "url": "https://github.com/TannerMidd/pi-pocket/issues"
+    },
+    "bin": {
+        "pi-pocket": "bin/pi-pocket.js"
+    },
+    "engines": {
+        "node": ">=22.19"
+    },
+    "scripts": {
+        "start": "node bin/pi-pocket.js",
+        "dev": "node bin/pi-pocket.js --cwd .",
+        "check": "tsc --noEmit -p . && node test/types-file.ts && node docs-site/check-reference.mjs",
+        "test": "node --test test/*.test.ts",
+        "site:publish": "gh workflow run pages.yml",
+        "format": "eslint --fix . && prettier --write .",
+        "format:check": "prettier --check . && eslint .",
+        "lint": "eslint ."
+    },
+    "dependencies": {
+        "@earendil-works/chord": "1.1.0",
+        "@earendil-works/pi-ai": "1.1.0",
+        "@earendil-works/pi-codemode": "1.1.0",
+        "@earendil-works/pi-coding-agent": "1.1.0",
+        "@earendil-works/pi-durable": "1.1.0",
+        "dompurify": "^3.4.16",
+        "htm": "^3.1.1",
+        "jiti": "2.7.0",
+        "marked": "^18.1.0",
+        "preact": "^11.0.1",
+        "qrcode": "^1.5.4",
+        "undici": "8.10.2"
+    },
+    "devDependencies": {
+        "@stylistic/eslint-plugin": "5.10.0",
+        "@types/node": "^26.6.5",
+        "@types/qrcode": "^1.5.6",
+        "eslint": "^10.12.0",
+        "eslint-config-prettier": "10.1.8",
+        "prettier": "3.9.10",
+        "typescript": "^6.0.3",
+        "typescript-eslint": "^8.71.1"
+    }
 }
