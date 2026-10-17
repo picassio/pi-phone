@@ -83,6 +83,27 @@ function messagesOf(view: ContextView): { message: Message; entry: EntryId | und
     );
 }
 
+/**
+ * Pi's entries after the one of `last` on its branch, or undefined when the branch no longer has it. Results the
+ * reader made for calls still open at the end (pi quit while a tool ran) stay out: Pi may yet finish those calls, and
+ * the next bring back takes its results then; the model here sees such a call as unfinished meanwhile.
+ */
+function entriesAfter(session: PiSession, last: string): PiSession["entries"] | undefined {
+    const at = session.entries.findLastIndex((entry) => entry.from === last);
+
+    if (at === -1) {
+        return undefined;
+    }
+
+    let end = session.entries.length;
+
+    while (end > at + 1 && session.entries[end - 1]!.from === undefined) {
+        end--;
+    }
+
+    return session.entries.slice(at + 1, end);
+}
+
 /** The last entry of the context with messages for the model. */
 function modelTail(view: ContextView): number | undefined {
     for (let index = view.entries.length - 1; index >= 0; index--) {
@@ -242,10 +263,10 @@ export class PiHandoff {
 
         if (info.value.size !== link.size) {
             const { session } = await this.#read(link);
-            const at = session.entries.findLastIndex((entry) => entry.from === link.last);
+            const after = entriesAfter(session, link.last);
 
-            branchMoved = at === -1;
-            added = branchMoved ? Math.max(0, session.count - link.count) : session.entries.length - at - 1;
+            branchMoved = after === undefined;
+            added = after === undefined ? Math.max(0, session.count - link.count) : after.length;
         }
 
         return {
@@ -407,7 +428,7 @@ export class PiHandoff {
         const { name } = this.#env(link.machineId);
         const file = await this.#read(link);
         const view = await this.#view(id);
-        const at = file.session.entries.findLastIndex((entry) => entry.from === link.last);
+        const after = entriesAfter(file.session, link.last);
 
         if (asNew) {
             const imported = await this.#app.piSessions.importFromMachine(user, link.machineId, link.path);
@@ -420,7 +441,7 @@ export class PiHandoff {
             return { id: Number(made.id), added: file.session.entries.length };
         }
 
-        if (at === -1) {
+        if (after === undefined) {
             throw new HttpError(409, `Pi on ${name} went back to an earlier message, so this session cannot take what follows. Bring it back as a new session.`);
         }
 
@@ -428,7 +449,7 @@ export class PiHandoff {
             throw new HttpError(409, `This session went on here too since it went to Pi. Bring Pi's back as a new session.`);
         }
 
-        const entries = file.session.entries.slice(at + 1);
+        const entries = after;
 
         if (entries.length === 0) {
             return { id: Number(id), added: 0 };

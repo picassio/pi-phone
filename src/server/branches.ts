@@ -40,7 +40,29 @@ export type Branches = {
 /** The most branches each list has, newest first: the picker searches what it has. */
 const MAX_BRANCHES = 1000;
 const GIT_TIMEOUT_MS = 15_000;
-const git = (cwd: string, args: string[]) => runGit(cwd, args, { timeoutMs: GIT_TIMEOUT_MS });
+/** How git runs: here by default; on a machine, through its environment (`folder-access.ts`). */
+export type GitRunner = (cwd: string, args: string[]) => Promise<string>;
+
+const localGit: GitRunner = (cwd, args) => runGit(cwd, args, { timeoutMs: GIT_TIMEOUT_MS });
+
+/** What a folder on a machine has checked out, asked of git there: no HEAD file to read from here. */
+export async function headByGit(run: GitRunner, cwd: string): Promise<Head | undefined> {
+    const branch = await run(cwd, ["symbolic-ref", "--quiet", "--short", "HEAD"]).then(
+        (name) => name.trim(),
+        () => undefined,
+    );
+
+    if (branch !== undefined) {
+        return { branch };
+    }
+
+    const commit = await run(cwd, ["rev-parse", "--short", "HEAD"]).then(
+        (sha) => sha.trim(),
+        () => undefined,
+    );
+
+    return commit === undefined ? undefined : { detached: commit.slice(0, 7) };
+}
 
 /**
  * Where a folder's repository keeps its files: `.git` in it or a folder above, or where a worktree's `.git` file says.
@@ -101,10 +123,11 @@ function readTrack(track: string): { ahead: number; behind: number; gone: boolea
     };
 }
 
-/** The branches of the repository `cwd` is in, for the branch sheet. */
-export async function branchesIn(cwd: string): Promise<Branches> {
-    const gitDir = gitDirOf(cwd);
-    const head = gitDir === undefined ? undefined : headOf(gitDir);
+/** The branches of the repository `cwd` is in, for the branch sheet; `run`, git on a machine. */
+export async function branchesIn(cwd: string, run?: GitRunner): Promise<Branches> {
+    const gitDir = run === undefined ? gitDirOf(cwd) : undefined;
+    const head = run !== undefined ? await headByGit(run, cwd) : gitDir === undefined ? undefined : headOf(gitDir);
+    const git: GitRunner = run ?? localGit;
     const checkedOut = head !== undefined && "branch" in head ? head.branch : undefined;
     const fields = [
         "%(refname)",
@@ -182,7 +205,7 @@ export async function branchesIn(cwd: string): Promise<Branches> {
 export const localName = (remote: string) => remote.slice(remote.indexOf("/") + 1);
 
 /** Whether git takes a name for a branch: no spaces, no `..`, not starting with `-`, and the rest of git's rules. */
-export async function validBranchName(cwd: string, name: string): Promise<boolean> {
+export async function validBranchName(cwd: string, name: string, git: GitRunner = localGit): Promise<boolean> {
     if (name === "" || name.startsWith("-")) {
         return false;
     }
@@ -194,7 +217,7 @@ export async function validBranchName(cwd: string, name: string): Promise<boolea
 }
 
 /** Whether `name` (such as `origin/fix`) is one of the repository's remote branches. */
-export async function isRemoteBranch(cwd: string, name: string): Promise<boolean> {
+export async function isRemoteBranch(cwd: string, name: string, git: GitRunner = localGit): Promise<boolean> {
     if (name === "" || name.startsWith("-")) {
         return false;
     }
@@ -213,6 +236,7 @@ export async function isRemoteBranch(cwd: string, name: string): Promise<boolean
 export async function switchBranch(
     cwd: string,
     target: { name: string; create?: boolean; track?: string },
+    git: GitRunner = localGit,
 ): Promise<void> {
     const args =
         target.track !== undefined

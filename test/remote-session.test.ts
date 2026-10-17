@@ -409,3 +409,99 @@ test("a file uploaded from the Files panel lands in the session's folder on the 
 test("the machine answers, as the dock's machine bar asks", { skip }, async () => {
     assert.deepEqual(await app.places.reach(machineId), { ok: true });
 });
+
+test("branches on the machine: the chip shows what is checked out there, the sheet lists them, and switching works", { skip }, async () => {
+    const repo = join(remoteHome, "branchy");
+    const git = (...args: string[]) =>
+        execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: repo, encoding: "utf8" });
+
+    mkdirSync(repo, { recursive: true });
+    git("init", "-q", "-b", "main");
+    writeFileSync(join(repo, "a.txt"), "a\n");
+    git("add", "-A");
+    git("commit", "-qm", "first");
+    git("branch", "feature");
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${repo}` });
+
+    // Asked of git there, so the first look says nothing yet, and the next one knows.
+    app.workspace.head(id);
+    for (let tries = 0; tries < 100 && app.workspace.head(id) === undefined; tries++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    assert.deepEqual(app.workspace.head(id), { branch: "main" });
+    const branches = await app.workspace.branches(id, owner(app));
+
+    assert.deepEqual(branches.head, { branch: "main" });
+    assert.deepEqual(branches.local.map((branch) => branch.name).sort(), ["feature", "main"]);
+
+    assert.deepEqual(await app.workspace.switchBranch(id, owner(app), { name: "feature" }), { branch: "feature" });
+    assert.equal(git("branch", "--show-current").trim(), "feature");
+    await assert.rejects(app.workspace.switchBranch(id, owner(app), { name: "bad name..x" }), /cannot be a branch name/);
+
+    for (let tries = 0; tries < 100 && JSON.stringify(app.workspace.head(id)) !== '{"branch":"feature"}'; tries++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    assert.deepEqual(app.workspace.head(id), { branch: "feature" });
+});
+
+test("a call Pi left running comes back unfinished, and its result comes back once when Pi finishes it", { skip }, async () => {
+    const { SessionManager } = await import("@earendil-works/pi-coding-agent");
+    const project = join(remoteHome, "project");
+    const place = `machine:${machineId}:${project}`;
+    const { id } = await app.commands.createSession(owner(app), { cwd: place });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    const { submissionId } = await app.commands.submit(id, owner(app), { text: "hello", requestId: crypto.randomUUID() });
+
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    await app.harness.waitForIdle(context);
+    const home = app.machines.get(machineId).remote!.home;
+    const folder = join(home, ".pi", "agent", "sessions", `--${project.replace(/^\//, "").replace(/[/:]/g, "-")}--`);
+
+    try {
+        const gone = await app.piHandoff.continueInPi(owner(app), id, place);
+        const pi = SessionManager.open(gone.path);
+        const call = { type: "toolCall", id: "call-1", name: "bash", arguments: { command: "sleep 100" } };
+
+        pi.appendMessage({ role: "user", content: "run it", timestamp: Date.now() });
+        pi.appendMessage({ role: "assistant", content: [call], stopReason: "toolUse", timestamp: Date.now() } as never);
+        assert.equal((await app.piHandoff.bringBack(owner(app), id)).added, 2);
+
+        pi.appendMessage({ role: "toolResult", toolCallId: "call-1", toolName: "bash", content: [{ type: "text", text: "slept" }], isError: false, timestamp: Date.now() } as never);
+        pi.appendMessage({ role: "assistant", content: [{ type: "text", text: "done sleeping" }], stopReason: "stop", timestamp: Date.now() } as never);
+        assert.equal((await app.piHandoff.bringBack(owner(app), id)).added, 2);
+
+        const view = await (await app.harness.conversation(id, context))!.context(context);
+        const results = view.messages.filter((message) => message.role === "toolResult" && message.toolCallId === "call-1");
+
+        assert.equal(results.length, 1, JSON.stringify(results));
+        assert.match(JSON.stringify(results[0]), /slept/);
+    } finally {
+        rmSync(folder, { recursive: true, force: true });
+    }
+});
+
+test("a port of the machine opens here: its dev server answers at the forward's address, until it is closed", { skip }, async () => {
+    const { createServer: createHttpServer } = await import("node:http");
+    const devServer = createHttpServer((_request, response) => response.end("dev server here"));
+
+    await new Promise<void>((resolve) => devServer.listen(0, "127.0.0.1", resolve));
+    const port = (devServer.address() as { port: number }).port;
+
+    try {
+        const forward = await app.forwards.open(machineId, port);
+
+        assert.equal(forward.remotePort, port);
+        assert.equal(await (await fetch(forward.url)).text(), "dev server here");
+        assert.equal((await app.forwards.open(machineId, port)).id, forward.id, "the same port opens once");
+        assert.deepEqual(app.forwards.list().map((each) => each.id), [forward.id]);
+
+        app.forwards.close(forward.id);
+        assert.deepEqual(app.forwards.list(), []);
+        await assert.rejects(app.forwards.open(machineId, 70000), /whole number from 1 to 65535/);
+    } finally {
+        devServer.close();
+    }
+});

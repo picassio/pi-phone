@@ -11,10 +11,16 @@ import android.os.IBinder;
 import android.os.PowerManager;
 import android.util.Log;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Map;
 
 /**
@@ -27,6 +33,10 @@ public final class PiService extends Service {
     static final int PORT = 8787;
     private static final int RESTART_CODE = 75;
     private static final String CHANNEL = "pi-runtime";
+    /** Sessions that finished, failed, or ask for an approval (phone-events.ts), and files saved to Downloads. */
+    static final String EVENTS_CHANNEL = "pi-events";
+    /** The session a notification opens: MainActivity reads it. */
+    static final String EXTRA_SESSION = "io.piphone.SESSION";
     private static final String TAG = "pi-phone";
     private static final String ACTION_UPDATE = "io.piphone.UPDATE";
 
@@ -64,6 +74,7 @@ public final class PiService extends Service {
 
     private PowerManager.WakeLock wakeLock;
     private Thread runner;
+    private Thread notifier;
     private volatile Process server;
 
     @Override
@@ -76,6 +87,8 @@ public final class PiService extends Service {
             acquireWakeLock();
             runner = new Thread(this::run, "pi-server");
             runner.start();
+            notifier = new Thread(this::notifyLoop, "pi-notify");
+            notifier.start();
         } else if (intent != null && ACTION_UPDATE.equals(intent.getAction())) {
             // The runner swaps the update in once the server has stopped.
             Process running = server;
@@ -161,6 +174,93 @@ public final class PiService extends Service {
         return builder.start();
     }
 
+    /** The owner's sign-in, from the server's config: the activity signs in with it, this service polls with it. */
+    static String ownerToken(Context context) throws Exception {
+        File config = new File(context.getFilesDir(), "home/.pi-pocket/config.json");
+        try (InputStream in = new FileInputStream(config)) {
+            return new JSONObject(readAll(in)).getString("ownerToken");
+        }
+    }
+
+    static String readAll(InputStream in) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = in.read(buffer)) >= 0) out.write(buffer, 0, read);
+        return out.toString("UTF-8");
+    }
+
+    /**
+     * The server's events for the owner (`GET /api/phone/events`, a long poll), as notifications while the app is not
+     * in front. It starts at the server's present (`after=-1`), and again after a restart, which starts the sequence
+     * anew; a poll that fails (the server restarting) is tried again shortly.
+     */
+    private void notifyLoop() {
+        long after = -1;
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                if (state != State.RUNNING && state != State.STARTING) {
+                    after = -1;
+                    Thread.sleep(2000);
+                    continue;
+                }
+                HttpURLConnection connection = (HttpURLConnection) new URL(
+                        "http://127.0.0.1:" + PORT + "/api/phone/events?after=" + after).openConnection();
+                connection.setConnectTimeout(3000);
+                connection.setReadTimeout(70_000);
+                connection.setRequestProperty("Authorization", "Bearer " + ownerToken(this));
+                if (connection.getResponseCode() != 200) throw new IOException("HTTP " + connection.getResponseCode());
+                JSONObject answer;
+                try (InputStream in = connection.getInputStream()) {
+                    answer = new JSONObject(readAll(in));
+                }
+                long seq = answer.getLong("seq");
+                // A server that started again counts from 0: start at its present.
+                if (seq < after) {
+                    after = -1;
+                    continue;
+                }
+                JSONArray events = answer.getJSONArray("events");
+                for (int index = 0; index < events.length(); index++) {
+                    if (!MainActivity.inFront) post(events.getJSONObject(index));
+                }
+                after = seq;
+            } catch (InterruptedException e) {
+                return;
+            } catch (Exception e) {
+                Log.w(TAG, "notifications: " + e);
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException stopped) {
+                    return;
+                }
+            }
+        }
+    }
+
+    private void post(JSONObject event) throws Exception {
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        manager.createNotificationChannel(
+                new NotificationChannel(EVENTS_CHANNEL, "Sessions", NotificationManager.IMPORTANCE_DEFAULT));
+        int session = event.getInt("session");
+        String kind = event.getString("kind");
+        String title = event.getString("title");
+        String what = "approval".equals(kind) ? "Waiting for you: " : "failed".equals(kind) ? "Failed: " : "Done: ";
+        PendingIntent open = PendingIntent.getActivity(this, session,
+                new Intent(this, MainActivity.class).putExtra(EXTRA_SESSION, session),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        Notification notification = new Notification.Builder(this, EVENTS_CHANNEL)
+                .setContentTitle(what + title)
+                .setContentText(event.getString("text"))
+                .setStyle(new Notification.BigTextStyle().bigText(event.getString("text")))
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .build();
+        // One per session: its newest says where it is.
+        manager.notify(1000 + session, notification);
+    }
+
     /** Marks the server running once the activity has seen it answer. */
     static void markRunning() {
         if (state == State.STARTING) state = State.RUNNING;
@@ -192,6 +292,7 @@ public final class PiService extends Service {
         Process running = server;
         if (running != null) running.destroy();
         if (runner != null) runner.interrupt();
+        if (notifier != null) notifier.interrupt();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         super.onDestroy();
     }

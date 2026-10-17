@@ -2,6 +2,17 @@ package io.piphone;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.os.Build;
+import android.os.PowerManager;
+import android.provider.MediaStore;
+import android.webkit.CookieManager;
+import java.io.OutputStream;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -44,6 +55,10 @@ public final class MainActivity extends Activity {
     private WebView web;
     private ValueCallback<Uri[]> pendingFiles;
     private volatile boolean loaded = false;
+    /** Whether the app is in front: PiService notifies only when it is not. */
+    static volatile boolean inFront = false;
+    /** A session a notification asked to open, before the web app was there to open it. */
+    private volatile int pendingSession = -1;
     /** One automatic check per process: the activity comes and goes, the process stays. */
     private static volatile boolean checked = false;
 
@@ -67,6 +82,43 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public void checkForUpdates() {
             runOnUiThread(() -> MainActivity.this.checkForUpdates(true));
+        }
+
+        /** Save a file the server sends (`url`, on its own address) to Downloads, with this page's sign-in. */
+        @JavascriptInterface
+        public void download(String url, String name) {
+            if (!url.startsWith(BASE + "/")) throw new IllegalArgumentException("not this app's address: " + url);
+            new Thread(() -> MainActivity.this.download(url, name), "pi-download").start();
+        }
+
+        @JavascriptInterface
+        public boolean notificationsEnabled() {
+            return getSystemService(NotificationManager.class).areNotificationsEnabled();
+        }
+
+        @JavascriptInterface
+        public void openNotificationSettings() {
+            runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())));
+        }
+
+        /** Whether Android leaves pi out of its battery optimisation: network and timers with the screen off. */
+        @JavascriptInterface
+        public boolean runsUnrestricted() {
+            return ((PowerManager) getSystemService(POWER_SERVICE)).isIgnoringBatteryOptimizations(getPackageName());
+        }
+
+        @JavascriptInterface
+        public void runUnrestricted() {
+            runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + getPackageName()))));
+        }
+
+        /** Sign in again and show the app: after a restore, the owner's sign-in is the backup's. */
+        @JavascriptInterface
+        public void reload() {
+            loaded = false;
+            new Thread(MainActivity.this::waitForServer, "pi-wait").start();
         }
     }
 
@@ -107,7 +159,33 @@ public final class MainActivity extends Activity {
         status("Starting…", null);
 
         startForegroundService(new Intent(this, PiService.class));
+        pendingSession = getIntent().getIntExtra(PiService.EXTRA_SESSION, -1);
         new Thread(this::waitForServer, "pi-wait").start();
+    }
+
+    /** A notification tapped while the app runs: its session, at once if the web app is there. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        int session = intent.getIntExtra(PiService.EXTRA_SESSION, -1);
+        if (session < 0) return;
+        if (loaded) {
+            web.evaluateJavascript("import('/store.js').then((store) => store.navigate(" + session + "))", null);
+        } else {
+            pendingSession = session;
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        inFront = true;
+    }
+
+    @Override
+    protected void onPause() {
+        inFront = false;
+        super.onPause();
     }
 
     private void waitForServer() {
@@ -127,7 +205,10 @@ public final class MainActivity extends Activity {
             if ((state == PiService.State.STARTING || state == PiService.State.RUNNING) && answers()) {
                 PiService.markRunning();
                 try {
-                    String url = BASE + "/login?token=" + Uri.encode(ownerToken());
+                    int session = pendingSession;
+                    pendingSession = -1;
+                    String url = BASE + "/login?token=" + Uri.encode(PiService.ownerToken(this))
+                            + (session < 0 ? "" : "&next=" + Uri.encode("/s/" + session));
                     loaded = true;
                     runOnUiThread(() -> web.loadUrl(url));
                     if (!checked) {
@@ -162,15 +243,64 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private String ownerToken() throws Exception {
-        File config = new File(getFilesDir(), "home/.pi-pocket/config.json");
-        try (InputStream in = new FileInputStream(config)) {
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) >= 0) out.write(buffer, 0, read);
-            return new JSONObject(out.toString("UTF-8")).getString("ownerToken");
+    /**
+     * A file from the server, into Downloads (MediaStore, Android 10 and later), then a notification that opens it. The
+     * server's refusal (too large, not a file) is shown as it says it.
+     */
+    @android.annotation.TargetApi(29)
+    private void download(String url, String name) {
+        try {
+            if (Build.VERSION.SDK_INT < 29) throw new IOException("Saving to Downloads needs Android 10 or later.");
+            HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+            String cookie = CookieManager.getInstance().getCookie(url);
+            if (cookie == null) throw new IOException("This page is not signed in.");
+            connection.setRequestProperty("Cookie", cookie);
+            connection.setReadTimeout(120_000);
+            int code = connection.getResponseCode();
+            if (code != 200) {
+                String said;
+                try (InputStream error = connection.getErrorStream()) {
+                    said = error == null ? "" : new JSONObject(PiService.readAll(error)).optString("error", "");
+                }
+                throw new IOException(said.isEmpty() ? "HTTP " + code : said);
+            }
+            String type = connection.getContentType() == null ? "application/octet-stream" : connection.getContentType();
+            ContentResolver resolver = getContentResolver();
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, name);
+            values.put(MediaStore.Downloads.MIME_TYPE, type.split(";")[0].trim());
+            values.put(MediaStore.Downloads.IS_PENDING, 1);
+            Uri saved = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (saved == null) throw new IOException("Android did not make the file in Downloads.");
+            try (InputStream in = connection.getInputStream(); OutputStream out = resolver.openOutputStream(saved)) {
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = in.read(buffer)) >= 0) out.write(buffer, 0, read);
+            }
+            values.clear();
+            values.put(MediaStore.Downloads.IS_PENDING, 0);
+            resolver.update(saved, values, null, null);
+            savedNotification(name, saved, type.split(";")[0].trim());
+            runOnUiThread(() -> Toast.makeText(this, "Saved " + name + " to Downloads.", Toast.LENGTH_SHORT).show());
+        } catch (Exception e) {
+            runOnUiThread(() -> alert("Could not save " + name, e.getMessage() == null ? e.toString() : e.getMessage()));
         }
+    }
+
+    private void savedNotification(String name, Uri saved, String type) {
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        manager.createNotificationChannel(new NotificationChannel(
+                PiService.EVENTS_CHANNEL, "Sessions", NotificationManager.IMPORTANCE_DEFAULT));
+        PendingIntent open = PendingIntent.getActivity(this, saved.hashCode(),
+                new Intent(Intent.ACTION_VIEW).setDataAndType(saved, type).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                PendingIntent.FLAG_IMMUTABLE);
+        manager.notify(saved.hashCode(), new Notification.Builder(this, PiService.EVENTS_CHANNEL)
+                .setContentTitle("Saved to Downloads")
+                .setContentText(name)
+                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .build());
     }
 
     private String logTail() {

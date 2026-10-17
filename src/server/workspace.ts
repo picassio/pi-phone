@@ -5,8 +5,8 @@
  * `readableFile`, `uploadDirectory`) leave seeing the conversation to their callers.
  */
 import { lstatSync, mkdirSync, realpathSync, statSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
-import { isAbsolute, join, posix, resolve, sep } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { basename, isAbsolute, join, posix, resolve, sep } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { ConversationId } from "@earendil-works/pi-durable";
@@ -15,7 +15,9 @@ import {
     type Branches,
     branchesIn,
     gitDirOf,
+    type GitRunner,
     type Head,
+    headByGit,
     headOf,
     isRemoteBranch,
     localName,
@@ -34,6 +36,11 @@ import { isRemote, parsePlace } from "./places.ts";
 
 /** The largest image the viewer shows from a machine: it travels over the link whole. */
 const MAX_REMOTE_IMAGE = 20 * 1024 * 1024;
+
+/** How long the branch a machine's folder has checked out is taken as known before git there is asked again. */
+const REMOTE_HEAD_MS = 15_000;
+/** The largest file the viewer downloads to the device. */
+const MAX_DOWNLOAD = 200 * 1024 * 1024;
 
 export class Workspace {
     readonly #app: PocketApp;
@@ -86,26 +93,81 @@ export class Workspace {
         return this.#gitDir(cwd) !== undefined;
     }
 
-    /** What a conversation's folder has checked out, for its view: its repository's HEAD file, read as it is now. */
+    /** On a machine: what each folder had checked out when git there last said, and when it was asked. */
+    readonly #remoteHeads = new Map<string, { head: Head | undefined; at: number; asking: boolean }>();
+
+    /**
+     * What a conversation's folder has checked out, for its view: its repository's HEAD file, read as it is now. On a
+     * machine, what git there said last; asked again when that is older than `REMOTE_HEAD_MS`, and the view updates
+     * when the answer differs.
+     */
     head(id: ConversationId): Head | undefined {
-        const gitDir = this.#gitDir(this.#app.cwdOf(id));
+        const cwd = this.#app.cwdOf(id);
+
+        if (isRemote(cwd)) {
+            return this.#remoteHead(id, cwd);
+        }
+
+        const gitDir = this.#gitDir(cwd);
 
         return gitDir === undefined ? undefined : headOf(gitDir);
     }
 
+    #remoteHead(id: ConversationId, cwd: string): Head | undefined {
+        const known = this.#remoteHeads.get(cwd) ?? { head: undefined, at: 0, asking: false };
+
+        this.#remoteHeads.set(cwd, known);
+
+        if (!known.asking && Date.now() - known.at > REMOTE_HEAD_MS) {
+            known.asking = true;
+            const remote = this.#remote(id)!;
+
+            void headByGit((folder, args) => remote.access.git(folder, args, { timeoutMs: 15_000 }), remote.cwd)
+                .catch(() => undefined)
+                .then((head) => {
+                    const changed = JSON.stringify(head) !== JSON.stringify(known.head);
+
+                    known.head = head;
+                    known.at = Date.now();
+                    known.asking = false;
+
+                    if (changed) {
+                        this.#app.refreshView(id);
+                    }
+                });
+        }
+
+        return known.head;
+    }
+
+    /** Git in a session's folder: here, or on its machine. */
+    #git(id: ConversationId): { cwd: string; run: GitRunner | undefined } {
+        const remote = this.#remote(id);
+
+        return remote === undefined
+            ? { cwd: this.#app.cwdOf(id), run: undefined }
+            : { cwd: remote.cwd, run: (folder, args) => remote.access.git(folder, args, { timeoutMs: 15_000 }) };
+    }
+
     /** The branches of a session's repository, for the branch sheet: for people who can steer, as Changes is. */
     async branches(id: ConversationId, user: User): Promise<Branches> {
-        this.#localOnly(id, "Branches");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
 
-        const cwd = this.#app.cwdOf(id);
+        const { cwd, run } = this.#git(id);
+        const inRepository =
+            run === undefined
+                ? this.#gitDir(cwd) !== undefined
+                : await run(cwd, ["rev-parse", "--git-dir"]).then(
+                      () => true,
+                      () => false,
+                  );
 
-        if (this.#gitDir(cwd) === undefined) {
+        if (!inRepository) {
             throw new HttpError(404, "This session's folder is not in a git repository.");
         }
 
-        return branchesIn(cwd).catch((error: unknown) => {
+        return branchesIn(cwd, run).catch((error: unknown) => {
             throw new HttpError(409, describe(error));
         });
     }
@@ -121,7 +183,6 @@ export class Workspace {
         user: User,
         request: { name?: unknown; create?: unknown; track?: unknown },
     ): Promise<{ branch: string }> {
-        this.#localOnly(id, "Switching branches");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
 
@@ -134,13 +195,13 @@ export class Workspace {
         const track = typeof request.track === "string" ? request.track : undefined;
         const name =
             typeof request.name === "string" ? request.name.trim() : track && localName(track);
-        const cwd = this.#app.cwdOf(id);
+        const { cwd, run } = this.#git(id);
 
-        if (track !== undefined && !(await isRemoteBranch(cwd, track))) {
+        if (track !== undefined && !(await isRemoteBranch(cwd, track, run))) {
             throw new HttpError(400, `${track} is not a remote branch here.`);
         }
 
-        if (!name || !(await validBranchName(cwd, name))) {
+        if (!name || !(await validBranchName(cwd, name, run))) {
             throw new HttpError(400, `${name ? `“${name}”` : "That"} cannot be a branch name.`);
         }
 
@@ -153,13 +214,20 @@ export class Workspace {
 
         const before = this.head(id);
 
-        await switchBranch(cwd, {
-            name,
-            create: request.create === true,
-            ...(track ? { track } : {}),
-        }).catch((error: unknown) => {
+        await switchBranch(
+            cwd,
+            {
+                name,
+                create: request.create === true,
+                ...(track ? { track } : {}),
+            },
+            run,
+        ).catch((error: unknown) => {
             throw new HttpError(409, describe(error));
         });
+        // On a machine the chip shows what git there says now.
+        this.#remoteHeads.delete(this.#app.cwdOf(id));
+        this.#app.refreshView(id);
         const from = before !== undefined && "branch" in before ? ` from ${before.branch}` : "";
         const what =
             request.create === true || track !== undefined
@@ -548,6 +616,59 @@ export class Workspace {
 
             throw new HttpError(409, describe(error));
         }
+    }
+
+    /**
+     * A file to save on the device (the viewer's Download): its name and bytes, from here or the session's machine, as
+     * the viewer may read it. Whole files up to `MAX_DOWNLOAD`.
+     */
+    async downloadFile(id: ConversationId, user: User, path: string): Promise<{ name: string; data: Buffer }> {
+        this.#app.requireSee(user, id);
+        this.#app.requireSteer(user);
+        await this.#app.conversation(id);
+        const remote = this.#remote(id);
+        const tooLarge = () => new HttpError(413, `Files up to ${MAX_DOWNLOAD / 1024 / 1024} MB can be downloaded.`);
+
+        if (remote !== undefined) {
+            const file = this.#remotePath(remote, user, path);
+            const info = await remote.env.fileInfo(file, BACKGROUND_CONTEXT);
+
+            if (!info.ok || info.value.kind !== "file") {
+                throw new HttpError(404, `${path} is not a file there.`);
+            }
+
+            if (info.value.size > MAX_DOWNLOAD) {
+                throw tooLarge();
+            }
+
+            const bytes = await remote.env.readBinaryFile(file, BACKGROUND_CONTEXT);
+
+            if (!bytes.ok) {
+                throw new HttpError(502, `Could not read ${path} on ${remote.machine.name}: ${bytes.error.message}`);
+            }
+
+            return { name: posix.basename(file), data: Buffer.from(bytes.value) };
+        }
+
+        let file: string;
+
+        try {
+            file = this.readableFile(user, id, path);
+        } catch {
+            throw new HttpError(404, `${path} is not there.`);
+        }
+
+        const info = statSync(file, { throwIfNoEntry: false });
+
+        if (info === undefined || !info.isFile()) {
+            throw new HttpError(404, `${path} is not a file.`);
+        }
+
+        if (info.size > MAX_DOWNLOAD) {
+            throw tooLarge();
+        }
+
+        return { name: basename(file), data: await readFile(file) };
     }
 
     /**

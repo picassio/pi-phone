@@ -1,0 +1,68 @@
+/**
+ * What the app's background service tells the owner when the app is not in front (DESIGN.md section 4): a session's
+ * run ended, failed, or waits for an approval. PiService long-polls `GET /api/phone/events?after=<seq>` with the owner
+ * token and posts a notification for each; tapping one opens that session. Kept in memory, the last `KEPT` only: a
+ * service that was away for longer gets what is left, and `after=-1` starts at now without the past.
+ *
+ * Sessions only (the app's list), not subagents: their parent's run says when the work is done.
+ */
+import type { ConversationId } from "@earendil-works/pi-durable";
+
+export type PhoneEvent = {
+    seq: number;
+    kind: "done" | "failed" | "approval";
+    session: number;
+    title: string;
+    text: string;
+    at: number;
+};
+
+const KEPT = 100;
+/** How long a poll waits for an event before it answers with none. */
+export const POLL_MS = 50_000;
+
+export class PhoneEvents {
+    #seq = 0;
+    readonly #events: PhoneEvent[] = [];
+    readonly #waiting = new Set<() => void>();
+
+    add(event: Omit<PhoneEvent, "seq" | "at">): void {
+        this.#events.push({ ...event, seq: ++this.#seq, at: Date.now() });
+
+        if (this.#events.length > KEPT) {
+            this.#events.shift();
+        }
+
+        for (const wake of [...this.#waiting]) {
+            wake();
+        }
+    }
+
+    /** Events after `after`, waiting up to `POLL_MS` for one; with `after` -1, none, and the sequence now. */
+    async after(after: number, signal: AbortSignal): Promise<{ seq: number; events: PhoneEvent[] }> {
+        if (after < 0) {
+            return { seq: this.#seq, events: [] };
+        }
+
+        if (this.#seq <= after) {
+            await new Promise<void>((resolve) => {
+                const wake = () => {
+                    clearTimeout(timer);
+                    this.#waiting.delete(wake);
+                    resolve();
+                };
+                const timer = setTimeout(wake, POLL_MS);
+
+                this.#waiting.add(wake);
+                signal.addEventListener("abort", wake, { once: true });
+            });
+        }
+
+        return { seq: this.#seq, events: this.#events.filter((event) => event.seq > after) };
+    }
+
+    /** For notifications: a session's id as the app's routes have it. */
+    static session(id: ConversationId): number {
+        return Number(id);
+    }
+}

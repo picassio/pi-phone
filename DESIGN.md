@@ -135,6 +135,21 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   side went another way; otherwise only as a new session (the machine import). Continue again appends the session's
   new messages to the same file, refused while Pi has unseen messages or after the session compacted past the link.
   The dock's Pi bar checks the file (one `stat`) when the session opens or the app comes to the front.
+- **Notifications** (`src/server/phone-events.ts`, PiService): a session's run ending (with the end of its answer),
+  failing, or waiting for an approval becomes an event; PiService long-polls `GET /api/phone/events` with the owner
+  token and posts a notification per session while the app is not in front. Tapping one opens the session
+  (`/login?next=/s/<id>`, or `navigate` when the app is up).
+- **Downloads**: the viewer's Download asks `GET /api/c/<id>/download` (here or on the machine, up to 200 MB); in the
+  app the bridge's `download` saves it to Downloads through MediaStore and notifies, elsewhere it is a browser download.
+- **Ports** (`src/server/forwards.ts`, `web/sheets/forwards.js`): `ssh -N -L 127.0.0.1:<free>:127.0.0.1:<port>`
+  with pi-env's `sshArguments` (without `ClearAllForwardings`); the phone's browser opens `http://127.0.0.1:<free>`.
+- **Branches on a machine**: `branches.ts` takes a git runner; on a machine it is the folder access's git, and the
+  chip's branch is asked of git there every 15 s (`Workspace.head`), the view rebuilding when it changes.
+- **This phone** (`web/sheets/phone.js`): notifications, battery optimisation (the bridge), and **backup and restore**
+  (`src/server/backup.ts`): a `.tar.gz` of the data folder (its database through SQLite's backup), `.ssh`,
+  `.pi/agent`, `.config/gh`, `.gitconfig`. A restore is checked (only those paths), unpacked to
+  `~/.pi-phone-restore`, and swapped in by the next start (`applyRestore`, before the database opens), what was
+  there moving to `~/.pi-phone-before-restore/<time>/`.
 - **Terminal** (`src/server/terminal.ts`, `web/terminal.js`): a shell in a pseudo-terminal through pi-env's
   `openTerminal`, on a machine over its connection or on the phone through a local daemon (pi-env's Android build;
   PiService sets `SHELL` to the bundled bash). Owner only, and only from the app's own page (`Origin`), at

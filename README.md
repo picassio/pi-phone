@@ -21,6 +21,8 @@ No Termux, no laptop, no cloud VM.
   the conversation and your logins stay on the phone. The Files panel, viewer, and Changes follow the session there.
 - **Continue in Pi, and back.** Send a session to pi on a machine (`pi --session <id>` there), then bring
   back what you did there into the same session.
+- **Notifications** when a session finishes, fails, or asks for approval; **downloads** to the phone; **ports**
+  of a machine (a dev server there) in the phone's browser; **backup and restore** of everything.
 - **A terminal.** A real shell inside the app, on the phone or on a machine, with Esc, Tab, Ctrl, and arrow keys
   above the keyboard.
 - **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's

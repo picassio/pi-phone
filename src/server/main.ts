@@ -7,7 +7,7 @@
  */
 import { chmodSync, mkdirSync } from "node:fs";
 import { createServer } from "node:http";
-import { networkInterfaces } from "node:os";
+import { homedir, networkInterfaces } from "node:os";
 import { join, resolve } from "node:path";
 // Only types from the app here: its modules load below, after the signal handlers (loading takes a moment).
 import type { PocketApp } from "./app.ts";
@@ -15,6 +15,7 @@ import { APP_ROOT, dataDir } from "./config.ts";
 import type { createHandler } from "./http.ts";
 import { installClaudeCodeBilling } from "./claude-billing.ts";
 import { Auth } from "./auth.ts";
+import { applyRestore } from "./backup.ts";
 import { attachTerminals } from "./terminal.ts";
 import { PhoneSettingsFile } from "./phone-settings.ts";
 
@@ -180,6 +181,13 @@ const [{ PocketApp: App }, { createHandler: makeHandler }, { watchTree }] = awai
     import("./http.ts"),
     import("./reload.ts"),
 ]);
+// A restore staged before the restart goes in now, before anything opens what it replaces (`backup.ts`).
+const restored = applyRestore(process.env.HOME || homedir(), options.data);
+
+if (restored.length > 0) {
+    console.log(`Restored from a backup: ${restored.join(", ")}; what was there is in ~/.pi-phone-before-restore.`);
+}
+
 const phoneSettings = new PhoneSettingsFile(options.data);
 const opened = await App.open({
     dataDir: options.data,

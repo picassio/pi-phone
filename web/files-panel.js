@@ -8,6 +8,7 @@ import { useBack } from "./back.js";
 import { DiffReview, KIND_LETTERS, reloadChanges, useChanges, useWidth } from "./diff.js";
 import { loadFiles, suggestFiles } from "./files.js";
 import { FileView } from "./sheets/file.js";
+import { downloadFile } from "./download.js";
 import { actions, api, attempt, canSteer, closePeople, notify, panelsBeside, store } from "./store.js";
 import { html, Icon, Loader, Marked, shortPath, usePresence } from "./ui.js";
 
@@ -645,6 +646,16 @@ function FilesTab({ changes, covering }) {
                               </button>`
                           }
                           <strong class="ft-view-name" title=${shown.path}>${name}</strong>
+                          <button
+                              class="icon-button"
+                              type="button"
+                              aria-label=${`Download ${name}`}
+                              title="Download (to Downloads on the phone)"
+                              onClick=${() =>
+                                  attempt(() => downloadFile(`/api/c/${id}/download?path=${encodeURIComponent(shown.path)}`, name))}
+                          >
+                              <${Icon} name="download" size=${16} />
+                          </button>
                           ${
                               side &&
                               html`<button

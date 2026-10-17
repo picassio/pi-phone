@@ -67,6 +67,8 @@ import { defang, quoted } from "./fence.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
+import { PhoneEvents } from "./phone-events.ts";
+import { Forwards } from "./forwards.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { parsePlace, Places } from "./places.ts";
@@ -226,6 +228,10 @@ export interface OpenOptions {
 export class PocketApp {
     readonly config: ConfigStore;
     readonly approvals = new Approvals((id) => this.attribution.requesterOf(id));
+    /** What the app's background service notifies the owner of (`phone-events.ts`). */
+    readonly phoneEvents = new PhoneEvents();
+    /** Approvals the phone was told of already. */
+    readonly #toldApprovals = new Set<string>();
     readonly dataDir: string;
     readonly defaultCwd: string;
     readonly supervised: boolean;
@@ -263,6 +269,8 @@ export class PocketApp {
     readonly machines: Machines;
     /** Where sessions work, here or on a machine, and each place's execution environment (`places.ts`). */
     readonly places: Places;
+    /** Ports of machines opened here (`forwards.ts`). */
+    readonly forwards: Forwards;
     /** Theme folders: the app's look and layout, built in and the owner's (`themes.ts`). */
     readonly themes: Themes;
     /** What extension modules add to the app: their routes, browser modules, and events (`extension-web.ts`). */
@@ -315,6 +323,7 @@ export class PocketApp {
         this.sshKeys = new SshKeys(options.dataDir, this.#home);
         this.machines = new Machines(options.dataDir, this.sshKeys, this.#home);
         this.places = new Places(this.machines);
+        this.forwards = new Forwards(this.machines);
         this.#lockFile = join(options.dataDir, "harness.lock");
         this.#log = options.log ?? ((line) => console.log(line));
         this.themes = new Themes({
@@ -519,6 +528,29 @@ export class PocketApp {
             this.#committed(publication),
         );
         this.#unsubscribeApprovals = this.approvals.subscribe((id) => {
+            // A call that waits for a person: the phone hears of it once, under its session.
+            const pending = this.approvals.all();
+
+            for (const request of pending) {
+                if (!this.#toldApprovals.has(request.id)) {
+                    this.#toldApprovals.add(request.id);
+                    const session = this.rootOf(request.conversationId);
+
+                    this.phoneEvents.add({
+                        kind: "approval",
+                        session: Number(session),
+                        title: this.#sessions[String(session)]?.title ?? "Session",
+                        text: `Pi asks to run ${request.tool}: ${request.subject}`.slice(0, 300),
+                    });
+                }
+            }
+
+            for (const told of this.#toldApprovals) {
+                if (!pending.some((request) => request.id === told)) {
+                    this.#toldApprovals.delete(told);
+                }
+            }
+
             void this.#rooms.get(id)?.then(
                 (room) => room.schedule(),
                 () => {},
@@ -708,6 +740,7 @@ export class PocketApp {
 
                     if (this.#sessions[String(id)] !== undefined) {
                         this.#endedAt.set(id, Date.now());
+                        this.#tellPhone(id);
                     }
                 }
 
@@ -886,6 +919,45 @@ export class PocketApp {
     }
 
     /** Every open view builds itself again: what it shows from outside its documents changed (a model's sign-in). */
+    /**
+     * A session's run ended: the phone hears how (`phone-events.ts`), with the end of its last answer. After this
+     * commit's other changes, so a failure the same commit settles is known.
+     */
+    #tellPhone(id: ConversationId): void {
+        setImmediate(() => {
+            void (async () => {
+                const title = this.#sessions[String(id)]?.title ?? "Session";
+
+                if (this.#failed.has(id)) {
+                    this.phoneEvents.add({ kind: "failed", session: Number(id), title, text: "The run failed. Open it to see why." });
+
+                    return;
+                }
+
+                const view = await (await this.harness.conversation(id, context))?.context(context);
+                const answer = view?.messages.findLast((message) => message.role === "assistant");
+                const text =
+                    answer?.role === "assistant"
+                        ? answer.content
+                              .flatMap((part) => (part.type === "text" ? [part.text] : []))
+                              .join(" ")
+                              .replace(/\s+/g, " ")
+                              .trim()
+                        : "";
+
+                this.phoneEvents.add({ kind: "done", session: Number(id), title, text: text.slice(0, 300) || "Done." });
+            })().catch((error: unknown) => this.log(`phone not told: ${describe(error)}`));
+        });
+    }
+
+    /** Session `id`'s view builds again: something it shows changed outside its documents. */
+    refreshView(id: ConversationId): void {
+        void this.#rooms.get(id)?.then(
+            (room) => room.schedule(),
+            () => {},
+        );
+    }
+
     refreshViews(): void {
         for (const pending of this.#rooms.values()) {
             void pending.then(
@@ -896,6 +968,11 @@ export class PocketApp {
     }
 
     /** Every connected tab. */
+    /** The home folder: SSH keys, Pi's folder, and a backup's other parts are under it (`backup.ts`). */
+    get home(): string {
+        return this.#home;
+    }
+
     get clients(): ReadonlySet<Client> {
         return this.#clients;
     }
@@ -2571,6 +2648,7 @@ export class PocketApp {
             try {
                 // Close writes no outcome: running work resumes when the next process opens the storage.
                 await this.harness?.close(context);
+                this.forwards.closeAll();
                 await this.places.close(context);
             } finally {
                 rmSync(this.#lockFile, { force: true });

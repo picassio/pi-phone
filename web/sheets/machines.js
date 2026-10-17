@@ -202,6 +202,7 @@ function MachineRow({ machine, keys, onChanged }) {
                     Terminal
                 </button>`
             }
+            ${state === "connected" && html`<button class="button small" onClick=${() => openSheet({ type: "forwards", machineId: machine.id })}>Ports</button>`}
             ${state === "connected" && html`<button class="button small" disabled=${busy !== null} onClick=${detect}>${busy === "detect" ? "Testing…" : "Test"}</button>`}
             ${state === "connected" && html`<button class="button small ghost" disabled=${busy !== null} onClick=${connect}>${busy === "connect" ? "Updating…" : "Update helper"}</button>`}
             ${key && html`<button class="button small ghost" onClick=${copyKey}>Copy public key</button>`}

@@ -8,6 +8,7 @@ import { filesAvailable, setFilesOpen } from "../files-panel.js";
 import { peeksOn, togglePeeks } from "../peeks.js";
 import { modelRefreshAvailable, refreshModels } from "../model-refresh.js";
 import { setArchived } from "../sessions.js";
+import { isRemotePlace, splitPlace } from "../place.js";
 import { openSubagent } from "../subagents.js";
 import {
     actions,
@@ -403,6 +404,15 @@ export function MenuSheet({ places = true }) {
                 (store.state.server?.machines?.length ?? 0) > 0 &&
                 item("Continue in Pi", () => openSheet({ type: "pi-handoff" }), "in pi on a machine, and back")
             }
+            ${
+                me?.role === "owner" &&
+                isRemotePlace(view.agent?.cwd ?? conversation?.cwd) &&
+                item(
+                    "Open a port",
+                    () => openSheet({ type: "forwards", machineId: splitPlace(view.agent?.cwd ?? conversation.cwd).machineId }),
+                    "a dev server on the machine, in the browser",
+                )
+            }
             ${conversation && trustAvailable() && item("Project trust", () => openSheet({ type: "trust" }), trustHint())}
             ${session && steer && driving && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
             ${conversation && steer && driving && item("Compact context", () => openSheet({ type: "compact" }), "summarize older messages")}
@@ -468,6 +478,7 @@ export function MenuSheet({ places = true }) {
             ${me?.role === "owner" && item("GitHub", () => openSheet({ type: "github" }), "for Pi's git and gh")}
             ${me?.role === "owner" && item("Machines", () => openSheet({ type: "machines" }), "run sessions on other computers")}
             ${me?.role === "owner" && item("SSH keys", () => openSheet({ type: "ssh-keys" }), "for machines")}
+            ${me?.role === "owner" && item("This phone", () => openSheet({ type: "phone" }), "notifications, screen off, backup")}
             ${
                 // The Android shell's bridge (android/.../MainActivity.java): only inside the app.
                 me?.role === "owner" &&

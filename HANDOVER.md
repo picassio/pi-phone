@@ -56,6 +56,8 @@ Done:
   Branches stay phone-only.
 - Terminal (`terminal.ts`, `web/terminal.js`): pi-env `openTerminal` on the phone (local daemon) or a machine;
   the shell outlives its socket for 15 min and is taken up again by id with its last output; Paste, Select, End.
+- Notifications (PiService polls `/api/phone/events`), downloads to Downloads (bridge `download`), ports of
+  machines (`forwards.ts`), branches on a machine, This phone (battery optimisation, backup and restore, `backup.ts`).
 - Continue in Pi, and back (`pi-handoff.ts`, `web/sheets/pi-handoff.js`, the dock's Pi bar).
 - `npm run upstream` (`scripts/upstream.ts`): pi packages vs npm (`--bump` pins and installs the newest), and
   pi-pocket / pi-termux-mobile commits since `UPSTREAM.md`'s, with the files this fork still has.
@@ -65,8 +67,7 @@ han-devbox (`ubuntu@192.168.1.50`). Not yet tried by the owner: the terminal, Co
 
 Next:
 1. The owner's test of the terminal, Continue in Pi, and uploads (`test/tools-ui.test.ts` covers them in CI).
-2. Known gaps: Branches on a machine; bringing Pi back after a tool call Pi finished that came here as "Not run"
-   gives that call two results.
+2. Not tried on a phone yet: notifications, downloads, ports, backup and restore (Android parts compile in CI only).
 3. Upstreams: `npm run upstream` now and then; port what touches files we still have, then move `UPSTREAM.md`.
 
 ## Taking upstream changes

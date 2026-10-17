@@ -405,6 +405,21 @@ export async function conversationRoutes(
         return json(response, 200, [...templates, ...skills]);
     }
 
+    // A file to save on the device: as an attachment, by its name (the app saves it to Downloads, `MainActivity`).
+    if (third === "download" && method === "GET") {
+        const { name, data } = await app.workspace.downloadFile(id, user, url.searchParams.get("path") ?? "");
+
+        response.writeHead(200, {
+            "content-type": TYPES[extname(name).toLowerCase()] ?? "application/octet-stream",
+            "content-length": data.length,
+            "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+            "cache-control": "no-store",
+        });
+        response.end(data);
+
+        return;
+    }
+
     if (third === "view" && method === "GET") {
         const requested = url.searchParams.get("path") ?? "";
 

@@ -2,9 +2,10 @@
  * `/api`: the routes the web app calls. Each needs a signed-in person, and each but a GET needs the `X-Pocket` header,
  * which a form on another site cannot send. A conversation's routes are in `conversation-routes.ts`.
  */
-import { readdirSync, statSync } from "node:fs";
+import { createReadStream, readdirSync, rmSync, statSync } from "node:fs";
+import { pipeline } from "node:stream/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { homedir, networkInterfaces } from "node:os";
+import { homedir, networkInterfaces, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import QRCode from "qrcode";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -21,6 +22,7 @@ import {
     quickTunnelHost,
 } from "../auth.ts";
 import type { User } from "../config.ts";
+import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { HttpError } from "../errors.ts";
 import { formatPlace, isRemote, parsePlace } from "../places.ts";
 import { runningNow } from "../running.ts";
@@ -368,6 +370,46 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     Buffer.concat(chunks),
                 ),
             );
+        }
+
+        // Ports of machines opened here (`forwards.ts`): the owner's, as the machines are.
+        if (first === "forwards") {
+            if (user.role !== "owner") {
+                throw new HttpError(403, "Only the owner opens ports of machines.");
+            }
+
+            if (second === undefined && method === "GET") {
+                return json(response, 200, { forwards: app.forwards.list() });
+            }
+
+            if (second === undefined && method === "POST") {
+                const body = await readJson<{ machineId?: unknown; port?: unknown }>(request);
+
+                if (typeof body.machineId !== "string") {
+                    throw new HttpError(400, "machineId is required");
+                }
+
+                return json(response, 200, await app.forwards.open(body.machineId, body.port));
+            }
+
+            if (second !== undefined && method === "DELETE") {
+                app.forwards.close(second);
+
+                return json(response, 200, { ok: true });
+            }
+        }
+
+        // What the app's background service notifies the owner of (`phone-events.ts`): a long poll.
+        if (first === "phone" && second === "events" && method === "GET") {
+            if (user.role !== "owner") {
+                throw new HttpError(403, "Only the owner gets the phone's notifications.");
+            }
+
+            const abort = new AbortController();
+
+            request.on("close", () => abort.abort());
+
+            return json(response, 200, await app.phoneEvents.after(Number(url.searchParams.get("after") ?? -1), abort.signal));
         }
 
         // A session to Pi on a machine and back (`pi-handoff.ts`): where it is there, continue it there, bring it back.
@@ -903,6 +945,54 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 local: loopback && lan.length === 0 && tunnel === undefined,
                 ...(app.access === undefined ? {} : { access: app.access }),
             });
+        }
+
+        // Backup and restore (`backup.ts`): the owner's, as the archive has their sign-ins and keys.
+        if (first === "backup" && method === "GET") {
+            requireOwner(user);
+            const made = await makeBackup(app.home, app.dataDir, tmpdir());
+
+            try {
+                response.writeHead(200, {
+                    "content-type": "application/gzip",
+                    "content-length": statSync(made.file).size,
+                    "content-disposition": `attachment; filename="${made.name}"`,
+                    "cache-control": "no-store",
+                });
+                await pipeline(createReadStream(made.file), response);
+            } finally {
+                rmSync(made.file, { force: true });
+            }
+
+            return;
+        }
+
+        if (first === "restore" && method === "POST") {
+            requireOwner(user);
+
+            if (!app.supervised) {
+                throw new HttpError(409, "Restoring needs the pi-phone app, which starts the server again.");
+            }
+
+            const chunks: Buffer[] = [];
+            let size = 0;
+
+            for await (const chunk of request) {
+                size += (chunk as Buffer).length;
+
+                if (size > MAX_RESTORE) {
+                    throw new HttpError(413, "This backup is too large.");
+                }
+
+                chunks.push(chunk as Buffer);
+            }
+
+            await stageRestore(app.home, Buffer.concat(chunks), tmpdir());
+            json(response, 200, { ok: true });
+            // The restored files go in at the next start, before anything opens them.
+            setTimeout(() => options.restart(), 100);
+
+            return;
         }
 
         if (first === "restart" && method === "POST") {

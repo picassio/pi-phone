@@ -4,7 +4,7 @@
 import { type App, cleanUp, home, owner, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -181,4 +181,43 @@ test("Continue in Pi, for a session that has not gone to Pi, offers a folder on 
         `return JSON.stringify((await import("/store.js")).store.state.notices.some((notice) => notice.message.startsWith("Connect a machine first")))`,
         "what to do",
     );
+});
+
+test("This phone backs up from a browser, and a file in the Files panel downloads", real, async () => {
+    const folder = join(work, "with-a-file");
+
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, "report.txt"), "the report\n");
+    const { id } = await app.commands.createSession(owner(app), { cwd: folder });
+
+    await open(Number(id));
+    // Downloads: in a browser, as a link the page clicks; what it fetched is what is checked.
+    await page.evaluate(`
+        window.downloaded = [];
+        const click = HTMLAnchorElement.prototype.click;
+
+        HTMLAnchorElement.prototype.click = function () {
+            if (this.download) {
+                window.downloaded.push(this.download);
+            } else {
+                click.call(this);
+            }
+        };
+
+        return "true";
+    `);
+    await page.evaluate(`(await import("/store.js")).openSheet({ type: "phone" }); return "true";`);
+    await see(`return JSON.stringify(document.body.textContent.includes("Keep it private"))`, "the phone sheet");
+    await settled();
+    await page.click({ label: "Back up" });
+    await see(`return JSON.stringify(window.downloaded.some((name) => name.startsWith("pi-phone-backup-")))`, "the backup");
+
+    await page.evaluate(`(await import("/store.js")).closeSheet(); (await import("/files-panel.js")).setFilesOpen(true, "files"); return "true";`);
+    await see(`return JSON.stringify([...document.querySelectorAll('[data-part="files-panel"] .ft-name')].some((each) => each.textContent === "report.txt"))`, "the file");
+    await page.evaluate(`[...document.querySelectorAll('[data-part="files-panel"] .ft-row')].find((each) => each.textContent.includes("report.txt")).click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector('[aria-label="Download report.txt"]') !== null)`, "the viewer");
+    await settled();
+    await page.click({ label: "Download report.txt" });
+    await see(`return JSON.stringify(window.downloaded.includes("report.txt"))`, "the download");
+    assert.deepEqual(await problems(), []);
 });

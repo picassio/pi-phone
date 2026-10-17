@@ -892,6 +892,7 @@ const ICONS = {
     tablet: "M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1zM11 17h2",
     monitor: "M3 4h18v12H3zM8 20h8M12 16v4",
     upload: "M12 16V4M7 9l5-5 5 5M4 16v4h16v-4",
+    download: "M12 4v12M7 11l5 5 5-5M4 20h16",
     terminal: "M4 5h16v14H4zM8 10l2 2-2 2M12 14h4",
     fit: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
     // Compact: two rules, and what is between them pressed toward the middle.
