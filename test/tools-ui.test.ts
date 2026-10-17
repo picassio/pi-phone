@@ -130,6 +130,7 @@ test("the terminal runs a shell, takes Paste and the key row, selects its text, 
     // Select: the text, to select with a finger.
     await page.click({ label: "Select" });
     await see(`return JSON.stringify(document.querySelector('[data-part="terminal"] textarea.terminal-text')?.value.includes("ui-42") === true)`, "the text to select");
+    await settled();
     await page.click({ label: "Done" });
 
     // Closed, the shell runs on; opened again at the same place, it is the same shell, with what it wrote.
@@ -137,7 +138,7 @@ test("the terminal runs a shell, takes Paste and the key row, selects its text, 
     await see(`return JSON.stringify(document.querySelector('[data-part="terminal"]') === null)`, "the terminal closed");
     await page.evaluate(`(await import("/store.js")).openSheet({ type: "terminal", place: ${JSON.stringify(work)} }); return "true";`);
     await see(`return JSON.stringify(document.querySelector('[data-part="terminal"] .xterm-rows')?.textContent.includes("ui-42") === true)`, "the same shell");
-
+    await settled();
     await page.click({ label: "End" });
     await see(`return JSON.stringify(document.querySelector('[data-part="terminal"]') === null)`, "the terminal ended");
     assert.deepEqual(await problems(), []);
@@ -173,6 +174,7 @@ test("Continue in Pi, for a session that has not gone to Pi, offers a folder on 
     await open(Number(id));
     await page.evaluate(`(await import("/store.js")).openSheet({ type: "pi-handoff" }); return "true";`);
     await see(`return JSON.stringify(document.body.textContent.includes("This session has not gone to Pi."))`, "the sheet");
+    await settled();
     // No machine here: picking one says how to get one, by name.
     await page.click({ label: "Pick a folder on a machine" });
     await see(
