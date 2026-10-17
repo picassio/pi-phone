@@ -54,6 +54,7 @@ import { describe, HttpError, optionalText } from "./errors.ts";
 import { homePath } from "./paths.ts";
 import { mentionedPaths, viewFile } from "./files.ts";
 import { isThinkingLevel, THINKING_LEVELS } from "./models.ts";
+import { writePiSession } from "./pi-sessions.ts";
 import { snippet } from "./projection.ts";
 import { globalModelSettings, projectModelDefault } from "./project-model.ts";
 import { expandPromptTemplate, expandSkillCommand, unwrapSkill } from "./prompts.ts";
@@ -400,6 +401,62 @@ export class Commands {
                 return { id: conversation.id };
             },
         );
+    }
+
+    /**
+     * Continue one of Pi's sessions here: a new session with its history, in its folder (or `folder`, for a session
+     * whose folder is not on this machine, such as one imported from elsewhere), with its model when that one is signed
+     * in here (`pi-sessions.ts`). The owner's, as Pi's own files are.
+     */
+    async continuePiSession(user: User, path: string, folder?: string): Promise<{ id: ConversationId }> {
+        const app = this.#app;
+        const session = await app.piSessions.read(user, path);
+        let cwd: string;
+
+        try {
+            cwd = app.workspace.checkDirectory(folder ?? session.cwd);
+        } catch {
+            throw new HttpError(
+                400,
+                folder === undefined
+                    ? `The folder this Pi session worked in is not on this phone: ${session.cwd}. Choose a folder for it.`
+                    : `There is no folder ${folder}`,
+            );
+        }
+
+        const start = this.#defaultModel(session);
+        const title = session.title.slice(0, MAX_TITLE);
+        const now = Date.now();
+        const conversation = await app.harness.createConversation(
+            {
+                ownership: { kind: "ownerless" },
+                agent: {
+                    cwd,
+                    ...(start.model === undefined ? {} : { model: start.model }),
+                    ...(start.thinkingLevel === undefined
+                        ? {}
+                        : { thinkingLevel: start.thinkingLevel }),
+                },
+                init: async (tx, id) => {
+                    (await tx.doc(SessionsDoc)).items[String(id)] = {
+                        cwd,
+                        title,
+                        createdAt: now,
+                        updatedAt: now,
+                        createdBy: user.id,
+                        fromPi: { session: session.id, count: session.count },
+                    };
+                    await writePiSession(tx, id, session, {
+                        session: session.id,
+                        title: session.title,
+                        file: path,
+                    });
+                },
+            },
+            context,
+        );
+
+        return { id: conversation.id };
     }
 
     /**

@@ -16,6 +16,7 @@ import {
     store,
 } from "../store.js";
 import { APPLE, html, Icon, Sheet, shortPath } from "../ui.js";
+import { piSessionsAvailable } from "./pi-sessions.js";
 
 /** Whether hidden folders show: kept for the next time the picker opens. */
 const HIDDEN_KEY = "pocket.folderHidden";
@@ -550,6 +551,17 @@ export function CwdSheet({ mode }) {
                 )}
                 ${recent.length > 0 && html`<div class="fp-places-title">Recent</div>`}
                 ${recent.map((path, index) => place(path, labels[index], "folder"))}
+                ${
+                    !changing &&
+                    piSessionsAvailable() &&
+                    html`<button
+                        type="button"
+                        class="link small fp-pi"
+                        onClick=${() => openSheet({ type: "pi-sessions" })}
+                    >
+                        Continue a Pi session…
+                    </button>`
+                }
             </nav>
             <div
                 class="fp-list"

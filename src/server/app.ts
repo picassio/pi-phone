@@ -62,6 +62,7 @@ import { ExtensionWebs, mayUse } from "./extension-web.ts";
 import { defang, quoted } from "./fence.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
 import { GitHubLogin } from "./github-login.ts";
+import { PiSessions } from "./pi-sessions.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { takeLock } from "./lock.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
@@ -237,6 +238,8 @@ export class PocketApp {
     readonly workspace = new Workspace(this);
     /** The conversation's stored history, as people read it. */
     readonly transcripts = new Transcripts(this);
+    /** Pi's sessions, from this phone's Pi folder or imported from elsewhere, which the owner can continue here. */
+    readonly piSessions = new PiSessions(this);
     /** Each person's favorite working folders, shared by their devices. */
     readonly folderFavorites = new FolderFavorites(this);
     /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */

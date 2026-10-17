@@ -1058,6 +1058,13 @@ export const actions = {
         api(query === "" ? "pi-sessions" : `pi-sessions?q=${encodeURIComponent(query)}`),
     piSession: (path) => api(`pi-sessions/preview?path=${encodeURIComponent(path)}`),
     removeWorktree: (force) => api(`c/${current()}/worktree`, { remove: true, force }),
+    piSessions: (query = "") =>
+        api(query === "" ? "pi-sessions" : `pi-sessions?q=${encodeURIComponent(query)}`),
+    piSession: (path) => api(`pi-sessions/preview?path=${encodeURIComponent(path)}`),
+    /** A Pi session file from elsewhere (another machine, Termux), kept with Pi's sessions here. */
+    importPiSession: (file) => api(`pi-sessions/import?name=${encodeURIComponent(file.name)}`, file),
+    /** `cwd`: the folder to work in, for a session whose own folder is not on this phone. */
+    continuePiSession: (path, cwd) => api("pi-sessions/continue", { path, ...(cwd ? { cwd } : {}) }),
     approve: (id, allow) => api(`approvals/${encodeURIComponent(id)}`, { allow }),
     /** `worktree`: the session works in a git worktree of its own, made from the folder. */
     createSession: (cwd, { worktree = false } = {}) =>

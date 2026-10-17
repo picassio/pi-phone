@@ -11,6 +11,7 @@ import { modelRefreshAvailable, refreshModels } from "./model-refresh.js";
 import { setArchived } from "./sessions.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
 import { recentLabels } from "./sheets/folder.js";
+import { piSessionsAvailable } from "./sheets/pi-sessions.js";
 import {
     actions,
     attempt,
@@ -110,6 +111,12 @@ function actionItems() {
             icon: "plus",
             keys: "Alt N",
             run: () => openSheet({ type: "cwd", mode: "new" }),
+        },
+        piSessionsAvailable() && {
+            label: "Continue a Pi session",
+            detail: "from Pi on this phone, or a session file",
+            icon: "terminal",
+            run: () => openSheet({ type: "pi-sessions" }),
         },
         conversationId !== null && {
             label: "All sessions",

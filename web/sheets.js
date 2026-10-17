@@ -7,6 +7,7 @@ import { BranchPicker } from "./sheets/branch.js";
 import { ExtensionsSheet } from "./sheets/extensions.js";
 import { FileSheet } from "./sheets/file.js";
 import { FindSheet } from "./sheets/find.js";
+import { PiSessionSheet, PiSessionsSheet, piSessionsAvailable } from "./sheets/pi-sessions.js";
 import { GitHubSheet } from "./sheets/github.js";
 import { CwdSheet } from "./sheets/folder.js";
 import { MenuSheet, PlacesSheet } from "./sheets/menu.js";
@@ -223,6 +224,14 @@ function sheetBody(sheet) {
             break;
         case "trust":
             body = view.conversation ? html`<${TrustSheet} />` : null;
+            break;
+        case "pi-sessions":
+            body = piSessionsAvailable() ? html`<${PiSessionsSheet} />` : null;
+            break;
+        case "pi-session":
+            body = piSessionsAvailable()
+                ? html`<${PiSessionSheet} key=${sheet.id} path=${sheet.id} />`
+                : null;
             break;
         case "file":
             body = view.conversation

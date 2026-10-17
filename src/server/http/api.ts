@@ -333,6 +333,59 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, app.sessions(user));
         }
 
+        // Pi's sessions, which the owner can continue here: listed, previewed, imported from a file, continued.
+        if (first === "pi-sessions" && second === undefined && method === "GET") {
+            return json(
+                response,
+                200,
+                await app.piSessions.list(user, url.searchParams.get("q") ?? ""),
+            );
+        }
+
+        if (first === "pi-sessions" && second === "preview" && method === "GET") {
+            return json(
+                response,
+                200,
+                await app.piSessions.preview(user, url.searchParams.get("path") ?? ""),
+            );
+        }
+
+        if (first === "pi-sessions" && second === "import" && method === "POST") {
+            const chunks: Buffer[] = [];
+
+            for await (const chunk of request) {
+                chunks.push(chunk as Buffer);
+            }
+
+            return json(
+                response,
+                200,
+                await app.piSessions.import(
+                    user,
+                    url.searchParams.get("name") ?? "",
+                    Buffer.concat(chunks),
+                ),
+            );
+        }
+
+        if (first === "pi-sessions" && second === "continue" && method === "POST") {
+            const body = await readJson<{ path?: unknown; cwd?: unknown }>(request);
+
+            if (typeof body.path !== "string") {
+                throw new HttpError(400, "path is required");
+            }
+
+            if (body.cwd !== undefined && typeof body.cwd !== "string") {
+                throw new HttpError(400, "cwd must be a folder's path");
+            }
+
+            return json(
+                response,
+                200,
+                await app.commands.continuePiSession(user, body.path, body.cwd),
+            );
+        }
+
         if (first === "sessions" && second === undefined && method === "POST") {
             const body = await readJson<{ cwd?: string; title?: string; worktree?: unknown }>(
                 request,
