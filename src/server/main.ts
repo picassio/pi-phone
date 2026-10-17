@@ -1,28 +1,26 @@
 #!/usr/bin/env node
 /**
- * Pi Pocket server. Run it through `bin/pi-pocket.js`, which restarts it when the app asks to (exit code 75).
+ * pi-phone server (from Pi Pocket). The Android shell's PiService runs it and starts it again when it exits with
+ * code 75 (the app asked for a restart).
  *
- *   node bin/pi-pocket.js [--host 127.0.0.1] [--port 8787] [--cwd DIR] [--data DIR] [--rotate-token]
- *
- * Under the launcher (PI_POCKET_LAUNCHER=1 with an IPC channel) the server reports `ready` instead of printing its
- * sign-in links, and takes `access` messages that say how other devices reach it (a tunnel's public URL).
+ *   node src/server/main.ts [--host 127.0.0.1] [--port 8787] [--cwd DIR] [--data DIR] [--rotate-token]
  */
 import { chmodSync, mkdirSync } from "node:fs";
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
 import { join, resolve } from "node:path";
 // Only types from the app here: its modules load below, after the signal handlers (loading takes a moment).
-import type { AccessInfo, PocketApp } from "./app.ts";
+import type { PocketApp } from "./app.ts";
 import { APP_ROOT, dataDir } from "./config.ts";
 import type { createHandler } from "./http.ts";
+import { installClaudeCodeBilling } from "./claude-billing.ts";
+import { PhoneSettingsFile } from "./phone-settings.ts";
 
 const RESTART_CODE = 75;
 /**
- * The server cannot start as configured (for example, the port is taken). On a first start the launcher gives up; after
- * the server has run, it keeps trying, since the port may still be closing or the address may come back.
+ * The server cannot start as configured (for example, the port is taken).
  */
 const CONFIG_ERROR_CODE = 78;
-const launcher = process.env.PI_POCKET_LAUNCHER === "1" && typeof process.send === "function";
 
 function parseArgs(argv: string[]) {
     const options = {
@@ -130,16 +128,6 @@ process.on("SIGHUP", () => void stop(0));
 process.on("SIGUSR2", () => void stop(RESTART_CODE));
 process.on("unhandledRejection", (error) => console.error("Unhandled rejection:", error));
 
-if (launcher) {
-    // The launcher is gone (killed, or its terminal closed): stop instead of holding the port and the database.
-    process.on("disconnect", () => void stop(0));
-    process.on("message", (message: { type?: string; access?: AccessInfo }) => {
-        if (message?.type === "access" && app !== undefined) {
-            app.setReach(message.access);
-        }
-    });
-}
-
 /** Answers requests once the app is open; until then, a short "starting". */
 let handle: ReturnType<typeof createHandler> | undefined;
 const server = createServer((request, response) => {
@@ -188,10 +176,12 @@ const [{ PocketApp: App }, { createHandler: makeHandler }, { watchTree }] = awai
     import("./http.ts"),
     import("./reload.ts"),
 ]);
+const phoneSettings = new PhoneSettingsFile(options.data);
 const opened = await App.open({
     dataDir: options.data,
     defaultCwd: options.cwd,
     supervised: process.env.PI_POCKET_SUPERVISED === "1",
+    configureModels: (models) => installClaudeCodeBilling(models, phoneSettings),
 });
 
 app = opened;
@@ -221,14 +211,7 @@ stopWatching = (() => {
 
 const token = encodeURIComponent(opened.config.ownerToken);
 
-if (launcher) {
-    process.send?.({
-        type: "ready",
-        host: options.host,
-        port: options.port,
-        loginPath: `/login?token=${token}`,
-    });
-} else {
+{
     const hosts = new Set<string>([
         options.host === "0.0.0.0" || options.host === "::" ? "127.0.0.1" : options.host,
     ]);
