@@ -219,8 +219,6 @@ export const PARTS = [
     "peeks",
     "peek-tile",
     "files-panel",
-    "browser-panel",
-    "pip",
     "subagents-board",
     "extension-page",
     "diff",

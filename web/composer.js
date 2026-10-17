@@ -30,7 +30,6 @@ import { SubagentsBar } from "./subagents.js";
 import { TrustBar } from "./trust.js";
 import { prefs } from "./theme.js";
 import { says } from "./turns.js";
-import { MicButton, useDictation } from "./voice.js";
 import {
     APPLE,
     contextLevel,
@@ -262,33 +261,6 @@ function PlanBar({ blocked }) {
     </div>`;
 }
 
-/** Done when: the check Pi works toward, how many checks it took, and a way to drop it. */
-function GoalBar() {
-    const { goal } = store.state.view;
-
-    if (!goal) {
-        return null;
-    }
-
-    const command = html`<span class="mono">${goal.command}</span>`;
-    const text =
-        goal.status === "met"
-            ? html`<strong>Done:</strong> ${command} passes (check ${goal.tries} of ${goal.max}).`
-            : goal.status === "gave-up"
-              ? html`<strong>Stopped:</strong> ${command} still fails after ${goal.max} checks.`
-              : html`<strong>Until</strong> ${command} passes${goal.tries > 0 ? ` · check ${goal.tries} of ${goal.max} failed` : ""}.`;
-
-    return html`<div class=${`goal-bar ${goal.status}`}>
-        <span class="grow">${text}</span>
-        ${
-            canSteer() &&
-            html`<button class="link small" onClick=${() => attempt(actions.clearGoal)}>
-                ${goal.status === "working" ? "Drop" : "Dismiss"}
-            </button>`
-        }
-    </div>`;
-}
-
 /** How a watch's last look found the PR's checks, and why a watch ended. */
 const WATCH_CHECKS = {
     pending: "checks running",
@@ -309,42 +281,6 @@ function watchEnded(watch) {
         default:
             return `could not be watched: ${watch.note ?? "something went wrong"}.`;
     }
-}
-
-/** A PR watch: which PR, its checks, what it sent Pi; stop it, or dismiss one that ended. */
-function WatchBar() {
-    const { watch } = store.state.view;
-
-    if (!watch) {
-        return null;
-    }
-
-    const pr = html`<a href=${watch.url} target="_blank" rel="noopener">PR #${watch.number}</a>`;
-    const checks = WATCH_CHECKS[watch.checks];
-    const text =
-        watch.status === "watching"
-            ? html`<strong>Watching</strong> ${pr}${checks ? ` · ${checks}` : ""}${watch.sent > 0 ? ` · ${watch.sent} of ${watch.max} sent` : ""}${watch.unchecked ? " · owner's comments only" : ""}${watch.errors > 0 ? " · last look failed" : watch.note ? " · waiting" : ""}`
-            : html`${pr} ${watchEnded(watch)}`;
-
-    return html`<div
-        class=${`watch-bar ${watch.status}`}
-        title=${[
-            watch.title,
-            watch.unchecked &&
-                "Only the repository owner's comments count: gh cannot push there, so GitHub does not say who else can write.",
-            watch.note,
-        ]
-            .filter(Boolean)
-            .join("\n")}
-    >
-        <span class="grow">${text}</span>
-        ${
-            canSteer() &&
-            html`<button class="link small" onClick=${() => attempt(actions.unwatchPr)}>
-                ${watch.status === "watching" ? "Stop" : "Dismiss"}
-            </button>`
-        }
-    </div>`;
 }
 
 export function Composer() {
@@ -391,11 +327,6 @@ export function Composer() {
             }
         };
     });
-    // Dictation writes into the box as typing does, so the draft keeps what was heard.
-    const dictation = useDictation(box, (value, at) => {
-        setBrowsing(null);
-        update(value, at);
-    });
     // What is above the message box, and how it shares the room with the conversation (`dock.js`).
     const dock = useRef(null);
     const picker = useRef(null);
@@ -410,7 +341,6 @@ export function Composer() {
     useEffect(() => {
         const draft = drafts.get(conversationId);
 
-        dictation.stop(true);
         setText(draft);
         setCaret(draft.length);
         setPastes(loadPastes(conversationId));
@@ -686,8 +616,6 @@ export function Composer() {
             return;
         }
 
-        // What shows is what goes: words still coming would land in the emptied box.
-        dictation.stop(true);
         const full = expandPastes(text, pastes);
 
         if (parsed) {
@@ -991,13 +919,11 @@ export function Composer() {
         );
     };
 
-    const placeholder = dictation.listening
-        ? "Listening…"
-        : busy
-          ? steer
-              ? "Steer the current run…"
-              : "Queue a message for after this run…"
-          : "Ask Pi anything…";
+    const placeholder = busy
+        ? steer
+            ? "Steer the current run…"
+            : "Queue a message for after this run…"
+        : "Ask Pi anything…";
     const inbox = view.inbox ?? [];
     const { me, users } = store.state;
     const queuedBy = (item) =>
@@ -1008,15 +934,6 @@ export function Composer() {
               : ` · ${users.find((user) => user.id === item.by)?.name ?? "someone"}`;
 
     useDock(dock);
-    // View only now, or someone else took the wheel: the box goes, and dictation with it.
-    const writes = !collab() || (canSteer() && !(view.turns?.on && view.turns.driver !== me?.id));
-
-    useEffect(() => {
-        if (!writes) {
-            dictation.stop(true);
-        }
-    }, [writes]);
-
     if (collab() && !canSteer()) {
         return html`<footer class="composer-wrap" data-part="composer">
             <div class="dock" data-part="dock" ref=${dock}>
@@ -1087,8 +1004,6 @@ export function Composer() {
             }
             ${collab() && html`<${DriverBar} />`}
             <${PlanBar} blocked=${blocked} />
-            <${GoalBar} />
-            <${WatchBar} />
             <${SubagentsBar} />
             <${TrustBar} />
         </div>
@@ -1407,11 +1322,6 @@ export function Composer() {
                                 )}
                             </div>`
                         }
-                        <${MicButton}
-                            dictation=${dictation}
-                            class="composer-mic"
-                            part="composer-button"
-                        />
                         <button
                             class=${`send-button ${canSend ? "ready" : ""}`}
                             data-part="send-button"

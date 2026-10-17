@@ -19,7 +19,7 @@ jobs:
           node-version: '26'
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npx tsc --noEmit -p .
+      - run: npm run check
       - run: npm test
 
   apk:

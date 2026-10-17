@@ -6,7 +6,6 @@ import { goHome, useBack } from "./back.js";
 import { ExtensionRailButtons } from "./extension-ui.js";
 import { useDragToClose } from "./gestures.js";
 import { PeeksRailButton } from "./peeks.js";
-import { PipRailButton } from "./pip.js";
 import { sessionForest } from "./session-tree.js";
 import {
     actions,
@@ -1309,7 +1308,6 @@ export function RailNav({ foldable = false, folded = false }) {
         }
         ${folded && html`<${RailTiles} />`}
         ${foldable && html`<${PeeksRailButton} />`}
-        <${PipRailButton} />
         <button
             class=${`rail-button rail-running ${busy > 0 ? "lit" : ""}`}
             data-part="rail-button"

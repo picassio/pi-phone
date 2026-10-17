@@ -1,38 +1,24 @@
-// The open sheet: which component shows it. The sheets themselves are in web/sheets/, and a few beside their features
-// (chat.js, notify.js, share.js).
+// The open sheet: which component shows it. The sheets themselves are in web/sheets/, and one beside its feature
+// (chat.js).
 import { ChatSheet } from "./chat.js";
 import { ExtensionSheet, onExtensionsGone } from "./extension-ui.js";
-import { NotificationsSheet } from "./notify.js";
-import { ShareSheet } from "./share.js";
 import { AppearanceSheet } from "./sheets/appearance.js";
 import { BranchPicker } from "./sheets/branch.js";
 import { ExtensionsSheet } from "./sheets/extensions.js";
 import { FileSheet } from "./sheets/file.js";
 import { FindSheet } from "./sheets/find.js";
-import {
-    galleryAvailable,
-    GalleryEntrySheet,
-    GalleryShareSheet,
-    GallerySheet,
-    GallerySourceSheet,
-    GalleryUpdateSheet,
-} from "./sheets/gallery.js";
 import { CwdSheet } from "./sheets/folder.js";
-import { MemorySheet } from "./sheets/memory.js";
 import { MenuSheet, PlacesSheet } from "./sheets/menu.js";
 import { MessageSheet } from "./sheets/message.js";
 import { ModelPicker } from "./sheets/model.js";
 import { InviteSheet, PeopleSheet } from "./sheets/people.js";
 import { AuthDialog, ProvidersSheet } from "./sheets/providers.js";
 import { RunningSheet } from "./sheets/running.js";
-import { HooksSheet } from "./sheets/hooks.js";
-import { SchedulesSheet } from "./sheets/schedules.js";
 import { SessionSheet } from "./sheets/session.js";
 import { ShortcutsSheet } from "./sheets/shortcuts.js";
 import { SpendSheet } from "./sheets/spend.js";
 import { TextSheet } from "./sheets/text.js";
-import { ArtifactsSheet, ArtifactViewer, ImageViewer } from "./sheets/viewers.js";
-import { PiSessionSheet, PiSessionsSheet, piSessionsAvailable } from "./sheets/pi-sessions.js";
+import { ImageViewer } from "./sheets/viewers.js";
 import { WorktreeSheet } from "./sheets/worktree.js";
 import { TrustSheet } from "./trust.js";
 import { addLayer, goBack, removeLayer } from "./back.js";
@@ -188,48 +174,12 @@ function sheetBody(sheet) {
         case "cwd":
             body = html`<${CwdSheet} mode=${sheet.mode} />`;
             break;
-        case "artifacts":
-            body = html`<${ArtifactsSheet} />`;
-            break;
-        case "viewer":
-            body = view.conversation
-                ? html`<${ArtifactViewer} id=${sheet.id} version=${sheet.version} />`
-                : null;
-            break;
         case "providers":
             body = html`<${ProvidersSheet} />`;
             break;
         case "extensions":
             body = html`<${ExtensionsSheet} />`;
             break;
-        case "gallery":
-            body = galleryAvailable() ? html`<${GallerySheet} />` : null;
-            break;
-        case "gallery-entry":
-            body = galleryAvailable()
-                ? html`<${GalleryEntrySheet} key=${sheet.id} name=${sheet.id} />`
-                : null;
-            break;
-        case "gallery-source":
-            body = galleryAvailable()
-                ? html`<${GallerySourceSheet} key=${sheet.id} name=${sheet.id} />`
-                : null;
-            break;
-        case "gallery-update":
-            body = galleryAvailable()
-                ? html`<${GalleryUpdateSheet} key=${sheet.id} name=${sheet.id} />`
-                : null;
-            break;
-        case "gallery-share":
-            body = galleryAvailable()
-                ? html`<${GalleryShareSheet}
-                      key=${sheet.id}
-                      file=${sheet.id}
-                      theme=${sheet.theme === true}
-                  />`
-                : null;
-            break;
-        // A sheet an extension's browser module added (`extension-ui.js`).
         case "ext":
             body = html`<${ExtensionSheet} sheet=${sheet} />`;
             break;
@@ -241,9 +191,6 @@ function sheetBody(sheet) {
             break;
         case "people":
             body = html`<${PeopleSheet} />`;
-            break;
-        case "notifications":
-            body = html`<${NotificationsSheet} />`;
             break;
         case "menu":
             body = html`<${MenuSheet} places=${!sheet.fromPlaces} />`;
@@ -273,14 +220,6 @@ function sheetBody(sheet) {
         case "trust":
             body = view.conversation ? html`<${TrustSheet} />` : null;
             break;
-        case "pi-sessions":
-            body = piSessionsAvailable() ? html`<${PiSessionsSheet} />` : null;
-            break;
-        case "pi-session":
-            body = piSessionsAvailable()
-                ? html`<${PiSessionSheet} key=${sheet.id} path=${sheet.id} />`
-                : null;
-            break;
         case "file":
             body = view.conversation
                 ? html`<${FileSheet} key=${sheet.id} path=${sheet.id} line=${sheet.line} />`
@@ -296,25 +235,6 @@ function sheetBody(sheet) {
             break;
         case "running":
             body = html`<${RunningSheet} />`;
-            break;
-        case "schedules":
-            body = view.conversation ? html`<${SchedulesSheet} />` : null;
-            break;
-        case "hooks":
-            body = html`<${HooksSheet} />`;
-            break;
-        case "memory":
-            body =
-                sheet.conversationId !== undefined || view.conversation
-                    ? html`<${MemorySheet}
-                          draft=${sheet.draft ?? ""}
-                          conversationId=${sheet.conversationId}
-                          pendingOnly=${sheet.pendingOnly === true}
-                      />`
-                    : null;
-            break;
-        case "share":
-            body = html`<${ShareSheet} share=${sheet.share} />`;
             break;
         case "message":
             body = view.conversation

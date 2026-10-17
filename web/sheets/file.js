@@ -1,7 +1,6 @@
 // The file viewer: a file's text, an image, or a folder's entries. `FileView` draws it in the Files tile and in the
 // file sheet alike.
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { browserAvailable, openInBrowser } from "../browser.js";
 import { mentionText } from "../files.js";
 import { highlightLines, langOf } from "../highlight.js";
 import { HtmlPreview } from "../rich.js";
@@ -172,13 +171,6 @@ export function FileView({ path, line, onOpen = openFile, onLoad }) {
             }
             <p class="muted small file-note">
                 The files it links to (styles, scripts, images) do not load here.
-                ${
-                    store.state.me?.role === "owner" &&
-                    browserAvailable() &&
-                    html` <button class="link small" onClick=${() => openInBrowser(file.path)}>
-                        Open it in the browser
-                    </button>`
-                }
             </p>`
         }
         ${

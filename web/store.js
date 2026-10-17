@@ -49,7 +49,6 @@ const emptyView = () => ({
     clients: 0,
     viewers: [],
     approvals: [],
-    artifacts: [],
     subagents: [],
     authors: {},
     reactions: {},
@@ -57,9 +56,6 @@ const emptyView = () => ({
     turns: { on: false, asks: [] },
     decisions: {},
     plan: { on: false },
-    schedules: [],
-    goal: null,
-    watch: null,
     branch: null,
     subagentsHeld: null,
 });
@@ -511,7 +507,6 @@ function mergeView(current, data) {
         approvals: data.approvals,
         // The server sends these again only when they change: a missing one keeps its last value.
         inbox: data.inbox ?? base.inbox,
-        artifacts: data.artifacts ?? base.artifacts,
         subagents: data.subagents ?? base.subagents,
         authors: data.authors ?? base.authors,
         reactions: data.reactions ?? base.reactions,
@@ -519,11 +514,6 @@ function mergeView(current, data) {
         turns: data.turns ?? base.turns,
         decisions: data.decisions ?? base.decisions,
         plan: data.plan ?? base.plan,
-        schedules: data.schedules ?? base.schedules,
-        // No goal is null, which the server sends too: only a missing field keeps the last value.
-        goal: data.goal === undefined ? base.goal : data.goal,
-        // The session's PR watch, or null: the same.
-        watch: data.watch === undefined ? base.watch : data.watch,
         // Why subagents' reports wait (a spend limit), or null when none do: the subagents bar says it.
         subagentsHeld: data.subagentsHeld === undefined ? base.subagentsHeld : data.subagentsHeld,
         // What the folder has checked out: `{ branch }` or `{ detached }`, and null outside a repository.
@@ -1067,20 +1057,7 @@ export const actions = {
     piSessions: (query = "") =>
         api(query === "" ? "pi-sessions" : `pi-sessions?q=${encodeURIComponent(query)}`),
     piSession: (path) => api(`pi-sessions/preview?path=${encodeURIComponent(path)}`),
-    continuePiSession: (path) => api("pi-sessions/continue", { path }),
-    /** `when` says when, then what Pi gets: `in 2h check the deploy`. Clock times are this device's. */
-    schedule: (when) =>
-        api(`c/${current()}/schedules`, {
-            when,
-            zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        }),
-    cancelSchedule: (id) => api(`c/${current()}/schedules/${encodeURIComponent(id)}/cancel`, {}),
-    setGoal: (command) => api(`c/${current()}/goal`, { command }),
     removeWorktree: (force) => api(`c/${current()}/worktree`, { remove: true, force }),
-    clearGoal: () => api(`c/${current()}/goal`, { clear: true }),
-    /** Watch the session's pull request: its branch's, or `pr` (a number or address). */
-    watchPr: (pr) => api(`c/${current()}/watch`, pr ? { pr } : {}),
-    unwatchPr: () => api(`c/${current()}/watch`, { stop: true }),
     approve: (id, allow) => api(`approvals/${encodeURIComponent(id)}`, { allow }),
     /** `worktree`: the session works in a git worktree of its own, made from the folder. */
     createSession: (cwd, { worktree = false } = {}) =>

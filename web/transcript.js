@@ -3,10 +3,8 @@
 import { Component } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { initials, personColor } from "./avatar.js";
-import { browserAvailable, setBrowserOpen } from "./browser.js";
 import { describeCall, describersRevision } from "./calls.js";
 import { DiffBlock } from "./diff.js";
-import { LinkedSessions } from "./linked-sessions.js";
 import { fromServer } from "./seen.js";
 import { Highlighted } from "./rich.js";
 import {
@@ -55,7 +53,6 @@ import {
     splitAttachments,
     Thumb,
 } from "./ui.js";
-import { LessonCall, memoryAvailable } from "./sheets/memory.js";
 
 const REPORT = /^\[subagent (\S+) (answered|failed)([^\]]*)\]\s?([\s\S]*)$/;
 /** Where the next report starts, in a message of several that arrived together (`extensions/subagents.ts`). */
@@ -935,13 +932,6 @@ function ToolStep({
         body = html`<div class="step-body" data-part="step-detail">${parts}</div>`;
     }
 
-    const artifact = call.name === "artifact" && details?.id ? details : null;
-    const artifactType = artifact
-        ? view.artifacts.find((each) => each.id === artifact.id)?.type
-        : undefined;
-    const artifactSrc = artifact
-        ? `/a/${view.conversation.id}/${encodeURIComponent(artifact.id)}/${artifact.version}`
-        : null;
     const child =
         call.name === "subagent"
             ? (details?.conversationId ??
@@ -955,16 +945,8 @@ function ToolStep({
         details,
         status,
     });
-    const watch = call.name === "browser" && browserAvailable() && !store.state.browserOpen;
-    // What a call made shows under its line, as on today's cards: what it returned as images, an artifact, the browser.
-    // A lesson Pi saved, changed, or forgot: its state, and approving it where it happened.
-    const lesson =
-        call.name === "memory" &&
-        typeof details?.lesson === "string" &&
-        memoryAvailable(conversationId)
-            ? details.lesson
-            : null;
-    const extras = result?.images > 0 || artifact || watch || lesson;
+    // What a call made shows under its line: the images it returned.
+    const extras = result?.images > 0;
 
     return html`<div
         class=${`step ${open ? "open" : ""} ${settled ? "settled" : ""}`}
@@ -1017,46 +999,12 @@ function ToolStep({
             extras &&
             html`<div class="step-extras" data-part="step-detail">
                 ${
-                    lesson &&
-                    html`<${LessonCall} lessonId=${lesson} conversationId=${conversationId} />`
-                }
-                ${
                     result?.images > 0 &&
                     html`<${EntryImages}
                         entryId=${result.id}
                         count=${result.images}
                         label=${`${call.name} image`}
                     />`
-                }
-                ${
-                    artifactType === "svg" &&
-                    html`<button
-                        class="artifact-preview"
-                        type="button"
-                        onClick=${() => openSheet({ type: "image", src: artifactSrc, alt: artifact.title })}
-                    >
-                        <img
-                            src=${artifactSrc}
-                            alt=${artifact.title}
-                            loading="lazy"
-                            decoding="async"
-                        />
-                    </button>`
-                }
-                ${
-                    artifact &&
-                    html`<button
-                        class="artifact-link"
-                        onClick=${() => openSheet({ type: "viewer", id: artifact.id, version: artifact.version })}
-                    >
-                        Open ${artifact.title} · version ${artifact.version} →
-                    </button>`
-                }
-                ${
-                    watch &&
-                    html`<button class="artifact-link" onClick=${() => setBrowserOpen(true)}>
-                        Watch in the browser${details?.address ? ` · ${details.address}` : ""} →
-                    </button>`
                 }
             </div>`
         }
@@ -1815,17 +1763,8 @@ function callDeps(block, results, slots, approvals) {
         deps.push(approvals.find((each) => each.taskId === slot.taskId)?.id);
     }
 
-    if (block.name === "artifact") {
-        deps.push((view.artifacts ?? []).map((each) => `${each.id}:${each.type}`).join());
-    }
-
     if (block.name === "subagent") {
         deps.push(agentsKey(view));
-    }
-
-    // Whether the browser is there to watch (`browserAvailable`), and open already.
-    if (block.name === "browser") {
-        deps.push(store.state.browserOpen, store.state.server);
     }
 
     return deps;
@@ -2567,7 +2506,6 @@ export function Transcript() {
 
     return html`<main class="scroller" ref=${scroller} onScroll=${onScroll}>
         <div class="transcript" data-part="transcript">
-            <${LinkedSessions} />
             ${
                 conversation.forkedFrom &&
                 sessionsLoaded &&

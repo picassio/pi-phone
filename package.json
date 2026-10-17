@@ -10,7 +10,7 @@
     },
     "scripts": {
         "start": "node src/server/main.ts",
-        "check": "tsc --noEmit -p .",
+        "check": "tsc --noEmit -p . && node scripts/check-web-imports.ts",
         "test": "node --test test/*.test.ts"
     },
     "dependencies": {

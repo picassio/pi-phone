@@ -2,19 +2,15 @@
 // onto a theme shows it at once; Enter keeps it, Escape goes back. Start with > for actions only, @ for sessions, # for
 // themes.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { browserAvailable, toggleBrowser } from "./browser.js";
 import { folderColor } from "./avatar.js";
-import { planAvailable, schedulesAvailable } from "./commands.js";
+import { planAvailable } from "./commands.js";
 import { extensionLauncherItems } from "./extension-ui.js";
 import { filesAvailable, toggleFiles } from "./files-panel.js";
 import { togglePeeks } from "./peeks.js";
 import { modelRefreshAvailable, refreshModels } from "./model-refresh.js";
-import { openPip, pipAvailable } from "./pip.js";
 import { setArchived } from "./sessions.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
 import { recentLabels } from "./sheets/folder.js";
-import { galleryAvailable } from "./sheets/gallery.js";
-import { piSessionsAvailable } from "./sheets/pi-sessions.js";
 import {
     actions,
     attempt,
@@ -115,12 +111,6 @@ function actionItems() {
             keys: "Alt N",
             run: () => openSheet({ type: "cwd", mode: "new" }),
         },
-        piSessionsAvailable() && {
-            label: "Continue a Pi session",
-            detail: "from Pi in the terminal",
-            icon: "terminal",
-            run: () => openSheet({ type: "pi-sessions" }),
-        },
         conversationId !== null && {
             label: "All sessions",
             detail: "home",
@@ -179,19 +169,6 @@ function actionItems() {
                 run: () => openSheet({ type: "model", id: "default", forDefault: true }),
             },
         conversation &&
-            browserAvailable() && {
-                label: store.state.browserOpen ? "Close the browser" : "Open the browser",
-                detail: "see and test pages with Pi",
-                icon: "globe",
-                keys: "Alt B",
-                run: toggleBrowser,
-            },
-        conversation && {
-            label: "Artifacts",
-            icon: "artifact",
-            run: () => openSheet({ type: "artifacts" }),
-        },
-        conversation &&
             filesAvailable() && {
                 label:
                     store.state.filesOpen && store.state.filesTab === "files"
@@ -237,11 +214,6 @@ function actionItems() {
                 icon: "shield",
                 run: () => attempt(() => actions.setPlan(!view.plan?.on)),
             },
-        schedulesAvailable() && {
-            label: "Scheduled messages",
-            icon: "pulse",
-            run: () => openSheet({ type: "schedules" }),
-        },
         conversation && {
             label: "Copy link to this session",
             icon: "external",
@@ -258,13 +230,6 @@ function actionItems() {
                 icon: "archive",
                 run: () => setArchived([conversation.id], !conversation.archived),
             },
-        pipAvailable() && {
-            label: "Ask PiP",
-            detail: "your assistant, over any screen",
-            icon: "pip",
-            keys: "Alt A",
-            run: () => openPip(),
-        },
         {
             label: "Running now",
             detail: "everything Pi is doing",
@@ -286,13 +251,6 @@ function actionItems() {
             run: refreshModels,
         },
         { label: "Extensions", icon: "shield", run: () => openSheet({ type: "extensions" }) },
-        galleryAvailable() && {
-            label: "Find extensions",
-            detail: "browse and install drop-ins",
-            keywords: "gallery",
-            icon: "search",
-            run: () => openSheet({ type: "gallery" }),
-        },
         { label: "Spend", icon: "pulse", run: () => openSheet({ type: "spend" }) },
         collab()
             ? {

@@ -3,8 +3,6 @@ import { render } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { folderColor } from "./avatar.js";
 import { canGoBack, goBack, replaceAddress, startHistory, useBack } from "./back.js";
-import { BrowserButton, BrowserPanel } from "./browser-panel.js";
-import { browserAvailable, setBrowserOpen, toggleBrowser } from "./browser.js";
 import { PeopleButton, PeoplePanel } from "./chat.js";
 import { Composer, openingByAlt } from "./composer.js";
 import { useChanges } from "./diff.js";
@@ -19,7 +17,6 @@ import { ExtensionPage } from "./extension-ui.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
 import { Splash } from "./home.js";
 import { Launcher } from "./launcher.js";
-import { registerWorker, updateBadge } from "./notify.js";
 import {
     PEEK_WIDE,
     PeekHost,
@@ -29,11 +26,9 @@ import {
     peeksWanted,
     togglePeeks,
 } from "./peeks.js";
-import { closePip, openPip, PipHost, pipAvailable, togglePip } from "./pip.js";
 import { Drawer, RailNav, ResizeHandle, SessionList, toSessions } from "./sessions.js";
 // Loaded for what it does: it gives replies' Markdown the component for pages, images, and diffs in code blocks.
 import "./rich.js";
-import { takeShare } from "./share.js";
 import { Sheets } from "./sheets.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
 import { SignIn } from "./signin.js";
@@ -69,7 +64,6 @@ import {
     useEdge,
     usePresence,
 } from "./ui.js";
-import { toggleDictation } from "./voice.js";
 
 /** What changed in the session's folder: lines added and removed, and how many files. It opens Changes. */
 function ChangesButton() {
@@ -103,7 +97,6 @@ function ChangesButton() {
 function Topbar() {
     const { view, server, conversationId } = store.state;
     const conversation = view.conversation;
-    const artifacts = view.artifacts?.length ?? 0;
     const cwd = view.agent?.cwd ?? conversation?.cwd;
     const folder = String(cwd ?? "")
         .replace(/\/+$/, "")
@@ -197,16 +190,6 @@ function Topbar() {
         ${filesAvailable() && html`<${ChangesButton} key=${conversationId} />`}
         <${PeeksButton} />
         <${FilesButton} />
-        <${BrowserButton} />
-        <button
-            class=${`icon-button badge-host ${artifacts > 0 ? "quiet-phone" : "quiet"}`}
-            aria-label="Artifacts"
-            title="Artifacts"
-            onClick=${() => openSheet({ type: "artifacts" })}
-        >
-            <${Icon} name="artifact" />
-            ${artifacts > 0 && html`<span class="badge">${artifacts}</span>`}
-        </button>
         <${PeopleButton} />
         <button
             class="icon-button"
@@ -432,18 +415,16 @@ function App() {
     const board = state.board;
     const page = !board && state.page !== null;
     const placed = board || page;
-    const browsing =
-        inConversation && !placed && state.browserOpen && browserAvailable() && !state.missing;
     const filing = !placed && filesShown(state);
-    const people = !placed && !browsing && !filing && peopleDocked(state);
+    const people = !placed && !filing && peopleDocked(state);
     const peeking = !placed && peeksWanted(state);
     const tiles = peeking ? peekTiles(state) : [];
     // The column takes the place beside the conversation when Browser and People leave it free; otherwise a strip,
     // which only shows when there are tiles.
-    const peekColumn = peeking && PEEK_WIDE.matches && !browsing && !filing && !people;
+    const peekColumn = peeking && PEEK_WIDE.matches && !filing && !people;
 
     return html`<div
-        class=${`layout ${inConversation || placed ? "" : "home"} ${browsing ? "browsing" : ""} ${filing ? "filing" : ""}`}
+        class=${`layout ${inConversation || placed ? "" : "home"} ${filing ? "filing" : ""}`}
         data-part="app"
     >
         <aside class="sidebar window" data-part="sidebar">
@@ -485,18 +466,12 @@ function App() {
             html`<${PeekHost}
                 shown=${peekColumn}
                 tiles=${tiles}
-                replaced=${browsing || filing || people}
+                replaced=${filing || people}
             />`
         }
-        <${PanelHost}
-            key=${`browser:${state.conversationId}`}
-            shown=${browsing}
-            panel=${BrowserPanel}
-        />
         <${PanelHost} key=${`files:${state.conversationId}`} shown=${filing} panel=${FilesPanel} />
-        ${inConversation && html`<${PeopleHost} shown=${people} replaced=${browsing || filing} />`}
+        ${inConversation && html`<${PeopleHost} shown=${people} replaced=${filing} />`}
         <${Drawer} />
-        <${PipHost} />
         <${Sheets} />
         <${LauncherHost} />
         <${Notices} />
@@ -657,19 +632,6 @@ addEventListener("keydown", (event) => {
         }
 
         // The panels are not beside the subagents board, nor an extension's page.
-        if (
-            event.code === "KeyB" &&
-            store.state.conversationId !== null &&
-            !store.state.board &&
-            !store.state.page &&
-            browserAvailable()
-        ) {
-            event.preventDefault();
-            toggleBrowser();
-
-            return;
-        }
-
         if (event.code === "KeyE" && !store.state.board && !store.state.page && filesAvailable()) {
             event.preventDefault();
             toggleFiles();
@@ -677,42 +639,9 @@ addEventListener("keydown", (event) => {
             return;
         }
 
-        // PiP, the assistant over every screen; not under a sheet, where it would open unseen.
-        if (event.code === "KeyA" && pipAvailable() && !store.state.sheet) {
-            event.preventDefault();
-            togglePip();
-
-            return;
-        }
-
-        // Dictation into the message box in view: PiP's while it is open, else the session's.
-        if (
-            event.code === "KeyV" &&
-            !store.state.sheet &&
-            !store.state.launcher &&
-            toggleDictation()
-        ) {
-            event.preventDefault();
-
-            return;
-        }
     }
 
-    // Esc closes PiP first, unless a sheet or the launcher is over it: those close first.
-    if (
-        event.key === "Escape" &&
-        !event.defaultPrevented &&
-        store.state.pipOpen &&
-        !store.state.sheet &&
-        !store.state.launcher
-    ) {
-        event.preventDefault();
-        closePip();
-
-        return;
-    }
-
-    // Esc closes the Files tile or the Browser panel where it covers the conversation, as back does. What is inside
+    // Esc closes the Files tile where it covers the conversation, as back does. What is inside
     // takes it first: a file open over the tree, the page in the panel, a field.
     const cover =
         event.key === "Escape" &&
@@ -721,17 +650,13 @@ addEventListener("keydown", (event) => {
         !store.state.launcher &&
         !store.state.drawer &&
         document.querySelector(
-            '.layout > [aria-modal="true"]:is(.files-tile, .browser):not(.leaving)',
+            '.layout > [aria-modal="true"].files-tile:not(.leaving)',
         );
 
     if (cover) {
         event.preventDefault();
 
-        if (cover.classList.contains("files-tile")) {
-            setFilesOpen(false);
-        } else {
-            setBrowserOpen(false);
-        }
+        setFilesOpen(false);
 
         return;
     }
@@ -851,31 +776,4 @@ if (new URLSearchParams(location.search).has("chat")) {
     openSheet({ type: "chat" });
 }
 
-// PiP's notifications open its panel, over whatever was open: `/?pip=1`. Opened once the server says PiP is here.
-if (new URLSearchParams(location.search).has("pip")) {
-    replaceAddress(location.pathname);
-    const stop = store.subscribe(() => {
-        if (store.state.server) {
-            stop();
-            openPip();
-        }
-    });
-}
-
-// The worker shows notifications and receives what other apps share; it needs a secure page (https or localhost).
-registerWorker();
-store.subscribe(updateBadge);
 start();
-// Something shared from another app: the service worker kept it, and redirected here to choose where it goes.
-const shared = new URLSearchParams(location.search).get("share");
-
-if (shared !== null) {
-    replaceAddress(location.pathname);
-    takeShare(shared).then(
-        (share) =>
-            share
-                ? store.set({ sheet: { type: "share", share } })
-                : notify("error", "What was shared did not arrive. Share it again."),
-        () => notify("error", "What was shared could not be read. Share it again."),
-    );
-}

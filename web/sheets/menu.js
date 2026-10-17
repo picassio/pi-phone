@@ -1,14 +1,11 @@
 // The menu: what can be done in this session and in the app.
 import { useLayoutEffect, useRef } from "preact/hooks";
-import { browserAvailable, displayUrl, setBrowserOpen } from "../browser.js";
 import { chatUnread } from "../chat.js";
-import { schedulesAvailable, triggersOn, watchAvailable, watchPr } from "../commands.js";
 import { extensionMenuItems, safeMode } from "../extension-ui.js";
 import { useChanges } from "../diff.js";
 import { filesAvailable, setFilesOpen } from "../files-panel.js";
 import { peeksOn, togglePeeks } from "../peeks.js";
 import { modelRefreshAvailable, refreshModels } from "../model-refresh.js";
-import { openPip, pipAvailable, pipUnread } from "../pip.js";
 import { setArchived } from "../sessions.js";
 import { openSubagent } from "../subagents.js";
 import {
@@ -30,7 +27,6 @@ import {
 import { isPinned, lookLabel, togglePin } from "../theme.js";
 import { currentTrust, trustAvailable } from "../trust.js";
 import { branchAvailable } from "./branch.js";
-import { memoryAvailable, memoryHint, useMemory } from "./memory.js";
 import { defaultLabel, defaultsKept } from "./model.js";
 import { copyText, html, Icon, item, Sheet, shortPath } from "../ui.js";
 
@@ -50,7 +46,7 @@ function extensionsHint() {
 }
 
 /**
- * The session's places as big tiles at the top of the menu: Files, Changes, the browser, artifacts, the chat, find,
+ * The session's places as big tiles at the top of the menu: Files, Changes, the chat, find,
  * the branch, and peek tiles. The top bar keeps only the buttons with something to say; these are always here, a
  * thumb's width each.
  */
@@ -70,12 +66,11 @@ function PlacesWithChanges() {
 }
 
 function PlacesGrid({ changes = null }) {
-    const { view, browser, browserOpen, server, filesOpen, filesTab } = store.state;
+    const { view, server, filesOpen, filesTab } = store.state;
     // Match the top bar: uncommitted files in a repository, Pi's edits elsewhere, plus any unlisted files.
     const changeCount = changes
         ? changes.files.length + (changes.repo ? 0 : changes.piOnly.length) + (changes.more ?? 0)
         : 0;
-    const live = browser?.open && browser.url !== "" && browser.url !== "about:blank";
     const unread = collab() ? chatUnread() : 0;
     const places = [
         filesAvailable() && {
@@ -94,24 +89,6 @@ function PlacesGrid({ changes = null }) {
             on: filesOpen && filesTab === "changes",
             run: () => setFilesOpen(true, "changes"),
         },
-        browserAvailable() && {
-            id: "browser",
-            icon: "globe",
-            label: "Browser",
-            on: browserOpen,
-            dot: live,
-            run: () => {
-                setBrowserOpen(true);
-                closeSheet();
-            },
-        },
-        {
-            id: "artifacts",
-            icon: "artifact",
-            label: "Artifacts",
-            count: view.artifacts.length,
-            run: () => openSheet({ type: "artifacts" }),
-        },
         collab() && {
             id: "chat",
             icon: "chat",
@@ -126,17 +103,6 @@ function PlacesGrid({ changes = null }) {
             icon: "fork",
             label: "Branch",
             run: () => openSheet({ type: "branch" }),
-        },
-        pipAvailable() && {
-            id: "pip",
-            icon: "pip",
-            label: "PiP",
-            dot: pipUnread(),
-            dotLabel: "something new",
-            run: () => {
-                openPip();
-                closeSheet();
-            },
         },
         server?.peeks === true && {
             id: "peeks",
@@ -353,7 +319,6 @@ export function MenuSheet({ places = true }) {
     // While take turns is on, settings belong to the driver.
     const driving = !turns?.on || turns.driver === me?.id;
     const instructions = view.agent?.instructions;
-    const memory = useMemory();
 
     return html`<${MenuFrame} title=${conversation?.title ?? "Menu"}>
         ${places && html`<${Places} />`}
@@ -415,38 +380,10 @@ export function MenuSheet({ places = true }) {
                           shortPath(view.agent?.cwd, server?.home),
                       )
             }
-            ${
-                conversation &&
-                browserAvailable() &&
-                store.state.browserOpen &&
-                item(
-                    "Close the browser",
-                    () => {
-                        setBrowserOpen(false);
-                        closeSheet();
-                    },
-                    store.state.browser?.open && displayUrl(store.state.browser.url),
-                )
-            }
             ${conversation && trustAvailable() && item("Project trust", () => openSheet({ type: "trust" }), trustHint())}
             ${session && steer && driving && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
             ${conversation && steer && driving && item("Compact context", () => openSheet({ type: "compact" }), "summarize older messages")}
             ${conversation && steer && driving && item("New context", () => openSheet({ type: "reset" }), "Pi starts fresh; history stays")}
-            ${conversation && memoryAvailable() && item("Memory", () => openSheet({ type: "memory" }), memoryHint(memory))}
-            ${schedulesAvailable() && item("Scheduled messages", () => openSheet({ type: "schedules" }), view.schedules.length === 0 ? "none" : `${view.schedules.length} coming`)}
-            ${
-                watchAvailable() &&
-                steer &&
-                view.watch?.status !== "watching" &&
-                item(
-                    "Watch pull request",
-                    () => {
-                        closeSheet();
-                        attempt(() => watchPr());
-                    },
-                    "fix CI, answer reviews",
-                )
-            }
             ${
                 conversation &&
                 item("Copy link", () =>
@@ -504,7 +441,6 @@ export function MenuSheet({ places = true }) {
             ${collab() && item("Notifications", () => openSheet({ type: "notifications" }), "Pi finished, approvals, chat")}
             ${item("Running now", () => openSheet({ type: "running" }), "everything Pi is doing")}
             ${item("Spend", () => openSheet({ type: "spend" }), me?.role === "owner" ? "by person and session, limits" : "yours")}
-            ${triggersOn() && me?.role !== "viewer" && item("Webhooks and watches", () => openSheet({ type: "hooks" }), "GitHub, other services")}
             ${me?.role === "owner" && item("Providers", () => openSheet({ type: "providers" }))}
             ${modelRefreshAvailable() && item("Refresh models", refreshModels, store.state.modelRefresh.loading ? "refreshing…" : "models.json and providers")}
             ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
