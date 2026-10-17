@@ -116,6 +116,9 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   browses the machine through its environment (New folder makes one there). Worktrees are for the phone's folders.
   The Files panel (pi-env's gitignore-aware `listFiles`), the file viewer, images in replies (the image route reads
   them there), Changes, diffs, and undo (git run there through `folder-access.ts`) work on a machine's folder.
+  The Files panel uploads into the open file's folder or the session's (`workspace.putFile`), here or on the machine,
+  never over an existing file. The dock says when the session's machine does not answer (`places.reach`, the
+  daemon's `hello`); its connection starts again by itself, so Retry is a look.
   Attachments to a session on a machine are copied to `~/.pi/mobile/uploads/<session>/` there (out of the
   project and its git status), and the message names their paths there; images also go to the model as before.
   Branches (the top bar's chip and the branch sheet) stay phone-only: they read `.git/HEAD` from disk every few
@@ -134,8 +137,10 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   The dock's Pi bar checks the file (one `stat`) when the session opens or the app comes to the front.
 - **Terminal** (`src/server/terminal.ts`, `web/terminal.js`): a shell in a pseudo-terminal through pi-env's
   `openTerminal`, on a machine over its connection or on the phone through a local daemon (pi-env's Android build;
-  PiService sets `SHELL` to the bundled bash). One WebSocket per terminal at `/api/terminal`, owner only and only
-  from the app's own page (`Origin`); input sent before the shell is up is queued. xterm.js 6 (ES modules, served from
+  PiService sets `SHELL` to the bundled bash). Owner only, and only from the app's own page (`Origin`), at
+  `/api/terminal`. A shell outlives its WebSocket (a phone drops it in the background): it waits 15 min with the
+  last 256 KB of its output, and a socket with its `id` takes it up again; `close` ends it. Input sent before the
+  shell is up is queued. Paste and Select (a finger cannot select in xterm.js) open a text box over the screen. xterm.js 6 (ES modules, served from
   `/vendor/`) in a full-screen sheet with a row of keys a phone lacks (Esc, Tab, sticky Ctrl, arrows). Opened from the
   session menu, the launcher, and a connected machine's row.
 - **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI publishes a release, and

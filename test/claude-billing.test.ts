@@ -87,3 +87,44 @@ test("a caller's own onPayload runs first and the patch sees its result", async 
     assert.equal(called, true);
     assert.equal((seen[0] as { marker?: boolean }).marker, true);
 });
+
+// pi-ai builds the request; the patch finds what it replaces in it. When a pi-ai update changes the request, this
+// fails, on the build, before a phone sends a request the patch no longer bills to the subscription.
+test("the patch still applies to the request pi-ai's own Anthropic provider builds for a Claude sign-in", async () => {
+    const { anthropicProvider } = await import("@earendil-works/pi-ai/providers/anthropic");
+    const { patchClaudeCodePayload } = await import("../src/server/cc-patch.ts");
+    const { normalizeContext } = await import("@earendil-works/pi-ai/utils/transcript");
+    const provider = anthropicProvider();
+    const model = (await provider.getModels()).find((each) => each.id.startsWith("claude-"))!;
+    let built: unknown;
+    const stream = provider.streamSimple(
+        model,
+        normalizeContext({ messages: [{ role: "user", content: "hi", timestamp: 1 }] }),
+        {
+            apiKey: "sk-ant-oat01-test",
+            // Nothing leaves the machine: the request fails once it is built.
+            fetch: async () => {
+                throw new Error("no network in this test");
+            },
+            onPayload: (payload) => {
+                built = payload;
+
+                return undefined;
+            },
+        },
+    );
+
+    for await (const event of stream) {
+        if (event.type === "error" || event.type === "done") {
+            break;
+        }
+    }
+
+    const patched = patchClaudeCodePayload(built, model.provider, { version: DEFAULT_SETTINGS.claudeCodeBilling.version }) as
+        | { system: { text?: string }[] }
+        | undefined;
+
+    assert.ok(patched, "the patch found pi-ai's Claude Code request");
+    assert.match(patched.system[0]!.text!, /^x-anthropic-billing-header: cc_version=/);
+    assert.ok(!JSON.stringify(patched.system).includes("You are Claude Code"), JSON.stringify(patched.system));
+});
