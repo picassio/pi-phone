@@ -20,6 +20,10 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run check
+      # The UI tests drive the runner's Chrome; its sandbox needs unprivileged user namespaces, which Ubuntu 24.04
+      # restricts through AppArmor.
+      - name: Allow Chrome's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm test
 
   apk:
