@@ -151,3 +151,14 @@ test(
         assert.ok(readdirSync(tools).some((name) => name.startsWith("pi-env")), readdirSync(tools).join(","));
     },
 );
+
+test("a place is a machine and a path; a session on a machine not connected is refused", async () => {
+    const { parsePlace, formatPlace, isRemote, pathOf } = await import("../src/server/places.ts");
+
+    assert.deepEqual(parsePlace("/home/me"), { path: "/home/me" });
+    assert.deepEqual(parsePlace("machine:abc:/home/me/x"), { machineId: "abc", path: "/home/me/x" });
+    assert.equal(formatPlace({ machineId: "abc", path: "/x" }), "machine:abc:/x");
+    assert.equal(isRemote("machine:abc:/x"), true);
+    assert.equal(pathOf("machine:abc:/x"), "/x");
+    assert.throws(() => parsePlace("machine:abc"), /Not a place/);
+});

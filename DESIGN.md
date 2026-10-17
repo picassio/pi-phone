@@ -106,6 +106,15 @@ pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   one alias per machine (a changed key is refused). Three owner taps before anything runs there: scan the host key,
   accept it, "Install and connect" (deploys the daemon to `~/.pi/mobile/tools` on the machine). `ready(id)` refuses a
   machine not connected yet, so the agent can never trigger a deployment. Tested against the bundled `sshd`.
+- **Sessions on a machine** (`src/server/places.ts`): a session's `cwd` is a folder here, or
+  `machine:<id>:<path on the machine>`. pi-pocket carries that one string everywhere; `Places.env(cwd)` gives
+  `NodeExecutionEnv` or pi-env's `RemoteExecutionEnv` (one lazily started connection per machine), so the agent's
+  `bash`, `read`, `write`, `edit` run there with no change to the tools. The prompt's environment section says which
+  machine, that its git/gh logins are the machine's, that attachments stay on the phone, and that a command stops ~30 s
+  after the link drops; AGENTS.md and skills are not read for a machine (they would be the phone's). The folder picker
+  browses the machine through its environment (New folder makes one there). Worktrees are for the phone's folders.
+  Not yet on a machine, each saying so (HTTP 501): the Files panel, the file viewer, Changes, branches; the web hides
+  their buttons there.
 - **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI publishes a release, and
   the app updates from it (section 5).
 

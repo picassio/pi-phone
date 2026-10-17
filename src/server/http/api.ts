@@ -7,6 +7,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { homedir, networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import QRCode from "qrcode";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { MAX_PEEKS } from "../app.ts";
 import {
     type Auth,
@@ -21,6 +22,7 @@ import {
 } from "../auth.ts";
 import type { User } from "../config.ts";
 import { HttpError } from "../errors.ts";
+import { formatPlace, isRemote, parsePlace } from "../places.ts";
 import { runningNow } from "../running.ts";
 import { conversationRoutes } from "./conversation-routes.ts";
 import { createEventStreams } from "./events.ts";
@@ -430,8 +432,64 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
 
             const requested = url.searchParams.get("path") || "~";
-            const path = app.workspace.checkDirectory(requested);
             const showHidden = url.searchParams.get("hidden") === "1";
+
+            // A folder on a machine (`places.ts`): listed through its environment, so the picker browses the machine.
+            if (isRemote(requested)) {
+                const place = parsePlace(requested);
+                const machine = app.machines.ready(place.machineId!);
+                const home = machine.remote!.home;
+                const cwd = await app.workspace.checkPlace(
+                    formatPlace({ machineId: machine.id, path: place.path === "~" ? home : place.path.replace(/^~(?=\/)/, home) }),
+                );
+                const path = parsePlace(cwd).path;
+                const env = app.places.env(cwd);
+                const reader = await env.openDirReader(path, BACKGROUND_CONTEXT);
+
+                if (!reader.ok) {
+                    throw new HttpError(502, `Could not list ${path} on ${machine.name}: ${reader.error.message}`);
+                }
+
+                const remoteDirs: { name: string; path: string }[] = [];
+
+                try {
+                    for (;;) {
+                        const page = await reader.value.next(1000, BACKGROUND_CONTEXT);
+
+                        if (!page.ok) {
+                            throw new HttpError(502, `Could not list ${path} on ${machine.name}: ${page.error.message}`);
+                        }
+
+                        for (const entry of page.value.entries) {
+                            if ((showHidden || !entry.name.startsWith(".")) && entry.kind === "directory") {
+                                remoteDirs.push({ name: entry.name, path: formatPlace({ machineId: machine.id, path: entry.path }) });
+                            }
+                        }
+
+                        if (page.value.done || remoteDirs.length >= 1000) {
+                            break;
+                        }
+                    }
+                } finally {
+                    await reader.value.close(BACKGROUND_CONTEXT);
+                }
+
+                remoteDirs.sort((a, b) => a.name.localeCompare(b.name));
+                const parent = dirname(path);
+
+                return json(response, 200, {
+                    path: cwd,
+                    parent: parent === path ? null : formatPlace({ machineId: machine.id, path: parent }),
+                    home: formatPlace({ machineId: machine.id, path: home }),
+                    machine: { id: machine.id, name: machine.name },
+                    dirs: remoteDirs.slice(0, 1000),
+                    recent: [...new Set(app.sessions(user).map((session) => session.cwd))]
+                        .filter((each) => isRemote(each) && parsePlace(each).machineId === machine.id)
+                        .slice(0, 8),
+                });
+            }
+
+            const path = app.workspace.checkDirectory(requested);
             const dirs: { name: string; path: string }[] = [];
 
             for (const entry of readdirSync(path, { withFileTypes: true })) {
@@ -477,7 +535,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 throw new HttpError(400, "Name the folder to make.");
             }
 
-            return json(response, 200, { path: app.workspace.makeFolder(user, body.path) });
+            return json(response, 200, { path: await app.workspace.makePlace(user, body.path) });
         }
 
         if (first === "settings" && method === "POST") {

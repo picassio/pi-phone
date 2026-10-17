@@ -55,6 +55,7 @@ import { homePath } from "./paths.ts";
 import { mentionedPaths, viewFile } from "./files.ts";
 import { isThinkingLevel, THINKING_LEVELS } from "./models.ts";
 import { writePiSession } from "./pi-sessions.ts";
+import { isRemote } from "./places.ts";
 import { snippet } from "./projection.ts";
 import { globalModelSettings, projectModelDefault } from "./project-model.ts";
 import { expandPromptTemplate, expandSkillCommand, unwrapSkill } from "./prompts.ts";
@@ -360,10 +361,14 @@ export class Commands {
 
         const given = optionalText(request.title, "title");
         const title = (given === undefined ? undefined : oneLine(given)) || undefined;
-        const folder = app.workspace.checkDirectory(
+        const folder = await app.workspace.checkPlace(
             optionalText(request.cwd, "cwd") ?? app.defaultCwd,
         );
         const now = Date.now();
+
+        if (request.worktree === true && isRemote(folder)) {
+            throw new HttpError(400, "A worktree of its own is for folders on this phone; on a machine, start the session in a folder there.");
+        }
 
         return this.#inPlace(
             folder,
@@ -414,7 +419,7 @@ export class Commands {
         let cwd: string;
 
         try {
-            cwd = app.workspace.checkDirectory(folder ?? session.cwd);
+            cwd = await app.workspace.checkPlace(folder ?? session.cwd);
         } catch {
             throw new HttpError(
                 400,
@@ -1196,7 +1201,7 @@ export class Commands {
             "off") as ModelThinkingLevel;
         const thinkingLevel = model === undefined ? wanted : clampThinkingLevel(model, wanted);
         const cwd =
-            request.cwd === undefined ? undefined : app.workspace.checkDirectory(request.cwd);
+            request.cwd === undefined ? undefined : await app.workspace.checkPlace(request.cwd);
 
         const change = {
             ...(request.model === undefined

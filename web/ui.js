@@ -7,6 +7,7 @@ import { Component, createContext, h } from "preact";
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useDragToClose } from "./gestures.js";
 import { highlight, langOf } from "./highlight.js";
+import { machineById, splitPlace } from "./place.js";
 import { actions, filesShown, notify, openSheet, store } from "./store.js";
 
 export const html = htm.bind(h);
@@ -819,6 +820,15 @@ export function replyText(entry) {
 export function shortPath(path, home) {
     if (!path) {
         return "";
+    }
+
+    // A place on a machine (place.js): its name, then the path as the machine's home shortens it.
+    const place = splitPlace(path);
+
+    if (place.machineId !== undefined) {
+        const machine = machineById(place.machineId);
+
+        return `${machine?.name ?? `machine ${place.machineId.slice(0, 8)}`}: ${shortPath(place.path, machine?.home)}`;
     }
 
     if (home && (path === home || path.startsWith(`${home}/`))) {

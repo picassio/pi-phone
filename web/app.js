@@ -2,6 +2,7 @@
 import { render } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { folderColor } from "./avatar.js";
+import { machineNameOf, splitPlace } from "./place.js";
 import { canGoBack, goBack, replaceAddress, startHistory, useBack } from "./back.js";
 import { PeopleButton, PeoplePanel } from "./chat.js";
 import { Composer, openingByAlt } from "./composer.js";
@@ -98,10 +99,13 @@ function Topbar() {
     const { view, server, conversationId } = store.state;
     const conversation = view.conversation;
     const cwd = view.agent?.cwd ?? conversation?.cwd;
-    const folder = String(cwd ?? "")
+    // On a machine (place.js): the machine's name, then the folder's.
+    const machine = machineNameOf(cwd);
+    const folderName = String(splitPlace(cwd ?? "").path ?? "")
         .replace(/\/+$/, "")
         .split("/")
         .pop();
+    const folder = machine === undefined ? folderName : `${machine}: ${folderName}`;
     const branch = headLabel(view.branch) || conversation?.worktree?.branch;
     const title =
         conversation?.title ??

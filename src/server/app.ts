@@ -37,7 +37,7 @@ import {
     UsageDoc,
     type UsageState,
 } from "@earendil-works/pi-durable";
-import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
+import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { createNodePhotonImages } from "@earendil-works/pi-durable/images/node";
 import { createCodingTools } from "@earendil-works/pi-durable/tools";
@@ -65,6 +65,7 @@ import { FolderFavorites } from "./folder-favorites.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
+import { parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { takeLock } from "./lock.ts";
@@ -251,6 +252,8 @@ export class PocketApp {
     readonly sshKeys: SshKeys;
     /** Other computers sessions can work on, over ssh (`machines.ts`). */
     readonly machines: Machines;
+    /** Where sessions work, here or on a machine, and each place's execution environment (`places.ts`). */
+    readonly places: Places;
     /** Theme folders: the app's look and layout, built in and the owner's (`themes.ts`). */
     readonly themes: Themes;
     /** What extension modules add to the app: their routes, browser modules, and events (`extension-web.ts`). */
@@ -262,7 +265,6 @@ export class PocketApp {
     #websAll = false;
     readonly #clients = new Set<Client>();
     readonly #rooms = new Map<ConversationId, Promise<Room>>();
-    readonly #envs = new Map<string, NodeExecutionEnv>();
     readonly #busy = new Set<ConversationId>();
     /** When each conversation's last run ended, since this server started: peek tiles show sessions done since a look. */
     readonly #endedAt = new Map<ConversationId, number>();
@@ -303,6 +305,7 @@ export class PocketApp {
         this.config = new ConfigStore(options.dataDir);
         this.sshKeys = new SshKeys(options.dataDir, this.#home);
         this.machines = new Machines(options.dataDir, this.sshKeys, this.#home);
+        this.places = new Places(this.machines);
         this.#lockFile = join(options.dataDir, "harness.lock");
         this.#log = options.log ?? ((line) => console.log(line));
         this.themes = new Themes({
@@ -437,6 +440,18 @@ export class PocketApp {
                 }
             },
             skills: (cwd) => this.skills(cwd),
+            machineOf: (cwd) => {
+                const machine = this.places.machineOf(cwd);
+
+                return machine === undefined
+                    ? undefined
+                    : {
+                          name: machine.name,
+                          address: `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`,
+                          path: parsePlace(cwd).path,
+                          platform: machine.remote === undefined ? "unknown" : `${machine.remote.platform} ${machine.remote.arch}`,
+                      };
+            },
             resolveModel: (spec) => resolveModel(this.models, spec, this.signInNeeded),
             subagentModels: () => this.config.subagentModels,
             modelProblem: (ref, fresh) => this.providers.problem(ref, fresh),
@@ -473,7 +488,7 @@ export class PocketApp {
                 registry,
                 settings: this.#harnessSettings(),
                 now: this.now,
-                env: ({ cwd }) => this.#env(cwd ?? this.defaultCwd),
+                env: ({ cwd }) => this.places.env(cwd ?? this.defaultCwd),
                 conversationCreated: async (tx, conversation) => {
                     // Every conversation gets the app's documents up front, so views can read them from the start.
                     await tx.doc(AuthorsDoc, conversation.id);
@@ -818,19 +833,8 @@ export class PocketApp {
     }
 
     /** Where a conversation's commands run: its folder on this machine. */
-    envFor(id: ConversationId): NodeExecutionEnv {
-        return this.#env(this.cwdOf(id));
-    }
-
-    #env(cwd: string): NodeExecutionEnv {
-        let env = this.#envs.get(cwd);
-
-        if (env === undefined) {
-            env = new NodeExecutionEnv({ cwd });
-            this.#envs.set(cwd, env);
-        }
-
-        return env;
+    envFor(id: ConversationId): ExecutionEnv {
+        return this.places.env(this.cwdOf(id));
     }
 
     // ─── Clients ────────────────────────────────────────────────────────────
@@ -1483,6 +1487,11 @@ export class PocketApp {
                 startedAt: this.startedAt,
                 home: homedir(),
                 defaultCwd: this.defaultCwd,
+                // Connected machines (`machines.ts`): the folder picker offers them, and places on them show their names.
+                machines: this.machines
+                    .list()
+                    .filter((machine) => machine.remote !== undefined)
+                    .map((machine) => ({ id: machine.id, name: machine.name, home: machine.remote!.home })),
                 extensions: this.loader.extensionNames(),
                 // The browser modules this person's tabs load (`extension-ui.js`), each with the tools its module
                 // installs: the only ones whose calls it may describe (`pocket.toolCall`).
@@ -2516,10 +2525,7 @@ export class PocketApp {
             try {
                 // Close writes no outcome: running work resumes when the next process opens the storage.
                 await this.harness?.close(context);
-
-                for (const env of this.#envs.values()) {
-                    await env.cleanup(context);
-                }
+                await this.places.close(context);
             } finally {
                 rmSync(this.#lockFile, { force: true });
             }

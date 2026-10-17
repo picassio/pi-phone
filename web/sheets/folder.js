@@ -17,6 +17,7 @@ import {
 } from "../store.js";
 import { APPLE, html, Icon, Sheet, shortPath } from "../ui.js";
 import { piSessionsAvailable } from "./pi-sessions.js";
+import { joinPlace, splitPlace } from "../place.js";
 
 /** Whether hidden folders show: kept for the next time the picker opens. */
 const HIDDEN_KEY = "pocket.folderHidden";
@@ -40,15 +41,18 @@ function nameOf(path, home) {
 }
 
 /** The path as steps to click back up to: ~ or /, then each folder under it. */
-function crumbsOf(path, home) {
+function crumbsOf(cwd, homeCwd) {
+    // On a machine, the crumbs are the machine's paths, each carried as a place on it (place.js).
+    const { machineId, path } = splitPlace(cwd);
+    const home = splitPlace(homeCwd ?? "").path;
     const underHome = Boolean(home) && (path === home || path.startsWith(`${home}/`));
     const start = underHome ? home : "";
-    const crumbs = [{ name: underHome ? "~" : "/", path: underHome ? home : "/" }];
+    const crumbs = [{ name: underHome ? "~" : "/", path: joinPlace(machineId, underHome ? home : "/") }];
     let at = start;
 
     for (const part of path.slice(start.length).split("/").filter(Boolean)) {
         at = `${at}/${part}`;
-        crumbs.push({ name: part, path: at });
+        crumbs.push({ name: part, path: joinPlace(machineId, at) });
     }
 
     return crumbs;
@@ -401,6 +405,8 @@ export function CwdSheet({ mode }) {
     const recent = (listing?.recent ?? []).filter((path) => !favorites.includes(path));
     const favoriteLabels = recentLabels(favorites, home);
     const labels = recentLabels(recent, home);
+    const machines = store.state.server?.machines ?? [];
+    const onMachine = splitPlace(folder ?? "").machineId;
     const places = [
         ...(home ? [{ path: home, name: "Home", icon: "home" }] : []),
         { path: "/", name: "Computer", icon: "monitor" },
@@ -538,6 +544,20 @@ export function CwdSheet({ mode }) {
         <div class="fp-main">
             <nav class="fp-places" aria-label="Places">
                 ${places.map((each) => place(each.path, each.name, each.icon))}
+                ${machines.length > 0 && html`<div class="fp-places-title">Machines</div>`}
+                ${machines.map((machine) =>
+                    html`<button
+                        key=${machine.id}
+                        type="button"
+                        class=${`fp-place ${onMachine === machine.id ? "on" : ""}`}
+                        title=${`${machine.name}: its home folder`}
+                        aria-current=${onMachine === machine.id ? "location" : undefined}
+                        onClick=${() => load(joinPlace(machine.id, machine.home))}
+                    >
+                        <${Icon} name="monitor" size=${15} />
+                        <span>${machine.name}</span>
+                    </button>`,
+                )}
                 ${favorites.length > 0 && html`<div class="fp-places-title">Favorites</div>`}
                 ${favorites.map((path, index) =>
                     place(

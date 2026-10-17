@@ -6,6 +6,7 @@
  */
 import { lstatSync, mkdirSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve, sep } from "node:path";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
@@ -25,6 +26,7 @@ import type { User } from "./config.ts";
 import { describe, HttpError } from "./errors.ts";
 import { FileLists, type FileListing, type FileView, viewFile } from "./files.ts";
 import { displayPath, expandHome } from "./paths.ts";
+import { isRemote, parsePlace } from "./places.ts";
 
 export class Workspace {
     readonly #app: PocketApp;
@@ -81,6 +83,7 @@ export class Workspace {
 
     /** The branches of a session's repository, for the branch sheet: for people who can steer, as Changes is. */
     async branches(id: ConversationId, user: User): Promise<Branches> {
+        this.#localOnly(id, "Branches");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
 
@@ -106,6 +109,7 @@ export class Workspace {
         user: User,
         request: { name?: unknown; create?: unknown; track?: unknown },
     ): Promise<{ branch: string }> {
+        this.#localOnly(id, "Switching branches");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
 
@@ -157,6 +161,25 @@ export class Workspace {
     }
 
     /** A folder to work in, as its whole path: a 404 when it is not there, so the folder picker can offer to make it. */
+    /**
+     * What still reads the phone's files directly: on a machine (`places.ts`), it says so instead of failing on a path
+     * that is not here. Each goes through the machine's environment in turn (DESIGN.md).
+     */
+    #localOnly(id: ConversationId, what: string): void {
+        const machine = this.#app.places.machineOf(this.#app.cwdOf(id));
+
+        if (machine !== undefined) {
+            throw new HttpError(501, `${what} is not available yet for a session on a machine (${machine.name}). Ask Pi: its tools run there.`);
+        }
+    }
+
+    /** A place to work: a folder here (`checkDirectory`), or one on a machine, checked there (`places.ts`). */
+    checkPlace(cwd: string): Promise<string> {
+        return isRemote(cwd)
+            ? this.#app.places.checkDirectory(cwd, BACKGROUND_CONTEXT)
+            : Promise.resolve(this.checkDirectory(cwd));
+    }
+
     checkDirectory(path: string): string {
         const absolute = resolve(expandHome(path.trim() === "" ? "~" : path.trim()));
         let found;
@@ -196,6 +219,34 @@ export class Workspace {
      * folders (`/api/fs`): who can steer, and was not invited to one session. A folder already there is fine: it is the
      * one asked for. Returns its path.
      */
+    async makePlace(user: User, cwd: string): Promise<string> {
+        if (!isRemote(cwd)) {
+            return this.makeFolder(user, cwd);
+        }
+
+        this.#app.requireSteer(user);
+
+        if (user.sessions !== undefined) {
+            throw new HttpError(403, "You were invited to one session.");
+        }
+
+        // On a machine: `mkdir -p` through its environment, then checked as any folder there.
+        const place = parsePlace(cwd);
+        const machine = this.#app.machines.ready(place.machineId!);
+        const env = this.#app.places.env(cwd);
+        const made = await env.exec(["mkdir", "-p", place.path], { timeout: 30_000 }, BACKGROUND_CONTEXT);
+
+        if (!made.ok) {
+            throw new HttpError(502, `Could not make ${place.path} on ${machine.name}: ${made.error.message}`);
+        }
+
+        if (made.value.exitCode !== 0) {
+            throw new HttpError(409, `Could not make ${place.path} on ${machine.name} (mkdir exited ${made.value.exitCode}).`);
+        }
+
+        return this.checkPlace(cwd);
+    }
+
     makeFolder(user: User, path: string): string {
         this.#app.requireSteer(user);
 
@@ -247,6 +298,7 @@ export class Workspace {
      * viewers and people invited to one session get only files under the conversation's folder or its uploads.
      */
     conversationFile(user: User, id: ConversationId, path: string): string {
+        this.#localOnly(id, "Loading files");
         const file = this.conversationPath(id, path);
 
         if (user.role !== "viewer" && user.sessions === undefined) {
@@ -289,6 +341,7 @@ export class Workspace {
      * are the owner's alone. Uploads, worktrees, and PiP's clones (`repos/`), which sessions use, are not kept back.
      */
     readableFile(user: User, id: ConversationId, path: string): string {
+        this.#localOnly(id, "Reading files");
         const file = this.conversationFile(user, id, path);
 
         if (user.role === "owner") {
@@ -346,6 +399,7 @@ export class Workspace {
      * names under the folder only, so someone invited to one session sees no more than `conversationFile` lets them load.
      */
     async fileList(id: ConversationId, user: User): Promise<FileListing> {
+        this.#localOnly(id, "The Files panel");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
         await this.#app.conversation(id);
@@ -362,6 +416,7 @@ export class Workspace {
         user: User,
         path: string,
     ): Promise<{ path: string; display: string } & FileView> {
+        this.#localOnly(id, "The file viewer");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
         await this.#app.conversation(id);
@@ -389,6 +444,7 @@ export class Workspace {
      * right to drive and waits until Pi is not working; Pi is told, with its next message.
      */
     async revertChange(id: ConversationId, user: User, path: string): Promise<void> {
+        this.#localOnly(id, "Reverting a change");
         this.#app.requireSee(user, id);
         await this.#app.requireDriver(id, user);
 
@@ -416,6 +472,7 @@ export class Workspace {
 
     /** What changed in a session's folder: Pi's edits, and the uncommitted changes of its git repository. */
     async changes(id: ConversationId, user: User): Promise<Changes> {
+        this.#localOnly(id, "Changes");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
 
@@ -452,6 +509,7 @@ export class Workspace {
 
     /** The diff of one changed file in a session's repository. */
     async changeDiff(id: ConversationId, user: User, path: string): Promise<string> {
+        this.#localOnly(id, "Diffs");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
 

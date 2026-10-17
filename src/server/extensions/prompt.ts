@@ -99,7 +99,10 @@ export default function createPrompt(host: PocketHost) {
         return fresh;
     };
 
-    const cwdOf = (input: PromptInput) => input.env?.cwd ?? input.agent.cwd ?? process.cwd();
+    // The agent's cwd, which names a machine for a session there (`places.ts`); the env's cwd is the path alone.
+    const cwdOf = (input: PromptInput) => input.agent.cwd ?? input.env?.cwd ?? process.cwd();
+    // On a machine, AGENTS.md files and skills would come from the phone's files: none are read.
+    const localCwd = (input: PromptInput) => (host.machineOf(cwdOf(input)) === undefined ? cwdOf(input) : undefined);
 
     return defineExtension({
         name: "pocket-prompt",
@@ -107,13 +110,31 @@ export default function createPrompt(host: PocketHost) {
             section("preamble", () => PREAMBLE, { tag: false }),
             section("guidelines", () => GUIDELINES),
             section("pocket_docs", () => docs(host.dataDir)),
-            section("project_context", (input) => load(cwdOf(input)).context),
-            section("skills", (input) => load(cwdOf(input)).skills, { tag: false }),
+            section("project_context", (input) => {
+                const cwd = localCwd(input);
+
+                return cwd === undefined ? undefined : load(cwd).context;
+            }),
+            section("skills", (input) => {
+                const cwd = localCwd(input);
+
+                return cwd === undefined ? undefined : load(cwd).skills;
+            }, { tag: false }),
             section("environment", (input) => {
                 // The date only, so the prompt stays cache-friendly through the day.
                 const today = new Date().toISOString().slice(0, 10);
+                const machine = host.machineOf(cwdOf(input));
 
-                return `Working directory: ${cwdOf(input)}\nPlatform: ${process.platform}\nToday: ${today}`;
+                if (machine === undefined) {
+                    return `Working directory: ${cwdOf(input)}\nPlatform: ${process.platform}\nToday: ${today}`;
+                }
+
+                return [
+                    `Your tools (bash, read, write, edit) run on the machine "${machine.name}" (${machine.address}, ${machine.platform}), not on the phone. Working directory there: ${machine.path}`,
+                    "That machine's git, gh, and other programs use its own logins and tools, not the phone's. Files the user attaches are on the phone; ask for their contents to be pasted if you need them.",
+                    "A command stops about 30 seconds after the phone's connection to the machine drops, with an error; check what happened before running it again.",
+                    `Today: ${today}`,
+                ].join("\n");
             }),
         ],
     });

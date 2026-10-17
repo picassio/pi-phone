@@ -150,6 +150,8 @@ export interface PocketHost {
     skillPaths(): string[];
     /** Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`). */
     skills(cwd: string): Skill[];
+    /** The machine a session's cwd is on (`places.ts`), with what the prompt says about it; undefined on this phone. */
+    machineOf(cwd: string): { name: string; address: string; path: string; platform: string } | undefined;
     /**
      * `provider/modelId` (or a bare model id) to a signed-in model whose sign-in has not expired, or an error that says
      * it is not available. The error names no other models: models are a person's to choose.
