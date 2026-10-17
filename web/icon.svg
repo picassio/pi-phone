@@ -1,19 +1,13 @@
 <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
 	<!--
-		pi-phone's icon: a heavy lowercase p with a cursor block at its foot, white on electric blue. The PNGs beside
-		it, Android's legacy launcher icon, and its adaptive icon's layers (android/app/src/main/res/drawable/ic_launcher_*.xml,
-		the same paths) are drawn from it: node scripts/icons.ts.
+		pi-phone's icon: Pi's own logo (https://pi.dev/logo.svg, the Pi project's; pi-phone is not affiliated with it) on a
+		dark tile. The PNGs beside it, Android's legacy launcher icon, and its adaptive icon's layers
+		(android/app/src/main/res/drawable/ic_launcher_*.xml, the same paths) are drawn from it: node scripts/icons.ts.
 	-->
-	<defs>
-		<linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-			<stop offset="0" stop-color="#3a63ff" />
-			<stop offset="1" stop-color="#1c34c9" />
-		</linearGradient>
-	</defs>
-	<rect width="512" height="512" fill="url(#tile)" />
-	<g id="mark" transform="translate(-29 -24)">
-		<path d="M184 156 V420" fill="none" stroke="#ffffff" stroke-width="62" stroke-linecap="round" />
-		<circle cx="282" cy="236" r="98" fill="none" stroke="#ffffff" stroke-width="62" />
-		<rect x="356" y="372" width="62" height="48" rx="12" fill="#7dffb2" />
+	<rect width="512" height="512" fill="#13141c" />
+	<g id="mark" transform="scale(0.64)">
+		<path fill="#F09082" d="M165.29 165.29H517.36V400H400V282.65H165.29Z" />
+		<path fill="#4D9ABF" d="M165.29 282.65H282.65V400H400V517.36H282.65V634.72H165.29Z" />
+		<path fill="#F1BE58" d="M517.36 400H634.72V634.72H517.36Z" />
 	</g>
 </svg>

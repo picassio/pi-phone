@@ -1,28 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Notifications' small icon, one color: web/icon.svg's mark, its paths as they are there. -->
+<!-- Notifications' small icon, one color: Pi's logo (https://pi.dev/logo.svg, the Pi project's), its paths as web/icon.svg has them. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="512"
-    android:viewportHeight="512">
+    android:viewportWidth="800"
+    android:viewportHeight="800">
     <group
-        android:pivotX="256"
-        android:pivotY="256"
-        android:scaleX="0.94"
-        android:scaleY="0.94"
-        android:translateX="-27"
-        android:translateY="-23">
+        android:pivotX="400"
+        android:pivotY="400"
+        android:scaleX="1.5"
+        android:scaleY="1.5">
         <path
-            android:pathData="M184,156 V420"
-            android:strokeColor="#FFFFFF"
-            android:strokeWidth="62"
-            android:strokeLineCap="round" />
+            android:fillColor="#FFFFFF"
+            android:pathData="M165.29,165.29H517.36V400H400V282.65H165.29Z" />
         <path
-            android:pathData="M184,236 a98,98 0 1,0 196,0 a98,98 0 1,0 -196,0"
-            android:strokeColor="#FFFFFF"
-            android:strokeWidth="62" />
+            android:fillColor="#FFFFFF"
+            android:pathData="M165.29,282.65H282.65V400H400V517.36H282.65V634.72H165.29Z" />
         <path
-            android:pathData="M368,372 h38 a12,12 0 0 1 12,12 v24 a12,12 0 0 1 -12,12 h-38 a12,12 0 0 1 -12,-12 v-24 a12,12 0 0 1 12,-12 z"
-            android:fillColor="#FFFFFF" />
+            android:fillColor="#FFFFFF"
+            android:pathData="M517.36,400H634.72V634.72H517.36Z" />
     </group>
 </vector>

@@ -24,7 +24,10 @@ const { Resvg } = createRequire(join(folder, "package.json"))("@resvg/resvg-js")
 };
 const svg = readFileSync(join(ROOT, "web", "icon.svg"), "utf8");
 // Maskable: the mark within the inner 80% circle, the tile to the edges.
-const maskable = svg.replace('<g id="mark" transform="translate(-29 -24)">', '<g id="mark" transform="translate(256 256) scale(0.8) translate(-256 -256) translate(-29 -24)">');
+const maskable = svg.replace(
+    /<g id="mark" transform="([^"]*)">/,
+    (_whole, transform: string) => `<g id="mark" transform="translate(256 256) scale(0.8) translate(-256 -256) ${transform}">`,
+);
 
 if (maskable === svg) {
     throw new Error("web/icon.svg has no mark group to shrink");

@@ -84,6 +84,8 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   codemode, image reads), `pi-ai` (models and providers), `pi-coding-agent` (sign-ins, settings, sessions, skills),
   `pi-codemode` (the QuickJS sandbox), `pi-env` (remote execution over SSH), and `chord`. pi-phone is an app around
   them.
+  The app's icon is Pi's logo ([pi.dev/logo.svg](https://pi.dev/logo.svg)), which belongs to the Pi project;
+  pi-phone is an unofficial app, not affiliated with or endorsed by Earendil or the Pi project.
 - **[pi-cc-patch](https://github.com/picassio/pi-cc-patch)** (MIT): the Claude Code billing transform, ported to
   `src/server/cc-patch.ts` with its tests.
 
@@ -113,4 +115,5 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
 ## License
 
 pi-phone's own code is [MIT](LICENSE). The parts above keep their own licenses: pi-pocket's code here stays under
-its MIT license ([LICENSE-pi-pocket](LICENSE-pi-pocket)), and the bundled Termux packages under theirs.
+its MIT license ([LICENSE-pi-pocket](LICENSE-pi-pocket)), and the bundled Termux packages under theirs. Pi's logo,
+used as the icon, is the Pi project's and is not covered by pi-phone's license.
