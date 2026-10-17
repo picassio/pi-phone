@@ -370,6 +370,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
             );
         }
 
+        // Pi's sessions on a machine (`machines.ts`): listed through its environment; one copied here to continue.
+        if (first === "pi-sessions" && second === "machine" && third !== undefined && method === "GET") {
+            return json(response, 200, await app.piSessions.listOnMachine(user, third));
+        }
+
+        if (first === "pi-sessions" && second === "machine" && third !== undefined && method === "POST") {
+            const body = await readJson<{ path?: unknown }>(request);
+
+            return json(response, 200, await app.piSessions.importFromMachine(user, third, body.path));
+        }
+
         if (first === "pi-sessions" && second === "continue" && method === "POST") {
             const body = await readJson<{ path?: unknown; cwd?: unknown }>(request);
 

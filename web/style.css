@@ -15057,3 +15057,13 @@ pre.gallery-code {
 .machine-step .sheet-actions {
     margin-top: 8px;
 }
+
+/* ─── Pi sessions on a machine (pi-phone) ─────────────────────── */
+
+.pi-machine {
+    margin-top: 10px;
+}
+
+.pi-machine > .label {
+    margin-bottom: 6px;
+}

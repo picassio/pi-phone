@@ -13,7 +13,7 @@ import {
 } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { userInfo } from "node:os";
 import { join } from "node:path";
@@ -150,4 +150,50 @@ test("a session on the phone still works as before", async () => {
     const { id } = await app.commands.createSession(owner(app), { cwd: work });
 
     assert.equal(app.cwdOf(id), work);
+});
+
+test("Pi's sessions on a machine are listed from their headers, and one copied here continues in its folder there", { skip }, async () => {
+    const { SessionManager } = await import("@earendil-works/pi-coding-agent");
+    const project = join(remoteHome, "project");
+    const manager = SessionManager.inMemory(project);
+
+    manager.appendSessionInfo("Make the tests pass");
+    manager.appendMessage({ role: "user", content: "Please make the tests pass.", timestamp: 1 });
+    manager.appendMessage({ role: "assistant", content: [{ type: "text", text: "On it." }], stopReason: "stop", timestamp: 2 } as never);
+    const folder = join(remoteHome, ".pi", "agent", "sessions", "--project--");
+
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(
+        join(folder, "one.jsonl"),
+        [manager.getHeader(), ...manager.getEntries()].map((entry) => JSON.stringify(entry)).join("\n") + "\n",
+    );
+    // The machine's home, as pi-env detected it, is where its sessions are looked for: on this test machine that is
+    // this user's real home, so the file goes there too, under a folder of its own.
+    const home = app.machines.get(machineId).remote!.home;
+    const real = join(home, ".pi", "agent", "sessions", `--pi-phone-test-${process.pid}--`);
+
+    mkdirSync(real, { recursive: true });
+    writeFileSync(join(real, "one.jsonl"), readFileSync(join(folder, "one.jsonl")));
+
+    try {
+        const { sessions } = await app.piSessions.listOnMachine(owner(app), machineId);
+        const found = sessions.find((each) => each.path === join(real, "one.jsonl"));
+
+        assert.ok(found, JSON.stringify(sessions.slice(0, 3)));
+        assert.equal(found.title, "Please make the tests pass.");
+        assert.equal(found.cwd, project);
+
+        const imported = await app.piSessions.importFromMachine(owner(app), machineId, found.path);
+        const preview = await app.piSessions.preview(owner(app), imported.path);
+
+        assert.equal(preview.cwd, `machine:${machineId}:${project}`);
+        assert.equal(preview.cwdExists, true);
+        assert.deepEqual(preview.machine, { id: machineId, name: "box" });
+
+        const { id } = await app.commands.continuePiSession(owner(app), imported.path, preview.cwd);
+
+        assert.equal(app.cwdOf(id), `machine:${machineId}:${project}`);
+    } finally {
+        rmSync(real, { recursive: true, force: true });
+    }
 });

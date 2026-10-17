@@ -230,18 +230,14 @@ export class Workspace {
             throw new HttpError(403, "You were invited to one session.");
         }
 
-        // On a machine: `mkdir -p` through its environment, then checked as any folder there.
+        // On a machine: made through its environment (with the folders above it), then checked as any folder there.
         const place = parsePlace(cwd);
         const machine = this.#app.machines.ready(place.machineId!);
         const env = this.#app.places.env(cwd);
-        const made = await env.exec(["mkdir", "-p", place.path], { timeout: 30_000 }, BACKGROUND_CONTEXT);
+        const made = await env.createDir(place.path, { recursive: true }, BACKGROUND_CONTEXT);
 
         if (!made.ok) {
             throw new HttpError(502, `Could not make ${place.path} on ${machine.name}: ${made.error.message}`);
-        }
-
-        if (made.value.exitCode !== 0) {
-            throw new HttpError(409, `Could not make ${place.path} on ${machine.name} (mkdir exited ${made.value.exitCode}).`);
         }
 
         return this.checkPlace(cwd);

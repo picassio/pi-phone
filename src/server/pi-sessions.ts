@@ -12,6 +12,8 @@
  * finished gets a result saying so (Pi's says "No result provided"). Where Pi would send a tool result whose call is
  * not there (a stray one, or one whose call a context edit took out), Pi Durable leaves it out, as providers refuse it.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
@@ -41,6 +43,9 @@ import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { FROM_PI_ENTRY, type FromPiData } from "./entry-format.ts";
 import { HttpError } from "./errors.ts";
+import { formatPlace } from "./places.ts";
+
+const context = BACKGROUND_CONTEXT;
 
 /** Pi's variable for its sessions folder (`ENV_SESSION_DIR` in its config, which the package does not export). */
 const SESSION_DIR_VARIABLE = "PI_CODING_AGENT_SESSION_DIR";
@@ -48,6 +53,21 @@ const SESSION_DIR_VARIABLE = "PI_CODING_AGENT_SESSION_DIR";
 const MAX_SESSION_BYTES = 32 * 1024 * 1024;
 /** Imported session files go here, a folder in Pi's own sessions folder, so Pi's list finds them as any other. */
 const IMPORTED = "--imported--";
+/** Beside an imported file: where it came from, when a machine (`machines.ts`), so it continues there by default. */
+const ORIGIN_SUFFIX = ".origin.json";
+/** How many session files a machine's listing reads headers of. */
+const MAX_ON_MACHINE = 200;
+
+export type MachineSession = {
+    /** The file on the machine. */
+    path: string;
+    id: string;
+    cwd: string;
+    title: string;
+    /** The file's modification time there. */
+    modified: number;
+    size: number;
+};
 /** How long a list of Pi's sessions answers "is this one of them?" for a preview or a continue after it. */
 const FOUND_FOR_MS = 5_000;
 /** How many sessions a list holds, newest first: a search looks through them all first. */
@@ -485,6 +505,194 @@ export class PiSessions {
         return { path };
     }
 
+    /**
+     * Pi's sessions on a machine (`places.ts`): the `.jsonl` files under its `~/.pi/agent/sessions`, each with what its
+     * first line says (id, folder) and, when found quickly, its first message as a title. Read through the machine's
+     * environment, no pi needed there.
+     */
+    async listOnMachine(user: User, machineId: string): Promise<{ sessions: MachineSession[] }> {
+        this.#requireOwner(user);
+        const machine = this.#app.machines.ready(machineId);
+        const home = machine.remote!.home;
+        const root = `${home}/.pi/agent/sessions`;
+        const env = this.#app.places.env(formatPlace({ machineId, path: home }));
+        const failure = (what: string, error: { message: string }) =>
+            new HttpError(502, `Could not read Pi's sessions on ${machine.name} (${what}): ${error.message}`);
+        const exists = await env.exists(root, context);
+
+        if (!exists.ok) {
+            throw failure(root, exists.error);
+        }
+
+        if (!exists.value) {
+            return { sessions: [] };
+        }
+
+        // Every folder's files, newest first by mtime, headers read for the first MAX_ON_MACHINE.
+        const files: { path: string; modified: number; size: number }[] = [];
+        const folders = await env.openDirReader(root, context);
+
+        if (!folders.ok) {
+            throw failure(root, folders.error);
+        }
+
+        try {
+            for (;;) {
+                const page = await folders.value.next(500, context);
+
+                if (!page.ok) {
+                    throw failure(root, page.error);
+                }
+
+                for (const folder of page.value.entries) {
+                    if (folder.kind !== "directory") {
+                        continue;
+                    }
+
+                    const inside = await env.openDirReader(folder.path, context);
+
+                    if (!inside.ok) {
+                        continue;
+                    }
+
+                    try {
+                        for (;;) {
+                            const filesPage = await inside.value.next(500, context);
+
+                            if (!filesPage.ok) {
+                                break;
+                            }
+
+                            for (const file of filesPage.value.entries) {
+                                if (file.kind === "file" && file.name.endsWith(".jsonl")) {
+                                    files.push({ path: file.path, modified: file.mtimeMs, size: file.size });
+                                }
+                            }
+
+                            if (filesPage.value.done) {
+                                break;
+                            }
+                        }
+                    } finally {
+                        await inside.value.close(context);
+                    }
+                }
+
+                if (page.value.done) {
+                    break;
+                }
+            }
+        } finally {
+            await folders.value.close(context);
+        }
+
+        files.sort((a, b) => b.modified - a.modified);
+        const sessions: MachineSession[] = [];
+
+        for (const file of files.slice(0, MAX_ON_MACHINE)) {
+            // The header, and the first message for a title: the first lines only, not the whole file.
+            const lines = await env.readTextLines(file.path, { maxLines: 8 }, context);
+
+            if (!lines.ok || lines.value.length === 0) {
+                continue;
+            }
+
+            let header: { type?: unknown; id?: unknown; cwd?: unknown };
+
+            try {
+                header = JSON.parse(lines.value[0]!) as typeof header;
+            } catch {
+                continue;
+            }
+
+            if (header.type !== "session" || typeof header.id !== "string" || typeof header.cwd !== "string") {
+                continue;
+            }
+
+            let title = "Pi session";
+
+            for (const line of lines.value.slice(1)) {
+                try {
+                    const entry = JSON.parse(line) as { type?: unknown; message?: { role?: unknown; content?: unknown } };
+
+                    if (entry.type === "message" && entry.message?.role === "user") {
+                        const content = entry.message.content;
+                        const text =
+                            typeof content === "string"
+                                ? content
+                                : Array.isArray(content)
+                                  ? (content.find((part) => (part as { type?: unknown }).type === "text") as { text?: string } | undefined)?.text ?? ""
+                                  : "";
+                        const first = text.split("\n")[0]!.slice(0, TITLE_LENGTH).trim();
+
+                        if (first !== "") {
+                            title = first;
+                        }
+
+                        break;
+                    }
+                } catch {
+                    // A line that is not JSON: no title from it.
+                }
+            }
+
+            sessions.push({ path: file.path, id: header.id, cwd: header.cwd, title, modified: file.modified, size: file.size });
+        }
+
+        return { sessions };
+    }
+
+    /**
+     * Copy a session file from a machine into the imported folder, with where it came from beside it, so continuing it
+     * defaults to its folder on that machine. Answers the path here.
+     */
+    async importFromMachine(user: User, machineId: string, path: unknown): Promise<{ path: string }> {
+        this.#requireOwner(user);
+        const machine = this.#app.machines.ready(machineId);
+
+        if (typeof path !== "string" || !path.endsWith(".jsonl")) {
+            throw new HttpError(400, "Choose one of the machine's session files.");
+        }
+
+        const env = this.#app.places.env(formatPlace({ machineId, path: machine.remote!.home }));
+        const info = await env.fileInfo(path, context);
+
+        if (!info.ok) {
+            throw new HttpError(502, `Could not read ${path} on ${machine.name}: ${info.error.message}`);
+        }
+
+        if (info.value.size > MAX_SESSION_BYTES) {
+            throw new HttpError(413, "This Pi session is too large to continue here.");
+        }
+
+        const bytes = await env.readBinaryFile(path, context);
+
+        if (!bytes.ok) {
+            throw new HttpError(502, `Could not read ${path} on ${machine.name}: ${bytes.error.message}`);
+        }
+
+        const imported = await this.import(user, `${machine.name}-${basename(path)}`, Buffer.from(bytes.value));
+
+        await writeFile(
+            `${imported.path}${ORIGIN_SUFFIX}`,
+            `${JSON.stringify({ machineId, path }, null, 2)}\n`,
+            { mode: 0o600 },
+        );
+
+        return imported;
+    }
+
+    /** Where an imported file came from, when a machine. */
+    #originOf(path: string): { machineId: string; path: string } | undefined {
+        const file = `${path}${ORIGIN_SUFFIX}`;
+
+        if (!existsSync(file)) {
+            return undefined;
+        }
+
+        return JSON.parse(readFileSync(file, "utf8")) as { machineId: string; path: string };
+    }
+
     #requireOwner(user: User): void {
         if (user.role !== "owner") {
             throw new HttpError(403, "Only the owner can continue Pi's sessions here.");
@@ -562,10 +770,14 @@ export class PiSessions {
     async preview(user: User, path: string) {
         const session = await this.read(user, path);
         const pocket = this.#continued().get(session.id);
+        // A session from a machine continues in its folder on that machine, when it is still there.
+        const origin = this.#originOf(path);
+        const machine = origin === undefined ? undefined : this.#app.machines.list().find((each) => each.id === origin.machineId);
+        const place = machine === undefined ? session.cwd : formatPlace({ machineId: machine.id, path: session.cwd });
         let cwdExists = true;
 
         try {
-            this.#app.workspace.checkDirectory(session.cwd);
+            await this.#app.workspace.checkPlace(place);
         } catch {
             cwdExists = false;
         }
@@ -592,8 +804,9 @@ export class PiSessions {
         return {
             path,
             title: session.title,
-            cwd: session.cwd,
+            cwd: place,
             cwdExists,
+            ...(machine === undefined ? {} : { machine: { id: machine.id, name: machine.name } }),
             messages: session.count,
             model: model === null ? null : `${model.provider}/${model.modelId}`,
             modelHere,

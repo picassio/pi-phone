@@ -115,6 +115,10 @@ pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   browses the machine through its environment (New folder makes one there). Worktrees are for the phone's folders.
   Not yet on a machine, each saying so (HTTP 501): the Files panel, the file viewer, Changes, branches; the web hides
   their buttons there.
+- **Pi sessions on a machine**: Continue a Pi session lists a connected machine's `~/.pi/agent/sessions/*/*.jsonl`
+  through its environment (first lines only: id, folder, first message as title), copies the chosen file into the
+  imported folder with an `.origin.json` beside it, and the preview then defaults to the session's folder on that
+  machine (checked there).
 - **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI publishes a release, and
   the app updates from it (section 5).
 

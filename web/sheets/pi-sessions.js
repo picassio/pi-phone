@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { actions, attempt, closeSheet, navigate, notify, openSheet, store } from "../store.js";
 import { html, Icon, Loader, Sheet, shortPath, timeAgo } from "../ui.js";
+import { isRemotePlace } from "../place.js";
 
 /** Only the owner: Pi's sessions are the owner's files. */
 export const piSessionsAvailable = () => store.state.me?.role === "owner";
@@ -68,6 +69,27 @@ export function PiSessionsSheet() {
     const [floor, setFloor] = useState(0);
     const picker = useRef(null);
     const [importing, setImporting] = useState(false);
+    // A machine whose Pi sessions are listed (place.js), and that list.
+    const [machine, setMachine] = useState(null);
+    const [onMachine, setOnMachine] = useState(null);
+    const machines = store.state.server?.machines ?? [];
+    const browseMachine = (each) => {
+        setMachine(each);
+        setOnMachine(null);
+        attempt(async () => setOnMachine((await api(`pi-sessions/machine/${encodeURIComponent(each.id)}`)).sessions));
+    };
+    const importFromMachine = (session) => {
+        setImporting(true);
+        attempt(async () => {
+            try {
+                const { path } = await api(`pi-sessions/machine/${encodeURIComponent(machine.id)}`, { path: session.path });
+
+                openSheet({ type: "pi-session", id: path });
+            } finally {
+                setImporting(false);
+            }
+        });
+    };
     const importFile = (file) => {
         if (!file) {
             return;
@@ -130,7 +152,44 @@ export function PiSessionsSheet() {
                 <span><${Icon} name="file" size=${16} /> ${importing ? "Importing…" : "Import a session file…"}</span>
                 <span class="muted small">a Pi session's .jsonl</span>
             </button>
+            ${machines.map(
+                (each) => html`<button
+                    key=${each.id}
+                    class=${`list-item ${machine?.id === each.id ? "on" : ""}`}
+                    disabled=${importing}
+                    onClick=${() => browseMachine(each)}
+                >
+                    <span><${Icon} name="monitor" size=${16} /> Pi's sessions on ${each.name}</span>
+                    <span class="muted small">read over ssh; one copies here to continue</span>
+                </button>`,
+            )}
         </div>
+        ${
+            machine &&
+            html`<div class="pi-machine">
+                <div class="label">On ${machine.name}</div>
+                ${onMachine === null && html`<${Loader} label=${`Reading Pi's sessions on ${machine.name}`} />`}
+                ${onMachine?.length === 0 && html`<p class="muted small">No Pi sessions in ~/.pi/agent/sessions there.</p>`}
+                ${
+                    onMachine?.length > 0 &&
+                    html`<div class="pi-folder-list">
+                        ${onMachine.map(
+                            (session) => html`<button
+                                key=${session.path}
+                                class="pi-session"
+                                disabled=${importing}
+                                onClick=${() => importFromMachine(session)}
+                            >
+                                <span class="pi-session-text">
+                                    <span class="pi-session-title">${session.title}</span>
+                                    <span class="pi-session-meta">${shortPath(session.cwd, machine.home)} · ${timeAgo(session.modified)} ago</span>
+                                </span>
+                            </button>`,
+                        )}
+                    </div>`
+                }
+            </div>`
+        }
         <input
             type="file"
             accept=".jsonl,application/jsonl,application/x-ndjson,text/plain,application/octet-stream"
@@ -193,11 +252,23 @@ export function PiSessionSheet({ path }) {
     const [busy, setBusy] = useState(false);
     // Where it works when its own folder is not on this phone (one brought from another machine).
     const [folder, setFolder] = useState(store.state.server?.defaultCwd ?? "");
+    // The folder it worked in, prefilled when it is on a machine (place.js): usually the right one there.
+    const prefilled = useRef(false);
     // Set at once, not at the next render: a second tap in the same moment must not make a second copy.
     const going = useRef(false);
 
     useEffect(() => {
-        actions.piSession(path).then(setInfo, (error) => setProblem(error.message));
+        actions.piSession(path).then(
+            (result) => {
+                if (!prefilled.current && isRemotePlace(result.cwd)) {
+                    setFolder(result.cwd);
+                    prefilled.current = true;
+                }
+
+                setInfo(result);
+            },
+            (error) => setProblem(error.message),
+        );
     }, [path]);
 
     const open = (id) => {
@@ -263,7 +334,9 @@ export function PiSessionSheet({ path }) {
         ${
             !info.cwdExists &&
             html`<div class="field">
-                <div class="label">The folder it worked in is not on this phone. Work in:</div>
+                <div class="label">
+                    ${info.machine ? `The folder it worked in is not on ${info.machine.name} any more. Work in:` : "The folder it worked in is not on this phone. Work in:"}
+                </div>
                 <div class="row">
                     <input
                         type="text"
