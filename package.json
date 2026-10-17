@@ -10,7 +10,7 @@
 	"scripts": {
 		"server": "node bin/pi-phone-server.mjs",
 		"smoke": "node bin/run.mjs scripts/ws-smoke.ts",
-		"test": "node bin/run.mjs --test --test-timeout=10000 server/*.test.ts"
+		"test": "node bin/run.mjs --test --test-timeout=10000 server/*.test.ts app/src/model/*.test.ts"
 	},
 	"dependencies": {
 		"ws": "8.22.0"

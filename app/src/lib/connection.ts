@@ -3,7 +3,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { Client } from "@earendil-works/pi-client";
-import { AgentController } from "pi-src/experimental/services/agent-controller.ts";
 import {
 	createServerServiceSource,
 	createSessionServiceSource,
@@ -12,9 +11,9 @@ import {
 } from "pi-src/experimental/services/connection.ts";
 import { Models } from "pi-src/experimental/services/models.ts";
 import { SessionDirectory, SessionManagement } from "pi-src/experimental/services/sessions.ts";
-import { Transcript } from "pi-src/experimental/services/transcript.ts";
 import { createWebSocketTransportFactory } from "../../../client/ws-transport.ts";
 import { Providers } from "../../../contracts/providers.ts";
+import { PhoneAgent, PhoneTranscript, PhoneTranscripts, type ProjectedView } from "../../../contracts/transcripts.ts";
 import { createStore } from "./store.ts";
 
 export const context = BACKGROUND_CONTEXT;
@@ -56,12 +55,19 @@ export interface Connection {
 	readonly directory: SessionDirectory;
 	readonly management: SessionManagement;
 	readonly models: Models;
-	readonly agent: AgentController;
-	readonly transcript: Transcript;
+	readonly agent: PhoneAgent;
 	readonly providers: Providers;
+	/** Open a conversation's projected transcript; resolves once the keyed instance has a value. */
+	openTranscript(conversationId: number): Promise<OpenTranscript>;
 	attach(sessionId: string): Promise<void>;
 	detach(): Promise<void>;
 	dispose(): Promise<void>;
+}
+
+export interface OpenTranscript {
+	readonly transcript: PhoneTranscript;
+	readonly initial: ProjectedView;
+	close(): Promise<void>;
 }
 
 export type ConnectionState =
@@ -103,7 +109,7 @@ export async function connect(settings: ServerSettings): Promise<Connection> {
 		},
 	});
 	const sessionServices = session.open({
-		services: [Models, AgentController, Transcript, Providers],
+		services: [Models, PhoneAgent, PhoneTranscripts, PhoneTranscript, Providers],
 		assertAccess() {},
 		onError(error) {
 			console.error("session services", error);
@@ -111,6 +117,25 @@ export async function connect(settings: ServerSettings): Promise<Connection> {
 	});
 	await Promise.all([serverServices.ready(context), sessionServices.ready(context)]);
 	const management = serverServices.use(SessionManagement);
+	const transcripts = sessionServices.use(PhoneTranscripts);
+	// Keyed instances arrive through observe(); each instance's state names its conversation.
+	const instances = new Map<number, { transcript: PhoneTranscript; initial: ProjectedView }>();
+	const waiters = new Map<number, ((instance: { transcript: PhoneTranscript; initial: ProjectedView }) => void)[]>();
+	sessionServices.observe(PhoneTranscript, (transcript, observeContext) => {
+		let seen = false;
+		const stop = transcript.state.subscribe((value) => {
+			if (value === undefined || seen) return;
+			seen = true;
+			queueMicrotask(() => stop());
+			const instance = { transcript, initial: value };
+			instances.set(value.conversationId, instance);
+			for (const waiter of waiters.get(value.conversationId) ?? []) waiter(instance);
+			waiters.delete(value.conversationId);
+		});
+		observeContext.abortSignal?.addEventListener("abort", () => {
+			for (const [id, instance] of instances) if (instance.transcript === transcript) instances.delete(id);
+		});
+	});
 
 	return {
 		serverId,
@@ -120,9 +145,24 @@ export async function connect(settings: ServerSettings): Promise<Connection> {
 		directory: serverServices.use(SessionDirectory),
 		management,
 		models: sessionServices.use(Models),
-		agent: sessionServices.use(AgentController),
-		transcript: sessionServices.use(Transcript),
+		agent: sessionServices.use(PhoneAgent),
 		providers: sessionServices.use(Providers),
+		async openTranscript(conversationId) {
+			const existing = instances.get(conversationId);
+			const ready = new Promise<{ transcript: PhoneTranscript; initial: ProjectedView }>((resolve) => {
+				if (existing !== undefined) {
+					resolve(existing);
+					return;
+				}
+				waiters.set(conversationId, [...(waiters.get(conversationId) ?? []), resolve]);
+			});
+			await transcripts.open({ conversationId }, context);
+			const instance = await ready;
+			return {
+				...instance,
+				close: () => transcripts.close({ conversationId }, context),
+			};
+		},
 		async attach(sessionId) {
 			if (client.attachment?.sessionId === sessionId) return;
 			await management.attach(sessionId, context);
