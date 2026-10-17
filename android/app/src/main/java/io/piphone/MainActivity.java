@@ -66,7 +66,7 @@ public final class MainActivity extends Activity {
     private final class Bridge {
         @JavascriptInterface
         public void checkForUpdates() {
-            runOnUiThread(() -> checkForUpdates(true));
+            runOnUiThread(() -> MainActivity.this.checkForUpdates(true));
         }
     }
 
