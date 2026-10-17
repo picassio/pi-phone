@@ -1,3 +1,9 @@
 node_modules/
-.expo/
 *.log
+.env
+android/.gradle/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/*.bin
+android/app/src/main/assets/runtime-version
+android/app/src/main/assets/termux-packages.json

@@ -1,7 +1,7 @@
 // Ported from pi-cc-patch's tests/provider-targeting.test.mjs.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { patchClaudeCodePayload } from "./cc-patch.ts";
+import { patchClaudeCodePayload } from "../src/server/cc-patch.ts";
 
 const VERSION = "2.1.280";
 const options = { version: VERSION };
