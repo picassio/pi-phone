@@ -296,3 +296,24 @@ export const ShellRequestsDoc = defineDoc<{ items: Record<string, number> }>({
     fork: "initial",
     initial: () => ({ items: {} }),
 });
+
+/** A GitHub Actions run a conversation watches (`extensions/ci-watch.ts`): the task that looks at it, and what it is. */
+export type CiWatch = {
+    taskId: number;
+    repo: string;
+    runId: number;
+    /** The workflow, its run number, and the branch: `Build APK #42 on master`. */
+    label: string;
+    url: string;
+    startedAt: number;
+};
+
+/** The runs a conversation watches, by `repo#runId`. Removing one stops its task at its next look. Forks start empty. */
+export const CiWatchesDoc = defineDoc<{ items: Record<string, CiWatch> }>({
+    kind: "phone.ci-watches",
+    version: 1,
+    scope: "conversation",
+    history: "latest",
+    fork: "initial",
+    initial: () => ({ items: {} }),
+});

@@ -219,6 +219,27 @@ function DriverBar() {
 }
 
 /** Plan mode: Pi proposes and changes nothing until someone here approves its plan. */
+/** The GitHub Actions runs Pi watches here (`extensions/ci-watch.ts`): each links to its run, and Stop ends it. */
+function CiWatchBar() {
+    const watches = store.state.view.ciWatches ?? [];
+
+    if (watches.length === 0) {
+        return null;
+    }
+
+    return html`<div class="plan-bar ci-watch-bar" data-part="ci-watch-bar">
+        <span class="grow">
+            <strong>Watching CI.</strong>
+            ${watches.map(
+                (watch, index) => html`${index > 0 ? " · " : " "}<a href=${watch.url} target="_blank" rel="noopener">${watch.label}</a>
+                    <button class="link small" onClick=${() => attempt(() => actions.stopCiWatch(watch))}>
+                        Stop
+                    </button>`,
+            )}
+        </span>
+    </div>`;
+}
+
 function PlanBar({ blocked }) {
     const { view } = store.state;
 
@@ -1004,6 +1025,7 @@ export function Composer() {
             }
             ${collab() && html`<${DriverBar} />`}
             <${PlanBar} blocked=${blocked} />
+            <${CiWatchBar} />
             <${SubagentsBar} />
             <${TrustBar} />
         </div>

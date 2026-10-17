@@ -5,6 +5,8 @@ import { basename, extname, join, resolve, sep } from "node:path";
 import { pipeline } from "node:stream/promises";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import type { Attachment, SubmitRequest } from "../commands.ts";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { CiWatchesDoc } from "../docs.ts";
 import { HttpError } from "../errors.ts";
 import type { CommandRequest } from "../extension-commands.ts";
 import { serveImage, TYPES } from "./assets.ts";
@@ -177,6 +179,22 @@ export async function conversationRoutes(
         const body = await readJson<{ text?: unknown }>(request);
 
         await app.commands.setInstructions(id, user, body.text);
+
+        return json(response, 200, { ok: true });
+    }
+
+    // Stop watching a GitHub Actions run (`extensions/ci-watch.ts`): its task sees it gone at its next look.
+    if (third === "ci-watch" && fourth === "stop" && method === "POST") {
+        app.requireSteer(user);
+        const body = await readJson<{ repo?: unknown; runId?: unknown }>(request);
+
+        if (typeof body.repo !== "string" || typeof body.runId !== "number") {
+            throw new HttpError(400, "repo and runId are required");
+        }
+
+        await app.harness.commit(async (tx) => {
+            delete (await tx.doc(CiWatchesDoc, id)).items[`${body.repo as string}#${body.runId as number}`];
+        }, BACKGROUND_CONTEXT);
 
         return json(response, 200, { ok: true });
     }

@@ -56,6 +56,7 @@ const emptyView = () => ({
     turns: { on: false, asks: [] },
     decisions: {},
     plan: { on: false },
+    ciWatches: [],
     branch: null,
     subagentsHeld: null,
 });
@@ -514,6 +515,7 @@ function mergeView(current, data) {
         turns: data.turns ?? base.turns,
         decisions: data.decisions ?? base.decisions,
         plan: data.plan ?? base.plan,
+        ciWatches: data.ciWatches ?? base.ciWatches,
         // Why subagents' reports wait (a spend limit), or null when none do: the subagents bar says it.
         subagentsHeld: data.subagentsHeld === undefined ? base.subagentsHeld : data.subagentsHeld,
         // What the folder has checked out: `{ branch }` or `{ detached }`, and null outside a repository.
@@ -1048,6 +1050,7 @@ export const actions = {
     /** Send a message to Pi again in a fork that ends just before it: `{ text }` edits it, `{ model }` picks another model. */
     resend: (entryId, change = {}) => api(`c/${current()}/resend`, { entryId, ...change }),
     setPlan: (on) => api(`c/${current()}/plan`, { on }),
+    stopCiWatch: (watch) => api(`c/${current()}/ci-watch/stop`, { repo: watch.repo, runId: watch.runId }),
     approvePlan: () => api(`c/${current()}/plan`, { approve: true }),
     prompts: () => api(`c/${current()}/prompts`),
     trust: () => api(`c/${current()}/trust`),

@@ -29,6 +29,8 @@ import {
     type Pin,
     PinsDoc,
     PlanDoc,
+    CiWatchesDoc,
+    type CiWatch,
     ReactionsDoc,
     type SubagentRecord,
     STOPPED,
@@ -62,6 +64,7 @@ export const ROOM_DOCS = new Set(
         TurnsDoc,
         DecisionsDoc,
         PlanDoc,
+        CiWatchesDoc,
     ].map((doc) => doc.definition.kind),
 );
 /** A typing indicator lasts this long unless the browser renews it. */
@@ -293,6 +296,8 @@ export class Room {
     turns: Turns = { on: false, asks: [] };
     decisions: Record<string, Decision> = {};
     plan: { on: boolean; by?: string; at?: number } = { on: false };
+    /** The GitHub Actions runs this conversation watches (`extensions/ci-watch.ts`). */
+    ciWatches: Record<string, CiWatch> = {};
     /** Who is typing where, by user id. Memory only: it means nothing after a restart. */
     readonly #typing = new Map<string, { where: TypingPlace; timer: NodeJS.Timeout }>();
     parent: { id: ConversationId; title: string } | undefined;
@@ -339,6 +344,7 @@ export class Room {
             ...((await harness.snapshot(DecisionsDoc, this.id, context))?.calls ?? {}),
         };
         this.plan = { ...((await harness.snapshot(PlanDoc, this.id, context)) ?? { on: false }) };
+        this.ciWatches = { ...((await harness.snapshot(CiWatchesDoc, this.id, context))?.items ?? {}) };
 
         if (owner !== undefined) {
             const siblings =
@@ -404,6 +410,8 @@ export class Room {
             this.decisions = { ...((value?.calls as Record<string, Decision>) ?? {}) };
         } else if (kind === PlanDoc.definition.kind) {
             this.plan = { on: false, ...((value as Room["plan"] | null) ?? {}) };
+        } else if (kind === CiWatchesDoc.definition.kind) {
+            this.ciWatches = { ...((value?.items as Record<string, CiWatch>) ?? {}) };
         }
 
         if (kind === AuthorsDoc.definition.kind) {
@@ -522,6 +530,13 @@ export class Room {
             turns: this.turns,
             decisions: this.decisions,
             plan: this.plan,
+            ciWatches: Object.values(this.ciWatches).map(({ repo, runId, label, url, startedAt }) => ({
+                repo,
+                runId,
+                label,
+                url,
+                startedAt,
+            })),
             // The branch is read from the repository each time, so one Pi or a person switched to shows on the next update.
             branch: this.#readHead(),
         };

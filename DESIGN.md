@@ -87,6 +87,11 @@ pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
 - **GitHub sign-in** (`src/server/github-login.ts`, `web/sheets/github.js`): GitHub's device flow with `gh`'s own
   OAuth app; the token goes to `gh auth login --with-token`, then `gh auth setup-git`. The agent's `git` and `gh`
   use it for private repositories; it lives in the app's home folder, where the agent can read it.
+- **CI watch** (`src/server/extensions/ci-watch.ts`): the `watch_ci` tool registers GitHub Actions runs (default: the
+  runs of the commit just pushed); a durable background task per run looks every 30 s with the app's `gh` and sends
+  the conversation one `[ci-watch]` message when it finishes (conclusion, jobs, failed steps and the end of their log,
+  fenced). Ends with its run, after 2 hours, after 6 failed looks in a row (it says so), or when stopped (the tool, or
+  Stop in the bar above the message box). Survives restarts.
 - **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI publishes a release, and
   the app updates from it (section 5).
 
