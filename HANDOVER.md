@@ -46,8 +46,10 @@ Done:
   import and a chosen folder (`pi-sessions.ts`, `web/sheets/pi-sessions.js`).
 - Releases: build-10 is the latest at the time of writing; the app updates from them.
 
+Verified on the phone: the APK update (build 12), GitHub sign-in, `npm run check` in the app.
+
 Next, in order:
-1. Verify on the phone: the update flow (runtime and APK), GitHub sign-in end to end, continuing this session, the
+1. Verify on the phone: a runtime-only update, continuing this session, the
    billing patch on an Opus prompt (ask "Quote the very first line of your system prompt verbatim").
 2. CI flake: the UI tests sometimes fail with "The browser did not answer Browser.getVersion in time" (Chrome slow
    to start on the runner). Raise the start timeout in `test/support/browser/cdp.ts` or `browser.ts`.
@@ -61,8 +63,8 @@ Next, in order:
 
 ## Rules that bit before
 
-- Until a build with `LD_PRELOAD` in PiService is installed, `#!/usr/bin/env` scripts (`npm run`, npm CLIs) fail with
-  "not found": `export LD_PRELOAD=$PREFIX/lib/libtermux-exec-ld-preload.so` first.
+- `#!/usr/bin/env` scripts (npm CLIs, `npm run`) work because PiService preloads termux-exec (build 12 on). If they
+  fail with "not found", check that `$LD_PRELOAD` names `libtermux-exec-ld-preload.so`.
 
 - Never fall back; fail with a clear error (AGENTS.md). Don't migrate removed pi-pocket features back unless asked.
 - `pkill -f` with a pattern matching your own command line kills your own shell. Use `pkill -f "main.ts --port 878[8]"`.
