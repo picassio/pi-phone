@@ -49,7 +49,9 @@ Done:
   import and a chosen folder (`pi-sessions.ts`, `web/sheets/pi-sessions.js`).
 - Releases: build-10 is the latest at the time of writing; the app updates from them.
 
-Verified on the phone: the APK update (build 12), GitHub sign-in, `npm run check` in the app.
+Verified on the phone: the APK update (build 12) and runtime updates, GitHub sign-in, `npm run check` in the app,
+image reads and the zoom viewer, `watch_ci` reports, and remote work end to end against a real Linux machine
+(han-devbox, build 28): SSH key import, Machines (scan, accept, install and connect), a session whose tools run there.
 
 Next, in order:
 1. Verify on the phone: a runtime-only update, continuing this session, the
@@ -60,8 +62,10 @@ Next, in order:
    tiles; `attribution` down to one owner), theme editing, the Walker launcher, the extension web layer (needs the
    loader in `reload.ts` reworked). The Extensions sheet still has dead Lancet Guard code; the People sheet a dead
    Notifications button; the store still has `browserOpen`/`pipOpen`.
-4. Remote work over ssh: pulling pi sessions from another machine into Continue a Pi session (same reader), and
-   tools on another machine (`@earendil-works/pi-env`, DESIGN.md 6b).
+4. Remote work (done through build 28: pi 1.3.0, SSH keys, Machines, sessions on a machine, Continue a Pi session
+   from a machine). Still to do on machines: the Files panel, file viewer, Changes, and branches through the
+   machine's environment (`workspace.ts` says "not available yet" there); attachments copied to the machine; a
+   terminal (pi-env's `openTerminal` + xterm.js).
 5. "Pi Pocket" still appears in user-facing text (exports, a few sheets); rename to pi-phone where it is shown.
 
 ## Rules that bit before
