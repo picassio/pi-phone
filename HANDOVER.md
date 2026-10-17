@@ -58,10 +58,9 @@ Next, in order:
    billing patch on an Opus prompt (ask "Quote the very first line of your system prompt verbatim").
 2. CI flake: the UI tests sometimes fail with "The browser did not answer Browser.getVersion in time" (Chrome slow
    to start on the runner). Raise the start timeout in `test/support/browser/cdp.ts` or `browser.ts`.
-3. Cut the rest (DESIGN.md section 3, "still to cut"): multiplayer (collab, spend, people, invites, roles, peek
-   tiles; `attribution` down to one owner), theme editing, the Walker launcher, the extension web layer (needs the
-   loader in `reload.ts` reworked). The Extensions sheet still has dead Lancet Guard code; the People sheet a dead
-   Notifications button; the store still has `browserOpen`/`pipOpen`.
+3. No more trimming (the owner's decision): multiplayer, theme editing, the launcher, and the extension layer stay.
+   Only leftovers of features already removed may go: the Extensions sheet's dead Lancet Guard code, the People
+   sheet's Notifications button (Web Push is gone), and `browserOpen`/`pipOpen` in the store.
 4. Remote work (done through build 28: pi 1.3.0, SSH keys, Machines, sessions on a machine, Continue a Pi session
    from a machine). Still to do on machines: the Files panel, file viewer, Changes, and branches through the
    machine's environment (`workspace.ts` says "not available yet" there); attachments copied to the machine; a

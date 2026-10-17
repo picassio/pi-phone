@@ -75,11 +75,10 @@ artifacts, Web Push, dictation, peek tiles, share, the launcher (access modes,
 tunnels, QR), PiP, schedules and goals, memory, triggers, and the repo extras (docs site, nix, lint config).
 Any of these can be brought back from upstream later.
 
-Still to cut: multiplayer (`collab`, `spend`, people, invites, roles, `attribution` down to one owner, peek
-tiles), theme editing, the Walker launcher, and the extension web layer (`extension-web.ts`,
-`extension-commands.ts`, `http/extension-routes.ts`, `web/extension-ui.js`): no built-in extension uses routes,
-browser modules, or commands any more, but `reload.ts` is built on it, so removing it means reworking the loader.
-pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
+Kept on purpose (the owner's decision, 2026-10-17: no more trimming): multiplayer (`collab`, `spend`, people,
+invites, roles, peek tiles), theme editing and Omarchy palettes, the Walker-style launcher, and the extension web
+layer (`extension-web.ts`, `extension-commands.ts`, `http/extension-routes.ts`, `web/extension-ui.js`). Do not cut
+them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
 
 ## 4. Ours
 
@@ -166,6 +165,6 @@ Type checking (`tsc`) runs in CI; tests run on the phone (`npm test`) and in CI.
 5. Done: cut server and web features (section 3, first list); `check-web-imports.ts` in CI.
 6. Install on the phone; verify: runtime extracts, server starts, UI loads, Claude login, one prompt, bash/git/rg
    from the agent, the billing patch on an Opus prompt.
-7. Cut the rest (section 3, "still to cut").
+7. No more trimming: the features left in section 3 stay.
 8. Done: GitHub sign-in for the app's `git` and `gh` (`github-login.ts`, the GitHub sheet); updates from releases.
 9. Self-hosting: the agent works on a clone of this repo in `home/projects` and pushes; the release reaches the app.
