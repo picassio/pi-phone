@@ -241,7 +241,8 @@ export class Chromium {
 
         try {
             const version = await Promise.race([
-                connection.send("Browser.getVersion", {}, undefined, 20_000),
+                // A cold start on a CI runner can take longer than 20 s; the first UI test then failed, and the rest with it.
+                connection.send("Browser.getVersion", {}, undefined, 60_000),
                 failed,
             ]);
 
