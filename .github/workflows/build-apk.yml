@@ -3,6 +3,11 @@ name: Build APK
 on:
   push:
     branches: [master]
+    # Docs alone build nothing. DESIGN.md and AGENTS.md ship in the runtime, so their changes reach the app with the
+    # next code change (or a run by hand).
+    paths-ignore:
+      - '**.md'
+      - '.pi/**'
   workflow_dispatch:
 
 permissions:
