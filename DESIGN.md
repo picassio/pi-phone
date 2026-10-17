@@ -53,8 +53,10 @@ files/tmp/        TMPDIR
 Kept: the durable core (`app`, `room`, `projection`, `timing`, `entry-format`, `fence`, `docs`, `host`, `reload`
 for built-ins, `lock`, `errors`, `paths`, `http` + api/conversation/events/assets/io/sign-in routes), `commands`,
 `resend`, `shell`, `titles`, `prompts`, `skills`, `models`, `project-model`, `model-refresh`, `running`,
-`transcripts`, `providers`, `workspace`, `files`, `changes`, `branches`, `git`, `export`, owner-only
-`config`/`auth`; extensions `prompt`, `subagents`, `codemode`, `plan`. The web app's chat, composer, transcript,
+`transcripts`, `providers`, `workspace`, `files`, `changes`, `branches`, `git`, `export`, `worktrees` (forks
+and new sessions in a git worktree of their own; wired through session creation), owner-only `config`/`auth`;
+extensions `prompt`, `subagents`, `codemode`, `plan`. `omarchy.ts` stays only for its `colors.toml` parser, which
+theme palettes use. The web app's chat, composer, transcript,
 diffs, files and changes, sessions, session tree, subagents board, sheets for those, and the `pocket` and
 `lantern` themes.
 
@@ -63,6 +65,12 @@ theme editing and Omarchy, Lancet Guard (ONNX), GitHub watches and webhooks, Age
 artifacts, Web Push, dictation, peek tiles, share, Pi CLI session import, worktrees, the launcher (access modes,
 tunnels, QR), PiP, schedules and goals, memory, triggers, and the repo extras (docs site, nix, lint config).
 Any of these can be brought back from upstream later.
+
+Still to cut: multiplayer (`collab`, `spend`, people, invites, roles, `attribution` down to one owner, peek
+tiles), theme editing, the Walker launcher, and the extension web layer (`extension-web.ts`,
+`extension-commands.ts`, `http/extension-routes.ts`, `web/extension-ui.js`): no built-in extension uses routes,
+browser modules, or commands any more, but `reload.ts` is built on it, so removing it means reworking the loader.
+pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
 
 ## 4. Ours
 
@@ -90,15 +98,12 @@ Type checking (`tsc`) runs in CI; tests run on the phone (`npm test`) and in CI.
 
 ## 6. Tasks
 
-1. Remove the old stack: experimental-stack server, `bin/`, `client/`, `contracts/`, Expo `app/`, smoke scripts,
-   UI.md. Keep `cc-patch.ts` and its tests.
-2. Import pi-pocket at the pinned commit; drop repo extras and the launcher; pin dependencies exactly; tests pass
-   in Termux; the server runs in Termux.
-3. Cut features (section 3), one area per commit, tests and a Termux run after each.
-4. Billing patch: `cc-patch.ts` through `configureModels`, `phone-settings.ts`, tests.
-5. Android shell from pi-termux-mobile, renamed `io.piphone`, strict installer, service and activity per section 2.
-6. `scripts/package-rootfs.ts`, `scripts/package-runtime.ts`.
-7. CI workflow; green build; signed APK artifact.
-8. Install on the phone; verify: runtime extracts, server starts, UI loads, Claude login, one prompt, bash/git/rg
-   from the agent.
-9. Self-hosting: clone + push credentials in the app, in-app APK install.
+1. Done: remove the old stack (experimental-stack server, `bin/`, `client/`, `contracts/`, Expo `app/`).
+2. Done: import pi-pocket at the pinned commit; drop repo extras and the launcher; pin dependencies.
+3. Done: billing patch through `configureModels`, `phone-settings.ts`, tests.
+4. Done: Android shell, `package-rootfs.ts`, `package-runtime.ts`, CI workflow with a signed APK.
+5. Done: cut server and web features (section 3, first list); `check-web-imports.ts` in CI.
+6. Install on the phone; verify: runtime extracts, server starts, UI loads, Claude login, one prompt, bash/git/rg
+   from the agent, the billing patch on an Opus prompt.
+7. Cut the rest (section 3, "still to cut").
+8. Self-hosting: clone + push credentials in the app, in-app APK install.
