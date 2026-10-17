@@ -99,6 +99,30 @@ export class Places {
     }
 
     /**
+     * Whether the machine answers now: its daemon's `hello`, started over ssh if it is not running, in `timeoutMs`.
+     * Its connection starts again by itself after a loss, so this is also how a session gets its machine back.
+     */
+    async reach(machineId: string, timeoutMs = 15_000): Promise<{ ok: true } | { ok: false; error: string }> {
+        const machine = this.#machines.ready(machineId);
+        let timer: NodeJS.Timeout | undefined;
+
+        try {
+            await Promise.race([
+                this.connection(machine).info(),
+                new Promise((_resolve, reject) => {
+                    timer = setTimeout(() => reject(new Error(`no answer in ${timeoutMs / 1000} s`)), timeoutMs);
+                }),
+            ]);
+
+            return { ok: true };
+        } catch (error) {
+            return { ok: false, error: error instanceof Error ? error.message : String(error) };
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    /**
      * One connection per machine, lazily: nothing happens until the first request, which starts the daemon over ssh
      * (deployed already by "Install and connect"; a changed binary is redeployed, verified by its hash).
      */

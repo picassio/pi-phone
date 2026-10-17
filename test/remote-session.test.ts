@@ -376,3 +376,29 @@ test("a session goes to Pi on a machine, comes back with what Pi did there, and 
         rmSync(folder, { recursive: true, force: true });
     }
 });
+
+test("a file uploaded from the Files panel lands in the session's folder on the machine, never over another", { skip }, async () => {
+    const project = join(remoteHome, "project");
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${project}` });
+    const target = join(project, "uploaded.txt");
+
+    try {
+        const put = await app.workspace.putFile(id, owner(app), `machine:${machineId}:${project}`, "uploaded.txt", Buffer.from("from the phone\n"));
+
+        assert.equal(put.path, target);
+        assert.equal(readFileSync(target, "utf8"), "from the phone\n");
+        assert.ok((await app.workspace.fileList(id, owner(app))).files.includes("uploaded.txt"));
+        await assert.rejects(
+            app.workspace.putFile(id, owner(app), project, "uploaded.txt", Buffer.from("again")),
+            /already a uploaded.txt there/,
+        );
+        assert.equal(readFileSync(target, "utf8"), "from the phone\n");
+        await assert.rejects(app.workspace.putFile(id, owner(app), "/etc", "x.txt", Buffer.from("x")), /session's folder/);
+    } finally {
+        rmSync(target, { force: true });
+    }
+});
+
+test("the machine answers, as the dock's machine bar asks", { skip }, async () => {
+    assert.deepEqual(await app.places.reach(machineId), { ok: true });
+});

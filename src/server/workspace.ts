@@ -5,6 +5,7 @@
  * `readableFile`, `uploadDirectory`) leave seeing the conversation to their callers.
  */
 import { lstatSync, mkdirSync, realpathSync, statSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { isAbsolute, join, posix, resolve, sep } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -540,6 +541,54 @@ export class Workspace {
 
             throw new HttpError(409, describe(error));
         }
+    }
+
+    /**
+     * A file uploaded into the session's folder (the Files panel's upload): into `dir`, the folder or one under it,
+     * here or on its machine. Never written over: a name already there is refused, by name.
+     */
+    async putFile(id: ConversationId, user: User, dir: string, name: string, data: Buffer): Promise<{ path: string }> {
+        this.#app.requireSee(user, id);
+        this.#app.requireSteer(user);
+        await this.#app.conversation(id);
+        const remote = this.#remote(id);
+        const root = remote === undefined ? this.#app.cwdOf(id) : remote.cwd;
+        // A folder of the panel's: a place on the machine (`machine:<id>:<path>`), or a path.
+        const folder = posix.resolve(root, parsePlace(dir).path);
+
+        if (folder !== root && !folder.startsWith(`${root}/`)) {
+            throw new HttpError(400, "Files go into the session's folder, or a folder in it.");
+        }
+
+        const path = `${folder}/${name}`;
+
+        if (remote === undefined) {
+            try {
+                await writeFile(path, data, { flag: "wx", mode: 0o644 });
+            } catch (error) {
+                throw new HttpError(
+                    (error as NodeJS.ErrnoException).code === "EEXIST" ? 409 : 400,
+                    (error as NodeJS.ErrnoException).code === "EEXIST" ? `There is already a ${name} there.` : describe(error),
+                );
+            }
+        } else {
+            const there = await remote.env.fileInfo(path, BACKGROUND_CONTEXT);
+
+            if (there.ok) {
+                throw new HttpError(409, `There is already a ${name} there.`);
+            }
+
+            const written = await remote.env.writeFile(path, data, BACKGROUND_CONTEXT);
+
+            if (!written.ok) {
+                throw new HttpError(502, `Could not write ${name} on ${remote.machine.name}: ${written.error.message}`);
+            }
+        }
+
+        // The panel and the @ menu list it at once.
+        this.#files.forget(this.#app.cwdOf(id));
+
+        return { path };
     }
 
     /**

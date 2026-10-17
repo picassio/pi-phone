@@ -39,6 +39,17 @@ export async function conversationRoutes(
     const method = request.method ?? "GET";
     const [, , third, fourth] = parts;
 
+    // Whether the session's machine answers (`places.ts`): the dock says so when it does not.
+    if (third === "machine" && method === "GET") {
+        const machine = app.places.machineOf(app.cwdOf(id));
+
+        if (machine === undefined) {
+            return json(response, 200, { machine: null });
+        }
+
+        return json(response, 200, { machine: { id: machine.id, name: machine.name, ...(await app.places.reach(machine.id)) } });
+    }
+
     if (third === "submit" && method === "POST") {
         const body = await readJson<SubmitRequest>(request);
 
@@ -445,6 +456,38 @@ export async function conversationRoutes(
             await app.transcripts.history(
                 id,
                 Number(url.searchParams.get("before") ?? Number.MAX_SAFE_INTEGER),
+            ),
+        );
+    }
+
+    // A file into the session's folder, from the Files panel: the body is the file.
+    if (third === "put" && method === "POST") {
+        if (Number(request.headers["content-length"] ?? 0) > MAX_UPLOAD) {
+            throw new HttpError(413, "Files can be up to 50 MB");
+        }
+
+        const chunks: Buffer[] = [];
+        let size = 0;
+
+        for await (const chunk of request) {
+            size += (chunk as Buffer).length;
+
+            if (size > MAX_UPLOAD) {
+                throw new HttpError(413, "Files can be up to 50 MB");
+            }
+
+            chunks.push(chunk as Buffer);
+        }
+
+        return json(
+            response,
+            200,
+            await app.workspace.putFile(
+                id,
+                user,
+                url.searchParams.get("dir") ?? ".",
+                safeName(url.searchParams.get("name") ?? "upload"),
+                Buffer.concat(chunks),
             ),
         );
     }

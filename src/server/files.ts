@@ -245,6 +245,11 @@ export class FileLists {
         this.#now = now;
     }
 
+    /** Drop the list for `cwd`, which changed: the next look makes it again. */
+    forget(cwd: string): void {
+        this.#lists.delete(cwd);
+    }
+
     /** The list for `cwd`: a fresh one kept here, the one being made, or a new one (made by `list`). */
     get(cwd: string, list: () => Promise<FileList> = () => listFiles(cwd)): Promise<FileListing> {
         const kept = this.#lists.get(cwd);

@@ -8,7 +8,7 @@ import { useBack } from "./back.js";
 import { DiffReview, KIND_LETTERS, reloadChanges, useChanges, useWidth } from "./diff.js";
 import { loadFiles, suggestFiles } from "./files.js";
 import { FileView } from "./sheets/file.js";
-import { actions, canSteer, closePeople, panelsBeside, store } from "./store.js";
+import { actions, api, attempt, canSteer, closePeople, notify, panelsBeside, store } from "./store.js";
 import { html, Icon, Loader, Marked, shortPath, usePresence } from "./ui.js";
 
 const OPEN_KEY = "pocket.files";
@@ -152,6 +152,10 @@ function TreeFolder({ path, depth, ctx }) {
 
     if (folder.error) {
         return html`<div class="ft-row muted small" style=${`--depth:${depth}`}>${folder.error}</div>`;
+    }
+
+    if (depth === 0 && folder.entries.length === 0) {
+        return html`<p class="muted small ft-note">This folder is empty. Upload files with the arrow above.</p>`;
     }
 
     return html`${folder.entries.map((entry) => {
@@ -514,6 +518,25 @@ function FilesTab({ changes, covering }) {
         };
     }, [covered, selected?.path]);
 
+    // Uploads go into the open file's folder, or the session's own; on a machine, there (`workspace.putFile`).
+    const uploadDir = selected ? selected.path.slice(0, selected.path.lastIndexOf("/")) : root;
+    const uploadFiles = (event) => {
+        const input = event.currentTarget;
+        const files = [...input.files];
+
+        input.value = "";
+        attempt(async () => {
+            for (const file of files) {
+                await api(`c/${id}/put?dir=${encodeURIComponent(uploadDir)}&name=${encodeURIComponent(file.name)}`, file);
+            }
+
+            notify("info", `${files.length === 1 ? files[0].name : `${files.length} files`} uploaded to ${shortPath(uploadDir, server?.home)}.`);
+            folders.clear();
+            setVersion(version + 1);
+            reloadChanges(id);
+        });
+    };
+
     // The folder is known once the conversation's view arrives.
     if (root === "") {
         return html`<div class="ft" ref=${ref}><${Loader} label="Opening the folder" /></div>`;
@@ -554,6 +577,13 @@ function FilesTab({ changes, covering }) {
                 >
                     <${Icon} name="down" size=${15} />
                 </button>
+                ${
+                    canSteer() &&
+                    html`<label class="icon-button" title=${`Upload files into ${shortPath(uploadDir, server?.home)}`} aria-label="Upload files">
+                        <${Icon} name="upload" size=${15} />
+                        <input type="file" multiple hidden onChange=${uploadFiles} />
+                    </label>`
+                }
                 <button
                     class="icon-button"
                     type="button"

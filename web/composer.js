@@ -28,6 +28,7 @@ import {
 } from "./store.js";
 import { useDock } from "./dock.js";
 import { SubagentsBar } from "./subagents.js";
+import { isRemotePlace } from "./place.js";
 import { TrustBar } from "./trust.js";
 import { prefs } from "./theme.js";
 import { says } from "./turns.js";
@@ -282,6 +283,57 @@ function CiWatchBar() {
                 }
             </div>`,
         )}
+    </div>`;
+}
+
+/**
+ * The session's machine does not answer (`places.ts`): which, why, and Retry, which also gets it back, as its
+ * connection starts again on the next request. Looked at when the session opens and when the app comes to the front.
+ */
+function MachineBar() {
+    const { conversationId, view } = store.state;
+    const cwd = view.agent?.cwd ?? view.conversation?.cwd ?? "";
+    const remote = isRemotePlace(cwd);
+    const [reach, setReach] = useState(null);
+    const [trying, setTrying] = useState(false);
+    const look = () =>
+        api(`c/${conversationId}/machine`).then(
+            (answer) => setReach(answer.machine),
+            (error) => setReach({ ok: false, name: "The machine", error: error.message }),
+        );
+
+    useEffect(() => {
+        setReach(null);
+
+        if (!remote) {
+            return undefined;
+        }
+
+        const back = () => document.visibilityState === "visible" && look();
+
+        look();
+        document.addEventListener("visibilitychange", back);
+
+        return () => document.removeEventListener("visibilitychange", back);
+    }, [conversationId, cwd]);
+
+    if (!remote || !reach || reach.ok) {
+        return null;
+    }
+
+    const retry = async () => {
+        setTrying(true);
+
+        try {
+            await look();
+        } finally {
+            setTrying(false);
+        }
+    };
+
+    return html`<div class="watch-bar" data-part="machine-bar">
+        <span class="grow"><strong>${reach.name} does not answer:</strong> ${reach.error}</span>
+        <button class="link small" disabled=${trying} onClick=${retry}>${trying ? "Trying…" : "Retry"}</button>
     </div>`;
 }
 
@@ -1144,6 +1196,7 @@ export function Composer() {
             ${collab() && html`<${DriverBar} />`}
             <${PlanBar} blocked=${blocked} />
             <${GoalBar} />
+            <${MachineBar} />
             <${PiBar} />
             <${CiWatchBar} />
             <${SubagentsBar} />
