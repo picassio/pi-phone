@@ -6917,7 +6917,14 @@ pre.diff .del {
     padding: calc(env(safe-area-inset-top) + 3.2rem) 0.5rem
         calc(env(safe-area-inset-bottom) + 0.5rem);
     animation: fade var(--t-fade) var(--ease-almost);
-    cursor: zoom-out;
+    /* Every touch is the viewer's: a pinch zooms the image, not the page (`sheets/viewers.js`). */
+    touch-action: none;
+    overflow: hidden;
+    cursor: zoom-in;
+}
+
+.lightbox.zoomed {
+    cursor: grab;
 }
 
 .lightbox > img {
@@ -6930,6 +6937,20 @@ pre.diff .del {
     object-fit: contain;
     border-radius: var(--radius);
     background: #fff;
+    transform-origin: center;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.lightbox-bar .icon-button > span {
+    font-size: 1.3rem;
+    line-height: 1;
+}
+
+.lightbox-zoom {
+    min-width: 3.2rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
 }
 
 .lightbox-bar {
