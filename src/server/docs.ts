@@ -304,6 +304,9 @@ export type CiWatch = {
     runId: number;
     /** The workflow, its run number, and the branch: `Build APK #42 on master`. */
     label: string;
+    workflow: string;
+    number: number;
+    branch: string;
     url: string;
     startedAt: number;
 };

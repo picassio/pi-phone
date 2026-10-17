@@ -40,7 +40,6 @@ import {
     Marked,
     modelLabel,
     Spinner,
-    timeAgo,
 } from "./ui.js";
 
 /** The explicit route to the parent on every layout, outside the dock and the scrolling conversation. */
@@ -220,33 +219,69 @@ function DriverBar() {
 }
 
 /** Plan mode: Pi proposes and changes nothing until someone here approves its plan. */
+/** How long a run has been watched: `0:42`, `12:05`, `1:02:05`. */
+function elapsed(since) {
+    const seconds = Math.max(0, Math.floor((Date.now() - since) / 1000));
+    const two = (value) => String(value).padStart(2, "0");
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+
+    return hours > 0 ? `${hours}:${two(minutes)}:${two(seconds % 60)}` : `${minutes}:${two(seconds % 60)}`;
+}
+
 /**
- * The GitHub Actions runs Pi watches here (`extensions/ci-watch.ts`), one row each as pi-pocket's PR watch had it: the
- * run, linked, and how long it has been watched; Stop on the right.
+ * The GitHub Actions runs Pi watches here (`extensions/ci-watch.ts`), in a card like the subagents bar: a row each with
+ * a pulsing dot, the workflow, its run number and branch, and how long it has been watched. The row opens the run on
+ * GitHub; × stops watching it.
  */
 function CiWatchBar() {
     const watches = store.state.view.ciWatches ?? [];
+    const [, tick] = useState(0);
 
-    return watches.map(
-        (watch) => html`<div
-            class="watch-bar watching"
-            data-part="ci-watch-bar"
-            key=${`${watch.repo}#${watch.runId}`}
-            title=${`${watch.repo}, run ${watch.runId}`}
-        >
-            <span class="grow">
-                <strong>Watching</strong>
-                <a href=${watch.url} target="_blank" rel="noopener">${watch.label}</a>
-                · ${timeAgo(watch.startedAt)}
-            </span>
-            ${
-                canSteer() &&
-                html`<button class="link small" onClick=${() => attempt(() => actions.stopCiWatch(watch))}>
-                    Stop
-                </button>`
-            }
-        </div>`,
-    );
+    useEffect(() => {
+        if (watches.length === 0) {
+            return undefined;
+        }
+
+        const timer = setInterval(() => tick((count) => count + 1), 1000);
+
+        return () => clearInterval(timer);
+    }, [watches.length]);
+
+    if (watches.length === 0) {
+        return null;
+    }
+
+    return html`<div class="ci-bar" data-part="ci-watch-bar">
+        ${watches.map(
+            (watch) => html`<div class="ci-row" key=${`${watch.repo}#${watch.runId}`}>
+                <a
+                    class="ci-run"
+                    href=${watch.url}
+                    target="_blank"
+                    rel="noopener"
+                    title=${`${watch.label} · ${watch.repo} · open on GitHub`}
+                >
+                    <span class="ci-dot" aria-hidden="true"></span>
+                    <span class="ci-name">${watch.workflow}</span>
+                    <span class="ci-meta">#${watch.number}</span>
+                    <span class="ci-branch"><${Icon} name="fork" size=${11} />${watch.branch}</span>
+                    <span class="ci-time" aria-label="watched for">${elapsed(watch.startedAt)}</span>
+                </a>
+                ${
+                    canSteer() &&
+                    html`<button
+                        class="icon-button ci-stop"
+                        aria-label=${`Stop watching ${watch.label}`}
+                        title="Stop watching"
+                        onClick=${() => attempt(() => actions.stopCiWatch(watch))}
+                    >
+                        <${Icon} name="close" size=${13} />
+                    </button>`
+                }
+            </div>`,
+        )}
+    </div>`;
 }
 
 function PlanBar({ blocked }) {

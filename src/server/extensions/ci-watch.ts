@@ -34,7 +34,18 @@ const MAX_FAILURES = 6;
 const LOG_CHARS = 6_000;
 const BACKGROUND = { ownership: { kind: "conversation" }, background: true } as const;
 
-type WatchInput = { repo: string; runId: number; label: string; url: string; deadline: number };
+type Run = { repo: string; runId: number; label: string; workflow: string; number: number; branch: string; url: string };
+type WatchInput = Run & { deadline: number };
+
+const runOf = (repo: string, runId: number, found: { workflowName: string; number: number; headBranch: string; url: string }): Run => ({
+    repo,
+    runId,
+    label: `${found.workflowName} #${found.number} on ${found.headBranch}`,
+    workflow: found.workflowName,
+    number: found.number,
+    branch: found.headBranch,
+    url: found.url,
+});
 type WatchState =
     | { phase: "wait"; next: number; failures: number }
     | { phase: "look"; failures: number }
@@ -359,7 +370,7 @@ export default function createCiWatch(host: PocketHost) {
                 }
             };
             let repo = args.repo;
-            let runs: { repo: string; runId: number; label: string; url: string }[];
+            let runs: Run[];
 
             if (args.run !== undefined) {
                 const parsed = parseRun(args.run, repo);
@@ -369,14 +380,7 @@ export default function createCiWatch(host: PocketHost) {
                     await gh(["run", "view", String(parsed.runId), "-R", repo, "--json", "workflowName,number,headBranch,url"]),
                 ) as { workflowName: string; number: number; headBranch: string; url: string };
 
-                runs = [
-                    {
-                        repo,
-                        runId: parsed.runId,
-                        label: `${found.workflowName} #${found.number} on ${found.headBranch}`,
-                        url: found.url,
-                    },
-                ];
+                runs = [runOf(repo, parsed.runId, found)];
             } else {
                 repo ??= await repoOf();
                 const filter =
@@ -419,12 +423,7 @@ export default function createCiWatch(host: PocketHost) {
                     }
                 }
 
-                runs = [...newest.values()].map((each) => ({
-                    repo: repo!,
-                    runId: each.databaseId,
-                    label: `${each.workflowName} #${each.number} on ${each.headBranch}`,
-                    url: each.url,
-                }));
+                runs = [...newest.values()].map((each) => runOf(repo!, each.databaseId, each));
 
                 if (runs.length === 0) {
                     throw new Error(

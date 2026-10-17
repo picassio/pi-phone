@@ -14914,3 +14914,102 @@ pre.gallery-code {
 .gallery-change.changed {
     color: var(--warn);
 }
+
+/* ─── CI watch bar (pi-phone) ────────────────────────────────── */
+
+/*
+ * The GitHub Actions runs Pi watches (`composer.js` CiWatchBar), above the message box, in a card like the subagents
+ * bar: a row each, with a pulsing dot, the workflow, its number and branch, and a ticking elapsed time. The row opens the
+ * run on GitHub; × stops the watch.
+ */
+.ci-bar {
+    background: var(--card);
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+    margin-bottom: 6px;
+    font-size: 13px;
+    overflow: hidden;
+}
+
+.ci-row {
+    display: flex;
+    align-items: center;
+    padding-right: 0.2rem;
+}
+
+.ci-row + .ci-row {
+    border-top: 1px solid var(--hair);
+}
+
+.ci-run {
+    flex: 1;
+    min-width: 0;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 4px 0 12px;
+    color: var(--text);
+    text-decoration: none;
+}
+
+@media (hover: hover) {
+    .ci-run:hover .ci-name {
+        color: var(--accent);
+    }
+}
+
+.ci-dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.4s infinite;
+}
+
+.ci-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ci-meta,
+.ci-branch,
+.ci-time {
+    flex: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+}
+
+.ci-branch {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+    flex-shrink: 1;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ci-time {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+}
+
+.ci-stop {
+    width: 32px;
+    height: 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion="full"]) .ci-dot {
+        animation: none;
+    }
+}

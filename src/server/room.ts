@@ -530,13 +530,18 @@ export class Room {
             turns: this.turns,
             decisions: this.decisions,
             plan: this.plan,
-            ciWatches: Object.values(this.ciWatches).map(({ repo, runId, label, url, startedAt }) => ({
-                repo,
-                runId,
-                label,
-                url,
-                startedAt,
-            })),
+            ciWatches: Object.values(this.ciWatches).map(
+                ({ repo, runId, label, workflow, number, branch, url, startedAt }) => ({
+                    repo,
+                    runId,
+                    label,
+                    workflow,
+                    number,
+                    branch,
+                    url,
+                    startedAt,
+                }),
+            ),
             // The branch is read from the repository each time, so one Pi or a person switched to shows on the next update.
             branch: this.#readHead(),
         };
