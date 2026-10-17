@@ -40,6 +40,7 @@ import {
     Marked,
     modelLabel,
     Spinner,
+    timeAgo,
 } from "./ui.js";
 
 /** The explicit route to the parent on every layout, outside the dock and the scrolling conversation. */
@@ -219,25 +220,33 @@ function DriverBar() {
 }
 
 /** Plan mode: Pi proposes and changes nothing until someone here approves its plan. */
-/** The GitHub Actions runs Pi watches here (`extensions/ci-watch.ts`): each links to its run, and Stop ends it. */
+/**
+ * The GitHub Actions runs Pi watches here (`extensions/ci-watch.ts`), one row each as pi-pocket's PR watch had it: the
+ * run, linked, and how long it has been watched; Stop on the right.
+ */
 function CiWatchBar() {
     const watches = store.state.view.ciWatches ?? [];
 
-    if (watches.length === 0) {
-        return null;
-    }
-
-    return html`<div class="plan-bar ci-watch-bar" data-part="ci-watch-bar">
-        <span class="grow">
-            <strong>Watching CI.</strong>
-            ${watches.map(
-                (watch, index) => html`${index > 0 ? " · " : " "}<a href=${watch.url} target="_blank" rel="noopener">${watch.label}</a>
-                    <button class="link small" onClick=${() => attempt(() => actions.stopCiWatch(watch))}>
-                        Stop
-                    </button>`,
-            )}
-        </span>
-    </div>`;
+    return watches.map(
+        (watch) => html`<div
+            class="watch-bar watching"
+            data-part="ci-watch-bar"
+            key=${`${watch.repo}#${watch.runId}`}
+            title=${`${watch.repo}, run ${watch.runId}`}
+        >
+            <span class="grow">
+                <strong>Watching</strong>
+                <a href=${watch.url} target="_blank" rel="noopener">${watch.label}</a>
+                · ${timeAgo(watch.startedAt)}
+            </span>
+            ${
+                canSteer() &&
+                html`<button class="link small" onClick=${() => attempt(() => actions.stopCiWatch(watch))}>
+                    Stop
+                </button>`
+            }
+        </div>`,
+    );
 }
 
 function PlanBar({ blocked }) {
