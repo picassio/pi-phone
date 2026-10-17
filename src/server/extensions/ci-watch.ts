@@ -9,6 +9,7 @@
  * survives restarts and updates: the wait and the report are durable, and the report goes once (its request id).
  */
 import { execFile } from "node:child_process";
+import { isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Context } from "@earendil-works/chord";
 import { Type } from "@earendil-works/pi-ai";
@@ -275,11 +276,17 @@ export default function createCiWatch(host: PocketHost) {
         description:
             "Watch GitHub Actions runs in the background and get one message starting [ci-watch] when each finishes: its conclusion, its jobs', and for a failure the failed steps and the end of their log. " +
             "Use it after a git push instead of waiting or polling: start it, then end your turn; the message starts your next one. " +
-            "Actions: start (default: every run of the current commit in the working folder's repository; or run: an id, its address, or owner/name#id; or branch, for the newest run of each workflow there; workflow narrows to one workflow by name or file), list, stop (run: one of the watched; default all).",
+            "Actions: start (default: every run of HEAD's commit in the repository at path, or the working folder; or run: an id, its address, or owner/name#id; or branch, for the newest run of each workflow there; workflow narrows to one workflow by name or file), list, stop (run: one of the watched; default all).",
         parameters: Type.Object({
             action: Type.Union([Type.Literal("start"), Type.Literal("list"), Type.Literal("stop")]),
             repo: Type.Optional(
-                Type.String({ description: "owner/name; default the working folder's repository" }),
+                Type.String({ description: "owner/name; default the repository of path" }),
+            ),
+            path: Type.Optional(
+                Type.String({
+                    description:
+                        "start: a folder in the repository (its GitHub repo and HEAD are used), absolute or relative to the working folder; default the working folder",
+                }),
             ),
             run: Type.Optional(Type.String({ description: "a run's id, address, or owner/name#id" })),
             commit: Type.Optional(Type.String({ description: "start: a commit's sha; default HEAD" })),
@@ -330,14 +337,34 @@ export default function createCiWatch(host: PocketHost) {
                 );
             }
 
-            const cwd = (await api.agent(context)).cwd ?? host.dataDir;
+            const working = (await api.agent(context)).cwd ?? host.dataDir;
+            const cwd = args.path === undefined ? working : isAbsolute(args.path) ? args.path : resolve(working, args.path);
+            const repoOf = async () => {
+                try {
+                    return (await gh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], cwd)).trim();
+                } catch (error) {
+                    throw new Error(
+                        `${cwd} is not in a GitHub repository (${(error as Error).message}). Pass path (the repository's folder) or repo.`,
+                        { cause: error },
+                    );
+                }
+            };
+            const headOf = async () => {
+                try {
+                    return (await run("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
+                } catch (error) {
+                    throw new Error(`${cwd} is not in a git repository. Pass path (the repository's folder) or commit.`, {
+                        cause: error,
+                    });
+                }
+            };
             let repo = args.repo;
             let runs: { repo: string; runId: number; label: string; url: string }[];
 
             if (args.run !== undefined) {
                 const parsed = parseRun(args.run, repo);
 
-                repo = parsed.repo ?? (await gh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], cwd)).trim();
+                repo = parsed.repo ?? (await repoOf());
                 const found = JSON.parse(
                     await gh(["run", "view", String(parsed.runId), "-R", repo, "--json", "workflowName,number,headBranch,url"]),
                 ) as { workflowName: string; number: number; headBranch: string; url: string };
@@ -351,13 +378,13 @@ export default function createCiWatch(host: PocketHost) {
                     },
                 ];
             } else {
-                repo ??= (await gh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], cwd)).trim();
+                repo ??= await repoOf();
                 const filter =
                     args.branch !== undefined
                         ? ["--branch", args.branch]
                         : [
                               "--commit",
-                              args.commit ?? (await run("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim(),
+                              args.commit ?? (await headOf()),
                           ];
                 const list = async () =>
                     JSON.parse(

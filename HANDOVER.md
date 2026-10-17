@@ -29,7 +29,8 @@ and let the release reach the app.
    WebView only shows port 8787, so test through the API or wait for the release).
 4. Commit (explicit paths), `git push origin master`. CI (`.github/workflows/build-apk.yml`): check job (tsc, tests
    incl. UI tests in Chrome), apk job, then a release `build-<run>` when both pass.
-   After pushing, call `watch_ci` (action start) and end the turn: a `[ci-watch]` message says how CI went, instead
+   After pushing, call `watch_ci` (action start, path: "pi-phone"; the working folder `~/work` is not a repository)
+   and end the turn: a `[ci-watch]` message says how CI went, instead
    of polling `gh run` in a loop.
 5. In the app: Settings > Check for app updates (or restart the app). Runtime-only changes update in seconds; shell
    (`android/`) changes need the one-tap APK install.

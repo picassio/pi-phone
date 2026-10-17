@@ -11,9 +11,11 @@ import {
     say,
     scriptedModel,
     until,
+    work,
 } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
@@ -32,7 +34,9 @@ function fakeGh(): void {
         join(fake, "gh"),
         `#!/bin/sh
 case "$*" in
-  "run list"*) echo '[{"databaseId":101,"workflowName":"CI","number":7,"headBranch":"main","url":"https://github.com/o/r/actions/runs/101","status":"in_progress"}]' ;;
+  "repo view"*)
+    case "$PWD" in */project*) echo o/r ;; *) echo "no git remotes found" >&2; exit 1 ;; esac ;;
+  "run list"*) echo "$*" > '${join(fake, "listed")}'; echo '[{"databaseId":101,"workflowName":"CI","number":7,"headBranch":"main","url":"https://github.com/o/r/actions/runs/101","status":"in_progress"}]' ;;
   *"--log-failed"*) printf 'test\\tnpm test\\tError: boom\\n' ;;
   "run view 101"*)
     if [ "$(cat '${status}')" = "failed" ]; then
@@ -55,6 +59,14 @@ const route: FauxResponseStep = (request) => {
 
     if (role === "user" && text === "watch the push") {
         return call("watch_ci", { action: "start", repo: "o/r", commit: "abcdef1234" });
+    }
+
+    if (role === "user" && text === "watch the project") {
+        return call("watch_ci", { action: "start", path: "project" });
+    }
+
+    if (role === "user" && text === "watch here") {
+        return call("watch_ci", { action: "start" });
     }
 
     if (role === "user" && text === "stop watching") {
@@ -172,4 +184,28 @@ test("the bar's Stop ends a watch through the API", async () => {
         server.closeAllConnections();
         server.close();
     }
+});
+
+test("path names the repository's folder: its repo and HEAD; a folder outside one says so", async () => {
+    writeFileSync(status, "in_progress");
+    const project = join(work, "project");
+    const git = (...args: string[]) =>
+        execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: project, encoding: "utf8" }).trim();
+
+    mkdirSync(project, { recursive: true });
+    git("init", "-q");
+    git("commit", "-q", "--allow-empty", "-m", "one");
+    const head = git("rev-parse", "HEAD");
+    const id = await newSession(app);
+
+    await say(app, id, "watch here");
+    assert.ok(
+        (await modelTexts(app, id)).some((each) => each.includes("is not in a GitHub repository") && each.includes("Pass path")),
+    );
+    assert.equal(Object.keys(await watches(id)).length, 0);
+
+    await say(app, id, "watch the project");
+    assert.deepEqual(Object.keys(await watches(id)), ["o/r#101"]);
+    assert.match(readFileSync(join(fake, "listed"), "utf8"), new RegExp(`--commit ${head}`));
+    await say(app, id, "stop watching");
 });
