@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Signed with the fixed pi-phone key so each new APK installs over the previous one (DESIGN.md section 5).
+def keystore = System.getenv('PI_PHONE_KEYSTORE')
+def keystorePassword = System.getenv('PI_PHONE_KEYSTORE_PASSWORD')
+
+android {
+    namespace 'io.piphone'
+    compileSdk 35
+
+    defaultConfig {
+        // Ten characters, like com.termux: the Termux prefix is rewritten in place (DESIGN.md section 2).
+        applicationId 'io.piphone'
+        minSdk 26
+        // Android 10+ forbids exec() of app-private files for targetSdk >= 29. Sideload only.
+        targetSdk 28
+        versionCode Integer.parseInt(System.getenv('PI_PHONE_VERSION_CODE') ?: '1')
+        versionName '0.1.0'
+    }
+
+    signingConfigs {
+        piphone {
+            if (keystore != null) {
+                storeFile file(keystore)
+                storePassword keystorePassword
+                keyAlias 'pi-phone'
+                keyPassword keystorePassword
+            }
+        }
+    }
+
+    buildTypes {
+        // One variant: debuggable (run-as for inspecting the runtime over adb), signed with the pi-phone key.
+        debug {
+            signingConfig signingConfigs.piphone
+        }
+    }
+
+    androidResources {
+        // rootfs.bin and runtime.bin are gzipped tars already.
+        noCompress 'bin'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
