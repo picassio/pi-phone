@@ -5,7 +5,7 @@
  * `readableFile`, `uploadDirectory`) leave seeing the conversation to their callers.
  */
 import { lstatSync, mkdirSync, realpathSync, statSync } from "node:fs";
-import { isAbsolute, join, resolve, sep } from "node:path";
+import { isAbsolute, join, posix, resolve, sep } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { ConversationId } from "@earendil-works/pi-durable";
@@ -24,9 +24,15 @@ import {
 import { type Changes, changesIn, diffOf, revertFile } from "./changes.ts";
 import type { User } from "./config.ts";
 import { describe, HttpError } from "./errors.ts";
-import { FileLists, type FileListing, type FileView, viewFile } from "./files.ts";
+import { FileLists, type FileListing, type FileView, listRemoteFiles, viewFile, viewRemoteFile } from "./files.ts";
+import { type FolderAccess, localAccess, remoteAccess } from "./folder-access.ts";
+import { sniffImage } from "./http/assets.ts";
+import type { Machine } from "./machines.ts";
 import { displayPath, expandHome } from "./paths.ts";
 import { isRemote, parsePlace } from "./places.ts";
+
+/** The largest image the viewer shows from a machine: it travels over the link whole. */
+const MAX_REMOTE_IMAGE = 20 * 1024 * 1024;
 
 export class Workspace {
     readonly #app: PocketApp;
@@ -53,6 +59,11 @@ export class Workspace {
     readonly #gitDirs = new Map<string, { gitDir: string | undefined; at: number }>();
 
     #gitDir(cwd: string): string | undefined {
+        // A machine's folder is not on this disk: its branch shows in Changes, read there (`folder-access.ts`).
+        if (isRemote(cwd)) {
+            return undefined;
+        }
+
         const known = this.#gitDirs.get(cwd);
 
         if (
@@ -171,6 +182,86 @@ export class Workspace {
         if (machine !== undefined) {
             throw new HttpError(501, `${what} is not available yet for a session on a machine (${machine.name}). Ask Pi: its tools run there.`);
         }
+    }
+
+    /** A session's folder on a machine, with its environment; undefined for one on the phone. */
+    #remote(id: ConversationId) {
+        const cwd = this.#app.cwdOf(id);
+
+        if (!isRemote(cwd)) {
+            return undefined;
+        }
+
+        const place = parsePlace(cwd);
+        const machine: Machine = this.#app.machines.ready(place.machineId!);
+        const env = this.#app.places.env(cwd);
+
+        return { cwd: place.path, machine, env, access: remoteAccess(env) };
+    }
+
+    /** The folder Changes looks in, and how it reaches it: here, or on the session's machine. */
+    #folder(id: ConversationId): { cwd: string; access: FolderAccess } {
+        const remote = this.#remote(id);
+
+        return remote === undefined ? { cwd: this.#app.cwdOf(id), access: localAccess } : remote;
+    }
+
+    /**
+     * A path on the session's machine as the session means it: absolute, `~/…` (the machine's home), or relative to its
+     * folder. Someone invited to one session gets only files under that folder, by path (the machine's links are not
+     * resolved from here).
+     */
+    #remotePath(remote: NonNullable<ReturnType<Workspace["remoteOf"]>>, user: User, path: string): string {
+        const written = path.trim();
+        const home = remote.machine.remote!.home;
+        const expanded = written === "~" ? home : written.startsWith("~/") ? `${home}${written.slice(1)}` : written;
+        const file = posix.resolve(remote.cwd, expanded);
+
+        if (user.sessions !== undefined && file !== remote.cwd && !file.startsWith(`${remote.cwd}/`)) {
+            throw new HttpError(404, "Image not found");
+        }
+
+        return file;
+    }
+
+    /** `#remote` for the routes that need it. */
+    remoteOf(id: ConversationId) {
+        return this.#remote(id);
+    }
+
+    /** An image on the session's machine, read through its environment, for the image route. */
+    async remoteImage(user: User, id: ConversationId, path: string): Promise<{ data: Buffer; type: string } | undefined> {
+        const remote = this.#remote(id);
+
+        if (remote === undefined) {
+            return undefined;
+        }
+
+        const file = this.#remotePath(remote, user, path);
+        const info = await remote.env.fileInfo(file, BACKGROUND_CONTEXT);
+
+        if (!info.ok || info.value.kind !== "file") {
+            throw new HttpError(404, "Image not found");
+        }
+
+        if (info.value.size > MAX_REMOTE_IMAGE) {
+            throw new HttpError(413, "This image is too large to show from the machine.");
+        }
+
+        const bytes = await remote.env.readBinaryFile(file, BACKGROUND_CONTEXT);
+
+        if (!bytes.ok) {
+            throw new HttpError(404, "Image not found");
+        }
+
+        const data = Buffer.from(bytes.value);
+        const type = sniffImage(data.subarray(0, 1024));
+
+        if (type === undefined) {
+            throw new HttpError(415, "Only image files can be shown");
+        }
+
+        return { data, type };
     }
 
     /** A place to work: a folder here (`checkDirectory`), or one on a machine, checked there (`places.ts`). */
@@ -395,12 +486,14 @@ export class Workspace {
      * names under the folder only, so someone invited to one session sees no more than `conversationFile` lets them load.
      */
     async fileList(id: ConversationId, user: User): Promise<FileListing> {
-        this.#localOnly(id, "The Files panel");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
         await this.#app.conversation(id);
+        const remote = this.#remote(id);
 
-        return this.#files.get(this.#app.cwdOf(id));
+        return remote === undefined
+            ? this.#files.get(this.#app.cwdOf(id))
+            : this.#files.get(this.#app.cwdOf(id), () => listRemoteFiles(remote.env, remote.cwd));
     }
 
     /**
@@ -412,11 +505,25 @@ export class Workspace {
         user: User,
         path: string,
     ): Promise<{ path: string; display: string } & FileView> {
-        this.#localOnly(id, "The file viewer");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
         await this.#app.conversation(id);
         let file: string;
+        const remote = this.#remote(id);
+
+        if (remote !== undefined) {
+            file = this.#remotePath(remote, user, path);
+
+            try {
+                return { path: file, display: displayPath(file, remote.cwd), ...(await viewRemoteFile(remote.env, file)) };
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+                    throw new HttpError(404, `${path} is not there.`);
+                }
+
+                throw new HttpError(409, describe(error));
+            }
+        }
 
         try {
             file = this.readableFile(user, id, path);
@@ -440,7 +547,6 @@ export class Workspace {
      * right to drive and waits until Pi is not working; Pi is told, with its next message.
      */
     async revertChange(id: ConversationId, user: User, path: string): Promise<void> {
-        this.#localOnly(id, "Reverting a change");
         this.#app.requireSee(user, id);
         await this.#app.requireDriver(id, user);
 
@@ -451,7 +557,8 @@ export class Workspace {
             );
         }
 
-        const kind = await revertFile(this.#app.cwdOf(id), path, user.sessions !== undefined).catch(
+        const folder = this.#folder(id);
+        const kind = await revertFile(folder.cwd, path, user.sessions !== undefined, folder.access).catch(
             (error: unknown) => {
                 throw new HttpError(409, describe(error));
             },
@@ -468,7 +575,6 @@ export class Workspace {
 
     /** What changed in a session's folder: Pi's edits, and the uncommitted changes of its git repository. */
     async changes(id: ConversationId, user: User): Promise<Changes> {
-        this.#localOnly(id, "Changes");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
 
@@ -481,12 +587,9 @@ export class Workspace {
             return underWay;
         }
 
+        const folder = this.#folder(id);
         const pending = (async () =>
-            changesIn(
-                this.#app.cwdOf(id),
-                await this.#app.transcripts.allEntries(id, false),
-                onlyHere,
-            ))().finally(() => {
+            changesIn(folder.cwd, await this.#app.transcripts.allEntries(id, false), onlyHere, folder.access))().finally(() => {
             if (this.#changesUnderWay.get(key) === pending) {
                 this.#changesUnderWay.delete(key);
             }
@@ -505,12 +608,12 @@ export class Workspace {
 
     /** The diff of one changed file in a session's repository. */
     async changeDiff(id: ConversationId, user: User, path: string): Promise<string> {
-        this.#localOnly(id, "Diffs");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
+        const folder = this.#folder(id);
 
         try {
-            return await diffOf(this.#app.cwdOf(id), path, user.sessions !== undefined);
+            return await diffOf(folder.cwd, path, user.sessions !== undefined, folder.access);
         } catch (error) {
             throw new HttpError(404, describe(error));
         }

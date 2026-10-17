@@ -290,6 +290,13 @@ export async function conversationRoutes(
             throw new HttpError(400, "path is required");
         }
 
+        // On a machine (`places.ts`): read there through its environment; it may change, so it is not cached.
+        const remote = await app.workspace.remoteImage(user, id, requested);
+
+        if (remote !== undefined) {
+            return send(response, 200, remote.data, remote.type, { "cache-control": "private, no-store" });
+        }
+
         return serveImage(request, response, app.workspace.conversationFile(user, id, requested));
     }
 

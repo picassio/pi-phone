@@ -8,7 +8,6 @@ import { useBack } from "./back.js";
 import { DiffReview, KIND_LETTERS, reloadChanges, useChanges, useWidth } from "./diff.js";
 import { loadFiles, suggestFiles } from "./files.js";
 import { FileView } from "./sheets/file.js";
-import { isRemotePlace } from "./place.js";
 import { actions, canSteer, closePeople, panelsBeside, store } from "./store.js";
 import { html, Icon, Loader, Marked, shortPath, usePresence } from "./ui.js";
 
@@ -19,9 +18,7 @@ const WIDTH_KEY = "pocket.filesWidth";
 const SIDE_BY_SIDE = 600;
 
 /** The tile is for people who can steer: the viewer reads files as Pi would. */
-// Not yet for a session on a machine: the panel and Changes read the phone's files (src/server/workspace.ts).
-export const filesAvailable = () =>
-    canSteer() && store.state.conversationId !== null && !isRemotePlace(store.state.view.agent?.cwd ?? store.state.view.conversation?.cwd);
+export const filesAvailable = () => canSteer() && store.state.conversationId !== null;
 
 /** Show or hide the tile. It takes the Browser and People panels' place. */
 export function setFilesOpen(open, tab) {

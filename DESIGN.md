@@ -113,8 +113,10 @@ pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   machine, that its git/gh logins are the machine's, that attachments stay on the phone, and that a command stops ~30 s
   after the link drops; AGENTS.md and skills are not read for a machine (they would be the phone's). The folder picker
   browses the machine through its environment (New folder makes one there). Worktrees are for the phone's folders.
-  Not yet on a machine, each saying so (HTTP 501): the Files panel, the file viewer, Changes, branches; the web hides
-  their buttons there.
+  The Files panel (pi-env's gitignore-aware `listFiles`), the file viewer, images in replies (the image route reads
+  them there), Changes, diffs, and undo (git run there through `folder-access.ts`) work on a machine's folder.
+  Branches (the top bar's chip and the branch sheet) stay phone-only: they read `.git/HEAD` from disk every few
+  seconds; on a machine the branch shows in Changes.
 - **Pi sessions on a machine**: Continue a Pi session lists a connected machine's `~/.pi/agent/sessions/*/*.jsonl`
   through its environment (first lines only: id, folder, first message as title), copies the chosen file into the
   imported folder with an `.origin.json` beside it, and the preview then defaults to the session's folder on that

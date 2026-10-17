@@ -10,6 +10,8 @@ import type { Dirent } from "node:fs";
 import { open, opendir, stat } from "node:fs/promises";
 import { promisify } from "node:util";
 import { gzip as gzipCallback } from "node:zlib";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { git } from "./git.ts";
 
 const gzip = promisify(gzipCallback);
@@ -201,6 +203,39 @@ export async function listFiles(cwd: string, max = MAX_FILES): Promise<FileList>
     return { files, truncated, version };
 }
 
+/**
+ * The files of a folder on a machine (`places.ts`), through its environment: pi-env lists them in its daemon, as
+ * `fd --hidden --exclude .git` does, skipping what git ignores and the folders a walk here skips.
+ */
+export async function listRemoteFiles(env: ExecutionEnv, path: string, max = MAX_FILES): Promise<FileList> {
+    if (env.listFiles === undefined) {
+        throw new Error("This machine's helper cannot list files; update it in Settings > Machines.");
+    }
+
+    const listed = await env.listFiles(
+        path,
+        { exclude: [...SKIP], maxEntries: max, timeoutMs: 10_000 },
+        BACKGROUND_CONTEXT,
+    );
+
+    if (!listed.ok) {
+        throw new Error(listed.error.message);
+    }
+
+    // Files only, hidden folders' files left out, as the walk here does.
+    const files = listed.value.entries
+        .filter((entry) => entry.kind !== "directory" && !entry.path.split("/").some((part) => part.startsWith(".")))
+        .map((entry) => entry.path)
+        .sort();
+    const version = createHash("sha1")
+        .update(files.join("\0"))
+        .update(listed.value.truncated ? "+" : "")
+        .digest("base64url")
+        .slice(0, 16);
+
+    return { files, truncated: listed.value.truncated, version };
+}
+
 /** Lists of files by folder, made at most once at a time per folder and kept while fresh. */
 export class FileLists {
     readonly #lists = new Map<string, Entry>();
@@ -210,8 +245,8 @@ export class FileLists {
         this.#now = now;
     }
 
-    /** The list for `cwd`: a fresh one kept here, the one being made, or a new one. */
-    get(cwd: string): Promise<FileListing> {
+    /** The list for `cwd`: a fresh one kept here, the one being made, or a new one (made by `list`). */
+    get(cwd: string, list: () => Promise<FileList> = () => listFiles(cwd)): Promise<FileListing> {
         const kept = this.#lists.get(cwd);
         const now = this.#now();
 
@@ -222,7 +257,7 @@ export class FileLists {
         const entry: Entry = {
             at: now,
             freshFor: Number.POSITIVE_INFINITY,
-            listing: this.#make(cwd),
+            listing: this.#make(list),
         };
 
         this.#lists.delete(cwd);
@@ -251,8 +286,8 @@ export class FileLists {
         return entry.listing;
     }
 
-    async #make(cwd: string): Promise<FileListing> {
-        const list = await listFiles(cwd);
+    async #make(make: () => Promise<FileList>): Promise<FileListing> {
+        const list = await make();
         const json = JSON.stringify(list);
         let compressed: Promise<Buffer> | undefined;
 
@@ -340,4 +375,73 @@ export function mentionedPaths(text: string): { written: string; candidates: str
     }
 
     return found;
+}
+
+/** What the viewer shows of a file on a machine (`places.ts`), as `viewFile` does here. Throws when it is not there. */
+export async function viewRemoteFile(env: ExecutionEnv, file: string): Promise<FileView> {
+    const context = BACKGROUND_CONTEXT;
+    const found = await env.fileInfo(file, context);
+
+    if (!found.ok) {
+        throw Object.assign(new Error(found.error.message), { code: found.error.code === "not_found" ? "ENOENT" : found.error.code });
+    }
+
+    const info = found.value;
+
+    if (info.kind === "directory") {
+        const reader = await env.openDirReader(file, context);
+
+        if (!reader.ok) {
+            throw new Error(reader.error.message);
+        }
+
+        try {
+            const page = await reader.value.next(VIEW_ENTRIES + 1, context);
+
+            if (!page.ok) {
+                throw new Error(page.error.message);
+            }
+
+            const listed = page.value.entries
+                .slice(0, VIEW_ENTRIES)
+                .map((entry) => ({ name: entry.name, dir: entry.kind === "directory" }))
+                .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
+
+            return { kind: "folder", entries: listed, truncated: page.value.entries.length > VIEW_ENTRIES || !page.value.done };
+        } finally {
+            await reader.value.close(context);
+        }
+    }
+
+    if (info.kind !== "file") {
+        return { kind: "other", size: info.size };
+    }
+
+    if (IMAGE_EXTENSIONS.test(file)) {
+        return { kind: "image", size: info.size };
+    }
+
+    const reader = await env.openBinaryReader(file, undefined, context);
+
+    if (!reader.ok) {
+        throw new Error(reader.error.message);
+    }
+
+    try {
+        const read = await reader.value.read(0, Math.min(info.size, VIEW_BYTES), context);
+
+        if (!read.ok) {
+            throw new Error(read.error.message);
+        }
+
+        const bytes = Buffer.from(read.value);
+
+        if (bytes.subarray(0, 8000).includes(0)) {
+            return { kind: "binary", size: info.size };
+        }
+
+        return { kind: "text", size: info.size, text: bytes.toString("utf8"), truncated: info.size > bytes.length };
+    } finally {
+        await reader.value.close(context);
+    }
 }

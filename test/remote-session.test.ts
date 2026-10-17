@@ -13,7 +13,7 @@ import {
 } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { userInfo } from "node:os";
 import { join } from "node:path";
@@ -21,6 +21,7 @@ import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { root } from "./helpers.ts";
+import { APP_ROOT } from "../src/server/config.ts";
 
 const sshdPath = ["/usr/sbin/sshd", join(process.env.PREFIX ?? "/usr", "bin", "sshd")].find((path) => existsSync(path));
 const skip = sshdPath === undefined ? "no sshd on this machine" : false;
@@ -132,14 +133,11 @@ test("a session on a machine runs its tools there, and the prompt says where", {
     void home;
 });
 
-test("a folder that is not on the machine is refused by name; the Files panel says it is not there yet", { skip }, async () => {
+test("a folder that is not on the machine is refused by name; worktrees stay on the phone", { skip }, async () => {
     await assert.rejects(
         app.commands.createSession(owner(app), { cwd: `machine:${machineId}:/no/such/folder` }),
         /There is no folder \/no\/such\/folder on box/,
     );
-    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${join(remoteHome, "project")}` });
-
-    await assert.rejects(app.workspace.fileList(id, owner(app)), /not available yet for a session on a machine \(box\)/);
     await assert.rejects(
         app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${remoteHome}`, worktree: true }),
         /worktree of its own is for folders on this phone/,
@@ -196,4 +194,57 @@ test("Pi's sessions on a machine are listed from their headers, and one copied h
     } finally {
         rmSync(real, { recursive: true, force: true });
     }
+});
+
+test("Files, the viewer, images, Changes, diffs, and undo work on the machine's folder", { skip }, async () => {
+    const repo = join(remoteHome, "repo");
+    const git = (...args: string[]) =>
+        execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: repo, encoding: "utf8" });
+
+    mkdirSync(join(repo, "src"), { recursive: true });
+    writeFileSync(join(repo, "src", "app.txt"), "one\ntwo\n");
+    writeFileSync(join(repo, "README.md"), "hello\n");
+    copyFileSync(join(APP_ROOT, "web", "icon-192.png"), join(repo, "icon.png"));
+    git("init", "-q");
+    git("add", "-A");
+    git("commit", "-qm", "init");
+    writeFileSync(join(repo, "src", "app.txt"), "one\nTWO\n");
+    writeFileSync(join(repo, "new.txt"), "fresh\n");
+
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${repo}` });
+    const me = owner(app);
+
+    const listing = await app.workspace.fileList(id, me);
+
+    assert.deepEqual(listing.files, ["README.md", "icon.png", "new.txt", "src/app.txt"]);
+
+    const viewed = await app.workspace.viewFile(id, me, "src/app.txt");
+
+    assert.equal(viewed.kind, "text");
+    assert.equal(viewed.path, join(repo, "src", "app.txt"));
+    assert.equal((viewed as { text: string }).text, "one\nTWO\n");
+    assert.equal((await app.workspace.viewFile(id, me, "src")).kind, "folder");
+    await assert.rejects(app.workspace.viewFile(id, me, "missing.txt"), /missing.txt is not there/);
+
+    const image = await app.workspace.remoteImage(me, id, "icon.png");
+
+    assert.equal(image?.type, "image/png");
+
+    const changes = await app.workspace.changes(id, me);
+
+    assert.equal(changes.repo?.root, repo);
+    assert.deepEqual(
+        changes.files.map((file) => [file.path, file.kind, file.added, file.removed]).sort(),
+        [
+            ["new.txt", "new", 1, 0],
+            ["src/app.txt", "modified", 1, 1],
+        ],
+    );
+    assert.match(await app.workspace.changeDiff(id, me, "src/app.txt"), /-two\n\+TWO/);
+
+    await app.workspace.revertChange(id, me, "src/app.txt");
+    await app.workspace.revertChange(id, me, "new.txt");
+    assert.equal(readFileSync(join(repo, "src", "app.txt"), "utf8"), "one\ntwo\n");
+    assert.equal(existsSync(join(repo, "new.txt")), false);
+    assert.deepEqual((await app.workspace.changes(id, me)).files, []);
 });
