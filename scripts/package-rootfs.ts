@@ -61,6 +61,21 @@ const PACKAGES = [
     "openssh",
     "ripgrep",
     "fd",
+    // Everyday tools for the agent and the terminal (pi-phone): scripts, sessions that outlive a socket, editors,
+    // archives, JSON, and a look at the processes.
+    "python",
+    "tmux",
+    "make",
+    "jq",
+    "zip",
+    "unzip",
+    "nano",
+    "vim",
+    "htop",
+    "file",
+    "tree",
+    "rsync",
+    "sqlite",
 ];
 
 /** Checked after extraction: the runtime is useless without these. */
@@ -72,6 +87,8 @@ const REQUIRED = [
     "usr/bin/fd",
     "usr/bin/ssh",
     "usr/bin/gh",
+    "usr/bin/python3",
+    "usr/bin/tmux",
     "usr/lib/node_modules/npm/bin/npm-cli.js",
     "usr/etc/tls/cert.pem",
     // PiService preloads it so `#!/usr/bin/env` scripts run.
