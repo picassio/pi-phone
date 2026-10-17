@@ -53,6 +53,7 @@ const ORDER = [
     "guard.ts",
     "codemode.ts",
     "ci-watch.ts",
+    "read-images.ts",
     "memory.ts",
     "pip.ts",
     "triggers.ts",
@@ -64,7 +65,7 @@ export const BUILT_IN_MODULES: ReadonlySet<string> = new Set(
     ORDER.map((file) => file.replace(/\.ts$/, "")),
 );
 /** Modules the app cannot work without: always on. */
-const REQUIRED = new Set(["prompt.ts"]);
+const REQUIRED = new Set(["prompt.ts", "read-images.ts"]);
 /** Built-in modules that stay off until the owner turns them on. Drop-ins all do. */
 const OFF_BY_DEFAULT = new Set(["guard.ts", "agent-teams.ts"]);
 const TITLES: Record<string, string> = {
@@ -79,6 +80,7 @@ const TITLES: Record<string, string> = {
     "guard.ts": "Lancet Guard",
     "codemode.ts": "Codemode",
     "ci-watch.ts": "CI watch",
+    "read-images.ts": "Images in read",
     "memory.ts": "Memory",
     "pip.ts": "PiP",
     "triggers.ts": "Triggers",
