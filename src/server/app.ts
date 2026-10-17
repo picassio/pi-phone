@@ -486,6 +486,11 @@ export class PocketApp {
                           platform: machine.remote === undefined ? "unknown" : `${machine.remote.platform} ${machine.remote.arch}`,
                       };
             },
+            sshHosts: () =>
+                this.machines.sshHosts().map(({ machine, alias }) => ({
+                    alias,
+                    address: `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`,
+                })),
             resolveModel: (spec) => resolveModel(this.models, spec, this.signInNeeded),
             subagentModels: () => this.config.subagentModels,
             modelProblem: (ref, fresh) => this.providers.problem(ref, fresh),

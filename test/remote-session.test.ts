@@ -505,3 +505,35 @@ test("a port of the machine opens here: its dev server answers at the forward's 
         devServer.close();
     }
 });
+
+test("ssh <name> reaches a machine from the phone: the app's ssh config, included in ~/.ssh/config; phone sessions are told", { skip }, async () => {
+    const { home } = await import("./helpers.ts");
+    const config = join(home, ".ssh", "config");
+    const ours = readFileSync(join(home, ".ssh", "pi-phone_config"), "utf8");
+
+    assert.match(ours, /^Host box$/m);
+    assert.match(ours, new RegExp(`HostKeyAlias pi-phone-${machineId}`));
+    assert.match(ours, /BatchMode yes/);
+    assert.equal(readFileSync(config, "utf8").split("\n")[0], `Include ${join(home, ".ssh", "pi-phone_config")}`);
+    const reached = execFileSync("ssh", ["-F", config, "box", "echo reached-$((40+2))"], { encoding: "utf8" });
+
+    assert.equal(reached.trim(), "reached-42");
+
+    // The owner's own lines stay, and the Include is not added twice.
+    writeFileSync(config, `${readFileSync(config, "utf8")}\nHost mine\n    HostName example.invalid\n`);
+    app.machines.add({ name: "box", address: "someone@192.0.2.1", keyId: app.machines.get(machineId).keyId });
+    const again = readFileSync(config, "utf8");
+
+    assert.equal(again.split("Include ").length, 2);
+    assert.match(again, /Host mine/);
+
+    // A phone session's prompt names it.
+    const { id } = await app.commands.createSession(owner(app), { cwd: join(remoteHome, "..") });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    told = "";
+    const { submissionId } = await app.commands.submit(id, owner(app), { text: "hello", requestId: crypto.randomUUID() });
+
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    assert.match(told, /reachable from here with ssh[^\n]*box \(/);
+});

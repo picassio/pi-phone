@@ -7,11 +7,17 @@
  * `connect` (the owner's tap on "Install and connect") deploys the daemon (verified by its SHA-256 before every start)
  * and starts it once to report the system. A session on a machine not yet connected is refused with a message that
  * says so, so the agent can never trigger a deployment.
+ *
+ * Every machine whose host key the owner accepted also gets a `Host` entry in `~/.ssh/pi-phone_config`, which
+ * `~/.ssh/config` includes: `ssh <name>` then reaches it from the agent's bash on the phone and from the terminal, with
+ * its key only, the same known hosts and alias, strict host key checks, and never a password prompt (`BatchMode`).
+ * The file is written again whenever the machines change; the owner's own lines in `~/.ssh/config` stay as they are.
  */
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { quoteConfigValue, sshAlias } from "./ssh-config.ts";
 import {
     acceptHostKey,
     connectSsh,
@@ -55,19 +61,69 @@ export class Machines {
     readonly #keys: SshKeys;
     /** The app's own known-hosts file. */
     readonly knownHostsFile: string;
+    readonly #home: string;
     #machines: Machine[];
 
     constructor(dataDir: string, keys: SshKeys, home = process.env.HOME || homedir()) {
         this.#file = join(dataDir, FILE);
         this.#keys = keys;
         this.knownHostsFile = join(home, ".ssh", "pi-phone_known_hosts");
+        this.#home = home;
         this.#machines = existsSync(this.#file)
             ? (JSON.parse(readFileSync(this.#file, "utf8")) as { machines: Machine[] }).machines
             : [];
+        this.#writeSshConfig();
     }
 
     #save(): void {
         writeFileSync(this.#file, `${JSON.stringify({ machines: this.#machines }, null, 2)}\n`, { mode: 0o600 });
+        this.#writeSshConfig();
+    }
+
+    /** The machines `ssh <alias>` reaches from the phone: those whose host key was accepted. */
+    sshHosts(): { machine: Machine; alias: string }[] {
+        const trusted = this.#machines.filter((machine) => machine.hostKey !== undefined);
+
+        return trusted.map((machine) => ({ machine, alias: sshAlias(machine, trusted) }));
+    }
+
+    /** `~/.ssh/pi-phone_config`, and its `Include` at the top of `~/.ssh/config`. */
+    #writeSshConfig(): void {
+        const folder = join(this.#home, ".ssh");
+        const ours = join(folder, "pi-phone_config");
+        const config = join(folder, "config");
+        const entries = this.sshHosts().map(({ machine, alias }) =>
+            [
+                `# ${machine.name.replace(/[\r\n]/g, " ")}`,
+                `Host ${alias}`,
+                `    HostName ${machine.host}`,
+                `    User ${machine.user}`,
+                ...(machine.port === undefined ? [] : [`    Port ${machine.port}`]),
+                `    IdentityFile ${quoteConfigValue(this.#keys.privateKeyPath(machine.keyId))}`,
+                "    IdentitiesOnly yes",
+                `    UserKnownHostsFile ${quoteConfigValue(this.knownHostsFile)}`,
+                `    HostKeyAlias pi-phone-${machine.id}`,
+                "    StrictHostKeyChecking yes",
+                "    BatchMode yes",
+                "    ServerAliveInterval 15",
+            ].join("\n"),
+        );
+
+        mkdirSync(folder, { recursive: true, mode: 0o700 });
+        writeFileSync(
+            ours,
+            `# Written by pi-phone from its Machines (Settings > Machines); changes here are replaced.\n\n${entries.join("\n\n")}\n`,
+            { mode: 0o600 },
+        );
+
+        // Its whole path: ssh reads a relative one from its own idea of home, which a test's or `-F` may not share.
+        const include = `Include ${quoteConfigValue(ours)}`;
+        const current = existsSync(config) ? readFileSync(config, "utf8") : "";
+
+        if (!current.split("\n").some((line) => line.trim() === include)) {
+            // At the top: an Include after a Host block would belong to that block.
+            writeFileSync(config, `${include}\n${current === "" ? "" : `\n${current}`}`, { mode: 0o600 });
+        }
     }
 
     list(): Machine[] {

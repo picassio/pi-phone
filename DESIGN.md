@@ -135,6 +135,10 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   side went another way; otherwise only as a new session (the machine import). Continue again appends the session's
   new messages to the same file, refused while Pi has unseen messages or after the session compacted past the link.
   The dock's Pi bar checks the file (one `stat`) when the session opens or the app comes to the front.
+- **`ssh <name>` from the phone** (`machines.ts`, `ssh-config.ts`): every machine with an accepted host key gets a
+  `Host` entry in `~/.ssh/pi-phone_config` (its key only, the app's known hosts and alias, strict checks, `BatchMode`),
+  rewritten whenever the machines change and included by its whole path at the top of `~/.ssh/config`, whose other
+  lines stay. Phone sessions' prompt names these machines.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

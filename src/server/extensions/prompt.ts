@@ -126,7 +126,17 @@ export default function createPrompt(host: PocketHost) {
                 const machine = host.machineOf(cwdOf(input));
 
                 if (machine === undefined) {
-                    return `Working directory: ${cwdOf(input)}\nPlatform: ${process.platform}\nToday: ${today}`;
+                    const hosts = host.sshHosts();
+                    const reach =
+                        hosts.length === 0
+                            ? []
+                            : [
+                                  `The owner's machines, reachable from here with ssh (the app's keys and trusted host keys; it never asks for a password): ${hosts
+                                      .map((each) => `${each.alias} (${each.address})`)
+                                      .join(", ")}. Run a command there with \`ssh <name> '<command>'\`; a session started in a folder there (machine:<id>:<path>) runs all its tools there instead.`,
+                              ];
+
+                    return [`Working directory: ${cwdOf(input)}`, `Platform: ${process.platform}`, ...reach, `Today: ${today}`].join("\n");
                 }
 
                 return [

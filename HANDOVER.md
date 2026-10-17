@@ -58,6 +58,7 @@ Done:
   the shell outlives its socket for 15 min and is taken up again by id with its last output; Paste, Select, End.
 - Notifications (PiService polls `/api/phone/events`), downloads to Downloads (bridge `download`), ports of
   machines (`forwards.ts`), branches on a machine, This phone (battery optimisation, backup and restore, `backup.ts`).
+- `ssh <machine name>` works from the phone's bash and terminal (`~/.ssh/pi-phone_config`, written by `machines.ts`).
 - Other sessions (`session-control.ts`, `extensions/sessions.ts`): Pi lists, reads, starts, messages, waits for,
   and stops other sessions as its person; denies approvals, never allows.
 - Continue in Pi, and back (`pi-handoff.ts`, `web/sheets/pi-handoff.js`, the dock's Pi bar).
