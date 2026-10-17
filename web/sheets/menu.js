@@ -442,6 +442,7 @@ export function MenuSheet({ places = true }) {
             ${item("Spend", () => openSheet({ type: "spend" }), me?.role === "owner" ? "by person and session, limits" : "yours")}
             ${me?.role === "owner" && item("Providers", () => openSheet({ type: "providers" }))}
             ${me?.role === "owner" && item("GitHub", () => openSheet({ type: "github" }), "for Pi's git and gh")}
+            ${me?.role === "owner" && item("SSH keys", () => openSheet({ type: "ssh-keys" }), "for machines")}
             ${
                 // The Android shell's bridge (android/.../MainActivity.java): only inside the app.
                 me?.role === "owner" &&

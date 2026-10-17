@@ -96,6 +96,10 @@ pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   the conversation one `[ci-watch]` message when it finishes (conclusion, jobs, failed steps and the end of their log,
   fenced). Ends with its run, after 2 hours, after 6 failed looks in a row (it says so), or when stopped (the tool, or
   Stop in the bar above the message box). Survives restarts.
+- **SSH keys** (`src/server/ssh-keys.ts`, `web/sheets/ssh-keys.js`): the app's keys for machines, one per purpose, in
+  `~/.ssh/keys/<id>` (mode 600) with names in `keys.json`. Generated (ed25519, no passphrase: background work has
+  nobody to ask) or imported; the public key is shown to put in a machine's `authorized_keys`. Each machine is
+  assigned one key (Machines, next).
 - **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI publishes a release, and
   the app updates from it (section 5).
 

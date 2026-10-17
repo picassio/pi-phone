@@ -64,6 +64,7 @@ import { defang, quoted } from "./fence.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiSessions } from "./pi-sessions.ts";
+import { SshKeys } from "./ssh-keys.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { takeLock } from "./lock.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
@@ -245,6 +246,8 @@ export class PocketApp {
     readonly folderFavorites = new FolderFavorites(this);
     /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */
     readonly github = new GitHubLogin();
+    /** The app's SSH keys, for machines (`ssh-keys.ts`). */
+    readonly sshKeys: SshKeys;
     /** Theme folders: the app's look and layout, built in and the owner's (`themes.ts`). */
     readonly themes: Themes;
     /** What extension modules add to the app: their routes, browser modules, and events (`extension-web.ts`). */
@@ -295,6 +298,7 @@ export class PocketApp {
         this.defaultCwd = options.defaultCwd;
         this.supervised = options.supervised;
         this.config = new ConfigStore(options.dataDir);
+        this.sshKeys = new SshKeys(options.dataDir, this.#home);
         this.#lockFile = join(options.dataDir, "harness.lock");
         this.#log = options.log ?? ((line) => console.log(line));
         this.themes = new Themes({

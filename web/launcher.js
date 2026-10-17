@@ -255,6 +255,12 @@ function actionItems() {
             icon: "key",
             run: () => openSheet({ type: "github" }),
         },
+        me?.role === "owner" && {
+            label: "SSH keys",
+            detail: "keys the app connects to machines with",
+            icon: "key",
+            run: () => openSheet({ type: "ssh-keys" }),
+        },
         // The Android shell's bridge (android/.../MainActivity.java): only inside the app.
         me?.role === "owner" &&
             window.PiPhoneApp && {

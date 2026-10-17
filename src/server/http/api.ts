@@ -574,6 +574,40 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, await app.providers.modelRefresh.refresh());
         }
 
+        // The app's SSH keys (`ssh-keys.ts`): the owner's, as they open the machines.
+        if (first === "ssh-keys" && method === "GET" && second === undefined) {
+            requireOwner(user);
+
+            return json(response, 200, { keys: await app.sshKeys.list() });
+        }
+
+        if (first === "ssh-keys" && method === "POST" && second === undefined) {
+            requireOwner(user);
+            const body = await readJson<{ name?: unknown; privateKey?: unknown }>(request);
+
+            return json(
+                response,
+                200,
+                body.privateKey === undefined
+                    ? await app.sshKeys.generate(body.name)
+                    : await app.sshKeys.import(body.name, body.privateKey),
+            );
+        }
+
+        if (first === "ssh-keys" && method === "POST" && second !== undefined && third === "rename") {
+            requireOwner(user);
+            app.sshKeys.rename(second, (await readJson<{ name?: unknown }>(request)).name);
+
+            return json(response, 200, { ok: true });
+        }
+
+        if (first === "ssh-keys" && method === "DELETE" && second !== undefined) {
+            requireOwner(user);
+            app.sshKeys.remove(second);
+
+            return json(response, 200, { ok: true });
+        }
+
         // GitHub for the app's gh and git: the owner's, as the credentials reach every repository they can.
         if (first === "github" && method === "GET" && second === undefined) {
             requireOwner(user);
