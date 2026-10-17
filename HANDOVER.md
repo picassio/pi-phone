@@ -61,11 +61,13 @@ Next, in order:
 3. No more trimming (the owner's decision): multiplayer, theme editing, the launcher, and the extension layer stay.
    Only leftovers of features already removed may go: the Extensions sheet's dead Lancet Guard code, the People
    sheet's Notifications button (Web Push is gone), and `browserOpen`/`pipOpen` in the store.
-4. Remote work (done through build 28: pi 1.3.0, SSH keys, Machines, sessions on a machine, Continue a Pi session
-   from a machine). Still to do on machines: the Files panel, file viewer, Changes, and branches through the
-   machine's environment (`workspace.ts` says "not available yet" there); attachments copied to the machine; a
-   terminal (pi-env's `openTerminal` + xterm.js).
-5. "Pi Pocket" still appears in user-facing text (exports, a few sheets); rename to pi-phone where it is shown.
+4. Remote work (done through build 29: pi 1.3.0, SSH keys, Machines, sessions on a machine, Continue a Pi session
+   from a machine, Files panel, viewer, images, Changes, diffs and undo on a machine). Still to do: attachments copied
+   to the machine; a terminal (pi-env's `openTerminal` + xterm.js). Branches stay phone-only.
+5. Restored from pi-pocket (builds 31, 32): artifacts, scheduled messages and goals. Staying out by the owner's
+   decision: PiP, Agent Teams, memory, triggers/watches/webhooks, the built-in browser, the gallery and drop-ins,
+   Lancet Guard, Web Push, share target, dictation.
+6. "Pi Pocket" still appears in user-facing text (exports, a few sheets); rename to pi-phone where it is shown.
 
 ## Rules that bit before
 
