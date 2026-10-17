@@ -224,6 +224,13 @@ test("Files, the viewer, images, Changes, diffs, and undo work on the machine's 
     assert.equal(viewed.path, join(repo, "src", "app.txt"));
     assert.equal((viewed as { text: string }).text, "one\nTWO\n");
     assert.equal((await app.workspace.viewFile(id, me, "src")).kind, "folder");
+    // The Files panel names folders as places, its root the session's own: they open the same.
+    const asPanel = await app.workspace.viewFile(id, me, `machine:${machineId}:${repo}`);
+
+    assert.equal(asPanel.kind, "folder");
+    assert.equal(asPanel.path, repo);
+    assert.equal((await app.workspace.viewFile(id, me, `machine:${machineId}:${repo}/src/app.txt`)).path, join(repo, "src", "app.txt"));
+    await assert.rejects(app.workspace.viewFile(id, me, `machine:another:${repo}`), /not on this session's machine/);
     await assert.rejects(app.workspace.viewFile(id, me, "missing.txt"), /missing.txt is not there/);
 
     const image = await app.workspace.remoteImage(me, id, "icon.png");

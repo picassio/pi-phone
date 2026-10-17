@@ -213,7 +213,14 @@ export class Workspace {
      * resolved from here).
      */
     #remotePath(remote: NonNullable<ReturnType<Workspace["remoteOf"]>>, user: User, path: string): string {
-        const written = path.trim();
+        // The panel names its folders as places (`machine:<id>:<path>`): one on this session's machine only.
+        const place = parsePlace(path.trim());
+
+        if (place.machineId !== undefined && place.machineId !== remote.machine.id) {
+            throw new HttpError(404, `${path} is not on this session's machine.`);
+        }
+
+        const written = place.path;
         const home = remote.machine.remote!.home;
         const expanded = written === "~" ? home : written.startsWith("~/") ? `${home}${written.slice(1)}` : written;
         const file = posix.resolve(remote.cwd, expanded);
