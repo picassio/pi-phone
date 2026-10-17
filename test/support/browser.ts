@@ -13,7 +13,7 @@ import { BrowserError, Chromium } from "./browser/cdp.ts";
 import { findBrowser, profileFolder } from "./browser/discovery.ts";
 import { BrowserPage, type BrowserState, type Saved, wait } from "./browser/page.ts";
 import { type Viewport, VIEWPORTS, viewportFrom } from "./browser/viewport.ts";
-import { describe } from "./errors.ts";
+import { describe } from "../../src/server/errors.ts";
 
 export type OpenOptions = {
     /** The size of a page that has no saved size. */

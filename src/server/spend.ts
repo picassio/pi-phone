@@ -406,21 +406,6 @@ export class Spend {
                 ...(budget === undefined ? {} : { budget }),
             };
         });
-        // PiP is out of the session list, not out of the spending: its person sees what it cost.
-        const pip = app.pip.idOf(user.id);
-
-        if (pip !== undefined) {
-            // With its limit, like any session's: the owner sees it, and can clear it.
-            const budget = app.sessionMeta(pip)?.budget;
-
-            sessions.push({
-                id: Number(pip),
-                title: "PiP",
-                spent: byRoot.get(pip) ?? 0,
-                ...(budget === undefined ? {} : { budget }),
-            });
-        }
-
         const people = app.config.users
             .filter((person) => owner || person.id === user.id)
             .map((person) => ({

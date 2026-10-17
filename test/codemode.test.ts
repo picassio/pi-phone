@@ -12,7 +12,6 @@ import {
 } from "@earendil-works/pi-durable";
 import { CodemodeStoreDoc } from "../src/server/docs.ts";
 import createCodemode from "../src/server/extensions/codemode.ts";
-import createGuard from "../src/server/extensions/guard.ts";
 import { Approvals, type PocketHost } from "../src/server/host.ts";
 
 const context = BACKGROUND_CONTEXT;
@@ -170,44 +169,3 @@ test("store() values last across scripts; failed scripts keep their output and c
     assert.deepEqual(fake.store.values, { count: 2 });
 });
 
-test("with Lancet Guard asking, each nested call waits for its own answer, even in parallel", async () => {
-    const approvals = new Approvals(() => undefined);
-    const guardHost = {
-        approvals,
-        guard: {
-            judge: async (_tool: string, args: { command: string }) => ({
-                subject: args.command,
-                decision: { action: "ask", source: "test", reason: "risky" },
-            }),
-        },
-    } as unknown as PocketHost;
-    const guard = createGuard(guardHost);
-    const fake = fakeApi([shell], [guard]);
-    const running = run(
-        fake,
-        `const [a, b] = await Promise.allSettled([tools.bash({ command: "one" }), tools.bash({ command: "two" })]);
-		return [a.status === "fulfilled" ? a.value : a.reason.message, b.status === "fulfilled" ? b.value : b.reason.message];`,
-    );
-    let pending = approvals.all();
-
-    for (let index = 0; index < 200 && pending.length < 2; index++) {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        pending = approvals.all();
-    }
-
-    assert.equal(pending.length, 2, "both calls ask");
-    assert.notEqual(pending[0]!.id, pending[1]!.id);
-    const one = pending.find((request) => request.subject === "one")!;
-    const two = pending.find((request) => request.subject === "two")!;
-
-    assert.ok(approvals.answer(one.id, { allow: true, by: "Alex" }));
-    assert.ok(approvals.answer(two.id, { allow: false, by: "Sam" }));
-    const result = await running;
-    const [first, second] = JSON.parse(result.text.split("Output:\n")[1]!) as string[];
-
-    assert.equal(first, "ran one ✓");
-    assert.match(
-        second!,
-        /^Tool call blocked: Sam denied this bash call after Lancet Guard asked \(risky\)/,
-    );
-});

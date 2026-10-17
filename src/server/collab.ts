@@ -200,30 +200,6 @@ export class Collab {
                 link: { conversationId: id, sheet: "chat" },
             });
         }
-
-        const url = `/s/${String(id)}?chat=1`;
-
-        for (const userId of mentioned) {
-            void app.alerts.push(userId, id, "mention", {
-                title: `${user.name} mentioned you · ${title}`,
-                body: snippet(message.text, 400),
-                url,
-                tag: `chat-${String(id)}`,
-            });
-        }
-
-        for (const userId of await app.alerts.participants(id)) {
-            if (userId === user.id || mentioned.has(userId)) {
-                continue;
-            }
-
-            void app.alerts.push(userId, id, "chat", {
-                title: `${user.name} · ${title}`,
-                body: snippet(message.text, 400),
-                url,
-                tag: `chat-${String(id)}`,
-            });
-        }
     }
 
     /**

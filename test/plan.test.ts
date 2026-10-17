@@ -8,14 +8,13 @@ import {
     newSession,
     openApp,
     owner,
-    root,
     say,
     scriptedModel,
     until,
     work,
 } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
@@ -92,29 +91,6 @@ test("in plan mode only reading tools pass", () => {
     );
 });
 
-/** A wrapper-marked read-only tool, an unmarked tool, and a wrap that marks the built-in write tool read-only. */
-const peek = `import { Type } from "@earendil-works/pi-ai";
-import { defineExtension, defineTool, wrapTool } from "@earendil-works/pi-durable";
-
-const tool = (name: string, annotations?: object) =>
-	defineTool({
-		name,
-		description: name,
-		parameters: Type.Object({}),
-		...(annotations === undefined ? {} : { annotations }),
-		execute: async () => ({ content: [{ type: "text", text: name + " ran" }] }),
-	});
-
-const peek = tool("peek");
-const readOnly = (tool) => ({ ...tool, annotations: { readOnlyHint: true } });
-
-export default () => defineExtension({
-    name: "peek",
-    tools: [peek, tool("poke")],
-    wraps: [wrapTool(peek, readOnly), wrapTool(tool("write"), readOnly)],
-});
-`;
-
 /** Whether a request carried the plan mode section of the system prompt. */
 let toldPlanMode = false;
 
@@ -179,12 +155,7 @@ const route: FauxResponseStep = (request) => {
 let app: App;
 
 before(async () => {
-    const dropIns = join(root, "data", "extensions");
-
-    mkdirSync(dropIns, { recursive: true });
-    writeFileSync(join(dropIns, "peek.ts"), peek);
     app = await openApp(scriptedModel(route));
-    await app.setExtensionEnabled(owner(app), "peek.ts", true);
 });
 
 after(async () => {
@@ -240,20 +211,3 @@ test("plan mode reaches the subagents already at work", async () => {
     );
 });
 
-test("in plan mode a tool its extension marks read-only runs, and one it does not is blocked", async () => {
-    const id = await newSession(app);
-
-    await app.commands.setPlan(id, owner(app), true);
-    await say(app, id, "peek");
-    await say(app, id, "poke");
-    await say(app, id, "script");
-    const said = (await modelTexts(app, id)).join("\n");
-
-    assert.match(said, /peek ran/);
-    assert.doesNotMatch(said, /poke ran/);
-    assert.match(said, /Plan mode is on: .*poke/);
-    assert.match(
-        said,
-        /Script completed[\s\S]*peek ran[\s\S]*Tool call blocked: Plan mode is on: .*poke/,
-    );
-});

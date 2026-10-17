@@ -20,10 +20,10 @@ import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ConversationId } from "@earendil-works/pi-durable";
-import { Browsers } from "../src/server/browser.ts";
-import { findBrowser } from "../src/server/browser/discovery.ts";
-import type { BrowserPage } from "../src/server/browser/page.ts";
-import { VIEWPORTS } from "../src/server/browser/viewport.ts";
+import { Browsers } from "./support/browser.ts";
+import { findBrowser } from "./support/browser/discovery.ts";
+import type { BrowserPage } from "./support/browser/page.ts";
+import { VIEWPORTS } from "./support/browser/viewport.ts";
 import { createHandler } from "../src/server/http.ts";
 import { SubagentsDoc } from "../src/server/docs.ts";
 

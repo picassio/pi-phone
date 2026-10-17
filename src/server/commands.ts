@@ -1,7 +1,7 @@
 /**
  * What people ask of Pi: start and rename sessions, send messages (steer or queue), stop, withdraw, and change the
  * model, thinking level, or folder of a conversation; compact or reset its context and set its instructions; fork it,
- * or send a message again; set plan mode, a goal, or scheduled messages; and remove a session's worktree. Every
+ * or send a message again; set plan mode; and remove a session's worktree. Every
  * command checks who may do it, and changes others should know about become activity lines in the session's chat.
  */
 import { randomUUID } from "node:crypto";
@@ -38,7 +38,6 @@ import {
     NotesDoc,
     PinsDoc,
     PlanDoc,
-    type Schedule,
     SessionsDoc,
     STOPPED,
     type SubagentRecord,
@@ -55,7 +54,6 @@ import { describe, HttpError, optionalText } from "./errors.ts";
 import { homePath } from "./paths.ts";
 import { mentionedPaths, viewFile } from "./files.ts";
 import { isThinkingLevel, THINKING_LEVELS } from "./models.ts";
-import { writePiSession } from "./pi-sessions.ts";
 import { snippet } from "./projection.ts";
 import { globalModelSettings, projectModelDefault } from "./project-model.ts";
 import { expandPromptTemplate, expandSkillCommand, unwrapSkill } from "./prompts.ts";
@@ -63,7 +61,6 @@ import { clientKey, ownRequest, requestFor } from "./requests.ts";
 import { type Resend, resendContent, resendRequest, ResendTask, userContent } from "./resend.ts";
 import { whyUnanswered } from "./subagent-runs.ts";
 import { wantsTitle, writeTitle } from "./titles.ts";
-import { describeMoment, describeRepeat, knownZone } from "./when.ts";
 import {
     createWorktree,
     discardWorktree,
@@ -406,59 +403,6 @@ export class Commands {
     }
 
     /**
-     * Continue one of Pi's sessions from the terminal here: a new session with its history, in its folder, with its model
-     * when that one is signed in here (`pi-sessions.ts`). The owner's, as Pi's own files are.
-     */
-    async continuePiSession(user: User, path: string): Promise<{ id: ConversationId }> {
-        const app = this.#app;
-        const session = await app.piSessions.read(user, path);
-        let cwd: string;
-
-        try {
-            cwd = app.workspace.checkDirectory(session.cwd);
-        } catch {
-            throw new HttpError(
-                400,
-                `The folder this Pi session worked in is not there anymore: ${session.cwd}`,
-            );
-        }
-
-        const start = this.#defaultModel(session);
-        const title = session.title.slice(0, MAX_TITLE);
-        const now = Date.now();
-        const conversation = await app.harness.createConversation(
-            {
-                ownership: { kind: "ownerless" },
-                agent: {
-                    cwd,
-                    ...(start.model === undefined ? {} : { model: start.model }),
-                    ...(start.thinkingLevel === undefined
-                        ? {}
-                        : { thinkingLevel: start.thinkingLevel }),
-                },
-                init: async (tx, id) => {
-                    (await tx.doc(SessionsDoc)).items[String(id)] = {
-                        cwd,
-                        title,
-                        createdAt: now,
-                        updatedAt: now,
-                        createdBy: user.id,
-                        fromPi: { session: session.id, count: session.count },
-                    };
-                    await writePiSession(tx, id, session, {
-                        session: session.id,
-                        title: session.title,
-                        file: path,
-                    });
-                },
-            },
-            context,
-        );
-
-        return { id: conversation.id };
-    }
-
-    /**
      * Run `create` with the folder a new session works in: `cwd` itself, or, when `isolated`, the matching folder in a
      * new git worktree made from it, named after `label`. A worktree whose session `create` did not make is discarded.
      */
@@ -697,12 +641,6 @@ export class Commands {
         app.requireSee(user, id);
         await app.requireDriver(id, user);
 
-        // PiP turned off takes nothing, from its person either: it would run without its rules, and be compacted without
-        // its own summary (`pip-compact.ts`). What else goes to it (reports, schedules, watches) waits meanwhile.
-        if (app.pip.ownerOf(id) !== undefined && !app.pip.available(user)) {
-            throw new HttpError(409, "PiP is turned off in Extensions.");
-        }
-
         const conversation = await app.conversation(id);
         const typed = request.text.trim();
         // `/skill:name request` sends the skill with the request; `/name arguments`, Pi's prompt template of that name.
@@ -781,11 +719,6 @@ export class Commands {
 
         app.collab.setTyping(id, user, null);
         await this.#touched(id, typed, text === typed ? undefined : text);
-
-        // A person's own words: linked sessions may message each other again (`linked-sessions.ts`).
-        if (via === undefined) {
-            await app.linkedSessions.personWrote(id);
-        }
 
         this.#reportUnanswered(id, submission.wait(context));
 
@@ -1167,10 +1100,6 @@ export class Commands {
         app.requireSee(user, id);
         await app.requireDriver(id, user);
 
-        if (request.pipPanel === true && app.pip.ownerOf(id) !== user.id) {
-            throw new HttpError(403, "Only your own PiP can use this control.");
-        }
-
         const asked = request.model as { provider?: unknown; modelId?: unknown } | undefined;
 
         checkModel(asked);
@@ -1414,227 +1343,6 @@ export class Commands {
 
             return true;
         }, context);
-    }
-
-    /** Set up a message to Pi for later, or on repeat: `when` is when, then what it says (`in 2h check the deploy`). */
-    async schedule(
-        id: ConversationId,
-        user: User,
-        request: { when?: unknown; zone?: unknown },
-    ): Promise<Schedule> {
-        const app = this.#app;
-
-        app.requireSee(user, id);
-        await app.requireDriver(id, user);
-        const zone = optionalText(request.zone, "zone");
-
-        if (zone !== undefined && !knownZone(zone)) {
-            throw new HttpError(400, `Unknown time zone ${zone}`);
-        }
-
-        app.spend.check(user, id);
-        const schedule = await app.schedules.add(id, {
-            when: optionalText(request.when, "when") ?? "",
-            by: user,
-            ...(zone === undefined ? {} : { zone }),
-        });
-        const when =
-            schedule.every === undefined
-                ? `for ${describeMoment(schedule.next, schedule.zone)}`
-                : describeRepeat(schedule.every);
-
-        await app.collab.activity(id, user, `scheduled “${snippet(schedule.text, 60)}” ${when}`);
-
-        return schedule;
-    }
-
-    async cancelSchedule(id: ConversationId, user: User, scheduleId: string): Promise<void> {
-        const app = this.#app;
-
-        app.requireSee(user, id);
-        await app.requireDriver(id, user);
-        const schedule = await app.schedules.cancel(id, scheduleId);
-
-        if (schedule === undefined) {
-            throw new HttpError(404, "No such scheduled message");
-        }
-
-        await app.collab.activity(
-            id,
-            user,
-            `cancelled the scheduled “${snippet(schedule.text, 60)}”`,
-        );
-    }
-
-    /** Watch the session's pull request (its branch's, or `pr`): Pi hears of failed checks, conflicts, and reviews. */
-    async watchPr(id: ConversationId, user: User, pr: unknown): Promise<{ number: number }> {
-        const app = this.#app;
-
-        app.requireSee(user, id);
-        await app.requireDriver(id, user);
-        app.spend.check(user, id);
-        const asked = optionalText(pr, "pr");
-        const watch = await app.watches.start(
-            id,
-            user.id,
-            asked === undefined ? {} : { pr: asked },
-        );
-
-        await app.collab.activity(
-            id,
-            user,
-            `started watching PR #${watch.number} “${snippet(watch.title, 60)}”`,
-        );
-
-        return { number: watch.number };
-    }
-
-    /** Stop watching the session's pull request, or clear a watch that ended. */
-    async unwatchPr(id: ConversationId, user: User): Promise<void> {
-        const app = this.#app;
-
-        app.requireSee(user, id);
-        await app.requireDriver(id, user);
-        const watch = await app.watches.stop(id);
-
-        if (watch?.status === "watching") {
-            await app.collab.activity(id, user, `stopped watching PR #${watch.number}`);
-        }
-    }
-
-    /**
-     * The webhooks a person may manage, each with where it sends (a session's title, or PiP), and the address other
-     * services reach this server at, when it has a public one.
-     */
-    async hooks(user: User) {
-        const app = this.#app;
-        const hooks = (await app.hooks.list(user)).map((hook) => {
-            const target = hook.target as unknown as ConversationId;
-            const meta = app.sessionMeta(target);
-
-            return {
-                ...hook,
-                // A session the person can no longer open keeps its title to itself.
-                targetTitle:
-                    meta?.pip !== undefined
-                        ? "PiP"
-                        : app.canSee(user, target)
-                          ? (meta?.title ?? "New session")
-                          : "a session you cannot open",
-                pip: meta?.pip !== undefined,
-            };
-        });
-
-        // Repository watches (`repo-watches.ts`), which PiP sets up: shown with the hooks, to see and remove.
-        const repoWatches = (await app.repoWatches.list(user)).map((watch) => {
-            const target = watch.target as unknown as ConversationId;
-            const meta = app.sessionMeta(target);
-
-            return {
-                ...watch,
-                targetTitle:
-                    meta?.pip !== undefined
-                        ? "PiP"
-                        : app.canSee(user, target)
-                          ? (meta?.title ?? "New session")
-                          : "a session you cannot open",
-                pip: meta?.pip !== undefined,
-            };
-        });
-
-        return { hooks, repoWatches, base: app.access?.url ?? null };
-    }
-
-    /** Make a webhook that messages a session (or PiP) for this person. */
-    async addHook(
-        user: User,
-        body: {
-            target?: unknown;
-            name?: unknown;
-            instructions?: unknown;
-            signed?: unknown;
-            anyone?: unknown;
-        },
-    ) {
-        const app = this.#app;
-        // "pip": this person's PiP, made now if they have none yet.
-        const target =
-            body.target === "pip" && app.pip.available(user)
-                ? Number(await app.pip.ensure(user))
-                : Number(body.target);
-
-        if (!Number.isSafeInteger(target) || target < 0) {
-            throw new HttpError(400, "Say which session the webhook messages.");
-        }
-
-        const id = target as unknown as ConversationId;
-        const hook = await app.hooks.add(user, id, body);
-
-        if (app.sessionMeta(id)?.pip === undefined) {
-            await app.collab.activity(id, user, `made the webhook “${snippet(hook.name, 60)}”`);
-        }
-
-        return hook;
-    }
-
-    async removeHook(user: User, hookId: string): Promise<void> {
-        const app = this.#app;
-        const hook = await app.hooks.remove(user, hookId);
-        const target = hook.target as unknown as ConversationId;
-
-        // No line where the remover can no longer go.
-        if (
-            app.sessionMeta(target) !== undefined &&
-            app.sessionMeta(target)?.pip === undefined &&
-            app.canSee(user, target)
-        ) {
-            await app.collab.activity(
-                target,
-                user,
-                `removed the webhook “${snippet(hook.name, 60)}”`,
-            );
-        }
-    }
-
-    /** Pi keeps working until `command` passes, checked after each of its answers. */
-    async setGoal(id: ConversationId, user: User, command: unknown): Promise<void> {
-        const app = this.#app;
-
-        app.requireSee(user, id);
-        await app.requireDriver(id, user);
-
-        if (app.sessionMeta(id) === undefined) {
-            throw new HttpError(400, "Only sessions can have a goal");
-        }
-
-        const goal = await app.goals.set(id, user.id, optionalText(command, "command") ?? "");
-
-        await app.collab.activity(
-            id,
-            user,
-            `set a goal: keep going until \`${snippet(goal.command, 80)}\` passes`,
-        );
-    }
-
-    /** Drop the goal: Pi stops checking. Anyone who can steer may, as with stopping a run. */
-    async clearGoal(id: ConversationId, user: User): Promise<void> {
-        const app = this.#app;
-
-        app.requireSee(user, id);
-        app.requireSteer(user);
-        const goal = await app.goals.get(id);
-
-        if (!(await app.goals.clear(id)) || goal === undefined) {
-            return;
-        }
-
-        if (goal.status === "working") {
-            await app.collab.activity(
-                id,
-                user,
-                `dropped the goal \`${snippet(goal.command, 80)}\``,
-            );
-        }
     }
 
     /** A new session with this session's history through `entryId`, which then goes its own way. */
@@ -1969,21 +1677,11 @@ export class Commands {
 
         app.requireSee(user, id);
         await app.requireDriver(id, user);
-        // PiP's summaries are its own, written by its extension's hook with outside text left out: while PiP is off,
-        // there is no hook, and Pi Durable's summary would read what came from outside as it is.
-        const pip = app.pip.ownerOf(id) !== undefined;
-
-        if (pip && !app.pip.available(user)) {
-            throw new HttpError(409, "PiP is turned off in Extensions.");
-        }
-
         // Compacting asks the model for a summary, which costs like any other request.
         app.spend.check(user, id);
         const conversation = await app.conversation(id);
         const taskId = await conversation.compact(instructions, context);
-        const done = pip ? "PiP's context compacted." : "Compacted.";
-
-        app.notice("info", pip ? "Compacting PiP's context…" : "Compacting…", id);
+        app.notice("info", "Compacting…", id);
         await app.collab.activity(id, user, "started compacting the context", false);
         void app.harness.waitForTask(taskId, context).then(
             (receipt) => {
@@ -1991,20 +1689,13 @@ export class Commands {
 
                 if (outcome.status === "completed") {
                     const { entryId, submissionId } = outcome.result;
-                    // PiP's own summary could not be written: it declined, rather than let Pi Durable write one.
-                    const failed = pip ? app.pipCompaction.failure(Number(taskId)) : undefined;
-
-                    if (failed !== undefined) {
-                        app.notice("error", `PiP's context was not compacted: ${failed}`, id);
-                    } else {
-                        app.notice(
-                            "info",
-                            entryId === undefined && submissionId === undefined
-                                ? "Nothing to compact: the context fits in the recent window."
-                                : done,
-                            id,
-                        );
-                    }
+                    app.notice(
+                        "info",
+                        entryId === undefined && submissionId === undefined
+                            ? "Nothing to compact: the context fits in the recent window."
+                            : "Compacted.",
+                        id,
+                    );
                 } else if (outcome.status === "aborted") {
                     app.notice("info", "Compaction aborted.", id);
                 } else {

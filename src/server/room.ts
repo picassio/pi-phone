@@ -19,30 +19,22 @@ import type { PocketApp } from "./app.ts";
 import type { Head } from "./branches.ts";
 import type { User } from "./config.ts";
 import {
-    type ArtifactMeta,
-    ArtifactsDoc,
     AuthorsDoc,
     ChatDoc,
     type ChatMessage,
     type Decision,
     DecisionsDoc,
-    type Goal,
-    GoalDoc,
     type Notes,
     NotesDoc,
     type Pin,
     PinsDoc,
     PlanDoc,
-    type PrWatch,
     ReactionsDoc,
-    type Schedule,
-    ScheduleDoc,
     type SubagentRecord,
     STOPPED,
     SubagentsDoc,
     type Turns,
     TurnsDoc,
-    WatchDoc,
 } from "./docs.ts";
 import { COMMAND_ENTRY, SHELL_ENTRY } from "./entry-format.ts";
 import { agentInfo } from "./models.ts";
@@ -55,7 +47,6 @@ import {
     projectLive,
     projectStats,
 } from "./projection.ts";
-import { describeRepeat } from "./when.ts";
 
 const context = BACKGROUND_CONTEXT;
 
@@ -63,7 +54,6 @@ const context = BACKGROUND_CONTEXT;
 export const ROOM_DOCS = new Set(
     [
         AuthorsDoc,
-        ArtifactsDoc,
         SubagentsDoc,
         ChatDoc,
         ReactionsDoc,
@@ -72,9 +62,6 @@ export const ROOM_DOCS = new Set(
         TurnsDoc,
         DecisionsDoc,
         PlanDoc,
-        ScheduleDoc,
-        GoalDoc,
-        WatchDoc,
     ].map((doc) => doc.definition.kind),
 );
 /** A typing indicator lasts this long unless the browser renews it. */
@@ -294,7 +281,6 @@ export class Room {
     /** Each waiting message's text for the queue, and the subagents it reports from: what it says does not change. */
     readonly #queued = new Map<number, { text: string; reports: string[] | undefined }>();
     authors: Record<string, string> = {};
-    artifacts: Record<string, ArtifactMeta> = {};
     subagents: Record<string, SubagentRecord> = {};
     /** The subagents whose reports are on their way to this conversation: waiting, or sent and still queued. */
     #reporting = new Set<string>();
@@ -307,9 +293,6 @@ export class Room {
     turns: Turns = { on: false, asks: [] };
     decisions: Record<string, Decision> = {};
     plan: { on: boolean; by?: string; at?: number } = { on: false };
-    schedules: Record<string, Schedule> = {};
-    goal: Goal | undefined;
-    watch: PrWatch | undefined;
     /** Who is typing where, by user id. Memory only: it means nothing after a restart. */
     readonly #typing = new Map<string, { where: TypingPlace; timer: NodeJS.Timeout }>();
     parent: { id: ConversationId; title: string } | undefined;
@@ -328,9 +311,6 @@ export class Room {
         this.authors = {
             ...((await harness.snapshot(AuthorsDoc, this.id, context))?.entries ?? {}),
         };
-        this.artifacts = {
-            ...((await harness.snapshot(ArtifactsDoc, this.id, context))?.items ?? {}),
-        } as Record<string, ArtifactMeta>;
         const subagents = await harness.snapshot(SubagentsDoc, this.id, context);
 
         this.subagents = { ...(subagents?.agents ?? {}) } as Record<string, SubagentRecord>;
@@ -359,11 +339,6 @@ export class Room {
             ...((await harness.snapshot(DecisionsDoc, this.id, context))?.calls ?? {}),
         };
         this.plan = { ...((await harness.snapshot(PlanDoc, this.id, context)) ?? { on: false }) };
-        this.schedules = {
-            ...((await harness.snapshot(ScheduleDoc, this.id, context))?.items ?? {}),
-        };
-        this.goal = (await harness.snapshot(GoalDoc, this.id, context))?.goal;
-        this.watch = (await harness.snapshot(WatchDoc, this.id, context))?.watch;
 
         if (owner !== undefined) {
             const siblings =
@@ -429,18 +404,10 @@ export class Room {
             this.decisions = { ...((value?.calls as Record<string, Decision>) ?? {}) };
         } else if (kind === PlanDoc.definition.kind) {
             this.plan = { on: false, ...((value as Room["plan"] | null) ?? {}) };
-        } else if (kind === ScheduleDoc.definition.kind) {
-            this.schedules = { ...((value?.items as Record<string, Schedule>) ?? {}) };
-        } else if (kind === GoalDoc.definition.kind) {
-            this.goal = (value?.goal as Goal | undefined) ?? undefined;
-        } else if (kind === WatchDoc.definition.kind) {
-            this.watch = (value?.watch as PrWatch | undefined) ?? undefined;
         }
 
         if (kind === AuthorsDoc.definition.kind) {
             this.authors = { ...((value?.entries as Record<string, string>) ?? {}) };
-        } else if (kind === ArtifactsDoc.definition.kind) {
-            this.artifacts = { ...((value?.items as Record<string, ArtifactMeta>) ?? {}) };
         } else if (kind === SubagentsDoc.definition.kind) {
             this.subagents = { ...((value?.agents as Record<string, SubagentRecord>) ?? {}) };
             this.#reporting = reportingOf(value as Parameters<typeof reportingOf>[0]);
@@ -539,16 +506,6 @@ export class Room {
         const fields: Record<string, unknown> = {
             // A turn's updates would repeat it every 90 ms, and a waiting paste or batch of reports can be large.
             inbox: queue,
-            artifacts: Object.entries(this.artifacts).map(([id, meta]) => ({
-                id,
-                title: meta.title,
-                type: meta.type,
-                versions: meta.versions.map((version) => ({
-                    version: version.version,
-                    size: version.size,
-                    createdAt: version.createdAt,
-                })),
-            })),
             subagents: Object.entries(this.subagents).map(([name, record]) =>
                 subagentView(
                     name,
@@ -565,48 +522,8 @@ export class Room {
             turns: this.turns,
             decisions: this.decisions,
             plan: this.plan,
-            schedules: Object.values(this.schedules)
-                .sort((a, b) => a.next - b.next)
-                .map(({ id, text, next, every, by, runs }) => ({
-                    id,
-                    text,
-                    next,
-                    ...(every === undefined ? {} : { repeat: describeRepeat(every) }),
-                    ...(by === undefined ? {} : { by }),
-                    runs,
-                })),
             // The branch is read from the repository each time, so one Pi or a person switched to shows on the next update.
             branch: this.#readHead(),
-            goal:
-                this.goal === undefined
-                    ? null
-                    : {
-                          command: this.goal.command,
-                          by: this.goal.by,
-                          status: this.goal.status,
-                          tries: this.goal.tries,
-                          max: this.goal.max,
-                          ...(this.goal.last === undefined ? {} : { last: this.goal.last }),
-                      },
-            // The session's PR watch, as its bar shows it.
-            watch:
-                this.watch === undefined
-                    ? null
-                    : {
-                          number: this.watch.number,
-                          url: this.watch.url,
-                          title: this.watch.title,
-                          status: this.watch.status,
-                          checks: this.watch.checks ?? null,
-                          sent: this.watch.sent,
-                          max: this.watch.max,
-                          note: this.watch.note ?? null,
-                          // A note with no failed looks says why it waits (someone else drives).
-                          errors: this.watch.errors,
-                          by: this.watch.by,
-                          // Only the owner's comments count: gh cannot push to the repository.
-                          ...(this.watch.unchecked === true ? { unchecked: true } : {}),
-                      },
         };
 
         for (const [key, value] of Object.entries(fields)) {

@@ -8,9 +8,7 @@ import { join, normalize, sep } from "node:path";
 import { Auth } from "./auth.ts";
 import { describe, HttpError } from "./errors.ts";
 import { createApi } from "./http/api.ts";
-import { artifact } from "./http/artifacts.ts";
 import { extensionFile } from "./http/extension-routes.ts";
-import { hookRoute } from "./http/hook-routes.ts";
 import { serveApp, serveFile, VENDOR, WEB } from "./http/assets.ts";
 import { type HttpOptions, json } from "./http/io.ts";
 import { join as joinPage, login, sharePage } from "./http/sign-in.ts";
@@ -39,21 +37,6 @@ export function createHandler(options: HttpOptions) {
 
             if (parts[0] === "api") {
                 return await api(request, response, url, parts.slice(1));
-            }
-
-            // Webhooks: posts from other services, let in by the hook's secret, not by a sign-in.
-            if (parts[0] === "hook" && parts[1] !== undefined) {
-                return await hookRoute(app, request, response, parts[1], parts[2]);
-            }
-
-            if (parts[0] === "a") {
-                return await artifact(
-                    app,
-                    response,
-                    parts.slice(1),
-                    auth.user(request),
-                    url.searchParams,
-                );
             }
 
             // An extension module's browser module, for the people it is for (`extension-web.ts`).

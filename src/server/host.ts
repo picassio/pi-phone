@@ -10,52 +10,7 @@ import type {
     TaskId,
     Tx,
 } from "@earendil-works/pi-durable";
-import type { Browsers } from "./browser.ts";
-import type { Gallery } from "./gallery.ts";
 import type { Role, User } from "./config.ts";
-import type { Goals } from "./goals.ts";
-import type { LancetGuard } from "./lancet.ts";
-import type { Memory } from "./memory.ts";
-import type { Pip } from "./pip.ts";
-import type { PipCompaction } from "./pip-compact.ts";
-import type { Schedules } from "./schedules.ts";
-import type { RepoWatches } from "./repo-watches.ts";
-import type { Watches } from "./watches.ts";
-
-/** A session linked to another, as `host.linkedSessions.list` gives it to the session that asks. */
-export interface LinkedSession {
-    /** What the asking session calls it: an address of its own, never the session's id. */
-    address: string;
-    /** Only when everyone who sees the asking session sees this one too. */
-    title?: string;
-    cwd?: string;
-    busy?: boolean;
-    archived?: boolean;
-}
-
-/**
- * Sessions that a session starts and messages (`linked-sessions.ts`). Each acts as the person Pi works for in `source`,
- * with their checks; a call made again with the same `key` acts once, and returns what the first did.
- */
-export interface LinkedSessionsApi {
-    /**
-     * Start a session linked to `source`, in its folder, with a copy of its agent settings but not its history, and send
-     * it `message` as its first message. `model` is `provider/modelId`; `thinking` a level no higher than the source's.
-     */
-    start(
-        source: ConversationId,
-        request: { title?: string; message: string; model?: string; thinking?: string },
-        key: string,
-    ): Promise<{ session: ConversationId; address: string }>;
-    /** Send `message` to the linked session at address `to`: a follow-up, or with `steer` at its next pause. */
-    send(
-        source: ConversationId,
-        request: { to: string; message: string; steer?: boolean },
-        key: string,
-    ): Promise<void>;
-    /** The sessions linked to `source`, at any distance, that the person Pi works for there sees. */
-    list(source: ConversationId): Promise<LinkedSession[]>;
-}
 
 export interface ApprovalRequest {
     id: string;
@@ -188,7 +143,6 @@ export type CommandInfo = Omit<ExtensionCommand, "handler"> & { id: string; name
 
 /** What the app gives its extensions. Extensions are reloaded on edit; the host is not. */
 export interface PocketHost {
-    readonly guard: LancetGuard;
     readonly approvals: Approvals;
     readonly agentDir: string;
     readonly dataDir: string;
@@ -227,53 +181,6 @@ export interface PocketHost {
     /** Call `listener` whenever the owner changes a spend limit; returns how to stop. */
     onLimitsChanged(listener: () => void): () => void;
     /**
-     * Sessions that a session starts and messages (`linked-sessions.ts`): each one is an ordinary session, linked to the
-     * one that started it. The checks of the person Pi works for apply, and a call repeated with its key acts once.
-     *
-     * @experimental In 0.14: it can change in a minor release (docs/extensions/policies/api-stability.md).
-     */
-    readonly linkedSessions: LinkedSessionsApi;
-    /** Messages to Pi for later: the schedule tool sets up Pi's own. */
-    readonly schedules: Pick<Schedules, "add" | "cancel" | "list" | "task">;
-    /** Sessions' goals: the goals extension runs their checks and counts them. */
-    readonly goals: Pick<Goals, "get" | "run" | "record" | "mayContinue">;
-    /** The built-in browser: a page per conversation, which the people in it watch and use too. */
-    readonly browsers: Pick<Browsers, "open">;
-    /** PiP, the owner's assistant: what its tools do, each as PiP's person (`pip.ts`). */
-    readonly pip: Pick<
-        Pip,
-        | "ownerOf"
-        | "ownerName"
-        | "task"
-        | "sessions"
-        | "read"
-        | "start"
-        | "send"
-        | "stop"
-        | "archive"
-        | "approvals"
-        | "deny"
-        | "status"
-        | "schedules"
-        | "schedule"
-        | "countSchedule"
-        | "cancelSchedule"
-        | "follow"
-        | "watchPr"
-        | "prWatch"
-        | "addRepoWatch"
-        | "repoWatches"
-        | "removeRepoWatch"
-    >;
-    /** PiP's compactions: its extension's hook has PiP write its own summaries. */
-    readonly pipCompaction: Pick<PipCompaction, "summarize">;
-    /** Sessions' watches of their pull requests: Pi's watch_pr tool starts and stops them. */
-    readonly watches: Pick<Watches, "task" | "start" | "stop" | "get">;
-    /** Repository watches: the triggers extension runs their task; PiP's repo_watch tool sets them up. */
-    readonly repoWatches: Pick<RepoWatches, "task">;
-    /** Lessons Pi keeps across sessions (`memory.ts`): the memory tool saves them, and its section lists them. */
-    readonly memory: Pick<Memory, "project" | "applying" | "inForce" | "add" | "change">;
-    /**
      * Text from elsewhere made safe for Pi to read (`fence.ts`): `quoted` gives one line, cut to `max`, without
      * invisible characters or any tag, in quotes it cannot close; `defang` keeps the lines, but no closing tag survives,
      * for text put between tags of your own. Tell Pi in the same place that it is data.
@@ -281,23 +188,6 @@ export interface PocketHost {
     readonly text: { quoted(text: string, max?: number): string; defang(text: string): string };
     /** The thinking levels, lowest first, as a model and a session name them. */
     readonly thinkingLevels: readonly ModelThinkingLevel[];
-    /** The extension gallery (`gallery.ts`): its extension's routes are the owner's way to it. */
-    readonly gallery: Pick<
-        Gallery,
-        | "settings"
-        | "setIndex"
-        | "listing"
-        | "installed"
-        | "check"
-        | "source"
-        | "install"
-        | "updatePreview"
-        | "update"
-        | "uninstall"
-        | "review"
-        | "share"
-        | "shareTheme"
-    >;
 }
 
 /**

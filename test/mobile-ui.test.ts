@@ -15,10 +15,10 @@ import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { ConversationId } from "@earendil-works/pi-durable";
-import { Browsers } from "../src/server/browser.ts";
-import { findBrowser } from "../src/server/browser/discovery.ts";
-import type { BrowserPage } from "../src/server/browser/page.ts";
-import { VIEWPORTS } from "../src/server/browser/viewport.ts";
+import { Browsers } from "./support/browser.ts";
+import { findBrowser } from "./support/browser/discovery.ts";
+import type { BrowserPage } from "./support/browser/page.ts";
+import { VIEWPORTS } from "./support/browser/viewport.ts";
 import { createHandler } from "../src/server/http.ts";
 
 const chromium = findBrowser();

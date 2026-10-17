@@ -21,15 +21,11 @@ import {
 } from "../auth.ts";
 import type { User } from "../config.ts";
 import { HttpError } from "../errors.ts";
-import { desktopTheme, wallpaperFile } from "../omarchy.ts";
 import { runningNow } from "../running.ts";
-import { serveImage } from "./assets.ts";
-import { browserRoutes } from "./browser-routes.ts";
 import { conversationRoutes } from "./conversation-routes.ts";
 import { createEventStreams } from "./events.ts";
 import { extensionRoute } from "./extension-routes.ts";
 import { type ApiRequest, conversationId, type HttpOptions, json, readJson } from "./io.ts";
-import { pushRoutes } from "./push-routes.ts";
 
 /** This machine's non-internal IPv4 addresses, for invite links other devices on its networks can open. */
 function lanAddresses(): string[] {
@@ -137,7 +133,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
             throw new HttpError(403, "Missing X-Pocket header");
         }
 
-        const [first, second, third, fourth] = parts;
+        const [first, second, third] = parts;
         const route: ApiRequest = { app, request, response, url, user };
 
         if (first === "events" && method === "GET") {
@@ -237,83 +233,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, app.subagents(user));
         }
 
-        // The PiP panel opened or closed in a tab: while open, it gets PiP's conversation (`pipview` events). Opening it
-        // the first time makes this person's PiP; the answer says which conversation it is.
-        if (first === "pip" && second === undefined && method === "POST") {
-            const body = await readJson<{ connection?: unknown; on?: unknown; seq?: unknown }>(
-                request,
-            );
-
-            if (body.seq !== undefined && !Number.isSafeInteger(body.seq)) {
-                throw new HttpError(400, "seq must be a whole number");
-            }
-
-            await app.setPip(
-                user,
-                String(body.connection ?? ""),
-                body.on === true,
-                body.seq as number | undefined,
-            );
-
-            return json(response, 200, { pip: app.pip.state(user) });
-        }
-
-        // Webhooks: the ones this person may manage, with the address to give other services; making and removing one.
-        if (first === "hooks" && second === undefined && method === "GET") {
-            return json(response, 200, await app.commands.hooks(user));
-        }
-
-        if (first === "hooks" && second === undefined && method === "POST") {
-            return json(response, 200, await app.commands.addHook(user, await readJson(request)));
-        }
-
-        // A repository watch removed, by its person or the owner.
-        if (
-            first === "repo-watches" &&
-            second !== undefined &&
-            third === "remove" &&
-            method === "POST"
-        ) {
-            await app.repoWatches.remove(user, second);
-
-            return json(response, 200, { ok: true });
-        }
-
-        // A repository watch let hear from anyone, or only from the repository's people: by its person or the owner,
-        // never by PiP.
-        if (
-            first === "repo-watches" &&
-            second !== undefined &&
-            third === "anyone" &&
-            method === "POST"
-        ) {
-            const body = await readJson<{ anyone?: unknown }>(request);
-
-            if (typeof body.anyone !== "boolean") {
-                throw new HttpError(400, "anyone must be true or false");
-            }
-
-            await app.repoWatches.setAnyone(user, second, body.anyone);
-
-            return json(response, 200, { ok: true });
-        }
-
-        // A new secret, for a hook whose address or secret got out.
-        if (first === "hooks" && second !== undefined && third === "rotate" && method === "POST") {
-            return json(response, 200, await app.hooks.rotate(user, second));
-        }
-
-        if (
-            first === "hooks" &&
-            second !== undefined &&
-            parts[2] === "remove" &&
-            method === "POST"
-        ) {
-            await app.commands.removeHook(user, second);
-
-            return json(response, 200, { ok: true });
-        }
-
         // The subagents board opened or closed in a tab: while open, it gets every subagent (`subagents` events).
         if (first === "subagents" && method === "POST") {
             const body = await readJson<{ connection?: unknown; on?: unknown; seq?: unknown }>(
@@ -332,23 +251,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             );
 
             return json(response, 200, { ok: true });
-        }
-
-        if (first === "push") {
-            return pushRoutes(route, second);
-        }
-
-        // The Omarchy desktop's theme, for the app's "Follow desktop" look: colors say nothing about the sessions here, so
-        // everyone signed in gets them. The wallpaper may be a personal photo: only the owner gets that.
-        if (first === "theme" && second === undefined && method === "GET") {
-            const theme = await desktopTheme();
-
-            return json(response, 200, {
-                theme:
-                    theme === null
-                        ? null
-                        : { ...theme, wallpaper: theme.wallpaper && user.role === "owner" },
-            });
         }
 
         // Theme folders (`themes.ts`): everyone signed in lists them, as everyone chooses one for their own browsers;
@@ -399,20 +301,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ok: true });
         }
 
-        if (first === "theme" && second === "wallpaper" && method === "GET") {
-            if (user.role !== "owner") {
-                throw new HttpError(403, "Only the owner sees the desktop's wallpaper");
-            }
-
-            const file = await wallpaperFile();
-
-            if (file === undefined) {
-                throw new HttpError(404, "No wallpaper");
-            }
-
-            return serveImage(request, response, file);
-        }
-
         if (first === "running" && method === "GET") {
             return json(response, 200, await runningNow(app, user));
         }
@@ -445,33 +333,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, app.sessions(user));
         }
 
-        // Pi's sessions from the terminal, which the owner can continue here.
-        if (first === "pi-sessions" && second === undefined && method === "GET") {
-            return json(
-                response,
-                200,
-                await app.piSessions.list(user, url.searchParams.get("q") ?? ""),
-            );
-        }
-
-        if (first === "pi-sessions" && second === "preview" && method === "GET") {
-            return json(
-                response,
-                200,
-                await app.piSessions.preview(user, url.searchParams.get("path") ?? ""),
-            );
-        }
-
-        if (first === "pi-sessions" && second === "continue" && method === "POST") {
-            const body = await readJson<{ path?: unknown }>(request);
-
-            if (typeof body.path !== "string") {
-                throw new HttpError(400, "path is required");
-            }
-
-            return json(response, 200, await app.commands.continuePiSession(user, body.path));
-        }
-
         if (first === "sessions" && second === undefined && method === "POST") {
             const body = await readJson<{ cwd?: string; title?: string; worktree?: unknown }>(
                 request,
@@ -492,10 +353,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             const id = conversationId(second);
 
             app.requireSee(user, id);
-
-            if (third === "browser") {
-                return browserRoutes(route, id, fourth, options.listen.port);
-            }
 
             return conversationRoutes(route, id, parts);
         }
@@ -574,7 +431,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             const body = await readJson<{
                 approvalRule?: unknown;
                 defaultModel?: unknown;
-                pipCompactAt?: unknown;
                 subagentModels?: unknown;
             }>(request);
 
@@ -583,7 +439,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 [
                     body.approvalRule,
                     body.defaultModel,
-                    body.pipCompactAt,
                     body.subagentModels,
                 ].filter((value) => value !== undefined).length > 1
             ) {
@@ -593,10 +448,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             // The models subagents may run on besides their session's own: the owner's (checked in `app.ts`).
             if (body.subagentModels !== undefined) {
                 await app.setSubagentModels(user, body.subagentModels);
-            }
-
-            if (body.pipCompactAt !== undefined) {
-                await app.setPipCompactAt(user, body.pipCompactAt);
             }
 
             if (body.approvalRule !== undefined) {

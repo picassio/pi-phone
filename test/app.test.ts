@@ -103,109 +103,6 @@ after(async () => {
     cleanUp();
 });
 
-test("the artifact tool publishes versions, edits the latest, and serves the body", async () => {
-    const id = await newSession();
-
-    await say(id, "please make an artifact");
-    const first = await app.artifactBody(id, "demo-page", undefined);
-
-    assert.equal(first.version, 1);
-    assert.equal(first.content, "<h1>one</h1>");
-    await say(id, "now fix the artifact");
-    const second = await app.artifactBody(id, "demo-page", undefined);
-
-    assert.equal(second.version, 2);
-    assert.equal(second.content, "<h1>two</h1>");
-    assert.equal((await app.artifactBody(id, "demo-page", 1)).content, "<h1>one</h1>");
-});
-
-test("the page that runs a reply's HTML is for people signed in, sandboxed, and runs only what the app sends it", async () => {
-    const { createServer } = await import("node:http");
-    const { createHandler } = await import("../src/server/http.ts");
-    const server = createServer(
-        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
-    );
-
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const port = (server.address() as { port: number }).port;
-    const url = `http://127.0.0.1:${port}/a/frame`;
-
-    try {
-        assert.equal((await fetch(url)).status, 401);
-        const response = await fetch(url, {
-            headers: { authorization: `Bearer ${app.config.ownerToken}` },
-        });
-        const body = await response.text();
-
-        assert.equal(response.status, 200);
-        assert.match(response.headers.get("content-type") ?? "", /^text\/html/);
-        // An opaque origin even when opened in a tab of its own: no cookies, no app.
-        assert.match(
-            response.headers.get("content-security-policy") ?? "",
-            /^sandbox allow-scripts /,
-        );
-        assert.doesNotMatch(
-            response.headers.get("content-security-policy") ?? "",
-            /allow-same-origin/,
-        );
-        assert.ok(body.includes('self.origin !== "null"'), "it runs nothing outside a sandbox");
-        assert.ok(
-            body.includes("event.source !== window.parent"),
-            "it takes HTML from its parent only",
-        );
-        assert.ok(
-            body.includes("event.origin !== location.origin"),
-            "a parent at the app's address",
-        );
-    } finally {
-        server.closeAllConnections();
-        server.close();
-    }
-});
-
-test("a Markdown artifact's viewer colors cannot inject anything into its page", async () => {
-    const { createServer } = await import("node:http");
-    const { createHandler } = await import("../src/server/http.ts");
-    const server = createServer(
-        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
-    );
-    const id = await newSession();
-
-    await say(id, "please write a markdown artifact");
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const port = (server.address() as { port: number }).port;
-
-    const page = async (artifact: string, query = "") => {
-        const response = await fetch(
-            `http://127.0.0.1:${port}/a/${id}/${artifact}/latest${query}`,
-            {
-                headers: { authorization: `Bearer ${app.config.ownerToken}` },
-            },
-        );
-
-        assert.equal(response.status, 200);
-
-        return response.text();
-    };
-
-    const style = (body: string) => /<style>(.*)<\/style>/s.exec(body)?.[1] ?? "";
-
-    try {
-        const plain = style(await page("notes"));
-
-        // Only hex colors get in; without a good background and foreground, the page keeps the browser's look.
-        const tricked = await page(
-            "notes",
-            `?mode=light&bg=${encodeURIComponent("fff}body{display:none")}&fg=${encodeURIComponent("</style><script>alert(1)</script>")}`,
-        );
-
-        assert.equal(style(tricked), plain);
-        assert.doesNotMatch(tricked, /display:none|alert\(1\)/);
-    } finally {
-        server.closeAllConnections();
-        server.close();
-    }
-});
 
 test("each conversation sends its own provider session id, the same on every request and after a reopen", async () => {
     const first = await newSession();
@@ -263,18 +160,6 @@ test("a sign-in that needs this installation's id gets Pi's, the same every time
     }
 });
 
-test("a script's nested calls each do their own work", async () => {
-    writeFileSync(join(work, "hello.txt"), "hello from a file\n");
-    const id = await newSession();
-
-    await say(id, "please run a script");
-    assert.equal((await app.artifactBody(id, "notes", 1)).content, "<p>one</p>");
-    assert.equal(
-        (await app.artifactBody(id, "notes", undefined)).version,
-        2,
-        "the second nested artifact call made its own version",
-    );
-});
 
 test("a pasted image is stored with its message and read back", async () => {
     const id = await newSession();
@@ -431,126 +316,6 @@ test("long polling delivers the stream's events, resends until acknowledged, and
     }
 });
 
-test("the owner turns extensions off and on, the guard follows its switch, and the choice survives a restart", async () => {
-    const module = (file: string) => app.loader.list().find((each) => each.file === file)!;
-
-    // Lancet Guard is off until the owner turns it on.
-    assert.equal(module("guard.ts").enabled, false);
-    assert.ok(!app.loader.extensionNames().includes("pocket-guard"));
-    await app.setExtensionEnabled(owner(), "guard.ts", true);
-    assert.ok(app.loader.extensionNames().includes("pocket-guard"));
-
-    await app.setExtensionEnabled(owner(), "subagents.ts", false);
-    assert.equal(module("subagents.ts").enabled, false);
-    assert.deepEqual(module("subagents.ts").extensions, []);
-    assert.ok(!app.loader.extensionNames().includes("pocket-subagents"));
-
-    await app.setExtensionEnabled(owner(), "guard.ts", false);
-    assert.equal((await app.guardStatus()).enabled, false);
-
-    await app.close();
-    app = await open();
-    assert.equal(module("subagents.ts").enabled, false);
-    assert.ok(!app.loader.extensionNames().includes("pocket-subagents"));
-    assert.equal(module("guard.ts").enabled, false);
-
-    await app.setExtensionEnabled(owner(), "subagents.ts", true);
-    await app.setExtensionEnabled(owner(), "guard.ts", true);
-    assert.deepEqual(module("subagents.ts").extensions[0]?.tools, ["subagent"]);
-    assert.ok(app.loader.extensionNames().includes("pocket-guard"));
-
-    // Turned on, it stays on after a restart.
-    await app.close();
-    app = await open();
-    assert.equal(module("guard.ts").enabled, true);
-    assert.ok(app.loader.extensionNames().includes("pocket-guard"));
-});
-
-test("everyone signed in gets the desktop's theme colors; only the owner gets its wallpaper", async () => {
-    const { createServer } = await import("node:http");
-    const { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    const { createHandler } = await import("../src/server/http.ts");
-    const home = mkdtempSync(join(tmpdir(), "pocket-desktop-"));
-    const current = join(home, ".local/state/omarchy/current");
-
-    mkdirSync(join(current, "theme"), { recursive: true });
-    writeFileSync(
-        join(current, "theme", "colors.toml"),
-        'background = "#111111"\nforeground = "#eeeeee"\n',
-    );
-    writeFileSync(join(current, "theme.name"), "gruvbox\n");
-    // A real PNG header, so the image check accepts it.
-    writeFileSync(
-        join(current, "theme", "wall.png"),
-        Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"),
-    );
-    let hasWallpaper = true;
-
-    try {
-        symlinkSync(join(current, "theme", "wall.png"), join(current, "background"), "file");
-    } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-
-        if (process.platform !== "win32" || (code !== "EPERM" && code !== "EACCES")) {
-            throw error;
-        }
-
-        hasWallpaper = false;
-    }
-
-    const server = createServer(
-        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
-    );
-
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const port = (server.address() as { port: number }).port;
-    const guest = app.config.addUser("Guest", "guest");
-    const call = (token: string, path: string) =>
-        fetch(`http://127.0.0.1:${port}/api/${path}`, {
-            headers: { authorization: `Bearer ${token}` },
-        });
-    const realHome = process.env.HOME;
-    const realUserProfile = process.env.USERPROFILE;
-
-    process.env.HOME = home;
-    process.env.USERPROFILE = home;
-
-    try {
-        type Theme = { theme: { name: string; wallpaper: boolean; stamp: string } };
-        const owner = (await (await call(app.config.ownerToken, "theme")).json()) as Theme;
-
-        assert.equal(owner.theme.name, "gruvbox");
-        assert.equal(owner.theme.wallpaper, hasWallpaper);
-        assert.ok(!owner.theme.stamp.includes(home), "the stamp names no paths");
-        const theirs = (await (await call(guest.token, "theme")).json()) as Theme;
-
-        assert.equal(theirs.theme.name, "gruvbox");
-        assert.equal(theirs.theme.wallpaper, false);
-        assert.equal((await call(guest.token, "theme/wallpaper")).status, 403);
-        assert.equal(
-            (await call(app.config.ownerToken, "theme/wallpaper")).status,
-            hasWallpaper ? 200 : 404,
-        );
-    } finally {
-        if (realHome === undefined) {
-            delete process.env.HOME;
-        } else {
-            process.env.HOME = realHome;
-        }
-
-        if (realUserProfile === undefined) {
-            delete process.env.USERPROFILE;
-        } else {
-            process.env.USERPROFILE = realUserProfile;
-        }
-
-        app.config.removeUser(guest.user.id);
-        server.closeAllConnections();
-        server.close();
-    }
-});
 
 test("anyone signed in can list extensions; only the owner can change them", async () => {
     const { createServer } = await import("node:http");
@@ -576,16 +341,16 @@ test("anyone signed in can list extensions; only the owner can change them", asy
     try {
         assert.equal((await call(guest.token, "extensions")).status, 200);
         assert.equal(
-            (await call(guest.token, "extensions/guard.ts", { enabled: false })).status,
+            (await call(guest.token, "extensions/plan.ts", { enabled: false })).status,
             403,
         );
-        assert.equal((await call(guest.token, "extensions/guard.ts/reload", {})).status, 403);
+        assert.equal((await call(guest.token, "extensions/plan.ts/reload", {})).status, 403);
         assert.equal(
-            (await call(app.config.ownerToken, "extensions/guard.ts", { enabled: true })).status,
+            (await call(app.config.ownerToken, "extensions/plan.ts", { enabled: true })).status,
             200,
         );
         assert.equal(
-            (await call(app.config.ownerToken, "extensions/guard.ts/reload", {})).status,
+            (await call(app.config.ownerToken, "extensions/plan.ts/reload", {})).status,
             200,
         );
     } finally {
@@ -1663,12 +1428,3 @@ test("an invite stops working when its creator loses the right to invite", async
     }
 });
 
-test("sessions and artifacts survive closing and reopening the storage", async () => {
-    const id = await newSession();
-
-    await say(id, "make an artifact for the restart test");
-    await app.close();
-    app = await open();
-    assert.ok(app.sessions().some((each) => each.id === Number(id)));
-    assert.equal((await app.artifactBody(id, "demo-page", undefined)).content, "<h1>one</h1>");
-});

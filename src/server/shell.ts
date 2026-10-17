@@ -248,17 +248,6 @@ export class Shell {
             throw new HttpError(413, `Commands are limited to ${MAX_COMMAND} characters.`);
         }
 
-        if (user.role !== "owner" && app.guardOn()) {
-            const judged = await app.guard.judge("bash", { command }, app.cwdOf(id));
-
-            if (judged !== undefined && judged.decision.action !== "allow") {
-                throw new HttpError(
-                    403,
-                    `Lancet Guard does not allow this command to run unasked: ${judged.decision.reason}. Ask Pi to run it instead.`,
-                );
-            }
-        }
-
         const input: ShellInput = {
             command,
             by: user.id,

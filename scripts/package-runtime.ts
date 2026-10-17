@@ -19,7 +19,7 @@ import { basename, join, resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "..");
 const ASSETS = join(ROOT, "android/app/src/main/assets");
 /** What the server reads at runtime, relative to the repository. */
-const CONTENTS = ["package.json", "src", "web", "types", "docs", "node_modules"];
+const CONTENTS = ["package.json", "DESIGN.md", "AGENTS.md", "src", "web", "node_modules"];
 
 function git(...args: string[]): string {
     return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
