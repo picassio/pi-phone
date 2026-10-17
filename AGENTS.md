@@ -13,7 +13,8 @@
   user asks for them.
 - Checks run on the phone: `npm run check` (tsc 6 + `scripts/check-web-imports.ts`) and `npm test`. UI tests need a
   Chromium and are skipped on the phone; CI runs them.
-- Design lives in DESIGN.md; update it when a decision changes. Upstream commits are in UPSTREAM.md.
+- Design lives in DESIGN.md; update it when a decision changes. Upstream commits are in UPSTREAM.md. Current state
+  and next steps: HANDOVER.md.
 - For running, testing, and driving the app on the phone, load and follow
   [.pi/skills/pi-phone-dev.md](.pi/skills/pi-phone-dev.md).
 - Never commit unless asked. Stage explicit paths.
