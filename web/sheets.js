@@ -22,7 +22,7 @@ import { SessionSheet } from "./sheets/session.js";
 import { ShortcutsSheet } from "./sheets/shortcuts.js";
 import { SpendSheet } from "./sheets/spend.js";
 import { TextSheet } from "./sheets/text.js";
-import { ImageViewer } from "./sheets/viewers.js";
+import { ArtifactsSheet, ArtifactViewer, ImageViewer } from "./sheets/viewers.js";
 import { WorktreeSheet } from "./sheets/worktree.js";
 import { TrustSheet } from "./trust.js";
 import { addLayer, goBack, removeLayer } from "./back.js";
@@ -177,6 +177,14 @@ function sheetBody(sheet) {
             break;
         case "cwd":
             body = html`<${CwdSheet} mode=${sheet.mode} />`;
+            break;
+        case "artifacts":
+            body = html`<${ArtifactsSheet} />`;
+            break;
+        case "viewer":
+            body = view.conversation
+                ? html`<${ArtifactViewer} id=${sheet.id} version=${sheet.version} />`
+                : null;
             break;
         case "providers":
             body = html`<${ProvidersSheet} />`;

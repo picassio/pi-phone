@@ -175,6 +175,11 @@ function actionItems() {
                 icon: "sparkle",
                 run: () => openSheet({ type: "model", id: "default", forDefault: true }),
             },
+        conversation && {
+            label: "Artifacts",
+            icon: "artifact",
+            run: () => openSheet({ type: "artifacts" }),
+        },
         conversation &&
             filesAvailable() && {
                 label:

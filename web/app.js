@@ -98,6 +98,7 @@ function ChangesButton() {
 function Topbar() {
     const { view, server, conversationId } = store.state;
     const conversation = view.conversation;
+    const artifacts = view.artifacts?.length ?? 0;
     const cwd = view.agent?.cwd ?? conversation?.cwd;
     // On a machine (place.js): the machine's name, then the folder's.
     const machine = machineNameOf(cwd);
@@ -194,6 +195,15 @@ function Topbar() {
         ${filesAvailable() && html`<${ChangesButton} key=${conversationId} />`}
         <${PeeksButton} />
         <${FilesButton} />
+        <button
+            class=${`icon-button badge-host ${artifacts > 0 ? "quiet-phone" : "quiet"}`}
+            aria-label="Artifacts"
+            title="Artifacts"
+            onClick=${() => openSheet({ type: "artifacts" })}
+        >
+            <${Icon} name="artifact" />
+            ${artifacts > 0 && html`<span class="badge">${artifacts}</span>`}
+        </button>
         <${PeopleButton} />
         <button
             class="icon-button"

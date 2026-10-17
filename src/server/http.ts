@@ -8,6 +8,7 @@ import { join, normalize, sep } from "node:path";
 import { Auth } from "./auth.ts";
 import { describe, HttpError } from "./errors.ts";
 import { createApi } from "./http/api.ts";
+import { artifact } from "./http/artifacts.ts";
 import { extensionFile } from "./http/extension-routes.ts";
 import { serveApp, serveFile, VENDOR, WEB } from "./http/assets.ts";
 import { type HttpOptions, json } from "./http/io.ts";
@@ -37,6 +38,11 @@ export function createHandler(options: HttpOptions) {
 
             if (parts[0] === "api") {
                 return await api(request, response, url, parts.slice(1));
+            }
+
+            // An artifact's page, and the sandboxed frame that runs a reply's HTML (`http/artifacts.ts`).
+            if (parts[0] === "a") {
+                return await artifact(app, response, parts.slice(1), auth.user(request), url.searchParams);
             }
 
             // An extension module's browser module, for the people it is for (`extension-web.ts`).

@@ -46,6 +46,9 @@ import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
 import { APP_ROOT, ConfigStore, type User } from "./config.ts";
 import {
+    ArtifactBodyDoc,
+    type ArtifactMeta,
+    ArtifactsDoc,
     AuthorsDoc,
     ChatDoc,
     type ChatMessage,
@@ -492,6 +495,7 @@ export class PocketApp {
                 conversationCreated: async (tx, conversation) => {
                     // Every conversation gets the app's documents up front, so views can read them from the start.
                     await tx.doc(AuthorsDoc, conversation.id);
+                    await tx.doc(ArtifactsDoc, conversation.id);
                     await tx.doc(SubagentsDoc, conversation.id);
                 },
                 onReport: (error) => this.notice("warning", describe(error)),
@@ -1972,6 +1976,38 @@ export class PocketApp {
             }
         }
     }
+
+    async artifactBody(id: ConversationId, artifact: string, version: number | undefined) {
+        const index = await this.harness.snapshot(ArtifactsDoc, id, context);
+        const meta = index?.items[artifact] as ArtifactMeta | undefined;
+
+        if (meta === undefined) {
+            throw new HttpError(404, "No such artifact");
+        }
+
+        const chosen =
+            version === undefined
+                ? meta.versions.at(-1)
+                : meta.versions.find((each) => each.version === version);
+
+        if (chosen === undefined) {
+            throw new HttpError(404, "No such version");
+        }
+
+        const body = await this.harness.snapshot(
+            ArtifactBodyDoc,
+            id,
+            `${artifact}@${chosen.version}`,
+            context,
+        );
+
+        if (body === undefined) {
+            throw new HttpError(404, "Artifact content is missing");
+        }
+
+        return { meta, version: chosen.version, content: body.content };
+    }
+
 
     /** The folder a conversation works in. */
     cwdOf(id: ConversationId): string {

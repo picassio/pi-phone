@@ -19,6 +19,8 @@ import type { PocketApp } from "./app.ts";
 import type { Head } from "./branches.ts";
 import type { User } from "./config.ts";
 import {
+    type ArtifactMeta,
+    ArtifactsDoc,
     AuthorsDoc,
     ChatDoc,
     type ChatMessage,
@@ -56,6 +58,7 @@ const context = BACKGROUND_CONTEXT;
 export const ROOM_DOCS = new Set(
     [
         AuthorsDoc,
+        ArtifactsDoc,
         SubagentsDoc,
         ChatDoc,
         ReactionsDoc,
@@ -296,6 +299,7 @@ export class Room {
     turns: Turns = { on: false, asks: [] };
     decisions: Record<string, Decision> = {};
     plan: { on: boolean; by?: string; at?: number } = { on: false };
+    artifacts: Record<string, ArtifactMeta> = {};
     /** The GitHub Actions runs this conversation watches (`extensions/ci-watch.ts`). */
     ciWatches: Record<string, CiWatch> = {};
     /** Who is typing where, by user id. Memory only: it means nothing after a restart. */
@@ -316,6 +320,9 @@ export class Room {
         this.authors = {
             ...((await harness.snapshot(AuthorsDoc, this.id, context))?.entries ?? {}),
         };
+        this.artifacts = {
+            ...((await harness.snapshot(ArtifactsDoc, this.id, context))?.items ?? {}),
+        } as Record<string, ArtifactMeta>;
         const subagents = await harness.snapshot(SubagentsDoc, this.id, context);
 
         this.subagents = { ...(subagents?.agents ?? {}) } as Record<string, SubagentRecord>;
@@ -416,6 +423,8 @@ export class Room {
 
         if (kind === AuthorsDoc.definition.kind) {
             this.authors = { ...((value?.entries as Record<string, string>) ?? {}) };
+        } else if (kind === ArtifactsDoc.definition.kind) {
+            this.artifacts = { ...((value?.items as Record<string, ArtifactMeta>) ?? {}) };
         } else if (kind === SubagentsDoc.definition.kind) {
             this.subagents = { ...((value?.agents as Record<string, SubagentRecord>) ?? {}) };
             this.#reporting = reportingOf(value as Parameters<typeof reportingOf>[0]);
@@ -514,6 +523,16 @@ export class Room {
         const fields: Record<string, unknown> = {
             // A turn's updates would repeat it every 90 ms, and a waiting paste or batch of reports can be large.
             inbox: queue,
+            artifacts: Object.entries(this.artifacts).map(([id, meta]) => ({
+                id,
+                title: meta.title,
+                type: meta.type,
+                versions: meta.versions.map((version) => ({
+                    version: version.version,
+                    size: version.size,
+                    createdAt: version.createdAt,
+                })),
+            })),
             subagents: Object.entries(this.subagents).map(([name, record]) =>
                 subagentView(
                     name,

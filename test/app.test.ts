@@ -1428,3 +1428,129 @@ test("an invite stops working when its creator loses the right to invite", async
     }
 });
 
+test("the artifact tool publishes versions, edits the latest, and serves the body", async () => {
+    const id = await newSession();
+
+    await say(id, "please make an artifact");
+    const first = await app.artifactBody(id, "demo-page", undefined);
+
+    assert.equal(first.version, 1);
+    assert.equal(first.content, "<h1>one</h1>");
+    await say(id, "now fix the artifact");
+    const second = await app.artifactBody(id, "demo-page", undefined);
+
+    assert.equal(second.version, 2);
+    assert.equal(second.content, "<h1>two</h1>");
+    assert.equal((await app.artifactBody(id, "demo-page", 1)).content, "<h1>one</h1>");
+});
+
+test("a script's nested calls each do their own work", async () => {
+    writeFileSync(join(work, "hello.txt"), "hello from a file\n");
+    const id = await newSession();
+
+    await say(id, "please run a script");
+    assert.equal((await app.artifactBody(id, "notes", 1)).content, "<p>one</p>");
+    assert.equal(
+        (await app.artifactBody(id, "notes", undefined)).version,
+        2,
+        "the second nested artifact call made its own version",
+    );
+});
+
+test("the page that runs a reply's HTML is for people signed in, sandboxed, and runs only what the app sends it", async () => {
+    const { createServer } = await import("node:http");
+    const { createHandler } = await import("../src/server/http.ts");
+    const server = createServer(
+        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
+    );
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as { port: number }).port;
+    const url = `http://127.0.0.1:${port}/a/frame`;
+
+    try {
+        assert.equal((await fetch(url)).status, 401);
+        const response = await fetch(url, {
+            headers: { authorization: `Bearer ${app.config.ownerToken}` },
+        });
+        const body = await response.text();
+
+        assert.equal(response.status, 200);
+        assert.match(response.headers.get("content-type") ?? "", /^text\/html/);
+        // An opaque origin even when opened in a tab of its own: no cookies, no app.
+        assert.match(
+            response.headers.get("content-security-policy") ?? "",
+            /^sandbox allow-scripts /,
+        );
+        assert.doesNotMatch(
+            response.headers.get("content-security-policy") ?? "",
+            /allow-same-origin/,
+        );
+        assert.ok(body.includes('self.origin !== "null"'), "it runs nothing outside a sandbox");
+        assert.ok(
+            body.includes("event.source !== window.parent"),
+            "it takes HTML from its parent only",
+        );
+        assert.ok(
+            body.includes("event.origin !== location.origin"),
+            "a parent at the app's address",
+        );
+    } finally {
+        server.closeAllConnections();
+        server.close();
+    }
+});
+
+test("a Markdown artifact's viewer colors cannot inject anything into its page", async () => {
+    const { createServer } = await import("node:http");
+    const { createHandler } = await import("../src/server/http.ts");
+    const server = createServer(
+        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
+    );
+    const id = await newSession();
+
+    await say(id, "please write a markdown artifact");
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as { port: number }).port;
+
+    const page = async (artifact: string, query = "") => {
+        const response = await fetch(
+            `http://127.0.0.1:${port}/a/${id}/${artifact}/latest${query}`,
+            {
+                headers: { authorization: `Bearer ${app.config.ownerToken}` },
+            },
+        );
+
+        assert.equal(response.status, 200);
+
+        return response.text();
+    };
+
+    const style = (body: string) => /<style>(.*)<\/style>/s.exec(body)?.[1] ?? "";
+
+    try {
+        const plain = style(await page("notes"));
+
+        // Only hex colors get in; without a good background and foreground, the page keeps the browser's look.
+        const tricked = await page(
+            "notes",
+            `?mode=light&bg=${encodeURIComponent("fff}body{display:none")}&fg=${encodeURIComponent("</style><script>alert(1)</script>")}`,
+        );
+
+        assert.equal(style(tricked), plain);
+        assert.doesNotMatch(tricked, /display:none|alert\(1\)/);
+    } finally {
+        server.closeAllConnections();
+        server.close();
+    }
+});
+
+test("sessions and artifacts survive closing and reopening the storage", async () => {
+    const id = await newSession();
+
+    await say(id, "make an artifact for the restart test");
+    await app.close();
+    app = await open();
+    assert.ok(app.sessions().some((each) => each.id === Number(id)));
+    assert.equal((await app.artifactBody(id, "demo-page", undefined)).content, "<h1>one</h1>");
+});

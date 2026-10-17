@@ -945,8 +945,15 @@ function ToolStep({
         details,
         status,
     });
-    // What a call made shows under its line: the images it returned.
-    const extras = result?.images > 0;
+    // What a call made shows under its line: the images it returned, and an artifact it published.
+    const artifact = call.name === "artifact" && details?.id ? details : null;
+    const artifactType = artifact
+        ? view.artifacts.find((each) => each.id === artifact.id)?.type
+        : undefined;
+    const artifactSrc = artifact
+        ? `/a/${view.conversation.id}/${encodeURIComponent(artifact.id)}/${artifact.version}`
+        : null;
+    const extras = result?.images > 0 || artifact;
 
     return html`<div
         class=${`step ${open ? "open" : ""} ${settled ? "settled" : ""}`}
@@ -1005,6 +1012,25 @@ function ToolStep({
                         count=${result.images}
                         label=${`${call.name} image`}
                     />`
+                }
+                ${
+                    artifactType === "svg" &&
+                    html`<button
+                        class="artifact-preview"
+                        type="button"
+                        onClick=${() => openSheet({ type: "image", src: artifactSrc, alt: artifact.title })}
+                    >
+                        <img src=${artifactSrc} alt=${artifact.title} loading="lazy" decoding="async" />
+                    </button>`
+                }
+                ${
+                    artifact &&
+                    html`<button
+                        class="artifact-link"
+                        onClick=${() => openSheet({ type: "viewer", id: artifact.id, version: artifact.version })}
+                    >
+                        Open ${artifact.title} · version ${artifact.version} →
+                    </button>`
                 }
             </div>`
         }
@@ -1761,6 +1787,10 @@ function callDeps(block, results, slots, approvals) {
 
     if (slot?.taskId !== undefined) {
         deps.push(approvals.find((each) => each.taskId === slot.taskId)?.id);
+    }
+
+    if (block.name === "artifact") {
+        deps.push((view.artifacts ?? []).map((each) => `${each.id}:${each.type}`).join());
     }
 
     if (block.name === "subagent") {

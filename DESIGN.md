@@ -61,7 +61,8 @@ for built-ins, `lock`, `errors`, `paths`, `http` + api/conversation/events/asset
 `resend`, `shell`, `titles`, `prompts`, `skills`, `models`, `project-model`, `model-refresh`, `running`,
 `transcripts`, `providers`, `workspace`, `files`, `changes`, `branches`, `git`, `export`, `worktrees` (forks
 and new sessions in a git worktree of their own; wired through session creation), owner-only `config`/`auth`;
-extensions `prompt`, `subagents`, `codemode`, `plan`. `pi-sessions` (continue a pi CLI session with its history),
+extensions `prompt`, `subagents`, `codemode`, `plan`, `artifacts` (restored 2026-10-17: the `artifact` tool, its
+sheet and viewer, and `/a/`, which also serves the sandboxed frame that runs HTML blocks in replies). `pi-sessions` (continue a pi CLI session with its history),
 with two changes: a session file can be imported (`POST /api/pi-sessions/import`, kept in
 `~/.pi/agent/sessions/--imported--/`), and a session whose folder is not on the phone continues in a folder chosen
 for it. The same reader is the base for pulling sessions from other machines over ssh later. `omarchy.ts` stays only for its `colors.toml` parser, which
@@ -69,11 +70,10 @@ theme palettes use. The web app's chat, composer, transcript,
 diffs, files and changes, sessions, session tree, subagents board, sheets for those, and the `pocket` and
 `lantern` themes.
 
-Removed: multiplayer (collab, people, invites, roles, spend), built-in browser, extension gallery and drop-ins,
-theme editing and Omarchy, Lancet Guard (ONNX), GitHub watches and webhooks, Agent Teams and linked sessions,
-artifacts, Web Push, dictation, peek tiles, share, the launcher (access modes,
-tunnels, QR), PiP, schedules and goals, memory, triggers, and the repo extras (docs site, nix, lint config).
-Any of these can be brought back from upstream later.
+Removed, and staying out (the owner's decision, 2026-10-17): PiP, Agent Teams and linked sessions, memory, triggers
+(GitHub watches, repository watches, webhooks), the built-in browser, the extension gallery and drop-ins, Lancet
+Guard (ONNX), Web Push, the share target, dictation, the launcher (access modes, tunnels, QR), and the repo extras (docs
+site, nix, lint config). Schedules and goals are being restored.
 
 Kept on purpose (the owner's decision, 2026-10-17: no more trimming): multiplayer (`collab`, `spend`, people,
 invites, roles, peek tiles), theme editing and Omarchy palettes, the Walker-style launcher, and the extension web

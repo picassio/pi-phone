@@ -46,7 +46,7 @@ function extensionsHint() {
 }
 
 /**
- * The session's places as big tiles at the top of the menu: Files, Changes, the chat, find,
+ * The session's places as big tiles at the top of the menu: Files, Changes, artifacts, the chat, find,
  * the branch, and peek tiles. The top bar keeps only the buttons with something to say; these are always here, a
  * thumb's width each.
  */
@@ -88,6 +88,13 @@ function PlacesGrid({ changes = null }) {
             counted: changeCount === 1 ? "changed file" : "changed files",
             on: filesOpen && filesTab === "changes",
             run: () => setFilesOpen(true, "changes"),
+        },
+        {
+            id: "artifacts",
+            icon: "artifact",
+            label: "Artifacts",
+            count: view.artifacts.length,
+            run: () => openSheet({ type: "artifacts" }),
         },
         collab() && {
             id: "chat",

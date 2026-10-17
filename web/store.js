@@ -56,6 +56,7 @@ const emptyView = () => ({
     turns: { on: false, asks: [] },
     decisions: {},
     plan: { on: false },
+    artifacts: [],
     ciWatches: [],
     branch: null,
     subagentsHeld: null,
@@ -515,6 +516,7 @@ function mergeView(current, data) {
         turns: data.turns ?? base.turns,
         decisions: data.decisions ?? base.decisions,
         plan: data.plan ?? base.plan,
+        artifacts: data.artifacts ?? base.artifacts,
         ciWatches: data.ciWatches ?? base.ciWatches,
         // Why subagents' reports wait (a spend limit), or null when none do: the subagents bar says it.
         subagentsHeld: data.subagentsHeld === undefined ? base.subagentsHeld : data.subagentsHeld,

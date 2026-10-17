@@ -70,6 +70,49 @@ export const AuthorsDoc = defineDoc<{
     initial: () => ({ requests: {}, entries: {} }),
 });
 
+export type ArtifactType = "html" | "markdown" | "svg";
+
+export type ArtifactVersion = {
+    version: number;
+    /** The tool task that wrote it; a replayed call finds its version instead of writing another. */
+    taskId: TaskId;
+    /**
+     * The call within that task. One codemode task makes many calls; versions from before this field match on the task
+     * alone.
+     */
+    callId?: string;
+    size: number;
+    createdAt: number;
+};
+
+export type ArtifactMeta = {
+    title: string;
+    type: ArtifactType;
+    versions: ArtifactVersion[];
+};
+
+/** The artifacts of one conversation, newest version last. Bodies live in `ArtifactBodyDoc`. */
+export const ArtifactsDoc = defineDoc<{ items: Record<string, ArtifactMeta> }>({
+    kind: "pocket.artifacts",
+    version: 1,
+    scope: "conversation",
+    history: "latest",
+    fork: "current",
+    initial: () => ({ items: {} }),
+});
+
+/** One artifact version's content, keyed `<artifactId>@<version>`. */
+export const ArtifactBodyDoc = defineDocFamily<{ content: string }, { content: string }>({
+    kind: "pocket.artifact-body",
+    version: 1,
+    family: true,
+    scope: "conversation",
+    history: "latest",
+    fork: "current",
+    initial: (seed) => ({ content: seed.content }),
+});
+
+
 export type SubagentRecord = {
     conversationId: ConversationId;
     /** Answers already reported to the parent: several messages can end in one answer, reported once. */

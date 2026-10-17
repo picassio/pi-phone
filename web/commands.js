@@ -320,6 +320,11 @@ const COMMANDS = [
         run: () => togglePeeks(),
     },
     {
+        name: "artifacts",
+        description: "Show artifacts",
+        run: () => openSheet({ type: "artifacts" }),
+    },
+    {
         name: "login",
         description: "Sign in to a model provider",
         run: () => openSheet({ type: "providers" }),
