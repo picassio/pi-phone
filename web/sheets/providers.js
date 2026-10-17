@@ -175,7 +175,8 @@ export function ProvidersSheet() {
     const list = (providers ?? [])
         .filter(
             (provider) =>
-                needle === "" || `${provider.id} ${provider.name}`.toLowerCase().includes(needle),
+                needle === "" ||
+                `${provider.id} ${provider.name} ${provider.oauth ?? ""}`.toLowerCase().includes(needle),
         )
         .sort(
             (a, b) =>
