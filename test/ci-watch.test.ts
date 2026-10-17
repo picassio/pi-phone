@@ -6,6 +6,7 @@ import {
     lastText,
     modelTexts,
     newSession,
+    owner,
     openApp,
     root,
     say,
@@ -67,6 +68,10 @@ const route: FauxResponseStep = (request) => {
 
     if (role === "user" && text === "watch here") {
         return call("watch_ci", { action: "start" });
+    }
+
+    if (role === "user" && text === "work slowly") {
+        return call("bash", { command: "sleep 3" });
     }
 
     if (role === "user" && text === "stop watching") {
@@ -208,4 +213,28 @@ test("path names the repository's folder: its repo and HEAD; a folder outside on
     assert.deepEqual(Object.keys(await watches(id)), ["o/r#101"]);
     assert.match(readFileSync(join(fake, "listed"), "utf8"), new RegExp(`--commit ${head}`));
     await say(app, id, "stop watching");
+});
+
+test("a report withdrawn with an aborted run is sent again, and reaches Pi once", async () => {
+    writeFileSync(status, "in_progress");
+    const id = await newSession(app);
+
+    await say(app, id, "watch the push");
+    // A run that works for a while; the report arrives during it and is queued behind it.
+    const { submissionId } = await app.commands.submit(id, owner(app), { text: "work slowly", requestId: crypto.randomUUID() });
+
+    await until(() => app.isBusy(id), "the slow run");
+    writeFileSync(status, "failed");
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    // Stopping the run withdraws what was queued behind it, the report too.
+    await app.commands.abort(id, owner(app));
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+
+    await until(
+        async () => (await modelTexts(app, id)).some((each) => each.includes("[ci-watch] CI #7 on main: failure")),
+        "the report, sent again",
+        15_000,
+    );
+    await until(async () => Object.keys(await watches(id)).length === 0, "the watch, ended");
+    assert.equal((await modelTexts(app, id)).filter((each) => each.includes("[ci-watch] CI #7")).length, 1);
 });

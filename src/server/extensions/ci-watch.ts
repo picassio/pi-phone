@@ -17,6 +17,7 @@ import {
     defineExtension,
     defineTask,
     defineTool,
+    LiveDoc,
     type TaskRuntime,
 } from "@earendil-works/pi-durable";
 import { type CiWatch, CiWatchesDoc } from "../docs.ts";
@@ -30,6 +31,13 @@ export const timing = { lookMs: 30_000, findMs: 45_000, findEveryMs: 5_000 };
 const MAX_WATCH_MS = 2 * 60 * 60_000;
 /** Looks in a row that may fail before the watch gives up and says why: about three minutes. */
 const MAX_FAILURES = 6;
+/**
+ * Sends of one report before it gives up. A send can be withdrawn without reaching the transcript: a run aborted takes
+ * the follow-ups queued behind it, and a failed run leaves them queued for good (withdrawn here once the conversation
+ * is idle).
+ */
+const MAX_SENDS = 5;
+const SEND_CHECK_MS = 2_000;
 /** The end of a failed run's log that goes to Pi. */
 const LOG_CHARS = 6_000;
 const BACKGROUND = { ownership: { kind: "conversation" }, background: true } as const;
@@ -49,7 +57,7 @@ const runOf = (repo: string, runId: number, found: { workflowName: string; numbe
 type WatchState =
     | { phase: "wait"; next: number; failures: number }
     | { phase: "look"; failures: number }
-    | { phase: "report"; text: string };
+    | { phase: "report"; text: string; attempt?: number };
 
 type GhJob = {
     name: string;
@@ -220,20 +228,68 @@ function createWatchTask(host: PocketHost) {
                 const { input } = task;
                 const state = task.state.checkpoint as Extract<WatchState, { phase: "report" }>;
 
-                // Stopped between the look and now: nothing to tell.
-                if (await mine(runtime, input, context)) {
-                    const conversation = (await runtime.conversation(runtime.conversationId, context))!;
+                const attempt = state.attempt ?? 0;
 
-                    // Its own request id: a report sent before a restart is not sent again.
-                    await conversation.submit(
-                        {
-                            type: "input",
-                            content: state.text,
-                            whenBusy: "followUp",
-                            requestId: `ci-watch:${String(runtime.taskId)}`,
-                        },
-                        context,
+                // Stopped between the look and now: nothing to tell.
+                if (!(await mine(runtime, input, context))) {
+                    return forget(runtime, input, context);
+                }
+
+                if (attempt >= MAX_SENDS) {
+                    host.notice(
+                        "warning",
+                        `The CI watch could not tell Pi how ${input.label} ended: ${MAX_SENDS} sends were withdrawn. ${input.url}`,
+                        runtime.conversationId,
                     );
+
+                    return forget(runtime, input, context);
+                }
+
+                const conversation = (await runtime.conversation(runtime.conversationId, context))!;
+                // Its own request id per send: a send made before a restart is found again, not made twice.
+                const submission = await conversation.submit(
+                    {
+                        type: "input",
+                        content: state.text,
+                        whenBusy: "followUp",
+                        requestId: `ci-watch:${String(runtime.taskId)}${attempt === 0 ? "" : `:${attempt}`}`,
+                    },
+                    context,
+                );
+                let idleChecks = 0;
+
+                // Delivered once it is in the transcript (an entry); withdrawn ones are sent again.
+                for (;;) {
+                    const record = await submission.status(context);
+
+                    if (record.entry !== undefined) {
+                        break;
+                    }
+
+                    let withdrawn = record.status === "unanswered";
+
+                    if (!withdrawn) {
+                        const live = await runtime.snapshot(LiveDoc, runtime.conversationId, context);
+
+                        idleChecks = live?.run === undefined ? idleChecks + 1 : 0;
+
+                        // Queued behind no run, twice in a row: stranded after a failed run.
+                        if (idleChecks >= 2 && (await submission.abort(context)) === "aborted") {
+                            withdrawn = true;
+                        }
+                    }
+
+                    if (withdrawn) {
+                        return runtime.commit(
+                            () => ({
+                                status: "running",
+                                checkpoint: { phase: "report", text: state.text, attempt: attempt + 1 },
+                            }),
+                            context,
+                        );
+                    }
+
+                    await new Promise((resolve) => setTimeout(resolve, SEND_CHECK_MS));
                 }
 
                 await forget(runtime, input, context);
