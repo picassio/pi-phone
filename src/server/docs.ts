@@ -4,7 +4,6 @@
  *
  * Kinds are part of the stored data: rename one and old sessions lose it.
  */
-import type { JsonValue } from "@earendil-works/chord";
 import {
     type ConversationId,
     defineDoc,
@@ -94,16 +93,6 @@ export type SubagentRecord = {
 
 /** A subagent's report waiting to go to its parent: all those waiting go together, as one message. */
 export type PendingReport = { name: string; text: string };
-
-/** Values codemode scripts keep with `store(key, value)`, read back with `load(key)` in later scripts. */
-export const CodemodeStoreDoc = defineDoc<{ values: Record<string, JsonValue> }>({
-    kind: "pocket.codemode-store",
-    version: 1,
-    scope: "conversation",
-    history: "latest",
-    fork: "current",
-    initial: () => ({ values: {} }),
-});
 
 /** A conversation's named background subagents, and the reporter task of each message sent to them. */
 export const SubagentsDoc = defineDoc<{

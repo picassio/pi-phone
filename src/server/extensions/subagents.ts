@@ -825,7 +825,7 @@ export default function createSubagents(host: PocketHost) {
         execute: async (args, api, context) => {
             const { action, name, message, followUp } = args;
             const reply = (text: string, conversationId?: ConversationId) => ({
-                content: [{ type: "text" as const, text }],
+                output: [{ type: "text" as const, text }],
                 ...(conversationId === undefined || name === undefined
                     ? {}
                     : {

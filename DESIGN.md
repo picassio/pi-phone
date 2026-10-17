@@ -7,7 +7,11 @@ Built from two upstreams, cut down to what this app needs:
 
 - https://github.com/badlogic/pi-termux-mobile: the Android shell (plain Gradle, Java, no NDK), the embedded
   Termux runtime, and the APK workflow.
-- https://github.com/TannerMidd/pi-pocket (MIT): the server and the web UI, on pi-durable 1.1.0 from npm.
+- https://github.com/TannerMidd/pi-pocket (MIT): the server and the web UI, written against pi-durable 1.1.0; we run
+  it on the pi packages 1.3.0 (pi-durable, pi-ai, pi-coding-agent, pi-codemode, chord), which `@earendil-works/pi-env`
+  needs for remote machines. 1.2.0 renamed tool results' `content` to `output` (the old field is silently ignored:
+  a tool answering with it gives the model nothing), made `bash`'s nonzero exits error results, and brought its own
+  codemode and image reads, which replace pi-pocket's codemode extension here.
   Imported at commit `e5456a832d47e7154faf04320dd7602ae5051bf7` (see `UPSTREAM.md`); we own the fork from there.
 
 ## 1. Layout

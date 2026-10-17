@@ -330,7 +330,7 @@ function parseRun(text: string, repo: string | undefined): { repo: string | unde
     throw new Error(`Not a run: ${text}. Give its id, its address, or owner/name#id.`);
 }
 
-const reply = (text: string) => ({ content: [{ type: "text" as const, text }] });
+const reply = (text: string) => ({ output: [{ type: "text" as const, text }] });
 
 export default function createCiWatch(host: PocketHost) {
     const Watch = createWatchTask(host);

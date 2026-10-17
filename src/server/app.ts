@@ -39,7 +39,8 @@ import {
 } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
-import { CodingTools } from "@earendil-works/pi-durable/tools";
+import { createNodePhotonImages } from "@earendil-works/pi-durable/images/node";
+import { createCodingTools } from "@earendil-works/pi-durable/tools";
 import { Attribution, type Missing } from "./attribution.ts";
 import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
@@ -402,7 +403,8 @@ export class PocketApp {
 
         const registry = createRegistry();
 
-        registry.install(CodingTools);
+        // `read` returns images as images, oriented and shrunk to the model's limits by Photon (WebAssembly), in a worker.
+        registry.install(createCodingTools({ images: await createNodePhotonImages() }));
         // Durable work of the app itself, whatever extension modules are on.
         registry.install(
             defineExtension({

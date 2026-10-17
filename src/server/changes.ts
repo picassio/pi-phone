@@ -70,6 +70,26 @@ const EDITORS = new Set(["write", "edit"]);
 /** The codemode tool's name (`extensions/codemode.ts`): its results list the calls a script made. */
 const CODEMODE = "codemode";
 
+/**
+ * The `path` of a nested call's arguments. Pi Durable's codemode lists a call's arguments as compact JSON cut for
+ * display, so a long `write` is not valid JSON; the path comes first in every editor's arguments, so it is still there.
+ */
+function nestedPath(args: unknown): string | undefined {
+    if (typeof args !== "string") {
+        return undefined;
+    }
+
+    try {
+        const parsed = JSON.parse(args) as { path?: unknown };
+
+        return typeof parsed.path === "string" ? parsed.path : undefined;
+    } catch {
+        const match = /^\{"path":"((?:[^"\\]|\\.)*)"/.exec(args);
+
+        return match === null ? undefined : (JSON.parse(`"${match[1]}"`) as string);
+    }
+}
+
 /** Resolve a possibly missing path through its nearest existing ancestor. */
 function realpathWithMissingTail(path: string): string {
     const missing: string[] = [];
@@ -153,19 +173,21 @@ function piEdits(
                 continue;
             }
 
-            for (const call of calls as { name?: unknown; status?: unknown; path?: unknown }[]) {
+            for (const call of calls as { name?: unknown; status?: unknown; args?: unknown }[]) {
+                const path = nestedPath(call.args);
+
                 if (
                     typeof call.name !== "string" ||
                     !EDITORS.has(call.name) ||
                     call.status !== "ok" ||
-                    typeof call.path !== "string" ||
-                    call.path === ""
+                    path === undefined ||
+                    path === ""
                 ) {
                     continue;
                 }
 
                 edits.set(
-                    piEditPath(cwd, call.path, canonicalize),
+                    piEditPath(cwd, path, canonicalize),
                     callers.get(entry.callId) ?? entry.id,
                 );
             }
