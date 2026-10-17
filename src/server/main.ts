@@ -14,6 +14,8 @@ import type { PocketApp } from "./app.ts";
 import { APP_ROOT, dataDir } from "./config.ts";
 import type { createHandler } from "./http.ts";
 import { installClaudeCodeBilling } from "./claude-billing.ts";
+import { Auth } from "./auth.ts";
+import { attachTerminals } from "./terminal.ts";
 import { PhoneSettingsFile } from "./phone-settings.ts";
 
 const RESTART_CODE = 75;
@@ -85,6 +87,7 @@ const STOP_LIMIT_MS = 10_000;
 let app: PocketApp | undefined;
 
 let stopWatching = () => {};
+let closeTerminals: (() => void) | undefined;
 
 let stopping = false;
 /** A stop asked for while starting, done once the start finishes. */
@@ -103,6 +106,7 @@ const stop = async (code: number) => {
 
     stopping = true;
     stopWatching();
+    closeTerminals?.();
     server.close();
     server.closeAllConnections();
 
@@ -196,6 +200,8 @@ handle = makeHandler({
     listen: { host: options.host, port: options.port },
     restart: () => void stop(RESTART_CODE),
 });
+// Terminals (`terminal.ts`): WebSocket upgrades on the same server.
+closeTerminals = attachTerminals(server, opened, new Auth(opened.config));
 stopWatching = (() => {
     const stops = [watchTree(join(APP_ROOT, "web"), (file) => opened.reloadClients(file))];
 

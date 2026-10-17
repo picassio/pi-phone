@@ -16,6 +16,9 @@ export const VENDOR: Record<string, string> = {
     "htm.mjs": join(MODULES, "htm", "dist", "htm.module.js"),
     "marked.mjs": join(MODULES, "marked", "lib", "marked.esm.js"),
     "purify.mjs": join(MODULES, "dompurify", "dist", "purify.es.mjs"),
+    "xterm.mjs": join(MODULES, "@xterm", "xterm", "lib", "xterm.mjs"),
+    "xterm-addon-fit.mjs": join(MODULES, "@xterm", "addon-fit", "lib", "addon-fit.mjs"),
+    "xterm.css": join(MODULES, "@xterm", "xterm", "css", "xterm.css"),
 };
 
 export const TYPES: Record<string, string> = {

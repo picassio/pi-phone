@@ -193,6 +193,15 @@ function MachineRow({ machine, keys, onChanged }) {
         </div>
         <div class="provider-actions">
             ${state === "new" && !scan && html`<button class="button small primary" disabled=${busy !== null} onClick=${doScan}>${busy === "scan" ? "Scanning…" : "Scan host key"}</button>`}
+            ${
+                state === "connected" &&
+                html`<button
+                    class="button small"
+                    onClick=${() => openSheet({ type: "terminal", place: `machine:${machine.id}:${machine.remote.home}` })}
+                >
+                    Terminal
+                </button>`
+            }
             ${state === "connected" && html`<button class="button small" disabled=${busy !== null} onClick=${detect}>${busy === "detect" ? "Testing…" : "Test"}</button>`}
             ${state === "connected" && html`<button class="button small ghost" disabled=${busy !== null} onClick=${connect}>${busy === "connect" ? "Updating…" : "Update helper"}</button>`}
             ${key && html`<button class="button small ghost" onClick=${copyKey}>Copy public key</button>`}

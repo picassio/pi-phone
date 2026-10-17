@@ -15067,3 +15067,78 @@ pre.gallery-code {
 .pi-machine > .label {
     margin-bottom: 6px;
 }
+
+/* ─── Terminal (pi-phone) ────────────────────────────────────── */
+
+/* Full screen, over the app, like the image viewer (`terminal.js`): a bar, the screen, and a row of keys. */
+.terminal-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    display: flex;
+    flex-direction: column;
+    background: var(--code-bg);
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    animation: fade var(--t-fade) var(--ease-almost);
+}
+
+.terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 4px 4px 12px;
+    border-bottom: 1px solid var(--hair);
+    color: var(--muted);
+}
+
+.terminal-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.terminal-state {
+    font-size: 12px;
+}
+
+.terminal-state.ended,
+.terminal-state.closed {
+    color: var(--warn);
+}
+
+.terminal-screen {
+    flex: 1;
+    min-height: 0;
+    padding: 6px 4px 0 8px;
+}
+
+.terminal-keys {
+    display: flex;
+    gap: 6px;
+    padding: 6px 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-top: 1px solid var(--hair);
+}
+
+.terminal-key {
+    flex: none;
+    min-width: 40px;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+    background: var(--card);
+    color: var(--text);
+    font: 13px var(--mono);
+}
+
+.terminal-key.on {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+}

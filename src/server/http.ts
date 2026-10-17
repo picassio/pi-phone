@@ -56,7 +56,11 @@ export function createHandler(options: HttpOptions) {
             }
 
             if (parts[0] === "vendor" && parts[1] !== undefined && VENDOR[parts[1]] !== undefined) {
-                return serveFile(response, VENDOR[parts[1]]!, "text/javascript; charset=utf-8");
+                return serveFile(
+                    response,
+                    VENDOR[parts[1]]!,
+                    parts[1].endsWith(".css") ? "text/css; charset=utf-8" : "text/javascript; charset=utf-8",
+                );
             }
 
             if (parts[0] === "login" && (request.method === "GET" || request.method === "POST")) {

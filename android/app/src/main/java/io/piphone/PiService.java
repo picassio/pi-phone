@@ -153,6 +153,8 @@ public final class PiService extends Service {
         env.put("TERM", "xterm-256color");
         // This service starts the server again when it exits with 75: the menu's Restart server works (`main.ts`).
         env.put("PI_POCKET_SUPERVISED", "1");
+        // The login shell of terminals on the phone (pi-env's daemon starts `SHELL`; places.ts).
+        env.put("SHELL", new File(prefix, "bin/bash").getAbsolutePath());
         builder.directory(home);
         builder.redirectErrorStream(true);
         builder.redirectOutput(ProcessBuilder.Redirect.appendTo(log));

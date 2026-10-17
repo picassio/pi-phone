@@ -9,7 +9,14 @@
 import type { Context } from "@earendil-works/chord";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
-import { type Connection, RemoteExecutionEnv, sshConnection } from "@earendil-works/pi-env";
+import {
+    Connection,
+    localDaemon,
+    openTerminal,
+    type RemoteTerminal,
+    RemoteExecutionEnv,
+    sshConnection,
+} from "@earendil-works/pi-env";
 import { HttpError } from "./errors.ts";
 import type { Machine, Machines } from "./machines.ts";
 
@@ -47,6 +54,8 @@ export class Places {
     readonly #local = new Map<string, NodeExecutionEnv>();
     readonly #connections = new Map<string, Connection>();
     readonly #remote = new Map<string, RemoteExecutionEnv>();
+    /** The phone's own pi-env daemon, for terminals here; started on the first one. */
+    #localDaemon: Connection | undefined;
 
     constructor(machines: Machines) {
         this.#machines = machines;
@@ -104,6 +113,23 @@ export class Places {
         return connection;
     }
 
+    /**
+     * A shell in a pseudo-terminal at a place (`terminal.ts`): the user's login shell, `SHELL` of the daemon's
+     * environment (on the phone, PiService sets it to the bundled bash), in the place's folder, as `xterm-256color`.
+     */
+    terminal(
+        cwd: string,
+        options: { cols: number; rows: number; onData: (bytes: Uint8Array) => void },
+    ): Promise<RemoteTerminal> {
+        const place = parsePlace(cwd);
+        const connection =
+            place.machineId === undefined
+                ? (this.#localDaemon ??= new Connection({ command: [localDaemon()] }))
+                : this.connection(this.#machines.ready(place.machineId));
+
+        return openTerminal(connection, { cwd: place.path, env: { TERM: "xterm-256color" }, ...options });
+    }
+
     /** Checks that the place's folder exists there, and answers the cwd in canonical form. */
     async checkDirectory(cwd: string, context: Context): Promise<string> {
         const place = parsePlace(cwd);
@@ -153,5 +179,7 @@ export class Places {
         for (const connection of this.#connections.values()) {
             connection.close();
         }
+
+        this.#localDaemon?.close();
     }
 }

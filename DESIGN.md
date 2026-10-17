@@ -124,6 +124,12 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   through its environment (first lines only: id, folder, first message as title), copies the chosen file into the
   imported folder with an `.origin.json` beside it, and the preview then defaults to the session's folder on that
   machine (checked there).
+- **Terminal** (`src/server/terminal.ts`, `web/terminal.js`): a shell in a pseudo-terminal through pi-env's
+  `openTerminal`, on a machine over its connection or on the phone through a local daemon (pi-env's Android build;
+  PiService sets `SHELL` to the bundled bash). One WebSocket per terminal at `/api/terminal`, owner only and only
+  from the app's own page (`Origin`); input sent before the shell is up is queued. xterm.js 6 (ES modules, served from
+  `/vendor/`) in a full-screen sheet with a row of keys a phone lacks (Esc, Tab, sticky Ctrl, arrows). Opened from the
+  session menu, the launcher, and a connected machine's row.
 - **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI publishes a release, and
   the app updates from it (section 5).
 

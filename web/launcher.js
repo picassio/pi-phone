@@ -266,6 +266,16 @@ function actionItems() {
             run: () => openSheet({ type: "github" }),
         },
         me?.role === "owner" && {
+            label: "Terminal",
+            detail: conversation ? "a shell in this session's folder" : "a shell on this phone",
+            icon: "terminal",
+            run: () =>
+                openSheet({
+                    type: "terminal",
+                    place: conversation ? (view.agent?.cwd ?? conversation.cwd) : store.state.server?.defaultCwd,
+                }),
+        },
+        me?.role === "owner" && {
             label: "Machines",
             detail: "run sessions on other computers over ssh",
             icon: "monitor",

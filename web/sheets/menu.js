@@ -388,6 +388,15 @@ export function MenuSheet({ places = true }) {
                           shortPath(view.agent?.cwd, server?.home),
                       )
             }
+            ${
+                conversation &&
+                me?.role === "owner" &&
+                item(
+                    "Terminal",
+                    () => openSheet({ type: "terminal", place: view.agent?.cwd ?? conversation.cwd }),
+                    "a shell in this session's folder",
+                )
+            }
             ${conversation && trustAvailable() && item("Project trust", () => openSheet({ type: "trust" }), trustHint())}
             ${session && steer && driving && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
             ${conversation && steer && driving && item("Compact context", () => openSheet({ type: "compact" }), "summarize older messages")}

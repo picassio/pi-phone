@@ -12,6 +12,7 @@ import { GitHubSheet } from "./sheets/github.js";
 import { MachinesSheet } from "./sheets/machines.js";
 import { SshKeysSheet } from "./sheets/ssh-keys.js";
 import { SchedulesSheet } from "./sheets/schedules.js";
+import { TerminalSheet } from "./terminal.js";
 import { CwdSheet } from "./sheets/folder.js";
 import { MenuSheet, PlacesSheet } from "./sheets/menu.js";
 import { MessageSheet } from "./sheets/message.js";
@@ -204,6 +205,10 @@ function sheetBody(sheet) {
             break;
         case "ext":
             body = html`<${ExtensionSheet} sheet=${sheet} />`;
+            break;
+        // A shell, full screen (terminal.js): the owner's, as it reaches everything.
+        case "terminal":
+            body = store.state.me?.role === "owner" ? html`<${TerminalSheet} key=${sheet.place} place=${sheet.place} />` : null;
             break;
         case "image":
             body = html`<${ImageViewer} src=${sheet.src} alt=${sheet.alt} />`;

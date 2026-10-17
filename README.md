@@ -19,6 +19,8 @@ No Termux, no laptop, no cloud VM.
 - **Work on other machines.** Add an SSH key and a machine (Settings › SSH keys, Machines). A session on a machine
   runs its tools there through [pi-env](https://github.com/earendil-works/pi/tree/main/packages/env)'s small daemon;
   the conversation and your logins stay on the phone. The Files panel, viewer, and Changes follow the session there.
+- **A terminal.** A real shell inside the app, on the phone or on a machine, with Esc, Tab, Ctrl, and arrow keys
+  above the keyboard.
 - **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's
   `~/.pi/agent/sessions`, with its history.
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
@@ -88,6 +90,7 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   repository and checked against its SHA-256 index; [termux-exec](https://github.com/termux/termux-exec) makes their
   scripts run. Each package keeps its own license; the build's `termux-packages.json` lists the exact packages and
   versions.
+- **[xterm.js](https://github.com/xtermjs/xterm.js)** (MIT): the terminal.
 - **[Preact](https://preactjs.com)** (MIT), **[htm](https://github.com/developit/htm)** (Apache-2.0),
   **[marked](https://github.com/markedjs/marked)** (MIT), **[DOMPurify](https://github.com/cure53/DOMPurify)**
   (MPL-2.0 or Apache-2.0), **[node-qrcode](https://github.com/soldair/node-qrcode)** (MIT): the web app.
