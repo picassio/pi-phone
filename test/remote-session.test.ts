@@ -248,3 +248,35 @@ test("Files, the viewer, images, Changes, diffs, and undo work on the machine's 
     assert.equal(existsSync(join(repo, "new.txt")), false);
     assert.deepEqual((await app.workspace.changes(id, me)).files, []);
 });
+
+test("an attachment to a session on a machine is copied there, and the message names its path there", { skip }, async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${join(remoteHome, "project")}` });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    const uploads = app.workspace.uploadDirectory(id);
+
+    mkdirSync(uploads, { recursive: true });
+    const local = join(uploads, "abc-notes.txt");
+
+    writeFileSync(local, "attached words\n");
+    const home = app.machines.get(machineId).remote!.home;
+    const there = join(home, ".pi", "mobile", "uploads", String(id), "abc-notes.txt");
+
+    try {
+        const { submissionId } = await app.commands.submit(id, owner(app), {
+            text: "look at this",
+            requestId: crypto.randomUUID(),
+            attachments: [{ path: local, name: "notes.txt", mime: "text/plain", size: 15 }],
+        });
+
+        await (await app.harness.submission(submissionId, context))!.wait(context);
+        assert.equal(readFileSync(there, "utf8"), "attached words\n");
+        const texts = await modelTexts(app, id);
+
+        assert.ok(texts.some((each) => each.includes(there)), texts.join("\n"));
+        assert.ok(!texts.some((each) => each.includes(local)), "the phone's path is not in the message");
+        assert.match(told, /copied to ~\/.pi\/mobile\/uploads on that machine/);
+    } finally {
+        rmSync(join(home, ".pi", "mobile", "uploads", String(id)), { recursive: true, force: true });
+    }
+});

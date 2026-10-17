@@ -131,7 +131,7 @@ export default function createPrompt(host: PocketHost) {
 
                 return [
                     `Your tools (bash, read, write, edit) run on the machine "${machine.name}" (${machine.address}, ${machine.platform}), not on the phone. Working directory there: ${machine.path}`,
-                    "That machine's git, gh, and other programs use its own logins and tools, not the phone's. Files the user attaches are on the phone; ask for their contents to be pasted if you need them.",
+                    "That machine's git, gh, and other programs use its own logins and tools, not the phone's. Files the user attaches are copied to ~/.pi/mobile/uploads on that machine; the message lists their paths there.",
                     "A command stops about 30 seconds after the phone's connection to the machine drops, with an error; check what happened before running it again.",
                     `Today: ${today}`,
                 ].join("\n");

@@ -116,6 +116,8 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   browses the machine through its environment (New folder makes one there). Worktrees are for the phone's folders.
   The Files panel (pi-env's gitignore-aware `listFiles`), the file viewer, images in replies (the image route reads
   them there), Changes, diffs, and undo (git run there through `folder-access.ts`) work on a machine's folder.
+  Attachments to a session on a machine are copied to `~/.pi/mobile/uploads/<session>/` there (out of the
+  project and its git status), and the message names their paths there; images also go to the model as before.
   Branches (the top bar's chip and the branch sheet) stay phone-only: they read `.git/HEAD` from disk every few
   seconds; on a machine the branch shows in Changes.
 - **Pi sessions on a machine**: Continue a Pi session lists a connected machine's `~/.pi/agent/sessions/*/*.jsonl`

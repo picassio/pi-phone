@@ -411,6 +411,44 @@ export class Commands {
     }
 
     /**
+     * Attachments where the session's tools can open them: as they are for a session on this phone; for one on a
+     * machine (`places.ts`), copied to `~/.pi/mobile/uploads/<session>/` there (beside pi-env's own folder, out of the
+     * project and its git status), with their paths there. A copy that fails stops the message, naming the file.
+     */
+    async #placeAttachments(id: ConversationId, attachments: readonly Attachment[]): Promise<Attachment[]> {
+        const remote = this.#app.workspace.remoteOf(id);
+
+        if (remote === undefined || attachments.length === 0) {
+            return [...attachments];
+        }
+
+        const folder = `${remote.machine.remote!.home}/.pi/mobile/uploads/${String(id)}`;
+        const made = await remote.env.createDir(folder, { recursive: true }, context);
+
+        if (!made.ok) {
+            throw new HttpError(502, `Could not make ${folder} on ${remote.machine.name}: ${made.error.message}`);
+        }
+
+        const placed: Attachment[] = [];
+
+        for (const file of attachments) {
+            const target = `${folder}/${basename(file.path)}`;
+            const written = await remote.env.writeFile(target, readFileSync(file.path), context);
+
+            if (!written.ok) {
+                throw new HttpError(
+                    502,
+                    `Could not copy ${file.name} to ${remote.machine.name}: ${written.error.message}`,
+                );
+            }
+
+            placed.push({ ...file, path: target });
+        }
+
+        return placed;
+    }
+
+    /**
      * Continue one of Pi's sessions here: a new session with its history, in its folder (or `folder`, for a session
      * whose folder is not on this machine, such as one imported from elsewhere), with its model when that one is signed
      * in here (`pi-sessions.ts`). The owner's, as Pi's own files are.
@@ -731,7 +769,9 @@ export class Commands {
 
         app.spend.check(user, id);
 
-        const lines = attachments.map(
+        // On a machine, the agent's tools are there: the files go there first, and the message names their paths there.
+        const placed = await this.#placeAttachments(id, attachments);
+        const lines = placed.map(
             (file) =>
                 `- ${file.path} (${file.name}, ${file.mime || "unknown type"}, ${file.size} bytes)`,
         );
