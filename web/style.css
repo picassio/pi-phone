@@ -15142,3 +15142,33 @@ pre.gallery-code {
     border-color: var(--accent);
     color: var(--accent);
 }
+
+/* Select and Paste (`terminal.js`): the text over the screen, for a finger to select in or paste into. */
+.terminal-overlay {
+    position: absolute;
+    inset: calc(env(safe-area-inset-top) + 44px) 0 calc(env(safe-area-inset-bottom) + 47px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    background: var(--code-bg);
+}
+
+.terminal-text {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    resize: none;
+    padding: 8px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+    background: var(--card);
+    color: var(--text);
+    font: 12px/1.4 var(--mono);
+    white-space: pre;
+    user-select: text;
+}
+
+.terminal-overlay .sheet-actions {
+    margin: 0;
+}
