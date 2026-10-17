@@ -20,6 +20,11 @@ const isSession = () => store.state.view.conversation?.kind === "session";
 
 /** Plan mode needs its extension, which the owner can turn off. */
 export const planAvailable = () => store.state.server?.extensions?.includes("pocket-plan") === true;
+/** Scheduled messages need theirs, and a session; so do goals. */
+export const schedulesAvailable = () =>
+    isSession() && store.state.server?.extensions?.includes("pocket-schedules") === true;
+const goalsAvailable = () =>
+    isSession() && store.state.server?.extensions?.includes("pocket-goals") === true;
 /** How long a list of prompt templates is used before it is fetched again: someone may be writing one. */
 const TEMPLATES_FOR_MS = 30_000;
 
@@ -271,6 +276,36 @@ const COMMANDS = [
     },
     { name: "stop", description: "Stop the current run", run: () => actions.abort() },
     { name: "copy", description: "Copy Pi’s last reply", run: copyLast },
+    {
+        name: "schedule",
+        args: "<when> <message>",
+        description:
+            "Send Pi a message later or on repeat: in 2h …, tomorrow 9:00 …, every weekday 8:00 …",
+        available: schedulesAvailable,
+        run: async (arg) => {
+            if (arg === "") {
+                return openSheet({ type: "schedules" });
+            }
+
+            const added = await actions.schedule(arg);
+
+            notify("info", `Scheduled for ${formatWhen(added.next)}.`);
+        },
+    },
+    {
+        name: "until",
+        args: "<command>",
+        description: "Pi keeps going until a check passes, such as npm test (5 checks at most)",
+        available: goalsAvailable,
+        run: async (arg) => {
+            if (arg === "") {
+                throw new Error("Say which command has to pass, such as /until npm test.");
+            }
+
+            await actions.setGoal(arg);
+            notify("info", `Pi keeps going until ${arg} passes, checked after each answer.`);
+        },
+    },
     {
         name: "find",
         args: "[text]",

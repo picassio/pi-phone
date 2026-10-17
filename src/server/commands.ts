@@ -38,6 +38,7 @@ import {
     NotesDoc,
     PinsDoc,
     PlanDoc,
+    type Schedule,
     SessionsDoc,
     STOPPED,
     type SubagentRecord,
@@ -56,6 +57,7 @@ import { mentionedPaths, viewFile } from "./files.ts";
 import { isThinkingLevel, THINKING_LEVELS } from "./models.ts";
 import { writePiSession } from "./pi-sessions.ts";
 import { isRemote } from "./places.ts";
+import { describeMoment, describeRepeat, knownZone } from "./when.ts";
 import { snippet } from "./projection.ts";
 import { globalModelSettings, projectModelDefault } from "./project-model.ts";
 import { expandPromptTemplate, expandSkillCommand, unwrapSkill } from "./prompts.ts";
@@ -1405,6 +1407,97 @@ export class Commands {
 
             return true;
         }, context);
+    }
+
+    /** Set up a message to Pi for later, or on repeat: `when` is when, then what it says (`in 2h check the deploy`). */
+    async schedule(
+        id: ConversationId,
+        user: User,
+        request: { when?: unknown; zone?: unknown },
+    ): Promise<Schedule> {
+        const app = this.#app;
+
+        app.requireSee(user, id);
+        await app.requireDriver(id, user);
+        const zone = optionalText(request.zone, "zone");
+
+        if (zone !== undefined && !knownZone(zone)) {
+            throw new HttpError(400, `Unknown time zone ${zone}`);
+        }
+
+        app.spend.check(user, id);
+        const schedule = await app.schedules.add(id, {
+            when: optionalText(request.when, "when") ?? "",
+            by: user,
+            ...(zone === undefined ? {} : { zone }),
+        });
+        const when =
+            schedule.every === undefined
+                ? `for ${describeMoment(schedule.next, schedule.zone)}`
+                : describeRepeat(schedule.every);
+
+        await app.collab.activity(id, user, `scheduled “${snippet(schedule.text, 60)}” ${when}`);
+
+        return schedule;
+    }
+
+    async cancelSchedule(id: ConversationId, user: User, scheduleId: string): Promise<void> {
+        const app = this.#app;
+
+        app.requireSee(user, id);
+        await app.requireDriver(id, user);
+        const schedule = await app.schedules.cancel(id, scheduleId);
+
+        if (schedule === undefined) {
+            throw new HttpError(404, "No such scheduled message");
+        }
+
+        await app.collab.activity(
+            id,
+            user,
+            `cancelled the scheduled “${snippet(schedule.text, 60)}”`,
+        );
+    }
+
+    /** Pi keeps working until `command` passes, checked after each of its answers. */
+    async setGoal(id: ConversationId, user: User, command: unknown): Promise<void> {
+        const app = this.#app;
+
+        app.requireSee(user, id);
+        await app.requireDriver(id, user);
+
+        if (app.sessionMeta(id) === undefined) {
+            throw new HttpError(400, "Only sessions can have a goal");
+        }
+
+        const goal = await app.goals.set(id, user.id, optionalText(command, "command") ?? "");
+
+        await app.collab.activity(
+            id,
+            user,
+            `set a goal: keep going until \`${snippet(goal.command, 80)}\` passes`,
+        );
+    }
+
+    /** Drop the goal: Pi stops checking. Anyone who can steer may, as with stopping a run. */
+    async clearGoal(id: ConversationId, user: User): Promise<void> {
+        const app = this.#app;
+
+        app.requireSee(user, id);
+        app.requireSteer(user);
+        const goal = await app.goals.get(id);
+
+        if (!(await app.goals.clear(id)) || goal === undefined) {
+            return;
+        }
+
+        if (goal.status === "working") {
+            await app.collab.activity(
+                id,
+                user,
+                `dropped the goal \`${snippet(goal.command, 80)}\``,
+            );
+        }
     }
 
     /** A new session with this session's history through `entryId`, which then goes its own way. */

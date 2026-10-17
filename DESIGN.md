@@ -62,7 +62,9 @@ for built-ins, `lock`, `errors`, `paths`, `http` + api/conversation/events/asset
 `transcripts`, `providers`, `workspace`, `files`, `changes`, `branches`, `git`, `export`, `worktrees` (forks
 and new sessions in a git worktree of their own; wired through session creation), owner-only `config`/`auth`;
 extensions `prompt`, `subagents`, `codemode`, `plan`, `artifacts` (restored 2026-10-17: the `artifact` tool, its
-sheet and viewer, and `/a/`, which also serves the sandboxed frame that runs HTML blocks in replies). `pi-sessions` (continue a pi CLI session with its history),
+sheet and viewer, and `/a/`, which also serves the sandboxed frame that runs HTML blocks in replies), `schedules`
+and `goals` (restored 2026-10-17 without their PiP ties: `/schedule`, the `schedule` tool, `/until`; a goal's check
+runs through the session's environment, so on a machine it runs there). `pi-sessions` (continue a pi CLI session with its history),
 with two changes: a session file can be imported (`POST /api/pi-sessions/import`, kept in
 `~/.pi/agent/sessions/--imported--/`), and a session whose folder is not on the phone continues in a folder chosen
 for it. The same reader is the base for pulling sessions from other machines over ssh later. `omarchy.ts` stays only for its `colors.toml` parser, which
@@ -73,7 +75,7 @@ diffs, files and changes, sessions, session tree, subagents board, sheets for th
 Removed, and staying out (the owner's decision, 2026-10-17): PiP, Agent Teams and linked sessions, memory, triggers
 (GitHub watches, repository watches, webhooks), the built-in browser, the extension gallery and drop-ins, Lancet
 Guard (ONNX), Web Push, the share target, dictation, the launcher (access modes, tunnels, QR), and the repo extras (docs
-site, nix, lint config). Schedules and goals are being restored.
+site, nix, lint config).
 
 Kept on purpose (the owner's decision, 2026-10-17: no more trimming): multiplayer (`collab`, `spend`, people,
 invites, roles, peek tiles), theme editing and Omarchy palettes, the Walker-style launcher, and the extension web

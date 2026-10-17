@@ -211,6 +211,33 @@ export async function conversationRoutes(
         return json(response, 200, { ok: true });
     }
 
+    if (third === "schedules" && fourth === undefined && method === "POST") {
+        return json(response, 200, await app.commands.schedule(id, user, await readJson(request)));
+    }
+
+    if (
+        third === "schedules" &&
+        fourth !== undefined &&
+        parts[4] === "cancel" &&
+        method === "POST"
+    ) {
+        await app.commands.cancelSchedule(id, user, fourth);
+
+        return json(response, 200, { ok: true });
+    }
+
+    if (third === "goal" && method === "POST") {
+        const body = await readJson<{ command?: unknown; clear?: unknown }>(request);
+
+        if (body.clear === true) {
+            await app.commands.clearGoal(id, user);
+        } else {
+            await app.commands.setGoal(id, user, body.command);
+        }
+
+        return json(response, 200, { ok: true });
+    }
+
     if (third === "worktree" && method === "POST") {
         const body = await readJson<{ remove?: unknown; force?: unknown }>(request);
 

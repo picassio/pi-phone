@@ -3,7 +3,7 @@
 // themes.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { folderColor } from "./avatar.js";
-import { planAvailable } from "./commands.js";
+import { planAvailable, schedulesAvailable } from "./commands.js";
 import { extensionLauncherItems } from "./extension-ui.js";
 import { filesAvailable, toggleFiles } from "./files-panel.js";
 import { togglePeeks } from "./peeks.js";
@@ -226,6 +226,11 @@ function actionItems() {
                 icon: "shield",
                 run: () => attempt(() => actions.setPlan(!view.plan?.on)),
             },
+        schedulesAvailable() && {
+            label: "Scheduled messages",
+            icon: "pulse",
+            run: () => openSheet({ type: "schedules" }),
+        },
         conversation && {
             label: "Copy link to this session",
             icon: "external",

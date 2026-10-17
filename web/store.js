@@ -57,6 +57,8 @@ const emptyView = () => ({
     decisions: {},
     plan: { on: false },
     artifacts: [],
+    schedules: [],
+    goal: null,
     ciWatches: [],
     branch: null,
     subagentsHeld: null,
@@ -517,6 +519,9 @@ function mergeView(current, data) {
         decisions: data.decisions ?? base.decisions,
         plan: data.plan ?? base.plan,
         artifacts: data.artifacts ?? base.artifacts,
+        schedules: data.schedules ?? base.schedules,
+        // No goal is null, which the server sends too: only a missing field keeps the last value.
+        goal: data.goal === undefined ? base.goal : data.goal,
         ciWatches: data.ciWatches ?? base.ciWatches,
         // Why subagents' reports wait (a spend limit), or null when none do: the subagents bar says it.
         subagentsHeld: data.subagentsHeld === undefined ? base.subagentsHeld : data.subagentsHeld,
@@ -1062,6 +1067,15 @@ export const actions = {
     piSessions: (query = "") =>
         api(query === "" ? "pi-sessions" : `pi-sessions?q=${encodeURIComponent(query)}`),
     piSession: (path) => api(`pi-sessions/preview?path=${encodeURIComponent(path)}`),
+    /** `when` says when, then what Pi gets: `in 2h check the deploy`. Clock times are this device's. */
+    schedule: (when) =>
+        api(`c/${current()}/schedules`, {
+            when,
+            zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+    cancelSchedule: (id) => api(`c/${current()}/schedules/${encodeURIComponent(id)}/cancel`, {}),
+    setGoal: (command) => api(`c/${current()}/goal`, { command }),
+    clearGoal: () => api(`c/${current()}/goal`, { clear: true }),
     removeWorktree: (force) => api(`c/${current()}/worktree`, { remove: true, force }),
     piSessions: (query = "") =>
         api(query === "" ? "pi-sessions" : `pi-sessions?q=${encodeURIComponent(query)}`),

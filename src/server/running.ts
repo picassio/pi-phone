@@ -1,13 +1,14 @@
 /**
  * Everything at work right now, from Pi Durable's task graph: answers being written, tool calls, compactions,
- * and subagents, with the calls waiting for approval, grouped by the session they belong to.
+ * subagents, and scheduled messages, with the calls waiting for approval, grouped by the session they belong to.
  */
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { type ConversationId, LiveDoc, type TaskGraphNode } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
-import { SubagentsDoc } from "./docs.ts";
+import { ScheduleDoc, SubagentsDoc } from "./docs.ts";
 import { COMMAND_TASK } from "./extension-commands.ts";
+import { describeMoment } from "./when.ts";
 
 const context = BACKGROUND_CONTEXT;
 
@@ -22,6 +23,8 @@ export type RunningTask = {
     conversationId: number;
     /** A subagent's name, when the task works in one. */
     subagent?: string;
+    /** For a scheduled message: the schedule, to cancel it. */
+    scheduleId?: string;
 };
 
 export type RunningSession = {
@@ -48,7 +51,7 @@ async function describeTask(
     app: PocketApp,
     node: TaskGraphNode,
     user: User,
-): Promise<Pick<RunningTask, "label"> | undefined> {
+): Promise<Pick<RunningTask, "label" | "scheduleId"> | undefined> {
     const id = node.conversationId;
 
     switch (node.kind) {
@@ -78,6 +81,21 @@ async function describeTask(
                     held === undefined
                         ? "taking subagents' reports to Pi at its next pause"
                         : `holding subagents' reports: ${held}`,
+            };
+        }
+
+        case "pocket.schedule": {
+            const schedule = Object.values(
+                (await app.harness.snapshot(ScheduleDoc, id, context))?.items ?? {},
+            ).find((each) => each.taskId === node.id);
+
+            if (schedule === undefined) {
+                return { label: "a scheduled message" };
+            }
+
+            return {
+                label: `scheduled for ${describeMoment(schedule.next, schedule.zone)}: ${schedule.text}`,
+                scheduleId: schedule.id,
             };
         }
 

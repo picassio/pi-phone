@@ -31,6 +31,10 @@ import {
     type Pin,
     PinsDoc,
     PlanDoc,
+    type Goal,
+    GoalDoc,
+    type Schedule,
+    ScheduleDoc,
     CiWatchesDoc,
     type CiWatch,
     ReactionsDoc,
@@ -52,6 +56,8 @@ import {
     projectStats,
 } from "./projection.ts";
 
+import { describeRepeat } from "./when.ts";
+
 const context = BACKGROUND_CONTEXT;
 
 /** The documents a room shows besides the transcript. A commit to one of them updates the rooms that show it. */
@@ -67,6 +73,8 @@ export const ROOM_DOCS = new Set(
         TurnsDoc,
         DecisionsDoc,
         PlanDoc,
+        ScheduleDoc,
+        GoalDoc,
         CiWatchesDoc,
     ].map((doc) => doc.definition.kind),
 );
@@ -300,6 +308,8 @@ export class Room {
     decisions: Record<string, Decision> = {};
     plan: { on: boolean; by?: string; at?: number } = { on: false };
     artifacts: Record<string, ArtifactMeta> = {};
+    schedules: Record<string, Schedule> = {};
+    goal: Goal | undefined;
     /** The GitHub Actions runs this conversation watches (`extensions/ci-watch.ts`). */
     ciWatches: Record<string, CiWatch> = {};
     /** Who is typing where, by user id. Memory only: it means nothing after a restart. */
@@ -351,6 +361,10 @@ export class Room {
             ...((await harness.snapshot(DecisionsDoc, this.id, context))?.calls ?? {}),
         };
         this.plan = { ...((await harness.snapshot(PlanDoc, this.id, context)) ?? { on: false }) };
+        this.schedules = {
+            ...((await harness.snapshot(ScheduleDoc, this.id, context))?.items ?? {}),
+        };
+        this.goal = (await harness.snapshot(GoalDoc, this.id, context))?.goal;
         this.ciWatches = { ...((await harness.snapshot(CiWatchesDoc, this.id, context))?.items ?? {}) };
 
         if (owner !== undefined) {
@@ -417,6 +431,10 @@ export class Room {
             this.decisions = { ...((value?.calls as Record<string, Decision>) ?? {}) };
         } else if (kind === PlanDoc.definition.kind) {
             this.plan = { on: false, ...((value as Room["plan"] | null) ?? {}) };
+        } else if (kind === ScheduleDoc.definition.kind) {
+            this.schedules = { ...((value?.items as Record<string, Schedule>) ?? {}) };
+        } else if (kind === GoalDoc.definition.kind) {
+            this.goal = (value?.goal as Goal | undefined) ?? undefined;
         } else if (kind === CiWatchesDoc.definition.kind) {
             this.ciWatches = { ...((value?.items as Record<string, CiWatch>) ?? {}) };
         }
@@ -549,6 +567,27 @@ export class Room {
             turns: this.turns,
             decisions: this.decisions,
             plan: this.plan,
+            schedules: Object.values(this.schedules)
+                .sort((a, b) => a.next - b.next)
+                .map(({ id, text, next, every, by, runs }) => ({
+                    id,
+                    text,
+                    next,
+                    ...(every === undefined ? {} : { repeat: describeRepeat(every) }),
+                    ...(by === undefined ? {} : { by }),
+                    runs,
+                })),
+            goal:
+                this.goal === undefined
+                    ? null
+                    : {
+                          command: this.goal.command,
+                          by: this.goal.by,
+                          status: this.goal.status,
+                          tries: this.goal.tries,
+                          max: this.goal.max,
+                          ...(this.goal.last === undefined ? {} : { last: this.goal.last }),
+                      },
             ciWatches: Object.values(this.ciWatches).map(
                 ({ repo, runId, label, workflow, number, branch, url, startedAt }) => ({
                     repo,

@@ -11,6 +11,7 @@ import {
     type EntryId,
     type TaskId,
 } from "@earendil-works/pi-durable";
+import type { Repeat } from "./when.ts";
 import type { Worktree } from "./worktrees.ts";
 
 export type SessionMeta = {
@@ -328,6 +329,68 @@ export const ShellRequestsDoc = defineDoc<{ items: Record<string, number> }>({
     fork: "initial",
     initial: () => ({ items: {} }),
 });
+
+export type Schedule = {
+    /** Short and stable: what people and Pi use to cancel it. */
+    id: string;
+    /** What was asked for, as shown in the list. */
+    text: string;
+    /** What Pi gets: the text marked as scheduled, with who set it when several people use this server. */
+    content: string;
+    /** When it goes out next. */
+    next: number;
+    every?: Repeat;
+    /** The time zone its clock times are in. */
+    zone: string;
+    /** Who set it; absent when Pi did. */
+    by?: string;
+    /** For one Pi set up: whom Pi worked for then. It goes out as Pi's, but as their work. */
+    requestedBy?: string;
+    createdAt: number;
+    /** How many times it went out: each time sends with its own request id, so a restart never sends one twice. */
+    runs: number;
+    /** The durable task that sends it. */
+    taskId: TaskId;
+    /** Set by the same call already, when a tool call is replayed: its `taskId:callId`. */
+    key?: string;
+};
+
+/** Messages that go to Pi later, or on repeat. A fork starts without them: they belong to who set them up. */
+export const ScheduleDoc = defineDoc<{ items: Record<string, Schedule> }>({
+    kind: "pocket.schedules",
+    version: 1,
+    scope: "conversation",
+    history: "latest",
+    fork: "initial",
+    initial: () => ({ items: {} }),
+});
+
+/** The last check of a goal: whether it passed, its exit code, and the end of its output. */
+export type GoalCheck = { passed: boolean; code: number; at: number; tail: string };
+
+/**
+ * "Done when": Pi keeps working until a check command passes, up to `max` checks. `counted` holds the generation
+ * tasks whose answer was checked already, so an answer replayed after a restart is not counted twice.
+ */
+export type Goal = {
+    command: string;
+    by: string;
+    max: number;
+    tries: number;
+    status: "working" | "met" | "gave-up";
+    last?: GoalCheck;
+    counted: string[];
+};
+
+export const GoalDoc = defineDoc<{ goal?: Goal }>({
+    kind: "pocket.goal",
+    version: 1,
+    scope: "conversation",
+    history: "latest",
+    fork: "initial",
+    initial: () => ({}),
+});
+
 
 /** A GitHub Actions run a conversation watches (`extensions/ci-watch.ts`): the task that looks at it, and what it is. */
 export type CiWatch = {

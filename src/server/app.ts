@@ -83,6 +83,8 @@ import { Providers } from "./providers.ts";
 import { type ExtensionInfo, ExtensionLoader } from "./reload.ts";
 import { ResendTask } from "./resend.ts";
 import { type Client, reportingOf, Room, ROOM_DOCS, subagentView } from "./room.ts";
+import { Schedules } from "./schedules.ts";
+import { Goals } from "./goals.ts";
 import { Shell } from "./shell.ts";
 import {
     loadSessionSkills,
@@ -237,6 +239,8 @@ export class PocketApp {
     readonly extensionCommands = new ExtensionCommands(this);
     readonly collab = new Collab(this);
     readonly providers = new Providers(this);
+    readonly schedules = new Schedules(this);
+    readonly goals = new Goals(this);
     readonly shell = new Shell(this);
     readonly spend = new Spend(this);
     /** Who Pi works for in each conversation, and who wrote and queued each message. */
@@ -462,6 +466,8 @@ export class PocketApp {
             notice: (level, message, conversationId) => this.notice(level, message, conversationId),
             heldBack: (conversationId) => this.spend.heldBack(conversationId),
             onLimitsChanged: (listener) => this.spend.onLimitsChanged(listener),
+            schedules: this.schedules,
+            goals: this.goals,
             text: Object.freeze({ quoted, defang }),
             thinkingLevels: THINKING_LEVELS,
         };

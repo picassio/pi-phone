@@ -11,6 +11,8 @@ import type {
     Tx,
 } from "@earendil-works/pi-durable";
 import type { Role, User } from "./config.ts";
+import type { Goals } from "./goals.ts";
+import type { Schedules } from "./schedules.ts";
 
 export interface ApprovalRequest {
     id: string;
@@ -182,6 +184,10 @@ export interface PocketHost {
     heldBack(conversationId: ConversationId): string | undefined;
     /** Call `listener` whenever the owner changes a spend limit; returns how to stop. */
     onLimitsChanged(listener: () => void): () => void;
+    /** Messages to Pi for later: the schedule tool sets up Pi's own. */
+    readonly schedules: Pick<Schedules, "add" | "cancel" | "list" | "task">;
+    /** Sessions' goals: the goals extension runs their checks and counts them. */
+    readonly goals: Pick<Goals, "get" | "run" | "record" | "mayContinue">;
     /**
      * Text from elsewhere made safe for Pi to read (`fence.ts`): `quoted` gives one line, cut to `max`, without
      * invisible characters or any tag, in quotes it cannot close; `defang` keeps the lines, but no closing tag survives,

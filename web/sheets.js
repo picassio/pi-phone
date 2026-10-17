@@ -11,6 +11,7 @@ import { PiSessionSheet, PiSessionsSheet, piSessionsAvailable } from "./sheets/p
 import { GitHubSheet } from "./sheets/github.js";
 import { MachinesSheet } from "./sheets/machines.js";
 import { SshKeysSheet } from "./sheets/ssh-keys.js";
+import { SchedulesSheet } from "./sheets/schedules.js";
 import { CwdSheet } from "./sheets/folder.js";
 import { MenuSheet, PlacesSheet } from "./sheets/menu.js";
 import { MessageSheet } from "./sheets/message.js";
@@ -261,6 +262,9 @@ function sheetBody(sheet) {
             break;
         case "spend":
             body = html`<${SpendSheet} />`;
+            break;
+        case "schedules":
+            body = view.conversation ? html`<${SchedulesSheet} />` : null;
             break;
         case "running":
             body = html`<${RunningSheet} />`;

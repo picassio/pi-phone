@@ -284,6 +284,33 @@ function CiWatchBar() {
     </div>`;
 }
 
+/** Done when: the check Pi works toward, how many checks it took, and a way to drop it. */
+function GoalBar() {
+    const { goal } = store.state.view;
+
+    if (!goal) {
+        return null;
+    }
+
+    const command = html`<span class="mono">${goal.command}</span>`;
+    const text =
+        goal.status === "met"
+            ? html`<strong>Done:</strong> ${command} passes (check ${goal.tries} of ${goal.max}).`
+            : goal.status === "gave-up"
+              ? html`<strong>Stopped:</strong> ${command} still fails after ${goal.max} checks.`
+              : html`<strong>Until</strong> ${command} passes${goal.tries > 0 ? ` · check ${goal.tries} of ${goal.max} failed` : ""}.`;
+
+    return html`<div class=${`goal-bar ${goal.status}`}>
+        <span class="grow">${text}</span>
+        ${
+            canSteer() &&
+            html`<button class="link small" onClick=${() => attempt(actions.clearGoal)}>
+                ${goal.status === "working" ? "Drop" : "Dismiss"}
+            </button>`
+        }
+    </div>`;
+}
+
 function PlanBar({ blocked }) {
     const { view } = store.state;
 
@@ -1069,6 +1096,7 @@ export function Composer() {
             }
             ${collab() && html`<${DriverBar} />`}
             <${PlanBar} blocked=${blocked} />
+            <${GoalBar} />
             <${CiWatchBar} />
             <${SubagentsBar} />
             <${TrustBar} />
