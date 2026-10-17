@@ -41,9 +41,10 @@ import {
 } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
-import { FROM_PI_ENTRY, type FromPiData } from "./entry-format.ts";
+import { FROM_PI_ENTRY, type FromPiData, LINK_TYPE } from "./entry-format.ts";
 import { HttpError } from "./errors.ts";
 import { formatPlace } from "./places.ts";
+
 
 const context = BACKGROUND_CONTEXT;
 
@@ -67,6 +68,8 @@ export type MachineSession = {
     /** The file's modification time there. */
     modified: number;
     size: number;
+    /** The session here it went to Pi from (`pi-handoff.ts`), while it is still linked to this file. */
+    phoneSession?: number;
 };
 /** How long a list of Pi's sessions answers "is this one of them?" for a preview or a continue after it. */
 const FOUND_FOR_MS = 5_000;
@@ -628,10 +631,27 @@ export class PiSessions {
             }
 
             let title = "Pi session";
+            let phoneSession: number | undefined;
 
             for (const line of lines.value.slice(1)) {
                 try {
-                    const entry = JSON.parse(line) as { type?: unknown; message?: { role?: unknown; content?: unknown } };
+                    const entry = JSON.parse(line) as {
+                        type?: unknown;
+                        customType?: unknown;
+                        data?: { session?: unknown };
+                        message?: { role?: unknown; content?: unknown };
+                    };
+
+                    // Written by Continue in Pi: the session's, while that session still points at this file.
+                    if (entry.type === "custom" && entry.customType === LINK_TYPE && typeof entry.data?.session === "number") {
+                        const linked = this.#app.sessionMeta(entry.data.session as unknown as ConversationId)?.piLink;
+
+                        if (linked?.machineId === machineId && linked.path === file.path) {
+                            phoneSession = entry.data.session;
+                        }
+
+                        continue;
+                    }
 
                     if (entry.type === "message" && entry.message?.role === "user") {
                         const content = entry.message.content;
@@ -654,7 +674,15 @@ export class PiSessions {
                 }
             }
 
-            sessions.push({ path: file.path, id: header.id, cwd: header.cwd, title, modified: file.modified, size: file.size });
+            sessions.push({
+                path: file.path,
+                id: header.id,
+                cwd: header.cwd,
+                title,
+                modified: file.modified,
+                size: file.size,
+                ...(phoneSession === undefined ? {} : { phoneSession }),
+            });
         }
 
         return { sessions };

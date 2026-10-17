@@ -36,6 +36,8 @@ export const FROM_PI_ENTRY = "pocket.from-pi";
 
 /** What that entry holds: the Pi session's id, its title, and its file. */
 export type FromPiData = { session: string; title: string; file: string };
+/** The `custom` entry of a Pi session file naming the session here it went to Pi from (`pi-handoff.ts`). */
+export const LINK_TYPE = "pi-phone";
 /** The entry kind of an extension command's card: text for the people here, never in Pi's context. */
 export const COMMAND_ENTRY = "pocket.extension-command";
 

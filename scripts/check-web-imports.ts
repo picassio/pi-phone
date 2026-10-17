@@ -137,6 +137,47 @@ for (const file of files(WEB)) {
     }
 }
 
+// The shared helpers (store.js, ui.js, place.js) a file calls must be defined or imported there: a call to one it
+// forgot to import is a ReferenceError only when that code runs.
+const shared = new Set(["store.js", "ui.js", "place.js"].flatMap((name) => [...exportsOf(join(WEB, name))]));
+
+for (const file of files(WEB)) {
+    const text = readFileSync(file, "utf8");
+    const where = relative(WEB, file);
+    const known = new Set<string>();
+
+    for (const match of text.matchAll(/(?:function\*?|class|const|let|var)\s+([\w$]+)/g)) {
+        known.add(match[1]!);
+    }
+
+    // Destructured and parameter names: `const { a, b } =`, `({ a }) =>`, `function f(a, b)`.
+    for (const match of text.matchAll(/(?:const|let|var)\s*\{([^}]*)\}/g)) {
+        for (const name of match[1]!.split(",")) {
+            known.add(name.trim().split(/\s*[:=]\s*/).pop()!.trim());
+        }
+    }
+
+    for (const match of text.matchAll(/^import\s+([^;"']*?)\s+from\s+["'][^"']+["']/gm)) {
+        for (const name of match[1]!.replace(/[{}]/g, ",").split(",")) {
+            const local = name.trim().split(/\s+as\s+/).pop()?.trim();
+
+            if (local) {
+                known.add(local);
+            }
+        }
+    }
+
+    for (const name of shared) {
+        if (known.has(name) || where === name) {
+            continue;
+        }
+
+        if (new RegExp(`(?<![\\w$.])${name.replace(/\$/g, "\\$")}\\(`).test(text)) {
+            problems.push(`${where}: calls ${name}, which is neither defined nor imported`);
+        }
+    }
+}
+
 if (problems.length > 0) {
     console.error(problems.join("\n"));
     process.exit(1);

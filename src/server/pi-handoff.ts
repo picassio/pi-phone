@@ -19,6 +19,7 @@ import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { SessionsDoc } from "./docs.ts";
+import { LINK_TYPE } from "./entry-format.ts";
 import { HttpError } from "./errors.ts";
 import { formatPlace, parsePlace } from "./places.ts";
 import { type PiSession, PiSessionError, readPiSession, writePiSession } from "./pi-sessions.ts";
@@ -27,8 +28,6 @@ const context = BACKGROUND_CONTEXT;
 
 /** The largest Pi session file read back. */
 const MAX_FILE_BYTES = 32 * 1024 * 1024;
-/** The `custom` entry naming the session a file came from. */
-export const LINK_TYPE = "pi-phone";
 /** A file written this long ago or less may still be written by a running `pi`. */
 const SETTLING_MS = 5_000;
 

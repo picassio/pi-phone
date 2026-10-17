@@ -1,7 +1,7 @@
 // Pi's sessions, which the owner can continue here: Pi's own on this phone, and session files imported from elsewhere
 // (another machine, Termux). The list, by folder, and one of them before it continues, as a short conversation.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
-import { actions, attempt, closeSheet, navigate, notify, openSheet, store } from "../store.js";
+import { actions, api, attempt, closeSheet, navigate, notify, openSheet, store } from "../store.js";
 import { html, Icon, Loader, Sheet, shortPath, timeAgo } from "../ui.js";
 import { isRemotePlace } from "../place.js";
 
@@ -178,10 +178,16 @@ export function PiSessionsSheet() {
                                 key=${session.path}
                                 class="pi-session"
                                 disabled=${importing}
-                                onClick=${() => importFromMachine(session)}
+                                onClick=${() =>
+                                    session.phoneSession === undefined
+                                        ? importFromMachine(session)
+                                        : (navigate(session.phoneSession), openSheet({ type: "pi-handoff" }))}
                             >
                                 <span class="pi-session-text">
-                                    <span class="pi-session-title">${session.title}</span>
+                                    <span class="pi-session-title">
+                                        ${session.title}
+                                        ${session.phoneSession !== undefined && html` <span class="pi-tag">from a session here</span>`}
+                                    </span>
                                     <span class="pi-session-meta">${shortPath(session.cwd, machine.home)} · ${timeAgo(session.modified)} ago</span>
                                 </span>
                             </button>`,
