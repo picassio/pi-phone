@@ -35,7 +35,7 @@ export function SignIn() {
     };
 
     return html`<div class="signin" data-part="sign-in">
-        <div class="pi big">π</div>
+        <div class="pi big"><img class="brand-icon" src="/icon.svg" alt="" /></div>
         <h1>pi-phone</h1>
         <p class="muted">
             The pi-phone app signs in by itself: close it and open it again. You can also paste a sign-in link, the token, or an invite code here.

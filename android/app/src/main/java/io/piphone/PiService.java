@@ -253,7 +253,7 @@ public final class PiService extends Service {
                 .setContentTitle(what + title)
                 .setContentText(event.getString("text"))
                 .setStyle(new Notification.BigTextStyle().bigText(event.getString("text")))
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentIntent(open)
                 .setAutoCancel(true)
                 .build();
@@ -275,7 +275,7 @@ public final class PiService extends Service {
         return new Notification.Builder(this, CHANNEL)
                 .setContentTitle("pi")
                 .setContentText("agent runtime running")
-                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentIntent(open)
                 .setOngoing(true)
                 .build();

@@ -1,18 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
 	<!--
-		Pi Pocket's icon. The PNGs beside it are drawn from it by rsvg-convert:
-			rsvg-convert -w N -h N web/icon.svg -o web/<file>   (apple-touch-icon.png at 180, icon-192.png, icon-512.png)
-			rsvg-convert -w 352 -h 352 --page-width 512 --page-height 512 --left 80 --top 80 -b "#13141c" web/icon.svg -o web/icon-maskable-512.png
-		Apple's rounded mask reaches as far in at the corners as the frame starts, so the frame's corners are
-		rounded to follow the mask's and stay clear of it.
+		pi-phone's icon: a heavy lowercase p with a cursor block at its foot, white on electric blue. The PNGs beside
+		it, Android's legacy launcher icon, and its adaptive icon's layers (android/app/src/main/res/drawable/ic_launcher_*.xml,
+		the same paths) are drawn from it: node scripts/icons.ts.
 	-->
 	<defs>
-		<linearGradient id="active" x1="0" y1="1" x2="1" y2="0">
-			<stop offset="0" stop-color="#33ccff" />
-			<stop offset="1" stop-color="#00ff99" />
+		<linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+			<stop offset="0" stop-color="#3a63ff" />
+			<stop offset="1" stop-color="#1c34c9" />
 		</linearGradient>
 	</defs>
-	<rect width="512" height="512" fill="#13141c" />
-	<rect x="40" y="40" width="432" height="432" rx="75" fill="#1a1b26" stroke="url(#active)" stroke-width="12" />
-	<text x="256" y="350" font-family="Georgia, 'Times New Roman', serif" font-size="280" text-anchor="middle" fill="#ff9e64">π</text>
+	<rect width="512" height="512" fill="url(#tile)" />
+	<g id="mark" transform="translate(-29 -24)">
+		<path d="M184 156 V420" fill="none" stroke="#ffffff" stroke-width="62" stroke-linecap="round" />
+		<circle cx="282" cy="236" r="98" fill="none" stroke="#ffffff" stroke-width="62" />
+		<rect x="356" y="372" width="62" height="48" rx="12" fill="#7dffb2" />
+	</g>
 </svg>

@@ -15172,3 +15172,27 @@ pre.gallery-code {
 .terminal-overlay .sheet-actions {
     margin: 0;
 }
+
+/* The app's icon (web/icon.svg) where π was: the boot screen, sign-in, and the rail. */
+.brand-icon {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 24%;
+}
+
+.boot-mark .brand-icon {
+    width: 72px;
+    height: 72px;
+}
+
+.rail-brand .brand-icon {
+    width: 26px;
+    height: 26px;
+}
+
+.signin .pi.big .brand-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto;
+}

@@ -1264,9 +1264,9 @@ export function RailNav({ foldable = false, folded = false }) {
                     aria-label="Home"
                     onClick=${toSessions}
                 >
-                    π
+                    <img class="brand-icon" src="/icon.svg" alt="" />
                 </button>`
-                : html`<span class="rail-brand" data-part="brand-mark" aria-hidden="true">π</span>`
+                : html`<span class="rail-brand" data-part="brand-mark" aria-hidden="true"><img class="brand-icon" src="/icon.svg" alt="" /></span>`
         }
         <span class="rail-gap"></span>
         ${
