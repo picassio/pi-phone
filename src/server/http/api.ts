@@ -521,6 +521,33 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, await app.providers.modelRefresh.refresh());
         }
 
+        // GitHub for the app's gh and git: the owner's, as the credentials reach every repository they can.
+        if (first === "github" && method === "GET" && second === undefined) {
+            requireOwner(user);
+
+            return json(response, 200, await app.github.status());
+        }
+
+        if (first === "github" && method === "POST" && second === "login") {
+            requireOwner(user);
+
+            return json(response, 200, await app.github.start());
+        }
+
+        if (first === "github" && method === "POST" && second === "cancel") {
+            requireOwner(user);
+            app.github.cancel();
+
+            return json(response, 200, { ok: true });
+        }
+
+        if (first === "github" && method === "POST" && second === "logout") {
+            requireOwner(user);
+            await app.github.logout();
+
+            return json(response, 200, { ok: true });
+        }
+
         // For the owner, each subscription's sign-in is asked afresh first (three seconds at most; a mark found later
         // comes with the models): one that can no longer be renewed shows as needing sign-in. Others see what was last
         // found, so nobody else makes the server ask providers.

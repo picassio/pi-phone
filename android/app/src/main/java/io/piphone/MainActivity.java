@@ -39,6 +39,7 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         web = new WebView(this);
+        web.setBackgroundColor(0xff1a1b26);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -77,7 +78,7 @@ public final class MainActivity extends Activity {
         while (!loaded) {
             PiService.State state = PiService.state();
             if (state == PiService.State.FAILED) {
-                status("The runtime failed", PiService.failure() + "\n\n" + logTail());
+                failure("The runtime failed", PiService.failure() + "\n\n" + logTail());
                 return;
             }
             if (state != last) {
@@ -92,7 +93,7 @@ public final class MainActivity extends Activity {
                     loaded = true;
                     runOnUiThread(() -> web.loadUrl(url));
                 } catch (Exception e) {
-                    status("Cannot sign in", e + "\n\n" + logTail());
+                    failure("Cannot sign in", e + "\n\n" + logTail());
                 }
                 return;
             }
@@ -143,12 +144,26 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void status(String title, String detail) {
-        String html = "<html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head>"
-                + "<body style='background:#16161e;color:#c0caf5;font-family:sans-serif;padding:24px'>"
-                + "<h3>" + Html.escapeHtml(title) + "</h3>"
-                + (detail == null ? "" : "<pre style='white-space:pre-wrap;font-size:12px'>" + Html.escapeHtml(detail) + "</pre>")
-                + "</body></html>";
+    /** The web app's colors (web/style.css, the pocket theme): this page shows before the server and its fonts are up. */
+    private static final String STATUS_STYLE = "body{margin:0;padding:24px;background:#1a1b26;color:#a9b1d6;"
+            + "font:15px/1.5 system-ui,sans-serif}h3{color:#c0caf5;font-weight:600;margin:0 0 12px}"
+            + "p{margin:0;color:#a9b1d6}pre{white-space:pre-wrap;font:12px/1.45 monospace;background:#13141c;"
+            + "color:#c0caf5;border-radius:8px;padding:12px;margin-top:16px}";
+
+    /** Progress: a title and an optional note. */
+    private void status(String title, String note) {
+        page(title, note == null ? "" : "<p>" + Html.escapeHtml(note) + "</p>");
+    }
+
+    /** A failure: a title and what the log says. */
+    private void failure(String title, String log) {
+        page(title, "<pre>" + Html.escapeHtml(log) + "</pre>");
+    }
+
+    private void page(String title, String body) {
+        String html = "<html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
+                + "<style>" + STATUS_STYLE + "</style></head><body>"
+                + "<h3>" + Html.escapeHtml(title) + "</h3>" + body + "</body></html>";
         runOnUiThread(() -> web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null));
     }
 

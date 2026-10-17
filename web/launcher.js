@@ -242,6 +242,12 @@ function actionItems() {
             icon: "key",
             run: () => openSheet({ type: "providers" }),
         },
+        me?.role === "owner" && {
+            label: "GitHub",
+            detail: "sign in for Pi's git and gh",
+            icon: "key",
+            run: () => openSheet({ type: "github" }),
+        },
         modelRefreshAvailable() && {
             label: "Refresh models",
             detail: store.state.modelRefresh.loading

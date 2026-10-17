@@ -61,6 +61,7 @@ import { ExtensionCommands } from "./extension-commands.ts";
 import { ExtensionWebs, mayUse } from "./extension-web.ts";
 import { defang, quoted } from "./fence.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
+import { GitHubLogin } from "./github-login.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { takeLock } from "./lock.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
@@ -238,6 +239,8 @@ export class PocketApp {
     readonly transcripts = new Transcripts(this);
     /** Each person's favorite working folders, shared by their devices. */
     readonly folderFavorites = new FolderFavorites(this);
+    /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */
+    readonly github = new GitHubLogin();
     /** Theme folders: the app's look and layout, built in and the owner's (`themes.ts`). */
     readonly themes: Themes;
     /** What extension modules add to the app: their routes, browser modules, and events (`extension-web.ts`). */
@@ -2484,6 +2487,7 @@ export class PocketApp {
             }
 
             this.providers.close();
+            this.github.cancel();
 
             // A timer that holds the process: with nothing else to do, Node would end it here, before the rest closed.
             let limit: NodeJS.Timeout | undefined;

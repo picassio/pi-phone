@@ -7,6 +7,7 @@ import { BranchPicker } from "./sheets/branch.js";
 import { ExtensionsSheet } from "./sheets/extensions.js";
 import { FileSheet } from "./sheets/file.js";
 import { FindSheet } from "./sheets/find.js";
+import { GitHubSheet } from "./sheets/github.js";
 import { CwdSheet } from "./sheets/folder.js";
 import { MenuSheet, PlacesSheet } from "./sheets/menu.js";
 import { MessageSheet } from "./sheets/message.js";
@@ -176,6 +177,9 @@ function sheetBody(sheet) {
             break;
         case "providers":
             body = html`<${ProvidersSheet} />`;
+            break;
+        case "github":
+            body = html`<${GitHubSheet} />`;
             break;
         case "extensions":
             body = html`<${ExtensionsSheet} />`;
