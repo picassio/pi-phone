@@ -47,7 +47,7 @@ Done:
 - pi-pocket server and web, cut down (DESIGN.md section 3), pi-phone wording; Claude Code billing patch
   (`claude-billing.ts`, `phone.json`; a test builds pi-ai's real Anthropic request and checks the patch still finds
   it); GitHub device sign-in; Continue a Pi session (file import, a chosen folder, from a machine).
-- Restored from pi-pocket: artifacts, scheduled messages and goals. Staying out by the owner's decision: PiP, Agent
+- Restored from pi-pocket: artifacts, scheduled messages and goals. Staying out by the owner's decision: PiP's panel and follows (its session tools are back as Other sessions), Agent
   Teams, memory, triggers/watches/webhooks, the built-in browser, the gallery and drop-ins, Lancet Guard, Web Push,
   share target, dictation. No more trimming: multiplayer, theme editing, the launcher, the extension layer stay.
 - Remote work: SSH keys, Machines, sessions on a machine (`machine:<id>:<path>`), Files/viewer/images/Changes/
@@ -58,6 +58,8 @@ Done:
   the shell outlives its socket for 15 min and is taken up again by id with its last output; Paste, Select, End.
 - Notifications (PiService polls `/api/phone/events`), downloads to Downloads (bridge `download`), ports of
   machines (`forwards.ts`), branches on a machine, This phone (battery optimisation, backup and restore, `backup.ts`).
+- Other sessions (`session-control.ts`, `extensions/sessions.ts`): Pi lists, reads, starts, messages, waits for,
+  and stops other sessions as its person; denies approvals, never allows.
 - Continue in Pi, and back (`pi-handoff.ts`, `web/sheets/pi-handoff.js`, the dock's Pi bar).
 - `npm run upstream` (`scripts/upstream.ts`): pi packages vs npm (`--bump` pins and installs the newest), and
   pi-pocket / pi-termux-mobile commits since `UPSTREAM.md`'s, with the files this fork still has.

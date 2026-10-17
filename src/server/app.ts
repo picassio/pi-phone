@@ -69,6 +69,7 @@ import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
 import { PhoneEvents } from "./phone-events.ts";
 import { Forwards } from "./forwards.ts";
+import { SessionControl } from "./session-control.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { parsePlace, Places } from "./places.ts";
@@ -271,6 +272,8 @@ export class PocketApp {
     readonly places: Places;
     /** Ports of machines opened here (`forwards.ts`). */
     readonly forwards: Forwards;
+    /** Sessions acting on other sessions (`session-control.ts`). */
+    readonly sessionControl = new SessionControl(this);
     /** Theme folders: the app's look and layout, built in and the owner's (`themes.ts`). */
     readonly themes: Themes;
     /** What extension modules add to the app: their routes, browser modules, and events (`extension-web.ts`). */
@@ -478,6 +481,7 @@ export class PocketApp {
             heldBack: (conversationId) => this.spend.heldBack(conversationId),
             onLimitsChanged: (listener) => this.spend.onLimitsChanged(listener),
             schedules: this.schedules,
+            sessions: this.sessionControl,
             goals: this.goals,
             text: Object.freeze({ quoted, defang }),
             thinkingLevels: THINKING_LEVELS,
