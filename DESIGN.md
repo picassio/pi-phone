@@ -100,6 +100,12 @@ pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   `~/.ssh/keys/<id>` (mode 600) with names in `keys.json`. Generated (ed25519, no passphrase: background work has
   nobody to ask) or imported; the public key is shown to put in a machine's `authorized_keys`. Each machine is
   assigned one key (Machines, next).
+- **Machines** (`src/server/machines.ts`, `web/sheets/machines.js`): other computers sessions can work on, through
+  `@earendil-works/pi-env` (its daemon on the machine, deployed over ssh and verified by hash). `machines.json` holds
+  name, `user@host[:port]`, and the SSH key; host keys the owner accepted are in `~/.ssh/pi-phone_known_hosts` under
+  one alias per machine (a changed key is refused). Three owner taps before anything runs there: scan the host key,
+  accept it, "Install and connect" (deploys the daemon to `~/.pi/mobile/tools` on the machine). `ready(id)` refuses a
+  machine not connected yet, so the agent can never trigger a deployment. Tested against the bundled `sshd`.
 - **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI publishes a release, and
   the app updates from it (section 5).
 

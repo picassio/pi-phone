@@ -15031,3 +15031,29 @@ pre.gallery-code {
     border-radius: var(--r-control);
     user-select: all;
 }
+
+/* ─── Machines (pi-phone) ────────────────────────────────────── */
+
+.machine .provider-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.machine-form {
+    flex: 1;
+}
+
+.machine-step {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--code-bg);
+    border-radius: var(--r-control);
+}
+
+.machine-step > p {
+    margin: 0 0 8px;
+}
+
+.machine-step .sheet-actions {
+    margin-top: 8px;
+}

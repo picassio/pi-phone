@@ -256,6 +256,12 @@ function actionItems() {
             run: () => openSheet({ type: "github" }),
         },
         me?.role === "owner" && {
+            label: "Machines",
+            detail: "run sessions on other computers over ssh",
+            icon: "monitor",
+            run: () => openSheet({ type: "machines" }),
+        },
+        me?.role === "owner" && {
             label: "SSH keys",
             detail: "keys the app connects to machines with",
             icon: "key",

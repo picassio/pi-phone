@@ -9,6 +9,7 @@ import { FileSheet } from "./sheets/file.js";
 import { FindSheet } from "./sheets/find.js";
 import { PiSessionSheet, PiSessionsSheet, piSessionsAvailable } from "./sheets/pi-sessions.js";
 import { GitHubSheet } from "./sheets/github.js";
+import { MachinesSheet } from "./sheets/machines.js";
 import { SshKeysSheet } from "./sheets/ssh-keys.js";
 import { CwdSheet } from "./sheets/folder.js";
 import { MenuSheet, PlacesSheet } from "./sheets/menu.js";
@@ -179,6 +180,9 @@ function sheetBody(sheet) {
             break;
         case "providers":
             body = html`<${ProvidersSheet} />`;
+            break;
+        case "machines":
+            body = html`<${MachinesSheet} />`;
             break;
         case "ssh-keys":
             body = html`<${SshKeysSheet} />`;

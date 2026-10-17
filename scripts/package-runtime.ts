@@ -6,7 +6,8 @@
  *   node scripts/package-runtime.ts
  *
  * Needs a clean checkout (the version is the commit) and GNU `tar`. Hard links are stored as copies (Android forbids
- * hard links in app data); `node_modules/.bin` folders are left out (nothing runs them, and their links can dangle).
+ * hard links in app data); `node_modules/.bin` folders are left out (nothing runs them, and their links can dangle), and so
+ * are pi-env's Windows daemons (DESIGN.md: machines are Linux, macOS, or Termux until a Windows one is wanted).
  */
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -44,7 +45,7 @@ try {
         cpSync(join(ROOT, each), join(stage, each), {
             recursive: true,
             verbatimSymlinks: true,
-            filter: (source) => basename(source) !== ".bin",
+            filter: (source) => basename(source) !== ".bin" && !/pi-env-windows-/.test(basename(source)),
         });
     }
 

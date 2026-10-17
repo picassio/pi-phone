@@ -603,7 +603,68 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
         if (first === "ssh-keys" && method === "DELETE" && second !== undefined) {
             requireOwner(user);
+            const using = app.machines.usingKey(second);
+
+            if (using.length > 0) {
+                throw new HttpError(
+                    409,
+                    `This key is used by ${using.map((machine) => machine.name).join(", ")}. Give those machines another key first.`,
+                );
+            }
+
             app.sshKeys.remove(second);
+
+            return json(response, 200, { ok: true });
+        }
+
+        // Machines (`machines.ts`): the owner's; nothing runs on one without their tap.
+        if (first === "machines" && method === "GET" && second === undefined) {
+            requireOwner(user);
+
+            return json(response, 200, { machines: app.machines.list() });
+        }
+
+        if (first === "machines" && method === "POST" && second === undefined) {
+            requireOwner(user);
+
+            return json(response, 200, app.machines.add(await readJson(request)));
+        }
+
+        if (first === "machines" && second !== undefined && method === "POST") {
+            requireOwner(user);
+
+            if (third === undefined) {
+                return json(response, 200, await app.machines.edit(second, await readJson(request)));
+            }
+
+            if (third === "scan") {
+                return json(response, 200, await app.machines.scan(second));
+            }
+
+            if (third === "accept") {
+                const body = await readJson<{ lines?: unknown; fingerprint?: unknown }>(request);
+
+                return json(response, 200, await app.machines.accept(second, body.lines, body.fingerprint));
+            }
+
+            if (third === "forget") {
+                await app.machines.forget(second);
+
+                return json(response, 200, { ok: true });
+            }
+
+            if (third === "connect") {
+                return json(response, 200, await app.machines.connect(second));
+            }
+
+            if (third === "detect") {
+                return json(response, 200, await app.machines.detect(second));
+            }
+        }
+
+        if (first === "machines" && method === "DELETE" && second !== undefined) {
+            requireOwner(user);
+            await app.machines.remove(second);
 
             return json(response, 200, { ok: true });
         }
