@@ -6,7 +6,7 @@
  * again, or finds the answer given while it was away.
  */
 import { Type } from "@earendil-works/pi-ai";
-import { defineExtension, defineTool } from "@earendil-works/pi-durable";
+import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { type Interview, InterviewsDoc, outcomeText, parseQuestions, type QuestionsFile, validateQuestions } from "../interviews.ts";
 
@@ -28,6 +28,9 @@ const DESCRIPTION =
     'content shows code or Markdown (lang "md") above the options; Markdown can hold ```mermaid diagrams. ' +
     'Media: { type: "image", src, alt, caption } (a file path or data: URL), { type: "table", table: { headers, rows, highlights } }, { type: "mermaid", mermaid: "flowchart LR..." } (for charts too: pie, xychart), { type: "html", html }. ' +
     "Types: single (one choice), multi (several), text (free text), image (photos the person takes or picks, returned as file paths: read them), info (context only, no answer).";
+
+/** In every prompt while the module is on. */
+export const ASKING = `Asking the person: when you need them to choose between options, or to answer several things at once (requirements, a decision with parts, which of several next steps), call interview instead of writing the questions in chat. Give your recommendation with each question. A single yes/no question, or one short question, stays in chat. Ask before acting, not after.`;
 
 export default function createInterview(host: PocketHost) {
     const interview = defineTool({
@@ -138,5 +141,10 @@ export default function createInterview(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: "pocket-interview", tools: [interview] });
+    return defineExtension({
+        name: "pocket-interview",
+        tools: [interview],
+        // A rule, not only the tool's description: the habit of asking in chat is stronger than a description.
+        sections: [section("asking", () => ASKING)],
+    });
 }

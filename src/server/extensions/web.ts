@@ -4,7 +4,7 @@
  * arguments as pi-web-access, so prompts written for it work here. Both only read, so plan mode allows them.
  */
 import { Type } from "@earendil-works/pi-ai";
-import { defineExtension, defineTool } from "@earendil-works/pi-durable";
+import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { DOCUMENT_FORMATS, documentKind, toMarkdown } from "../documents.ts";
 import { fetchContent, inline } from "../web/fetch.ts";
@@ -24,6 +24,9 @@ function listed(query: string, provider: string, answer: string | undefined, res
 
     return [`## ${query} (${provider}, ${results.length} result${results.length === 1 ? "" : "s"})`, ...(answer ? ["", answer] : []), "", ...(lines.length === 0 ? ["No results."] : lines)].join("\n");
 }
+
+/** In every prompt while the module is on. */
+export const WEB_RULE = `The web: research with web_search, then read what you need with fetch_content (pages, PDFs and other documents, GitHub repositories, issues and pull requests), not with curl, wget, or other commands in bash. Read local documents (PDF, Office, EPUB, …) with file_to_markdown. Use commands for the web only for what these cannot do, such as calling an API or downloading a file to keep.`;
 
 export default function createWeb(host: PocketHost) {
     const search = defineTool({
@@ -184,5 +187,9 @@ export default function createWeb(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: "pocket-web", tools: [search, fetchTool, convert] });
+    return defineExtension({
+        name: "pocket-web",
+        tools: [search, fetchTool, convert],
+        sections: [section("web", () => WEB_RULE)],
+    });
 }

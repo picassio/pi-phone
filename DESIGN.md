@@ -245,6 +245,12 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   - **`fetch_content`:** document URLs. HTML still goes to Readability first, for the article rather than the whole page.
   - **`wiki_ingest`:** a document path on the phone is converted to `<file>.md`, and that file is ingested (pi-para
     reads files as UTF-8).
+- **Tool-use rules** (prompt sections, each from its module, so off with it): `asking` (`extensions/interview.ts`:
+  choices and multi-part questions go through `interview`, a single yes/no stays in chat), `web` (`extensions/web.ts`:
+  research with `web_search` and `fetch_content`, local documents with `file_to_markdown`, not curl), and
+  `plan_mode` while plan mode is off (`SUGGEST_PLAN` in `plan.ts`: suggest it before large or risky changes; only a
+  person turns it on). They were added after Pi asked a multi-part decision in chat and researched with `gh` and `npm`
+  though the tools were there: a tool's description alone did not change the habit, as the wiki's rules had shown.
 - **Settings and extensions:** each feature's settings are in Settings (the menu), and follow its module.
   - **Extensions' own rows:** an extension adds its row with `pocket.menu`, which the menu lists with the app's settings
     and drops when the module is off. The wiki's "Wiki" row opens its settings sheet; the Wiki page has no Settings
