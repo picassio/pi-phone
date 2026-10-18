@@ -4,7 +4,9 @@
  * The wiki is pi-para's, at ~/.pi/wiki, shared with pi-para in pi on other computers (`para.ts`).
  */
 import type { Static, TSchema } from "@earendil-works/pi-ai";
-import { defineExtension, defineTool, type ToolExecutionResult } from "@earendil-works/pi-durable";
+import { defineExtension, defineTool, section, type ToolExecutionResult } from "@earendil-works/pi-durable";
+import { CAPTURE_SYSTEM_PROMPT } from "pi-para/templates/prompts";
+import { CAPTURE_EXTENSION } from "../para-capture.ts";
 import type { JsonValue } from "@earendil-works/chord";
 import { buildWikiToolGuidanceSection, WIKI_TOOL_DESCRIPTIONS, type WikiToolName } from "pi-para/wiki-tool-guidance";
 import { createEditExecute, createReadExecute } from "pi-para/tools/edit-read";
@@ -130,7 +132,33 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
         tool("wiki_migrate", WikiMigrateParams, (wiki) => createMigrateExecute(wiki.wikiDir)()),
     ];
 
-    return defineExtension({
+    // The capture session's own extension (`para-capture.ts`), selected there alone: the wiki tools, and pi-para's capture
+    // instructions as its whole prompt.
+    const capture = defineExtension({
+        name: CAPTURE_EXTENSION,
+        tools,
+        sections: [section("capture", () => CAPTURE_SYSTEM_PROMPT, { tag: false })],
+    });
+
+    web.route(
+        "POST",
+        "capture",
+        async (request) => {
+            const session = request.body.session;
+
+            if (typeof session !== "number") {
+                throw web.error(400, "Name the session to capture.");
+            }
+
+            return host.wikiCapture.capture(session as never).catch((error: unknown) => {
+                throw failed(error);
+            });
+        },
+        owner,
+    );
+    web.route("GET", "capture", () => host.wikiCapture.status(), owner);
+
+    const main = defineExtension({
         name: "pocket-para",
         tools,
         sections: [
@@ -151,4 +179,6 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
             },
         ],
     });
+
+    return [main, capture];
 }

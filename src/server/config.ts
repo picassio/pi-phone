@@ -87,9 +87,12 @@ interface PocketConfig {
      * no limit. Absent: `DEFAULT_SEND_LIMIT`. A session's own (`SessionMeta.sendLimit`) comes first.
      */
     sessionSendLimit?: number | null;
+    /** Minutes a session is idle before what it learned goes to the wiki (`para-capture.ts`); null: never by itself. */
+    wikiCaptureMinutes?: number | null;
 }
 
 export const DEFAULT_SEND_LIMIT = 30;
+export const DEFAULT_CAPTURE_MINUTES = 20;
 
 /** Who may allow a risky tool call: anyone who can steer, or (for guests) only someone other than who asked. */
 export type ApprovalRule = "anyone" | "others";
@@ -216,6 +219,22 @@ export class ConfigStore {
             delete this.#config.subagentModels;
         } else {
             this.#config.subagentModels = [...models];
+        }
+
+        this.save();
+    }
+
+    get wikiCaptureMinutes(): number | null {
+        const minutes = this.#config.wikiCaptureMinutes;
+
+        return minutes === null ? null : typeof minutes === "number" && minutes > 0 ? minutes : DEFAULT_CAPTURE_MINUTES;
+    }
+
+    set wikiCaptureMinutes(minutes: number | null) {
+        if (minutes === DEFAULT_CAPTURE_MINUTES) {
+            delete this.#config.wikiCaptureMinutes;
+        } else {
+            this.#config.wikiCaptureMinutes = minutes;
         }
 
         this.save();

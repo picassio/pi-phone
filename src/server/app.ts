@@ -71,6 +71,7 @@ import { PhoneEvents } from "./phone-events.ts";
 import { Forwards } from "./forwards.ts";
 import { SessionControl } from "./session-control.ts";
 import { Para } from "./para.ts";
+import { CAPTURE_EXTENSION, ParaCapture } from "./para-capture.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
@@ -288,6 +289,7 @@ export class PocketApp {
     readonly forwards: Forwards;
     /** The PARA wiki (`para.ts`). */
     readonly para: Para;
+    readonly paraCapture: ParaCapture = new ParaCapture(this);
     /** Sessions acting on other sessions (`session-control.ts`). */
     readonly sessionControl = new SessionControl(this);
     /** Theme folders: the app's look and layout, built in and the owner's (`themes.ts`). */
@@ -516,6 +518,7 @@ export class PocketApp {
             schedules: this.schedules,
             sessions: this.sessionControl,
             para: this.para,
+            wikiCapture: this.paraCapture,
             goals: this.goals,
             text: Object.freeze({ quoted, defang }),
             thinkingLevels: THINKING_LEVELS,
@@ -608,6 +611,8 @@ export class PocketApp {
 
         // Work a previous process left unfinished continues now.
         this.harness.resume();
+        // Idle sessions' captures into the wiki, from now on.
+        this.paraCapture.start();
     }
 
     /**
@@ -893,9 +898,12 @@ export class PocketApp {
         const stream = () => this.streamSettings();
 
         return {
-            // Every installed extension, in install order.
+            // Every installed extension, in install order, but the wiki capture session's own: only it selects that.
             get extensions() {
-                return registry()?.snapshot().installed();
+                return registry()
+                    ?.snapshot()
+                    .installed()
+                    .filter((extension) => extension.name !== CAPTURE_EXTENSION);
             },
             get stream() {
                 return stream();
@@ -1645,6 +1653,8 @@ export class PocketApp {
                 approvalRule: this.config.approvalRule,
                 // How many messages and new sessions a session may send others in an hour (`session-control.ts`).
                 sessionSendLimit: this.config.sessionSendLimit,
+                // Minutes idle before a session is captured into the wiki, or null (`para-capture.ts`).
+                wikiCaptureMinutes: this.config.wikiCaptureMinutes,
                 // The model and thinking level new sessions start with, or null for the last one picked.
                 defaultModel: this.config.defaultModel ?? null,
                 // The theme and colors of browsers that have not chosen their own, or null for the app's own.
@@ -2340,6 +2350,20 @@ export class PocketApp {
         await this.#refreshClients();
     }
 
+    /** Minutes a session is idle before it is captured into the wiki, or null: only when asked (`para-capture.ts`). */
+    async setWikiCaptureMinutes(user: User, minutes: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (minutes !== null && (typeof minutes !== "number" || !Number.isInteger(minutes) || minutes < 1 || minutes > 1440)) {
+            throw new HttpError(400, "Capture after a whole number of idle minutes from 1 to 1440, or null for only when asked.");
+        }
+
+        this.config.wikiCaptureMinutes = minutes;
+        await this.#refreshClients();
+    }
+
     /** One session's own limit: a number, null for none, or "inherit" for the owner's setting. */
     async setSendLimit(id: ConversationId, user: User, limit: unknown): Promise<void> {
         if (user.role !== "owner") {
@@ -2723,6 +2747,7 @@ export class PocketApp {
             try {
                 // Close writes no outcome: running work resumes when the next process opens the storage.
                 await this.harness?.close(context);
+                this.paraCapture.stop();
                 this.forwards.closeAll();
                 await this.para.close();
                 await this.places.close(context);

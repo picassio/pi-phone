@@ -618,6 +618,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 defaultModel?: unknown;
                 subagentModels?: unknown;
                 sessionSendLimit?: unknown;
+                wikiCaptureMinutes?: unknown;
             }>(request);
 
             // One at a time: a second that fails must not leave the first changed.
@@ -627,6 +628,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.defaultModel,
                     body.subagentModels,
                     body.sessionSendLimit,
+                    body.wikiCaptureMinutes,
                 ].filter((value) => value !== undefined).length > 1
             ) {
                 throw new HttpError(400, "Change one setting at a time.");
@@ -639,6 +641,10 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
             if (body.approvalRule !== undefined) {
                 await app.setApprovalRule(user, body.approvalRule);
+            }
+
+            if (body.wikiCaptureMinutes !== undefined) {
+                await app.setWikiCaptureMinutes(user, body.wikiCaptureMinutes);
             }
 
             if (body.sessionSendLimit !== undefined) {

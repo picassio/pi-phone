@@ -77,6 +77,7 @@ export default function wiki(pocket) {
         const [history, setHistory] = useState([]);
         const [tree, setTree] = useState(null);
         const [status, setStatus] = useState(null);
+        const [capture, setCapture] = useState(null);
         const [problem, setProblem] = useState(null);
         const [reload, setReload] = useState(0);
 
@@ -112,10 +113,11 @@ export default function wiki(pocket) {
         };
 
         useEffect(() => {
-            Promise.all([pocket.api("tree"), pocket.api("status")]).then(
-                ([loaded, loadedStatus]) => {
+            Promise.all([pocket.api("tree"), pocket.api("status"), pocket.api("capture")]).then(
+                ([loaded, loadedStatus, loadedCapture]) => {
                     setTree(loaded);
                     setStatus(loadedStatus);
+                    setCapture(loadedCapture);
                     setProblem(null);
                 },
                 (error) => setProblem(error.message),
@@ -159,14 +161,14 @@ export default function wiki(pocket) {
 
         return html`<div class="wiki" onClick=${onClick}>
             ${view.kind !== "home" && html`<button class="wiki-back link" onClick=${back}>‹ Back</button>`}
-            ${view.kind === "home" && html`<${Home} tree=${tree} status=${status} go=${go} />`}
+            ${view.kind === "home" && html`<${Home} tree=${tree} status=${status} capture=${capture} go=${go} />`}
             ${view.kind === "search" && html`<${Search} query=${view.q} go=${go} />`}
             ${view.kind === "page" && html`<${Page} path=${view.path} key=${`${view.path}:${reload}`} go=${go} />`}
             ${view.kind === "edit" && html`<${Editor} ...${view} onSaved=${saved} />`}
         </div>`;
     }
 
-    function Home({ tree, status, go }) {
+    function Home({ tree, status, capture, go }) {
         const [query, setQuery] = useState("");
         const [open, setOpen] = useState({ projects: true, areas: true, resources: true, archives: false });
 
@@ -203,6 +205,20 @@ export default function wiki(pocket) {
                 html`<p class="wiki-meta">
                     ${status.pages} page${status.pages === 1 ? "" : "s"} · ${status.wikiDir.replace(/^.*\/files\/home/, "~")} ·
                     search ${status.embedding ? `keywords and ${status.embedding}` : "by keywords"}
+                </p>`
+            }
+            ${
+                capture &&
+                html`<p class="wiki-meta">
+                    ${
+                        capture.model === null
+                            ? `Capture is off: ${capture.why}.`
+                            : capture.minutes === null
+                              ? `Capture only when asked (session menu), on ${capture.model}.`
+                              : `Sessions idle for ${capture.minutes} min are captured, on ${capture.model}.`
+                    }
+                    ${capture.last && ` Last: session #${capture.last.session}, ${ago(new Date(capture.last.at).toISOString())} ago.`}
+                    ${capture.conversation !== null && html` <a href=${`/s/${capture.conversation}`}>Open the capture session</a>`}
                 </p>`
             }
             ${CATEGORIES.map(([key, label, hint]) => {
@@ -381,6 +397,27 @@ export default function wiki(pocket) {
         iconPath: BOOK,
         keywords: ["para", "notes", "knowledge", "pi-para"],
         page: "wiki",
+    });
+    pocket.menu({
+        id: "wiki-capture",
+        label: "Capture to wiki",
+        hint: "what this session learned, into the wiki",
+        run: async () => {
+            const session = pocket.conversationId();
+
+            if (session === null) {
+                pocket.notify("warning", "Open a session to capture it.");
+
+                return;
+            }
+
+            const result = await pocket.api("capture", { session });
+
+            pocket.notify(
+                result.sent ? "info" : "warning",
+                result.sent ? "Capturing this session into the wiki, in the Wiki capture session." : `Nothing captured: ${result.why}.`,
+            );
+        },
     });
     pocket.launcher({
         id: "wiki-new",

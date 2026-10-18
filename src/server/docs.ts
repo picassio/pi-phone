@@ -37,6 +37,8 @@ export type SessionMeta = {
      * a number, or null for no limit. Absent: the owner's setting for all sessions.
      */
     sendLimit?: number | null;
+    /** The "Wiki capture" session (`para-capture.ts`): captures of the others run there. */
+    wikiCapture?: boolean;
     /** Where the session went in Pi on a machine, and how far the two agree (`pi-handoff.ts`). */
     piLink?: PiLink;
     /**

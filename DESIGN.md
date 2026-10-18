@@ -149,6 +149,11 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   The Wiki page is the module's browser part (`extensions/para-web/`, owner only): the PARA tree, qmd search, pages
   rendered with `[[links]]`, backlinks, freshness, an editor that saves through pi-para's `wiki_write`, and Ask Pi
   (`pocket.compose`). The app's markdown turns `[[page]]` into `#wiki:page` links anywhere; the Wiki page opens them.
+  Capture (`para-capture.ts`): a session idle for `wikiCaptureMinutes` (config.json, 20 by default, null: only when
+  asked from the menu) with entries past its watermark (`ParaCaptureDoc`) gets those messages, serialized by pi-para,
+  under pi-para's capture prompt, sent to the archived "Wiki capture" session, reset first. That session selects only
+  `pocket-para-capture` (the wiki tools and `CAPTURE_SYSTEM_PROMPT`), which the default selection leaves out; it runs on
+  pi-para's `models.capture`, or the app's default model for "auto". The watermark moves when the capture is sent.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

@@ -118,6 +118,15 @@ export class Para {
         return { wikiDir: this.#config!.paths.wikiDir, config: this.#config!.config, store: this.#store! };
     }
 
+    /** The wiki's folder, once it is open. */
+    wikiDirNow(): string {
+        if (this.#config === undefined) {
+            throw new Error("The wiki is not open yet.");
+        }
+
+        return this.#config.paths.wikiDir;
+    }
+
     /** The wiki changed: every scope's context is built again on its next use. */
     markDirty(): void {
         this.#contexts.clear();

@@ -9,6 +9,8 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 
 let told = "";
+/** The tools the capture session was offered, the last time it asked. */
+let captureTools: string[] = [];
 const page = {
     category: "resources",
     slug: "terminal-reattach",
@@ -26,6 +28,22 @@ const route: FauxResponseStep = (request) => {
     }
 
     const { role, text } = lastText(request as never);
+
+    if (role === "user" && text.includes("<session-conversation>")) {
+        // Tools come with the transcript's system messages.
+        captureTools = (request as { messages: { role: string; toolsAdded?: { name: string }[] }[] }).messages.flatMap((message) =>
+            message.role === "system" ? (message.toolsAdded ?? []).map((each) => each.name) : [],
+        );
+
+        return fauxAssistantMessage(
+            [
+                fauxToolCall("wiki_write", {
+                    pages: [{ ...page, slug: "captured-fact", title: "Captured fact", body: `## Key facts\n\n${text.includes("the deploy key") ? "The deploy key is at ~/.ssh/deploy." : "?"}\n` }],
+                }),
+            ],
+            { stopReason: "toolUse" },
+        );
+    }
 
     if (role === "user" && text.endsWith("remember this")) {
         return fauxAssistantMessage([fauxToolCall("wiki_write", { pages: [page], logSummary: "terminal reattach" })], { stopReason: "toolUse" });
@@ -123,4 +141,34 @@ test("the Wiki page's routes: the tree, a page with its backlinks, search, and s
     assert.equal(status.pages, 2);
     assert.equal(status.embedding, null);
     assert.ok(status.log.length > 0);
+});
+
+test("an idle session is captured into the wiki by the capture session, once, with the wiki tools alone", async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    await turn(id, "the deploy key is at ~/.ssh/deploy");
+
+    // pi-para's capture model is "auto": the app's default model, which is none yet.
+    assert.match((await app.paraCapture.capture(id)).why ?? "", /pick a capture model/);
+    await app.setDefaultModel(owner(app), { provider: "faux", modelId: "faux-1" });
+
+    const sent = await app.paraCapture.capture(id);
+
+    assert.equal(sent.sent, true);
+    const capture = sent.conversation! as never;
+
+    await app.harness.waitForIdle(context);
+    assert.ok(existsSync(join(home, ".pi", "wiki", "resources", "captured-fact.md")));
+    assert.match(readFileSync(join(home, ".pi", "wiki", "resources", "captured-fact.md"), "utf8"), /deploy key is at/);
+    assert.deepEqual(captureTools.filter((name) => !name.startsWith("wiki_")), [], captureTools.join(", "));
+    assert.ok(captureTools.includes("wiki_query"));
+
+    const meta = app.sessionMeta(capture)!;
+
+    assert.equal(meta.wikiCapture, true);
+    assert.equal(meta.archived, true);
+    assert.deepEqual(await app.paraCapture.capture(id), { sent: false, why: "nothing new since the last capture" });
+    assert.match(JSON.stringify(await app.paraCapture.status()), /"model":"faux\/faux-1"/);
+    assert.deepEqual(await app.paraCapture.capture(capture), { sent: false, why: "only sessions are captured" });
 });
