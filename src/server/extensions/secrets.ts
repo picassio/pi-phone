@@ -15,6 +15,8 @@ import {
     ToolTask,
 } from "@earendil-works/pi-durable";
 import type { JsonValue } from "@earendil-works/chord";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import type { PocketHost } from "../host.ts";
 import { namesIn, SECRET_NAME } from "../secrets.ts";
 
@@ -48,6 +50,28 @@ function redactJson(value: JsonValue, redact: (text: string) => string): JsonVal
 
 export default function createSecrets(host: PocketHost) {
     const { secrets } = host;
+    // The app's own stores of keys: its ssh folder (keys, its agent's socket), the database (private SSH keys), and the
+    // secrets' file. Pi's tools stay out of them; uploads, in the same data folder, stay Pi's to read.
+    const stores = [join(host.dataDir, "ssh"), join(host.dataDir, "pocket.sqlite"), join(host.dataDir, "secrets.json")];
+    const spelled = stores.flatMap((path) => [path, ...(path.startsWith(`${homedir()}/`) ? [`~${path.slice(homedir().length)}`] : [])]);
+    const STORES = "The app keeps its keys (SSH keys, its ssh-agent, the secrets) out of Pi's tools: use machine_run, machine_copy, or a session on a machine for machines, and secrets by name in bash.";
+
+    /** Why a call may not run, if it reaches the app's key stores: a path tool on one, or a command that names one. */
+    const keyStores = (tool: string, args: Record<string, unknown>): string | undefined => {
+        if ((tool === "read" || tool === "write" || tool === "edit") && typeof args.path === "string") {
+            const path = resolve(args.path.replace(/^~(?=\/|$)/, homedir()));
+
+            return stores.some((store) => path === store || path.startsWith(`${store}/`) || path.startsWith(`${store}-`)) ? STORES : undefined;
+        }
+
+        if (tool === "bash" && typeof args.command === "string") {
+            const command = args.command;
+
+            return spelled.some((store) => command.includes(store)) || /\bSSH_AUTH_SOCK\b|\bssh-add\b/.test(command) ? STORES : undefined;
+        }
+
+        return undefined;
+    };
     const cwdOf = async (api: { agent?: (context: never) => Promise<{ cwd?: string }> }, context: unknown) =>
         (await api.agent?.(context as never))?.cwd ?? "";
 
@@ -195,7 +219,14 @@ export default function createSecrets(host: PocketHost) {
             hook(ToolTask, {
                 // A command naming a secret: refused where it may not be used, held for a person where it asks first.
                 beforeTool: async (call, api, context) => {
-                    if (call.name !== "bash") {
+                    const guarded = keyStores(call.name, call.arguments as Record<string, unknown>);
+
+                    if (guarded !== undefined) {
+                        return { block: guarded };
+                    }
+
+                    // machine_run runs a command as bash does, on a machine: the same rules for the secrets it names.
+                    if (call.name !== "bash" && call.name !== "machine_run") {
                         return undefined;
                     }
 

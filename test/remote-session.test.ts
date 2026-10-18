@@ -27,6 +27,8 @@ const sshdPath = ["/usr/sbin/sshd", join(process.env.PREFIX ?? "/usr", "bin", "s
 const skip = sshdPath === undefined ? "no sshd on this machine" : false;
 
 let told = "";
+/** Asks the scripted model answers with one tool call, set by the tests. */
+const calls: Record<string, [string, Record<string, unknown>]> = {};
 let preamble = "";
 
 const route: FauxResponseStep = (request) => {
@@ -43,6 +45,16 @@ const route: FauxResponseStep = (request) => {
     }
 
     const { role, text } = lastText(request as never);
+
+    // The last message may be a system one (a section that changed, such as the secrets'): the ask is the last non-system one.
+    const asked = lastText({ messages: messages.filter((message) => message.role !== "system") } as never);
+
+    for (const [ask, [tool, args]] of Object.entries(calls)) {
+        // With guests (an earlier test adds one), a message comes as "[from: Owner] …".
+        if (asked.role === "user" && asked.text.endsWith(ask)) {
+            return fauxAssistantMessage([fauxToolCall(tool, args as never)], { stopReason: "toolUse" });
+        }
+    }
 
     if (role === "user" && text === "where are you") {
         return fauxAssistantMessage([fauxToolCall("bash", { command: "pwd; echo marker-$HOME" })], { stopReason: "toolUse" });
@@ -533,36 +545,53 @@ test("a port of the machine opens here: its dev server answers at the forward's 
     }
 });
 
-test("ssh <name> reaches a machine from the phone: the app's ssh config, included in ~/.ssh/config; phone sessions are told", { skip }, async () => {
+test("Pi reaches machines with machine_run and machine_copy, never ssh; the app's key stores are refused; ~/.ssh stays empty", { skip }, async () => {
     const { home } = await import("./helpers.ts");
-    const config = join(home, ".ssh", "config");
-    const ours = readFileSync(join(home, ".ssh", "pi-phone_config"), "utf8");
+    const note = join(root, "note.txt");
+    const back = join(root, "back.txt");
 
-    assert.match(ours, /^Host box$/m);
-    assert.match(ours, new RegExp(`HostKeyAlias pi-phone-${machineId}`));
-    assert.match(ours, /BatchMode yes/);
-    assert.equal(readFileSync(config, "utf8").split("\n")[0], `Include ${join(home, ".ssh", "pi-phone_config")}`);
-    const reached = execFileSync("ssh", ["-F", config, "box", "echo reached-$((40+2))"], { encoding: "utf8" });
+    writeFileSync(note, "from the phone\n");
+    app.secrets.set("BOX_TOKEN", { value: "box-token-123456789" });
+    calls["run on box"] = ["machine_run", { machine: "box", command: 'echo ran-$((40+2)); printf "%s" "$BOX_TOKEN" | wc -c; echo "$BOX_TOKEN"' }];
+    calls["copy to box"] = ["machine_copy", { from: note, to: "box:~/copied/" }];
+    calls["copy back"] = ["machine_copy", { from: "box:~/copied/note.txt", to: back }];
+    calls["read the keys"] = ["read", { path: join(app.dataDir, "ssh", "keys") }];
+    calls["dump the database"] = ["bash", { command: `sqlite3 ${join(app.dataDir, "pocket.sqlite")} .dump` }];
 
-    assert.equal(reached.trim(), "reached-42");
-
-    // The owner's own lines stay, and the Include is not added twice.
-    writeFileSync(config, `${readFileSync(config, "utf8")}\nHost mine\n    HostName example.invalid\n`);
-    app.machines.add({ name: "box", address: "someone@192.0.2.1", keyId: app.machines.get(machineId).keyId });
-    const again = readFileSync(config, "utf8");
-
-    assert.equal(again.split("Include ").length, 2);
-    assert.match(again, /Host mine/);
-
-    // A phone session's prompt names it.
     const { id } = await app.commands.createSession(owner(app), { cwd: join(remoteHome, "..") });
 
     await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
-    told = "";
-    const { submissionId } = await app.commands.submit(id, owner(app), { text: "hello", requestId: crypto.randomUUID() });
+    const say = async (text: string) => {
+        const { submissionId } = await app.commands.submit(id, owner(app), { text, requestId: crypto.randomUUID() });
 
-    await (await app.harness.submission(submissionId, context))!.wait(context);
-    assert.match(told, /reachable from here with ssh[^\n]*box \(/);
+        await (await app.harness.submission(submissionId, context))!.wait(context);
+        await app.harness.waitForIdle(context);
+
+        return (await modelTexts(app, id)).at(-1)!;
+    };
+
+    const ran = await say("run on box");
+
+    assert.match(ran, /box:[^ ]* · exit 0/);
+    assert.match(ran, /ran-42/);
+    assert.ok(ran.includes("\\n19\\n"), "the secret reached the command on the machine: 19 characters");
+    assert.match(ran, /\[secret BOX_TOKEN\]/);
+    assert.doesNotMatch(ran, /box-token-123456789/);
+
+    assert.match(await say("copy to box"), /Copied phone:[^ ]*note\.txt to box:[^ ]*copied\/note\.txt \(15 bytes\)/);
+    assert.match(await say("copy back"), /Copied box:/);
+    assert.equal(readFileSync(back, "utf8"), "from the phone\n");
+
+    assert.match(await say("read the keys"), /keeps its keys .* out of Pi's tools/);
+    assert.match(await say("dump the database"), /keeps its keys .* out of Pi's tools/);
+
+    // The phone session's prompt names the machines, and the tools to use; no ssh.
+    assert.match(told, /The owner's machines: box \(/);
+    assert.match(told, /machine_run[^\n]*machine_copy/);
+    assert.match(told, /Your bash has no ssh to them/);
+    assert.equal(existsSync(join(home, ".ssh", "pi-phone_config")), false);
+    assert.equal(existsSync(join(home, ".ssh", "keys")), false);
+    app.secrets.remove("BOX_TOKEN");
 });
 
 test("a machine connected, renamed, or removed reaches every tab at once: hello is sent again with the machines", { skip }, async () => {

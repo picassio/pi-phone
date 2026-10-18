@@ -8,6 +8,7 @@ import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { Machines, parseAddress, sshProblem } from "../src/server/machines.ts";
+import { SshAgent } from "../src/server/ssh-agent.ts";
 import { SshKeys } from "../src/server/ssh-keys.ts";
 
 const root = mkdtempSync(join(tmpdir(), "pi-phone-machines-"));
@@ -15,8 +16,12 @@ const home = join(root, "home");
 
 mkdirSync(join(root, "data"));
 mkdirSync(home);
-const keys = new SshKeys(join(root, "data"), home);
-const machines = new Machines(join(root, "data"), keys, home);
+const sshDir = join(root, "data", "ssh");
+const agent = new SshAgent(sshDir);
+const keys = new SshKeys(join(root, "data"), agent, sshDir, home);
+
+await keys.open();
+const machines = new Machines(join(root, "data"), keys, sshDir, agent, home);
 
 test("addresses: user@host, with a port, IPv6 in brackets; anything else is refused", () => {
     assert.deepEqual(parseAddress("me@box"), { user: "me", host: "box", port: undefined });
@@ -45,7 +50,7 @@ test("a machine needs a name, an address, and one of the app's keys; a key in us
 
     assert.equal(edited.host, "other");
     assert.equal(edited.port, undefined);
-    assert.equal(new Machines(join(root, "data"), keys, home).get(machine.id).host, "other");
+    assert.equal(new Machines(join(root, "data"), keys, sshDir, agent, home).get(machine.id).host, "other");
     await machines.remove(machine.id);
     assert.throws(() => machines.get(machine.id), /no such machine/);
 });
@@ -69,7 +74,11 @@ const sshdPath = ["/usr/sbin/sshd", join(process.env.PREFIX ?? "/usr", "bin", "s
 );
 let sshd: ChildProcess | undefined;
 
-after(() => sshd?.kill());
+after(() => {
+    sshd?.kill();
+    agent.stop();
+    keys.close();
+});
 
 test(
     "scan, accept, and connect to a real sshd: the host key is pinned, the daemon deployed and reporting the system",
@@ -149,6 +158,9 @@ test(
 
         assert.ok(existsSync(tools), `the daemon was deployed to ${tools}`);
         assert.ok(readdirSync(tools).some((name) => name.startsWith("pi-env")), readdirSync(tools).join(","));
+        // It signed with the agent: no private key file anywhere, and nothing in the phone's ~/.ssh.
+        assert.match(readFileSync(machines.configFile, "utf8"), /IdentityAgent /);
+        assert.equal(existsSync(join(home, ".ssh")), false);
     },
 );
 
@@ -169,4 +181,27 @@ test("what an ssh failure means, in the owner's words", () => {
     assert.match(sshProblem("no answer in 10 s"), /not reachable from the phone/);
     assert.match(sshProblem("@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@"), /host key changed/);
     assert.equal(sshProblem("something else"), "something else");
+});
+
+test("the app's files from before leave ~/.ssh: known hosts moved into its own folder, its config and Include gone", () => {
+    const oldHome = join(root, "legacy-home");
+    const dot = join(oldHome, ".ssh");
+    const data = join(root, "legacy-data");
+
+    mkdirSync(dot, { recursive: true });
+    mkdirSync(data);
+    writeFileSync(join(dot, "pi-phone_known_hosts"), "pi-phone-abc ssh-ed25519 AAAAOLD\n");
+    writeFileSync(join(dot, "pi-phone_config"), "Host box\n    HostName 10.0.0.1\n");
+    writeFileSync(join(dot, "config"), `Include ${join(dot, "pi-phone_config")}\n\nHost mine\n    HostName example.org\n`);
+    writeFileSync(join(dot, "id_ed25519"), "the owner's own key\n");
+
+    const folder = join(data, "ssh");
+    const moved = new Machines(data, keys, folder, agent, oldHome);
+
+    assert.match(readFileSync(moved.knownHostsFile, "utf8"), /pi-phone-abc ssh-ed25519 AAAAOLD/);
+    assert.equal(existsSync(join(dot, "pi-phone_known_hosts")), false);
+    assert.equal(existsSync(join(dot, "pi-phone_config")), false);
+    assert.equal(readFileSync(join(dot, "config"), "utf8"), "Host mine\n    HostName example.org\n", "the owner's lines stay");
+    assert.equal(readFileSync(join(dot, "id_ed25519"), "utf8"), "the owner's own key\n", "the owner's files stay");
+    assert.match(readFileSync(moved.configFile, "utf8"), new RegExp(`IdentityAgent ${agent.socket.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 });

@@ -81,6 +81,7 @@ import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
+import { SshAgent } from "./ssh-agent.ts";
 import { namesIn, Secrets } from "./secrets.ts";
 import { WebSearch } from "./web/access.ts";
 import { checkDraft, type Interview, InterviewsDoc } from "./interviews.ts";
@@ -289,6 +290,8 @@ export class PocketApp {
     readonly github = new GitHubLogin();
     /** The app's SSH keys, for machines (`ssh-keys.ts`). */
     readonly sshKeys: SshKeys;
+    /** The app's ssh-agent: it holds the SSH keys, and signs the app's own ssh with them (`ssh-agent.ts`). */
+    readonly sshAgent: SshAgent;
     /** The owner's secrets: values for commands that name them, never for the model (`secrets.ts`). */
     readonly secrets: Secrets;
     /** Web search's provider, its key from Pi's sign-ins or the secrets, and self-hosted addresses (`web/access.ts`). */
@@ -353,12 +356,16 @@ export class PocketApp {
         this.defaultCwd = options.defaultCwd;
         this.supervised = options.supervised;
         this.config = new ConfigStore(options.dataDir);
-        this.sshKeys = new SshKeys(options.dataDir, this.#home);
+        // The app's own ssh (`ssh/` in the data folder): its agent holds the keys, which the database keeps.
+        const sshDir = join(options.dataDir, "ssh");
+
+        this.sshAgent = new SshAgent(sshDir, (line) => this.log(line));
+        this.sshKeys = new SshKeys(options.dataDir, this.sshAgent, sshDir, this.#home);
         this.secrets = new Secrets(options.dataDir);
         this.web = new WebSearch(this.config, this.secrets, async (provider) => (await this.models.getAuth(provider))?.auth.apiKey);
         // Every tab's machines (the folder picker, Ports, Pi sessions on a machine) come with `hello`: a machine connected,
         // renamed, or removed reaches them at once, not at their next connection.
-        this.machines = new Machines(options.dataDir, this.sshKeys, this.#home, () =>
+        this.machines = new Machines(options.dataDir, this.sshKeys, sshDir, this.sshAgent, this.#home, () =>
             void this.#refreshClients().catch((error: unknown) => this.log(`machines not sent to the tabs: ${describe(error)}`)),
         );
         this.places = new Places(this.machines);
@@ -465,6 +472,8 @@ export class PocketApp {
 
     async #open(): Promise<void> {
         takeLock(this.#lockFile);
+        // The keys into the agent (moved into the database first, from files, once): before anything connects.
+        await this.sshKeys.open();
 
         this.settings = SettingsManager.create(this.defaultCwd);
 
@@ -552,11 +561,18 @@ export class PocketApp {
                           platform: machine.remote === undefined ? "unknown" : `${machine.remote.platform} ${machine.remote.arch}`,
                       };
             },
-            sshHosts: () =>
-                this.machines.sshHosts().map(({ machine, alias }) => ({
-                    alias,
-                    address: `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`,
-                })),
+            machines: () =>
+                this.machines
+                    .sshHosts()
+                    .filter(({ machine }) => machine.remote !== undefined)
+                    .map(({ machine, alias }) => ({
+                        id: machine.id,
+                        name: machine.name,
+                        alias,
+                        address: `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`,
+                        home: machine.remote!.home,
+                    })),
+            home: this.#home,
             resolveModel: (spec) => resolveModel(this.models, spec, this.signInNeeded),
             subagentModels: () => this.config.subagentModels,
             modelProblem: (ref, fresh) => this.providers.problem(ref, fresh),
@@ -2918,6 +2934,8 @@ export class PocketApp {
                 this.forwards.closeAll();
                 await this.para.close();
                 await this.places.close(context);
+                this.sshAgent.stop();
+                this.sshKeys.close();
             } finally {
                 rmSync(this.#lockFile, { force: true });
             }

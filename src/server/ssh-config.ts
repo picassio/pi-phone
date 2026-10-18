@@ -1,10 +1,10 @@
 /**
- * Names and values for `~/.ssh/pi-phone_config` (`machines.ts`): a machine's `Host` alias, from its name, and a path as
- * ssh's config reads it.
+ * Names and values for the app's ssh (`machines.ts`): a machine's alias, from its name (how Pi names it in machine_run
+ * and machine_copy), and a path as ssh's config reads it.
  */
 
 /**
- * The alias `ssh <alias>` reaches a machine by: its name in letters, digits, `.`, `_` and `-` (others become `-`), lower
+ * A machine's alias: its name in letters, digits, `.`, `_` and `-` (others become `-`), lower
  * case; a name two machines share, or one with nothing left, takes the start of its id after it.
  */
 export function sshAlias(machine: { id: string; name: string }, all: readonly { id: string; name: string }[]): string {

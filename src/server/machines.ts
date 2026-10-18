@@ -8,16 +8,19 @@
  * and starts it once to report the system. A session on a machine not yet connected is refused with a message that
  * says so, so the agent can never trigger a deployment.
  *
- * Every machine whose host key the owner accepted also gets a `Host` entry in `~/.ssh/pi-phone_config`, which
- * `~/.ssh/config` includes: `ssh <name>` then reaches it from the agent's bash on the phone and from the terminal, with
- * its key only, the same known hosts and alias, strict host key checks, and never a password prompt (`BatchMode`).
- * The file is written again whenever the machines change; the owner's own lines in `~/.ssh/config` stay as they are.
+ * The app's `ssh` is its own, and nothing of it is in `~/.ssh`: its folder in the data folder (`ssh/`, mode 700) holds
+ * the known hosts, the public keys, and a config (`-F`) whose `IdentityAgent` is the app's ssh-agent (`ssh-agent.ts`),
+ * which holds the private keys. Machines, port forwards, and terminals connect with it. Pi's bash has no `ssh` to a
+ * machine: it uses machine_run and machine_copy, or a session there; the phone terminal's `ssh` is the owner's own.
+ * The app's files from before (`~/.ssh/pi-phone_config`, its `Include`, `~/.ssh/pi-phone_known_hosts`) are moved
+ * or removed once, as the app starts; the owner's own files there stay as they are.
  */
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { quoteConfigValue, sshAlias } from "./ssh-config.ts";
+import type { SshAgent } from "./ssh-agent.ts";
 import {
     acceptHostKey,
     connectSsh,
@@ -59,75 +62,91 @@ export const DAEMON_DIR = "~/.pi/mobile/tools";
 export class Machines {
     readonly #file: string;
     readonly #keys: SshKeys;
-    /** The app's own known-hosts file. */
+    /** The app's own known-hosts file, in its `ssh` folder. */
     readonly knownHostsFile: string;
+    /** The app's `ssh` config (`-F`): its ssh-agent signs. */
+    readonly configFile: string;
     readonly #home: string;
     /** Told after every change (`#save`): the app sends its tabs the connected machines again (`hello`). */
     readonly #changed: () => void;
     #machines: Machine[];
 
-    constructor(dataDir: string, keys: SshKeys, home = process.env.HOME || homedir(), changed: () => void = () => {}) {
+    constructor(
+        dataDir: string,
+        keys: SshKeys,
+        sshDir: string,
+        agent: SshAgent,
+        home = process.env.HOME || homedir(),
+        changed: () => void = () => {},
+    ) {
         this.#file = join(dataDir, FILE);
         this.#keys = keys;
         this.#changed = changed;
-        this.knownHostsFile = join(home, ".ssh", "pi-phone_known_hosts");
+        mkdirSync(sshDir, { recursive: true, mode: 0o700 });
+        chmodSync(sshDir, 0o700);
+        this.knownHostsFile = join(sshDir, "known_hosts");
+        this.configFile = join(sshDir, "config");
         this.#home = home;
         this.#machines = existsSync(this.#file)
             ? (JSON.parse(readFileSync(this.#file, "utf8")) as { machines: Machine[] }).machines
             : [];
-        this.#writeSshConfig();
+        writeFileSync(
+            this.configFile,
+            `# Written by pi-phone: its machines' ssh, signing with its ssh-agent. Changes here are replaced.\nHost *\n    IdentityAgent ${quoteConfigValue(agent.socket)}\n    IdentitiesOnly yes\n`,
+            { mode: 0o600 },
+        );
+        this.#leaveHomeSsh();
     }
 
     #save(): void {
         writeFileSync(this.#file, `${JSON.stringify({ machines: this.#machines }, null, 2)}\n`, { mode: 0o600 });
-        this.#writeSshConfig();
         this.#changed();
     }
 
-    /** The machines `ssh <alias>` reaches from the phone: those whose host key was accepted. */
+    /**
+     * The app's files from before in `~/.ssh`, gone: its known hosts moved into its own folder, its config and the
+     * `Include` of it removed. The owner's own lines and files stay.
+     */
+    #leaveHomeSsh(): void {
+        const folder = join(this.#home, ".ssh");
+        const oldHosts = join(folder, "pi-phone_known_hosts");
+        const oldConfig = join(folder, "pi-phone_config");
+        const config = join(folder, "config");
+
+        if (existsSync(oldHosts)) {
+            const known = existsSync(this.knownHostsFile) ? readFileSync(this.knownHostsFile, "utf8") : "";
+            const moved = readFileSync(oldHosts, "utf8")
+                .split("\n")
+                .filter((line) => line.trim() !== "" && !known.includes(line));
+
+            writeFileSync(this.knownHostsFile, `${known}${moved.map((line) => `${line}\n`).join("")}`, { mode: 0o600 });
+            rmSync(oldHosts);
+        }
+
+        rmSync(oldConfig, { force: true });
+
+        if (existsSync(config)) {
+            const include = `Include ${quoteConfigValue(oldConfig)}`;
+            const lines = readFileSync(config, "utf8").split("\n");
+            const kept = lines.filter((line) => line.trim() !== include);
+
+            if (kept.length !== lines.length) {
+                const text = kept.join("\n").replace(/^\n+/, "");
+
+                if (text.trim() === "") {
+                    rmSync(config);
+                } else {
+                    writeFileSync(config, text, { mode: 0o600 });
+                }
+            }
+        }
+    }
+
+    /** The machines with an accepted host key, each with a short alias: how Pi names them (machine_run, machine_copy). */
     sshHosts(): { machine: Machine; alias: string }[] {
         const trusted = this.#machines.filter((machine) => machine.hostKey !== undefined);
 
         return trusted.map((machine) => ({ machine, alias: sshAlias(machine, trusted) }));
-    }
-
-    /** `~/.ssh/pi-phone_config`, and its `Include` at the top of `~/.ssh/config`. */
-    #writeSshConfig(): void {
-        const folder = join(this.#home, ".ssh");
-        const ours = join(folder, "pi-phone_config");
-        const config = join(folder, "config");
-        const entries = this.sshHosts().map(({ machine, alias }) =>
-            [
-                `# ${machine.name.replace(/[\r\n]/g, " ")}`,
-                `Host ${alias}`,
-                `    HostName ${machine.host}`,
-                `    User ${machine.user}`,
-                ...(machine.port === undefined ? [] : [`    Port ${machine.port}`]),
-                `    IdentityFile ${quoteConfigValue(this.#keys.privateKeyPath(machine.keyId))}`,
-                "    IdentitiesOnly yes",
-                `    UserKnownHostsFile ${quoteConfigValue(this.knownHostsFile)}`,
-                `    HostKeyAlias pi-phone-${machine.id}`,
-                "    StrictHostKeyChecking yes",
-                "    BatchMode yes",
-                "    ServerAliveInterval 15",
-            ].join("\n"),
-        );
-
-        mkdirSync(folder, { recursive: true, mode: 0o700 });
-        writeFileSync(
-            ours,
-            `# Written by pi-phone from its Machines (Settings > Machines); changes here are replaced.\n\n${entries.join("\n\n")}\n`,
-            { mode: 0o600 },
-        );
-
-        // Its whole path: ssh reads a relative one from its own idea of home, which a test's or `-F` may not share.
-        const include = `Include ${quoteConfigValue(ours)}`;
-        const current = existsSync(config) ? readFileSync(config, "utf8") : "";
-
-        if (!current.split("\n").some((line) => line.trim() === include)) {
-            // At the top: an Include after a Host block would belong to that block.
-            writeFileSync(config, `${include}\n${current === "" ? "" : `\n${current}`}`, { mode: 0o600 });
-        }
     }
 
     list(): Machine[] {
@@ -157,8 +176,10 @@ export class Machines {
             host: machine.host,
             user: machine.user,
             ...(machine.port === undefined ? {} : { port: machine.port }),
-            identityFile: this.#keys.privateKeyPath(machine.keyId),
+            // The public key chooses the key (IdentitiesOnly); the agent, through the config, signs with it.
+            identityFile: this.#keys.publicKeyPath(machine.keyId),
             knownHostsFile: this.knownHostsFile,
+            configFile: this.configFile,
             hostKeyAlias: `pi-phone-${machine.id}`,
         };
     }
@@ -185,7 +206,7 @@ export class Machines {
             throw new HttpError(400, "Choose the SSH key for this machine.");
         }
 
-        this.#keys.privateKeyPath(body.keyId);
+        this.#keys.publicKeyPath(body.keyId);
         const machine: Machine = {
             id: randomUUID(),
             name,
@@ -235,7 +256,7 @@ export class Machines {
                 throw new HttpError(400, "Choose the SSH key for this machine.");
             }
 
-            this.#keys.privateKeyPath(body.keyId);
+            this.#keys.publicKeyPath(body.keyId);
             machine.keyId = body.keyId;
         }
 

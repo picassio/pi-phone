@@ -144,14 +144,14 @@ export default function createPrompt(host: PocketHost) {
                 const machine = host.machineOf(cwdOf(input));
 
                 if (machine === undefined) {
-                    const hosts = host.sshHosts();
+                    const machines = host.machines();
                     const reach =
-                        hosts.length === 0
+                        machines.length === 0
                             ? []
                             : [
-                                  `The owner's machines, reachable from here with ssh (the app's keys and trusted host keys; it never asks for a password): ${hosts
-                                      .map((each) => `${each.alias} (${each.address})`)
-                                      .join(", ")}. Run a command there with \`ssh <name> '<command>'\`; a session started in a folder there (machine:<id>:<path>) runs all its tools there instead.`,
+                                  `The owner's machines: ${machines
+                                      .map((each) => `${each.alias} (${each.address}, id ${each.id})`)
+                                      .join(", ")}. Run a command on one with machine_run, and copy files with machine_copy; for longer work there, start a session in a folder on it (session_start with the folder machine:<id>:<path>), which runs all your tools there. Your bash has no ssh to them: the app's keys are not yours to use.`,
                               ];
 
                     return [`Working directory: ${cwdOf(input)}`, `Platform: ${process.platform}`, ...reach, `Today: ${today}`].join("\n");

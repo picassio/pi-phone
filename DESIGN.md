@@ -97,10 +97,17 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   the conversation one `[ci-watch]` message when it finishes (conclusion, jobs, failed steps and the end of their log,
   fenced). Ends with its run, after 2 hours, after 6 failed looks in a row (it says so), or when stopped (the tool, or
   Stop in the bar above the message box). Survives restarts.
-- **SSH keys** (`src/server/ssh-keys.ts`, `web/sheets/ssh-keys.js`): the app's keys for machines, one per purpose, in
-  `~/.ssh/keys/<id>` (mode 600) with names in `keys.json`. Generated (ed25519, no passphrase: background work has
-  nobody to ask) or imported; the public key is shown to put in a machine's `authorized_keys`. Each machine is
-  assigned one key (Machines, next).
+- **SSH keys** (`src/server/ssh-keys.ts`, `ssh-agent.ts`, `web/sheets/ssh-keys.js`): the app's keys for machines,
+  one per purpose, never as private key files.
+  - **Storage:** private keys are in the database (`pocket.sqlite`, table `pocket_ssh_keys`, beside pi-durable's
+    tables; it tracks its own schema). Public keys are in `<data>/ssh/keys/<id>.pub`, and names in `keys.json`.
+  - **The agent:** `SshAgent` runs OpenSSH's `ssh-agent -D -a <data>/ssh/agent.sock` with the server, gives it each
+    key on `ssh-add -`'s stdin, and starts it again if it ends.
+  - **Generating and importing:** keys are ed25519 with no passphrase (background work has nobody to ask), and pass
+    through a scratch folder in `<data>/ssh` (mode 700) only for `ssh-keygen`.
+  - **Moving in:** keys from before (`~/.ssh/keys/<id>`) move in once at startup (`SshKeys.open`). Each must derive
+    its public key, is stored, then its files are deleted; a mismatch stays and shows as its row's problem.
+  - Each machine is assigned one key (Machines, next).
 - **Machines** (`src/server/machines.ts`, `web/sheets/machines.js`): other computers sessions can work on, through
   `@earendil-works/pi-env` (its daemon on the machine, deployed over ssh and verified by hash). `machines.json` holds
   name, `user@host[:port]`, and the SSH key; host keys the owner accepted are in `~/.ssh/pi-phone_known_hosts` under
@@ -144,10 +151,24 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   side went another way; otherwise only as a new session (the machine import). Continue again appends the session's
   new messages to the same file, refused while Pi has unseen messages or after the session compacted past the link.
   The dock's Pi bar checks the file (one `stat`) when the session opens or the app comes to the front.
-- **`ssh <name>` from the phone** (`machines.ts`, `ssh-config.ts`): every machine with an accepted host key gets a
-  `Host` entry in `~/.ssh/pi-phone_config` (its key only, the app's known hosts and alias, strict checks, `BatchMode`),
-  rewritten whenever the machines change and included by its whole path at the top of `~/.ssh/config`, whose other
-  lines stay. Phone sessions' prompt names these machines.
+- **The app's own ssh, and none for Pi's bash** (`machines.ts`, `extensions/machines.ts`): the app connects with its
+  own ssh, from `<data>/ssh/`.
+  - **Its files:** `config` (`-F`: `IdentityAgent` is the agent, `IdentitiesOnly`), `known_hosts`, and the public
+    keys.
+  - **Who uses it:** `Machines.target()` gives pi-env the public key as `identityFile` with `configFile`, and port
+    forwards and machine terminals use the same.
+  - **Nothing in `~/.ssh`:** the app's files from before there (`pi-phone_config` and its `Include`,
+    `pi-phone_known_hosts`) are moved or removed at startup. The owner's own files and lines stay, and the phone
+    terminal's `ssh` is the owner's.
+  - **Pi's tools instead:** `machine_run` (one command on a named machine, through `host.envOf`; secrets as in bash,
+    their values redacted, output kept to its last 30,000 characters) and `machine_copy` (one file of up to 100 MB,
+    phone to machine, machine to phone, or between machines: `<machine>:<path>`). Or a session on the machine.
+  - **The prompt:** the phone prompt names the machines (alias, address, id) and these tools, and says its bash has no
+    ssh.
+  - **The guard:** the secrets module (required) refuses Pi's `read`, `write`, `edit`, and `bash` on the app's key
+    stores (`<data>/ssh`, `pocket.sqlite`, `secrets.json`; `ssh-add` and `SSH_AUTH_SOCK` in commands), and treats
+    `machine_run` as bash for secrets.
+  - **The launcher:** it offers "Terminal: <machine>" for each connected machine.
 - **The PARA wiki** (`src/server/para.ts`, `extensions/para.ts`): pi-para (npm, pinned) on Pi Durable. Its wiki
   (`~/.pi/wiki`), config (`~/.pi/para/config.jsonc`), qmd index and scheduler are pi-para's own, so pi on a computer
   with pi-para shares the format. Its nine `wiki_*` tools are pi-para's implementations wrapped as Pi Durable tools;

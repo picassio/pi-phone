@@ -46,6 +46,7 @@ function KeyRow({ item, onChanged }) {
                     : html`<div>${item.name}</div>`
             }
             <div class="muted small mono">${item.type} · ${item.fingerprint}</div>
+            ${item.problem && html`<div class="machine-problem small"><strong>Not loaded:</strong> ${item.problem}</div>`}
             <div class="muted small">${item.source === "imported" ? "imported" : "generated"} ${timeAgo(item.createdAt)} ago</div>
             ${shown && html`<pre class="ssh-public-key">${item.publicKey}</pre>`}
         </div>
@@ -88,7 +89,7 @@ export function SshKeysSheet() {
 
     return html`<${Sheet} title="SSH keys" onClose=${closeSheet}>
         <p class="muted small">
-            Keys the app connects to machines with (Settings › Machines). Each machine uses one key; put that key's public half in its <span class="mono">~/.ssh/authorized_keys</span>. Keys have no passphrase and live in the app's home folder, where Pi can read them.
+            Keys the app connects to machines with (Settings › Machines). Each machine uses one key; put that key's public half in its <span class="mono">~/.ssh/authorized_keys</span>. Private keys are kept in the app's database and its ssh-agent, never as files: the app signs with them, and nothing (Pi included) can read them out. They have no passphrase.
         </p>
         ${keys === null && html`<${Loader} label="Loading keys" />`}
         ${keys !== null && keys.length === 0 && adding === null && html`<p class="muted">No keys yet.</p>`}

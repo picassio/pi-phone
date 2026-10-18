@@ -287,6 +287,15 @@ function actionItems() {
             icon: "key",
             run: () => openSheet({ type: "ssh-keys" }),
         },
+        // A terminal on each connected machine, through the app's connection: no ssh to type.
+        ...(me?.role === "owner"
+            ? (server?.machines ?? []).map((machine) => ({
+                  label: `Terminal: ${machine.name}`,
+                  detail: `a shell on ${machine.name}`,
+                  icon: "terminal",
+                  run: () => openSheet({ type: "terminal", place: `machine:${machine.id}:${machine.home}` }),
+              }))
+            : []),
         me?.role === "owner" &&
             webAvailable() && {
             label: "Web access",

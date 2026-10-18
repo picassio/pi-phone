@@ -852,7 +852,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 );
             }
 
-            app.sshKeys.remove(second);
+            await app.sshKeys.remove(second);
 
             return json(response, 200, { ok: true });
         }
