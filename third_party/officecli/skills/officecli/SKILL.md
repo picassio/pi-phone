@@ -10,7 +10,7 @@ AI-friendly CLI for .docx, .xlsx, .pptx. Single binary, no dependencies, no Offi
 ## Install
 
 <!-- pi-phone: this section is changed (third_party/officecli/README.md). -->
-On pi-phone, `officecli` is already installed by pi-phone and on your PATH (with the app on the phone; in `~/.pi/mobile/tools` on a machine). Never install, update, or reinstall it (no curl install scripts, no `officecli install`, no `officecli mcp ...`): those write into other agents' config folders. Verify with `officecli --version`.
+On pi-phone, `officecli` is already installed by pi-phone and on your PATH (with the app on the phone; in `~/.pi/mobile/tools` on a machine). Never install, update, or reinstall it (no curl install scripts, no `officecli install`, no `officecli mcp ...`): those write into other agents' config folders. Verify with `officecli --version`. To see a file as it renders, use pi-phone's `screenshot` tool with the file's path (`officecli view ... screenshot` needs a headless browser the phone does not have).
 
 ---
 

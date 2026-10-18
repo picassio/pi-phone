@@ -140,6 +140,25 @@ export async function artifact(
         });
     }
 
+    // An HTML page or SVG file of a session, here or on its machine, as its own page in the sandbox: for `screenshot`.
+    if (parts.length === 2 && parts[0] === "file") {
+        const path = query.get("path") ?? "";
+        const svg = /\.svg$/i.test(path);
+
+        if (!svg && !/\.html?$/i.test(path)) {
+            throw new HttpError(400, `${path} is not an .html, .htm, or .svg file.`);
+        }
+
+        const { data } = await app.workspace.downloadFile(conversationId(parts[1]), user, path);
+
+        return send(response, 200, data, svg ? "image/svg+xml" : "text/html; charset=utf-8", {
+            "content-security-policy": ARTIFACT_CSP,
+            "x-content-type-options": "nosniff",
+            "referrer-policy": "no-referrer",
+            "cache-control": "no-store",
+        });
+    }
+
     if (parts.length === 1 && parts[0] === "frame") {
         return send(response, 200, RUN_FRAME, "text/html; charset=utf-8", {
             "content-security-policy": ARTIFACT_CSP,

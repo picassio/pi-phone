@@ -44,6 +44,7 @@ let imports = 0;
 const ORDER = [
     "prompt.ts",
     "artifacts.ts",
+    "screenshot.ts",
     "browser.ts",
     "subagents.ts",
     "agent-teams.ts",

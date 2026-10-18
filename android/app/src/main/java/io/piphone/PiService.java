@@ -75,6 +75,8 @@ public final class PiService extends Service {
     private PowerManager.WakeLock wakeLock;
     private Thread runner;
     private Thread notifier;
+    /** Screenshots for Pi (Renderer.java). */
+    private Thread renderer;
     private volatile Process server;
 
     @Override
@@ -89,6 +91,16 @@ public final class PiService extends Service {
             runner.start();
             notifier = new Thread(this::notifyLoop, "pi-notify");
             notifier.start();
+            Renderer.prepare();
+            Renderer render = new Renderer(this, () -> {
+                try {
+                    return ownerToken(this);
+                } catch (Exception e) {
+                    throw new IllegalStateException("no owner token: " + e, e);
+                }
+            }, () -> state == State.RUNNING || state == State.STARTING);
+            renderer = new Thread(render::loop, "pi-render");
+            renderer.start();
         } else if (intent != null && ACTION_UPDATE.equals(intent.getAction())) {
             // The runner swaps the update in once the server has stopped.
             Process running = server;
@@ -293,6 +305,7 @@ public final class PiService extends Service {
         if (running != null) running.destroy();
         if (runner != null) runner.interrupt();
         if (notifier != null) notifier.interrupt();
+        if (renderer != null) renderer.interrupt();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         super.onDestroy();
     }

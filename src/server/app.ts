@@ -81,6 +81,7 @@ import { CAPTURE_EXTENSION, ParaCapture } from "./para-capture.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
+import { Screenshots } from "./screenshots.ts";
 import { OfficeCli, type OfficeCliOptions } from "./officecli.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
@@ -265,6 +266,8 @@ export class PocketApp {
     readonly approvals = new Approvals((id) => this.attribution.requesterOf(id));
     /** What the app's background service notifies the owner of (`phone-events.ts`). */
     readonly phoneEvents = new PhoneEvents();
+    /** Pictures of pages, rendered by the app's service on the phone (`screenshots.ts`). */
+    readonly screenshots = new Screenshots();
     /** Approvals the phone was told of already. */
     readonly #toldApprovals = new Set<string>();
     readonly dataDir: string;
@@ -275,6 +278,8 @@ export class PocketApp {
     access: AccessInfo | undefined;
     /** The Tailscale listener (`tailnet.ts`), set by `main.ts` once it serves; undefined in tests that serve nothing. */
     tailnet: Tailnet | undefined;
+    /** The port the server listens on (`main.ts`), for the phone's own WebView; undefined in tests that serve nothing. */
+    serverPort: number | undefined;
     harness!: Harness;
     models!: ModelRuntime;
     settings!: SettingsManager;
@@ -593,6 +598,8 @@ export class PocketApp {
                           tools: machine.tools ?? {},
                       };
             },
+            serverBase: () => (this.serverPort === undefined ? undefined : `http://127.0.0.1:${this.serverPort}`),
+            render: (url, options) => this.screenshots.render(url, options),
             machineSkills: (cwd) => {
                 const machine = this.places.machineOf(cwd);
 

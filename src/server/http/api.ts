@@ -32,7 +32,10 @@ import { runningNow } from "../running.ts";
 import { conversationRoutes } from "./conversation-routes.ts";
 import { createEventStreams } from "./events.ts";
 import { extensionRoute } from "./extension-routes.ts";
-import { type ApiRequest, conversationId, type HttpOptions, json, readJson } from "./io.ts";
+import { type ApiRequest, conversationId, type HttpOptions, json, readJson, readBody } from "./io.ts";
+
+/** Pictures from the phone's renderer, as base64 JSON: a few full-page shots. */
+const MAX_RENDER_BODY = 30 * 1024 * 1024;
 
 /** This machine's non-internal IPv4 addresses, for invite links other devices on its networks can open. */
 function lanAddresses(): string[] {
@@ -413,6 +416,35 @@ export function createApi(options: HttpOptions, auth: Auth) {
             request.on("close", () => abort.abort());
 
             return json(response, 200, await app.phoneEvents.after(Number(url.searchParams.get("after") ?? -1), abort.signal));
+        }
+
+        // Screenshots (`screenshots.ts`): the app's service takes what to render (a long poll), and answers with pictures.
+        if (first === "phone" && second === "renders" && third === undefined && method === "GET") {
+            requireOwner(user);
+            const abort = new AbortController();
+
+            request.on("close", () => abort.abort());
+
+            return json(response, 200, await app.screenshots.after(Number(url.searchParams.get("after") ?? -1), abort.signal));
+        }
+
+        if (first === "phone" && second === "renders" && third !== undefined && method === "POST") {
+            requireOwner(user);
+            let body: { shots?: unknown; error?: unknown };
+
+            try {
+                body = JSON.parse((await readBody(request, MAX_RENDER_BODY)).toString("utf8")) as typeof body;
+            } catch (error) {
+                throw error instanceof HttpError ? error : new HttpError(400, "Invalid JSON");
+            }
+
+            try {
+                app.screenshots.answer(third, body);
+            } catch (error) {
+                throw new HttpError(404, error instanceof Error ? error.message : String(error));
+            }
+
+            return json(response, 200, { ok: true });
         }
 
         // A session to Pi on a machine and back (`pi-handoff.ts`): where it is there, continue it there, bring it back.

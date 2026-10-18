@@ -212,6 +212,7 @@ handle = makeHandler({
 });
 // Terminals (`terminal.ts`): WebSocket upgrades on the same server.
 closeTerminals = attachTerminals(server, opened, new Auth(opened.config));
+opened.serverPort = options.port;
 // People on the owner's tailnet reach the same server on the phone's Tailscale address, when the owner turned it on.
 opened.tailnet = new Tailnet({
     port: options.port,

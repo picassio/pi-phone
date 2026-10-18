@@ -20,7 +20,7 @@ import { BUILT_IN_TOOLS } from "../reload.ts";
 
 /** While plan mode is off: when to suggest it (only a person turns it on). */
 export const SUGGEST_PLAN = `Plan mode: before a large or risky change (many files, a migration or refactor, deleting data, rewriting history, publishing or deploying), suggest that the person turn on plan mode with the Plan button by the message box, and wait for their answer. You cannot turn it on yourself. Small, clear tasks need no plan mode.`;
-const PLANNING = `Plan mode is on. Read and explore, then propose a plan; change nothing yet. You can use read, artifact, and bash for simple read-only commands such as ls, cat, grep, find, and git status/log/diff/show, without redirects, globs, variables, or command substitution, and tools marked read-only. Writing, editing, other commands, and subagents are blocked until a person approves the plan. End your answer with the plan as a short numbered list. For a long plan (many steps, parts, or files), also publish it as an HTML artifact, following the html-plan skill (read its SKILL.md first): it keeps every commitment and is easier to review on a phone; the numbered list stays in your answer.`;
+const PLANNING = `Plan mode is on. Read and explore, then propose a plan; change nothing yet. You can use read, artifact, screenshot, and bash for simple read-only commands such as ls, cat, grep, find, and git status/log/diff/show, without redirects, globs, variables, or command substitution, and tools marked read-only. Writing, editing, other commands, and subagents are blocked until a person approves the plan. End your answer with the plan as a short numbered list. For a long plan (many steps, parts, or files), also publish it as an HTML artifact, following the html-plan skill (read its SKILL.md first): it keeps every commitment and is easier to review on a phone; the numbered list stays in your answer.`;
 
 /** Tools that change nothing, or whose own calls are checked one by one (codemode). */
 /**
@@ -40,6 +40,8 @@ const ALWAYS_ALLOWED = new Set([
     "web_search",
     "fetch_content",
     "openui_guide",
+    // Only looks: a picture of a page.
+    "screenshot",
 ]);
 /** What the browser may do in plan mode: look at pages, not act on them. */
 const BROWSER_LOOKS = new Set([

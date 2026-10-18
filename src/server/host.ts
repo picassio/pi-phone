@@ -1,4 +1,5 @@
 import type { Context } from "@earendil-works/chord";
+import type { Shot } from "./screenshots.ts";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { awaitWithContext } from "@earendil-works/chord/context";
 import type { Skill } from "@earendil-works/pi-coding-agent";
@@ -171,6 +172,10 @@ export interface PocketHost {
     readonly home: string;
     /** The machine a session's cwd is on (`places.ts`), with what the prompt says about it; undefined on this phone. */
     machineOf(cwd: string): { name: string; address: string; path: string; platform: string; tools: Record<string, string> } | undefined;
+    /** The app's own address for the phone's WebView (`http://127.0.0.1:<port>`), once it listens. */
+    serverBase(): string | undefined;
+    /** Pictures of a page, rendered by the app's service on the phone (`screenshots.ts`). */
+    render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number }): Promise<Shot[]>;
     /** The skills of tools pi-phone installed on the session's machine, formatted for the prompt; undefined for none. */
     machineSkills(cwd: string): string | undefined;
     /**

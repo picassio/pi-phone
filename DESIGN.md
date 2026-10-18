@@ -352,6 +352,16 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     `officecli view <file> html` with no resident process), in the artifacts' sandbox CSP. `hello`'s
     `server.officecli` says whether it runs.
   - **Machines:** see Machine tools.
+- **Screenshots** (`src/server/screenshots.ts`, `extensions/screenshot.ts`, `android/.../Renderer.java`; owner's decision of
+  2026-10-18): Pi sees what it made. `screenshot({ artifact | path | url, widths = [390, 1280], fullPage, settle })`
+  asks the app's service, which long-polls `GET /api/phone/renders` (beside `/api/phone/events`), to draw the page in an
+  off-screen WebView of the app (measured and laid out at width × density, `enableSlowWholeDocumentDraw` set before
+  the first WebView, drawn into a CSS-pixel bitmap, at most 4000 px tall), signed in with the app's cookies and the owner
+  token on its own pages; it posts JPEGs to `POST /api/phone/renders/<id>` and Pi gets them as images. Artifacts render
+  at `/a/<conversation>/<id>/latest`, HTML and SVG files at `/a/file/<conversation>?path=` (artifact sandbox), Office files
+  at `/a/office/`. Without the service polling (tests, a server not on the phone) a render fails at once, saying so.
+  Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
+  OfficeCLI's pi-phone notes point to it.
 - **Effective HTML** (`third_party/effective-html/`; owner's decision of 2026-10-18): plannotator/effective-html's 7
   skills (MIT, at commit `975b047`) for HTML artifacts: `html` (router), `design-artifact`, `html-wireframe`,
   `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every
