@@ -1313,6 +1313,35 @@ function stepLive(step, results, slots, approvals, busy) {
     return status === "running" || status === "approval";
 }
 
+/** `interview`'s card: Pi's questions wait here, and Answer opens their form. Anyone who can steer answers or skips. */
+function InterviewCard({ approval }) {
+    const [busy, setBusy] = useState(false);
+    const { form } = approval;
+    const open = () => openSheet({ type: "interview", conversationId: approval.conversationId, callId: form.callId });
+    const skip = () => {
+        setBusy(true);
+        attempt(() => actions.approve(approval.id, false)).finally(() => setBusy(false));
+    };
+
+    return html`<div class="approval interview-card" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="chat" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${form.count === 1 ? "Pi has a question" : `Pi has ${form.count} questions`}: ${form.title}</span>
+                ${approval.reason && html`<span class="approval-reason">${approval.reason}</span>`}
+            </div>
+        </div>
+        ${
+            canSteer()
+                ? html`<div class="approval-actions">
+                      <button class="button" disabled=${busy} onClick=${skip}>Skip</button>
+                      <button class="button primary" onClick=${open}>Answer</button>
+                  </div>`
+                : html`<div class="muted small">Waiting for someone who can steer to answer.</div>`
+        }
+    </div>`;
+}
+
 /**
  * `secret_request`'s card: a hidden field whose value goes to Settings › Secrets, never into the conversation. The
  * owner's to answer; anyone who can steer may decline.
@@ -1375,6 +1404,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "secret") {
         return html`<${SecretRequestCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "interview") {
+        return html`<${InterviewCard} approval=${approval} />`;
     }
 
     const answer = (allow) => {

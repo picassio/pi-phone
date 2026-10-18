@@ -156,6 +156,7 @@ const DID = {
     session_schedule: { verb: "scheduled", noun: "message" },
     schedule: { verb: "scheduled", noun: "reminder" },
     approvals: { verb: "checked approvals" },
+    interview: { verb: "asked", noun: "set of questions" },
     secrets_list: { verb: "checked its secrets" },
     secret_request: { verb: "asked for", noun: "secret", by: "name" },
     secret_save: { verb: "saved", noun: "secret", by: "name" },
@@ -176,6 +177,7 @@ const ONE = {
     call: "a call",
     lesson: "a lesson",
     secret: "a secret",
+    "set of questions": "a set of questions",
     "pull request": "a pull request",
     "repository watch": "a repository watch",
 };

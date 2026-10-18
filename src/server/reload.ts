@@ -127,6 +127,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "secrets_list",
     "secret_request",
     "secret_save",
+    "interview",
     "session_stop",
     "session_archive",
     "session_schedule",

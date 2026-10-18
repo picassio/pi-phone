@@ -12,6 +12,7 @@ import { GitHubSheet } from "./sheets/github.js";
 import { MachinesSheet } from "./sheets/machines.js";
 import { SshKeysSheet } from "./sheets/ssh-keys.js";
 import { SecretsSheet } from "./sheets/secrets.js";
+import { InterviewSheet } from "./sheets/interview.js";
 import { SchedulesSheet } from "./sheets/schedules.js";
 import { TerminalSheet } from "./terminal.js";
 import { PiHandoffSheet } from "./sheets/pi-handoff.js";
@@ -201,6 +202,9 @@ function sheetBody(sheet) {
             break;
         case "ssh-keys":
             body = html`<${SshKeysSheet} />`;
+            break;
+        case "interview":
+            body = html`<${InterviewSheet} key=${sheet.callId} conversationId=${sheet.conversationId} callId=${sheet.callId} />`;
             break;
         case "secrets":
             body = html`<${SecretsSheet} />`;

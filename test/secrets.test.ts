@@ -168,7 +168,7 @@ test("Pi asks for a secret through a hidden field: the value goes to the store, 
     await until(() => app.approvals.forConversation(id).some((each) => each.form?.type === "secret"), "the request");
     const asked = app.approvals.forConversation(id).find((each) => each.form?.type === "secret")!;
 
-    assert.equal(asked.form?.name, "NEW_KEY");
+    assert.equal(asked.form?.type === "secret" && asked.form.name, "NEW_KEY");
     await assert.rejects(app.answerApproval(asked.id, true, owner(app)), /type it into the card/);
     await assert.rejects(app.answerSecretRequest(asked.id, "short", owner(app)), /shorter than 8/);
     assert.ok(await app.answerSecretRequest(asked.id, "new-key-value-424242", owner(app)));

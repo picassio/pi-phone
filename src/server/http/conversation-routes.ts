@@ -229,6 +229,17 @@ export async function conversationRoutes(
         return json(response, 200, { ok: true });
     }
 
+    // An interview Pi asked (`interviews.ts`): its questions and draft, and the person's answers as they go.
+    if (third === "interviews" && fourth !== undefined && method === "GET") {
+        return json(response, 200, await app.interview(id, parts.slice(3).join("/"), user));
+    }
+
+    if (third === "interviews" && fourth !== undefined && method === "POST") {
+        const body = await readJson<{ draft?: unknown; action?: unknown }>(request);
+
+        return json(response, 200, await app.answerInterview(id, parts.slice(3).join("/"), user, body));
+    }
+
     if (third === "plan" && method === "POST") {
         const body = await readJson<{ on?: unknown; approve?: unknown }>(request);
 

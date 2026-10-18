@@ -29,8 +29,13 @@ export interface ApprovalRequest {
     subject: string;
     reason: string;
     score?: number;
-    /** What the person answers besides allow or deny: a secret's value, typed into a hidden field (`secret_request`). */
-    form?: { type: "secret"; name: string; description: string };
+    /**
+     * What the person answers besides allow or deny: a secret's value, typed into a hidden field (`secret_request`), or
+     * an interview's questions, answered in its sheet (`interview`, by its call's id).
+     */
+    form?:
+        | { type: "secret"; name: string; description: string }
+        | { type: "interview"; callId: string; title: string; count: number };
     createdAt: number;
     /** Who Pi was working for when the call asked: set by `Approvals`, not by the asker. */
     requestedBy?: string;

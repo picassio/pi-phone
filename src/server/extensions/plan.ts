@@ -34,6 +34,7 @@ const ALWAYS_ALLOWED = new Set([
     "wiki_summarize",
     "secrets_list",
     "secret_request",
+    "interview",
 ]);
 /** What the browser may do in plan mode: look at pages, not act on them. */
 const BROWSER_LOOKS = new Set([

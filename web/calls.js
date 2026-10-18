@@ -64,6 +64,17 @@ export function describeCall(call) {
             return { icon: "{}", label: "Codemode", subject: short(line ?? "", 140), mono: true };
         }
 
+        case "interview": {
+            let title = "";
+
+            try {
+                title = JSON.parse(args.questions ?? "").title ?? "";
+            } catch {
+                title = String(args.questions ?? "").startsWith("{") ? "" : String(args.questions ?? "");
+            }
+
+            return { icon: "?", label: "Interview", subject: title };
+        }
         case "secrets_list":
             return { icon: "⚿", label: "Secrets", subject: "the names Pi may use here" };
         case "secret_request":

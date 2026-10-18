@@ -193,6 +193,21 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   `mount()` draws it with `links: false`, `zoom: "auto"` (pan and zoom when large), and DOMPurify's SVG profile as
   `sanitize`. Its colors are CSS variables (`--pele-*`, set from the theme's on `.rich-diagram-canvas`), so a theme
   change needs no redraw. A diagram pele cannot read shows its error, with the line.
+- **Interview** (`src/server/interviews.ts`, `extensions/interview.ts`, `web/sheets/interview.js`): pi-interview's
+  `interview` tool, native. It keeps pi-interview's question format (`single, multi, text, image, info`,
+  `recommended`, `conviction`, `weight`, `context`, `content`, `media`, rich options), its checks and normalisations,
+  and its words back to Pi (MIT, ported to `interviews.ts`). Questions come inline or as a path, read through the
+  session's env. The call is replay-safe. It stores `{ questions, draft, status }` in `InterviewsDoc` by call id, with
+  recommendations pre-selected (except `conviction: "slight"`), then waits on `Approvals` with
+  `form: { type: "interview", callId, title, count }`. The card (`InterviewCard`) has Answer, which opens the sheet,
+  and Skip, which is a deny. The phone notification says "Pi has N questions: title". The sheet saves the draft 600 ms
+  after each change (`POST /api/c/<id>/interviews/<callId>` with `action: save`), and `submit` or `cancel` ends it
+  and answers the approval. A plain Allow is refused. An optional `timeout` ends it as pi-interview's timeout does.
+  Media: images (paths through `fileUrl`, data: or https URLs), tables, Mermaid (pele), HTML (`HtmlPreview`).
+  Chart.js charts are not drawn: the tool's description points to Mermaid pie and xychart. Image answers upload to
+  the session's upload folder and reach Pi as paths, which on a machine are the phone's (not yet copied there). Not
+  yet: async mode, and pi-interview's AI helpers. Allowed in plan mode. Docs are copied as JSON, not with
+  `structuredClone`: `tx.doc` objects are proxies, which it cannot clone ("#<Object> could not be cloned").
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

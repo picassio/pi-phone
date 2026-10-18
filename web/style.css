@@ -11606,6 +11606,170 @@ textarea.notes {
     max-height: none;
 }
 
+/* An interview's form (web/sheets/interview.js): the whole screen on a phone, a card per question. */
+@media (max-width: 720px) {
+    .sheet.interview {
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+    }
+}
+
+.interview-description {
+    margin-bottom: 0.8rem;
+}
+
+.interview-question {
+    display: grid;
+    gap: 0.6rem;
+    margin-bottom: 0.9rem;
+    padding: 0.8rem;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+    background: var(--card);
+}
+
+.interview-question.critical {
+    border-color: var(--accent-line);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.interview-question.minor {
+    padding: 0.55rem 0.7rem;
+    font-size: 0.94em;
+}
+
+.interview-question.info {
+    background: transparent;
+}
+
+.interview-ask .md > :first-child {
+    margin-top: 0;
+    font-weight: 600;
+}
+
+.interview-ask .md > :last-child,
+.interview-context .md > :last-child {
+    margin-bottom: 0;
+}
+
+.interview-options {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.interview-option {
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+}
+
+.interview-option.on {
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+}
+
+.interview-option > label {
+    display: flex;
+    gap: 0.55rem;
+    align-items: center;
+    min-height: 32px;
+}
+
+.interview-option > label > span:first-of-type {
+    flex: 1;
+}
+
+.interview-option .badge {
+    padding: 1px 8px;
+    border-radius: var(--r-pill);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12px;
+}
+
+.interview-note {
+    width: 100%;
+    margin-top: 0.4rem;
+}
+
+.interview-question textarea {
+    width: 100%;
+}
+
+.interview-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.interview-thumb {
+    position: relative;
+}
+
+.interview-thumb img {
+    width: 84px;
+    height: 84px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.interview-thumb .icon-button {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: var(--scrim);
+}
+
+.interview-media {
+    margin: 0;
+}
+
+.interview-image {
+    display: block;
+    max-width: 100%;
+    border-radius: 8px;
+}
+
+.interview-table {
+    overflow-x: auto;
+}
+
+.interview-table table {
+    border-collapse: collapse;
+    font-size: 0.92em;
+}
+
+.interview-table th,
+.interview-table td {
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--hair);
+    text-align: left;
+}
+
+.interview-table tr.on {
+    background: var(--accent-soft);
+}
+
+.interview-side {
+    display: grid;
+    gap: 0.6rem;
+}
+
+@media (min-width: 721px) {
+    .interview-side {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.interview-actions {
+    position: sticky;
+    bottom: 0;
+    padding: 0.6rem 0;
+    background: var(--panel);
+}
+
 /* A Mermaid diagram (pele), in the theme's colors: pele reads these variables, so a theme change needs no redraw. */
 .rich-diagram {
     padding: 0.6rem;

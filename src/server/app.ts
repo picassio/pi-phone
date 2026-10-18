@@ -82,6 +82,7 @@ import { Machines } from "./machines.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
 import { namesIn, Secrets } from "./secrets.ts";
+import { checkDraft, type Interview, InterviewsDoc } from "./interviews.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { takeLock } from "./lock.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
@@ -628,7 +629,12 @@ export class PocketApp {
                         kind: "approval",
                         session: Number(session),
                         title: this.#sessions[String(session)]?.title ?? "Session",
-                        text: `Pi asks to run ${request.tool}: ${request.subject}`.slice(0, 300),
+                        text: (request.form?.type === "secret"
+                            ? `Pi asks for a secret: ${request.form.name}`
+                            : request.form?.type === "interview"
+                              ? `Pi has ${request.form.count === 1 ? "a question" : `${request.form.count} questions`}: ${request.form.title}`
+                              : `Pi asks to run ${request.tool}: ${request.subject}`
+                        ).slice(0, 300),
                     });
                 }
             }
@@ -1997,6 +2003,77 @@ export class PocketApp {
         return this.answerApproval(id, true, user, true);
     }
 
+    /** An interview Pi asked in a conversation, by its call: questions, the draft so far, and how it ended. */
+    async interview(id: ConversationId, callId: string, user: User): Promise<Interview> {
+        this.requireSee(user, id);
+        const found = (await this.harness.snapshot(InterviewsDoc, id, context))?.items[callId];
+
+        if (found === undefined) {
+            throw new HttpError(404, "No such interview");
+        }
+
+        return found;
+    }
+
+    /**
+     * Save a person's answers to an interview as they go; `submit` ends it with them, `cancel` without (what is
+     * answered still reaches Pi). The waiting call goes on once it ends.
+     */
+    async answerInterview(
+        id: ConversationId,
+        callId: string,
+        user: User,
+        body: { draft?: unknown; action?: unknown },
+    ): Promise<Interview> {
+        this.requireSteer(user);
+        this.requireSee(user, id);
+        const action = body.action ?? "save";
+
+        if (action !== "save" && action !== "submit" && action !== "cancel") {
+            throw new HttpError(400, "action is save, submit, or cancel");
+        }
+
+        const saved = await this.harness.commit(async (tx) => {
+            const item = (await tx.doc(InterviewsDoc, id)).items[callId];
+
+            if (item === undefined) {
+                throw new HttpError(404, "No such interview");
+            }
+
+            if (item.status !== "waiting") {
+                throw new HttpError(409, "This interview has ended");
+            }
+
+            if (body.draft !== undefined) {
+                try {
+                    item.draft = checkDraft(body.draft, item.questions.questions);
+                } catch (error) {
+                    throw new HttpError(400, error instanceof Error ? error.message : String(error));
+                }
+            }
+
+            if (action !== "save") {
+                item.status = action === "submit" ? "completed" : "cancelled";
+                item.by = user.name;
+                item.at = Date.now();
+            }
+
+            return JSON.parse(JSON.stringify(item)) as Interview;
+        }, context);
+
+        if (action !== "save") {
+            const waiting = this.approvals
+                .forConversation(id)
+                .find((request) => request.form?.type === "interview" && request.form.callId === callId);
+
+            if (waiting !== undefined) {
+                this.approvals.answer(waiting.id, { allow: action === "submit", by: user.name });
+            }
+        }
+
+        return saved;
+    }
+
     async answerApproval(id: string, allow: boolean, user: User, formAnswered = false): Promise<boolean> {
         this.requireSteer(user);
         const request = this.approvals.all().find((each) => each.id === id);
@@ -2006,7 +2083,12 @@ export class PocketApp {
         }
 
         if (allow && request.form !== undefined && !formAnswered) {
-            throw new HttpError(400, "This asks for a secret: type it into the card's field.");
+            throw new HttpError(
+                400,
+                request.form.type === "secret"
+                    ? "This asks for a secret: type it into the card's field."
+                    : "This is an interview: answer it in its form, then submit.",
+            );
         }
 
         const refused = allow ? this.cannotAllow(user, request) : undefined;
