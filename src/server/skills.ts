@@ -260,3 +260,17 @@ export function saveProjectTrust(cwd: string, agentDir: string, choice: TrustCho
         { path: folder, decision: null },
     ]);
 }
+
+/**
+ * The skills of tools pi-phone installed on a machine (`machine-tools.ts`): read from the phone's copy, `localDir`, and
+ * named at their place on the machine, `remoteDir`, where Pi there reads them with its own tools.
+ */
+export function machineToolSkills(localDir: string, remoteDir: string, agentDir: string): Skill[] {
+    const at = (path: string) => (path.startsWith(localDir) ? `${remoteDir}${path.slice(localDir.length)}` : path);
+
+    return loadSkills({ cwd: localDir, agentDir, skillPaths: [localDir], includeDefaults: false }).skills.map((skill) => ({
+        ...skill,
+        filePath: at(skill.filePath),
+        baseDir: at(skill.baseDir),
+    }));
+}

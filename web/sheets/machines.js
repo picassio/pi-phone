@@ -67,6 +67,103 @@ function MachineForm({ machine, keys, onDone }) {
     </div>`;
 }
 
+/** Where a tool stands on a machine, in a few words. */
+function toolState(tool) {
+    if (!tool.supported) {
+        return "no build for this machine";
+    }
+
+    if (tool.installed && tool.installed === tool.version) {
+        return `installed, ${tool.installed}`;
+    }
+
+    if (tool.installed) {
+        return `installed, ${tool.installed}; ${tool.version} available`;
+    }
+
+    if (tool.own) {
+        return `the machine's own: ${tool.own}`;
+    }
+
+    return `not installed · ${tool.size}`;
+}
+
+/**
+ * Tools pi-phone installs on a connected machine (src/server/machine-tools.ts): each one's state there, the ones offered
+ * ticked, and Install for those ticked.
+ */
+function MachineToolsPanel({ machine, onClose }) {
+    const [tools, setTools] = useState(null);
+    const [ticked, setTicked] = useState(new Set());
+    const [busy, setBusy] = useState(false);
+    const path = `machines/${encodeURIComponent(machine.id)}/tools`;
+    const show = (list) => {
+        setTools(list);
+        setTicked(new Set(list.filter((tool) => tool.offered).map((tool) => tool.id)));
+    };
+
+    useEffect(() => {
+        attempt(async () => show((await api(path, {})).tools));
+    }, [path]);
+
+    const install = () =>
+        attempt(async () => {
+            setBusy(true);
+
+            try {
+                const done = await api(path, { install: [...ticked] });
+
+                for (const result of done.results) {
+                    notify(result.ok ? "info" : "error", `${machine.name}: ${result.id} ${result.ok ? `${result.version} installed` : `not installed: ${result.said}`}`);
+                }
+
+                show(done.tools);
+            } finally {
+                setBusy(false);
+            }
+        });
+
+    return html`<div class="machine-step">
+        <div class="label">Tools on ${machine.name}</div>
+        ${!tools && html`<${Loader} label="Looking at the machine" />`}
+        ${
+            tools &&
+            tools.map(
+                (tool) => html`<label class="check machine-tool" key=${tool.id}>
+                    <input
+                        type="checkbox"
+                        checked=${ticked.has(tool.id)}
+                        disabled=${busy || !tool.supported || (tool.own && !tool.installed)}
+                        onChange=${(event) => {
+                            const next = new Set(ticked);
+
+                            if (event.currentTarget.checked) {
+                                next.add(tool.id);
+                            } else {
+                                next.delete(tool.id);
+                            }
+
+                            setTicked(next);
+                        }}
+                    />
+                    <span>
+                        <strong>${tool.name}</strong> ${tool.version}
+                        <span class="muted small"> · ${toolState(tool)}</span>
+                        <div class="muted small">${tool.description}</div>
+                    </span>
+                </label>`,
+            )
+        }
+        <p class="muted small">
+            Each is downloaded by the machine itself, checked against its pinned sha256, into <span class="mono">~/.pi/mobile/tools</span>, and put first on bash's PATH in sessions there.
+        </p>
+        <div class="sheet-actions">
+            <button class="button small" disabled=${busy} onClick=${onClose}>Close</button>
+            <button class="button small primary" disabled=${busy || ticked.size === 0} onClick=${install}>${busy ? "Installing…" : "Install"}</button>
+        </div>
+    </div>`;
+}
+
 /**
  * One machine and where it stands: added (scan its host key), host key accepted (install and connect), connected
  * (test, edit, remove). Each step is the owner's tap; nothing runs on the machine before "Install and connect".
@@ -76,6 +173,21 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
     const [scan, setScan] = useState(null);
     const [busy, setBusy] = useState(null);
     const [checked, setChecked] = useState(null);
+    const [toolsOpen, setToolsOpen] = useState(false);
+    // Tools to install once it connects: every tool, ticked, as the owner chose (they untick what they don't want).
+    const [catalog, setCatalog] = useState(null);
+    const [wanted, setWanted] = useState(new Set());
+
+    useEffect(() => {
+        if (machine.hostKey && !machine.remote && catalog === null) {
+            attempt(async () => {
+                const list = (await api("machines/tools")).tools;
+
+                setCatalog(list);
+                setWanted(new Set(list.map((tool) => tool.id)));
+            });
+        }
+    }, [machine.hostKey, machine.remote]);
     const key = keys.find((each) => each.id === machine.keyId);
     const call = (what, run) =>
         attempt(async () => {
@@ -103,6 +215,27 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             }
 
             notify("info", `${machine.name} is connected: ${connected.remote.platform} ${connected.remote.arch}, pi-env ${connected.daemon}.`);
+
+            // Then the tools ticked: those the machine has a build of and, for rg and fd, has none of its own.
+            if (state === "trusted" && wanted.size > 0) {
+                const path = `machines/${encodeURIComponent(machine.id)}/tools`;
+                const status = (await api(path, {})).tools;
+                const install = status.filter((tool) => tool.offered && wanted.has(tool.id)).map((tool) => tool.id);
+
+                for (const tool of status.filter((each) => wanted.has(each.id) && !each.offered)) {
+                    notify("info", `${machine.name}: ${tool.name} not installed (${toolState(tool)}).`);
+                }
+
+                if (install.length > 0) {
+                    setBusy("tools");
+                    const done = await api(path, { install });
+
+                    for (const result of done.results) {
+                        notify(result.ok ? "info" : "error", `${machine.name}: ${result.id} ${result.ok ? `${result.version} installed` : `not installed: ${result.said}`}`);
+                    }
+                }
+            }
+
             onChanged();
         });
     const detect = () =>
@@ -168,6 +301,12 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             ${checked && html`<div class="muted small">Reached: ${checked}</div>`}
             ${
                 state === "connected" &&
+                machine.tools &&
+                html`<div class="muted small">Tools: ${Object.entries(machine.tools).map(([tool, version]) => `${tool} ${version}`).join(", ")}</div>`
+            }
+            ${state === "connected" && toolsOpen && html`<${MachineToolsPanel} machine=${machine} onClose=${() => { setToolsOpen(false); onChanged(); }} />`}
+            ${
+                state === "connected" &&
                 health !== undefined &&
                 (health.ok
                     ? html`<div class="muted small">Answers now (checked ${timeAgo(health.at)} ago)</div>`
@@ -197,8 +336,38 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                     <p class="small">
                         Connecting copies the app's helper program (pi-env, about 2 MB) to <span class="mono">~/.pi/mobile/tools</span> on ${machine.name} over ssh and starts it there whenever a session works on this machine. It runs as <span class="mono">${machine.user}</span>, only while connected, and is checked against its hash before every start.
                     </p>
+                    ${
+                        catalog &&
+                        html`<div class="machine-tools-pick">
+                            <div class="label">Also install there</div>
+                            ${catalog.map(
+                                (tool) => html`<label class="check machine-tool" key=${tool.id}>
+                                    <input
+                                        type="checkbox"
+                                        checked=${wanted.has(tool.id)}
+                                        disabled=${busy !== null}
+                                        onChange=${(event) => {
+                                            const next = new Set(wanted);
+
+                                            if (event.currentTarget.checked) {
+                                                next.add(tool.id);
+                                            } else {
+                                                next.delete(tool.id);
+                                            }
+
+                                            setWanted(next);
+                                        }}
+                                    />
+                                    <span>
+                                        <strong>${tool.name}</strong> ${tool.version} <span class="muted small">· ${tool.size}${tool.onlyIfMissing ? " · only if the machine has none" : ""}</span>
+                                        <div class="muted small">${tool.description}</div>
+                                    </span>
+                                </label>`,
+                            )}
+                        </div>`
+                    }
                     <button class="button primary" disabled=${busy !== null} onClick=${connect}>
-                        ${busy === "connect" ? "Connecting…" : "Install and connect"}
+                        ${busy === "connect" ? "Connecting…" : busy === "tools" ? "Installing tools…" : "Install and connect"}
                     </button>
                 </div>`
             }
@@ -215,6 +384,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 </button>`
             }
             ${state === "connected" && html`<button class="button small" onClick=${() => openSheet({ type: "forwards", machineId: machine.id })}>Ports</button>`}
+            ${state === "connected" && html`<button class="button small" disabled=${toolsOpen} onClick=${() => setToolsOpen(true)}>Install tools</button>`}
             ${state === "connected" && html`<button class="button small" disabled=${busy !== null} onClick=${detect}>${busy === "detect" ? "Testing…" : "Test"}</button>`}
             ${state === "connected" && html`<button class="button small ghost" disabled=${busy !== null} onClick=${connect}>${busy === "connect" ? "Updating…" : "Update helper"}</button>`}
             ${key && html`<button class="button small ghost" onClick=${copyKey}>Copy public key</button>`}

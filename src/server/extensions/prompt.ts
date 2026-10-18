@@ -136,7 +136,8 @@ export default function createPrompt(host: PocketHost) {
             section("skills", (input) => {
                 const cwd = localCwd(input);
 
-                return cwd === undefined ? undefined : load(cwd).skills;
+                // On a machine: the skills of tools pi-phone installed there (OfficeCLI's), at their paths there.
+                return cwd === undefined ? host.machineSkills(cwdOf(input)) : load(cwd).skills;
             }, { tag: false }),
             section("environment", (input) => {
                 // The date only, so the prompt stays cache-friendly through the day.
@@ -161,6 +162,13 @@ export default function createPrompt(host: PocketHost) {
                     `Your tools (bash, read, write, edit) run on the machine "${machine.name}" (${machine.address}, ${machine.platform}), not on the phone. Working directory there: ${machine.path}`,
                     "That machine's git, gh, and other programs use its own logins and tools, not the phone's. Files the user attaches are copied to ~/.pi/mobile/uploads on that machine; the message lists their paths there.",
                     "A command stops about 30 seconds after the phone's connection to the machine drops, with an error; check what happened before running it again.",
+                    ...(Object.keys(machine.tools).length === 0
+                        ? []
+                        : [
+                              `pi-phone installed these tools there, first on bash's PATH (~/.pi/mobile/tools/bin): ${Object.entries(machine.tools)
+                                  .map(([tool, version]) => `${tool} ${version}`)
+                                  .join(", ")}.${machine.tools.officecli === undefined ? "" : " officecli never installs or updates itself: never run its installers or officecli install."}`,
+                          ]),
                     `Today: ${today}`,
                 ].join("\n");
             }),

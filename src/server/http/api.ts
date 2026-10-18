@@ -3,6 +3,7 @@
  * which a form on another site cannot send. A conversation's routes are in `conversation-routes.ts`.
  */
 import { createReadStream, readdirSync, rmSync, statSync } from "node:fs";
+import { TOOLS } from "../machine-tools.ts";
 import { pipeline } from "node:stream/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { homedir, networkInterfaces, tmpdir } from "node:os";
@@ -882,6 +883,15 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
         // Machines (`machines.ts`): the owner's; nothing runs on one without their tap.
         // Whether each set-up machine answers now, and why not (`Places.health`): for the Machines sheet and the picker.
+        // The tools pi-phone can install on machines (`machine-tools.ts`), for the list shown before connecting.
+        if (first === "machines" && second === "tools" && method === "GET") {
+            requireOwner(user);
+
+            return json(response, 200, {
+                tools: TOOLS.map((tool) => ({ id: tool.id, name: tool.name, version: tool.version, description: tool.description, size: tool.size, onlyIfMissing: tool.onlyIfMissing === true })),
+            });
+        }
+
         if (first === "machines" && second === "health" && method === "GET") {
             requireOwner(user);
 
@@ -929,6 +939,21 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
             if (third === "detect") {
                 return json(response, 200, await app.machines.detect(second));
+            }
+
+            // Tools pi-phone installs there (`machine-tools.ts`): what each is on the machine, and installing the ticked.
+            if (third === "tools") {
+                const body = await readJson<{ install?: unknown }>(request);
+
+                if (body.install === undefined) {
+                    return json(response, 200, { tools: await app.machineTools.status(second) });
+                }
+
+                if (!Array.isArray(body.install) || !body.install.every((each) => typeof each === "string")) {
+                    throw new HttpError(400, "install is a list of tool ids");
+                }
+
+                return json(response, 200, await app.machineTools.install(second, body.install as string[]));
             }
         }
 

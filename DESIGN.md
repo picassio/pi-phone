@@ -351,8 +351,28 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     `/a/office/<conversation>?path=` (`Workspace.officePage`: read as a download is, here or on the machine, then
     `officecli view <file> html` with no resident process), in the artifacts' sandbox CSP. `hello`'s
     `server.officecli` says whether it runs.
-  - **Machines:** upstream's Linux x64 release 1.0.157 in `~/.local/bin` on han-devbox and tuanlh-devbox-01, with
-    `autoUpdate false`. Sessions on a machine read no skills, so Pi there uses `officecli help`.
+  - **Machines:** see Machine tools.
+- **Machine tools** (`src/server/machine-tools.ts`; owner's decisions of 2026-10-18): command-line programs run where
+  bash runs, which in a session on a machine is the machine, so OfficeCLI, ripgrep, and fd are installed there.
+  - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT
+    build for Termux on Android), ripgrep 15.2.0 and fd 10.5.0 (static musl builds for Linux and Android, and macOS),
+    each pinned with its sha256 (OfficeCLI's and rg's from their releases; fd publishes none, so the files'). rg and fd
+    are offered only when the machine has none of its own. Windows gets none.
+  - **Install:** the machine downloads each itself (curl or wget), checks the sha256 (sha256sum or shasum) before
+    keeping anything, into `~/.pi/mobile/tools/<tool>/<version>/`, and a wrapper `~/.pi/mobile/tools/bin/<command>`
+    (marked `# pi-phone-tool <id> <version>`, written by a quoted heredoc) runs it with what it needs (OfficeCLI: no
+    self-update, no self-install; Termux's OpenSSL on Android). Older versions are removed. OfficeCLI's skills are copied
+    with it (`<version>/skills/`, a tar from the phone's `third_party/`).
+  - **Where it shows:** adding a machine lists the tools, ticked, under "Install and connect"; after connecting, the
+    ticked ones the machine has a build of (and, for rg and fd, has none of) are installed. A connected machine has
+    Install tools: each tool's state there (installed and its version, the machine's own, not installed, no build),
+    offered ones ticked. `GET /api/machines/tools` is the catalog; `POST /api/machines/<id>/tools` the status, or
+    `{install: [...]}`. What is installed is kept as `Machine.tools` (machines.json).
+  - **Sessions there:** bash's command gets `PATH="$HOME/.pi/mobile/tools/bin:$PATH"` first (`prepare` in `app.ts`);
+    the environment section names the installed tools; the skills section lists the installed tools' skills at their
+    paths on the machine (`machineToolSkills`), which Pi reads there.
+  - **Tests:** `remote-session.test.ts` serves a tool from a local HTTP server; its sshd runs with `SetEnv HOME=` the
+    test's folder, so nothing reaches the real home.
   - **Tests** stand in a script for the binary (`test/officecli.test.ts`); `openApp` turns OfficeCLI off, as on the
     phone the real binary would run.
 - **Interactive answers** (Open Intelligent UI): Pi writes a program in OpenUI Lang 1.0, and a frame draws it with

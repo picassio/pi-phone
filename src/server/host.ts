@@ -170,7 +170,9 @@ export interface PocketHost {
     /** The phone's home folder. */
     readonly home: string;
     /** The machine a session's cwd is on (`places.ts`), with what the prompt says about it; undefined on this phone. */
-    machineOf(cwd: string): { name: string; address: string; path: string; platform: string } | undefined;
+    machineOf(cwd: string): { name: string; address: string; path: string; platform: string; tools: Record<string, string> } | undefined;
+    /** The skills of tools pi-phone installed on the session's machine, formatted for the prompt; undefined for none. */
+    machineSkills(cwd: string): string | undefined;
     /**
      * `provider/modelId` (or a bare model id) to a signed-in model whose sign-in has not expired, or an error that says
      * it is not available. The error names no other models: models are a person's to choose.

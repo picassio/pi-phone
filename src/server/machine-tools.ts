@@ -1,0 +1,380 @@
+/**
+ * Tools pi-phone installs on a machine, when the owner adds it or later (Settings › Machines; owner's decisions of
+ * 2026-10-18, DESIGN.md section 4). Command-line programs run where bash runs, and in a session on a machine that is
+ * the machine: so OfficeCLI, ripgrep, and fd go there, not on the phone.
+ *
+ * Each tool is the machine's own build at a pinned version, downloaded by the machine itself (curl or wget) and checked
+ * against its sha256 before anything is kept, into `~/.pi/mobile/tools/<tool>/<version>/` (beside pi-env's daemon). A
+ * small script in `~/.pi/mobile/tools/bin/` runs it, marked `# pi-phone-tool <id> <version>`, with what it needs
+ * (OfficeCLI: never update or install itself); that folder is first on the PATH of bash in sessions on the machine
+ * (`app.ts`). OfficeCLI's skills go with it, so Pi there reads them where they are. rg and fd are offered only when the
+ * machine has none of its own. Nothing is installed without the owner's tick.
+ */
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { APP_ROOT } from "./config.ts";
+import { HttpError } from "./errors.ts";
+import type { Machine } from "./machines.ts";
+import type { Places } from "./places.ts";
+
+/** Where the tools live on a machine, under its home. */
+export const TOOLS_DIR = ".pi/mobile/tools";
+/** The folder on bash's PATH there. */
+export const TOOLS_BIN = `${TOOLS_DIR}/bin`;
+
+type Target = `${"linux" | "darwin" | "android"}-${"x64" | "arm64"}`;
+type Asset = { url: string; sha256: string; /** The binary inside a .tar.gz; absent: the download is the binary. */ member?: string };
+
+export type ToolSpec = {
+    id: string;
+    name: string;
+    /** The command bash runs. */
+    command: string;
+    version: string;
+    description: string;
+    /** Roughly what goes on the machine. */
+    size: string;
+    /** Offered only when the machine has no command of this name of its own. */
+    onlyIfMissing?: boolean;
+    /** Set for the program (the wrapper exports them). */
+    env?: Record<string, string>;
+    /** Skills that go with it, from the phone's copy (`third_party/`): relative to APP_ROOT, or absolute (tests). */
+    skills?: string;
+    assets: Partial<Record<Target, Asset>>;
+};
+
+const OFFICECLI = "https://github.com/iOfficeAI/OfficeCLI/releases/download/v1.0.157";
+const RG = "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0";
+const FD = "https://github.com/sharkdp/fd/releases/download/v10.5.0";
+
+/** The tools, as the list shows them. Versions and sums are pinned: OfficeCLI's and rg's from their releases' own sums. */
+export const TOOLS: readonly ToolSpec[] = [
+    {
+        id: "officecli",
+        name: "OfficeCLI",
+        command: "officecli",
+        version: "1.0.157",
+        description: "Create, read, and edit Word, Excel, and PowerPoint files; with its skills for Pi",
+        size: "about 35 MB",
+        env: { OFFICECLI_SKIP_UPDATE: "1", OFFICECLI_NO_AUTO_INSTALL: "1" },
+        skills: "third_party/officecli/skills",
+        assets: {
+            "linux-x64": { url: `${OFFICECLI}/officecli-linux-x64`, sha256: "f8eefe88dbfa7464bee421e5421efe57fc26bc3180b30e56eef58594c8245c94" },
+            "linux-arm64": { url: `${OFFICECLI}/officecli-linux-arm64`, sha256: "60db926c8a1371984b9e99622a834777befb02b6f73d0f3fff914ffcc2760d2f" },
+            "darwin-arm64": { url: `${OFFICECLI}/officecli-mac-arm64`, sha256: "0dae0990a9cc29688a5d54469f984c34e5b15ab6bbd194a0ffdc571bb9040124" },
+            "darwin-x64": { url: `${OFFICECLI}/officecli-mac-x64`, sha256: "178c1e9ebaf44c24d2b4b359064a5dea6eb7b2f539809871a3de1c09599dff9f" },
+            // Termux on Android: the fork's NativeAOT build, as the phone runs it (scripts/officecli.ts).
+            "android-arm64": {
+                url: "https://github.com/picassio/OfficeCLI/releases/download/android-v1.0.157/officecli-android-arm64.tar.gz",
+                sha256: "c51163af08481e0240308d438921e8f367e5017261ad07407fb93b8b50367160",
+                member: "officecli/officecli",
+            },
+        },
+    },
+    {
+        id: "rg",
+        name: "ripgrep (rg)",
+        command: "rg",
+        version: "15.2.0",
+        description: "Fast search through files, as Pi uses it",
+        size: "about 6 MB",
+        onlyIfMissing: true,
+        assets: {
+            "linux-x64": { url: `${RG}/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz`, sha256: "33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c", member: "ripgrep-15.2.0-x86_64-unknown-linux-musl/rg" },
+            "linux-arm64": { url: `${RG}/ripgrep-15.2.0-aarch64-unknown-linux-musl.tar.gz`, sha256: "800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915", member: "ripgrep-15.2.0-aarch64-unknown-linux-musl/rg" },
+            "android-arm64": { url: `${RG}/ripgrep-15.2.0-aarch64-unknown-linux-musl.tar.gz`, sha256: "800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915", member: "ripgrep-15.2.0-aarch64-unknown-linux-musl/rg" },
+            "darwin-arm64": { url: `${RG}/ripgrep-15.2.0-aarch64-apple-darwin.tar.gz`, sha256: "3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4", member: "ripgrep-15.2.0-aarch64-apple-darwin/rg" },
+            "darwin-x64": { url: `${RG}/ripgrep-15.2.0-x86_64-apple-darwin.tar.gz`, sha256: "af7825fcc69a2afc7a7aea55fc9af90e26421d8f20fe59df32e233c0b8a231c1", member: "ripgrep-15.2.0-x86_64-apple-darwin/rg" },
+        },
+    },
+    {
+        id: "fd",
+        name: "fd",
+        command: "fd",
+        version: "10.5.0",
+        description: "Fast file finding by name, as Pi uses it",
+        size: "about 4 MB",
+        onlyIfMissing: true,
+        // fd's releases publish no sums: these are of the files as downloaded on 2026-10-18.
+        assets: {
+            "linux-x64": { url: `${FD}/fd-v10.5.0-x86_64-unknown-linux-musl.tar.gz`, sha256: "761c72dc8e120d85b22292063be8a796e2eeb20eb3e4f38b8fa2343ccf3514a7", member: "fd-v10.5.0-x86_64-unknown-linux-musl/fd" },
+            "linux-arm64": { url: `${FD}/fd-v10.5.0-aarch64-unknown-linux-musl.tar.gz`, sha256: "d76c4317f7d5dba69f8a2a15856c90c777e7f0dd4e85f0de8c76de6992c374d4", member: "fd-v10.5.0-aarch64-unknown-linux-musl/fd" },
+            "android-arm64": { url: `${FD}/fd-v10.5.0-aarch64-unknown-linux-musl.tar.gz`, sha256: "d76c4317f7d5dba69f8a2a15856c90c777e7f0dd4e85f0de8c76de6992c374d4", member: "fd-v10.5.0-aarch64-unknown-linux-musl/fd" },
+            "darwin-arm64": { url: `${FD}/fd-v10.5.0-aarch64-apple-darwin.tar.gz`, sha256: "b67e1836c468e42e411984b56e52fa7abec08c2bd22c867398e7cc134aac5e12", member: "fd-v10.5.0-aarch64-apple-darwin/fd" },
+            "darwin-x64": { url: `${FD}/fd-v10.5.0-x86_64-apple-darwin.tar.gz`, sha256: "7e31028c62c6955877735d0406807aa484c2a5e6f86235a59e26c29c301da590", member: "fd-v10.5.0-x86_64-apple-darwin/fd" },
+        },
+    },
+];
+
+/** One tool on one machine, as the list shows it. */
+export type ToolStatus = {
+    id: string;
+    name: string;
+    version: string;
+    description: string;
+    size: string;
+    /** The machine has no build of it (Windows, say): not offered. */
+    supported: boolean;
+    /** Installed by pi-phone, and which version. */
+    installed?: string;
+    /** The machine's own, where it is (rg, fd): not offered. */
+    own?: string;
+    /** Whether the list offers it, ticked. */
+    offered: boolean;
+};
+
+export type InstallResult = { id: string; ok: boolean; version?: string; said: string };
+
+/** A value for a single-quoted sh word. */
+const q = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
+
+/** The machine's build target, or undefined when the app has none for it. */
+function targetOf(machine: Machine): Target | undefined {
+    const remote = machine.remote;
+
+    if (remote === undefined || remote.platform === "windows") {
+        return undefined;
+    }
+
+    return `${remote.platform}-${remote.arch}` as Target;
+}
+
+/** Status of each tool, from one script: the marker of pi-phone's wrapper, else the machine's own command. */
+function statusScript(catalog: readonly ToolSpec[]): string {
+    return [
+        `T="$HOME/${TOOLS_DIR}"`,
+        ...catalog.map(
+            (tool) =>
+                `if [ -f "$T/bin/${tool.command}" ]; then echo "${tool.id} installed $(sed -n 's/^# pi-phone-tool [^ ]* //p' "$T/bin/${tool.command}" | head -n 1)"; ` +
+                `else own=$(PATH=$(printf %s "$PATH" | tr ':' '\\n' | grep -v "/${TOOLS_BIN}$" | paste -sd: -) command -v ${tool.command} 2>/dev/null || true); ` +
+                `if [ -n "$own" ]; then echo "${tool.id} own $own"; else echo "${tool.id} none"; fi; fi`,
+        ),
+    ].join("\n");
+}
+
+/** The wrapper bash runs as the tool's command: its marker names the tool and version (`statusScript`). */
+export function wrapperOf(tool: ToolSpec, binary: string): string {
+    return [
+        "#!/bin/sh",
+        `# pi-phone-tool ${tool.id} ${tool.version}`,
+        ...Object.entries(tool.env ?? {}).map(([name, value]) => `export ${name}=${q(value)}`),
+        // Android's OfficeCLI needs Termux's OpenSSL (Android's own libssl aborts it); elsewhere $PREFIX is unset.
+        ...(tool.id === "officecli" ? ['if [ -n "$PREFIX" ] && [ -d "$PREFIX/lib" ]; then export LD_LIBRARY_PATH="$PREFIX/lib"; fi'] : []),
+        `exec ${q(binary)} "$@"`,
+        "",
+    ].join("\n");
+}
+
+/** The script that installs one tool's asset, checks it, and writes its wrapper; its last line is the tool's version. */
+function installScript(tool: ToolSpec, asset: Asset, home: string): string {
+    const dir = `"$T/${tool.id}/${tool.version}"`;
+    const wrapper = wrapperOf(tool, `${home}/${TOOLS_DIR}/${tool.id}/${tool.version}/${tool.command}`);
+
+    if (wrapper.includes("PI_PHONE_TOOL_END")) {
+        throw new Error("A wrapper may not hold its own heredoc's end.");
+    }
+
+    return [
+        "set -e",
+        `T="$HOME/${TOOLS_DIR}"`,
+        `mkdir -p "$T/bin" ${dir}`,
+        'tmp=$(mktemp -d "${TMPDIR:-/tmp}/pi-phone-tool.XXXXXX")',
+        "trap 'rm -rf \"$tmp\"' EXIT",
+        'if command -v curl >/dev/null 2>&1; then fetch() { curl -fsSL --retry 2 -o "$2" "$1"; }',
+        'elif command -v wget >/dev/null 2>&1; then fetch() { wget -q -O "$2" "$1"; }',
+        'else echo "This machine has neither curl nor wget to download with." >&2; exit 3; fi',
+        'if command -v sha256sum >/dev/null 2>&1; then sum() { sha256sum "$1" | cut -d" " -f1; }',
+        'elif command -v shasum >/dev/null 2>&1; then sum() { shasum -a 256 "$1" | cut -d" " -f1; }',
+        'else echo "This machine has neither sha256sum nor shasum to check the download with." >&2; exit 3; fi',
+        `fetch ${q(asset.url)} "$tmp/download"`,
+        `got=$(sum "$tmp/download")`,
+        `if [ "$got" != ${q(asset.sha256)} ]; then echo "The download's sha256 is $got, not ${asset.sha256}: nothing was installed." >&2; exit 4; fi`,
+        ...(asset.member === undefined
+            ? [`cp "$tmp/download" ${dir}/${tool.command}`]
+            : [`tar -xzf "$tmp/download" -C "$tmp"`, `cp "$tmp/${asset.member}" ${dir}/${tool.command}`]),
+        `chmod 755 ${dir}/${tool.command}`,
+        // The wrapper, as written (a quoted heredoc expands nothing).
+        `cat > "$T/bin/${tool.command}.new" <<'PI_PHONE_TOOL_END'`,
+        wrapper.trimEnd(),
+        "PI_PHONE_TOOL_END",
+        `chmod 755 "$T/bin/${tool.command}.new"`,
+        `mv "$T/bin/${tool.command}.new" "$T/bin/${tool.command}"`,
+        // Older versions of it go.
+        `for old in "$T/${tool.id}"/*; do [ "$old" = "$T/${tool.id}/${tool.version}" ] || rm -rf "$old"; done`,
+        `"$T/bin/${tool.command}" --version | head -n 1`,
+    ].join("\n");
+}
+
+export class MachineTools {
+    readonly #places: Places;
+    readonly #machine: (id: string) => Machine;
+    readonly #record: (id: string, tools: Record<string, string>) => void;
+    /** The tools offered: `TOOLS`; tests stand in their own. */
+    readonly catalog: readonly ToolSpec[];
+
+    constructor(
+        places: Places,
+        machine: (id: string) => Machine,
+        /** Keep what is installed on the machine (`Machine.tools`), for the prompt of sessions there. */
+        record: (id: string, tools: Record<string, string>) => void,
+        catalog: readonly ToolSpec[] = TOOLS,
+    ) {
+        this.#places = places;
+        this.#machine = machine;
+        this.#record = record;
+        this.catalog = catalog;
+    }
+
+    /** The machine's connected record, or why not. */
+    #connected(id: string): Machine & { remote: NonNullable<Machine["remote"]> } {
+        const machine = this.#machine(id);
+
+        if (machine.remote === undefined) {
+            throw new HttpError(409, `Connect ${machine.name} first.`);
+        }
+
+        return machine as Machine & { remote: NonNullable<Machine["remote"]> };
+    }
+
+    async #run(machine: Machine & { remote: NonNullable<Machine["remote"]> }, script: string, timeout = 120): Promise<{ code: number; out: string }> {
+        const env = this.#places.env(`machine:${machine.id}:${machine.remote.home}`);
+        let out = "";
+        const result = await env.exec(
+            ["sh", "-c", script],
+            { cwd: machine.remote.home, timeout, onOutput: (chunk) => (out += chunk) },
+            BACKGROUND_CONTEXT,
+        );
+
+        if (!result.ok) {
+            throw new HttpError(502, `${machine.name}: ${result.error.message}`);
+        }
+
+        return { code: result.value.exitCode, out };
+    }
+
+    /** Each tool on the machine: installed by pi-phone (which version), the machine's own, or offered. */
+    async status(id: string): Promise<ToolStatus[]> {
+        const machine = this.#connected(id);
+        const target = targetOf(machine);
+        const { out } = await this.#run(machine, statusScript(this.catalog), 60);
+        const lines = new Map(
+            out
+                .split("\n")
+                .map((line) => line.trim().split(" "))
+                .filter((parts) => parts.length >= 2)
+                .map(([tool, state, ...rest]) => [tool!, { state: state!, rest: rest.join(" ") }]),
+        );
+        const installed: Record<string, string> = {};
+        const statuses = this.catalog.map((tool): ToolStatus => {
+            const seen = lines.get(tool.id);
+            const supported = target !== undefined && tool.assets[target] !== undefined;
+            const version = seen?.state === "installed" ? seen.rest.split(" ")[0] || "unknown" : undefined;
+            const own = seen?.state === "own" ? seen.rest : undefined;
+
+            if (version !== undefined) {
+                installed[tool.id] = version;
+            }
+
+            return {
+                id: tool.id,
+                name: tool.name,
+                version: tool.version,
+                description: tool.description,
+                size: tool.size,
+                supported,
+                ...(version === undefined ? {} : { installed: version }),
+                ...(own === undefined ? {} : { own }),
+                offered: supported && (version === undefined || version !== tool.version) && !(tool.onlyIfMissing === true && own !== undefined),
+            };
+        });
+
+        this.#record(id, installed);
+
+        return statuses;
+    }
+
+    /**
+     * Install the tools named, one after another, each checked before it is kept: what each said. A tool the machine has
+     * no build of, or has its own of (rg, fd), is refused by name. Skills go with OfficeCLI.
+     */
+    async install(id: string, ids: readonly string[]): Promise<{ results: InstallResult[]; tools: ToolStatus[] }> {
+        const machine = this.#connected(id);
+        const target = targetOf(machine);
+        const results: InstallResult[] = [];
+
+        for (const toolId of ids) {
+            const tool = this.catalog.find((each) => each.id === toolId);
+
+            if (tool === undefined) {
+                throw new HttpError(400, `No tool "${toolId}". The tools are ${this.catalog.map((each) => each.id).join(", ")}.`);
+            }
+
+            const asset = target === undefined ? undefined : tool.assets[target];
+
+            if (asset === undefined) {
+                results.push({ id: tool.id, ok: false, said: `${tool.name} has no build for ${machine.remote.platform} ${machine.remote.arch}.` });
+                continue;
+            }
+
+            const { code, out } = await this.#run(machine, installScript(tool, asset, machine.remote.home), 600);
+            const said = out.trim().split("\n").slice(-6).join("\n");
+
+            if (code !== 0) {
+                results.push({ id: tool.id, ok: false, said: said || `exit ${code}` });
+                continue;
+            }
+
+            if (tool.skills !== undefined) {
+                await this.#placeSkills(machine, tool);
+            }
+
+            results.push({ id: tool.id, ok: true, version: tool.version, said: said.split("\n").at(-1) ?? "" });
+        }
+
+        return { results, tools: await this.status(id) };
+    }
+
+    /** A tool's skills, from the phone's copy, beside it on the machine: `<tool>/<version>/skills/`. */
+    async #placeSkills(machine: Machine & { remote: NonNullable<Machine["remote"]> }, tool: ToolSpec): Promise<void> {
+        const work = mkdtempSync(join(tmpdir(), "tool-skills-"));
+
+        try {
+            const archive = join(work, "skills.tar.gz");
+
+            execFileSync("tar", ["-czf", archive, "-C", resolve(APP_ROOT, tool.skills!), "."]);
+            const env = this.#places.env(`machine:${machine.id}:${machine.remote.home}`);
+            const remote = `${machine.remote.home}/${TOOLS_DIR}/${tool.id}/${tool.version}/skills.tar.gz`;
+            const written = await env.writeFile(remote, readFileSync(archive), BACKGROUND_CONTEXT);
+
+            if (!written.ok) {
+                throw new HttpError(502, `Could not copy ${tool.name}'s skills to ${machine.name}: ${written.error.message}`);
+            }
+
+            const { code, out } = await this.#run(
+                machine,
+                [
+                    "set -e",
+                    `D="$HOME/${TOOLS_DIR}/${tool.id}/${tool.version}"`,
+                    'rm -rf "$D/skills"',
+                    'mkdir -p "$D/skills"',
+                    'tar -xzf "$D/skills.tar.gz" -C "$D/skills"',
+                    'rm -f "$D/skills.tar.gz"',
+                ].join("\n"),
+            );
+
+            if (code !== 0) {
+                throw new HttpError(502, `Could not unpack ${tool.name}'s skills on ${machine.name}: ${out.trim()}`);
+            }
+        } finally {
+            rmSync(work, { recursive: true, force: true });
+        }
+    }
+}
+
+/** Where a tool's skills are on a machine, for the prompt of sessions there. */
+export function machineSkillsDir(home: string, tool: ToolSpec, version: string): string {
+    return `${home}/${TOOLS_DIR}/${tool.id}/${version}/skills`;
+}

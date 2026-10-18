@@ -15369,6 +15369,26 @@ pre.gallery-code {
     flex: 1;
 }
 
+/* Tools pi-phone installs on a machine (sheets/machines.js): a tick, the tool, where it stands. */
+.machine-tool {
+    display: flex;
+    gap: 0.55rem;
+    align-items: flex-start;
+    margin: 0.35rem 0;
+}
+
+.machine-tool input[type="checkbox"] {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin: 2px 0 0;
+    accent-color: var(--accent);
+}
+
+.machine-tools-pick {
+    margin: 0.5rem 0;
+}
+
 .machine-step {
     margin-top: 8px;
     padding: 10px 12px;

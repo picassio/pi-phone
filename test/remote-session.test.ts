@@ -30,6 +30,7 @@ let told = "";
 /** Asks the scripted model answers with one tool call, set by the tests. */
 const calls: Record<string, [string, Record<string, unknown>]> = {};
 let preamble = "";
+let skillsTold = "";
 
 const route: FauxResponseStep = (request) => {
     const messages = (request as { messages: { role: string; sections?: Record<string, string | null> }[] }).messages;
@@ -41,6 +42,10 @@ const route: FauxResponseStep = (request) => {
 
         if (message.role === "system" && message.sections?.preamble) {
             preamble = message.sections.preamble;
+        }
+
+        if (message.role === "system" && message.sections && "skills" in message.sections) {
+            skillsTold = message.sections.skills ?? "";
         }
     }
 
@@ -106,6 +111,8 @@ before(async () => {
             "StrictModes no",
             "UsePAM no",
             `PidFile ${join(etc, "sshd.pid")}`,
+            // The machine's home is a folder of the test's: what pi-phone puts there (pi-env, tools) never reaches the real one.
+            `SetEnv HOME=${remoteHome}`,
             "LogLevel ERROR",
             // scp speaks SFTP: the server's sftp-server, where this system keeps it (Termux, Debian, Fedora).
             ...[join(process.env.PREFIX ?? "/usr", "libexec", "sftp-server"), "/usr/lib/openssh/sftp-server", "/usr/libexec/openssh/sftp-server"]
@@ -157,6 +164,103 @@ test("a session on a machine runs its tools there, and the prompt says where", {
     assert.match(preamble, /the wiki \(the phone's, one for all sessions\), secrets/);
     assert.doesNotMatch(preamble, /Termux/);
     void home;
+});
+
+test("tools on a machine: offered, installed checked against their sha256, first on bash's PATH there; their skills in the prompt", { skip }, async () => {
+    const { createServer: createHttp } = await import("node:http");
+    const { createHash } = await import("node:crypto");
+    const { MachineTools } = await import("../src/server/machine-tools.ts");
+    const machine = app.machines.get(machineId);
+
+    assert.equal(machine.remote!.home, remoteHome, "the test machine's home is the test's own folder");
+
+    // A tool: a .tar.gz holding hello-1.0/hello, served here.
+    const build = join(root, "tool-build");
+
+    mkdirSync(join(build, "hello-1.0"), { recursive: true });
+    writeFileSync(join(build, "hello-1.0", "hello"), '#!/bin/sh\necho "hello 1.0 skip=$HELLO_SKIP"\n');
+    chmodSync(join(build, "hello-1.0", "hello"), 0o755);
+    execFileSync("tar", ["-czf", join(build, "hello.tar.gz"), "-C", build, "hello-1.0"]);
+    const archive = readFileSync(join(build, "hello.tar.gz"));
+    const sha256 = createHash("sha256").update(archive).digest("hex");
+    const server = createHttp((_request, response) => response.end(archive));
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/hello.tar.gz`;
+    const skillsDir = join(build, "skills");
+
+    mkdirSync(join(skillsDir, "hello"), { recursive: true });
+    writeFileSync(join(skillsDir, "hello", "SKILL.md"), "---\nname: hello-skill\ndescription: Says hello, with the hello tool.\n---\n\n# hello\n");
+    const asset = { url, sha256, member: "hello-1.0/hello" };
+    const spec = (sum: string) => ({
+        id: "hello",
+        name: "Hello",
+        command: "hello",
+        version: "1.0",
+        description: "A test tool",
+        size: "tiny",
+        env: { HELLO_SKIP: "1" },
+        skills: skillsDir,
+        assets: { "linux-x64": { ...asset, sha256: sum }, "linux-arm64": { ...asset, sha256: sum }, "android-arm64": { ...asset, sha256: sum }, "darwin-arm64": { ...asset, sha256: sum }, "darwin-x64": { ...asset, sha256: sum } },
+    });
+    // "sh" is everywhere: never offered, as the machine has its own.
+    const own = { ...spec(sha256), id: "sh", name: "sh", command: "sh", onlyIfMissing: true };
+    const tools = new MachineTools(app.places, (id) => app.machines.get(id), (id, found) => app.machines.setTools(id, found), [spec(sha256), own]);
+    const toolsDir = join(remoteHome, ".pi", "mobile", "tools");
+
+    try {
+        const before = await tools.status(machineId);
+
+        assert.deepEqual(before.map((each) => [each.id, each.offered, each.installed, each.own === undefined]), [["hello", true, undefined, true], ["sh", false, undefined, false]]);
+
+        // A wrong sum keeps nothing.
+        const wrong = new MachineTools(app.places, (id) => app.machines.get(id), () => {}, [spec("0".repeat(64))]);
+        const refused = await wrong.install(machineId, ["hello"]);
+
+        assert.equal(refused.results[0]!.ok, false);
+        assert.match(refused.results[0]!.said, /sha256 is [0-9a-f]{64}, not 0{64}: nothing was installed/);
+        assert.equal(existsSync(join(toolsDir, "bin", "hello")), false);
+
+        const done = await tools.install(machineId, ["hello"]);
+
+        assert.deepEqual(done.results, [{ id: "hello", ok: true, version: "1.0", said: "hello 1.0 skip=1" }]);
+        assert.match(readFileSync(join(toolsDir, "bin", "hello"), "utf8"), /^#!\/bin\/sh\n# pi-phone-tool hello 1\.0\nexport HELLO_SKIP='1'\n/);
+        assert.ok(existsSync(join(toolsDir, "hello", "1.0", "skills", "hello", "SKILL.md")), "its skills went with it");
+        assert.equal(done.tools.find((each) => each.id === "hello")?.installed, "1.0");
+        assert.deepEqual(app.machines.get(machineId).tools, { hello: "1.0" });
+        await assert.rejects(tools.install(machineId, ["nope"]), /No tool "nope"/);
+
+        // A session there: hello is first on bash's PATH, the prompt names it, and its skills are listed where they are.
+        const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${join(remoteHome, "project")}` });
+
+        await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+        calls["machine tools: say hello"] = ["bash", { command: "command -v hello; hello" }];
+        const { submissionId } = await app.commands.submit(id, owner(app), { text: "machine tools: say hello", requestId: crypto.randomUUID() });
+
+        await (await app.harness.submission(submissionId, context))!.wait(context);
+        const said = (await modelTexts(app, id)).at(-1)!;
+
+        assert.match(said, new RegExp(`${join(toolsDir, "bin", "hello").replace(/[/.]/g, "\\$&")}`));
+        assert.match(said, /hello 1\.0 skip=1/);
+        assert.match(told, /pi-phone installed these tools there, first on bash's PATH \(~\/\.pi\/mobile\/tools\/bin\): hello 1\.0\./);
+        // The prompt's skills come from the app's own tools: with OfficeCLI there, its skills, named at their place there.
+        app.machines.setTools(machineId, { hello: "1.0", officecli: "1.0.157" });
+        calls["machine tools: look again"] = ["bash", { command: "true" }];
+        const again = await app.commands.submit(id, owner(app), { text: "machine tools: look again", requestId: crypto.randomUUID() });
+
+        await (await app.harness.submission(again.submissionId, context))!.wait(context);
+        assert.match(skillsTold, /<name>officecli-pptx<\/name>/);
+        assert.ok(skillsTold.includes(join(toolsDir, "officecli", "1.0.157", "skills", "officecli", "SKILL.md")), skillsTold.slice(0, 400));
+        assert.doesNotMatch(skillsTold, /third_party/, "never the phone's paths");
+        assert.match(told, /officecli 1\.0\.157\. officecli never installs or updates itself/);
+    } finally {
+        // Its asks go: the route matches the end of any later message.
+        delete calls["machine tools: say hello"];
+        delete calls["machine tools: look again"];
+        server.close();
+        rmSync(toolsDir, { recursive: true, force: true });
+        app.machines.setTools(machineId, {});
+    }
 });
 
 test("each set-up machine's health: this one answers; one whose address answers nothing says why", { skip }, async () => {

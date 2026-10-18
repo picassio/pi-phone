@@ -52,6 +52,8 @@ export type Machine = {
     /** The daemon version last seen. */
     daemon?: string;
     connectedAt?: number;
+    /** Tools pi-phone installed there, by id, with their versions, as last seen (`machine-tools.ts`). */
+    tools?: Record<string, string>;
 };
 
 const FILE = "machines.json";
@@ -206,6 +208,24 @@ export class Machines {
         }
 
         return machine;
+    }
+
+    /** What `machine-tools.ts` last saw installed there; saved only when it changed. */
+    setTools(id: string, tools: Record<string, string>): void {
+        const machine = this.get(id);
+        const next = Object.keys(tools).length === 0 ? undefined : tools;
+
+        if (JSON.stringify(machine.tools) === JSON.stringify(next)) {
+            return;
+        }
+
+        if (next === undefined) {
+            delete machine.tools;
+        } else {
+            machine.tools = next;
+        }
+
+        this.#save();
     }
 
     /** Which machines use a key: for the key's row, and to refuse removing a key in use. */

@@ -8,10 +8,11 @@
  */
 import { rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { clampThinkingLevel, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import {
+    formatSkillsForPrompt,
     getAgentDir,
     ModelRuntime,
     resolveModelScopeWithDiagnostics,
@@ -79,6 +80,7 @@ import { Para } from "./para.ts";
 import { CAPTURE_EXTENSION, ParaCapture } from "./para-capture.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
+import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
 import { OfficeCli, type OfficeCliOptions } from "./officecli.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
@@ -108,6 +110,7 @@ import { Goals } from "./goals.ts";
 import { Shell } from "./shell.ts";
 import {
     loadSessionSkills,
+    machineToolSkills,
     projectDistrusted,
     type ProjectTrust,
     readProjectTrust,
@@ -310,6 +313,8 @@ export class PocketApp {
     readonly machines: Machines;
     /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
     readonly officecli: OfficeCli;
+    /** Tools pi-phone installs on machines: OfficeCLI, rg, fd (`machine-tools.ts`). */
+    readonly machineTools: MachineTools;
     /** Where sessions work, here or on a machine, and each place's execution environment (`places.ts`). */
     readonly places: Places;
     /** Ports of machines opened here (`forwards.ts`). */
@@ -382,6 +387,7 @@ export class PocketApp {
         );
         this.places = new Places(this.machines);
         this.officecli = new OfficeCli({ dataDir: options.dataDir, ...options.officecli });
+        this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools));
         this.officecli.install();
         this.forwards = new Forwards(this.machines);
         this.para = new Para({
@@ -530,6 +536,9 @@ export class PocketApp {
                                 const office = this.officecli.available() ? `${this.officecli.binDir}:` : "";
 
                                 execution.env.PATH = `${office}${join(this.machines.piSsh, "..")}:${process.env.PATH ?? ""}`;
+                            } else {
+                                // On a machine, the tools pi-phone installed there come first (`machine-tools.ts`).
+                                execution.command = `PATH="$HOME/${TOOLS_BIN}:$PATH"; export PATH\n${execution.command}`;
                             }
 
                             const named = namesIn(execution.command);
@@ -581,7 +590,26 @@ export class PocketApp {
                           address: `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`,
                           path: parsePlace(cwd).path,
                           platform: machine.remote === undefined ? "unknown" : `${machine.remote.platform} ${machine.remote.arch}`,
+                          tools: machine.tools ?? {},
                       };
+            },
+            machineSkills: (cwd) => {
+                const machine = this.places.machineOf(cwd);
+
+                if (machine?.remote === undefined) {
+                    return undefined;
+                }
+
+                const skills = this.machineTools.catalog.flatMap((tool) => {
+                    const version = machine.tools?.[tool.id];
+
+                    return tool.skills === undefined || version === undefined
+                        ? []
+                        : machineToolSkills(resolve(APP_ROOT, tool.skills), machineSkillsDir(machine.remote!.home, tool, version), getAgentDir());
+                });
+                const text = formatSkillsForPrompt(skills, "read").trim();
+
+                return text === "" ? undefined : text;
             },
             machines: () =>
                 this.machines
