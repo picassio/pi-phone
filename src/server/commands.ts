@@ -744,7 +744,8 @@ export class Commands {
         await app.requireDriver(id, user);
 
         const conversation = await app.conversation(id);
-        const typed = request.text.trim();
+        // A known secret's value pasted into a message stays out of the conversation: its name takes its place.
+        const typed = app.secrets.redact(request.text.trim());
         // `/skill:name request` sends the skill with the request; `/name arguments`, Pi's prompt template of that name.
         const text = typed.startsWith("/skill:")
             ? (expandSkillCommand(typed, app.skillCommands(id)) ?? typed)

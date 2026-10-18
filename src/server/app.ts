@@ -40,7 +40,12 @@ import {
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { createNodePhotonImages } from "@earendil-works/pi-durable/images/node";
-import { createCodingTools } from "@earendil-works/pi-durable/tools";
+import {
+    createBashTool,
+    createEditTool,
+    createReadTool,
+    createWriteTool,
+} from "@earendil-works/pi-durable/tools";
 import { Attribution, type Missing } from "./attribution.ts";
 import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
@@ -76,6 +81,7 @@ import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
+import { namesIn, Secrets } from "./secrets.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { takeLock } from "./lock.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
@@ -281,6 +287,8 @@ export class PocketApp {
     readonly github = new GitHubLogin();
     /** The app's SSH keys, for machines (`ssh-keys.ts`). */
     readonly sshKeys: SshKeys;
+    /** The owner's secrets: values for commands that name them, never for the model (`secrets.ts`). */
+    readonly secrets: Secrets;
     /** Other computers sessions can work on, over ssh (`machines.ts`). */
     readonly machines: Machines;
     /** Where sessions work, here or on a machine, and each place's execution environment (`places.ts`). */
@@ -342,6 +350,7 @@ export class PocketApp {
         this.supervised = options.supervised;
         this.config = new ConfigStore(options.dataDir);
         this.sshKeys = new SshKeys(options.dataDir, this.#home);
+        this.secrets = new Secrets(options.dataDir);
         // Every tab's machines (the folder picker, Ports, Pi sessions on a machine) come with `hello`: a machine connected,
         // renamed, or removed reaches them at once, not at their next connection.
         this.machines = new Machines(options.dataDir, this.sshKeys, this.#home, () =>
@@ -471,8 +480,37 @@ export class PocketApp {
 
         const registry = createRegistry();
 
-        // `read` returns images as images, oriented and shrunk to the model's limits by Photon (WebAssembly), in a worker.
-        registry.install(createCodingTools({ images: await createNodePhotonImages() }));
+        // Pi Durable's coding tools, as `createCodingTools()` makes them, but for two things. `read` returns images as
+        // images, oriented and shrunk to the model's limits by Photon (WebAssembly), in a worker. And `bash` runs a command
+        // that names a secret (`$NPM_TOKEN`) with its value in the environment, where the session may use it: the command
+        // keeps the name, so the value is in no transcript (`secrets.ts`).
+        const images = await createNodePhotonImages();
+
+        registry.install(
+            defineExtension({
+                name: "coding-tools",
+                tools: [
+                    createReadTool({ images }),
+                    createWriteTool(),
+                    createEditTool(),
+                    createBashTool({
+                        prepare: async (execution, api, context) => {
+                            const named = namesIn(execution.command);
+
+                            if (named.length === 0) {
+                                return;
+                            }
+
+                            const cwd = (await api.agent(context)).cwd ?? this.defaultCwd;
+                            const env = this.secrets.environment(named, cwd);
+
+                            Object.assign(execution.env, env);
+                            this.secrets.used(Object.keys(env));
+                        },
+                    }),
+                ],
+            }),
+        );
         // Durable work of the app itself, whatever extension modules are on.
         registry.install(
             defineExtension({
@@ -524,6 +562,8 @@ export class PocketApp {
             schedules: this.schedules,
             sessions: this.sessionControl,
             para: this.para,
+            secrets: this.secrets,
+            envOf: (cwd) => this.places.env(cwd),
             wikiCapture: this.paraCapture,
             goals: this.goals,
             text: Object.freeze({ quoted, defang }),
@@ -555,7 +595,8 @@ export class PocketApp {
                 registry,
                 settings: this.#harnessSettings(),
                 now: this.now,
-                env: ({ cwd }) => this.places.env(cwd ?? this.defaultCwd),
+                // Commands' output with secrets' values replaced as it streams (`secrets.ts`).
+                env: ({ cwd }) => this.secrets.guard(this.places.env(cwd ?? this.defaultCwd)),
                 conversationCreated: async (tx, conversation) => {
                     // Every conversation gets the app's documents up front, so views can read them from the start.
                     await tx.doc(AuthorsDoc, conversation.id);
@@ -1927,12 +1968,45 @@ export class PocketApp {
             : undefined;
     }
 
-    async answerApproval(id: string, allow: boolean, user: User): Promise<boolean> {
+    /**
+     * Answer `secret_request`'s card: the value goes into Settings > Secrets, never into the conversation, and the call
+     * goes on. The owner's alone: secrets are theirs.
+     */
+    async answerSecretRequest(id: string, value: unknown, user: User): Promise<boolean> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner keeps secrets.");
+        }
+
+        const request = this.approvals.all().find((each) => each.id === id);
+
+        if (request?.form?.type !== "secret") {
+            return false;
+        }
+
+        const known = this.secrets.get(request.form.name);
+
+        try {
+            this.secrets.set(request.form.name, {
+                value,
+                ...(known === undefined ? { description: request.form.description.slice(0, 300) } : {}),
+            });
+        } catch (error) {
+            throw new HttpError(400, error instanceof Error ? error.message : String(error));
+        }
+
+        return this.answerApproval(id, true, user, true);
+    }
+
+    async answerApproval(id: string, allow: boolean, user: User, formAnswered = false): Promise<boolean> {
         this.requireSteer(user);
         const request = this.approvals.all().find((each) => each.id === id);
 
         if (request === undefined || !this.canSee(user, request.conversationId)) {
             return false;
+        }
+
+        if (allow && request.form !== undefined && !formAnswered) {
+            throw new HttpError(400, "This asks for a secret: type it into the card's field.");
         }
 
         const refused = allow ? this.cannotAllow(user, request) : undefined;

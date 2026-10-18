@@ -156,6 +156,9 @@ const DID = {
     session_schedule: { verb: "scheduled", noun: "message" },
     schedule: { verb: "scheduled", noun: "reminder" },
     approvals: { verb: "checked approvals" },
+    secrets_list: { verb: "checked its secrets" },
+    secret_request: { verb: "asked for", noun: "secret", by: "name" },
+    secret_save: { verb: "saved", noun: "secret", by: "name" },
     memory: { verb: "saved", noun: "lesson" },
     watch_pr: { verb: "watched", noun: "pull request" },
     session_watch_pr: { verb: "watched", noun: "pull request", by: "session" },
@@ -172,6 +175,7 @@ const ONE = {
     reminder: "a reminder",
     call: "a call",
     lesson: "a lesson",
+    secret: "a secret",
     "pull request": "a pull request",
     "repository watch": "a repository watch",
 };

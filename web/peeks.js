@@ -491,7 +491,8 @@ function PeekApproval({ approval, me, rule, whole }) {
     return html`<span class="peek-actions">
         <button class="button small" disabled=${busy} onClick=${() => answer(false)}>Deny</button>
         ${
-            whole
+            // A secret's value is typed on its card, never on a tile.
+            whole && approval.form === undefined
                 ? !ownCall &&
                   html`<button
                       class="button small primary"

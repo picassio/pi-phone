@@ -1313,9 +1313,69 @@ function stepLive(step, results, slots, approvals, busy) {
     return status === "running" || status === "approval";
 }
 
+/**
+ * `secret_request`'s card: a hidden field whose value goes to Settings › Secrets, never into the conversation. The
+ * owner's to answer; anyone who can steer may decline.
+ */
+function SecretRequestCard({ approval }) {
+    const { me } = store.state;
+    const [value, setValue] = useState("");
+    const [busy, setBusy] = useState(false);
+    const run = (work) => {
+        setBusy(true);
+        attempt(work).finally(() => setBusy(false));
+    };
+    const save = () => run(() => actions.answerSecretRequest(approval.id, value));
+
+    return html`<div class="approval" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="key" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">Pi asks for a secret: <span class="mono">${approval.form.name}</span></span>
+                <span class="approval-reason">${approval.reason}</span>
+            </div>
+        </div>
+        ${
+            me?.role !== "owner"
+                ? html`<div class="muted small">The owner keeps secrets: waiting for them to answer.</div>`
+                : html`<input
+                      type="password"
+                      class="mono"
+                      aria-label=${`Value of ${approval.form.name}`}
+                      autocomplete="off"
+                      placeholder="Paste or type it; it never enters the chat"
+                      value=${value}
+                      onInput=${(event) => setValue(event.currentTarget.value)}
+                      onKeyDown=${(event) => event.key === "Enter" && value.length >= 8 && save()}
+                  />
+                  <div class="muted small">
+                      Saved in Settings › Secrets. Pi uses it as <span class="mono">${approval.form.name}</span> without seeing it.
+                  </div>`
+        }
+        ${
+            canSteer() &&
+            html`<div class="approval-actions">
+                <button class="button deny" disabled=${busy} onClick=${() => run(() => actions.approve(approval.id, false))}>
+                    Decline
+                </button>
+                ${
+                    me?.role === "owner" &&
+                    html`<button class="button primary" disabled=${busy || value.length < 8} onClick=${save}>
+                        Save secret
+                    </button>`
+                }
+            </div>`
+        }
+    </div>`;
+}
+
 function ApprovalCard({ approval }) {
     const { me, server } = store.state;
     const [busy, setBusy] = useState(false);
+
+    if (approval.form?.type === "secret") {
+        return html`<${SecretRequestCard} approval=${approval} />`;
+    }
 
     const answer = (allow) => {
         setBusy(true);
@@ -1332,7 +1392,7 @@ function ApprovalCard({ approval }) {
         <div class="approval-head">
             <span class="approval-shield" aria-hidden="true"><${Icon} name="shield" size=${16} /></span>
             <div class="approval-title">
-                <span class="approval-ask">Lancet Guard asks before this ${approval.tool} call</span>
+                <span class="approval-ask">Pi asks before this ${approval.tool} call</span>
                 <span class="approval-reason">${approval.reason}</span>
             </div>
         </div>

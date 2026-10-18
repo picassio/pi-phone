@@ -1,4 +1,5 @@
 import type { Context } from "@earendil-works/chord";
+import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { awaitWithContext } from "@earendil-works/chord/context";
 import type { Skill } from "@earendil-works/pi-coding-agent";
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
@@ -16,6 +17,7 @@ import type { Schedules } from "./schedules.ts";
 import type { SessionControl } from "./session-control.ts";
 import type { Para } from "./para.ts";
 import type { ParaCapture } from "./para-capture.ts";
+import type { Secrets } from "./secrets.ts";
 
 export interface ApprovalRequest {
     id: string;
@@ -27,6 +29,8 @@ export interface ApprovalRequest {
     subject: string;
     reason: string;
     score?: number;
+    /** What the person answers besides allow or deny: a secret's value, typed into a hidden field (`secret_request`). */
+    form?: { type: "secret"; name: string; description: string };
     createdAt: number;
     /** Who Pi was working for when the call asked: set by `Approvals`, not by the asker. */
     requestedBy?: string;
@@ -191,6 +195,10 @@ export interface PocketHost {
     onLimitsChanged(listener: () => void): () => void;
     /** The PARA wiki (`para.ts`): pi-para's, opened on the para module's first load. */
     readonly para: Para;
+    /** The owner's secrets (`secrets.ts`): what Pi may use where, and values for commands, never for the model. */
+    readonly secrets: Secrets;
+    /** Where commands run for a session in `cwd`, its output not redacted: for `secret_save` to read a value. */
+    envOf(cwd: string): ExecutionEnv;
     /** Capture of idle sessions into the wiki (`para-capture.ts`). */
     readonly wikiCapture: Pick<ParaCapture, "capture" | "status" | "setMinutes">;
     /** Other sessions, as the person a session works for (`session-control.ts`): the sessions tools. */

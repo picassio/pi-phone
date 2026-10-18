@@ -168,6 +168,25 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   `bash` commands that name the wiki folder (on the phone; a session on a machine works on that machine's files), naming
   the wiki tool to use. It keeps Pi honest rather than being a security boundary; nothing watches the folder, as only
   the tools, the Wiki page, and capture change it.
+- **Secrets** (`src/server/secrets.ts`, `extensions/secrets.ts`, `web/sheets/secrets.js`): API keys and tokens Pi uses
+  without seeing them, in Settings › Secrets. Each has an env-var name, a value (8+ characters, one line), a
+  description, folders it may be used in (none: anywhere), whether machines may use it, and whether each use asks
+  first. They are kept in `<data>/secrets.json` (mode 0600, written atomically, in backups like Pi's `auth.json`);
+  the routes never send a value back. **Use:** app.ts installs its own `coding-tools` (Pi Durable's four tools), whose
+  `bash` has a `prepare` that puts the secrets a command names (`$NAME`, `${NAME}`) into its environment. The stored
+  command keeps the name. On a machine, pi-env sends `env` inside the daemon's `exec` request over SSH, never on a
+  command line. The extension's `beforeTool` refuses a secret outside its folders and sends ask-first secrets through
+  `Approvals`. **Redaction:** values, raw, base64 (with and without padding, and URL-safe), and URL-encoded, become
+  `[secret NAME]`. Bash's streamed output goes through `Secrets.guard(env)`, the harness's env wrapped so `exec`'s
+  `onOutput` is redacted; it holds back the last `longest-1` characters of each stream, so a value cut across
+  chunks is still caught. Every tool's result goes through the extension's `afterTool` (output, details, and
+  structured output). A person's message is redacted in `commands.ts` before it is sent. **Asking:**
+  `secret_request` is an approval with `form: { type: "secret" }`. Its card (`SecretRequestCard` in
+  `transcript.js`) has a hidden field, answered by `POST /api/secrets/requests/<id>` (owner only); a plain Allow is
+  refused. `secret_save` runs a command through the unguarded env and stores its stdout. `secrets_list` and
+  `secret_request` are allowed in plan mode, as are `wiki_query`, `wiki_read` and `wiki_summarize`. None of this
+  is a boundary against a model set on leaking a value; it keeps values out by accident. The approval card's heading
+  is now "Pi asks before this … call", no longer Lancet Guard's.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

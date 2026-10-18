@@ -64,6 +64,13 @@ export function describeCall(call) {
             return { icon: "{}", label: "Codemode", subject: short(line ?? "", 140), mono: true };
         }
 
+        case "secrets_list":
+            return { icon: "⚿", label: "Secrets", subject: "the names Pi may use here" };
+        case "secret_request":
+            return { icon: "⚿", label: "Asks for secret", subject: `${args.name ?? ""}`, mono: true };
+        case "secret_save":
+            return { icon: "⚿", label: "Saves secret", subject: `${args.name ?? ""} from ${short(args.command ?? "", 100)}`, mono: true };
+
         case "browser": {
             const firstLine = String(args.script ?? "")
                 .split("\n")

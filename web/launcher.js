@@ -287,6 +287,12 @@ function actionItems() {
             icon: "key",
             run: () => openSheet({ type: "ssh-keys" }),
         },
+        me?.role === "owner" && {
+            label: "Secrets",
+            detail: "API keys and tokens Pi uses without seeing them",
+            icon: "key",
+            run: () => openSheet({ type: "secrets" }),
+        },
         // The Android shell's bridge (android/.../MainActivity.java): only inside the app.
         me?.role === "owner" &&
             window.PiPhoneApp && {

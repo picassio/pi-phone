@@ -1039,6 +1039,9 @@ export const actions = {
     resend: (entryId, change = {}) => api(`c/${current()}/resend`, { entryId, ...change }),
     setPlan: (on) => api(`c/${current()}/plan`, { on }),
     stopCiWatch: (watch) => api(`c/${current()}/ci-watch/stop`, { repo: watch.repo, runId: watch.runId }),
+    /** A value typed into `secret_request`'s card: to Settings › Secrets. An approval id may hold a slash. */
+    answerSecretRequest: (id, value) =>
+        api(`secrets/requests/${id.split("/").map(encodeURIComponent).join("/")}`, { value }),
     approvePlan: () => api(`c/${current()}/plan`, { approve: true }),
     prompts: () => api(`c/${current()}/prompts`),
     trust: () => api(`c/${current()}/trust`),

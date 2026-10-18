@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import QRCode from "qrcode";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { MAX_PEEKS } from "../app.ts";
+import type { SecretPatch } from "../secrets.ts";
 import {
     type Auth,
     COOKIE,
@@ -484,6 +485,45 @@ export function createApi(options: HttpOptions, auth: Auth) {
             app.requireSee(user, id);
 
             return conversationRoutes(route, id, parts);
+        }
+
+        // The owner's secrets (`secrets.ts`): never their values, which go one way, into the store.
+        if (first === "secrets" && method === "GET" && second === undefined) {
+            requireOwner(user);
+
+            return json(response, 200, { secrets: app.secrets.list() });
+        }
+
+        if (first === "secrets" && method === "PUT" && second !== undefined && third === undefined) {
+            requireOwner(user);
+            const body = await readJson<SecretPatch>(request);
+
+            try {
+                return json(response, 200, { secret: app.secrets.set(decodeURIComponent(second), body) });
+            } catch (error) {
+                throw new HttpError(400, error instanceof Error ? error.message : String(error));
+            }
+        }
+
+        if (first === "secrets" && method === "DELETE" && second !== undefined && third === undefined) {
+            requireOwner(user);
+
+            if (!app.secrets.remove(decodeURIComponent(second))) {
+                throw new HttpError(404, "No such secret");
+            }
+
+            return json(response, 200, { ok: true });
+        }
+
+        // A value typed into `secret_request`'s card. Its id may hold a slash, as an approval's may.
+        if (first === "secrets" && second === "requests" && parts.length > 2 && method === "POST") {
+            const body = await readJson<{ value?: unknown }>(request);
+
+            if (!(await app.answerSecretRequest(parts.slice(2).join("/"), body.value, user))) {
+                throw new HttpError(404, "That request is no longer waiting");
+            }
+
+            return json(response, 200, { ok: true });
         }
 
         if (first === "approvals" && second !== undefined && method === "POST") {
