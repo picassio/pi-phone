@@ -19,6 +19,8 @@ export const VENDOR: Record<string, string> = {
     "xterm.mjs": join(MODULES, "@xterm", "xterm", "lib", "xterm.mjs"),
     "xterm-addon-fit.mjs": join(MODULES, "@xterm", "addon-fit", "lib", "addon-fit.mjs"),
     "xterm.css": join(MODULES, "@xterm", "xterm", "css", "xterm.css"),
+    // Mermaid diagrams (`web/rich.js`): one file, loaded the first time one shows.
+    "pele.mjs": join(MODULES, "pele", "dist", "pele.js"),
 };
 
 export const TYPES: Record<string, string> = {

@@ -1,11 +1,12 @@
 // Code blocks in replies that show more than code: an HTML page previewed (and run, on a tap), an SVG image, a diff
-// in the diff viewer. ui.js draws every code block as code; this module gives `Markdown` the component for these when
+// in the diff viewer, a Mermaid diagram (pele). ui.js draws every code block as code; this module gives `Markdown` the component for these when
 // it loads (`setRichBlock`), so ui.js does not import it.
 
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { DiffBlock } from "./diff.js";
 import { highlight, langOf } from "./highlight.js";
 import { RunFrame, useFitHeight } from "./run-frame.js";
+import DOMPurify from "dompurify";
 import { notify } from "./store.js";
 import { COLOR_LIMIT, copyText, html, setRichBlock } from "./ui.js";
 
@@ -139,9 +140,60 @@ export function HtmlPreview({ source, title = "Preview" }) {
     ></iframe>`;
 }
 
+// ─── A Mermaid diagram ─────────────────────────────────────────────────────────────
+
+/** pele, loaded the first time a diagram shows: 0.7 MB nobody needs before then. */
+let pele = null;
+
+const loadPele = () => (pele ??= import("pele"));
+
+/** pele's own output, kept to SVG: its text is escaped and its links and styles filtered, and this checks it again. */
+const sanitizeSvg = (svg) => DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true }, RETURN_DOM_FRAGMENT: true });
+
+/**
+ * A Mermaid diagram drawn by pele (MIT, obsidianmd/pele) in the app's colors, which follow the theme without drawing it
+ * again. A large one can be panned and zoomed. A diagram pele cannot read says why, with its code a tab away.
+ */
+function MermaidDiagram({ source }) {
+    const holder = useRef(null);
+    const [problem, setProblem] = useState(null);
+
+    useEffect(() => {
+        let mounted;
+        let live = true;
+
+        setProblem(null);
+        loadPele().then(
+            ({ mount }) => {
+                if (!live || holder.current === null) {
+                    return;
+                }
+
+                mounted = mount(holder.current, source, {
+                    links: false,
+                    zoom: "auto",
+                    sanitize: sanitizeSvg,
+                    onError: (error) => live && setProblem(error instanceof Error ? error.message : String(error)),
+                });
+            },
+            (error) => live && setProblem(`The diagram renderer did not load: ${error.message}`),
+        );
+
+        return () => {
+            live = false;
+            mounted?.destroy();
+        };
+    }, [source]);
+
+    return html`<div class="rich-diagram">
+        ${problem && html`<pre class="rich-note rich-diagram-error">${problem}</pre>`}
+        <div ref=${holder} class="rich-diagram-canvas" hidden=${problem !== null}></div>
+    </div>`;
+}
+
 // ─── Blocks ───────────────────────────────────────────────────────────────────────
 
-const VIEW_NAMES = { html: "Preview", svg: "Image", diff: "Diff" };
+const VIEW_NAMES = { html: "Preview", svg: "Image", diff: "Diff", mermaid: "Diagram" };
 
 /** An SVG as an image: as an image, it runs no scripts and loads nothing. Tap it to see it full screen. */
 function SvgImage({ source }) {
@@ -196,6 +248,8 @@ function RichBlock({ kind, lang, source, streaming }) {
             : html`<${HtmlPreview} source=${source} />`;
     } else if (kind === "svg") {
         body = html`<${SvgImage} source=${source} />`;
+    } else if (kind === "mermaid") {
+        body = html`<${MermaidDiagram} source=${source} />`;
     } else {
         body = html`<${DiffBlock} text=${source} />`;
     }

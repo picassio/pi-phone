@@ -11606,6 +11606,44 @@ textarea.notes {
     max-height: none;
 }
 
+/* A Mermaid diagram (pele), in the theme's colors: pele reads these variables, so a theme change needs no redraw. */
+.rich-diagram {
+    padding: 0.6rem;
+    overflow: auto;
+}
+
+.rich-diagram-canvas {
+    --pele-bg: transparent;
+    --pele-fg: var(--text);
+    --pele-muted: var(--muted);
+    --pele-line: var(--line-strong);
+    --pele-surface: var(--card);
+    --pele-surface-alt: var(--card-2);
+    --pele-border: var(--hair-2);
+    --pele-accent: var(--accent);
+    --pele-font: inherit;
+    --pele-radius: 6px;
+    --pele-series-1: var(--accent);
+    --pele-series-2: var(--o-green);
+    --pele-series-3: var(--o-orange);
+    --pele-series-4: var(--o-magenta);
+    --pele-series-5: var(--o-cyan);
+    --pele-series-6: var(--o-yellow);
+    --pele-series-7: var(--o-red);
+    --pele-series-8: var(--o-blue);
+    max-height: 70vh;
+}
+
+.rich-diagram-canvas svg {
+    display: block;
+    margin: 0 auto;
+}
+
+.rich-diagram-error {
+    white-space: pre-wrap;
+    color: var(--err);
+}
+
 .rich-note {
     margin: 0;
     padding: 0.6rem;
