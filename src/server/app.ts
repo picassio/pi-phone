@@ -2060,6 +2060,8 @@ export class PocketApp {
             throw new HttpError(400, "action is save, submit, or cancel");
         }
 
+        const draft = body.draft === undefined ? undefined : await this.#placeInterviewPhotos(id, callId, body.draft);
+
         const saved = await this.harness.commit(async (tx) => {
             const item = (await tx.doc(InterviewsDoc, id)).items[callId];
 
@@ -2071,9 +2073,9 @@ export class PocketApp {
                 throw new HttpError(409, "This interview has ended");
             }
 
-            if (body.draft !== undefined) {
+            if (draft !== undefined) {
                 try {
-                    item.draft = checkDraft(body.draft, item.questions.questions);
+                    item.draft = checkDraft(draft, item.questions.questions);
                 } catch (error) {
                     throw new HttpError(400, error instanceof Error ? error.message : String(error));
                 }
@@ -2099,6 +2101,50 @@ export class PocketApp {
         }
 
         return saved;
+    }
+
+    /**
+     * In a session on a machine, the photos and files a person adds to an interview are uploaded to the phone: copy each
+     * one to the machine as it is saved, and keep its path there, so Pi's tools read it and the form shows it from there.
+     * Paths that are not this session's uploads stay as they are.
+     */
+    async #placeInterviewPhotos(id: ConversationId, callId: string, draft: unknown): Promise<unknown> {
+        if (this.workspace.remoteOf(id) === undefined) {
+            return draft;
+        }
+
+        const item = (await this.harness.snapshot(InterviewsDoc, id, context))?.items[callId];
+
+        if (item === undefined) {
+            throw new HttpError(404, "No such interview");
+        }
+
+        let checked;
+
+        try {
+            checked = checkDraft(draft, item.questions.questions);
+        } catch (error) {
+            throw new HttpError(400, error instanceof Error ? error.message : String(error));
+        }
+
+        const images = new Set(item.questions.questions.filter((question) => question.type === "image").map((question) => question.id));
+        const place = async (paths: readonly string[]): Promise<string[]> => {
+            const local = paths.filter((path) => this.workspace.isUpload(id, path));
+            const placed = await this.workspace.placeUploads(id, local);
+
+            return paths.map((path) => (local.includes(path) ? placed[local.indexOf(path)]! : path));
+        };
+
+        return Promise.all(
+            checked.map(async (response) => ({
+                ...response,
+                ...(images.has(response.id) && typeof response.value === "string" ? { value: (await place([response.value]))[0]! } : {}),
+                ...(images.has(response.id) && Array.isArray(response.value) && response.value.every((each) => typeof each === "string")
+                    ? { value: await place(response.value as string[]) }
+                    : {}),
+                ...(response.attachments === undefined ? {} : { attachments: await place(response.attachments) }),
+            })),
+        );
     }
 
     async answerApproval(id: string, allow: boolean, user: User, formAnswered = false): Promise<boolean> {

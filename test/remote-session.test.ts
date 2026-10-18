@@ -332,6 +332,50 @@ test("an attachment to a session on a machine is copied there, and the message n
     }
 });
 
+test("a photo added to an interview in a session on a machine is copied there: Pi reads it, the form shows it from there", { skip }, async () => {
+    calls["ask for a photo"] = ["interview", { questions: JSON.stringify({ title: "Photos", questions: [{ id: "shot", type: "image", question: "A photo?" }] }) }];
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${join(remoteHome, "project")}` });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    const local = join(app.workspace.uploadDirectory(id), "k1-photo.png");
+    // A 1x1 PNG.
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+
+    writeFileSync(local, png);
+    const home = app.machines.get(machineId).remote!.home;
+    const there = join(home, ".pi", "mobile", "uploads", String(id), "k1-photo.png");
+
+    try {
+        const { submissionId } = await app.commands.submit(id, owner(app), { text: "ask for a photo", requestId: crypto.randomUUID() });
+        let request;
+
+        for (let tries = 0; tries < 200 && request === undefined; tries++) {
+            request = app.approvals.forConversation(id).find((each) => each.form?.type === "interview");
+            await new Promise((done) => setTimeout(done, 50));
+        }
+
+        assert.ok(request?.form?.type === "interview", "the interview waits");
+        const callId = request.form.callId;
+
+        await app.answerInterview(id, callId, owner(app), { draft: [{ id: "shot", value: [local, "/elsewhere/not-an-upload.png"] }] });
+        const saved = (await app.interview(id, callId, owner(app))).draft;
+
+        assert.deepEqual(saved, [{ id: "shot", value: [there, "/elsewhere/not-an-upload.png"] }], "an upload is kept by its path there; other paths stay");
+        assert.deepEqual(readFileSync(there), png);
+        assert.equal((await app.workspace.remoteImage(owner(app), id, there))?.type, "image/png", "the form's thumbnail comes from the machine");
+
+        await app.answerInterview(id, callId, owner(app), { draft: [{ id: "shot", value: [there] }], action: "submit" });
+        await (await app.harness.submission(submissionId, context))!.wait(context);
+        await app.harness.waitForIdle(context);
+        const texts = await modelTexts(app, id);
+
+        assert.ok(texts.some((each) => each.includes(there)), texts.join("\n"));
+        assert.ok(!texts.some((each) => each.includes(local)), "the phone's path is not in what Pi gets");
+    } finally {
+        rmSync(join(home, ".pi", "mobile", "uploads", String(id)), { recursive: true, force: true });
+    }
+});
+
 test("a session goes to Pi on a machine, comes back with what Pi did there, and goes again to the same file", { skip }, async () => {
     const { SessionManager } = await import("@earendil-works/pi-coding-agent");
     const project = join(remoteHome, "project");

@@ -300,6 +300,46 @@ export class Workspace {
         return file;
     }
 
+    /**
+     * Copy files the person uploaded on the phone (`uploadDirectory`) to the session's machine, under
+     * `~/.pi/mobile/uploads/<id>/`, so Pi's tools there read them: each one's path there, in order. Nothing to do in a
+     * session on the phone. Fails, with the machine's reason, when one cannot be written.
+     */
+    async placeUploads(id: ConversationId, paths: readonly string[]): Promise<string[]> {
+        const remote = this.#remote(id);
+
+        if (remote === undefined || paths.length === 0) {
+            return [...paths];
+        }
+
+        const folder = `${remote.machine.remote!.home}/.pi/mobile/uploads/${String(id)}`;
+        const made = await remote.env.createDir(folder, { recursive: true }, BACKGROUND_CONTEXT);
+
+        if (!made.ok) {
+            throw new HttpError(502, `Could not make ${folder} on ${remote.machine.name}: ${made.error.message}`);
+        }
+
+        const placed: string[] = [];
+
+        for (const path of paths) {
+            const target = `${folder}/${basename(path)}`;
+            const written = await remote.env.writeFile(target, await readFile(path), BACKGROUND_CONTEXT);
+
+            if (!written.ok) {
+                throw new HttpError(502, `Could not copy ${basename(path)} to ${remote.machine.name}: ${written.error.message}`);
+            }
+
+            placed.push(target);
+        }
+
+        return placed;
+    }
+
+    /** Whether `path` is a file the person uploaded to this session on the phone. */
+    isUpload(id: ConversationId, path: string): boolean {
+        return resolve(path).startsWith(join(this.#app.dataDir, "uploads", String(id)) + sep);
+    }
+
     /** `#remote` for the routes that need it. */
     remoteOf(id: ConversationId) {
         return this.#remote(id);

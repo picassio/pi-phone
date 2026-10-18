@@ -448,36 +448,12 @@ export class Commands {
     }
 
     async #placeAttachments(id: ConversationId, attachments: readonly Attachment[]): Promise<Attachment[]> {
-        const remote = this.#app.workspace.remoteOf(id);
+        const placed = await this.#app.workspace.placeUploads(
+            id,
+            attachments.map((file) => file.path),
+        );
 
-        if (remote === undefined || attachments.length === 0) {
-            return [...attachments];
-        }
-
-        const folder = `${remote.machine.remote!.home}/.pi/mobile/uploads/${String(id)}`;
-        const made = await remote.env.createDir(folder, { recursive: true }, context);
-
-        if (!made.ok) {
-            throw new HttpError(502, `Could not make ${folder} on ${remote.machine.name}: ${made.error.message}`);
-        }
-
-        const placed: Attachment[] = [];
-
-        for (const file of attachments) {
-            const target = `${folder}/${basename(file.path)}`;
-            const written = await remote.env.writeFile(target, readFileSync(file.path), context);
-
-            if (!written.ok) {
-                throw new HttpError(
-                    502,
-                    `Could not copy ${file.name} to ${remote.machine.name}: ${written.error.message}`,
-                );
-            }
-
-            placed.push({ ...file, path: target });
-        }
-
-        return placed;
+        return attachments.map((file, index) => ({ ...file, path: placed[index]! }));
     }
 
     /**
