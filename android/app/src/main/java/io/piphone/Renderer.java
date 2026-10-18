@@ -176,15 +176,28 @@ final class Renderer {
                     try {
                         int content = Math.max(viewport, page.getContentHeight());
                         int height = fullPage ? Math.min(content, maxHeight) : viewport;
-                        layout(page, Math.round(width * density), Math.round(height * density));
-                        // One more frame for the taller layout.
+                        int widthPx = Math.round(width * density);
+                        int heightPx = Math.round(height * density);
+                        // Off screen, a WebView draws what it has only after its layout changed: a page that fits the
+                        // first layout comes out blank. So always change it once, a pixel taller, then to the size,
+                        // and give it frames for each.
+                        layout(page, widthPx, heightPx + 1);
+                        page.invalidate();
                         main.postDelayed(() -> {
                             try {
-                                done.accept(draw(page, width, height, density));
+                                layout(page, widthPx, heightPx);
+                                page.invalidate();
+                                main.postDelayed(() -> {
+                                    try {
+                                        done.accept(draw(page, width, height, density));
+                                    } catch (Exception e) {
+                                        done.accept(e);
+                                    }
+                                }, 400);
                             } catch (Exception e) {
                                 done.accept(e);
                             }
-                        }, 300);
+                        }, 200);
                     } catch (Exception e) {
                         done.accept(e);
                     }
