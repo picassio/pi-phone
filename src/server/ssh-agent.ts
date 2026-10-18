@@ -13,7 +13,8 @@ import { join } from "node:path";
 function sshAdd(socket: string, args: string[], input?: string): Promise<string> {
     return new Promise((resolve, reject) => {
         const child = spawn("ssh-add", args, {
-            stdio: ["pipe", "pipe", "pipe"],
+            // Standard input only for a key: commands that read none (list, remove) get none to write to.
+            stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
             timeout: 20_000,
             env: { ...process.env, SSH_AUTH_SOCK: socket, SSH_ASKPASS_REQUIRE: "never", DISPLAY: "" },
         });
@@ -26,7 +27,16 @@ function sshAdd(socket: string, args: string[], input?: string): Promise<string>
         child.once("exit", (code) =>
             code === 0 ? resolve(out) : reject(new Error(`ssh-add ${args.join(" ")} failed (${code}): ${err.trim() || out.trim()}`)),
         );
-        child.stdin!.end(input ?? "");
+        if (input !== undefined) {
+            // ssh-add may exit before it reads the key (a refused key, a stopped agent): writing then fails with EPIPE,
+            // and its exit code above says why. Any other write error is the failure.
+            child.stdin!.once("error", (error: NodeJS.ErrnoException) => {
+                if (error.code !== "EPIPE") {
+                    reject(error);
+                }
+            });
+            child.stdin!.end(input);
+        }
     });
 }
 
