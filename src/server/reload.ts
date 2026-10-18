@@ -54,6 +54,9 @@ const ORDER = [
     "codemode.ts",
     "ci-watch.ts",
     "sessions.ts",
+    "secrets.ts",
+    "interview.ts",
+    "web.ts",
     "para.ts",
     "memory.ts",
     "pip.ts",
@@ -65,8 +68,11 @@ const ORDER = [
 export const BUILT_IN_MODULES: ReadonlySet<string> = new Set(
     ORDER.map((file) => file.replace(/\.ts$/, "")),
 );
-/** Modules the app cannot work without: always on. */
-const REQUIRED = new Set(["prompt.ts"]);
+/**
+ * Modules the app cannot work without: always on. Secrets too: bash gets their values from the app itself, and without
+ * this module their redaction from other tools' results, and ask-first approvals, would stop.
+ */
+const REQUIRED = new Set(["prompt.ts", "secrets.ts"]);
 /** Built-in modules that stay off until the owner turns them on. Drop-ins all do. */
 const OFF_BY_DEFAULT = new Set(["guard.ts", "agent-teams.ts"]);
 const TITLES: Record<string, string> = {
@@ -82,6 +88,9 @@ const TITLES: Record<string, string> = {
     "codemode.ts": "Codemode",
     "ci-watch.ts": "CI watch",
     "sessions.ts": "Other sessions",
+    "secrets.ts": "Secrets",
+    "interview.ts": "Interview",
+    "web.ts": "Web access",
     "para.ts": "Wiki (PARA)",
     "memory.ts": "Memory",
     "pip.ts": "PiP",

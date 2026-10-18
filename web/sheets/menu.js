@@ -1,7 +1,7 @@
 // The menu: what can be done in this session and in the app.
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { chatUnread } from "../chat.js";
-import { schedulesAvailable } from "../commands.js";
+import { schedulesAvailable, webAvailable } from "../commands.js";
 import { extensionMenuItems, safeMode } from "../extension-ui.js";
 import { useChanges } from "../diff.js";
 import { filesAvailable, setFilesOpen } from "../files-panel.js";
@@ -489,8 +489,9 @@ export function MenuSheet({ places = true }) {
             ${me?.role === "owner" && item("GitHub", () => openSheet({ type: "github" }), "for Pi's git and gh")}
             ${me?.role === "owner" && item("Machines", () => openSheet({ type: "machines" }), "run sessions on other computers")}
             ${me?.role === "owner" && item("SSH keys", () => openSheet({ type: "ssh-keys" }), "for machines")}
-            ${me?.role === "owner" && item("Web access", () => openSheet({ type: "web-access" }), "search provider for Pi")}
+            ${me?.role === "owner" && webAvailable() && item("Web access", () => openSheet({ type: "web-access" }), "search provider for Pi")}
             ${me?.role === "owner" && item("Secrets", () => openSheet({ type: "secrets" }), "keys Pi uses without seeing")}
+            ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
             ${me?.role === "owner" && item("This phone", () => openSheet({ type: "phone" }), "notifications, screen off, backup")}
             ${
                 // The Android shell's bridge (android/.../MainActivity.java): only inside the app.
@@ -502,7 +503,6 @@ export function MenuSheet({ places = true }) {
                 })
             }
             ${modelRefreshAvailable() && item("Refresh models", refreshModels, store.state.modelRefresh.loading ? "refreshing…" : "models.json and providers")}
-            ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
             ${item("Extensions", () => openSheet({ type: "extensions" }), extensionsHint())}
             ${
                 me?.role === "owner" &&

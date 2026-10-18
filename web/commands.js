@@ -20,6 +20,8 @@ const isSession = () => store.state.view.conversation?.kind === "session";
 
 /** Plan mode needs its extension, which the owner can turn off. */
 export const planAvailable = () => store.state.server?.extensions?.includes("pocket-plan") === true;
+/** Web access's settings while its module is on: off, Pi has no web tools to set up. */
+export const webAvailable = () => store.state.server?.extensions?.includes("pocket-web") === true;
 /** Scheduled messages need theirs, and a session; so do goals. */
 export const schedulesAvailable = () =>
     isSession() && store.state.server?.extensions?.includes("pocket-schedules") === true;

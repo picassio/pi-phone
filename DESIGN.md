@@ -245,6 +245,17 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   - **`fetch_content`:** document URLs. HTML still goes to Readability first, for the article rather than the whole page.
   - **`wiki_ingest`:** a document path on the phone is converted to `<file>.md`, and that file is ingested (pi-para
     reads files as UTF-8).
+- **Settings and extensions:** each feature's settings are in Settings (the menu), and follow its module.
+  - **Extensions' own rows:** an extension adds its row with `pocket.menu`, which the menu lists with the app's settings
+    and drops when the module is off. The wiki's "Wiki" row opens its settings sheet; the Wiki page has no Settings
+    button of its own any more.
+  - **Web access:** a core sheet, shown only while `pocket-web` is loaded (`webAvailable()` in `commands.js`, from
+    `server.extensions`), in the menu and the launcher alike.
+  - **Secrets:** required (`REQUIRED` in `reload.ts`), like the system prompt. Bash gets values from the app itself,
+    so turning the module off would keep values flowing while dropping their redaction from other tools and the
+    ask-first approvals.
+  - **Diagrams and documents:** core, with no module to turn off.
+  - **The Extensions sheet** lists Secrets, Interview and Web access by title, in `ORDER`.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

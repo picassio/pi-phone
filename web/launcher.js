@@ -3,7 +3,7 @@
 // themes.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { folderColor } from "./avatar.js";
-import { planAvailable, schedulesAvailable } from "./commands.js";
+import { planAvailable, schedulesAvailable, webAvailable } from "./commands.js";
 import { extensionLauncherItems } from "./extension-ui.js";
 import { filesAvailable, toggleFiles } from "./files-panel.js";
 import { togglePeeks } from "./peeks.js";
@@ -287,7 +287,8 @@ function actionItems() {
             icon: "key",
             run: () => openSheet({ type: "ssh-keys" }),
         },
-        me?.role === "owner" && {
+        me?.role === "owner" &&
+            webAvailable() && {
             label: "Web access",
             detail: "the search provider Pi uses",
             icon: "globe",

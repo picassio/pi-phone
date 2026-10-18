@@ -204,3 +204,15 @@ test("a page without an article keeps its body; both web tools are allowed in pl
     assert.equal(blockedInPlanMode("web_search", { query: "x" }), undefined);
     assert.equal(blockedInPlanMode("fetch_content", { url: "https://example.com" }), undefined);
 });
+
+test("Web access can be turned off, and leaves the extension list with its tools; Secrets cannot be", async () => {
+    const names = () => app.loader.extensionNames();
+
+    assert.ok(names().includes("pocket-web"));
+    await app.setExtensionEnabled(owner(app), "web.ts", false);
+    assert.ok(!names().includes("pocket-web"), "the Settings row and launcher entry follow this list");
+    await app.setExtensionEnabled(owner(app), "web.ts", true);
+    assert.ok(names().includes("pocket-web"));
+    await assert.rejects(app.setExtensionEnabled(owner(app), "secrets.ts", false), /cannot be turned off|required/i);
+    assert.ok(names().includes("pocket-secrets"));
+});

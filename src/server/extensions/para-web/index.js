@@ -191,9 +191,6 @@ export default function wiki(pocket) {
                     onInput=${(event) => setQuery(event.currentTarget.value)}
                 />
                 <button class="button small" disabled=${query.trim() === ""}>Search</button>
-                <button type="button" class="button small ghost" title="Wiki settings" onClick=${() => pocket.openSheet("settings")}>
-                    Settings
-                </button>
                 <button
                     type="button"
                     class="button small ghost"
@@ -558,6 +555,13 @@ export default function wiki(pocket) {
         detail: "capture, search by meaning, prompt context",
         iconPath: BOOK,
         keywords: ["para", "embedding", "openrouter", "capture"],
+        sheet: "settings",
+    });
+    // In Settings with the app's own: there while the wiki is on, gone with it.
+    pocket.menu({
+        id: "wiki-settings",
+        label: "Wiki",
+        hint: "search by meaning, capture, prompt context",
         sheet: "settings",
     });
     pocket.menu({
