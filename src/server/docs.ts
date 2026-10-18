@@ -81,7 +81,8 @@ export const AuthorsDoc = defineDoc<{
     initial: () => ({ requests: {}, entries: {} }),
 });
 
-export type ArtifactType = "html" | "markdown" | "svg";
+/** `openui`: an interactive answer in OpenUI Lang, drawn by the Intelligent UI frame (`http/artifacts.ts`). */
+export type ArtifactType = "html" | "markdown" | "svg" | "openui";
 
 export type ArtifactVersion = {
     version: number;

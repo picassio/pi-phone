@@ -39,6 +39,7 @@ const ALWAYS_ALLOWED = new Set([
     "interview",
     "web_search",
     "fetch_content",
+    "openui_guide",
 ]);
 /** What the browser may do in plan mode: look at pages, not act on them. */
 const BROWSER_LOOKS = new Set([

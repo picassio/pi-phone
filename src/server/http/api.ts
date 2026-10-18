@@ -11,6 +11,7 @@ import QRCode from "qrcode";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { MAX_PEEKS } from "../app.ts";
 import type { SecretPatch } from "../secrets.ts";
+import { openUiRoute } from "../openui.ts";
 import {
     type Auth,
     COOKIE,
@@ -485,6 +486,19 @@ export function createApi(options: HttpOptions, auth: Auth) {
             app.requireSee(user, id);
 
             return conversationRoutes(route, id, parts);
+        }
+
+        // What an interactive answer's components fetch (`openui.ts`), asked by the app's page for its sandboxed frame.
+        if (first === "openui" && second !== undefined && third === undefined && method === "GET") {
+            const answer = openUiRoute(second, url.searchParams);
+
+            if (answer === undefined) {
+                throw new HttpError(404, "No such route");
+            }
+
+            const { status, body } = await answer;
+
+            return json(response, status, body);
         }
 
         // Web access (`web/access.ts`): the search provider and what each needs; a test search with the one picked.

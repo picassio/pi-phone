@@ -95,6 +95,19 @@ export const RUN_FRAME = `<!doctype html><html><head><meta charset="utf-8"><meta
 })();
 </script></body></html>`;
 
+/**
+ * The page that draws an interactive answer (OpenUI Lang) with the Intelligent UI frame (`src/frames/intelligent-ui.tsx`,
+ * built into `/vendor/intelligent-ui/`), in the artifacts' sandbox. With a program, it is an `openui` artifact's page;
+ * without one (`/a/openui`), it waits for one from the app's page, for a block in a reply. Light or dark comes from
+ * `?theme=`. The program goes in as JSON, with `<` escaped, so no text in it can end its script.
+ */
+export function openUiPage(program: string | null, title = "Answer"): string {
+    const embedded =
+        program === null ? "" : `<script type="application/json" id="program">${JSON.stringify(program).replace(/</g, "\\u003c")}</script>`;
+
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><link rel="stylesheet" href="/vendor/intelligent-ui/frame.css"><style>html,body{margin:0;background:var(--iui-canvas,transparent)}body{padding:12px}.pi-iui-errors{margin-top:12px;font:13px system-ui,sans-serif;color:#b45309}</style></head><body><div id="root"></div>${embedded}<script type="module" src="/vendor/intelligent-ui/frame.js"></script></body></html>`;
+}
+
 export async function artifact(
     app: PocketApp,
     response: ServerResponse,
@@ -104,6 +117,15 @@ export async function artifact(
 ): Promise<void> {
     if (user === undefined) {
         throw new HttpError(401, "Sign in first");
+    }
+
+    if (parts.length === 1 && parts[0] === "openui") {
+        return send(response, 200, openUiPage(null), "text/html; charset=utf-8", {
+            "content-security-policy": ARTIFACT_CSP,
+            "x-content-type-options": "nosniff",
+            "referrer-policy": "no-referrer",
+            "cache-control": "no-cache",
+        });
     }
 
     if (parts.length === 1 && parts[0] === "frame") {
@@ -135,6 +157,10 @@ export async function artifact(
 
     if (found.meta.type === "svg") {
         return send(response, 200, found.content, "image/svg+xml", headers);
+    }
+
+    if (found.meta.type === "openui") {
+        return send(response, 200, openUiPage(found.content, found.meta.title), "text/html; charset=utf-8", headers);
     }
 
     if (found.meta.type === "markdown") {

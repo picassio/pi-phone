@@ -58,7 +58,7 @@ export default function createArtifacts(_host: PocketHost) {
     const artifact = defineTool({
         name: "artifact",
         description:
-            "Publish a viewable artifact (self-contained HTML page, Markdown document, or SVG image) that the user opens in the app's artifact viewer. " +
+            "Publish a viewable artifact (self-contained HTML page, Markdown document, SVG image, or an interactive answer in OpenUI Lang: call openui_guide first) that the user opens in the app's artifact viewer. " +
             "Calling again with the same id publishes a new version. Give either the full content or edits against the latest version.",
         parameters: Type.Object({
             id: Type.String({
@@ -67,7 +67,7 @@ export default function createArtifacts(_host: PocketHost) {
             }),
             title: Type.String({ description: "Short human-readable title." }),
             type: Type.Optional(
-                Type.Union([Type.Literal("html"), Type.Literal("markdown"), Type.Literal("svg")], {
+                Type.Union([Type.Literal("html"), Type.Literal("markdown"), Type.Literal("svg"), Type.Literal("openui")], {
                     description: "Default html, or the type of the existing artifact.",
                 }),
             ),

@@ -2,6 +2,7 @@
 // buttons.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { closeSheet, openSheet, store } from "../store.js";
+import { OpenUiFrame } from "../openui.js";
 import { modeOf, paletteOf, themeVars } from "../theme.js";
 import { formatBytes, html, Icon, Sheet, timeAgo } from "../ui.js";
 
@@ -103,13 +104,17 @@ export function ArtifactViewer({ id, version }) {
                 <${Icon} name="close" />
             </button>
         </header>
-        <iframe
+        ${
+            artifact?.type === "openui"
+                ? html`<${OpenUiFrame} key=${`${src}#${nonce}`} src=${`${src}?theme=${modeOf(paletteOf()) === "dark" ? "dark" : "light"}`} title=${artifact.title} fill />`
+                : html`<iframe
             key=${`${src}#${nonce}`}
             src=${src}
             sandbox="allow-scripts allow-forms allow-modals allow-popups allow-pointer-lock allow-downloads"
             allow="fullscreen; clipboard-write; accelerometer; gyroscope"
             title=${artifact?.title ?? id}
-        ></iframe>
+        ></iframe>`
+        }
     </div>`;
 }
 

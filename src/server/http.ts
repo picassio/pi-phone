@@ -10,7 +10,7 @@ import { describe, HttpError } from "./errors.ts";
 import { createApi } from "./http/api.ts";
 import { artifact } from "./http/artifacts.ts";
 import { extensionFile } from "./http/extension-routes.ts";
-import { katexFile, serveApp, serveFile, TYPES, VENDOR, WEB } from "./http/assets.ts";
+import { intelligentUiFile, katexFile, serveApp, serveFile, TYPES, VENDOR, WEB } from "./http/assets.ts";
 import { type HttpOptions, json } from "./http/io.ts";
 import { join as joinPage, login, sharePage } from "./http/sign-in.ts";
 import { themeFile } from "./http/theme-routes.ts";
@@ -53,6 +53,16 @@ export function createHandler(options: HttpOptions) {
             // A theme's files, for everyone signed in (`themes.ts`): not the folders under web/themes/ as they are.
             if (parts[0] === "themes") {
                 return themeFile(app, request, response, parts.slice(1), auth.user(request));
+            }
+
+            if (parts[0] === "vendor" && parts[1] === "intelligent-ui") {
+                const file = intelligentUiFile(parts.slice(2));
+
+                if (file !== undefined) {
+                    response.setHeader("access-control-allow-origin", "*");
+
+                    return serveFile(response, file, TYPES[extname(file)] ?? "application/octet-stream");
+                }
             }
 
             if (parts[0] === "vendor" && parts[1] === "katex") {

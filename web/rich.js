@@ -7,6 +7,7 @@ import { DiffBlock } from "./diff.js";
 import { highlight, langOf } from "./highlight.js";
 import { RunFrame, useFitHeight } from "./run-frame.js";
 import DOMPurify from "dompurify";
+import { OpenUiFrame } from "./openui.js";
 import { notify } from "./store.js";
 import { COLOR_LIMIT, copyText, html, setRichBlock } from "./ui.js";
 
@@ -193,7 +194,7 @@ function MermaidDiagram({ source }) {
 
 // ─── Blocks ───────────────────────────────────────────────────────────────────────
 
-const VIEW_NAMES = { html: "Preview", svg: "Image", diff: "Diff", mermaid: "Diagram" };
+const VIEW_NAMES = { html: "Preview", svg: "Image", diff: "Diff", mermaid: "Diagram", openui: "Answer" };
 
 /** An SVG as an image: as an image, it runs no scripts and loads nothing. Tap it to see it full screen. */
 function SvgImage({ source }) {
@@ -248,6 +249,8 @@ function RichBlock({ kind, lang, source, streaming }) {
             : html`<${HtmlPreview} source=${source} />`;
     } else if (kind === "svg") {
         body = html`<${SvgImage} source=${source} />`;
+    } else if (kind === "openui") {
+        body = html`<${OpenUiFrame} program=${source} />`;
     } else if (kind === "mermaid") {
         body = html`<${MermaidDiagram} source=${source} />`;
     } else {

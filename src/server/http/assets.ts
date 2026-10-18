@@ -1,6 +1,6 @@
 /** The web app's own files and the modules it imports, its content security policy, and image files it shows. */
 import { createHash } from "node:crypto";
-import { closeSync, createReadStream, openSync, readFileSync, readSync, statSync } from "node:fs";
+import { closeSync, createReadStream, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join } from "node:path";
 import { APP_ROOT } from "../config.ts";
@@ -28,6 +28,23 @@ export const VENDOR: Record<string, string> = {
  * the stylesheet loads by relative path (`fonts/…`). Browsers take the woff2 ones, so only those are served.
  */
 export const KATEX = join(MODULES, "katex", "dist");
+
+/**
+ * The Intelligent UI frame's files (`scripts/intelligent-ui.ts`, built into `web/vendor/intelligent-ui/`): a path under
+ * it, or undefined for one that leaves it or names nothing there. They are served with `Access-Control-Allow-Origin: *`,
+ * as the frame loads them as modules from its opaque origin; they are public code, nothing of anyone's.
+ */
+export const INTELLIGENT_UI = join(WEB, "vendor", "intelligent-ui");
+
+export function intelligentUiFile(parts: readonly string[]): string | undefined {
+    if (parts.length === 0 || parts.length > 2 || parts.some((part) => !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(part))) {
+        return undefined;
+    }
+
+    const file = join(INTELLIGENT_UI, ...parts);
+
+    return existsSync(file) && statSync(file).isFile() ? file : undefined;
+}
 
 /** A KaTeX file's path, or undefined for anything else. */
 export function katexFile(parts: readonly string[]): string | undefined {

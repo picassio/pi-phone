@@ -162,7 +162,7 @@ const LONG_CODE = 40;
 
 /**
  * What a code block shows besides its code, if anything: `html` (a page, previewed), `svg` (an image), `diff`, or
- * `mermaid` (a diagram). Its
+ * `mermaid` (a diagram), or `openui` (an interactive answer). Its
  * fence names it; a page or an image without a name is known by how it starts.
  */
 function richKind(name, source) {
@@ -178,6 +178,10 @@ function richKind(name, source) {
 
     if (lang === "mermaid") {
         return "mermaid";
+    }
+
+    if (lang === "openui") {
+        return "openui";
     }
 
     if (

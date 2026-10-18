@@ -70,6 +70,12 @@ jobs:
             echo "rootfs $version: building"
             node scripts/package-rootfs.ts
           fi
+      # The Intelligent UI frame (scripts/intelligent-ui.ts) is built with dev dependencies (esbuild, React, the library's
+      # packages) into web/vendor/intelligent-ui, which the Android install below leaves in place.
+      - name: Intelligent UI frame
+        run: |
+          npm ci --ignore-scripts
+          node scripts/intelligent-ui.ts
       - name: Server dependencies for Android arm64, no lifecycle scripts
         run: npm ci --omit=dev --ignore-scripts --os=android --cpu=arm64
       - name: Server runtime

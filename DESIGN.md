@@ -271,6 +271,32 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   and replaces each placeholder with KaTeX's output (`trust: false`, `throwOnError: false`). A drawn one stays,
   because Preact leaves unchanged HTML alone, so there is no cache to clear. In `ui.js`, sanitizing skips
   `code[data-math]` (no path links, no inline-code part).
+- **Interactive answers** (Open Intelligent UI): Pi writes a program in OpenUI Lang 1.0, and a frame draws it with
+  Open Intelligent UI's component library: layout, inputs bound to `$state`, charts, tables, MapLibre maps with OSRM
+  street routes, Wikipedia photos, KaTeX math, SVG, flashcards, 59 `@functions`. It shows in a reply as an
+  `openui`-fenced block (rich-block kind `openui`, view "Answer"), or as an artifact of type `openui`.
+  - **Source:** `third_party/open-intelligent-ui/`, the library from commit `0321343` (MIT), with its README listing
+    what was kept and our two changes, each marked `pi-phone:` in the code.
+  - **Build:** `scripts/intelligent-ui.ts` (esbuild, which also runs on Android) builds `src/frames/intelligent-ui.tsx`
+    plus the library into `web/vendor/intelligent-ui/`. That is ES modules split so icons, MapLibre and KaTeX load
+    on use (about 25 MB, mostly about 5,000 one-icon chunks), the CSS and fonts, and MapLibre's worker as one module.
+    It is gitignored, built in CI before the Android install, and `package-runtime.ts` refuses to package without it.
+    The dev dependencies (React 19.2.3, `@openuidev/react-lang` 1.0.0, MapLibre 6.14.0, lucide-react 0.562.0, zod
+    4.6.6, esbuild 0.28.2) are pinned to the source's lockfile.
+  - **Frame:** `/a/openui`, or an `openui` artifact's page (`openUiPage` in `http/artifacts.ts`: the program as
+    JSON with `<` escaped), runs under the artifacts' CSP sandbox with an opaque origin. Its files come from
+    `/vendor/intelligent-ui/` with `Access-Control-Allow-Origin: *`, which module scripts from an opaque origin need.
+    MapLibre's worker is fetched and started from a Blob URL, because a worker cannot start from another origin.
+  - **Messages** (the frame and `web/openui.js`'s `OpenUiFrame`; only the parent's or frame's window counts):
+    - `iui-ready`, then `iui-program` with the program and theme;
+    - `iui-fetch` for `/api/wiki`, `/api/image-search` and `/api/street-route`, which the frame's `fetch` sends to the
+      app, which asks `GET /api/openui/<name>` signed in (`src/server/openui.ts`, ported with their caches);
+    - `iui-ask`: `@ToAssistant`'s words, with form values and context, submitted as the person's message;
+    - `iui-size`: the frame's height.
+  - **Guide:** `openui_guide` (`extensions/openui.ts`) returns a pi-phone preface plus their prebuilt system prompt
+    (`system-prompt.txt`, about 8,500 tokens), on request. The `interactive_answers` section says when to use it.
+  - **Tests:** `test/openui.test.ts` renders the guide's three examples and a map, chart and math program with the
+    library in Node (`renderToString`, stylesheets emptied by a plugin), with no errors.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

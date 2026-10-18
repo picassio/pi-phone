@@ -11783,6 +11783,21 @@ textarea.notes {
     flex: none;
 }
 
+/* An interactive answer (OpenUI): its frame fits the answer, or fills the artifact viewer. */
+.openui-frame {
+    display: block;
+    width: 100%;
+    border: 0;
+    border-radius: var(--r-card);
+    background: transparent;
+}
+
+.viewer .openui-frame.fill {
+    flex: 1;
+    min-height: 0;
+    border-radius: 0;
+}
+
 /* Math (KaTeX): inline in the line, display math on its own line, scrolling sideways when wider than the screen. */
 .md .math-display {
     margin: 0.5rem 0;

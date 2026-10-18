@@ -14,6 +14,11 @@ function* files(dir: string): Generator<string> {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = join(dir, entry.name);
 
+        // web/vendor holds built bundles (the Intelligent UI frame), not the app's own modules.
+        if (entry.isDirectory() && path === join(WEB, "vendor")) {
+            continue;
+        }
+
         if (entry.isDirectory()) {
             yield* files(path);
         } else if (entry.name.endsWith(".js")) {

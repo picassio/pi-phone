@@ -19,7 +19,7 @@ import { basename, join, resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "..");
 const ASSETS = join(ROOT, "android/app/src/main/assets");
 /** What the server reads at runtime, relative to the repository. */
-const CONTENTS = ["package.json", "DESIGN.md", "AGENTS.md", "src", "web", "native", "node_modules"];
+const CONTENTS = ["package.json", "DESIGN.md", "AGENTS.md", "src", "web", "native", "third_party", "node_modules"];
 /** Files and folders, by name, that the runtime never uses on the phone (see above). */
 const LEFT_OUT = /^(\.bin|pi-env-windows-.*|better-sqlite3|node-addon-api|tree-sitter-(go|javascript|python|rust|typescript))$/;
 
@@ -40,6 +40,11 @@ for (const each of CONTENTS) {
 }
 
 // Never a local model on the phone (AGENTS.md): a runtime with node-llama-cpp anywhere in it is not built.
+// The Intelligent UI frame (scripts/intelligent-ui.ts), built before packaging: not in git.
+if (!existsSync(join(ROOT, "web", "vendor", "intelligent-ui", "frame.js"))) {
+    throw new Error("web/vendor/intelligent-ui is not built: run node scripts/intelligent-ui.ts first.");
+}
+
 // markit's engine for Android (`fetch_content`, attachments): npm installs it only when told the platform is Android.
 if (!existsSync(join(ROOT, "node_modules", "markit-engine-android-arm64", "markit.android-arm64.node"))) {
     throw new Error("markit-engine-android-arm64 is not in node_modules: install with npm ci --os=android --cpu=arm64.");
