@@ -60,7 +60,8 @@ Done:
   machines (`forwards.ts`), branches on a machine, This phone (battery optimisation, backup and restore, `backup.ts`).
 - The PARA wiki: pi-para 0.8.1 and qmd-engine 2.7.0 (both on node:sqlite), tools and prompt context (`para.ts`). Wiki page
   and editor, capture (`para-capture.ts`) done. Wiki settings (embedding picker included) done.
-  Still to do: sqlite-vec for Android, so search by meaning works on the phone.
+  sqlite-vec for Android (`native/android-arm64/vec0.so`) done: search by meaning works with an OpenRouter embedding
+  model. Never a local model (AGENTS.md).
 - `ssh <machine name>` works from the phone's bash and terminal (`~/.ssh/pi-phone_config`, written by `machines.ts`).
 - Other sessions (`session-control.ts`, `extensions/sessions.ts`): Pi lists, reads, starts, messages, waits for,
   and stops other sessions as its person; denies approvals, never allows.

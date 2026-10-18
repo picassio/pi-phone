@@ -158,6 +158,10 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   writes `config.jsonc` with pi-para's own `saveParaConfig`, keeping what it does not show. They hold the capture model
   and minutes, the prompt context's budget and schema, the OpenRouter embedding model (from OpenRouter's
   `/embeddings/models`, with `pi-auth:openrouter`; a change reopens the search), and the health checks.
+  Search by meaning: qmd embeds through the remote provider and keeps vectors with sqlite-vec, loaded into node:sqlite;
+  on Android from sqlite-vec's own release build, `native/android-arm64/vec0.so` (`scripts/sqlite-vec.ts`, checked
+  against the release's checksum; `QMD_SQLITE_VEC_PATH`). Never a local model: `QMD_NO_LOCAL_MODELS=1`, and the
+  runtime package refuses node-llama-cpp.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

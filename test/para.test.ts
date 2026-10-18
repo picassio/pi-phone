@@ -199,3 +199,73 @@ test("Wiki settings change pi-para's config, which people never edit; wrong valu
     app.paraCapture.setMinutes(20);
     await app.para.updateSettings({ captureModel: "auto", contextTokens: 4000 });
 });
+
+test("search by meaning: qmd embeds the pages through an OpenAI-style embeddings API and keeps the vectors in sqlite-vec", async () => {
+    const { createServer } = await import("node:http");
+    const { loadParaConfig, saveParaConfig } = await import("pi-para/config");
+    let asked = 0;
+    // Letters as a vector: enough for qmd to store and compare, without a model.
+    const embed = (text: string) => {
+        const vector = Array.from({ length: 32 }, () => 0);
+
+        for (const char of text.toLowerCase()) {
+            vector[char.charCodeAt(0) % 32]! += 1;
+        }
+
+        const norm = Math.hypot(...vector) || 1;
+
+        return vector.map((value) => value / norm);
+    };
+    const server = createServer((request, response) => {
+        let body = "";
+
+        request.on("data", (chunk) => (body += chunk));
+        request.on("end", () => {
+            asked++;
+            const given = (JSON.parse(body) as { input: string | string[] }).input;
+            const input = Array.isArray(given) ? given : [given];
+
+            response.setHeader("content-type", "application/json");
+            response.end(JSON.stringify({ data: input.map((text, index) => ({ index, embedding: embed(text) })) }));
+        });
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const loaded = await loadParaConfig({ homeDir: home });
+
+    try {
+        loaded.config.qmd = {
+            ...loaded.config.qmd,
+            embedEnabled: true,
+            providerConfig: "pi-para-profiles",
+            embedding: { provider: "openrouter", baseUrl: url, model: "letters-32", credentialRef: "none" },
+        };
+        await saveParaConfig(loaded.config, { homeDir: home });
+        await app.para.reopen();
+        await app.para.embed();
+
+        const status = await app.para.status();
+
+        assert.ok(asked > 0, "the embeddings API was asked");
+        assert.equal(status.search.vectors, true);
+        assert.equal(status.search.needsEmbedding, 0);
+        assert.equal(status.embedding, "openrouter/letters-32");
+        assert.ok((await app.para.search("socket")).length > 0);
+    } finally {
+        loaded.config.qmd.embedEnabled = false;
+        await saveParaConfig(loaded.config, { homeDir: home });
+        await app.para.reopen();
+        server.close();
+    }
+});
+
+test("never a local model: qmd is told so before it loads, and node-llama-cpp is nowhere in node_modules", async () => {
+    const { execFileSync } = await import("node:child_process");
+
+    assert.equal(process.env.QMD_NO_LOCAL_MODELS, "1");
+    assert.equal(process.env.QMD_SQLITE_DRIVER, "node");
+    const found = execFileSync("find", ["node_modules", "-type", "d", "-name", "node-llama-cpp"], { encoding: "utf8" }).trim();
+
+    assert.equal(found, "", found);
+});

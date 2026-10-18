@@ -19,7 +19,7 @@ import { basename, join, resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "..");
 const ASSETS = join(ROOT, "android/app/src/main/assets");
 /** What the server reads at runtime, relative to the repository. */
-const CONTENTS = ["package.json", "DESIGN.md", "AGENTS.md", "src", "web", "node_modules"];
+const CONTENTS = ["package.json", "DESIGN.md", "AGENTS.md", "src", "web", "native", "node_modules"];
 /** Files and folders, by name, that the runtime never uses on the phone (see above). */
 const LEFT_OUT = /^(\.bin|pi-env-windows-.*|better-sqlite3|node-addon-api|tree-sitter-(go|javascript|python|rust|typescript))$/;
 
@@ -37,6 +37,13 @@ for (const each of CONTENTS) {
     if (!existsSync(join(ROOT, each))) {
         throw new Error(`Missing ${each}; run npm ci first`);
     }
+}
+
+// Never a local model on the phone (AGENTS.md): a runtime with node-llama-cpp anywhere in it is not built.
+const local = execFileSync("find", [join(ROOT, "node_modules"), "-type", "d", "-name", "node-llama-cpp"], { encoding: "utf8" }).trim();
+
+if (local !== "") {
+    throw new Error(`node-llama-cpp is in node_modules, and pi-phone never runs a local model:\n${local}`);
 }
 
 const work = mkdtempSync(join(tmpdir(), "pi-phone-runtime-"));

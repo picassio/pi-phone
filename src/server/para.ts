@@ -430,8 +430,7 @@ export class Para {
         await saveParaConfig(config, { homeDir: this.#host.home });
 
         if (searchChanged) {
-            await this.close();
-            this.#ready = undefined;
+            await this.reopen();
         } else {
             this.#config = { ...this.#config!, config };
         }
@@ -449,6 +448,20 @@ export class Para {
     /** Whether a provider's key is signed in here. */
     async hasKey(provider: string): Promise<boolean> {
         return (await this.#host.apiKey(provider)) !== undefined;
+    }
+
+    /** Open the wiki again: its config read anew, its search reopened (a new embedding model, a test's provider). */
+    async reopen(): Promise<void> {
+        await this.close();
+        this.#ready = undefined;
+        this.markDirty();
+    }
+
+    /** Embed what qmd has not embedded yet, now (the scheduler does it in the background after changes). */
+    async embed(): Promise<void> {
+        const { store } = await this.open();
+
+        await store.embed();
     }
 
     /** OpenRouter's embedding models, cheapest first; asked again after an hour. A failed ask is not kept. */

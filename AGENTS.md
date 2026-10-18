@@ -9,6 +9,10 @@
 - Top-level imports only in our own code; no `await import()`. (pi-pocket's `main.ts` loads the app lazily on
   purpose, after taking the port; `para.ts` loads pi-para when the wiki opens, as its modules use top-level await,
   which in the app's module graph let `app.ts` be read half-loaded.)
+- Never a local model: no node-llama-cpp, GGUF, or other model run on the phone (battery, memory, heat), and nothing
+  that downloads or installs one. Embeddings, reranking, and every other model call go to a remote API provider, or
+  do not happen; there is no local fallback. qmd runs with `QMD_NO_LOCAL_MODELS=1` (`para-env.ts`), and the runtime
+  package refuses to build with node-llama-cpp in `node_modules`.
 - People never edit files to configure pi-phone: every setting a person may change has a place in the app (a sheet,
   the menu). That includes the settings of what pi-phone embeds, such as pi-para's `~/.pi/para/config.jsonc`: the app
   reads and writes those files, people do not. Errors and hints name the app's setting, never a file to edit.
