@@ -86,6 +86,8 @@ import { namesIn, Secrets } from "./secrets.ts";
 import type { Tailnet } from "./tailnet.ts";
 import { WebSearch } from "./web/access.ts";
 import { checkDraft, type Interview, InterviewsDoc } from "./interviews.ts";
+import type { JsonValue } from "@earendil-works/chord";
+import { ANSWER_KEY, MAX_ANSWER_STATE_BYTES, MAX_ANSWER_STATES, OpenUiStateDoc } from "./openui.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { takeLock } from "./lock.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
@@ -2031,6 +2033,48 @@ export class PocketApp {
         }
 
         return this.answerApproval(id, true, user, true);
+    }
+
+    /** What was typed and picked in one of a conversation's interactive answers (`openui.ts`), or null. */
+    async answerState(id: ConversationId, key: string, user: User): Promise<Record<string, unknown> | null> {
+        this.requireSee(user, id);
+
+        if (!ANSWER_KEY.test(key)) {
+            throw new HttpError(400, "Not an answer's key");
+        }
+
+        return (await this.harness.snapshot(OpenUiStateDoc, id, context))?.items[key]?.state ?? null;
+    }
+
+    /** Keep what was typed and picked in an interactive answer; the oldest go past `MAX_ANSWER_STATES`. */
+    async saveAnswerState(id: ConversationId, key: string, user: User, state: unknown): Promise<void> {
+        this.requireSteer(user);
+        this.requireSee(user, id);
+
+        if (!ANSWER_KEY.test(key)) {
+            throw new HttpError(400, "Not an answer's key");
+        }
+
+        if (typeof state !== "object" || state === null || Array.isArray(state)) {
+            throw new HttpError(400, "state is an object");
+        }
+
+        if (Buffer.byteLength(JSON.stringify(state)) > MAX_ANSWER_STATE_BYTES) {
+            throw new HttpError(413, "This answer's state is too large to keep");
+        }
+
+        await this.harness.commit(async (tx) => {
+            const doc = await tx.doc(OpenUiStateDoc, id);
+
+            doc.items[key] = { state: JSON.parse(JSON.stringify(state)) as { [key: string]: JsonValue }, at: Date.now() };
+            const keys = Object.keys(doc.items);
+
+            if (keys.length > MAX_ANSWER_STATES) {
+                for (const old of keys.sort((a, b) => doc.items[a]!.at - doc.items[b]!.at).slice(0, keys.length - MAX_ANSWER_STATES)) {
+                    delete doc.items[old];
+                }
+            }
+        }, context);
     }
 
     /** An interview Pi asked in a conversation, by its call: questions, the draft so far, and how it ended. */

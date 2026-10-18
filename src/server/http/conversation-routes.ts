@@ -229,6 +229,19 @@ export async function conversationRoutes(
         return json(response, 200, { ok: true });
     }
 
+    // What was typed and picked in an interactive answer (`openui.ts`), by its key.
+    if (third === "answer-state" && fourth !== undefined && method === "GET") {
+        return json(response, 200, { state: await app.answerState(id, fourth, user) });
+    }
+
+    if (third === "answer-state" && fourth !== undefined && method === "PUT") {
+        const body = await readJson<{ state?: unknown }>(request);
+
+        await app.saveAnswerState(id, fourth, user, body.state);
+
+        return json(response, 200, { ok: true });
+    }
+
     // An interview Pi asked (`interviews.ts`): its questions and draft, and the person's answers as they go.
     if (third === "interviews" && fourth !== undefined && method === "GET") {
         return json(response, 200, await app.interview(id, parts.slice(3).join("/"), user));

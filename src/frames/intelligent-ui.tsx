@@ -9,7 +9,9 @@
  * - what the library's components fetch from their own server (`/api/wiki`, `/api/image-search`, `/api/street-route`):
  *   the app answers from its routes (src/server/openui.ts), signed in, so the frame needs no sign-in;
  * - a button's `@ToAssistant`: the app sends its words to Pi in the session;
- * - its height, so the app fits the frame to it.
+ * - its height, so the app fits the frame to it;
+ * - what was typed and picked: the app sends what it kept with the program (`state`), and keeps each change
+ *   (`iui-state`), so the answer shows it again when the conversation opens again.
  * Messages count only from the parent window.
  */
 import { type ActionEvent, type OpenUIError, Renderer } from "@openuidev/react-lang";
@@ -20,7 +22,7 @@ import { library } from "../../third_party/open-intelligent-ui/lib/library";
 
 type Theme = "light" | "dark";
 type FetchReply = { type: "iui-fetch-reply"; id: number; status: number; body: string; contentType: string };
-type ProgramMessage = { type: "iui-program"; program: string; theme?: Theme };
+type ProgramMessage = { type: "iui-program"; program: string | null; theme?: Theme; state?: Record<string, unknown> | null };
 
 const inFrame = window.parent !== window;
 const post = (message: Record<string, unknown>) => inFrame && window.parent.postMessage(message, "*");
@@ -65,7 +67,10 @@ function embedded(): string | null {
 const initialTheme = (): Theme => (new URLSearchParams(location.search).get("theme") === "dark" ? "dark" : "light");
 
 function Answer() {
-    const [program, setProgram] = useState<string | null>(embedded);
+    // In the app, the answer waits for the app's message: the program or the page's own, with what was kept. Opened in
+    // a tab of its own, it draws the page's program at once, with nothing kept.
+    const [program, setProgram] = useState<string | null>(inFrame ? null : embedded);
+    const [kept, setKept] = useState<Record<string, unknown> | undefined>(undefined);
     const [theme, setTheme] = useState<Theme>(initialTheme);
     const [errors, setErrors] = useState<OpenUIError[]>([]);
 
@@ -86,7 +91,8 @@ function Answer() {
             } else if (data.type === "iui-program") {
                 const message = data as ProgramMessage;
 
-                setProgram(message.program);
+                setKept(message.state && typeof message.state === "object" ? message.state : undefined);
+                setProgram(message.program ?? embedded());
                 setTheme(message.theme === "dark" ? "dark" : "light");
             }
         };
@@ -127,7 +133,15 @@ function Answer() {
     return (
         <div data-theme={theme} className="pi-iui">
             {program === null ? null : (
-                <Renderer response={program} library={library} isStreaming={false} onAction={onAction} onError={setErrors} />
+                <Renderer
+                    response={program}
+                    library={library}
+                    isStreaming={false}
+                    onAction={onAction}
+                    onError={setErrors}
+                    initialState={kept}
+                    onStateUpdate={(state) => post({ type: "iui-state", state })}
+                />
             )}
             {errors.length > 0 && (
                 <details className="pi-iui-errors">

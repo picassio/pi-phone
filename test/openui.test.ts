@@ -34,7 +34,12 @@ const route: FauxResponseStep = (request) => {
 };
 
 let app: App;
-let render: (program: string) => { html: string; errors: string[] };
+let render: (program: string, initialState?: Record<string, unknown>) => { html: string; errors: string[] };
+let mount: (
+    program: string,
+    initialState: Record<string, unknown> | undefined,
+    onState: (state: Record<string, unknown>) => void,
+) => Promise<{ text: () => string; press: (label: string) => Promise<void>; unmount: () => void }>;
 const realFetch = globalThis.fetch;
 
 before(async () => {
@@ -66,7 +71,7 @@ before(async () => {
         logLevel: "error",
         absWorkingDir: join(import.meta.dirname, ".."),
     });
-    ({ render } = (await import(bundle)) as { render: typeof render });
+    ({ render, mount } = (await import(bundle)) as { render: typeof render; mount: typeof mount });
 });
 
 afterEach(() => {
@@ -104,6 +109,85 @@ test("the guide's examples, a map, a chart, and math render with the library, wi
     assert.match(render(examples[0]!).html, /Pasta night for /);
     assert.match(render(examples[2]!).html, /Build a small bookcase/);
     assert.match(render(MAP).html, /Two stops in Lisbon/);
+});
+
+test("an answer drawn again with what was kept shows it: a change reaches the app, and comes back", async () => {
+    const { parseHTML } = await import("linkedom");
+    const page = parseHTML("<!doctype html><html><body></body></html>");
+    const globals = ["window", "document", "navigator", "location", "HTMLElement", "Node", "Element", "MouseEvent", "Event", "requestAnimationFrame"] as const;
+    // React reads the page's address once loaded; linkedom has none.
+    Object.defineProperty(page.window, "location", { value: new URL("http://localhost/"), configurable: true });
+    const before = Object.fromEntries(globals.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+    for (const name of globals) {
+        const value = name === "requestAnimationFrame" ? (done: () => void) => setTimeout(done, 0) : name === "window" ? page.window : (page as unknown as Record<string, unknown>)[name] ?? (page.window as unknown as Record<string, unknown>)[name];
+
+        Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+    }
+
+    try {
+        const states: Record<string, unknown>[] = [];
+        const fresh = await mount(examples[0]!, undefined, (state) => states.push(state));
+
+        assert.match(fresh.text(), /Pasta night for 4 guests/, "the program's own start");
+        await fresh.press("More");
+        assert.match(fresh.text(), /Pasta night for 5 guests/);
+        assert.equal(states.at(-1)?.$guests, 5, "a change reaches the app");
+        fresh.unmount();
+
+        // Drawn again with what the app kept: as it was left.
+        const again = await mount(examples[0]!, states.at(-1), () => {});
+
+        assert.match(again.text(), /Pasta night for 5 guests/);
+        again.unmount();
+    } finally {
+        // React's and the components' timers finish on the page before it goes.
+        await new Promise((done) => setTimeout(done, 300));
+
+        for (const name of globals) {
+            const was = before[name];
+
+            if (was === undefined) {
+                delete (globalThis as Record<string, unknown>)[name];
+            } else {
+                Object.defineProperty(globalThis, name, was);
+            }
+        }
+    }
+});
+
+test("what was typed and picked is kept per answer, in the conversation, for those who may steer", async () => {
+    const id = await newSession(app);
+    const key = "p-abc123-9z";
+
+    assert.equal(await app.answerState(id, key, owner(app)), null);
+    await app.saveAnswerState(id, key, owner(app), { $guests: 7, prefs: { pace: { value: "Packed", componentType: "RadioGroup" } } });
+    assert.deepEqual(await app.answerState(id, key, owner(app)), { $guests: 7, prefs: { pace: { value: "Packed", componentType: "RadioGroup" } } });
+    await app.saveAnswerState(id, key, owner(app), { $guests: 8 });
+    assert.deepEqual(await app.answerState(id, key, owner(app)), { $guests: 8 }, "the newest replaces it");
+
+    await assert.rejects(app.answerState(id, "../x", owner(app)), /Not an answer's key/);
+    await assert.rejects(app.saveAnswerState(id, key, owner(app), ["not", "an", "object"]), /state is an object/);
+    await assert.rejects(app.saveAnswerState(id, key, owner(app), { big: "x".repeat(70 * 1024) }), /too large/);
+
+    const { user: viewer } = app.config.addUser("Watcher", "viewer");
+
+    try {
+        assert.deepEqual(await app.answerState(id, key, viewer), { $guests: 8 }, "a viewer sees it");
+        await assert.rejects(app.saveAnswerState(id, key, viewer, { $guests: 1 }), /steer|view/i);
+    } finally {
+        app.config.removeUser(viewer.id);
+    }
+
+    // The oldest go once there are too many.
+    for (let index = 0; index < 201; index++) {
+        await app.saveAnswerState(id, `p-many-${index}`, owner(app), { $n: index });
+    }
+
+    assert.equal(await app.answerState(id, key, owner(app)), null, "the oldest is gone");
+    assert.deepEqual(await app.answerState(id, "p-many-200", owner(app)), { $n: 200 });
 });
 
 test("the frame's page: sandboxed, the program as JSON that cannot end its script, and the bundle's files with CORS", () => {

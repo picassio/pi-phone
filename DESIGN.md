@@ -339,7 +339,12 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     `/vendor/intelligent-ui/` with `Access-Control-Allow-Origin: *`, which module scripts from an opaque origin need.
     MapLibre's worker is fetched and started from a Blob URL, because a worker cannot start from another origin.
   - **Messages** (the frame and `web/openui.js`'s `OpenUiFrame`; only the parent's or frame's window counts):
-    - `iui-ready`, then `iui-program` with the program and theme;
+    - `iui-ready`, then `iui-program` with the program (null for an artifact, whose page holds it), theme, and the
+      state kept for this answer, which the renderer takes as `initialState`;
+    - `iui-state`: the renderer's `onStateUpdate` (form fields and `$` bindings). The page keeps it 600 ms after the
+      last change, or on leaving, at `PUT /api/c/<id>/answer-state/<key>` (`OpenUiStateDoc` in `openui.ts`, the newest
+      200 per conversation, 64 KB each; viewers read, those who steer write). The key is `answerKey`: FNV-1a hashes of the
+      program for a block, or of the artifact's address (with its version) for an artifact;
     - `iui-fetch` for `/api/wiki`, `/api/image-search` and `/api/street-route`, which the frame's `fetch` sends to the
       app, which asks `GET /api/openui/<name>` signed in (`src/server/openui.ts`, ported with their caches);
     - `iui-ask`: `@ToAssistant`'s words, with form values and context, submitted as the person's message;

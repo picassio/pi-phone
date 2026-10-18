@@ -7,10 +7,33 @@
  * - `wiki`: a Wikipedia article's lead photos and coordinates, by title.
  * - `image-search`: photos for a description: matching Wikipedia lead images, then Wikimedia Commons files.
  * - `street-route`: street geometry between stops, from the public OSRM demo server (a driving overview).
+ *
+ * Also what people typed and picked in interactive answers (`OpenUiStateDoc`).
  */
+import type { JsonValue } from "@earendil-works/chord";
+import { defineDoc } from "@earendil-works/pi-durable";
 
 /** What a route answers: its status and JSON, as the component expects them. */
 export type OpenUiAnswer = { status: number; body: unknown };
+
+/**
+ * What people typed and picked in a conversation's interactive answers, by answer (a key the page makes from the
+ * program, or the artifact's address): the renderer's form state and `$` bindings, so an answer shows them again when
+ * the conversation opens again, on any device. The newest `MAX_ANSWER_STATES` are kept.
+ */
+export const OpenUiStateDoc = defineDoc<{ items: Record<string, { state: { [key: string]: JsonValue }; at: number }> }>({
+    kind: "pocket.openui-state",
+    version: 1,
+    scope: "conversation",
+    history: "latest",
+    fork: "current",
+    initial: () => ({ items: {} }),
+});
+
+export const MAX_ANSWER_STATES = 200;
+/** One answer's state, as JSON. */
+export const MAX_ANSWER_STATE_BYTES = 64 * 1024;
+export const ANSWER_KEY = /^[a-z0-9-]{1,64}$/;
 
 const AGENT = { "User-Agent": "pi-phone (https://github.com/picassio/pi-phone), with open-intelligent-ui's components" };
 const failed = (message: string, status = 502): OpenUiAnswer => ({ status, body: { error: { message } } });
