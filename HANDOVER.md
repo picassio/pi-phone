@@ -58,6 +58,8 @@ Done:
   the shell outlives its socket for 15 min and is taken up again by id with its last output; Paste, Select, End.
 - Notifications (PiService polls `/api/phone/events`), downloads to Downloads (bridge `download`), ports of
   machines (`forwards.ts`), branches on a machine, This phone (battery optimisation, backup and restore, `backup.ts`).
+- The PARA wiki: pi-para 0.8.1 and qmd-engine 2.7.0 (both on node:sqlite), tools and prompt context (`para.ts`). Still
+  to do: the Wiki page and editor, capture of sessions, the OpenRouter embedding picker, sqlite-vec for Android.
 - `ssh <machine name>` works from the phone's bash and terminal (`~/.ssh/pi-phone_config`, written by `machines.ts`).
 - Other sessions (`session-control.ts`, `extensions/sessions.ts`): Pi lists, reads, starts, messages, waits for,
   and stops other sessions as its person; denies approvals, never allows.

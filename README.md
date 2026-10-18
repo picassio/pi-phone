@@ -23,6 +23,8 @@ No Termux, no laptop, no cloud VM.
   back what you did there into the same session.
 - **Notifications** when a session finishes, fails, or asks for approval; **downloads** to the phone; **ports**
   of a machine (a dev server there) in the phone's browser; **backup and restore** of everything.
+- **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with
+  qmd's search, in the same format as pi-para in pi.
 - **A terminal.** A real shell inside the app, on the phone or on a machine, with Esc, Tab, Ctrl, and arrow keys
   above the keyboard.
 - **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's
@@ -86,6 +88,8 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   them.
   The app's icon is Pi's logo ([pi.dev/logo.svg](https://pi.dev/logo.svg)), which belongs to the Pi project;
   pi-phone is an unofficial app, not affiliated with or endorsed by Earendil or the Pi project.
+- **[pi-para](https://github.com/picassio/pi-para)** and **[qmd-engine](https://github.com/picassio/qmd-1)** (MIT): the
+  PARA wiki, its tools and context, and its search.
 - **[pi-cc-patch](https://github.com/picassio/pi-cc-patch)** (MIT): the Claude Code billing transform, ported to
   `src/server/cc-patch.ts` with its tests.
 

@@ -139,6 +139,13 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   `Host` entry in `~/.ssh/pi-phone_config` (its key only, the app's known hosts and alias, strict checks, `BatchMode`),
   rewritten whenever the machines change and included by its whole path at the top of `~/.ssh/config`, whose other
   lines stay. Phone sessions' prompt names these machines.
+- **The PARA wiki** (`src/server/para.ts`, `extensions/para.ts`): pi-para (npm, pinned) on Pi Durable. Its wiki
+  (`~/.pi/wiki`), config (`~/.pi/para/config.jsonc`), qmd index and scheduler are pi-para's own, so pi on a computer
+  with pi-para shares the format. Its nine `wiki_*` tools are pi-para's implementations wrapped as Pi Durable tools;
+  its guidance and its scoped context go in a `wiki` prompt section, cached per scope until a tool changes the wiki.
+  A session's scope is found as pi-para finds it, in its folder here or, for a session on a machine, asked there.
+  qmd-engine and pi-para run on `node:sqlite` (`QMD_SQLITE_DRIVER=node`, set by `para-env.ts` before they load);
+  the runtime package leaves out their bundled better-sqlite3 and qmd's tree-sitter grammars.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

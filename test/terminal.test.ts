@@ -106,7 +106,8 @@ test("a shell runs on without its page, and the page takes it up again with what
     const { id } = await first.next("ready");
 
     first.input("export MARK=kept-$((40+2))\n");
-    await first.until(/export MARK[^]*export MARK[^]*\$/);
+    // The command, then the next prompt: bash echoes it once or twice, as the input came before or after its prompt.
+    await first.until(/export MARK[^]*\r\n[^]*\$/);
     first.ws.close();
     await new Promise((resolve) => first.ws.once("close", resolve));
 

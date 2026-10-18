@@ -14,6 +14,7 @@ import type { Role, User } from "./config.ts";
 import type { Goals } from "./goals.ts";
 import type { Schedules } from "./schedules.ts";
 import type { SessionControl } from "./session-control.ts";
+import type { Para } from "./para.ts";
 
 export interface ApprovalRequest {
     id: string;
@@ -187,6 +188,8 @@ export interface PocketHost {
     heldBack(conversationId: ConversationId): string | undefined;
     /** Call `listener` whenever the owner changes a spend limit; returns how to stop. */
     onLimitsChanged(listener: () => void): () => void;
+    /** The PARA wiki (`para.ts`): pi-para's, opened on the para module's first load. */
+    readonly para: Para;
     /** Other sessions, as the person a session works for (`session-control.ts`): the sessions tools. */
     readonly sessions: Pick<SessionControl, "list" | "status" | "read" | "start" | "send" | "stop" | "wait" | "approvals" | "deny">;
     /** Messages to Pi for later: the schedule tool sets up Pi's own. */

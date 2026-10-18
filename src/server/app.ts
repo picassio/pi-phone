@@ -70,9 +70,10 @@ import { PiHandoff } from "./pi-handoff.ts";
 import { PhoneEvents } from "./phone-events.ts";
 import { Forwards } from "./forwards.ts";
 import { SessionControl } from "./session-control.ts";
+import { Para } from "./para.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
-import { parsePlace, Places } from "./places.ts";
+import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { takeLock } from "./lock.ts";
@@ -285,6 +286,8 @@ export class PocketApp {
     readonly places: Places;
     /** Ports of machines opened here (`forwards.ts`). */
     readonly forwards: Forwards;
+    /** The PARA wiki (`para.ts`). */
+    readonly para: Para;
     /** Sessions acting on other sessions (`session-control.ts`). */
     readonly sessionControl = new SessionControl(this);
     /** Theme folders: the app's look and layout, built in and the owner's (`themes.ts`). */
@@ -340,6 +343,18 @@ export class PocketApp {
         this.machines = new Machines(options.dataDir, this.sshKeys, this.#home);
         this.places = new Places(this.machines);
         this.forwards = new Forwards(this.machines);
+        this.para = new Para({
+            home: this.#home,
+            apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
+            remote: (cwd) => {
+                if (!isRemote(cwd)) {
+                    return undefined;
+                }
+
+                return { path: parsePlace(cwd).path, env: this.places.env(cwd) };
+            },
+            log: (message) => this.#log(message),
+        });
         this.#lockFile = join(options.dataDir, "harness.lock");
         this.#log = options.log ?? ((line) => console.log(line));
         this.themes = new Themes({
@@ -500,6 +515,7 @@ export class PocketApp {
             onLimitsChanged: (listener) => this.spend.onLimitsChanged(listener),
             schedules: this.schedules,
             sessions: this.sessionControl,
+            para: this.para,
             goals: this.goals,
             text: Object.freeze({ quoted, defang }),
             thinkingLevels: THINKING_LEVELS,
@@ -2708,6 +2724,7 @@ export class PocketApp {
                 // Close writes no outcome: running work resumes when the next process opens the storage.
                 await this.harness?.close(context);
                 this.forwards.closeAll();
+                await this.para.close();
                 await this.places.close(context);
             } finally {
                 rmSync(this.#lockFile, { force: true });
