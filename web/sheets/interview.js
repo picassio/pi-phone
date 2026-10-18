@@ -289,7 +289,13 @@ export function InterviewSheet({ conversationId, callId }) {
     const questions = interview?.questions.questions ?? [];
     const unanswered = questions.filter((question) => question.type !== "info" && !byId.has(question.id)).length;
 
-    return html`<${Sheet} title=${interview?.questions.title ?? "Interview"} onClose=${closeSheet} className="interview" wide>
+    // Skip and Submit in the header, always in reach however long the form is.
+    const actions =
+        waiting &&
+        html`<button class="button small" disabled=${busy} onClick=${() => finish("cancel")}>Skip</button>
+            <button class="button small primary" disabled=${busy} onClick=${() => finish("submit")}>Submit</button>`;
+
+    return html`<${Sheet} title=${interview?.questions.title ?? "Interview"} onClose=${closeSheet} className="interview" actions=${actions} wide>
         ${problem && html`<p class="wiki-problem">${problem}</p>`}
         ${!interview && !problem && html`<${Loader} label="Loading the questions" />`}
         ${
@@ -308,11 +314,10 @@ export function InterviewSheet({ conversationId, callId }) {
             )}
             ${
                 waiting &&
-                html`<div class="sheet-actions interview-actions">
-                    <span class="muted small grow">${unanswered === 0 ? "All answered." : `${unanswered} not answered yet.`} Saved as you go.</span>
-                    <button class="button" disabled=${busy} onClick=${() => finish("cancel")}>Skip</button>
-                    <button class="button primary" disabled=${busy} onClick=${() => finish("submit")}>Submit</button>
-                </div>`
+                html`<p class="muted small interview-status">
+                    ${unanswered === 0 ? "All answered." : `${unanswered} not answered yet.`} Saved as you go: close it and come back
+                    any time. Submit is at the top.
+                </p>`
             }`
         }
     <//>`;

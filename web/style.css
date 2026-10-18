@@ -11678,6 +11678,18 @@ textarea.notes {
 
 .interview-option > label > span:first-of-type {
     flex: 1;
+    min-width: 0;
+}
+
+/* The app's fields are full width; a choice's mark is its own size, ahead of its words. */
+.interview-option > label > input[type="radio"],
+.interview-option > label > input[type="checkbox"] {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--accent);
 }
 
 .interview-option .badge {
@@ -11763,11 +11775,12 @@ textarea.notes {
     }
 }
 
-.interview-actions {
-    position: sticky;
-    bottom: 0;
-    padding: 0.6rem 0;
-    background: var(--panel);
+.interview-status {
+    padding-bottom: 0.4rem;
+}
+
+.sheet.interview .sheet-head .button {
+    flex: none;
 }
 
 /* A Mermaid diagram (pele), in the theme's colors: pele reads these variables, so a theme change needs no redraw. */

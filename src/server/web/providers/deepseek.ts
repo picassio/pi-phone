@@ -1,7 +1,8 @@
 /**
  * DeepSeek's Search API (https://api-docs.deepseek.com/guides/search): its own engine, with the DeepSeek API key of the
  * Pi sign-in. `summary` (600–800 characters) is written for models, `snippet` for screens. Queries are at most 128
- * characters, operators included; `site:`, `-site:`, and `after:` are its filters. Ported from pi-web-access's
+ * characters, operators included; `site:`, `-site:`, and `after:` are its filters. Its links end in the matching chunk's
+ * number (`#1`), which is dropped, so each page is listed once. Ported from pi-web-access's
  * `deepseek.ts` (MIT).
  */
 import { clip, ProviderError, request, since, tidy, withSiteOperators } from "../http.ts";
@@ -35,7 +36,8 @@ const provider: SearchProvider = {
             results: tidy(
                 (answer.results ?? []).map((result) => ({
                     title: clip(result.title, 200),
-                    url: String(result.url ?? ""),
+                    // DeepSeek marks which chunk of a page matched (`…#2`): the page is the same, and listed once.
+                    url: String(result.url ?? "").replace(/#\d+$/, ""),
                     snippet: clip(result.summary, 800) || clip(result.snippet),
                     ...(typeof result.date === "string" ? { date: result.date } : {}),
                 })),
