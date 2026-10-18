@@ -171,7 +171,7 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
                 return createIngestExecute(wiki.wikiDir, wiki.store, scoped(wiki))(args as never);
             }
 
-            const { markdown } = await toMarkdown(readFileSync(path), kind);
+            const { markdown } = await toMarkdown(readFileSync(path), path);
 
             writeFileSync(`${path}.md`, markdown);
 

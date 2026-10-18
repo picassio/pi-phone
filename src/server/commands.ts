@@ -434,7 +434,7 @@ export class Commands {
             }
 
             try {
-                const { markdown } = await toMarkdown(readFileSync(file.path), kind);
+                const { markdown } = await toMarkdown(readFileSync(file.path), file.name, file.mime);
                 const path = `${file.path}.md`;
 
                 writeFileSync(path, markdown, { mode: 0o600 });

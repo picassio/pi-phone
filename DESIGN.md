@@ -229,16 +229,20 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   `~/.cache/pi-phone/fetch/<hash>.md` (the env's `$HOME`), and the note goes first. Both tools are allowed in plan
   mode. The release build's `npm ci --os=android --cpu=arm64` installs `markit-engine-android-arm64`, and
   `package-runtime.ts` refuses to package without it.
-- **Documents** (`src/server/documents.ts`): markit (`markit-engine`, our fork with the Android build) turns PDF, Word,
-  PowerPoint, Excel, EPUB, notebooks, CSV/TSV, RSS/Atom, and ZIPs into Markdown. Documents are known by extension or
-  content type (`documentKind`), and the engine loads on first use. Four places use it:
+- **Documents** (`src/server/documents.ts`): markit (`markit-engine`, our fork with the Android build) turns files into
+  Markdown. Which files are documents is markit's own answer: `documentKind` asks its converters' `accepts()` (by
+  name and type), and pi-phone keeps no list of its own. The converters are PDF, DOCX, PPTX, XLSX, iWork (Pages,
+  Numbers, Keynote), EPUB, ipynb, CSV/TSV, RSS/Atom, HTML, ZIP, and audio (tags). Images count only with
+  `{ images: true }` (`file_to_markdown`), for their EXIF; attached images go to the model as pictures. Text Pi reads
+  as it is (plain text, code, JSON, YAML, XML), which markit would only fence, is not converted. A `.xml` is a feed
+  only when its type says so. `.xls` and the OpenDocument formats are not markit's. The engine loads on first use. Four places use it:
   - **Attachments:** when a message is sent, each document gets `<file>.md` beside it in the uploads folder. Both go to
     a machine for a session there, and the message line reads `… → as Markdown: <path>.md (size)`. A file markit
     cannot read is a notice, and goes as it is.
   - **`file_to_markdown`** (`extensions/web.ts`): reads through the session's env, so it works on machines; converts
     on the phone; writes `<file>.md` beside the file through the env; returns the text, bounded as `fetch_content`'s.
     Not allowed in plan mode, as it writes.
-  - **`fetch_content`:** document URLs.
+  - **`fetch_content`:** document URLs. HTML still goes to Readability first, for the article rather than the whole page.
   - **`wiki_ingest`:** a document path on the phone is converted to `<file>.md`, and that file is ingested (pi-para
     reads files as UTF-8).
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as

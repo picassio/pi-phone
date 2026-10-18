@@ -56,12 +56,24 @@ after(async () => {
 });
 
 test("markit reads documents on this platform, and documents are known by name or type", async () => {
-    assert.equal(documentKind("Report.PDF"), ".pdf");
-    assert.equal(documentKind("upload", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"), ".docx");
-    assert.equal(documentKind("notes.txt", "text/plain"), undefined);
-    assert.equal(documentKind("photo.png", "image/png"), undefined);
-    assert.match((await toMarkdown(pdf("Quarterly numbers"), ".pdf")).markdown, /Quarterly numbers/);
-    assert.equal((await toMarkdown(Buffer.from("a,b\n1,2\n"), ".csv")).markdown, "| a | b |\n| --- | --- |\n| 1 | 2 |");
+    // markit's own converters decide, by name or type.
+    assert.equal(documentKind("Report.PDF"), "pdf");
+    assert.equal(documentKind("upload", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"), "docx");
+
+    for (const name of ["deck.pptx", "sheet.xlsx", "book.epub", "nb.ipynb", "data.tsv", "plan.pages", "budget.numbers", "talk.key", "page.html", "feed.rss", "all.zip", "song.mp3", "memo.m4a"]) {
+        assert.ok(documentKind(name) !== undefined, name);
+    }
+
+    // Text Pi reads as it is, and images that go to the model as pictures, are not converted.
+    for (const name of ["notes.txt", "README.md", "app.ts", "data.json", "conf.yaml", "pom.xml", "photo.png"]) {
+        assert.equal(documentKind(name), undefined, name);
+    }
+
+    assert.equal(documentKind("photo.jpg", "image/jpeg", { images: true }), "image", "on request, an image's metadata");
+    assert.equal(documentKind("feed.xml", "application/rss+xml"), "rss", "an XML file whose type says feed");
+    assert.match((await toMarkdown(pdf("Quarterly numbers"), "q.pdf")).markdown, /Quarterly numbers/);
+    assert.equal((await toMarkdown(Buffer.from("a,b\n1,2\n"), "t.csv")).markdown, "| a | b |\n| --- | --- |\n| 1 | 2 |");
+    assert.match((await toMarkdown(Buffer.from("<h1>Hi</h1><p>An <b>attached</b> page</p>"), "page.html")).markdown, /# Hi[^]*An \*\*attached\*\* page/);
 });
 
 test("an attached document goes with its Markdown, saved beside it", async () => {
@@ -101,7 +113,7 @@ test("Pi converts a document with file_to_markdown, saved beside it; other files
 
     await (await app.harness.submission(second.submissionId, context))!.wait(context);
     await app.harness.waitForIdle(context);
-    assert.match((await modelTexts(app, id)).at(-1)!, /is not a document file_to_markdown reads/);
+    assert.match((await modelTexts(app, id)).at(-1)!, /is not a file markit converts/);
 });
 
 test("wiki_ingest takes a document as its Markdown", async () => {

@@ -233,20 +233,22 @@ export async function fetchContent(address: string, env: ExecutionEnv, signal: A
         return { kind: "image", url: final, mimeType: type, data: bytes.toString("base64") };
     }
 
-    const document = documentKind(new URL(final).pathname, type);
-
-    if (document !== undefined) {
-        const converted = await toMarkdown(bytes, document);
-
-        return { kind: "text", url: final, title: converted.title ?? decodeURIComponent(final.split("/").pop() ?? final), text: converted.markdown, how: `markit (${document.slice(1)})` };
-    }
-
     const text = bytes.toString("utf8");
 
+    // A web page by Readability, for its article: markit would take the whole page.
     if (type === "text/html" || type === "application/xhtml+xml" || (type === "" && /^\s*<(!doctype html|html)/i.test(text))) {
         const page = pageMarkdown(text, final);
 
         return { kind: "text", url: final, title: page.title, text: page.markdown, how: "Readability" };
+    }
+
+    const name = decodeURIComponent(new URL(final).pathname.split("/").pop() || "download");
+    const document = documentKind(name, type);
+
+    if (document !== undefined) {
+        const converted = await toMarkdown(bytes, name, type);
+
+        return { kind: "text", url: final, title: converted.title ?? name, text: converted.markdown, how: `markit (${document})` };
     }
 
     if (type.startsWith("text/") || /json|xml|javascript|yaml|toml/.test(type)) {
