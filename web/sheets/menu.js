@@ -1,4 +1,5 @@
 // The menu: what can be done in this session and in the app.
+import { dictationLanguage } from "../android-speech.js";
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { chatUnread } from "../chat.js";
 import { schedulesAvailable, webAvailable } from "../commands.js";
@@ -31,6 +32,7 @@ import { currentTrust, trustAvailable } from "../trust.js";
 import { branchAvailable } from "./branch.js";
 import { defaultLabel, defaultsKept } from "./model.js";
 import { copyText, html, Icon, item, Sheet, shortPath } from "../ui.js";
+import { voiceAvailable } from "../voice.js";
 
 // Key hints are for people with a keyboard: a touch screen has none.
 const touch = matchMedia("(pointer: coarse)").matches;
@@ -470,6 +472,7 @@ export function MenuSheet({ places = true }) {
         <div class="group">
             <div class="group-title">App</div>
             ${item("Appearance", () => openSheet({ type: "appearance" }), lookLabel())}
+            ${voiceAvailable() && item("Dictation", () => openSheet({ type: "dictation" }), dictationLanguage())}
             ${!touch && item("Keyboard shortcuts", () => openSheet({ type: "shortcuts" }), "?")}
             ${
                 me?.role === "owner" &&

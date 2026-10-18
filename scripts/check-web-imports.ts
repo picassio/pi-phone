@@ -177,7 +177,8 @@ for (const file of files(WEB)) {
             continue;
         }
 
-        if (new RegExp(`(?<![\\w$.])${name.replace(/\$/g, "\\$")}\\(`).test(text)) {
+        // A class or object method of that name (`start() {`) is defined there, not called.
+        if (new RegExp(`(?<![\\w$.])${name.replace(/\$/g, "\\$")}\\(`).test(text.replace(/^\s+(?:async\s+)?[\w$#]+\([^)]*\)\s*\{/gm, ""))) {
             problems.push(`${where}: calls ${name}, which is neither defined nor imported`);
         }
     }

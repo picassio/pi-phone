@@ -32,6 +32,7 @@ import { isRemotePlace } from "./place.js";
 import { TrustBar } from "./trust.js";
 import { prefs } from "./theme.js";
 import { says } from "./turns.js";
+import { MicButton, useDictation } from "./voice.js";
 import {
     APPLE,
     contextLevel,
@@ -518,6 +519,11 @@ export function Composer() {
             }
         };
     });
+    // Dictation writes into the box as typing does, so the draft keeps what was heard.
+    const dictation = useDictation(box, (value, at) => {
+        setBrowsing(null);
+        update(value, at);
+    });
     // What is above the message box, and how it shares the room with the conversation (`dock.js`).
     const dock = useRef(null);
     const picker = useRef(null);
@@ -532,6 +538,7 @@ export function Composer() {
     useEffect(() => {
         const draft = drafts.get(conversationId);
 
+        dictation.stop(true);
         setText(draft);
         setCaret(draft.length);
         setPastes(loadPastes(conversationId));
@@ -807,6 +814,8 @@ export function Composer() {
             return;
         }
 
+        // What shows is what goes: words still coming would land in the emptied box.
+        dictation.stop(true);
         const full = expandPastes(text, pastes);
 
         if (parsed) {
@@ -1110,11 +1119,13 @@ export function Composer() {
         );
     };
 
-    const placeholder = busy
-        ? steer
-            ? "Steer the current run…"
-            : "Queue a message for after this run…"
-        : "Ask Pi anything…";
+    const placeholder = dictation.listening
+        ? "Listening…"
+        : busy
+          ? steer
+              ? "Steer the current run…"
+              : "Queue a message for after this run…"
+          : "Ask Pi anything…";
     const inbox = view.inbox ?? [];
     const { me, users } = store.state;
     const queuedBy = (item) =>
@@ -1125,6 +1136,15 @@ export function Composer() {
               : ` · ${users.find((user) => user.id === item.by)?.name ?? "someone"}`;
 
     useDock(dock);
+    // View only now, or someone else took the wheel: the box goes, and dictation with it.
+    const writes = !collab() || (canSteer() && !(view.turns?.on && view.turns.driver !== me?.id));
+
+    useEffect(() => {
+        if (!writes) {
+            dictation.stop(true);
+        }
+    }, [writes]);
+
     if (collab() && !canSteer()) {
         return html`<footer class="composer-wrap" data-part="composer">
             <div class="dock" data-part="dock" ref=${dock}>
@@ -1517,6 +1537,11 @@ export function Composer() {
                                 )}
                             </div>`
                         }
+                        <${MicButton}
+                            dictation=${dictation}
+                            class="composer-mic"
+                            part="composer-button"
+                        />
                         <button
                             class=${`send-button ${canSend ? "ready" : ""}`}
                             data-part="send-button"

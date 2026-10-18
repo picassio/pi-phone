@@ -54,6 +54,8 @@ import {
 } from "./store.js";
 import { prefs, setPrefs, startTheme } from "./theme.js";
 import { Transcript } from "./transcript.js";
+import { installAndroidSpeech } from "./android-speech.js";
+import { toggleDictation } from "./voice.js";
 import {
     APPLE,
     Boot,
@@ -653,6 +655,13 @@ addEventListener("keydown", (event) => {
             return;
         }
 
+        // Dictation into the message box in view.
+        if (event.code === "KeyV" && !store.state.sheet && !store.state.launcher && toggleDictation()) {
+            event.preventDefault();
+
+            return;
+        }
+
     }
 
     // Esc closes the Files tile where it covers the conversation, as back does. What is inside
@@ -730,6 +739,8 @@ addEventListener("blur", altUp);
 
 // The whole tree re-renders from the store; Preact's diff keeps that cheap. Batched per microtask.
 startTheme();
+// Inside the Android app, dictation listens with Android's recognizer (`android-speech.js`).
+installAndroidSpeech();
 // Where the session list is not beside the conversation, a conversation opened straight away gets it under it, so back
 // goes to the list rather than out of the app.
 startHistory({ home: !wide() });

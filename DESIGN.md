@@ -74,7 +74,7 @@ diffs, files and changes, sessions, session tree, subagents board, sheets for th
 
 Removed, and staying out (the owner's decision, 2026-10-17): PiP, Agent Teams and linked sessions, memory, triggers
 (GitHub watches, repository watches, webhooks), the built-in browser, the extension gallery and drop-ins, Lancet
-Guard (ONNX), Web Push, the share target, dictation, the launcher (access modes, tunnels, QR), and the repo extras (docs
+Guard (ONNX), Web Push, the share target, the launcher (access modes, tunnels, QR), and the repo extras (docs
 site, nix, lint config).
 
 Kept on purpose (the owner's decision, 2026-10-17: no more trimming): multiplayer (`collab`, `spend`, people,
@@ -88,6 +88,14 @@ Access (`web/sheets/access.js`, `GET|PUT /api/access`, config `tailscale`) turns
 phone's Tailscale address (100.64.0.0/10, from the Tailscale app's VPN), with the same handler and terminals
 (`src/server/tailnet.ts`). It looks the address up every 10 s and follows it as the VPN comes and goes; while it
 listens, `app.access` is that URL, so invite links point there.
+
+Dictation came back on 2026-10-18 (the owner's decision): pi-pocket's `web/voice.js` (mic beside Send, words as they are
+heard, Alt+V) as it was. WebView has no Web Speech API, so inside the app `web/android-speech.js` stands in
+`SpeechRecognition` on Android's own `SpeechRecognizer` (`Dictation.java`, bridge methods `dictationAvailable`,
+`startDictation(lang)`, `stopDictation`, `abortDictation`; events back to `window.__piPhoneSpeech`). Android hears one
+utterance per start; the stand-in starts the next one itself while dictating continuously, keeps every result, and ends
+after a quiet one. RECORD_AUDIO is asked the first time the mic is tapped. The language is the device's, or the one picked
+in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per device). Guests in a browser use its own.
 
 ## 4. Ours
 

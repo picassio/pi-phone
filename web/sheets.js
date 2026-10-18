@@ -15,6 +15,7 @@ import { SecretsSheet } from "./sheets/secrets.js";
 import { InterviewSheet } from "./sheets/interview.js";
 import { WebAccessSheet } from "./sheets/web-access.js";
 import { AccessSheet } from "./sheets/access.js";
+import { DictationSheet } from "./sheets/dictation.js";
 import { SchedulesSheet } from "./sheets/schedules.js";
 import { TerminalSheet } from "./terminal.js";
 import { PiHandoffSheet } from "./sheets/pi-handoff.js";
@@ -207,6 +208,9 @@ function sheetBody(sheet) {
             break;
         case "interview":
             body = html`<${InterviewSheet} key=${sheet.callId} conversationId=${sheet.conversationId} callId=${sheet.callId} />`;
+            break;
+        case "dictation":
+            body = html`<${DictationSheet} />`;
             break;
         case "access":
             body = html`<${AccessSheet} />`;

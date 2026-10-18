@@ -53,6 +53,8 @@ public final class MainActivity extends Activity {
     private static final String BASE = "http://127.0.0.1:" + PiService.PORT;
 
     private WebView web;
+    /** Android's speech recognizer for dictation (`web/android-speech.js`). */
+    private Dictation dictation;
     private ValueCallback<Uri[]> pendingFiles;
     private volatile boolean loaded = false;
     /** Whether the app is in front: PiService notifies only when it is not. */
@@ -114,6 +116,28 @@ public final class MainActivity extends Activity {
                     Uri.parse("package:" + getPackageName()))));
         }
 
+        /** Whether Android has a speech recognizer for dictation. */
+        @JavascriptInterface
+        public boolean dictationAvailable() {
+            return dictation.available();
+        }
+
+        /** Listen for one utterance in `language` (BCP 47); events go to `window.__piPhoneSpeech`. */
+        @JavascriptInterface
+        public void startDictation(String language) {
+            runOnUiThread(() -> dictation.start(language));
+        }
+
+        @JavascriptInterface
+        public void stopDictation() {
+            runOnUiThread(() -> dictation.stop());
+        }
+
+        @JavascriptInterface
+        public void abortDictation() {
+            runOnUiThread(() -> dictation.abort());
+        }
+
         /** Sign in again and show the app: after a restore, the owner's sign-in is the backup's. */
         @JavascriptInterface
         public void reload() {
@@ -153,6 +177,7 @@ public final class MainActivity extends Activity {
                 return true;
             }
         });
+        dictation = new Dictation(this, web);
         web.addJavascriptInterface(new Bridge(), "PiPhoneApp");
         setContentView(web);
         registerReceiver(installStatus, new IntentFilter(Updater.INSTALL_STATUS));
@@ -180,6 +205,15 @@ public final class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         inFront = true;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        if (requestCode == Dictation.PERMISSION_REQUEST) {
+            dictation.permitted(results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
+            return;
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, results);
     }
 
     @Override
@@ -449,6 +483,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        dictation.release();
         unregisterReceiver(installStatus);
         super.onDestroy();
     }
