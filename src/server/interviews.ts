@@ -66,6 +66,8 @@ export type Interview = {
     by?: string;
     at?: number;
     createdAt: number;
+    /** What the person asked about options, and the model's answers (`interview-helpers.ts`), by "<question id>\n<option>". */
+    asked?: Record<string, { q: string; a: string; at: number }[]>;
 };
 
 /** Every interview in a conversation, by its tool call's id. */

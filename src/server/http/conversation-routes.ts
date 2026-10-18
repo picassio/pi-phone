@@ -242,6 +242,37 @@ export async function conversationRoutes(
         return json(response, 200, { ok: true });
     }
 
+    // An interview's helpers on the session's model (`interview-helpers.ts`): more options, a review, asking about one.
+    if (third === "interview-helpers" && fourth === undefined && method === "POST") {
+        app.requireSteer(user);
+        app.requireSee(user, id);
+        const body = await readJson<{ callId?: unknown; action?: unknown; question?: unknown; option?: unknown; prompt?: unknown; review?: unknown }>(request);
+
+        if (typeof body.callId !== "string" || typeof body.question !== "string") {
+            throw new HttpError(400, "Say which interview and question");
+        }
+
+        const helpers = app.interviewHelpers;
+
+        if (body.action === "more") {
+            return json(response, 200, { interview: await helpers.moreOptions(id, body.callId, body.question) });
+        }
+
+        if (body.action === "review") {
+            return json(response, 200, { review: await helpers.review(id, body.callId, body.question) });
+        }
+
+        if (body.action === "use-review") {
+            return json(response, 200, { interview: await helpers.useReview(id, body.callId, body.question, body.review) });
+        }
+
+        if (body.action === "ask" && typeof body.option === "string" && typeof body.prompt === "string") {
+            return json(response, 200, { interview: await helpers.ask(id, body.callId, body.question, body.option, body.prompt) });
+        }
+
+        throw new HttpError(400, "action is more, review, use-review, or ask (with option and prompt)");
+    }
+
     // An interview Pi asked (`interviews.ts`): its questions and draft, and the person's answers as they go.
     if (third === "interviews" && fourth !== undefined && method === "GET") {
         return json(response, 200, await app.interview(id, parts.slice(3).join("/"), user));

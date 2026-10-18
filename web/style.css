@@ -11705,6 +11705,65 @@ textarea.notes {
     margin-top: 0.4rem;
 }
 
+/* The helpers on the session's model (interview-helpers.ts): More options and Review under a question's options, Ask
+   beside each option with its thread, and a review's proposal. */
+.interview-helpers,
+.interview-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.interview-ask-button {
+    flex: none;
+    color: var(--muted);
+}
+
+.interview-ask-button.on {
+    color: var(--accent);
+}
+
+.interview-asked {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--hair);
+}
+
+.interview-asked-q {
+    font-weight: 600;
+}
+
+.interview-asked-a .md > :first-child {
+    margin-top: 0.2rem;
+}
+
+.interview-asked-a .md > :last-child {
+    margin-bottom: 0;
+}
+
+.interview-asked .row input {
+    flex: 1;
+    min-width: 0;
+}
+
+.interview-review {
+    padding: 0.6rem 0.7rem;
+    border: 1px dashed var(--accent-line);
+    border-radius: 10px;
+}
+
+.interview-review-question {
+    font-weight: 600;
+    margin: 0.2rem 0;
+}
+
+.interview-review ul {
+    margin: 0.3rem 0;
+    padding-left: 1.2rem;
+}
+
 .interview-question textarea {
     width: 100%;
 }

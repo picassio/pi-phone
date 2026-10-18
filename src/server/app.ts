@@ -85,6 +85,7 @@ import { SshAgent } from "./ssh-agent.ts";
 import { namesIn, Secrets } from "./secrets.ts";
 import type { Tailnet } from "./tailnet.ts";
 import { WebSearch } from "./web/access.ts";
+import { InterviewHelpers } from "./interview-helpers.ts";
 import { checkDraft, type Interview, InterviewsDoc } from "./interviews.ts";
 import type { JsonValue } from "@earendil-works/chord";
 import { ANSWER_KEY, MAX_ANSWER_STATE_BYTES, MAX_ANSWER_STATES, OpenUiStateDoc } from "./openui.ts";
@@ -275,6 +276,7 @@ export class PocketApp {
     readonly commands = new Commands(this);
     readonly extensionCommands = new ExtensionCommands(this);
     readonly collab = new Collab(this);
+    readonly interviewHelpers = new InterviewHelpers(this);
     readonly providers = new Providers(this);
     readonly schedules = new Schedules(this);
     readonly goals = new Goals(this);

@@ -259,7 +259,12 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   the session's upload folder and reach Pi as paths; in a session on a machine, each is copied there as the draft is
   saved (`Workspace.placeUploads`), and Pi gets its path there. `async: true` returns at once with a short id; a
   durable background task (`pocket.interview`) holds the approval instead, and once it ends sends the outcome as a
-  follow-up starting "Interview <id> finished." (`src/server/deliver.ts`, shared with `watch_ci`). Allowed in plan mode. Docs are copied as JSON, not with
+  follow-up starting "Interview <id> finished." (`src/server/deliver.ts`, shared with `watch_ci`). Allowed in plan mode.
+  **Helpers** (`src/server/interview-helpers.ts`, `POST /api/c/<id>/interview-helpers`), for single and multiple choice
+  questions while the interview waits, for those who steer, on the session's own model (`src/server/side-model.ts`,
+  shared with titles: spend counted, held-back sessions ask nothing): ✦ More options (up to 3, added to the question),
+  ↻ Review (a rewrite of the question and options, shown as a proposal; using it renames the draft's choices by
+  position), and Ask beside each option (a thread kept in the interview as `asked`, by `<question id>\n<option>`). Docs are copied as JSON, not with
   `structuredClone`: `tx.doc` objects are proxies, which it cannot clone ("#<Object> could not be cloned").
 - **Web access** (`src/server/web/`, `extensions/web.ts`, `web/sheets/web-access.js`): pi-web-access's tools, native, with
   the same names and arguments. **`web_search`** searches with the one provider the owner picks in Settings › Web

@@ -3,14 +3,14 @@
  * skill or prompt template), the session's own model writes a short title in its place, unless someone
  * renamed the session first. Never another model picked on the side, such as a cheaper one of the same provider: nobody
  * chose that one, and it may cost what nobody agreed to. A reply that is no title (the model thinking aloud, or cut off)
- * leaves the first one. What it costs counts as the session's spend, like Pi's own requests.
+ * leaves the first one. What it costs counts as the session's spend, like Pi's own requests (`side-model.ts`).
  */
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import type { Usage } from "@earendil-works/pi-ai";
-import { type ConversationId, ProviderDoc, UsageDoc } from "@earendil-works/pi-durable";
+import type { ConversationId } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import { SessionsDoc } from "./docs.ts";
 import { describe } from "./errors.ts";
+import { askSessionModel } from "./side-model.ts";
 
 const context = BACKGROUND_CONTEXT;
 
@@ -65,18 +65,6 @@ export function cleanTitle(reply: string): string | undefined {
     return line.length > MAX_TITLE ? `${line.slice(0, MAX_TITLE - 1).trimEnd()}…` : line;
 }
 
-/** Add one response's usage to the session's ledger, as Pi Durable does for its own. */
-function addUsage(total: Usage, usage: Usage): void {
-    total.input += usage.input;
-    total.output += usage.output;
-    total.cacheRead += usage.cacheRead;
-    total.cacheWrite += usage.cacheWrite;
-    total.totalTokens += usage.totalTokens;
-
-    for (const key of ["input", "output", "cacheRead", "cacheWrite", "total"] as const) {
-        total.cost[key] += usage.cost[key];
-    }
-}
 
 /**
  * Ask for a title for a session whose first message is `text`, and use it if the session still has the title that
@@ -94,61 +82,16 @@ export async function writeTitle(
             return;
         }
 
-        const agent = await app.agentState(id);
-        const model =
-            agent?.model === undefined
-                ? undefined
-                : app.models.getModel(agent.model.provider, agent.model.modelId);
-
-        if (model === undefined) {
+        if ((await app.agentState(id))?.model === undefined) {
             return;
         }
 
-        // The conversation's own identity with the provider, as Pi Durable sends with its summaries: some providers
-        // (OpenCode Go) refuse a request without one.
-        // A conversation older than that identity gets one, as Pi Durable gives it before its next request.
-        const sessionId =
-            (await app.harness.snapshot(ProviderDoc, id, context))?.sessionId ??
-            (await app.harness.commit(
-                async (tx) => (await tx.doc(ProviderDoc, id)).sessionId,
-                context,
-            ));
-        const reply = await app.models.completeSimple(
-            model,
-            {
-                messages: [
-                    {
-                        role: "user",
-                        content: [
-                            {
-                                type: "text",
-                                text: `${TITLE_PROMPT}\n\n<message>\n${text.slice(0, READ_CHARS)}\n</message>`,
-                            },
-                        ],
-                        timestamp: Date.now(),
-                    },
-                ],
-            },
-            { maxTokens: 1024, cacheRetention: "none", sessionId },
-        );
-        const title = cleanTitle(
-            reply.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join(""),
-        );
+        const reply = await askSessionModel(app, id, `${TITLE_PROMPT}\n\n<message>\n${text.slice(0, READ_CHARS)}\n</message>`, {
+            maxTokens: 1024,
+        });
+        const title = cleanTitle(reply.text);
 
         await app.harness.commit(async (tx) => {
-            const usage = await tx.doc(UsageDoc, id);
-            const key = `${model.provider}/${model.id}`;
-
-            usage.models[key] ??= {
-                input: 0,
-                output: 0,
-                cacheRead: 0,
-                cacheWrite: 0,
-                totalTokens: 0,
-                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-            };
-            addUsage(usage.models[key] as Usage, reply.usage);
-
             // Only a reply that ended by itself: one cut off at the token limit is a model that went on, not a title.
             if (title === undefined || reply.stopReason !== "stop") {
                 return;

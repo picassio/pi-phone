@@ -3,7 +3,7 @@
 // ends it with the answers, Skip without (what is answered still reaches Pi).
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { HtmlPreview, Highlighted } from "../rich.js";
-import { api, attempt, closeSheet, notify } from "../store.js";
+import { api, attempt, canSteer, closeSheet, notify } from "../store.js";
 import { fileUrl, html, Icon, Loader, Markdown, Sheet } from "../ui.js";
 
 const labelOf = (option) => (typeof option === "string" ? option : option.label);
@@ -62,8 +62,83 @@ function Media({ block, conversationId }) {
     </figure>`;
 }
 
+/** Suggestions for asking about an option, as pi-interview offers them. */
+const ASK_CHIPS = ["Pros and cons?", "When is this the right pick?", "What would it take?"];
+
+/**
+ * Ask about one option (`interview-helpers.ts`): the thread so far, kept with the interview, suggestions, and a box
+ * for a question of one's own. Answers come from the session's model.
+ */
+function AskPanel({ option, thread, helpers, conversationId }) {
+    const [text, setText] = useState("");
+    const [busy, setBusy] = useState(false);
+    const send = async (prompt) => {
+        setBusy(true);
+
+        try {
+            if (await helpers.ask(option, prompt)) {
+                setText("");
+            }
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return html`<div class="interview-asked">
+        ${thread.map(
+            (turn) => html`<div class="interview-asked-turn" key=${turn.at}>
+                <div class="interview-asked-q">${turn.q}</div>
+                <div class="interview-asked-a"><${Markdown} text=${turn.a} conversationId=${conversationId} /></div>
+            </div>`,
+        )}
+        ${busy && html`<${Loader} label="Asking" />`}
+        <div class="interview-chips">
+            ${ASK_CHIPS.map((chip) => html`<button class="button small" disabled=${busy} onClick=${() => send(chip)}>${chip}</button>`)}
+        </div>
+        <div class="row">
+            <input
+                aria-label=${`Ask about ${option}`}
+                placeholder="Ask about this option…"
+                value=${text}
+                disabled=${busy}
+                onInput=${(event) => setText(event.currentTarget.value)}
+                onKeyDown=${(event) => event.key === "Enter" && text.trim() !== "" && send(text)}
+            />
+            <button class="button small primary" disabled=${busy || text.trim() === ""} onClick=${() => send(text)}>Ask</button>
+        </div>
+    </div>`;
+}
+
+/** A review's proposal: the question and its options rewritten, to take or leave. */
+function ReviewProposal({ review, onUse, onDismiss, busy }) {
+    return html`<div class="interview-review">
+        <div class="label">Suggested rewrite</div>
+        <div class="interview-review-question">${review.question}</div>
+        <ul>
+            ${review.options.map((option) => html`<li>${option}</li>`)}
+        </ul>
+        ${review.why && html`<p class="muted small">${review.why}</p>`}
+        <div class="sheet-actions">
+            <button class="button small" disabled=${busy} onClick=${onDismiss}>Keep mine</button>
+            <button class="button small primary" disabled=${busy} onClick=${onUse}>Use it</button>
+        </div>
+    </div>`;
+}
+
 /** Single or multiple choice: options with a Recommended badge, a note on a chosen one, and Other with its own words. */
-function Choices({ question, answer, onChange, disabled, conversationId }) {
+function Choices({ question, answer, onChange, disabled, conversationId, helpers, asked }) {
+    const [asking, setAsking] = useState(null);
+    const [review, setReview] = useState(null);
+    const [busy, setBusy] = useState(null);
+    const run = async (what, work) => {
+        setBusy(what);
+
+        try {
+            return await work();
+        } finally {
+            setBusy(null);
+        }
+    };
     const multi = question.type === "multi";
     const chosen = answer === undefined ? [] : Array.isArray(answer.value) ? answer.value : [answer.value];
     const labels = question.options.map(labelOf);
@@ -101,6 +176,20 @@ function Choices({ question, answer, onChange, disabled, conversationId }) {
                     />
                     <span>${label}</span>
                     ${picks.includes(label) && question.conviction !== "slight" && html`<span class="badge">Recommended</span>`}
+                    ${
+                        helpers &&
+                        !disabled &&
+                        html`<button
+                            class=${`link small interview-ask-button ${asking === label ? "on" : ""}`}
+                            aria-expanded=${asking === label ? "true" : "false"}
+                            onClick=${(event) => {
+                                event.preventDefault();
+                                setAsking(asking === label ? null : label);
+                            }}
+                        >
+                            Ask${(asked?.[`${question.id}\n${label}`]?.length ?? 0) > 0 ? ` (${asked[`${question.id}\n${label}`].length})` : ""}
+                        </button>`
+                    }
                 </label>
                 ${typeof option !== "string" && option.content && html`<${Content} block=${option.content} conversationId=${conversationId} />`}
                 ${
@@ -111,6 +200,16 @@ function Choices({ question, answer, onChange, disabled, conversationId }) {
                         value=${choice.note ?? ""}
                         disabled=${disabled}
                         onInput=${(event) => note(label, event.currentTarget.value)}
+                    />`
+                }
+                ${
+                    helpers &&
+                    asking === label &&
+                    html`<${AskPanel}
+                        option=${label}
+                        thread=${asked?.[`${question.id}\n${label}`] ?? []}
+                        helpers=${{ ask: (option, prompt) => helpers.ask(question.id, option, prompt) }}
+                        conversationId=${conversationId}
                     />`
                 }
             </div>`;
@@ -147,6 +246,43 @@ function Choices({ question, answer, onChange, disabled, conversationId }) {
                 />`
             }
         </div>
+        ${
+            review &&
+            html`<${ReviewProposal}
+                review=${review}
+                busy=${busy !== null}
+                onDismiss=${() => setReview(null)}
+                onUse=${() =>
+                    run("use", async () => {
+                        if (await helpers.useReview(question.id, review)) {
+                            setReview(null);
+                        }
+                    })}
+            />`
+        }
+        ${
+            helpers &&
+            !disabled &&
+            html`<div class="interview-helpers">
+                <button class="button small" disabled=${busy !== null} onClick=${() => run("more", () => helpers.more(question.id))}>
+                    ${busy === "more" ? "Thinking…" : "✦ More options"}
+                </button>
+                <button
+                    class="button small"
+                    disabled=${busy !== null}
+                    onClick=${() =>
+                        run("review", async () => {
+                            const found = await helpers.review(question.id);
+
+                            if (found) {
+                                setReview(found);
+                            }
+                        })}
+                >
+                    ${busy === "review" ? "Reviewing…" : "↻ Review"}
+                </button>
+            </div>`
+        }
     </div>`;
 }
 
@@ -204,7 +340,7 @@ function Images({ question, answer, onChange, disabled, conversationId }) {
     </div>`;
 }
 
-function QuestionCard({ question, answer, onChange, disabled, conversationId }) {
+function QuestionCard({ question, answer, onChange, disabled, conversationId, helpers, asked }) {
     const media = question.media === undefined ? [] : Array.isArray(question.media) ? question.media : [question.media];
     const where = (position) => media.filter((block) => (block.position ?? "above") === position);
     const side = where("side");
@@ -218,7 +354,15 @@ function QuestionCard({ question, answer, onChange, disabled, conversationId }) 
                 ${question.content && html`<${Content} block=${question.content} conversationId=${conversationId} />`}
                 ${
                     (question.type === "single" || question.type === "multi") &&
-                    html`<${Choices} question=${question} answer=${answer} onChange=${onChange} disabled=${disabled} conversationId=${conversationId} />`
+                    html`<${Choices}
+                        question=${question}
+                        answer=${answer}
+                        onChange=${onChange}
+                        disabled=${disabled}
+                        conversationId=${conversationId}
+                        helpers=${helpers}
+                        asked=${asked}
+                    />`
                 }
                 ${
                     question.type === "text" &&
@@ -286,6 +430,29 @@ export function InterviewSheet({ conversationId, callId }) {
                 setBusy(false);
             }
         });
+    /**
+     * The helpers on the session's model (`interview-helpers.ts`). What was typed is saved first, so a change the
+     * server makes (options added, a review used) starts from it. Each gives what it found, or undefined after saying why.
+     */
+    const helper = (body) =>
+        attempt(async () => {
+            clearTimeout(saving.current);
+            await send("save");
+            const found = await api(`c/${conversationId}/interview-helpers`, { callId, ...body });
+
+            if (found.interview) {
+                setInterview(found.interview);
+                setDraft(found.interview.draft);
+            }
+
+            return found;
+        });
+    const helpers = {
+        more: (question) => helper({ action: "more", question }),
+        review: (question) => helper({ action: "review", question }).then((found) => found?.review),
+        useReview: (question, review) => helper({ action: "use-review", question, review }),
+        ask: (question, option, prompt) => helper({ action: "ask", question, option, prompt }),
+    };
     const questions = interview?.questions.questions ?? [];
     const unanswered = questions.filter((question) => question.type !== "info" && !byId.has(question.id)).length;
 
@@ -310,6 +477,8 @@ export function InterviewSheet({ conversationId, callId }) {
                     onChange=${(item) => change(question.id, item)}
                     disabled=${!waiting || busy}
                     conversationId=${conversationId}
+                    helpers=${waiting && canSteer() ? helpers : null}
+                    asked=${interview.asked}
                 />`,
             )}
             ${
