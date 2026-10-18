@@ -211,6 +211,12 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   writes `config.jsonc` with pi-para's own `saveParaConfig`, keeping what it does not show. They hold the capture model
   and minutes, the prompt context's budget and schema, the OpenRouter embedding model (from OpenRouter's
   `/embeddings/models`, with `pi-auth:openrouter`; a change reopens the search), and the health checks.
+  Open questions (pi-para 0.8.5, `pi-para/questions`): tracked lines `- [ ] (date, #session) question`, resolved under
+  "Resolved Questions" as `- [x] (date, #session) question → answer`. pi-para lists them in the wiki context and in
+  `wiki_read`/`wiki_query` results, and `wiki_write`/`wiki_edit` name the ones new text may answer; the wiki section
+  tells Pi its session number ("This is pi-phone session #N") so the lines it writes name it; a capture is sent every
+  open question in the wiki (`Para.openQuestionsText`, at most 40) to resolve the ones its session answered; Wiki
+  settings set `lint.questionDays` ("Open questions are stale after", 7 by default), after which `wiki_lint` warns.
   Search by meaning: qmd embeds through the remote provider and keeps vectors with sqlite-vec, loaded into node:sqlite;
   on Android from sqlite-vec's own release build, `native/android-arm64/vec0.so` (`scripts/sqlite-vec.ts`, checked
   against the release's checksum; `QMD_SQLITE_VEC_PATH`). Never a local model: `QMD_NO_LOCAL_MODELS=1`, and the

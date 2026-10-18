@@ -24,7 +24,7 @@ import type { QMDStore } from "pi-para/store";
 
 /** pi-para's modules, loaded when the wiki opens. */
 const load = async () => {
-    const [config, context, scheduler, scope, store, wiki, frontmatter, links, query, write] = await Promise.all([
+    const [config, context, scheduler, scope, store, wiki, frontmatter, links, query, write, questions] = await Promise.all([
         import("pi-para/config"),
         import("pi-para/context"),
         import("pi-para/scheduler"),
@@ -35,9 +35,10 @@ const load = async () => {
         import("pi-para/link-utils"),
         import("pi-para/query"),
         import("pi-para/tools/write"),
+        import("pi-para/questions"),
     ]);
 
-    return { ...config, ...context, ...scheduler, ...scope, ...store, ...wiki, ...frontmatter, ...links, ...query, ...write };
+    return { ...config, ...context, ...scheduler, ...scope, ...store, ...wiki, ...frontmatter, ...links, ...query, ...write, ...questions };
 };
 
 /** The wiki's settings as the Wiki settings sheet shows and changes them: pi-para's config, which people never edit. */
@@ -51,6 +52,8 @@ export type WikiSettings = {
     embeddingModel: string | null;
     lintAutoFix: boolean;
     lintStaleDays: number;
+    /** Days an open question may stay open before wiki_lint warns about it. */
+    lintQuestionDays: number;
 };
 
 /** OpenRouter's embedding models, as its API lists them. */
@@ -371,7 +374,20 @@ export class Para {
                 config.qmd.embedEnabled && embedding?.provider === "openrouter" && embedding.model ? embedding.model : null,
             lintAutoFix: config.lint.autoFix,
             lintStaleDays: config.lint.staleDays,
+            lintQuestionDays: config.lint.questionDays,
         };
+    }
+
+    /**
+     * The wiki's open questions (pi-para's `questions.ts`), oldest first, as Markdown lines: for a capture, which may
+     * answer any of them. Empty when there are none.
+     */
+    async openQuestionsText(max: number): Promise<string> {
+        const { wikiDir } = await this.open();
+        const { collectOpenQuestions, formatOpenQuestions } = this.#pi!;
+        const open = await collectOpenQuestions(wikiDir);
+
+        return open.length === 0 ? "" : formatOpenQuestions(open, { max });
     }
 
     /**
@@ -384,7 +400,7 @@ export class Para {
         const loaded = await loadParaConfig({ homeDir: this.#host.home, migrate: true });
         const config = loaded.config;
 
-        for (const [key, type] of [["captureModel", "string"], ["contextTokens", "number"], ["contextSchema", "boolean"], ["lintAutoFix", "boolean"], ["lintStaleDays", "number"]] as const) {
+        for (const [key, type] of [["captureModel", "string"], ["contextTokens", "number"], ["contextSchema", "boolean"], ["lintAutoFix", "boolean"], ["lintStaleDays", "number"], ["lintQuestionDays", "number"]] as const) {
             if (patch[key] !== undefined && typeof patch[key] !== type) {
                 throw new Error(`${key} is a ${type}.`);
             }
@@ -432,6 +448,14 @@ export class Para {
             }
 
             config.lint.staleDays = patch.lintStaleDays;
+        }
+
+        if (patch.lintQuestionDays !== undefined) {
+            if (!Number.isInteger(patch.lintQuestionDays) || patch.lintQuestionDays < 1 || patch.lintQuestionDays > 365) {
+                throw new Error("An open question is stale after a whole number of days from 1 to 365.");
+            }
+
+            config.lint.questionDays = patch.lintQuestionDays;
         }
 
         const searchChanged = patch.embeddingModel !== undefined;

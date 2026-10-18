@@ -528,6 +528,17 @@ export default function wiki(pocket) {
                     <div>
                         <div>Health checks</div>
                         <div class="muted small">wiki_lint fixes simple problems by itself, and calls pages stale after ${settings.lintStaleDays} days.</div>
+                        <div class="field">
+                            <div class="label">Open questions are stale after</div>
+                            <select
+                                aria-label="Open questions are stale after"
+                                value=${String(settings.lintQuestionDays)}
+                                disabled=${busy}
+                                onChange=${(event) => save({ lintQuestionDays: Number(event.currentTarget.value) })}
+                            >
+                                ${[...new Set([3, 7, 14, 30, settings.lintQuestionDays])].sort((a, b) => a - b).map((days) => html`<option value=${String(days)}>${days} days</option>`)}
+                            </select>
+                        </div>
                         <label class="check wiki-switch">
                             <${Switch} on=${settings.lintAutoFix} label="Fix simple problems" disabled=${busy} onChange=${() => save({ lintAutoFix: !settings.lintAutoFix })} />
                             Fix simple problems

@@ -264,7 +264,10 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
                     try {
                         const context = (await para.context(input.agent.cwd ?? "")).replace(buildWikiToolGuidanceSection(), "").trim();
 
-                        return [PARA_SKILL, TOOLS_ONLY, context].filter((part) => part !== "").join("\n\n");
+                        // Questions it asks or resolves name this session (pi-para's `questions.ts` format).
+                        const you = `This is pi-phone session #${String(input.conversationId)}: write it in the wiki's open questions you ask or resolve, as (YYYY-MM-DD, #${String(input.conversationId)}).`;
+
+                        return [PARA_SKILL, TOOLS_ONLY, you, context].filter((part) => part !== "").join("\n\n");
                     } catch (error) {
                         return `${PARA_SKILL}\n\nThe wiki could not open: ${String(error)}. The wiki tools fail until it does.`;
                     }

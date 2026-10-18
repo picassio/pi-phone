@@ -25,6 +25,8 @@ const context = BACKGROUND_CONTEXT;
 export const CAPTURE_EXTENSION = "pocket-para-capture";
 /** How often sessions are looked at. */
 const LOOK_MS = 60_000;
+/** Open questions a capture is shown, oldest first. */
+const MAX_OPEN_QUESTIONS = 40;
 /** The most of a session's new messages one capture reads: its end, where what is new is. */
 const MAX_DIGEST = 60_000;
 
@@ -158,11 +160,23 @@ export class ParaCapture {
         const scope = await app.para.scope(app.cwdOf(id));
         const serialized = serializeSessionForWiki(messages);
         const digest = serialized.length > MAX_DIGEST ? `…(earlier messages left out)\n${serialized.slice(-MAX_DIGEST)}` : serialized;
+        // Every open question in the wiki, not only this scope's: a session can answer one asked anywhere.
+        const open = await app.para.openQuestionsText(MAX_OPEN_QUESTIONS);
         const text = [
             generateSummary(digest, { mode: "session", scope }),
             "",
             `Session file: pi-phone session #${String(id)} "${meta.title ?? "New session"}" (cite it as pi-phone:session/${String(id)})`,
             `Project scope: ${scope.name}`,
+            ...(open === ""
+                ? []
+                : [
+                      "",
+                      "## Open questions in the wiki",
+                      "",
+                      `Resolve each one this session answered (as session #${String(id)}, dated today), on its page; leave the rest. Questions you add: \`- [ ] (YYYY-MM-DD, #${String(id)}) question\`.`,
+                      "",
+                      open,
+                  ]),
         ].join("\n");
         const capture = await this.#conversation(model.model);
         const owner = app.config.users.find((user) => user.role === "owner")!;

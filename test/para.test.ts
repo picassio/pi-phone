@@ -9,6 +9,8 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 
 let told = "";
+/** What the capture session was sent, the last time. */
+let captureText = "";
 /** The tools the capture session was offered, the last time it asked. */
 let captureTools: string[] = [];
 const page = {
@@ -30,6 +32,7 @@ const route: FauxResponseStep = (request) => {
     const { role, text } = lastText(request as never);
 
     if (role === "user" && text.includes("<session-conversation>")) {
+        captureText = text;
         // Tools come with the transcript's system messages.
         captureTools = (request as { messages: { role: string; toolsAdded?: { name: string }[] }[] }).messages.flatMap((message) =>
             message.role === "system" ? (message.toolsAdded ?? []).map((each) => each.name) : [],
@@ -47,6 +50,38 @@ const route: FauxResponseStep = (request) => {
 
     // Calls the wiki rule refuses, or lets through.
     const direct: Record<string, [string, Record<string, unknown>]> = {
+        "ask in the wiki": [
+            "wiki_write",
+            {
+                pages: [
+                    {
+                        category: "resources",
+                        slug: "door-codes",
+                        title: "Door codes",
+                        scope: ["work"],
+                        tags: ["office"],
+                        body: "## Key Facts\n- The office door has a keypad.\n\n## Open Questions\n- [ ] (2026-10-01, #1) Which keypad code opens the office door at night?\n",
+                        mode: "create",
+                    },
+                ],
+            },
+        ],
+        "answer in the wiki": [
+            "wiki_write",
+            {
+                pages: [
+                    {
+                        category: "resources",
+                        slug: "night-access",
+                        title: "Night access",
+                        scope: ["work"],
+                        tags: ["office"],
+                        body: "## Key Facts\n- At night the office door keypad code is 4711.\n",
+                        mode: "create",
+                    },
+                ],
+            },
+        ],
         // Full paths: `~` is the process's own home in the tools, which in tests is not the test app's.
         "write the wiki file": ["write", { path: join(home, ".pi", "wiki", "resources", "sneaky.md"), content: "---\ntitle: x\n---\n" }],
         "edit the wiki file": ["edit", { path: join(home, ".pi", "wiki", "index.md"), edits: [{ oldText: "Wiki", newText: "Wikkki" }] }],
@@ -197,6 +232,39 @@ test("an idle session is captured into the wiki by the capture session, once, wi
     assert.deepEqual(await app.paraCapture.capture(id), { sent: false, why: "nothing new since the last capture" });
     assert.match(JSON.stringify(await app.paraCapture.status()), /"model":"faux\/faux-1"/);
     assert.deepEqual(await app.paraCapture.capture(capture), { sent: false, why: "only sessions are captured" });
+});
+
+test("open questions: the prompt lists them and names the session, a write that may answer one says so, and a capture sees them all", async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    await turn(id, "ask in the wiki");
+    await turn(id, "hello");
+
+    assert.match(told, new RegExp(`This is pi-phone session #${String(id)}: write it in the wiki's open questions`));
+    assert.match(told, /## Open Questions in the Wiki \(1\)/);
+    assert.match(told, /Which keypad code opens the office door at night\? — on \[\[door-codes\]\]/);
+
+    // Written on another page, an answer is pointed out, with how to resolve it.
+    const answered = await turn(id, "answer in the wiki");
+
+    assert.match(answered, /This may answer an open question in the wiki/, answered);
+    assert.match(answered, /«Which keypad code opens the office door at night\?» on resources\/door-codes/);
+
+    // A capture is shown every open question, to resolve the ones its session answered.
+    await app.setDefaultModel(owner(app), { provider: "faux", modelId: "faux-1" });
+    await turn(id, "the night code changed today");
+    assert.equal((await app.paraCapture.capture(id)).sent, true);
+    await app.harness.waitForIdle(context);
+    assert.match(captureText, /## Open questions in the wiki/);
+    assert.match(captureText, new RegExp(`as session #${String(id)}, dated today`));
+    assert.match(captureText, /Which keypad code opens the office door at night\?/);
+
+    // The setting for when they are stale.
+    assert.equal((await app.para.settings()).lintQuestionDays, 7);
+    assert.equal((await app.para.updateSettings({ lintQuestionDays: 14 })).lintQuestionDays, 14);
+    await assert.rejects(app.para.updateSettings({ lintQuestionDays: 0 }), /from 1 to 365/);
+    await app.para.updateSettings({ lintQuestionDays: 7 });
 });
 
 test("Wiki settings change pi-para's config, which people never edit; wrong values and a missing sign-in are refused", async () => {
