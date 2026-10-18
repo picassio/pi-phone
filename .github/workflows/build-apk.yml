@@ -112,7 +112,8 @@ jobs:
 
   # Phones update from the latest release (android/.../Updater.java): only a build whose tests passed becomes one.
   release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    # A run by hand (workflow_dispatch) releases too: how changes to Markdown alone, which ship in the runtime, reach the app.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master'
     needs: [check, apk]
     runs-on: ubuntu-latest
     timeout-minutes: 15
