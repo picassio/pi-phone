@@ -265,6 +265,8 @@ export async function inline(
     env: ExecutionEnv,
     context: Context,
     share = 1,
+    /** Where the whole text already is (`file_to_markdown`'s `.md`): pointed to, not saved again. */
+    whole?: string,
 ): Promise<string> {
     const head = `# ${fetched.title}\nSource: ${fetched.url} (${fetched.how})\n\n`;
     const chars = Math.floor(MAX_INLINE / share);
@@ -275,19 +277,24 @@ export async function inline(
         return head + fetched.text;
     }
 
-    const home = await homeOf(env, context);
-    const folder = `${home}/.cache/pi-phone/fetch`;
-    const file = `${folder}/${createHash("sha256").update(fetched.url).digest("hex").slice(0, 16)}.md`;
+    const shown = kept.split("\n").length;
+    let file = whole;
+    // In `whole`, the text starts on its first line; in a file saved here, after the head's four.
+    let from = shown + 1;
 
-    await env.createDir(folder, { recursive: true }, context);
-    const written = await env.writeFile(file, head + fetched.text, context);
+    if (file === undefined) {
+        const folder = `${await homeOf(env, context)}/.cache/pi-phone/fetch`;
 
-    if (!written.ok) {
-        throw new Error(`Could not save the whole text to ${file}: ${written.error.message}`);
+        file = `${folder}/${createHash("sha256").update(fetched.url).digest("hex").slice(0, 16)}.md`;
+        from = shown + 4;
+        await env.createDir(folder, { recursive: true }, context);
+        const written = await env.writeFile(file, head + fetched.text, context);
+
+        if (!written.ok) {
+            throw new Error(`Could not save the whole text to ${file}: ${written.error.message}`);
+        }
     }
 
-    const shown = kept.split("\n").length;
-
     // The note first: what follows may be cut short again on the way to the model.
-    return `${head}[The first ${shown.toLocaleString("en")} lines (${kept.length.toLocaleString("en")} of ${fetched.text.length.toLocaleString("en")} characters). The whole text is in ${file}: read it from line ${shown + 4} on.]\n\n${kept}`;
+    return `${head}[The first ${shown.toLocaleString("en")} lines (${kept.length.toLocaleString("en")} of ${fetched.text.length.toLocaleString("en")} characters). The whole text is in ${file}: read it from line ${from} on.]\n\n${kept}`;
 }

@@ -459,7 +459,16 @@ public final class MainActivity extends Activity {
             super.onActivityResult(requestCode, resultCode, data);
             return;
         }
-        pendingFiles.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+        // Pickers that may return several files (the photo picker, always) put them in ClipData, even one; parseResult reads
+        // only getData() and would drop them.
+        Uri[] picked = null;
+        if (resultCode == RESULT_OK && data != null && data.getClipData() != null && data.getClipData().getItemCount() > 0) {
+            picked = new Uri[data.getClipData().getItemCount()];
+            for (int i = 0; i < picked.length; i++) picked[i] = data.getClipData().getItemAt(i).getUri();
+        } else {
+            picked = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+        }
+        pendingFiles.onReceiveValue(picked);
         pendingFiles = null;
     }
 

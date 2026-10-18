@@ -179,7 +179,7 @@ export default function createWeb(host: PocketHost) {
                 return { output: [text(`Read it, but could not save ${saved}: ${written.error.message}`)], isError: true };
             }
 
-            const body = await inline({ kind: "text", url: absolute.value, title: converted.title ?? args.path, text: converted.markdown, how: `markit (${kind.slice(1)}), saved as ${saved}` }, env, context);
+            const body = await inline({ kind: "text", url: absolute.value, title: converted.title ?? args.path, text: converted.markdown, how: `markit (${kind.slice(1)}), saved as ${saved}` }, env, context, 1, saved);
 
             return { output: [text(body)], details: { path: absolute.value, saved, size: converted.markdown.length } };
         },
