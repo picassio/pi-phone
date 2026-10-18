@@ -7,17 +7,35 @@
  *
  * Started on first use (the module's load), in the background: until the store is open, the tools wait for it. A store
  * that fails to open fails the tools, with why; nothing is silently skipped.
+ *
+ * pi-para and qmd-engine are imported when the wiki opens, not with the app: they load their SQLite driver with a
+ * top-level await, which in the app's module graph (whose modules import each other) would let `app.ts` be read before
+ * it finished loading.
  */
 import "./para-env.ts";
 import { basename } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
-import { type LoadedParaConfig, loadParaConfig } from "pi-para/config";
-import { buildContext } from "pi-para/context";
-import { startWikiScheduler, stopWikiScheduler, type WikiScheduler } from "pi-para/scheduler";
-import { detectScope, extractRepoName, type ProjectScope } from "pi-para/scope";
-import { closeStore, openStore, type QMDStore } from "pi-para/store";
-import { initWiki } from "pi-para/wiki";
+import type { LoadedParaConfig } from "pi-para/config";
+import type { WikiScheduler } from "pi-para/scheduler";
+import type { ProjectScope } from "pi-para/scope";
+import type { QMDStore } from "pi-para/store";
+
+/** pi-para's modules, loaded when the wiki opens. */
+const load = async () => {
+    const [config, context, scheduler, scope, store, wiki] = await Promise.all([
+        import("pi-para/config"),
+        import("pi-para/context"),
+        import("pi-para/scheduler"),
+        import("pi-para/scope"),
+        import("pi-para/store"),
+        import("pi-para/wiki"),
+    ]);
+
+    return { ...config, ...context, ...scheduler, ...scope, ...store, ...wiki };
+};
+
+type ParaModules = Awaited<ReturnType<typeof load>>;
 
 /** How long a session's scope is taken as known before its folder is looked at again. */
 const SCOPE_MS = 5 * 60_000;
@@ -35,6 +53,7 @@ export interface ParaHost {
 export class Para {
     readonly #host: ParaHost;
     #ready: Promise<void> | undefined;
+    #pi: ParaModules | undefined;
     #config: LoadedParaConfig | undefined;
     #store: QMDStore | undefined;
     #scheduler: WikiScheduler | undefined;
@@ -54,6 +73,10 @@ export class Para {
     }
 
     async #open(): Promise<void> {
+        const pi = await load();
+        const { loadParaConfig, initWiki, openStore, startWikiScheduler } = pi;
+
+        this.#pi = pi;
         const config = await loadParaConfig({ homeDir: this.#host.home, migrate: true });
 
         this.#config = config;
@@ -94,7 +117,9 @@ export class Para {
      * A session's project: as pi-para finds it in a folder here (`.pi/wiki-scope.json`, the git remote, the git root,
      * or the folder's name), and on a machine the same, asked there.
      */
-    scope(cwd: string): Promise<ProjectScope> {
+    async scope(cwd: string): Promise<ProjectScope> {
+        await this.ready();
+        const { detectScope, extractRepoName } = this.#pi!;
         const known = this.#scopes.get(cwd);
 
         if (known !== undefined && Date.now() - known.at < SCOPE_MS) {
@@ -102,7 +127,7 @@ export class Para {
         }
 
         const remote = this.#host.remote(cwd);
-        const scope = remote === undefined ? detectScope(cwd) : remoteScope(remote.path, remote.env);
+        const scope = remote === undefined ? detectScope(cwd) : remoteScope(remote.path, remote.env, extractRepoName);
 
         this.#scopes.set(cwd, { scope, at: Date.now() });
         scope.catch(() => this.#scopes.delete(cwd));
@@ -118,7 +143,7 @@ export class Para {
         let built = this.#contexts.get(key);
 
         if (built === undefined) {
-            built = buildContext(wikiDir, store, scope, {
+            built = this.#pi!.buildContext(wikiDir, store, scope, {
                 maxTokens: config.context.maxTokens,
                 includeSchema: config.context.includeSchema,
                 includeIndex: config.context.includeIndex,
@@ -138,17 +163,21 @@ export class Para {
         await this.#ready.catch(() => {});
 
         if (this.#scheduler !== undefined) {
-            await stopWikiScheduler(this.#config!.paths.wikiDir);
+            await this.#pi!.stopWikiScheduler(this.#config!.paths.wikiDir);
         }
 
         if (this.#store !== undefined) {
-            await closeStore(this.#store);
+            await this.#pi!.closeStore(this.#store);
         }
     }
 }
 
 /** pi-para's scope detection, with each look made on the machine. */
-async function remoteScope(path: string, env: ExecutionEnv): Promise<ProjectScope> {
+async function remoteScope(
+    path: string,
+    env: ExecutionEnv,
+    extractRepoName: ParaModules["extractRepoName"],
+): Promise<ProjectScope> {
     const run = async (args: string[]): Promise<string | undefined> => {
         let output = "";
         const ran = await env.exec(args, {
