@@ -5,7 +5,7 @@
  * command checks who may do it, and changes others should know about become activity lines in the session's chat.
  */
 import { randomUUID } from "node:crypto";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import type { Context } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -51,6 +51,7 @@ import {
     NOTE_ENTRY,
     splitAttachments,
 } from "./entry-format.ts";
+import { documentKind, toMarkdown } from "./documents.ts";
 import { describe, HttpError, optionalText } from "./errors.ts";
 import { homePath } from "./paths.ts";
 import { mentionedPaths, viewFile } from "./files.ts";
@@ -415,6 +416,37 @@ export class Commands {
      * machine (`places.ts`), copied to `~/.pi/mobile/uploads/<session>/` there (beside pi-env's own folder, out of the
      * project and its git status), with their paths there. A copy that fails stops the message, naming the file.
      */
+    /**
+     * Each attached document's Markdown, by markit, saved beside it (`report.pdf.md`). One that cannot be read says so
+     * as a notice, and goes as it is.
+     */
+    async #convertDocuments(
+        id: ConversationId,
+        attachments: readonly Attachment[],
+    ): Promise<{ from: Attachment; markdown: Attachment }[]> {
+        const done: { from: Attachment; markdown: Attachment }[] = [];
+
+        for (const file of attachments) {
+            const kind = documentKind(file.name, file.mime);
+
+            if (kind === undefined) {
+                continue;
+            }
+
+            try {
+                const { markdown } = await toMarkdown(readFileSync(file.path), kind);
+                const path = `${file.path}.md`;
+
+                writeFileSync(path, markdown, { mode: 0o600 });
+                done.push({ from: file, markdown: { path, name: `${file.name}.md`, mime: "text/markdown", size: Buffer.byteLength(markdown) } });
+            } catch (error) {
+                this.#app.notice("warning", `Could not read ${file.name} as a document: ${describe(error)}`, id);
+            }
+        }
+
+        return done;
+    }
+
     async #placeAttachments(id: ConversationId, attachments: readonly Attachment[]): Promise<Attachment[]> {
         const remote = this.#app.workspace.remoteOf(id);
 
@@ -771,11 +803,16 @@ export class Commands {
         app.spend.check(user, id);
 
         // On a machine, the agent's tools are there: the files go there first, and the message names their paths there.
-        const placed = await this.#placeAttachments(id, attachments);
-        const lines = placed.map(
-            (file) =>
-                `- ${file.path} (${file.name}, ${file.mime || "unknown type"}, ${file.size} bytes)`,
-        );
+        // A document (PDF, Word, …) gets its Markdown beside it, which goes with it to a machine: Pi reads that.
+        const converted = await this.#convertDocuments(id, attachments);
+        const placed = await this.#placeAttachments(id, [...attachments, ...converted.map((each) => each.markdown)]);
+        const lines = placed.slice(0, attachments.length).map((file, index) => {
+            const original = attachments[index]!;
+            const done = converted.find((each) => each.from === original);
+            const markdown = done === undefined ? undefined : placed[attachments.length + converted.indexOf(done)]!;
+
+            return `- ${file.path} (${file.name}, ${file.mime || "unknown type"}, ${file.size} bytes)${markdown === undefined ? "" : ` → as Markdown: ${markdown.path} (${markdown.size} bytes)`}`;
+        });
         // The heading whole, with files alone too: what reads the message splits it there.
         const written =
             lines.length === 0 ? text : `${text}${ATTACHMENTS_HEADING}${lines.join("\n")}`;

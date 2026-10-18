@@ -130,6 +130,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "interview",
     "web_search",
     "fetch_content",
+    "file_to_markdown",
     "session_stop",
     "session_archive",
     "session_schedule",

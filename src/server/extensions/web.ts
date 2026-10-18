@@ -6,6 +6,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
+import { DOCUMENT_EXTENSIONS, documentKind, toMarkdown } from "../documents.ts";
 import { fetchContent, inline } from "../web/fetch.ts";
 import type { Recency, SearchResult } from "../web/types.ts";
 
@@ -140,5 +141,49 @@ export default function createWeb(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: "pocket-web", tools: [search, fetchTool] });
+    const convert = defineTool({
+        name: "file_to_markdown",
+        description:
+            "Read a document file as Markdown: PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx, .xls), EPUB, Jupyter notebook, CSV/TSV, RSS/Atom, or a ZIP of them. The Markdown is saved beside it (report.pdf → report.pdf.md); long text comes as its start and that file's path.",
+        parameters: Type.Object({
+            path: Type.String({ description: "The file, absolute or relative to this session's folder" }),
+        }),
+        replay: "safe",
+        execute: async (args, api, context) => {
+            const env = host.envOf((await api.agent(context)).cwd ?? "");
+            const kind = documentKind(args.path);
+
+            if (kind === undefined) {
+                return { output: [text(`${args.path} is not a document file_to_markdown reads (${[...DOCUMENT_EXTENSIONS].join(" ")}). Read text files with read.`)], isError: true };
+            }
+
+            const absolute = await env.absolutePath(args.path, context);
+            const bytes = absolute.ok ? await env.readBinaryFile(absolute.value, context) : absolute;
+
+            if (!absolute.ok || !bytes.ok) {
+                return { output: [text(`Could not read ${args.path}: ${bytes.ok ? "" : bytes.error.message}`)], isError: true };
+            }
+
+            let converted: { markdown: string; title?: string };
+
+            try {
+                converted = await toMarkdown(bytes.value, kind);
+            } catch (error) {
+                return { output: [text(`markit could not read ${args.path}: ${error instanceof Error ? error.message : String(error)}`)], isError: true };
+            }
+
+            const saved = `${absolute.value}.md`;
+            const written = await env.writeFile(saved, converted.markdown, context);
+
+            if (!written.ok) {
+                return { output: [text(`Read it, but could not save ${saved}: ${written.error.message}`)], isError: true };
+            }
+
+            const body = await inline({ kind: "text", url: absolute.value, title: converted.title ?? args.path, text: converted.markdown, how: `markit (${kind.slice(1)}), saved as ${saved}` }, env, context);
+
+            return { output: [text(body)], details: { path: absolute.value, saved, size: converted.markdown.length } };
+        },
+    });
+
+    return defineExtension({ name: "pocket-web", tools: [search, fetchTool, convert] });
 }

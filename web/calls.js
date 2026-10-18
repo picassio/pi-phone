@@ -85,6 +85,8 @@ export function describeCall(call) {
 
             return { icon: "↓", label: "Read", subject: urls.map((url) => url.replace(/^https?:\/\//, "")).join(" · "), mono: true };
         }
+        case "file_to_markdown":
+            return { icon: "▤", label: "As Markdown", subject: args.path ?? "", mono: true };
         case "secrets_list":
             return { icon: "⚿", label: "Secrets", subject: "the names Pi may use here" };
         case "secret_request":

@@ -229,6 +229,18 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   `~/.cache/pi-phone/fetch/<hash>.md` (the env's `$HOME`), and the note goes first. Both tools are allowed in plan
   mode. The release build's `npm ci --os=android --cpu=arm64` installs `markit-engine-android-arm64`, and
   `package-runtime.ts` refuses to package without it.
+- **Documents** (`src/server/documents.ts`): markit (`markit-engine`, our fork with the Android build) turns PDF, Word,
+  PowerPoint, Excel, EPUB, notebooks, CSV/TSV, RSS/Atom, and ZIPs into Markdown. Documents are known by extension or
+  content type (`documentKind`), and the engine loads on first use. Four places use it:
+  - **Attachments:** when a message is sent, each document gets `<file>.md` beside it in the uploads folder. Both go to
+    a machine for a session there, and the message line reads `… → as Markdown: <path>.md (size)`. A file markit
+    cannot read is a notice, and goes as it is.
+  - **`file_to_markdown`** (`extensions/web.ts`): reads through the session's env, so it works on machines; converts
+    on the phone; writes `<file>.md` beside the file through the env; returns the text, bounded as `fetch_content`'s.
+    Not allowed in plan mode, as it writes.
+  - **`fetch_content`:** document URLs.
+  - **`wiki_ingest`:** a document path on the phone is converted to `<file>.md`, and that file is ingested (pi-para
+    reads files as UTF-8).
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

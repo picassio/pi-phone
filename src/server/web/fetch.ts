@@ -16,8 +16,8 @@ import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { Readability } from "@mozilla/readability";
 import { createHash } from "node:crypto";
 import { parseHTML } from "linkedom";
-import { Markit } from "markit-engine";
 import TurndownService from "turndown";
+import { documentKind, toMarkdown } from "../documents.ts";
 
 /**
  * What Pi gets of one call in one go, in characters and in lines, shared by its addresses; more is saved to a file. Under
@@ -30,20 +30,6 @@ const MAX_IMAGE = 5 * 1024 * 1024;
 const TIMEOUT_MS = 45_000;
 const AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36 pi-phone";
 
-/** Files markit reads, by extension, and the content types that mean them. */
-const DOCUMENTS: Record<string, string> = {
-    "application/pdf": ".pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
-    "application/epub+zip": ".epub",
-    "application/x-ipynb+json": ".ipynb",
-    "text/csv": ".csv",
-    "application/rss+xml": ".rss",
-    "application/atom+xml": ".atom",
-    "application/zip": ".zip",
-};
-const DOCUMENT_EXTENSIONS = new Set([...Object.values(DOCUMENTS), ".tsv", ".xls"]);
 const IMAGES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 export type Fetched =
@@ -56,8 +42,6 @@ export class FetchError extends Error {
         this.name = "FetchError";
     }
 }
-
-let markit: Markit | undefined;
 
 /** A page's main text as Markdown: Readability's article, or the whole body when it finds none. */
 export function pageMarkdown(html: string, url: string): { title: string; markdown: string } {
@@ -240,7 +224,6 @@ export async function fetchContent(address: string, env: ExecutionEnv, signal: A
     const type = (response.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
     const bytes = Buffer.from(await response.arrayBuffer());
     const final = response.url || target;
-    const extension = (new URL(final).pathname.match(/\.[a-z0-9]+$/i)?.[0] ?? "").toLowerCase();
 
     if (IMAGES.has(type)) {
         if (bytes.length > MAX_IMAGE) {
@@ -250,11 +233,10 @@ export async function fetchContent(address: string, env: ExecutionEnv, signal: A
         return { kind: "image", url: final, mimeType: type, data: bytes.toString("base64") };
     }
 
-    const document = DOCUMENTS[type] ?? (DOCUMENT_EXTENSIONS.has(extension) ? extension : undefined);
+    const document = documentKind(new URL(final).pathname, type);
 
     if (document !== undefined) {
-        markit ??= new Markit();
-        const converted = await markit.convert(bytes, { extension: document });
+        const converted = await toMarkdown(bytes, document);
 
         return { kind: "text", url: final, title: converted.title ?? decodeURIComponent(final.split("/").pop() ?? final), text: converted.markdown, how: `markit (${document.slice(1)})` };
     }

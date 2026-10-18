@@ -4,7 +4,7 @@
  * The wiki is pi-para's, at ~/.pi/wiki, shared with pi-para in pi on other computers (`para.ts`).
  */
 import type { Static, TSchema } from "@earendil-works/pi-ai";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
@@ -17,6 +17,7 @@ import {
     type ToolExecutionResult,
     ToolTask,
 } from "@earendil-works/pi-durable";
+import { documentKind, toMarkdown } from "../documents.ts";
 import { readOnlyCommand } from "./plan.ts";
 import { CAPTURE_SYSTEM_PROMPT } from "pi-para/templates/prompts";
 import { CAPTURE_EXTENSION } from "../para-capture.ts";
@@ -159,9 +160,23 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
         tool("wiki_move", WikiMoveParams, (wiki, args) =>
             createMoveExecute(wiki.wikiDir, wiki.store, wiki.markDirty)(args as never),
         ),
-        tool("wiki_ingest", WikiIngestParams, (wiki, args) =>
-            createIngestExecute(wiki.wikiDir, wiki.store, scoped(wiki))(args as never),
-        ),
+        // A document (PDF, Word, …) on the phone is ingested as its Markdown, by markit, saved beside it: pi-para reads files
+        // as text.
+        tool("wiki_ingest", WikiIngestParams, async (wiki, args) => {
+            const source = (args as { source?: unknown }).source;
+            const path = typeof source === "string" && !/^https?:\/\//i.test(source) ? resolve(source.startsWith("~/") ? join(homedir(), source.slice(2)) : source) : undefined;
+            const kind = path === undefined ? undefined : documentKind(path);
+
+            if (path === undefined || kind === undefined || !existsSync(path)) {
+                return createIngestExecute(wiki.wikiDir, wiki.store, scoped(wiki))(args as never);
+            }
+
+            const { markdown } = await toMarkdown(readFileSync(path), kind);
+
+            writeFileSync(`${path}.md`, markdown);
+
+            return createIngestExecute(wiki.wikiDir, wiki.store, scoped(wiki))({ ...(args as object), source: `${path}.md`, sourceType: "file" } as never);
+        }),
         tool("wiki_lint", WikiLintParams, (wiki, args) =>
             createLintExecute(wiki.wikiDir, wiki.store, wiki.markDirty, () => wiki.config.lint)(args as never),
         ),
