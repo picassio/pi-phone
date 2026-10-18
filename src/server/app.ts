@@ -342,7 +342,11 @@ export class PocketApp {
         this.supervised = options.supervised;
         this.config = new ConfigStore(options.dataDir);
         this.sshKeys = new SshKeys(options.dataDir, this.#home);
-        this.machines = new Machines(options.dataDir, this.sshKeys, this.#home);
+        // Every tab's machines (the folder picker, Ports, Pi sessions on a machine) come with `hello`: a machine connected,
+        // renamed, or removed reaches them at once, not at their next connection.
+        this.machines = new Machines(options.dataDir, this.sshKeys, this.#home, () =>
+            void this.#refreshClients().catch((error: unknown) => this.log(`machines not sent to the tabs: ${describe(error)}`)),
+        );
         this.places = new Places(this.machines);
         this.forwards = new Forwards(this.machines);
         this.para = new Para({

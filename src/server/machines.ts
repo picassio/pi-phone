@@ -62,11 +62,14 @@ export class Machines {
     /** The app's own known-hosts file. */
     readonly knownHostsFile: string;
     readonly #home: string;
+    /** Told after every change (`#save`): the app sends its tabs the connected machines again (`hello`). */
+    readonly #changed: () => void;
     #machines: Machine[];
 
-    constructor(dataDir: string, keys: SshKeys, home = process.env.HOME || homedir()) {
+    constructor(dataDir: string, keys: SshKeys, home = process.env.HOME || homedir(), changed: () => void = () => {}) {
         this.#file = join(dataDir, FILE);
         this.#keys = keys;
+        this.#changed = changed;
         this.knownHostsFile = join(home, ".ssh", "pi-phone_known_hosts");
         this.#home = home;
         this.#machines = existsSync(this.#file)
@@ -78,6 +81,7 @@ export class Machines {
     #save(): void {
         writeFileSync(this.#file, `${JSON.stringify({ machines: this.#machines }, null, 2)}\n`, { mode: 0o600 });
         this.#writeSshConfig();
+        this.#changed();
     }
 
     /** The machines `ssh <alias>` reaches from the phone: those whose host key was accepted. */

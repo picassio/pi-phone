@@ -537,3 +537,31 @@ test("ssh <name> reaches a machine from the phone: the app's ssh config, include
     await (await app.harness.submission(submissionId, context))!.wait(context);
     assert.match(told, /reachable from here with ssh[^\n]*box \(/);
 });
+
+test("a machine connected, renamed, or removed reaches every tab at once: hello is sent again with the machines", { skip }, async () => {
+    const { fakeTab } = await import("./helpers.ts");
+    const tab = fakeTab(undefined, owner(app));
+    const machinesOf = () =>
+        ((tab.events.findLast((each) => each.event === "hello")?.data.server as { machines?: { id: string; name: string }[] }) ?? {})
+            .machines ?? [];
+
+    await app.attach(tab.client);
+    const name = app.machines.get(machineId).name;
+    const { host, user, port, keyId } = app.machines.get(machineId);
+    const address = `${user}@${host}${port === undefined ? "" : `:${port}`}`;
+    const sent = tab.events.filter((each) => each.event === "hello").length;
+
+    try {
+        await app.machines.edit(machineId, { name: "box-renamed", address, keyId });
+
+        for (let tries = 0; tries < 50 && !machinesOf().some((each) => each.name === "box-renamed"); tries++) {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+
+        assert.ok(tab.events.filter((each) => each.event === "hello").length > sent, "hello was sent again");
+        assert.ok(machinesOf().some((each) => each.id === machineId && each.name === "box-renamed"), JSON.stringify(machinesOf()));
+    } finally {
+        await app.machines.edit(machineId, { name, address, keyId });
+        app.detach?.(tab.client);
+    }
+});
