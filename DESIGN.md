@@ -162,6 +162,10 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   on Android from sqlite-vec's own release build, `native/android-arm64/vec0.so` (`scripts/sqlite-vec.ts`, checked
   against the release's checksum; `QMD_SQLITE_VEC_PATH`). Never a local model: `QMD_NO_LOCAL_MODELS=1`, and the
   runtime package refuses node-llama-cpp.
+  The wiki's files are the tools' alone: the prompt says so, and a hook refuses `write`, `edit`, and non-read-only
+  `bash` commands that name the wiki folder (on the phone; a session on a machine works on that machine's files), naming
+  the wiki tool to use. It keeps Pi honest rather than being a security boundary; nothing watches the folder, as only
+  the tools, the Wiki page, and capture change it.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

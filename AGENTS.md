@@ -13,6 +13,8 @@
   that downloads or installs one. Embeddings, reranking, and every other model call go to a remote API provider, or
   do not happen; there is no local fallback. qmd runs with `QMD_NO_LOCAL_MODELS=1` (`para-env.ts`), and the runtime
   package refuses to build with node-llama-cpp in `node_modules`.
+- The wiki (`~/.pi/wiki`) changes only through pi-para's tools, the Wiki page, and capture: never write its files
+  directly, in code or as the agent. Its index, search, prompt context, and log follow only those.
 - People never edit files to configure pi-phone: every setting a person may change has a place in the app (a sheet,
   the menu). That includes the settings of what pi-phone embeds, such as pi-para's `~/.pi/para/config.jsonc`: the app
   reads and writes those files, people do not. Errors and hints name the app's setting, never a file to edit.

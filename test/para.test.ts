@@ -45,6 +45,22 @@ const route: FauxResponseStep = (request) => {
         );
     }
 
+    // Calls the wiki rule refuses, or lets through.
+    const direct: Record<string, [string, Record<string, unknown>]> = {
+        // Full paths: `~` is the process's own home in the tools, which in tests is not the test app's.
+        "write the wiki file": ["write", { path: join(home, ".pi", "wiki", "resources", "sneaky.md"), content: "---\ntitle: x\n---\n" }],
+        "edit the wiki file": ["edit", { path: join(home, ".pi", "wiki", "index.md"), edits: [{ oldText: "Wiki", newText: "Wikkki" }] }],
+        "append with bash": ["bash", { command: `echo hi >> ${join(home, ".pi", "wiki", "log.md")}` }],
+        "read with bash": ["bash", { command: `cat ${join(home, ".pi", "wiki", "index.md")}` }],
+        "write elsewhere": ["write", { path: join(work, "notes.txt"), content: "fine\n" }],
+    };
+
+    for (const [ask, [tool, args]] of Object.entries(direct)) {
+        if (role === "user" && text.endsWith(ask)) {
+            return fauxAssistantMessage([fauxToolCall(tool, args as never)], { stopReason: "toolUse" });
+        }
+    }
+
     if (role === "user" && text.endsWith("remember this")) {
         return fauxAssistantMessage([fauxToolCall("wiki_write", { pages: [page], logSummary: "terminal reattach" })], { stopReason: "toolUse" });
     }
@@ -274,4 +290,22 @@ test("never a local model: qmd is told so before it loads, and node-llama-cpp is
     const found = execFileSync("find", ["node_modules", "-type", "d", "-name", "node-llama-cpp"], { encoding: "utf8" }).trim();
 
     assert.equal(found, "", found);
+});
+
+test("Pi changes the wiki only through its tools: writes, edits, and changing commands on its files are refused", async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+
+    for (const ask of ["write the wiki file", "edit the wiki file", "append with bash"]) {
+        assert.match(await turn(id, ask), /changes only through its tools/, ask);
+    }
+
+    assert.ok(!existsSync(join(home, ".pi", "wiki", "resources", "sneaky.md")));
+    assert.doesNotMatch(readFileSync(join(home, ".pi", "wiki", "index.md"), "utf8"), /Wikkki/);
+    assert.doesNotMatch(readFileSync(join(home, ".pi", "wiki", "log.md"), "utf8"), /^hi$/m);
+    assert.doesNotMatch(await turn(id, "read with bash"), /changes only through its tools/);
+    assert.doesNotMatch(await turn(id, "write elsewhere"), /changes only through its tools/);
+    assert.equal(readFileSync(join(work, "notes.txt"), "utf8"), "fine\n");
+    assert.match(told, /never write, edit, move, or delete files under ~\/\.pi\/wiki/);
 });

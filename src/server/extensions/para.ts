@@ -4,7 +4,18 @@
  * The wiki is pi-para's, at ~/.pi/wiki, shared with pi-para in pi on other computers (`para.ts`).
  */
 import type { Static, TSchema } from "@earendil-works/pi-ai";
-import { defineExtension, defineTool, section, type ToolExecutionResult } from "@earendil-works/pi-durable";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+import {
+    defineExtension,
+    defineTool,
+    hook,
+    section,
+    type ToolExecutionApi,
+    type ToolExecutionResult,
+    ToolTask,
+} from "@earendil-works/pi-durable";
+import { readOnlyCommand } from "./plan.ts";
 import { CAPTURE_SYSTEM_PROMPT } from "pi-para/templates/prompts";
 import { CAPTURE_EXTENSION } from "../para-capture.ts";
 import type { JsonValue } from "@earendil-works/chord";
@@ -30,6 +41,12 @@ import { createSummarizeExecute } from "pi-para/tools/summarize";
 import { createWriteExecute } from "pi-para/tools/write";
 import type { ExtensionWeb, PocketHost } from "../host.ts";
 import type { Para } from "../para.ts";
+
+/** In every session's prompt: the wiki's files are the tools' alone, so the index, search, and context stay current. */
+const TOOLS_ONLY =
+    "Change the wiki only with the wiki tools (wiki_write, wiki_edit, wiki_move, wiki_ingest, wiki_lint), and read it with wiki_read and wiki_query: never write, edit, move, or delete files under ~/.pi/wiki with write, edit, or bash. Only the tools keep its index, search, links, and log current; changing its files directly is refused.";
+const REFUSED =
+    "The wiki changes only through its tools: wiki_edit for exact changes to a page, wiki_write to create, append to, or replace pages, wiki_move to move one between categories. Writing its files directly would leave its index and search behind.";
 
 /** What pi-para's tools return: pi's tool result. */
 type ParaResult = { content: ToolExecutionResult["output"]; details?: unknown; isError?: boolean };
@@ -220,12 +237,53 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
                     try {
                         const context = await para.context(input.agent.cwd ?? "");
 
-                        return context === "" ? buildWikiToolGuidanceSection() : context;
+                        return `${context === "" ? buildWikiToolGuidanceSection() : context}\n\n${TOOLS_ONLY}`;
                     } catch (error) {
                         return `${buildWikiToolGuidanceSection()}\n\nThe wiki could not open: ${String(error)}. The wiki tools fail until it does.`;
                     }
                 },
             },
+        ],
+        hooks: [
+            // The wiki changes only through its tools (TOOLS_ONLY): a write, edit, or changing command on its files is
+            // refused, naming the tool to use. Reading its files is left alone.
+            hook(ToolTask, {
+                beforeTool: async (call, api, context) => {
+                    if (call.name !== "write" && call.name !== "edit" && call.name !== "bash") {
+                        return undefined;
+                    }
+
+                    const runtime = api as typeof api & Partial<Pick<ToolExecutionApi, "agent">>;
+                    const cwd = (await runtime.agent?.(context))?.cwd ?? "";
+
+                    // A session on a machine works on that machine's files; the wiki is on the phone.
+                    if (cwd.startsWith("machine:")) {
+                        return undefined;
+                    }
+
+                    // A wiki that could not open has no index or context to keep current: nothing to refuse for it.
+                    const opened = await para.open().catch(() => undefined);
+
+                    if (opened === undefined) {
+                        return undefined;
+                    }
+
+                    const { wikiDir } = opened;
+                    const args = call.arguments as { path?: unknown; command?: unknown };
+
+                    if (call.name === "bash") {
+                        const command = typeof args.command === "string" ? args.command : "";
+                        const names = command.includes(wikiDir) || /(^|[\s'"=])~?\/?\.pi\/wiki(\/|\s|$|['"])/.test(command);
+
+                        return names && !readOnlyCommand(command) ? { block: REFUSED } : undefined;
+                    }
+
+                    const path = typeof args.path === "string" ? args.path : "";
+                    const absolute = resolve(cwd, path.startsWith("~/") ? join(homedir(), path.slice(2)) : path);
+
+                    return absolute === wikiDir || absolute.startsWith(`${wikiDir}/`) ? { block: REFUSED } : undefined;
+                },
+            }),
         ],
     });
 
