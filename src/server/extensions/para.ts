@@ -4,7 +4,9 @@
  * The wiki is pi-para's, at ~/.pi/wiki, shared with pi-para in pi on other computers (`para.ts`).
  */
 import type { Static, TSchema } from "@earendil-works/pi-ai";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import {
     defineExtension,
@@ -41,6 +43,16 @@ import { createSummarizeExecute } from "pi-para/tools/summarize";
 import { createWriteExecute } from "pi-para/tools/write";
 import type { ExtensionWeb, PocketHost } from "../host.ts";
 import type { Para } from "../para.ts";
+
+/**
+ * pi-para's own skill for working with the wiki (`skills/para/SKILL.md` in its package): consult it before planning,
+ * search it before debugging, write decisions as they happen. First in the prompt's wiki section, before the schema and
+ * the index, where it is read; it takes the place of pi-para's short guidance list. Read from the package, so it follows
+ * pi-para's releases; a package without it fails the module's load, saying so.
+ */
+const PARA_SKILL = readFileSync(fileURLToPath(new URL("../skills/para/SKILL.md", import.meta.resolve("pi-para/config"))), "utf8")
+    .replace(/^---\n[\s\S]*?\n---\n/, "")
+    .trim();
 
 /** In every session's prompt: the wiki's files are the tools' alone, so the index, search, and context stay current. */
 const TOOLS_ONLY =
@@ -235,11 +247,11 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
                 // rather than leaving Pi unaware.
                 render: async (input) => {
                     try {
-                        const context = await para.context(input.agent.cwd ?? "");
+                        const context = (await para.context(input.agent.cwd ?? "")).replace(buildWikiToolGuidanceSection(), "").trim();
 
-                        return `${context === "" ? buildWikiToolGuidanceSection() : context}\n\n${TOOLS_ONLY}`;
+                        return [PARA_SKILL, TOOLS_ONLY, context].filter((part) => part !== "").join("\n\n");
                     } catch (error) {
-                        return `${buildWikiToolGuidanceSection()}\n\nThe wiki could not open: ${String(error)}. The wiki tools fail until it does.`;
+                        return `${PARA_SKILL}\n\nThe wiki could not open: ${String(error)}. The wiki tools fail until it does.`;
                     }
                 },
             },

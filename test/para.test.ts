@@ -117,6 +117,10 @@ test("Pi writes a wiki page, finds it, reads it, and the prompt carries the proj
 
     // The session's scope is its folder's name ("work"): the page is in its context now.
     assert.match(told, /wiki_query/, "pi-para's guidance");
+    // pi-para's own skill leads the section; its short guidance list is left out.
+    assert.match(told.trimStart(), /^(<wiki>\s*)?# PARA Active Knowledge/);
+    assert.match(told, /Before You Start — Consult/);
+    assert.doesNotMatch(told, /## pi-para Wiki Tool Guidance/);
     assert.match(told, /terminal-reattach/, told);
 });
 
