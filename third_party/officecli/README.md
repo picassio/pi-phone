@@ -13,7 +13,7 @@ workflow only).
 ## pi-phone's change
 
 Each skill's install section (a `curl ... install.sh | bash` or PowerShell installer, and links to the releases) is
-replaced, marked `<!-- pi-phone: changed ... -->`, by a note that `officecli` is installed with the app and must never be
+replaced, marked `<!-- pi-phone: changed ... -->`, by a note that `officecli` is installed by pi-phone (with the app on the phone, in `~/.pi/mobile/tools` on a machine) and must never be
 installed or updated: on the phone the installer has no build to fetch, and `officecli install` writes into other
 agents' config folders. Nothing else is changed.
 

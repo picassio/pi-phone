@@ -8,7 +8,7 @@ description: "Use this skill any time a .xlsx file is involved -- as input, outp
 ## Setup
 
 <!-- pi-phone: changed (third_party/officecli/README.md). -->
-On pi-phone, `officecli` is already installed with the app, on your PATH: never install or update it. Verify with `officecli --version`.
+On pi-phone, `officecli` is already installed by pi-phone and on your PATH (with the app on the phone; in `~/.pi/mobile/tools` on a machine): never install or update it. Verify with `officecli --version`.
 
 ## ⚠️ Help-First Rule
 
