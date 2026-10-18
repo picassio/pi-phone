@@ -62,7 +62,7 @@ tags: []
 `;
 
 export default function wiki(pocket) {
-    const { html, useState, useEffect, useRef, Markdown, Icon, Loader } = pocket;
+    const { html, useState, useEffect, useRef, Markdown, Icon, Loader, Switch } = pocket;
     // What the page opens on, set by whatever opened it: a page's path or a slug, or a new page.
     let pending = null;
     const open = (target) => {
@@ -191,6 +191,9 @@ export default function wiki(pocket) {
                     onInput=${(event) => setQuery(event.currentTarget.value)}
                 />
                 <button class="button small" disabled=${query.trim() === ""}>Search</button>
+                <button type="button" class="button small ghost" title="Wiki settings" onClick=${() => pocket.openSheet("settings")}>
+                    Settings
+                </button>
                 <button
                     type="button"
                     class="button small ghost"
@@ -388,6 +391,139 @@ export default function wiki(pocket) {
         </div>`;
     }
 
+    /**
+     * Wiki settings: what pi-para's config holds, changed here (people never edit it): capture (when, on which model),
+     * the prompt's wiki context, vector search on an OpenRouter embedding model, and the health checks.
+     */
+    function Settings() {
+        const [settings, setSettings] = useState(null);
+        const [embedding, setEmbedding] = useState(null);
+        const [problem, setProblem] = useState(null);
+        const [busy, setBusy] = useState(false);
+        const [tokens, setTokens] = useState("");
+        const [minutes, setMinutes] = useState("");
+        const [filter, setFilter] = useState("");
+
+        const loaded = (next) => {
+            setSettings(next);
+            setTokens(String(next.contextTokens));
+            setMinutes(next.captureMinutes === null ? "" : String(next.captureMinutes));
+        };
+
+        useEffect(() => {
+            pocket.api("settings").then(loaded, (error) => setProblem(error.message));
+            pocket.api("embedding-models").then(setEmbedding, (error) => setEmbedding({ error: error.message }));
+        }, []);
+
+        const save = async (patch) => {
+            setBusy(true);
+            setProblem(null);
+
+            try {
+                loaded(await pocket.api("settings", patch));
+                pocket.notify("info", "Saved.");
+            } catch (error) {
+                setProblem(error.message);
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        if (!settings) {
+            return problem ? html`<p class="wiki-problem">${problem}</p>` : html`<${Loader} label="Loading the settings" />`;
+        }
+
+        const models = embedding?.models?.filter(
+            (model) => filter === "" || `${model.id} ${model.name}`.toLowerCase().includes(filter.toLowerCase()),
+        );
+
+        return html`<div class="wiki-settings">
+            <p class="muted small">The wiki is in <span class="mono">${settings.wikiDir.replace(/^.*\/files\/home/, "~")}</span>, in pi-para's format: pi with pi-para on a computer reads it as it is.</p>
+            ${problem && html`<p class="wiki-problem">${problem}</p>`}
+            <div class="sheet-list">
+                <div class="provider">
+                    <div>
+                        <div>Capture</div>
+                        <div class="muted small">What an idle session learned goes into the wiki, written by a model of its own in the Wiki capture session. The menu's Capture to wiki does it at once.</div>
+                        <div class="field">
+                            <div class="label">After a session is idle for (minutes; empty: only when asked)</div>
+                            <input class="mono" inputmode="numeric" value=${minutes} placeholder="only when asked" onInput=${(event) => setMinutes(event.currentTarget.value)} />
+                        </div>
+                        <div class="field">
+                            <div class="label">Capture model</div>
+                            <select value=${settings.captureModel} onChange=${(event) => save({ captureModel: event.currentTarget.value })} disabled=${busy}>
+                                <option value="auto">The default model for new sessions</option>
+                                ${settings.models.map((model) => html`<option value=${`${model.provider}/${model.id}`}>${model.provider}/${model.id}</option>`)}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="provider-actions">
+                        <button class="button small" disabled=${busy} onClick=${() => save({ captureMinutes: minutes.trim() === "" ? null : Number(minutes) })}>Save</button>
+                    </div>
+                </div>
+                <div class="provider">
+                    <div>
+                        <div>Wiki in Pi's prompt</div>
+                        <div class="muted small">The wiki's conventions, its index, and the pages of the session's project, in every session's prompt.</div>
+                        <div class="field">
+                            <div class="label">Budget (tokens)</div>
+                            <input class="mono" inputmode="numeric" value=${tokens} onInput=${(event) => setTokens(event.currentTarget.value)} />
+                        </div>
+                        <label class="check wiki-switch">
+                            <${Switch} on=${settings.contextSchema} label="Include the conventions" disabled=${busy} onChange=${() => save({ contextSchema: !settings.contextSchema })} />
+                            Include the conventions (schema)
+                        </label>
+                    </div>
+                    <div class="provider-actions">
+                        <button class="button small" disabled=${busy} onClick=${() => save({ contextTokens: Number(tokens) })}>Save</button>
+                    </div>
+                </div>
+                <div class="provider">
+                    <div>
+                        <div>Search by meaning ${settings.embeddingModel && html`<span class="ok">✓</span>`}</div>
+                        <div class="muted small">
+                            Keyword search always works. With an OpenRouter embedding model, search also finds pages by meaning.
+                            ${settings.embeddingModel ? html` Now: <span class="mono">${settings.embeddingModel}</span>.` : " Now: off."}
+                        </div>
+                        ${embedding?.error && html`<p class="wiki-problem">${embedding.error}</p>`}
+                        ${embedding && !embedding.error && !embedding.signedIn && html`<p class="muted small">Sign in to OpenRouter in Settings > Providers to use one.</p>`}
+                        ${
+                            embedding?.signedIn &&
+                            html`<input type="search" placeholder="Find a model" value=${filter} onInput=${(event) => setFilter(event.currentTarget.value)} />
+                                <div class="wiki-models">
+                                    ${models.map(
+                                        (model) => html`<button
+                                            class=${`wiki-row ${model.id === settings.embeddingModel ? "on" : ""}`}
+                                            key=${model.id}
+                                            disabled=${busy}
+                                            onClick=${() => save({ embeddingModel: model.id })}
+                                        >
+                                            <span class="wiki-row-title">${model.name}</span>
+                                            <span class="wiki-row-meta">${model.id} · ${model.pricePerMillion === 0 ? "free" : `${model.pricePerMillion.toFixed(3)} per M tokens`} · ${model.context} tokens</span>
+                                        </button>`,
+                                    )}
+                                </div>`
+                        }
+                    </div>
+                    <div class="provider-actions">
+                        ${settings.embeddingModel && html`<button class="button small ghost" disabled=${busy} onClick=${() => save({ embeddingModel: null })}>Turn off</button>`}
+                    </div>
+                </div>
+                <div class="provider">
+                    <div>
+                        <div>Health checks</div>
+                        <div class="muted small">wiki_lint fixes simple problems by itself, and calls pages stale after ${settings.lintStaleDays} days.</div>
+                        <label class="check wiki-switch">
+                            <${Switch} on=${settings.lintAutoFix} label="Fix simple problems" disabled=${busy} onChange=${() => save({ lintAutoFix: !settings.lintAutoFix })} />
+                            Fix simple problems
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    pocket.sheet({ id: "settings", title: "Wiki settings", component: Settings, wide: true });
     pocket.page({ id: "wiki", title: "Wiki", component: WikiPage });
     pocket.rail({ id: "wiki", title: "Wiki", iconPath: BOOK, page: "wiki" });
     pocket.launcher({
@@ -397,6 +533,14 @@ export default function wiki(pocket) {
         iconPath: BOOK,
         keywords: ["para", "notes", "knowledge", "pi-para"],
         page: "wiki",
+    });
+    pocket.launcher({
+        id: "wiki-settings",
+        label: "Wiki settings",
+        detail: "capture, search by meaning, prompt context",
+        iconPath: BOOK,
+        keywords: ["para", "embedding", "openrouter", "capture"],
+        sheet: "settings",
     });
     pocket.menu({
         id: "wiki-capture",

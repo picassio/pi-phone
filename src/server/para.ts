@@ -40,6 +40,26 @@ const load = async () => {
     return { ...config, ...context, ...scheduler, ...scope, ...store, ...wiki, ...frontmatter, ...links, ...query, ...write };
 };
 
+/** The wiki's settings as the Wiki settings sheet shows and changes them: pi-para's config, which people never edit. */
+export type WikiSettings = {
+    wikiDir: string;
+    /** "auto" (the app's default model) or provider/modelId. */
+    captureModel: string;
+    contextTokens: number;
+    contextSchema: boolean;
+    /** The OpenRouter embedding model qmd's vector search uses, or null: keyword search only. */
+    embeddingModel: string | null;
+    lintAutoFix: boolean;
+    lintStaleDays: number;
+};
+
+/** OpenRouter's embedding models, as its API lists them. */
+export type EmbeddingModel = { id: string; name: string; pricePerMillion: number; context: number };
+
+const EMBEDDING_MODELS_URL = "https://openrouter.ai/api/v1/embeddings/models";
+/** How long OpenRouter's list is kept before it is asked again. */
+const EMBEDDING_MODELS_MS = 60 * 60_000;
+
 /** A page as the Wiki page lists it. */
 export type PageSummary = { path: string; category: string; slug: string; title: string; updated: string; scope: string[]; tags: string[] };
 
@@ -55,6 +75,8 @@ export interface ParaHost {
     readonly home: string;
     /** A provider's API key from the app's sign-ins, for `pi-auth:<provider>` credential references. */
     apiKey(provider: string): Promise<string | undefined>;
+    /** The models signed in now, for the capture model's picker. */
+    models(): { provider: string; id: string; name: string }[];
     /** A session folder on a machine: its path there and its environment; undefined for one on the phone. */
     remote(cwd: string): { path: string; env: ExecutionEnv } | undefined;
     log(message: string): void;
@@ -70,6 +92,7 @@ export class Para {
     readonly #scopes = new Map<string, { scope: Promise<ProjectScope>; at: number }>();
     /** The prompt context of each scope, until the wiki changes. */
     readonly #contexts = new Map<string, Promise<string>>();
+    #embeddingModels: { at: number; list: Promise<EmbeddingModel[]> } | undefined;
 
     constructor(host: ParaHost) {
         this.#host = host;
@@ -305,6 +328,161 @@ export class Para {
             search: { documents: qmd.totalDocuments, vectors: qmd.hasVectorIndex, needsEmbedding: qmd.needsEmbedding },
             embedding: config.qmd.embedEnabled && config.qmd.embedding !== undefined ? `${config.qmd.embedding.provider}/${config.qmd.embedding.model ?? ""}` : null,
         };
+    }
+
+    // ─── Settings (the Wiki settings sheet) ─────────────────────────────────────
+
+    async settings(): Promise<WikiSettings> {
+        const { wikiDir, config } = await this.open();
+        const capture = config.models.capture;
+        const embedding = config.qmd.embedding;
+
+        return {
+            wikiDir,
+            captureModel: capture === "auto" ? "auto" : `${capture.provider}/${capture.model ?? ""}`,
+            contextTokens: config.context.maxTokens,
+            contextSchema: config.context.includeSchema,
+            embeddingModel:
+                config.qmd.embedEnabled && embedding?.provider === "openrouter" && embedding.model ? embedding.model : null,
+            lintAutoFix: config.lint.autoFix,
+            lintStaleDays: config.lint.staleDays,
+        };
+    }
+
+    /**
+     * Change settings: pi-para's config file, written by the app (`saveParaConfig`), the rest of it as it was. A change
+     * of embedding model reopens the wiki's search, so qmd embeds with the new one.
+     */
+    async updateSettings(patch: Partial<Omit<WikiSettings, "wikiDir">>): Promise<WikiSettings> {
+        await this.ready();
+        const { loadParaConfig, saveParaConfig } = this.#pi!;
+        const loaded = await loadParaConfig({ homeDir: this.#host.home, migrate: true });
+        const config = loaded.config;
+
+        for (const [key, type] of [["captureModel", "string"], ["contextTokens", "number"], ["contextSchema", "boolean"], ["lintAutoFix", "boolean"], ["lintStaleDays", "number"]] as const) {
+            if (patch[key] !== undefined && typeof patch[key] !== type) {
+                throw new Error(`${key} is a ${type}.`);
+            }
+        }
+
+        if (patch.embeddingModel !== undefined && patch.embeddingModel !== null && typeof patch.embeddingModel !== "string") {
+            throw new Error("embeddingModel is an OpenRouter model's id, or null.");
+        }
+
+        if (patch.captureModel !== undefined) {
+            if (patch.captureModel === "auto") {
+                config.models.capture = "auto";
+            } else {
+                const slash = patch.captureModel.indexOf("/");
+                const provider = patch.captureModel.slice(0, slash);
+                const model = patch.captureModel.slice(slash + 1);
+
+                if (slash < 1 || model === "" || !this.#host.models().some((each) => each.provider === provider && each.id === model)) {
+                    throw new Error(`${patch.captureModel} is not a signed-in model.`);
+                }
+
+                config.models.capture = { provider, model, credentialRef: `pi-auth:${provider}` };
+            }
+        }
+
+        if (patch.contextTokens !== undefined) {
+            if (!Number.isInteger(patch.contextTokens) || patch.contextTokens < 500 || patch.contextTokens > 32_000) {
+                throw new Error("The context budget is a whole number of tokens from 500 to 32000.");
+            }
+
+            config.context.maxTokens = patch.contextTokens;
+        }
+
+        if (patch.contextSchema !== undefined) {
+            config.context.includeSchema = patch.contextSchema === true;
+        }
+
+        if (patch.lintAutoFix !== undefined) {
+            config.lint.autoFix = patch.lintAutoFix === true;
+        }
+
+        if (patch.lintStaleDays !== undefined) {
+            if (!Number.isInteger(patch.lintStaleDays) || patch.lintStaleDays < 1 || patch.lintStaleDays > 3650) {
+                throw new Error("A page is stale after a whole number of days from 1 to 3650.");
+            }
+
+            config.lint.staleDays = patch.lintStaleDays;
+        }
+
+        const searchChanged = patch.embeddingModel !== undefined;
+
+        if (patch.embeddingModel === null) {
+            config.qmd.embedEnabled = false;
+        } else if (patch.embeddingModel !== undefined) {
+            if ((await this.#host.apiKey("openrouter")) === undefined) {
+                throw new Error("Sign in to OpenRouter first (Settings > Providers): its embedding models need its key.");
+            }
+
+            if (!(await this.embeddingModels()).some((each) => each.id === patch.embeddingModel)) {
+                throw new Error(`${patch.embeddingModel} is not one of OpenRouter's embedding models.`);
+            }
+
+            config.qmd.embedEnabled = true;
+            config.qmd.providerConfig = "pi-para-profiles";
+            config.qmd.embedding = { provider: "openrouter", model: patch.embeddingModel, credentialRef: "pi-auth:openrouter" };
+        }
+
+        await saveParaConfig(config, { homeDir: this.#host.home });
+
+        if (searchChanged) {
+            await this.close();
+            this.#ready = undefined;
+        } else {
+            this.#config = { ...this.#config!, config };
+        }
+
+        this.markDirty();
+
+        return this.settings();
+    }
+
+    /** The models signed in now (the capture model's picker). */
+    models(): { provider: string; id: string; name: string }[] {
+        return this.#host.models();
+    }
+
+    /** Whether a provider's key is signed in here. */
+    async hasKey(provider: string): Promise<boolean> {
+        return (await this.#host.apiKey(provider)) !== undefined;
+    }
+
+    /** OpenRouter's embedding models, cheapest first; asked again after an hour. A failed ask is not kept. */
+    embeddingModels(): Promise<EmbeddingModel[]> {
+        if (this.#embeddingModels !== undefined && Date.now() - this.#embeddingModels.at < EMBEDDING_MODELS_MS) {
+            return this.#embeddingModels.list;
+        }
+
+        const list = (async () => {
+            const response = await fetch(EMBEDDING_MODELS_URL, { signal: AbortSignal.timeout(20_000) });
+
+            if (!response.ok) {
+                throw new Error(`OpenRouter's list of embedding models answered ${response.status}.`);
+            }
+
+            const data = (await response.json()) as {
+                data: { id: string; name: string; context_length?: number; pricing?: { prompt?: string } }[];
+            };
+
+            return data.data
+                .map((each) => ({
+                    id: each.id,
+                    name: each.name,
+                    pricePerMillion: Number(each.pricing?.prompt ?? 0) * 1_000_000,
+                    context: each.context_length ?? 0,
+                }))
+                .sort((a, b) => a.pricePerMillion - b.pricePerMillion || a.name.localeCompare(b.name));
+        })();
+        const entry = { at: Date.now(), list };
+
+        this.#embeddingModels = entry;
+        list.catch(() => this.#embeddingModels === entry && (this.#embeddingModels = undefined));
+
+        return list;
     }
 
     async close(): Promise<void> {

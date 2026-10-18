@@ -172,3 +172,30 @@ test("an idle session is captured into the wiki by the capture session, once, wi
     assert.match(JSON.stringify(await app.paraCapture.status()), /"model":"faux\/faux-1"/);
     assert.deepEqual(await app.paraCapture.capture(capture), { sent: false, why: "only sessions are captured" });
 });
+
+test("Wiki settings change pi-para's config, which people never edit; wrong values and a missing sign-in are refused", async () => {
+    const before = await app.para.settings();
+
+    assert.equal(before.captureModel, "auto");
+    assert.equal(before.embeddingModel, null);
+
+    const after = await app.para.updateSettings({ captureModel: "faux/faux-1", contextTokens: 3000, lintStaleDays: 30 });
+
+    assert.equal(after.captureModel, "faux/faux-1");
+    assert.equal(after.contextTokens, 3000);
+    const file = readFileSync(join(home, ".pi", "para", "config.jsonc"), "utf8");
+
+    assert.match(file, /"faux-1"/);
+    assert.match(file, /"maxTokens": 3000/);
+    assert.match(JSON.stringify(await app.paraCapture.status()), /faux\/faux-1/);
+
+    await assert.rejects(app.para.updateSettings({ captureModel: "nowhere/none" }), /not a signed-in model/);
+    await assert.rejects(app.para.updateSettings({ contextTokens: 10 }), /from 500 to 32000/);
+    await assert.rejects(app.para.updateSettings({ embeddingModel: "openai/text-embedding-3-small" }), /Sign in to OpenRouter first/);
+
+    app.paraCapture.setMinutes(null);
+    assert.equal(app.config.wikiCaptureMinutes, null);
+    assert.throws(() => app.paraCapture.setMinutes(0), /from 1 to 1440/);
+    app.paraCapture.setMinutes(20);
+    await app.para.updateSettings({ captureModel: "auto", contextTokens: 4000 });
+});

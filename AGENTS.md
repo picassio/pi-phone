@@ -7,7 +7,11 @@
 - Server and scripts: TypeScript only, erasable syntax (Node strip-only): no `enum`, `namespace`, parameter
   properties. No `any`. The web app (`web/`) is plain JavaScript modules without a build step, as pi-pocket wrote it.
 - Top-level imports only in our own code; no `await import()`. (pi-pocket's `main.ts` loads the app lazily on
-  purpose, after taking the port.)
+  purpose, after taking the port; `para.ts` loads pi-para when the wiki opens, as its modules use top-level await,
+  which in the app's module graph let `app.ts` be read half-loaded.)
+- People never edit files to configure pi-phone: every setting a person may change has a place in the app (a sheet,
+  the menu). That includes the settings of what pi-phone embeds, such as pi-para's `~/.pi/para/config.jsonc`: the app
+  reads and writes those files, people do not. Errors and hints name the app's setting, never a file to edit.
 - Pin direct dependencies to exact versions. Install with `npm install --ignore-scripts`.
 - Don't migrate what we don't need: features removed from pi-pocket (DESIGN.md section 3) stay removed unless the
   user asks for them.

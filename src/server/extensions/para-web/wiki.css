@@ -210,3 +210,25 @@
     font: 13px/1.5 var(--mono);
     resize: vertical;
 }
+
+.wiki-settings .field {
+    margin-top: 8px;
+}
+
+.wiki-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.wiki-models {
+    max-height: 40vh;
+    overflow-y: auto;
+    margin-top: 6px;
+    border-top: 1px solid var(--hair);
+}
+
+.wiki-row.on {
+    background: var(--accent-soft);
+}

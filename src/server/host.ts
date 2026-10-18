@@ -192,7 +192,7 @@ export interface PocketHost {
     /** The PARA wiki (`para.ts`): pi-para's, opened on the para module's first load. */
     readonly para: Para;
     /** Capture of idle sessions into the wiki (`para-capture.ts`). */
-    readonly wikiCapture: Pick<ParaCapture, "capture" | "status">;
+    readonly wikiCapture: Pick<ParaCapture, "capture" | "status" | "setMinutes">;
     /** Other sessions, as the person a session works for (`session-control.ts`): the sessions tools. */
     readonly sessions: Pick<SessionControl, "list" | "status" | "read" | "start" | "send" | "stop" | "wait" | "approvals" | "deny">;
     /** Messages to Pi for later: the schedule tool sets up Pi's own. */

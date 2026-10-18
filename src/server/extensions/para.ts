@@ -158,6 +158,45 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
     );
     web.route("GET", "capture", () => host.wikiCapture.status(), owner);
 
+    // Wiki settings: pi-para's config, written by the app, and when idle sessions are captured.
+    web.route(
+        "GET",
+        "settings",
+        async () => ({ ...(await para.settings()), captureMinutes: (await host.wikiCapture.status()).minutes, models: para.models() }),
+        owner,
+    );
+    web.route(
+        "POST",
+        "settings",
+        async (request) => {
+            const { captureMinutes, ...patch } = request.body as Record<string, unknown>;
+
+            try {
+                if (captureMinutes !== undefined) {
+                    host.wikiCapture.setMinutes(captureMinutes);
+                }
+
+                await para.updateSettings(patch as never);
+            } catch (error) {
+                throw failed(error);
+            }
+
+            return { ...(await para.settings()), captureMinutes: (await host.wikiCapture.status()).minutes, models: para.models() };
+        },
+        owner,
+    );
+    web.route(
+        "GET",
+        "embedding-models",
+        async () => ({
+            signedIn: await para.hasKey("openrouter"),
+            models: await para.embeddingModels().catch((error: unknown) => {
+                throw web.error(502, error instanceof Error ? error.message : String(error));
+            }),
+        }),
+        owner,
+    );
+
     const main = defineExtension({
         name: "pocket-para",
         tools,

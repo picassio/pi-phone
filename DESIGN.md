@@ -154,6 +154,10 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   under pi-para's capture prompt, sent to the archived "Wiki capture" session, reset first. That session selects only
   `pocket-para-capture` (the wiki tools and `CAPTURE_SYSTEM_PROMPT`), which the default selection leaves out; it runs on
   pi-para's `models.capture`, or the app's default model for "auto". The watermark moves when the capture is sent.
+  Wiki settings (a sheet from the Wiki page and the launcher) are the only way people change pi-para's config: the app
+  writes `config.jsonc` with pi-para's own `saveParaConfig`, keeping what it does not show. They hold the capture model
+  and minutes, the prompt context's budget and schema, the OpenRouter embedding model (from OpenRouter's
+  `/embeddings/models`, with `pi-auth:openrouter`; a change reopens the search), and the health checks.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

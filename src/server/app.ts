@@ -348,6 +348,8 @@ export class PocketApp {
         this.para = new Para({
             home: this.#home,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
+            models: () =>
+                this.models.getAvailableSnapshot().map((model) => ({ provider: model.provider, id: model.id, name: model.name })),
             remote: (cwd) => {
                 if (!isRemote(cwd)) {
                     return undefined;

@@ -17,6 +17,7 @@ import { AgentDoc, type ConversationId, defineDoc } from "@earendil-works/pi-dur
 import type { PocketApp } from "./app.ts";
 import { SessionsDoc } from "./docs.ts";
 import { describe } from "./errors.ts";
+import { generateSummary, serializeSessionForWiki } from "pi-para/summarize";
 
 const context = BACKGROUND_CONTEXT;
 
@@ -66,7 +67,7 @@ export class ParaCapture {
 
         if (chosen !== "auto") {
             if (chosen.model === undefined || chosen.model === "") {
-                return { ok: false, why: "pi-para's capture model names no model" };
+                return { ok: false, why: "pick a capture model (Wiki settings)" };
             }
 
             return { ok: true, model: { provider: chosen.provider, modelId: chosen.model } };
@@ -154,7 +155,6 @@ export class ParaCapture {
             return { sent: false, why: "nothing new since the last capture" };
         }
 
-        const { generateSummary, serializeSessionForWiki } = await import("pi-para/summarize");
         const scope = await app.para.scope(app.cwdOf(id));
         const serialized = serializeSessionForWiki(messages);
         const digest = serialized.length > MAX_DIGEST ? `…(earlier messages left out)\n${serialized.slice(-MAX_DIGEST)}` : serialized;
@@ -224,6 +224,15 @@ export class ParaCapture {
                 state.last = { session: Number(id), at: Date.now() };
             }
         }, context);
+    }
+
+    /** Minutes a session is idle before it is captured, or null: only when asked. The owner's (the route checks). */
+    setMinutes(minutes: unknown): void {
+        if (minutes !== null && (typeof minutes !== "number" || !Number.isInteger(minutes) || minutes < 1 || minutes > 1440)) {
+            throw new Error("Capture after a whole number of idle minutes from 1 to 1440, or only when asked.");
+        }
+
+        this.#app.config.wikiCaptureMinutes = minutes;
     }
 
     /** For the Wiki page: whether captures run, on what, the last one, and the capture session. */
