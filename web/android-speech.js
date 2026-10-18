@@ -163,10 +163,14 @@ export class AndroidSpeechRecognition {
     }
 }
 
-/** Stand it in for the browser's, inside the Android app, where there is none. */
+/**
+ * Inside the Android app, Android's recognizer replaces the WebView's: WebView has a `webkitSpeechRecognition` that
+ * exists but never listens (every start ends in "not-allowed"), so both names become this one.
+ */
 export function installAndroidSpeech() {
-    if (bridge() && !globalThis.SpeechRecognition && !globalThis.webkitSpeechRecognition) {
+    if (bridge()) {
         globalThis.SpeechRecognition = AndroidSpeechRecognition;
+        globalThis.webkitSpeechRecognition = AndroidSpeechRecognition;
     }
 }
 

@@ -40,10 +40,14 @@ function listen() {
     return { recognition, heard, errors, ends };
 }
 
-test("it stands in for SpeechRecognition only inside the app, and listens in the language picked, else the phone's", () => {
-    assert.equal((globalThis as { SpeechRecognition?: unknown }).SpeechRecognition, undefined);
+test("inside the app it replaces WebView's recognizer, which never listens; it listens in the language picked, else the phone's", () => {
+    const page = globalThis as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
+
+    // WebView's own: it exists, and every start ends in "not-allowed".
+    page.webkitSpeechRecognition = class WebViewRecognition {};
     speech.installAndroidSpeech();
-    assert.equal((globalThis as { SpeechRecognition?: unknown }).SpeechRecognition, speech.AndroidSpeechRecognition);
+    assert.equal(page.SpeechRecognition, speech.AndroidSpeechRecognition);
+    assert.equal(page.webkitSpeechRecognition, speech.AndroidSpeechRecognition);
     assert.equal(speech.dictationLanguage(), "vi-VN");
     store.set(speech.DICTATION_LANGUAGE_KEY, "en-US");
     assert.equal(speech.dictationLanguage(), "en-US");
