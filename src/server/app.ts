@@ -83,6 +83,7 @@ import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
 import { SshAgent } from "./ssh-agent.ts";
 import { namesIn, Secrets } from "./secrets.ts";
+import type { Tailnet } from "./tailnet.ts";
 import { WebSearch } from "./web/access.ts";
 import { checkDraft, type Interview, InterviewsDoc } from "./interviews.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
@@ -261,8 +262,10 @@ export class PocketApp {
     readonly defaultCwd: string;
     readonly supervised: boolean;
     readonly startedAt = Date.now();
-    /** Set by the launcher over IPC; undefined when the server runs on its own. */
+    /** How other devices reach this server: the Tailscale address while it listens there (`setReach`). */
     access: AccessInfo | undefined;
+    /** The Tailscale listener (`tailnet.ts`), set by `main.ts` once it serves; undefined in tests that serve nothing. */
+    tailnet: Tailnet | undefined;
     harness!: Harness;
     models!: ModelRuntime;
     settings!: SettingsManager;

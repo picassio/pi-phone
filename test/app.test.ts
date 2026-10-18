@@ -698,6 +698,77 @@ test("notes refuse a stale edit, and a mention reaches the person in another ses
     }
 });
 
+test("Settings › Access: Tailscale on listens on its address too, invites link there, and a guest joins through it", async () => {
+    const { createServer } = await import("node:http");
+    const { createHandler } = await import("../src/server/http.ts");
+    const { Tailnet } = await import("../src/server/tailnet.ts");
+    const handler = createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} });
+    const server = createServer(handler);
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as { port: number }).port;
+    const base = `http://127.0.0.1:${port}`;
+    // The phone's Tailscale address, stood in by another loopback address.
+    const there = `http://127.0.0.2:${port}`;
+
+    app.tailnet = new Tailnet({
+        port,
+        handler,
+        attach: () => () => {},
+        changed: (url) => app.setReach(url === undefined ? undefined : { mode: "tailscale", label: "Tailscale", url }),
+        address: () => "127.0.0.2",
+        everyMs: 60_000,
+    });
+    const call = (path: string, body?: unknown, method = body === undefined ? "GET" : "POST") =>
+        fetch(`${base}/api/${path}`, {
+            method,
+            headers: { authorization: `Bearer ${app.config.ownerToken}`, "x-pocket": "1", "content-type": "application/json" },
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+    const joined: string[] = [];
+
+    try {
+        assert.deepEqual(await (await call("access")).json(), { enabled: false });
+        assert.equal((await call("access", { tailscale: "yes" }, "PUT")).status, 400);
+        assert.deepEqual(await (await call("access", { tailscale: true }, "PUT")).json(), { enabled: true, url: there });
+        assert.equal(app.config.tailscale, true, "kept for the next start");
+
+        const invite = (await (await call("invite", { role: "viewer" })).json()) as { url: string; code: string; local: boolean; access: unknown };
+
+        assert.equal(invite.url, `${there}/join/${invite.code}`, "the link is on the Tailscale address");
+        assert.equal(invite.local, false);
+        assert.deepEqual(invite.access, { mode: "tailscale", label: "Tailscale", url: there });
+
+        const redeemed = await fetch(invite.url, {
+            method: "POST",
+            body: "name=Tailnet friend",
+            headers: { "content-type": "application/x-www-form-urlencoded" },
+            redirect: "manual",
+        });
+        const token = decodeURIComponent(/pocket_auth=([^;]+)/.exec(redeemed.headers.get("set-cookie") ?? "")![1]!);
+
+        joined.push(app.config.users.find((each) => each.name === "Tailnet friend")!.id);
+        assert.equal((await fetch(`${there}/api/sessions`, { headers: { authorization: `Bearer ${token}`, "x-pocket": "1" } })).status, 200);
+        assert.equal((await fetch(`${there}/api/access`, { headers: { authorization: `Bearer ${token}`, "x-pocket": "1" } })).status, 403, "only the owner");
+
+        assert.deepEqual(await (await call("access", { tailscale: false }, "PUT")).json(), { enabled: false });
+        assert.equal(app.config.tailscale, false);
+        assert.equal(app.access, undefined);
+        await assert.rejects(fetch(`${there}/api/sessions`), "nothing listens there once it is off");
+    } finally {
+        await app.tailnet.close();
+        app.tailnet = undefined;
+        app.config.tailscale = false;
+
+        for (const each of joined) {
+            app.config.removeUser(each);
+        }
+
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+});
+
 test("invites carry a role and a session over HTTP, and viewers get 403 on steering routes", async () => {
     const { createServer } = await import("node:http");
     const { createHandler } = await import("../src/server/http.ts");

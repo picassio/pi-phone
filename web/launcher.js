@@ -296,6 +296,12 @@ function actionItems() {
                   run: () => openSheet({ type: "terminal", place: `machine:${machine.id}:${machine.home}` }),
               }))
             : []),
+        me?.role === "owner" && {
+            label: "Access",
+            detail: "let people on your Tailscale network reach this phone",
+            icon: "users",
+            run: () => openSheet({ type: "access" }),
+        },
         me?.role === "owner" &&
             webAvailable() && {
             label: "Web access",

@@ -18,6 +18,7 @@ import { Auth } from "./auth.ts";
 import { applyRestore } from "./backup.ts";
 import { attachTerminals } from "./terminal.ts";
 import { PhoneSettingsFile } from "./phone-settings.ts";
+import { Tailnet } from "./tailnet.ts";
 
 const RESTART_CODE = 75;
 /**
@@ -108,6 +109,7 @@ const stop = async (code: number) => {
     stopping = true;
     stopWatching();
     closeTerminals?.();
+    void app?.tailnet?.close();
     server.close();
     server.closeAllConnections();
 
@@ -210,6 +212,14 @@ handle = makeHandler({
 });
 // Terminals (`terminal.ts`): WebSocket upgrades on the same server.
 closeTerminals = attachTerminals(server, opened, new Auth(opened.config));
+// People on the owner's tailnet reach the same server on the phone's Tailscale address, when the owner turned it on.
+opened.tailnet = new Tailnet({
+    port: options.port,
+    handler: (request, response) => void handle?.(request, response),
+    attach: (listener) => attachTerminals(listener, opened, new Auth(opened.config)),
+    changed: (url) => opened.setReach(url === undefined ? undefined : { mode: "tailscale", label: "Tailscale", url }),
+});
+void opened.tailnet.set(opened.config.tailscale);
 stopWatching = (() => {
     const stops = [watchTree(join(APP_ROOT, "web"), (file) => opened.reloadClients(file))];
 

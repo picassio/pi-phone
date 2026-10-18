@@ -82,6 +82,13 @@ invites, roles, peek tiles), theme editing and Omarchy palettes, the Walker-styl
 layer (`extension-web.ts`, `extension-commands.ts`, `http/extension-routes.ts`, `web/extension-ui.js`). Do not cut
 them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
 
+Multiplayer reaches other devices over Tailscale only (the owner's decision, 2026-10-18; no Cloudflare, no LAN mode).
+The server always listens on 127.0.0.1 for the WebView (`PiService.java` passes `--host 127.0.0.1`); Settings ›
+Access (`web/sheets/access.js`, `GET|PUT /api/access`, config `tailscale`) turns on a second listener on the
+phone's Tailscale address (100.64.0.0/10, from the Tailscale app's VPN), with the same handler and terminals
+(`src/server/tailnet.ts`). It looks the address up every 10 s and follows it as the VPN comes and goes; while it
+listens, `app.access` is that URL, so invite links point there.
+
 ## 4. Ours
 
 - **Claude Code billing patch** (`src/server/cc-patch.ts`, ported from picassio/pi-cc-patch): rewrites direct

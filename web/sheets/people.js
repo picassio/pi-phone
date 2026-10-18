@@ -218,7 +218,7 @@ export function InviteSheet({ session = null }) {
         </p>
         ${
             invite?.access?.url &&
-            html`<p class="muted small">Other devices connect through ${invite.access.label}.</p>`
+            html`<p class="muted small">Other devices connect through ${invite.access.label}: people on your tailnet.</p>`
         }
         ${
             invite
@@ -226,7 +226,8 @@ export function InviteSheet({ session = null }) {
                     ${
                         invite.local &&
                         html`<div class="error-box">
-                            This link only works on this phone: pi-phone's server listens only here, so other devices cannot open it.
+                            This link only works on this phone. To let people on your Tailscale network open it, turn on
+                            <button class="link" onClick=${() => openSheet({ type: "access" })}>Settings › Access</button>.
                         </div>`
                     }
                     <div class="invite-details">

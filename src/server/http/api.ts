@@ -502,6 +502,29 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         // Web access (`web/access.ts`): the search provider and what each needs; a test search with the one picked.
+        // Reaching the phone over Tailscale (`tailnet.ts`): on or off, where it listens, or why it does not.
+        if (first === "access" && second === undefined && (method === "GET" || method === "PUT")) {
+            requireOwner(user);
+
+            if (app.tailnet === undefined) {
+                throw new HttpError(503, "This server is not serving the network.");
+            }
+
+            if (method === "GET") {
+                return json(response, 200, app.tailnet.status());
+            }
+
+            const body = (await readJson(request)) as { tailscale?: unknown };
+
+            if (typeof body.tailscale !== "boolean") {
+                throw new HttpError(400, "tailscale is true or false");
+            }
+
+            app.config.tailscale = body.tailscale;
+
+            return json(response, 200, await app.tailnet.set(body.tailscale));
+        }
+
         if (first === "web-access" && second === undefined && method === "GET") {
             requireOwner(user);
 

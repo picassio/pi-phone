@@ -94,6 +94,8 @@ interface PocketConfig {
      * self-hosted ones. Absent provider: web search is off until the owner picks one.
      */
     web?: { provider?: string; endpoints?: Record<string, string> };
+    /** Also listen on the phone's Tailscale address, for people on the owner's tailnet (`tailnet.ts`). Absent: off. */
+    tailscale?: boolean;
 }
 
 export const DEFAULT_SEND_LIMIT = 30;
@@ -224,6 +226,20 @@ export class ConfigStore {
             delete this.#config.subagentModels;
         } else {
             this.#config.subagentModels = [...models];
+        }
+
+        this.save();
+    }
+
+    get tailscale(): boolean {
+        return this.#config.tailscale === true;
+    }
+
+    set tailscale(on: boolean) {
+        if (on) {
+            this.#config.tailscale = true;
+        } else {
+            delete this.#config.tailscale;
         }
 
         this.save();
