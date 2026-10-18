@@ -59,7 +59,7 @@ Done:
 - Notifications (PiService polls `/api/phone/events`), downloads to Downloads (bridge `download`), ports of
   machines (`forwards.ts`), branches on a machine, This phone (battery optimisation, backup and restore, `backup.ts`).
 - Secrets (`secrets.ts`, `extensions/secrets.ts`, Settings › Secrets): done. The plan for what comes next is the wiki
-  page `projects/pi-phone-native-tools`. Diagrams (pele) and Interview: done. Next: web access, then markit.
+  page `projects/pi-phone-native-tools`. Diagrams (pele), Interview, and Web access: done. Next: markit for attachments.
 - The PARA wiki: pi-para 0.8.3 and qmd-engine 2.7.2 (both on node:sqlite), tools and prompt context (`para.ts`). Wiki page
   and editor, capture (`para-capture.ts`) done. Wiki settings (embedding picker included) done.
   sqlite-vec for Android (`native/android-arm64/vec0.so`) done: search by meaning works with an OpenRouter embedding

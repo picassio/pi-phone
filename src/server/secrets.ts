@@ -117,6 +117,18 @@ export class Secrets {
         return info;
     }
 
+    has(name: string): boolean {
+        return this.#secrets.has(name);
+    }
+
+    /**
+     * A secret's value, for the app's own requests (a web search provider's key): never for a route, the model, or a
+     * log. Undefined when there is none.
+     */
+    value(name: string): string | undefined {
+        return this.#secrets.get(name)?.value;
+    }
+
     /** Add a secret, or change one: what the patch leaves out stays as it was. */
     set(name: unknown, patch: SecretPatch): SecretInfo {
         if (typeof name !== "string" || !SECRET_NAME.test(name)) {

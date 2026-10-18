@@ -89,6 +89,11 @@ interface PocketConfig {
     sessionSendLimit?: number | null;
     /** Minutes a session is idle before what it learned goes to the wiki (`para-capture.ts`); null: never by itself. */
     wikiCaptureMinutes?: number | null;
+    /**
+     * Web access (`web/access.ts`): the search provider `web_search` uses, by its id, and the addresses set for
+     * self-hosted ones. Absent provider: web search is off until the owner picks one.
+     */
+    web?: { provider?: string; endpoints?: Record<string, string> };
 }
 
 export const DEFAULT_SEND_LIMIT = 30;
@@ -253,6 +258,19 @@ export class ConfigStore {
             this.#config.sessionSendLimit = limit;
         }
 
+        this.save();
+    }
+
+    /** Web search's provider and self-hosted addresses, as the owner set them in Settings › Web access. */
+    get web(): { provider: string | undefined; endpoints: Record<string, string> } {
+        return { provider: this.#config.web?.provider, endpoints: { ...(this.#config.web?.endpoints ?? {}) } };
+    }
+
+    set web(web: { provider: string | undefined; endpoints: Record<string, string> }) {
+        this.#config.web = {
+            ...(web.provider === undefined ? {} : { provider: web.provider }),
+            ...(Object.keys(web.endpoints).length === 0 ? {} : { endpoints: web.endpoints }),
+        };
         this.save();
     }
 

@@ -208,6 +208,27 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   the session's upload folder and reach Pi as paths, which on a machine are the phone's (not yet copied there). Not
   yet: async mode, and pi-interview's AI helpers. Allowed in plan mode. Docs are copied as JSON, not with
   `structuredClone`: `tx.doc` objects are proxies, which it cannot clone ("#<Object> could not be cloned").
+- **Web access** (`src/server/web/`, `extensions/web.ts`, `web/sheets/web-access.js`): pi-web-access's tools, native, with
+  the same names and arguments. **`web_search`** searches with the one provider the owner picks in Settings › Web
+  access (`config.web.provider`; none: off, with an error saying so). One to five queries run in parallel, and each
+  fails on its own. There are 38 providers in `web/providers/`, one `SearchProvider` file each. They are ported from
+  pi-web-access 0.42.0 (by three subagents, against `types.ts` and `http.ts`), plus OpenRouter's web plugin (Exa
+  engine on gpt-oss-20b, results from its `url_citation` annotations) and DeepSeek's Search API. A provider's key
+  has one place: a Pi sign-in for model providers (`{ kind: "pi" }`: openai, google, mistral, xai, kimi-coding, zai,
+  deepseek, openrouter, read with `models.getAuth`), otherwise a secret named as pi-web-access's env var
+  (`{ kind: "secret" }`, `Secrets.value()`), or none. There is no fallback between providers. A filter an API cannot
+  apply throws, with the hint to search without it. Left out: Gemini Web (cookies), OpenAI through a ChatGPT
+  subscription, and Bright Data (needs a SERP zone setting). `http.ts` has `request()` (30 s, key hidden in
+  errors), `mcpCall()` (for Exa, Parallel and Baizhi without keys), and the filter helpers. **`fetch_content`**
+  (`web/fetch.ts`) runs where the session works (`host.envOf(cwd)`): an HTML page goes through Readability over
+  linkedom, then turndown; documents (by content type or extension) through markit (`markit-engine`, our fork with
+  the Android build); a GitHub repository is cloned `--depth 1` into `~/.cache/pi-phone/github/`, an issue or PR is
+  `gh … view --comments`, and a blob is fetched raw; images come back as images (5 MB at most), and text as it is.
+  One call's output is held under 30,000 characters and 1,200 lines, shared by its addresses: the harness cuts a tool's
+  output at about 2,000 lines, which once dropped the note from the end. A longer text is saved whole to
+  `~/.cache/pi-phone/fetch/<hash>.md` (the env's `$HOME`), and the note goes first. Both tools are allowed in plan
+  mode. The release build's `npm ci --os=android --cpu=arm64` installs `markit-engine-android-arm64`, and
+  `package-runtime.ts` refuses to package without it.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

@@ -288,6 +288,12 @@ function actionItems() {
             run: () => openSheet({ type: "ssh-keys" }),
         },
         me?.role === "owner" && {
+            label: "Web access",
+            detail: "the search provider Pi uses",
+            icon: "globe",
+            run: () => openSheet({ type: "web-access" }),
+        },
+        me?.role === "owner" && {
             label: "Secrets",
             detail: "API keys and tokens Pi uses without seeing them",
             icon: "key",

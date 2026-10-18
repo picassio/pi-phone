@@ -40,6 +40,11 @@ for (const each of CONTENTS) {
 }
 
 // Never a local model on the phone (AGENTS.md): a runtime with node-llama-cpp anywhere in it is not built.
+// markit's engine for Android (`fetch_content`, attachments): npm installs it only when told the platform is Android.
+if (!existsSync(join(ROOT, "node_modules", "markit-engine-android-arm64", "markit.android-arm64.node"))) {
+    throw new Error("markit-engine-android-arm64 is not in node_modules: install with npm ci --os=android --cpu=arm64.");
+}
+
 const local = execFileSync("find", [join(ROOT, "node_modules"), "-type", "d", "-name", "node-llama-cpp"], { encoding: "utf8" }).trim();
 
 if (local !== "") {

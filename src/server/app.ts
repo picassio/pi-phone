@@ -82,6 +82,7 @@ import { Machines } from "./machines.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
 import { namesIn, Secrets } from "./secrets.ts";
+import { WebSearch } from "./web/access.ts";
 import { checkDraft, type Interview, InterviewsDoc } from "./interviews.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { takeLock } from "./lock.ts";
@@ -290,6 +291,8 @@ export class PocketApp {
     readonly sshKeys: SshKeys;
     /** The owner's secrets: values for commands that name them, never for the model (`secrets.ts`). */
     readonly secrets: Secrets;
+    /** Web search's provider, its key from Pi's sign-ins or the secrets, and self-hosted addresses (`web/access.ts`). */
+    readonly web: WebSearch;
     /** Other computers sessions can work on, over ssh (`machines.ts`). */
     readonly machines: Machines;
     /** Where sessions work, here or on a machine, and each place's execution environment (`places.ts`). */
@@ -352,6 +355,7 @@ export class PocketApp {
         this.config = new ConfigStore(options.dataDir);
         this.sshKeys = new SshKeys(options.dataDir, this.#home);
         this.secrets = new Secrets(options.dataDir);
+        this.web = new WebSearch(this.config, this.secrets, async (provider) => (await this.models.getAuth(provider))?.auth.apiKey);
         // Every tab's machines (the folder picker, Ports, Pi sessions on a machine) come with `hello`: a machine connected,
         // renamed, or removed reaches them at once, not at their next connection.
         this.machines = new Machines(options.dataDir, this.sshKeys, this.#home, () =>
@@ -564,6 +568,7 @@ export class PocketApp {
             sessions: this.sessionControl,
             para: this.para,
             secrets: this.secrets,
+            web: this.web,
             envOf: (cwd) => this.places.env(cwd),
             wikiCapture: this.paraCapture,
             goals: this.goals,

@@ -487,6 +487,48 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return conversationRoutes(route, id, parts);
         }
 
+        // Web access (`web/access.ts`): the search provider and what each needs; a test search with the one picked.
+        if (first === "web-access" && second === undefined && method === "GET") {
+            requireOwner(user);
+
+            return json(response, 200, { provider: app.web.provider ?? null, providers: await app.web.providers() });
+        }
+
+        if (first === "web-access" && second === undefined && method === "PUT") {
+            requireOwner(user);
+
+            try {
+                app.web.set(await readJson<{ provider?: unknown; endpoints?: unknown }>(request));
+            } catch (error) {
+                throw new HttpError(400, error instanceof Error ? error.message : String(error));
+            }
+
+            return json(response, 200, { provider: app.web.provider ?? null, providers: await app.web.providers() });
+        }
+
+        if (first === "web-access" && second === "test" && method === "POST") {
+            requireOwner(user);
+            const body = await readJson<{ provider?: unknown }>(request);
+            const started = Date.now();
+
+            try {
+                const { provider, response: found } = await app.web.search("Pi coding agent", {
+                    numResults: 3,
+                    ...(typeof body.provider === "string" ? { provider: body.provider } : {}),
+                    signal: AbortSignal.timeout(60_000),
+                });
+
+                return json(response, 200, {
+                    ok: true,
+                    provider: provider.name,
+                    ms: Date.now() - started,
+                    results: found.results.map(({ title, url }) => ({ title, url })),
+                });
+            } catch (error) {
+                return json(response, 200, { ok: false, ms: Date.now() - started, error: app.secrets.redact(error instanceof Error ? error.message : String(error)) });
+            }
+        }
+
         // The owner's secrets (`secrets.ts`): never their values, which go one way, into the store.
         if (first === "secrets" && method === "GET" && second === undefined) {
             requireOwner(user);

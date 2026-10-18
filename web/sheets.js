@@ -13,6 +13,7 @@ import { MachinesSheet } from "./sheets/machines.js";
 import { SshKeysSheet } from "./sheets/ssh-keys.js";
 import { SecretsSheet } from "./sheets/secrets.js";
 import { InterviewSheet } from "./sheets/interview.js";
+import { WebAccessSheet } from "./sheets/web-access.js";
 import { SchedulesSheet } from "./sheets/schedules.js";
 import { TerminalSheet } from "./terminal.js";
 import { PiHandoffSheet } from "./sheets/pi-handoff.js";
@@ -205,6 +206,9 @@ function sheetBody(sheet) {
             break;
         case "interview":
             body = html`<${InterviewSheet} key=${sheet.callId} conversationId=${sheet.conversationId} callId=${sheet.callId} />`;
+            break;
+        case "web-access":
+            body = html`<${WebAccessSheet} />`;
             break;
         case "secrets":
             body = html`<${SecretsSheet} />`;
