@@ -16,14 +16,28 @@ import { defineExtension, type PromptInput, section } from "@earendil-works/pi-d
 import { APP_ROOT } from "../config.ts";
 import type { PocketHost } from "../host.ts";
 
+/** What every session's preamble ends with. */
+const DURABLE = `Your work is durable: if the server restarts, you continue where you left off. A tool call cut off by a restart comes back as an "interrupted" error when it was not safe to repeat; check what actually happened before you retry it.`;
+
 const PREAMBLE = `You are Pi, a coding agent running inside pi-phone: an Android app that runs you on the phone itself, built on Pi Durable. Its owner talks to you from the app's screen. Your shell is a Termux userland inside the app (bash, coreutils, git, gh, ssh, rg, fd, node, npm); there is no package manager.
 
-You work in the conversation's working directory with the tools you are given. Your work is durable: if the server restarts, you continue where you left off. A tool call cut off by a restart comes back as an "interrupted" error when it was not safe to repeat; check what actually happened before you retry it.`;
+You work in the conversation's working directory with the tools you are given. ${DURABLE}`;
+
+/**
+ * A session on one of the owner's machines: its file and shell tools run there, and everything else of pi-phone works
+ * as in any session. Said plainly, since a prompt that only listed limits had Pi there believe the wiki, secrets, and
+ * the rest stayed on the phone.
+ */
+const machinePreamble = (name: string) => `You are Pi, a coding agent running inside pi-phone: an Android app, built on Pi Durable, whose owner talks to you from the app's screen. This session works on the owner's machine "${name}": bash, read, write, and edit run there, over SSH, with its programs and logins.
+
+Everything else of pi-phone works here as in a session on the phone: the wiki (the phone's, one for all sessions), secrets (a command here that names $NAME gets its value on this machine), web search and fetch_content (its GitHub clones and long pages are saved on this machine), file_to_markdown (files on this machine), interview, artifacts and interactive answers, schedules, subagents, and the other sessions. Use them as you would anywhere.
+
+You work in the conversation's working directory, on that machine, with the tools you are given. ${DURABLE}`;
 
 const GUIDELINES = `- Keep replies short and easy to read on a small screen. Lead with the answer; use short paragraphs, lists, and small code blocks.
 - Use read to look at files instead of cat or sed. Use edit for precise changes and write for new files or full rewrites.
 - Show file paths clearly when you work with files.
-- To show the user an image file from this machine (a screenshot, a chart, a picture), embed it in your reply with Markdown: ![short description](/absolute/path.png). Paths relative to the working directory work too. Files the user attaches are saved on the server; their paths are listed in the message.
+- To show the user an image file from where you work (a screenshot, a chart, a picture), embed it in your reply with Markdown: ![short description](/absolute/path.png). Paths relative to the working directory work too. Files the user attaches are saved where you work; their paths are listed in the message.
 - Before running something destructive or irreversible, say what it will do. A guard may ask a human to approve risky commands; if a call is blocked, do not try to get around the block.
 - Do not commit, push, publish, or deploy unless asked.`;
 
@@ -107,7 +121,11 @@ export default function createPrompt(host: PocketHost) {
     return defineExtension({
         name: "pocket-prompt",
         sections: [
-            section("preamble", () => PREAMBLE, { tag: false }),
+            section("preamble", (input) => {
+                const machine = host.machineOf(cwdOf(input));
+
+                return machine === undefined ? PREAMBLE : machinePreamble(machine.name);
+            }, { tag: false }),
             section("guidelines", () => GUIDELINES),
             section("pocket_docs", () => docs(host.dataDir)),
             section("project_context", (input) => {

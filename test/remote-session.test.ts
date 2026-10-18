@@ -27,6 +27,7 @@ const sshdPath = ["/usr/sbin/sshd", join(process.env.PREFIX ?? "/usr", "bin", "s
 const skip = sshdPath === undefined ? "no sshd on this machine" : false;
 
 let told = "";
+let preamble = "";
 
 const route: FauxResponseStep = (request) => {
     const messages = (request as { messages: { role: string; sections?: Record<string, string | null> }[] }).messages;
@@ -34,6 +35,10 @@ const route: FauxResponseStep = (request) => {
     for (const message of messages) {
         if (message.role === "system" && message.sections?.environment) {
             told = message.sections.environment;
+        }
+
+        if (message.role === "system" && message.sections?.preamble) {
+            preamble = message.sections.preamble;
         }
     }
 
@@ -130,6 +135,10 @@ test("a session on a machine runs its tools there, and the prompt says where", {
     assert.match(told, /run on the machine "box"/);
     assert.match(told, new RegExp(`Working directory there: ${join(remoteHome, "project")}`));
     assert.doesNotMatch(told, /Platform: /);
+    // Where it works, and that pi-phone's features work there too: not the phone's Termux.
+    assert.match(preamble, /This session works on the owner's machine "box"/);
+    assert.match(preamble, /the wiki \(the phone's, one for all sessions\), secrets/);
+    assert.doesNotMatch(preamble, /Termux/);
     void home;
 });
 

@@ -110,9 +110,13 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
 - **Sessions on a machine** (`src/server/places.ts`): a session's `cwd` is a folder here, or
   `machine:<id>:<path on the machine>`. pi-pocket carries that one string everywhere; `Places.env(cwd)` gives
   `NodeExecutionEnv` or pi-env's `RemoteExecutionEnv` (one lazily started connection per machine), so the agent's
-  `bash`, `read`, `write`, `edit` run there with no change to the tools. The prompt's environment section says which
-  machine, that its git/gh logins are the machine's, that attachments stay on the phone, and that a command stops ~30 s
-  after the link drops; AGENTS.md and skills are not read for a machine (they would be the phone's). The folder picker
+  `bash`, `read`, `write`, `edit` run there with no change to the tools. Its preamble (`machinePreamble` in
+  `extensions/prompt.ts`) says that, and that every other pi-phone feature works there as anywhere: the wiki (the
+  phone's, shared), secrets (bash's env goes to the machine), web tools, `file_to_markdown`, interview, artifacts,
+  interactive answers, schedules, subagents, other sessions. A prompt that listed only limits had Pi there believe these
+  stayed on the phone; all were checked working there on 2026-10-18. The environment section says which machine, that
+  its git/gh logins are the machine's, that attachments are copied there, and that a command stops ~30 s after the link
+  drops; AGENTS.md and skills are not read for a machine (they would be the phone's). The folder picker
   browses the machine through its environment (New folder makes one there). Worktrees are for the phone's folders.
   The Files panel (pi-env's gitignore-aware `listFiles`), the file viewer, images in replies (the image route reads
   them there), Changes, diffs, and undo (git run there through `folder-access.ts`) work on a machine's folder.
