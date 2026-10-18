@@ -221,3 +221,22 @@ test("This phone backs up from a browser, and a file in the Files panel download
     await see(`return JSON.stringify(window.downloaded.includes("report.txt"))`, "the download");
     assert.deepEqual(await problems(), []);
 });
+
+test("the Wiki page lists pages, opens one, follows its [[link]], and Ask Pi puts it in the message box", real, async () => {
+    await app.para.save("resources/first-page", "---\ntitle: First page\npara: resources\nscope:\n  - global\ntags: []\n---\n\nGo to [[second-page]].\n", true);
+    await app.para.save("resources/second-page", "---\ntitle: Second page\npara: resources\nscope:\n  - global\ntags: []\n---\n\nThe second one.\n", true);
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await open(Number(id));
+    await see(`return JSON.stringify((await import("/extension-ui.js")).browserModuleState("para")?.status === "ready")`, "the wiki's browser module");
+    await page.evaluate(`(await import("/extension-ui.js")).openPage("para", "wiki"); return "true";`);
+    await see(`return JSON.stringify([...document.querySelectorAll(".wiki-row-title")].some((each) => each.textContent === "First page"))`, "the page list");
+    await page.evaluate(`[...document.querySelectorAll(".wiki-row")].find((each) => each.textContent.includes("First page")).click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector(".wiki-page h2")?.textContent === "First page")`, "the first page");
+    await page.evaluate(`document.querySelector('.wiki-body a[href^="#wiki:"]').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector(".wiki-page h2")?.textContent === "Second page")`, "the linked page");
+    await see(`return JSON.stringify(document.querySelector(".wiki-backlinks")?.textContent.includes("First page") === true)`, "its backlink");
+    await page.evaluate(`[...document.querySelectorAll(".wiki-actions button")].find((each) => each.textContent.includes("Ask Pi")).click(); return "true";`);
+    await see(`return JSON.stringify((document.querySelector('[data-part="composer"] textarea')?.value ?? "").includes("resources/second-page"))`, "the message box");
+    assert.deepEqual(await problems(), []);
+});

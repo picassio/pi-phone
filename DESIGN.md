@@ -146,6 +146,9 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   A session's scope is found as pi-para finds it, in its folder here or, for a session on a machine, asked there.
   qmd-engine and pi-para run on `node:sqlite` (`QMD_SQLITE_DRIVER=node`, set by `para-env.ts` before they load);
   the runtime package leaves out their bundled better-sqlite3 and qmd's tree-sitter grammars.
+  The Wiki page is the module's browser part (`extensions/para-web/`, owner only): the PARA tree, qmd search, pages
+  rendered with `[[links]]`, backlinks, freshness, an editor that saves through pi-para's `wiki_write`, and Ask Pi
+  (`pocket.compose`). The app's markdown turns `[[page]]` into `#wiki:page` links anywhere; the Wiki page opens them.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

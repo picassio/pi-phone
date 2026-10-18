@@ -13,6 +13,7 @@
  * it finished loading.
  */
 import "./para-env.ts";
+import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
@@ -23,17 +24,26 @@ import type { QMDStore } from "pi-para/store";
 
 /** pi-para's modules, loaded when the wiki opens. */
 const load = async () => {
-    const [config, context, scheduler, scope, store, wiki] = await Promise.all([
+    const [config, context, scheduler, scope, store, wiki, frontmatter, links, query, write] = await Promise.all([
         import("pi-para/config"),
         import("pi-para/context"),
         import("pi-para/scheduler"),
         import("pi-para/scope"),
         import("pi-para/store"),
         import("pi-para/wiki"),
+        import("pi-para/frontmatter"),
+        import("pi-para/link-utils"),
+        import("pi-para/query"),
+        import("pi-para/tools/write"),
     ]);
 
-    return { ...config, ...context, ...scheduler, ...scope, ...store, ...wiki };
+    return { ...config, ...context, ...scheduler, ...scope, ...store, ...wiki, ...frontmatter, ...links, ...query, ...write };
 };
+
+/** A page as the Wiki page lists it. */
+export type PageSummary = { path: string; category: string; slug: string; title: string; updated: string; scope: string[]; tags: string[] };
+
+const PATH = /^(projects|areas|resources|archives)\/([a-z0-9][a-z0-9-]*)$/;
 
 type ParaModules = Awaited<ReturnType<typeof load>>;
 
@@ -155,6 +165,139 @@ export class Para {
         return built;
     }
 
+    // ─── For the Wiki page (`extensions/para.ts`'s routes) ───────────────────────
+
+    /** Every page, by category, newest first, with what the list shows of it. */
+    async tree(): Promise<{ wikiDir: string; categories: Record<string, PageSummary[]> }> {
+        const { wikiDir } = await this.open();
+        const { PARA_CATEGORIES, listPages, readPage } = this.#pi!;
+        const categories: Record<string, PageSummary[]> = {};
+
+        for (const category of PARA_CATEGORIES) {
+            const pages: PageSummary[] = [];
+
+            for (const ref of await listPages(wikiDir, category)) {
+                const page = await readPage(wikiDir, ref.category, ref.slug);
+
+                if (page !== null) {
+                    pages.push(summaryOf(page));
+                }
+            }
+
+            categories[category] = pages.sort((a, b) => b.updated.localeCompare(a.updated));
+        }
+
+        return { wikiDir, categories };
+    }
+
+    /** One page: its frontmatter, body, the file as it is, how fresh it is, and the pages that link to it. */
+    async page(path: string) {
+        const { wikiDir } = await this.open();
+        const { readPage, listPages, extractWikilinks, serializeFrontmatter, formatFreshness } = this.#pi!;
+        const [, category, slug] = PATH.exec(path) ?? [];
+
+        if (category === undefined || slug === undefined) {
+            throw new Error(`${path} is not a wiki page's path (category/slug).`);
+        }
+
+        const page = await readPage(wikiDir, category as never, slug);
+
+        if (page === null) {
+            return null;
+        }
+
+        const backlinks: PageSummary[] = [];
+
+        for (const ref of await listPages(wikiDir)) {
+            if (ref.slug === slug) {
+                continue;
+            }
+
+            const other = await readPage(wikiDir, ref.category, ref.slug);
+
+            if (other !== null && (extractWikilinks(other.body).includes(slug) || other.frontmatter.links.includes(slug))) {
+                backlinks.push(summaryOf(other));
+            }
+        }
+
+        return {
+            ...summaryOf(page),
+            body: page.body,
+            raw: serializeFrontmatter(page.frontmatter, page.body),
+            freshness: formatFreshness(page.frontmatter.updated, Date.now()),
+            backlinks,
+        };
+    }
+
+    /** Pages for words: qmd's search across every scope, archives too. */
+    async search(query: string): Promise<{ path: string; title: string; snippet: string; score: number }[]> {
+        const { store } = await this.open();
+        const found = await this.#pi!.searchWiki(store, query, { limit: 30, includeArchives: true, graphBoost: true });
+
+        return found.map((each) => ({
+            path: each.page.path.replace(/\.md$/, ""),
+            title: each.frontmatter.title || each.page.title,
+            snippet: each.snippet,
+            score: each.score,
+        }));
+    }
+
+    /**
+     * A page written from the Wiki page's editor: its whole file (frontmatter and body), through pi-para's own
+     * wiki_write, so it gets the same checks, links, index, log, and search update as Pi's writes. `create` refuses a
+     * page that is there; otherwise it replaces it.
+     */
+    async save(path: string, raw: string, create: boolean): Promise<string> {
+        const { wikiDir, store } = await this.open();
+        const { parseFrontmatter, validateFrontmatter, createWriteExecute } = this.#pi!;
+        const [, category, slug] = PATH.exec(path) ?? [];
+
+        if (category === undefined || slug === undefined) {
+            throw new Error(`${path} is not a wiki page's path (category/slug: lowercase letters, digits, and dashes).`);
+        }
+
+        const parsed = parseFrontmatter(raw);
+        const frontmatter = validateFrontmatter({ ...parsed.frontmatter, para: category });
+        const scope = { name: frontmatter.scope[0] ?? "global", include: frontmatter.scope, exclude: [], source: "config" as const };
+        const result = await createWriteExecute(wikiDir, store, () => scope, () => this.markDirty())({
+            pages: [
+                {
+                    category: category as never,
+                    slug,
+                    title: frontmatter.title,
+                    scope: frontmatter.scope,
+                    tags: frontmatter.tags,
+                    body: parsed.body,
+                    mode: create ? "create" : "replace",
+                },
+            ],
+            logSummary: `${create ? "created" : "edited"} ${path} in pi-phone`,
+        } as never);
+        const text = result.content.map((part) => (part.type === "text" ? part.text : "")).join("\n");
+
+        if ((result.details as { pagesSkipped?: unknown[] } | undefined)?.pagesSkipped?.length) {
+            throw new Error(text);
+        }
+
+        return text;
+    }
+
+    /** What the Wiki page says of the wiki: where it is, its pages, the end of its log, and its search. */
+    async status() {
+        const { wikiDir, config, store } = await this.open();
+        const { listPages } = this.#pi!;
+        const log = await readFile(`${wikiDir}/log.md`, "utf8").catch(() => "");
+        const qmd = await store.getStatus();
+
+        return {
+            wikiDir,
+            pages: (await listPages(wikiDir)).length,
+            log: log.split("\n").filter((line) => line.startsWith("## ")).slice(-8).reverse().map((line) => line.slice(3)),
+            search: { documents: qmd.totalDocuments, vectors: qmd.hasVectorIndex, needsEmbedding: qmd.needsEmbedding },
+            embedding: config.qmd.embedEnabled && config.qmd.embedding !== undefined ? `${config.qmd.embedding.provider}/${config.qmd.embedding.model ?? ""}` : null,
+        };
+    }
+
     async close(): Promise<void> {
         if (this.#ready === undefined) {
             return;
@@ -170,6 +313,18 @@ export class Para {
             await this.#pi!.closeStore(this.#store);
         }
     }
+}
+
+function summaryOf(page: { category: string; slug: string; frontmatter: { title: string; updated: string; scope: string[]; tags: string[] } }): PageSummary {
+    return {
+        path: `${page.category}/${page.slug}`,
+        category: page.category,
+        slug: page.slug,
+        title: page.frontmatter.title || page.slug,
+        updated: page.frontmatter.updated,
+        scope: page.frontmatter.scope,
+        tags: page.frontmatter.tags,
+    };
 }
 
 /** pi-para's scope detection, with each look made on the machine. */

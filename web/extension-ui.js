@@ -16,7 +16,7 @@ import {
 import { useBack } from "./back.js";
 import { describersChanged, setCallDescriber } from "./calls.js";
 import { leaveSafeMode, onSafeModeEnd, safeMode } from "./safe-mode.js";
-import { api, closeSheet, notify, onExtensionEvent, openSheet, store } from "./store.js";
+import { api, closeSheet, insertIntoComposer, notify, onExtensionEvent, openSheet, store } from "./store.js";
 import { setCallSummary } from "./turns.js";
 import { html, Icon, iconPath, Loader, Markdown, railState, Sheet, Spinner, Switch } from "./ui.js";
 
@@ -767,6 +767,22 @@ function pocketFor(record) {
 
             if (live()) {
                 noticeFrom(record, LEVELS.has(level) ? level : "info", String(message));
+            }
+        },
+        /**
+         * Put text into the message box to Pi in the open session, after what is there, and show it: its page and any
+         * sheet close. The person sends it, or not.
+         */
+        compose(text) {
+            tick(record);
+
+            if (typeof text !== "string" || text.trim() === "") {
+                throw new Error("pocket.compose: give it the text to put in the message box");
+            }
+
+            if (live()) {
+                closePage();
+                insertIntoComposer(text);
             }
         },
         rail: (spec) => add("rail", spec),

@@ -85,3 +85,42 @@ test("Pi writes a wiki page, finds it, reads it, and the prompt carries the proj
     assert.match(told, /wiki_query/, "pi-para's guidance");
     assert.match(told, /terminal-reattach/, told);
 });
+
+test("the Wiki page's routes: the tree, a page with its backlinks, search, and saving through pi-para's wiki_write", async () => {
+    const tree = await app.para.tree();
+
+    assert.ok(tree.categories.resources!.some((each) => each.path === "resources/terminal-reattach"), JSON.stringify(tree));
+
+    const raw = "---\ntitle: Shell sessions\npara: resources\nscope:\n  - work\ntags:\n  - terminal\n---\n\nSee [[terminal-reattach]] for how a page takes a shell up again.\n";
+
+    await app.para.save("resources/shell-sessions", raw, true);
+    await assert.rejects(app.para.save("resources/shell-sessions", raw, true), /already exists/);
+    assert.match(readFileSync(join(home, ".pi", "wiki", "resources", "shell-sessions.md"), "utf8"), /title: Shell sessions/);
+
+    const page = await app.para.page("resources/terminal-reattach");
+
+    assert.equal(page?.title, "Terminal reattach");
+    assert.deepEqual(page?.backlinks.map((each) => each.path), ["resources/shell-sessions"]);
+    assert.match(page!.raw, /^---\n/);
+    assert.equal(await app.para.page("resources/nothing-here"), null);
+    await assert.rejects(app.para.page("../etc/passwd"), /not a wiki page's path/);
+
+    // The edit is the file now: saving replaces it.
+    await app.para.save("resources/shell-sessions", raw.replace("how a page", "how the app"), false);
+    assert.match(readFileSync(join(home, ".pi", "wiki", "resources", "shell-sessions.md"), "utf8"), /how the app/);
+
+    for (let tries = 0; tries < 50; tries++) {
+        if ((await app.para.search("socket")).some((each) => each.path === "resources/terminal-reattach")) {
+            break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    assert.ok((await app.para.search("socket")).some((each) => each.path === "resources/terminal-reattach"));
+    const status = await app.para.status();
+
+    assert.equal(status.pages, 2);
+    assert.equal(status.embedding, null);
+    assert.ok(status.log.length > 0);
+});

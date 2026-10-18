@@ -400,6 +400,28 @@ const MARKDOWN_CACHE = 500;
  * (`cache` false) is not kept, and its long code blocks are not folded while they grow. With `breaks`, a single line
  * break is a new line rather than a space.
  */
+/**
+ * `[[page]]` and `[[page|label]]`, as the wiki (pi-para) writes them, as links to `#wiki:page`: the Wiki page opens
+ * them (`extensions/para-web`). Outside code, and only for names a page can have (letters, digits, dashes, a category
+ * before a slash), so a shell's `[[ -f x ]]` stays as it is.
+ */
+function wikilinks(text) {
+    if (!text.includes("[[")) {
+        return text;
+    }
+
+    return text
+        .split(/(```[\s\S]*?```|`[^`\n]*`)/)
+        .map((part, index) =>
+            index % 2 === 1
+                ? part
+                : part.replace(/\[\[([a-z0-9][a-z0-9-]*(?:\/[a-z0-9][a-z0-9-]*)?)(?:\|([^\]\n]+))?\]\]/gi, (_whole, target, label) =>
+                      `[${(label ?? target).trim()}](#wiki:${encodeURIComponent(target)})`,
+                  ),
+        )
+        .join("");
+}
+
 function markdownParts(
     text,
     conversationId = currentConversation(),
@@ -419,7 +441,7 @@ function markdownParts(
 
     rendering = conversationId ?? null;
     linkBase = base;
-    out = partsOf(sanitize(marked.parse(fencePage(text), { async: false, breaks }), cache));
+    out = partsOf(sanitize(marked.parse(wikilinks(fencePage(text)), { async: false, breaks }), cache));
     rendering = null;
     linkBase = null;
 
@@ -513,6 +535,11 @@ function looksLikePath(text) {
 
 /** A local file link, using the same path recognition as inline code. App routes and URL schemes stay links. */
 function linkedPath(href) {
+    // A place in a page, such as a wiki link (`#wiki:page`): never a file.
+    if (href.startsWith("#")) {
+        return null;
+    }
+
     let path;
 
     try {

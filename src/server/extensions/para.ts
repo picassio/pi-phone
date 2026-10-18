@@ -26,7 +26,7 @@ import {
 } from "pi-para/tools/schemas";
 import { createSummarizeExecute } from "pi-para/tools/summarize";
 import { createWriteExecute } from "pi-para/tools/write";
-import type { PocketHost } from "../host.ts";
+import type { ExtensionWeb, PocketHost } from "../host.ts";
 import type { Para } from "../para.ts";
 
 /** What pi-para's tools return: pi's tool result. */
@@ -34,8 +34,49 @@ type ParaResult = { content: ToolExecutionResult["output"]; details?: unknown; i
 /** What a tool's implementation is made from: the open wiki, and the calling session's scope. */
 type Wiki = Awaited<ReturnType<Para["open"]>> & { scope: Awaited<ReturnType<Para["scope"]>>; markDirty: () => void };
 
-export default function createPara(host: PocketHost) {
+export default function createPara(host: PocketHost, web: ExtensionWeb) {
     const para = host.para;
+
+    // The Wiki page (`para-web/`): the owner's, as the wiki is their own knowledge.
+    const owner = { access: "owner" as const };
+    const failed = (error: unknown) => web.error(400, error instanceof Error ? error.message : String(error));
+
+    web.client("para-web", owner);
+    web.route("GET", "tree", () => para.tree(), owner);
+    web.route("GET", "status", () => para.status(), owner);
+    web.route("GET", "search", async (request) => ({ results: await para.search(request.query.get("q") ?? "") }), owner);
+    web.route(
+        "GET",
+        "page",
+        async (request) => {
+            const page = await para.page(request.query.get("path") ?? "").catch((error: unknown) => {
+                throw failed(error);
+            });
+
+            if (page === null) {
+                throw web.error(404, `There is no page ${request.query.get("path")}.`);
+            }
+
+            return page;
+        },
+        owner,
+    );
+    web.route(
+        "POST",
+        "page",
+        async (request) => {
+            const { path, raw, create } = request.body;
+
+            if (typeof path !== "string" || typeof raw !== "string") {
+                throw web.error(400, "Send the page's path and its text.");
+            }
+
+            return { said: await para.save(path, raw, create === true).catch((error: unknown) => {
+                throw failed(error);
+            }) };
+        },
+        owner,
+    );
 
     // Open the wiki as the module loads: the first tool call or prompt need not wait for its index.
     para.ready().catch((error: unknown) => host.notice("warning", `The wiki could not open: ${String(error)}`));
@@ -95,17 +136,16 @@ export default function createPara(host: PocketHost) {
         sections: [
             {
                 key: "wiki",
-                // pi-para's guidance, then what the wiki knows of this session's project (its context, cached until the wiki
-                // changes). A wiki that cannot open says so here, once per prompt, rather than leaving Pi unaware.
+                // What the wiki knows of this session's project, with pi-para's guidance in it (its context, cached until the
+                // wiki changes); the guidance alone when the wiki has nothing for it. A wiki that cannot open says so here,
+                // rather than leaving Pi unaware.
                 render: async (input) => {
-                    const guidance = buildWikiToolGuidanceSection();
-
                     try {
                         const context = await para.context(input.agent.cwd ?? "");
 
-                        return context === "" ? guidance : `${guidance}\n\n${context}`;
+                        return context === "" ? buildWikiToolGuidanceSection() : context;
                     } catch (error) {
-                        return `${guidance}\n\nThe wiki could not open: ${String(error)}. The wiki tools fail until it does.`;
+                        return `${buildWikiToolGuidanceSection()}\n\nThe wiki could not open: ${String(error)}. The wiki tools fail until it does.`;
                     }
                 },
             },
