@@ -46,7 +46,17 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
     web.client("para-web", owner);
     web.route("GET", "tree", () => para.tree(), owner);
     web.route("GET", "status", () => para.status(), owner);
-    web.route("GET", "search", async (request) => ({ results: await para.search(request.query.get("q") ?? "") }), owner);
+    // `mode=keywords`: at once, by keyword alone; without it, keywords and meaning (a remote embedding of the query).
+    web.route(
+        "GET",
+        "search",
+        async (request) => {
+            const query = request.query.get("q") ?? "";
+
+            return { results: request.query.get("mode") === "keywords" ? await para.searchKeywords(query) : await para.search(query) };
+        },
+        owner,
+    );
     web.route(
         "GET",
         "page",

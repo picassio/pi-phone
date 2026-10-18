@@ -261,6 +261,31 @@ export class Para {
         };
     }
 
+    /**
+     * Pages for words by keyword alone (qmd's BM25, on the phone, in milliseconds): what the Wiki page shows at once,
+     * before `search` adds what only meaning finds, which waits for the remote embedding of the query.
+     */
+    async searchKeywords(query: string): Promise<{ path: string; title: string; snippet: string; score: number }[]> {
+        const { store } = await this.open();
+        const { parseFrontmatter } = this.#pi!;
+        const found = await store.searchLex(query, { limit: 30, collection: "wiki", graphBoost: true });
+
+        return found.flatMap((each) => {
+            const page = /(projects|areas|resources|archives)\/([^/]+)\.md$/.exec(each.displayPath);
+
+            if (page === null) {
+                return [];
+            }
+
+            const { frontmatter, body } = parseFrontmatter(each.body ?? "");
+            const words = query.toLowerCase().split(/\s+/).filter((word) => word.length > 1);
+            const lines = body.split("\n").filter((line) => line.trim() !== "" && !line.startsWith("#"));
+            const hit = lines.find((line) => words.some((word) => line.toLowerCase().includes(word))) ?? lines[0] ?? "";
+
+            return [{ path: `${page[1]}/${page[2]}`, title: frontmatter.title || page[2]!, snippet: hit.trim().slice(0, 240), score: each.score }];
+        });
+    }
+
     /** Pages for words: qmd's search across every scope, archives too. */
     async search(query: string): Promise<{ path: string; title: string; snippet: string; score: number }[]> {
         const { store } = await this.open();

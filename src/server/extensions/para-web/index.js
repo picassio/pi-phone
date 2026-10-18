@@ -260,19 +260,42 @@ export default function wiki(pocket) {
         </div>`;
     }
 
+    /**
+     * Results in two steps: keyword matches at once (on the phone), then keywords and meaning together once the query's
+     * remote embedding is back, which replace them.
+     */
     function Search({ query, go }) {
         const [results, setResults] = useState(null);
+        const [full, setFull] = useState(false);
         const [problem, setProblem] = useState(null);
 
         useEffect(() => {
-            pocket.api(`search?q=${encodeURIComponent(query)}`).then(
-                (answer) => setResults(answer.results),
-                (error) => setProblem(error.message),
+            let live = true;
+
+            setResults(null);
+            setFull(false);
+            pocket.api(`search?q=${encodeURIComponent(query)}&mode=keywords`).then(
+                (answer) => live && setResults((now) => now ?? answer.results),
+                (error) => live && setProblem(error.message),
             );
+            pocket.api(`search?q=${encodeURIComponent(query)}`).then(
+                (answer) => {
+                    if (live) {
+                        setResults(answer.results);
+                        setFull(true);
+                    }
+                },
+                (error) => live && setProblem(error.message),
+            );
+
+            return () => {
+                live = false;
+            };
         }, [query]);
 
         return html`<div class="wiki-results">
             <h2>“${query}”</h2>
+            ${results && !full && html`<p class="wiki-meta">Keyword matches; finding by meaning…</p>`}
             ${problem && html`<p class="wiki-problem">${problem}</p>`}
             ${!results && !problem && html`<${Loader} label="Searching" />`}
             ${results?.length === 0 && html`<p class="wiki-empty">No page has these words.</p>`}
@@ -402,7 +425,6 @@ export default function wiki(pocket) {
         const [busy, setBusy] = useState(false);
         const [tokens, setTokens] = useState("");
         const [minutes, setMinutes] = useState("");
-        const [filter, setFilter] = useState("");
 
         const loaded = (next) => {
             setSettings(next);
@@ -433,9 +455,8 @@ export default function wiki(pocket) {
             return problem ? html`<p class="wiki-problem">${problem}</p>` : html`<${Loader} label="Loading the settings" />`;
         }
 
-        const models = embedding?.models?.filter(
-            (model) => filter === "" || `${model.id} ${model.name}`.toLowerCase().includes(filter.toLowerCase()),
-        );
+        const price = (model) => (model.pricePerMillion === 0 ? "free" : "$" + model.pricePerMillion.toFixed(3) + "/M");
+        const chosen = embedding?.models?.find((model) => model.id === settings.embeddingModel);
 
         return html`<div class="wiki-settings">
             <p class="muted small">The wiki is in <span class="mono">${settings.wikiDir.replace(/^.*\/files\/home/, "~")}</span>, in pi-para's format: pi with pi-para on a computer reads it as it is.</p>
@@ -483,30 +504,27 @@ export default function wiki(pocket) {
                         <div>Search by meaning ${settings.embeddingModel && html`<span class="ok">✓</span>`}</div>
                         <div class="muted small">
                             Keyword search always works. With an OpenRouter embedding model, search also finds pages by meaning.
-                            ${settings.embeddingModel ? html` Now: <span class="mono">${settings.embeddingModel}</span>.` : " Now: off."}
+                            Each search waits for the model to embed the query: some answer in 0.2 s, others in over 1 s. Changing it
+                            embeds the wiki again.
                         </div>
                         ${embedding?.error && html`<p class="wiki-problem">${embedding.error}</p>`}
                         ${embedding && !embedding.error && !embedding.signedIn && html`<p class="muted small">Sign in to OpenRouter in Settings > Providers to use one.</p>`}
+                        ${!embedding && html`<${Loader} label="Loading OpenRouter's models" />`}
                         ${
                             embedding?.signedIn &&
-                            html`<input type="search" placeholder="Find a model" value=${filter} onInput=${(event) => setFilter(event.currentTarget.value)} />
-                                <div class="wiki-models">
-                                    ${models.map(
-                                        (model) => html`<button
-                                            class=${`wiki-row ${model.id === settings.embeddingModel ? "on" : ""}`}
-                                            key=${model.id}
-                                            disabled=${busy}
-                                            onClick=${() => save({ embeddingModel: model.id })}
-                                        >
-                                            <span class="wiki-row-title">${model.name}</span>
-                                            <span class="wiki-row-meta">${model.id} · ${model.pricePerMillion === 0 ? "free" : `${model.pricePerMillion.toFixed(3)} per M tokens`} · ${model.context} tokens</span>
-                                        </button>`,
-                                    )}
-                                </div>`
+                            html`<div class="field">
+                                <div class="label">Embedding model</div>
+                                <select
+                                    value=${settings.embeddingModel ?? ""}
+                                    disabled=${busy}
+                                    onChange=${(event) => save({ embeddingModel: event.currentTarget.value === "" ? null : event.currentTarget.value })}
+                                >
+                                    <option value="">Off: keyword search only</option>
+                                    ${embedding.models.map((model) => html`<option value=${model.id}>${model.name} · ${price(model)}</option>`)}
+                                </select>
+                                ${chosen && html`<div class="muted small mono">${chosen.id} · ${price(chosen)} · up to ${chosen.context} tokens</div>`}
+                            </div>`
                         }
-                    </div>
-                    <div class="provider-actions">
-                        ${settings.embeddingModel && html`<button class="button small ghost" disabled=${busy} onClick=${() => save({ embeddingModel: null })}>Turn off</button>`}
                     </div>
                 </div>
                 <div class="provider">

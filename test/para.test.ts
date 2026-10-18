@@ -136,6 +136,12 @@ test("the Wiki page's routes: the tree, a page with its backlinks, search, and s
     }
 
     assert.ok((await app.para.search("socket")).some((each) => each.path === "resources/terminal-reattach"));
+    // At once, by keyword alone: what the Wiki page shows before meaning is added.
+    const keywords = await app.para.searchKeywords("socket");
+    const hit = keywords.find((each) => each.path === "resources/terminal-reattach");
+
+    assert.equal(hit?.title, "Terminal reattach");
+    assert.match(hit!.snippet, /socket/);
     const status = await app.para.status();
 
     assert.equal(status.pages, 2);
