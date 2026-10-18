@@ -107,6 +107,11 @@ before(async () => {
             "UsePAM no",
             `PidFile ${join(etc, "sshd.pid")}`,
             "LogLevel ERROR",
+            // scp speaks SFTP: the server's sftp-server, where this system keeps it (Termux, Debian, Fedora).
+            ...[join(process.env.PREFIX ?? "/usr", "libexec", "sftp-server"), "/usr/lib/openssh/sftp-server", "/usr/libexec/openssh/sftp-server"]
+                .filter((path) => existsSync(path))
+                .slice(0, 1)
+                .map((path) => `Subsystem sftp ${path}`),
         ].join("\n") + "\n",
     );
     sshd = spawn(sshdPath!, ["-D", "-e", "-f", join(etc, "sshd_config")], { stdio: ["ignore", "ignore", "pipe"] });
@@ -556,6 +561,7 @@ test("Pi reaches machines with machine_run and machine_copy, never ssh; the app'
     calls["copy to box"] = ["machine_copy", { from: note, to: "box:~/copied/" }];
     calls["copy back"] = ["machine_copy", { from: "box:~/copied/note.txt", to: back }];
     calls["read the keys"] = ["read", { path: join(app.dataDir, "ssh", "keys") }];
+    calls["pi-ssh it"] = ["bash", { command: `pi-ssh box 'echo via-pi-ssh-$((40+2))' && rsync -a -e pi-ssh ${note} box:${join(remoteHome, "synced.txt")} && pi-ssh box 'cat ${join(remoteHome, "synced.txt")}' && scp -q -S pi-ssh box:${join(remoteHome, "synced.txt")} ${join(root, "scp-back.txt")} && cat ${join(root, "scp-back.txt")}` }];
     calls["dump the database"] = ["bash", { command: `sqlite3 ${join(app.dataDir, "pocket.sqlite")} .dump` }];
 
     const { id } = await app.commands.createSession(owner(app), { cwd: join(remoteHome, "..") });
@@ -582,13 +588,19 @@ test("Pi reaches machines with machine_run and machine_copy, never ssh; the app'
     assert.match(await say("copy back"), /Copied box:/);
     assert.equal(readFileSync(back, "utf8"), "from the phone\n");
 
+    // pi-ssh: ssh with the app's machines, signing through its agent: a command, rsync, and scp.
+    const piSsh = await say("pi-ssh it");
+
+    assert.match(piSsh, /via-pi-ssh-42/);
+    assert.equal((piSsh.match(/from the phone/g) ?? []).length, 2, `rsync there and scp back: ${piSsh}`);
+
     assert.match(await say("read the keys"), /keeps its keys .* out of Pi's tools/);
     assert.match(await say("dump the database"), /keeps its keys .* out of Pi's tools/);
 
     // The phone session's prompt names the machines, and the tools to use; no ssh.
     assert.match(told, /The owner's machines: box \(/);
     assert.match(told, /machine_run[^\n]*machine_copy/);
-    assert.match(told, /Your bash has no ssh to them/);
+    assert.match(told, /use pi-ssh, ssh with these machines by name/);
     assert.equal(existsSync(join(home, ".ssh", "pi-phone_config")), false);
     assert.equal(existsSync(join(home, ".ssh", "keys")), false);
     app.secrets.remove("BOX_TOKEN");

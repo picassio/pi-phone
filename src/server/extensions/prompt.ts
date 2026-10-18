@@ -151,7 +151,7 @@ export default function createPrompt(host: PocketHost) {
                             : [
                                   `The owner's machines: ${machines
                                       .map((each) => `${each.alias} (${each.address}, id ${each.id})`)
-                                      .join(", ")}. Run a command on one with machine_run, and copy files with machine_copy; for longer work there, start a session in a folder on it (session_start with the folder machine:<id>:<path>), which runs all your tools there. Your bash has no ssh to them: the app's keys are not yours to use.`,
+                                      .join(", ")}. Run a command on one with machine_run, and copy files with machine_copy; for longer work there, start a session in a folder on it (session_start with the folder machine:<id>:<path>), which runs all your tools there. For what needs ssh itself, use pi-ssh, ssh with these machines by name through the app's agent: pi-ssh <name> 'cmd', rsync -e pi-ssh, scp -S pi-ssh, pi-ssh -N -L <port>:localhost:<port> <name>. The keys stay the app's: you can use them, never read them. Plain ssh uses the owner's own ~/.ssh, for other hosts.`,
                               ];
 
                     return [`Working directory: ${cwdOf(input)}`, `Platform: ${process.platform}`, ...reach, `Today: ${today}`].join("\n");

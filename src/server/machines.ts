@@ -64,8 +64,11 @@ export class Machines {
     readonly #keys: SshKeys;
     /** The app's own known-hosts file, in its `ssh` folder. */
     readonly knownHostsFile: string;
-    /** The app's `ssh` config (`-F`): its ssh-agent signs. */
+    /** The app's `ssh` config (`-F`): its ssh-agent signs, and each machine with an accepted host key has a `Host`. */
     readonly configFile: string;
+    /** `pi-ssh`: `ssh -F` the app's config, for Pi's bash (rsync, tunnels, scp) without the keys (`bin/` on its PATH). */
+    readonly piSsh: string;
+    readonly #agentSocket: string;
     readonly #home: string;
     /** Told after every change (`#save`): the app sends its tabs the connected machines again (`hello`). */
     readonly #changed: () => void;
@@ -90,17 +93,59 @@ export class Machines {
         this.#machines = existsSync(this.#file)
             ? (JSON.parse(readFileSync(this.#file, "utf8")) as { machines: Machine[] }).machines
             : [];
-        writeFileSync(
-            this.configFile,
-            `# Written by pi-phone: its machines' ssh, signing with its ssh-agent. Changes here are replaced.\nHost *\n    IdentityAgent ${quoteConfigValue(agent.socket)}\n    IdentitiesOnly yes\n`,
-            { mode: 0o600 },
-        );
+        this.#agentSocket = agent.socket;
+        this.piSsh = join(sshDir, "bin", "pi-ssh");
+        this.#writeConfig();
         this.#leaveHomeSsh();
     }
 
     #save(): void {
         writeFileSync(this.#file, `${JSON.stringify({ machines: this.#machines }, null, 2)}\n`, { mode: 0o600 });
+        this.#writeConfig();
         this.#changed();
+    }
+
+    /**
+     * The app's ssh config, and `pi-ssh`. Every connection signs with the agent; each machine with an accepted host key
+     * is a `Host` by its alias, with its key (by its public half), the app's known hosts under its alias, strict host
+     * key checks, and never a prompt. `pi-ssh <alias>` then reaches it: `rsync -e pi-ssh`, `scp -S pi-ssh`,
+     * `pi-ssh -N -L …`. Whatever runs it can use a key through the agent, never read it.
+     */
+    #writeConfig(): void {
+        const hosts = this.sshHosts().map(({ machine, alias }) =>
+            [
+                `# ${machine.name.replace(/[\r\n]/g, " ")}`,
+                `Host ${alias}`,
+                `    HostName ${machine.host}`,
+                `    User ${machine.user}`,
+                ...(machine.port === undefined ? [] : [`    Port ${machine.port}`]),
+                `    IdentityFile ${quoteConfigValue(this.#keys.publicKeyPath(machine.keyId))}`,
+                `    HostKeyAlias pi-phone-${machine.id}`,
+            ].join("\n"),
+        );
+
+        writeFileSync(
+            this.configFile,
+            [
+                "# Written by pi-phone: its machines' ssh, signing with its ssh-agent. Changes here are replaced.",
+                ...hosts,
+                [
+                    "Host *",
+                    `    IdentityAgent ${quoteConfigValue(this.#agentSocket)}`,
+                    "    IdentitiesOnly yes",
+                    `    UserKnownHostsFile ${quoteConfigValue(this.knownHostsFile)}`,
+                    "    StrictHostKeyChecking yes",
+                    "    BatchMode yes",
+                    "    ServerAliveInterval 15",
+                ].join("\n"),
+            ].join("\n\n") + "\n",
+            { mode: 0o600 },
+        );
+        mkdirSync(join(this.piSsh, ".."), { recursive: true, mode: 0o700 });
+        const shell = existsSync(join(process.env.PREFIX ?? "/usr", "bin", "sh")) ? join(process.env.PREFIX ?? "/usr", "bin", "sh") : "/bin/sh";
+
+        writeFileSync(this.piSsh, `#!${shell}\n# pi-phone: ssh with the app's machines and its agent.\nexec ssh -F ${JSON.stringify(this.configFile)} "$@"\n`, { mode: 0o700 });
+        chmodSync(this.piSsh, 0o700);
     }
 
     /**
@@ -142,7 +187,7 @@ export class Machines {
         }
     }
 
-    /** The machines with an accepted host key, each with a short alias: how Pi names them (machine_run, machine_copy). */
+    /** The machines with an accepted host key, each with a short alias: how Pi names them (machine_run, machine_copy, pi-ssh). */
     sshHosts(): { machine: Machine; alias: string }[] {
         const trusted = this.#machines.filter((machine) => machine.hostKey !== undefined);
 

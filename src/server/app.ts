@@ -509,13 +509,19 @@ export class PocketApp {
                     createEditTool(),
                     createBashTool({
                         prepare: async (execution, api, context) => {
+                            const cwd = (await api.agent(context)).cwd ?? this.defaultCwd;
+
+                            // On the phone, `pi-ssh` (the app's machines, through its agent) is on the PATH.
+                            if (!isRemote(cwd)) {
+                                execution.env.PATH = `${join(this.machines.piSsh, "..")}:${process.env.PATH ?? ""}`;
+                            }
+
                             const named = namesIn(execution.command);
 
                             if (named.length === 0) {
                                 return;
                             }
 
-                            const cwd = (await api.agent(context)).cwd ?? this.defaultCwd;
                             const env = this.secrets.environment(named, cwd);
 
                             Object.assign(execution.env, env);

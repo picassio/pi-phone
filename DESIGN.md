@@ -169,6 +169,12 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
     stores (`<data>/ssh`, `pocket.sqlite`, `secrets.json`; `ssh-add` and `SSH_AUTH_SOCK` in commands), and treats
     `machine_run` as bash for secrets.
   - **The launcher:** it offers "Terminal: <machine>" for each connected machine.
+  - **`pi-ssh`:** for what needs ssh itself (rsync, tunnels, scp), `<data>/ssh/bin/pi-ssh` is `exec ssh -F
+    <data>/ssh/config "$@"`. The config has a `Host` per machine with an accepted host key, by its alias, with its
+    public key, its host-key alias and strict checks, and `Host *` signing through the agent. The coding tools'
+    `bash` puts its folder on the PATH for phone sessions (`prepare` in `app.ts`). Pi uses the keys through the agent
+    and never reads them: `pi-ssh <alias> 'cmd'`, `rsync -e pi-ssh`, `scp -S pi-ssh`, `pi-ssh -N -L`. Plain `ssh`
+    in Pi's bash and in the phone terminal uses the owner's own `~/.ssh`, for other hosts.
 - **The PARA wiki** (`src/server/para.ts`, `extensions/para.ts`): pi-para (npm, pinned) on Pi Durable. Its wiki
   (`~/.pi/wiki`), config (`~/.pi/para/config.jsonc`), qmd index and scheduler are pi-para's own, so pi on a computer
   with pi-para shares the format. Its nine `wiki_*` tools are pi-para's implementations wrapped as Pi Durable tools;
