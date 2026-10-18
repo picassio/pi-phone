@@ -412,6 +412,17 @@ export function CwdSheet({ mode, start }) {
     const favoriteLabels = recentLabels(favorites, home);
     const labels = recentLabels(recent, home);
     const machines = store.state.server?.machines ?? [];
+    // Whether each machine answers (`/api/machines/health`, kept a minute on the server): a broken one is marked.
+    const [health, setHealth] = useState({});
+
+    useEffect(() => {
+        if (machines.length > 0 && store.state.me?.role === "owner") {
+            api("machines/health").then(
+                (answer) => setHealth(answer.health),
+                () => {},
+            );
+        }
+    }, [machines.length]);
     const onMachine = splitPlace(folder ?? "").machineId;
     const places = [
         ...(home ? [{ path: home, name: "Home", icon: "home" }] : []),
@@ -556,12 +567,13 @@ export function CwdSheet({ mode, start }) {
                         key=${machine.id}
                         type="button"
                         class=${`fp-place ${onMachine === machine.id ? "on" : ""}`}
-                        title=${`${machine.name}: its home folder`}
+                        title=${health[machine.id]?.ok === false ? `${machine.name}: can't connect, ${health[machine.id].problem}` : `${machine.name}: its home folder`}
                         aria-current=${onMachine === machine.id ? "location" : undefined}
                         onClick=${() => load(joinPlace(machine.id, machine.home))}
                     >
                         <${Icon} name="monitor" size=${15} />
                         <span>${machine.name}</span>
+                        ${health[machine.id]?.ok === false && html`<span class="warn" aria-label="Can't connect">⚠</span>`}
                     </button>`,
                 )}
                 ${favorites.length > 0 && html`<div class="fp-places-title">Favorites</div>`}

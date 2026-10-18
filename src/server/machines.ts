@@ -394,6 +394,26 @@ export function parseAddress(address: unknown): { user: string; host: string; po
 }
 
 /** An ssh failure in the owner's words: what the machine said, with the likely cause first. */
+/**
+ * What an ssh failure means, in the owner's words: the likely cause first, else what ssh said. For setup's errors and
+ * for the machines' health (`Places.health`).
+ */
+export function sshProblem(said: string): string {
+    if (/Permission denied|publickey|Authentication failed/i.test(said)) {
+        return "the machine refused the key: is its public key in ~/.ssh/authorized_keys there?";
+    }
+
+    if (/host key|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(said)) {
+        return "its host key changed since you accepted it: if it was reinstalled, forget the old key and scan again";
+    }
+
+    if (/Connection refused|Could not resolve|No route|timed out|Network is unreachable|no answer in/i.test(said)) {
+        return "the machine is not reachable from the phone (off, asleep, or another network)";
+    }
+
+    return said;
+}
+
 function sshFailure(machine: Machine, error: unknown): Error {
     if (error instanceof HttpError) {
         return error;
@@ -412,13 +432,8 @@ function sshFailure(machine: Machine, error: unknown): Error {
 
     if (error instanceof SshError) {
         const said = error.stderr.trim().split("\n").at(-1) ?? "";
-        const why = /Permission denied/i.test(said)
-            ? "the machine refused the key: is its public key in ~/.ssh/authorized_keys there?"
-            : /Connection refused|Could not resolve|No route|timed out|Network is unreachable/i.test(said)
-              ? "the machine is not reachable from the phone"
-              : said;
 
-        return new HttpError(502, `Could not reach ${machine.name} (${machine.user}@${machine.host}): ${why}`);
+        return new HttpError(502, `Could not reach ${machine.name} (${machine.user}@${machine.host}): ${sshProblem(said)}`);
     }
 
     return error instanceof Error ? error : new Error(String(error));

@@ -142,6 +142,24 @@ test("a session on a machine runs its tools there, and the prompt says where", {
     void home;
 });
 
+test("each set-up machine's health: this one answers; one whose address answers nothing says why", { skip }, async () => {
+    const health = await app.places.health(true);
+
+    assert.equal(health[machineId]?.ok, true);
+    assert.equal((await app.places.health()) === health, true, "kept a minute");
+
+    // A machine set up at an address where nothing listens (the test machine's port + 1).
+    const broken = app.machines.add({ name: "gone", address: `${userInfo().username}@127.0.0.1:1`, keyId: app.machines.get(machineId).keyId });
+    const stored = app.machines.get(broken.id);
+
+    Object.assign(stored, { remote: app.machines.get(machineId).remote });
+    const again = await app.places.health(true);
+
+    assert.equal(again[broken.id]?.ok, false);
+    assert.match(again[broken.id]?.problem ?? "", /not reachable|refused|Connection/i);
+    app.machines.remove(broken.id);
+});
+
 test("a folder that is not on the machine is refused by name; worktrees stay on the phone", { skip }, async () => {
     await assert.rejects(
         app.commands.createSession(owner(app), { cwd: `machine:${machineId}:/no/such/folder` }),

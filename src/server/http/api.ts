@@ -858,6 +858,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         // Machines (`machines.ts`): the owner's; nothing runs on one without their tap.
+        // Whether each set-up machine answers now, and why not (`Places.health`): for the Machines sheet and the picker.
+        if (first === "machines" && second === "health" && method === "GET") {
+            requireOwner(user);
+
+            return json(response, 200, { health: await app.places.health(url.searchParams.get("fresh") === "1") });
+        }
+
         if (first === "machines" && method === "GET" && second === undefined) {
             requireOwner(user);
 

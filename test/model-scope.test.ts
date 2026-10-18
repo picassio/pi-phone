@@ -1,4 +1,4 @@
-import { cleanUp, owner, root, scriptedModel, work } from "./helpers.ts";
+import { cleanUp, home, owner, root, scriptedModel, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -11,6 +11,8 @@ const app = await PocketApp.open({
     supervised: false,
     log: () => {},
     configureModels: (models) => models.registerNativeProvider(scriptedModel().provider),
+    // The test's own home: without it the app takes the real one, and writes its ssh config there.
+    home,
 });
 
 type Choices = Awaited<ReturnType<typeof app.modelList>>;

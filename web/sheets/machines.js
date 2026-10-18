@@ -71,7 +71,7 @@ function MachineForm({ machine, keys, onDone }) {
  * One machine and where it stands: added (scan its host key), host key accepted (install and connect), connected
  * (test, edit, remove). Each step is the owner's tap; nothing runs on the machine before "Install and connect".
  */
-function MachineRow({ machine, keys, onChanged }) {
+function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
     const [editing, setEditing] = useState(false);
     const [scan, setScan] = useState(null);
     const [busy, setBusy] = useState(null);
@@ -151,7 +151,8 @@ function MachineRow({ machine, keys, onChanged }) {
         <div>
             <div>
                 ${machine.name}
-                ${state === "connected" && html` <span class="ok">✓</span>`}
+                ${state === "connected" && health?.ok !== false && html` <span class="ok">✓</span>`}
+                ${state === "connected" && health?.ok === false && html` <span class="warn">⚠</span>`}
             </div>
             <div class="muted small mono">${address(machine)}</div>
             <div class="muted small">
@@ -165,6 +166,17 @@ function MachineRow({ machine, keys, onChanged }) {
                 ${key ? ` · key: ${key.name}` : " · key missing"}
             </div>
             ${checked && html`<div class="muted small">Reached: ${checked}</div>`}
+            ${
+                state === "connected" &&
+                health !== undefined &&
+                (health.ok
+                    ? html`<div class="muted small">Answers now (checked ${timeAgo(health.at)} ago)</div>`
+                    : html`<div class="machine-problem small">
+                          <strong>Can't connect:</strong> ${health.problem}
+                          ${health.said && health.said !== health.problem && html`<div class="muted mono">${health.said}</div>`}
+                          <button class="link small" onClick=${onRecheck}>Check again</button>
+                      </div>`)
+            }
             ${
                 scan &&
                 html`<div class="machine-step">
@@ -217,6 +229,13 @@ export function MachinesSheet() {
     const [machines, setMachines] = useState(null);
     const [keys, setKeys] = useState([]);
     const [adding, setAdding] = useState(false);
+    // Whether each set-up machine answers now: asked fresh as the sheet opens, and again on Check again.
+    const [health, setHealth] = useState({});
+    const recheck = () =>
+        api("machines/health?fresh=1").then(
+            (answer) => setHealth(answer.health),
+            () => {},
+        );
     const load = async () => {
         const [list, keyList] = await Promise.all([api("machines"), api("ssh-keys")]);
 
@@ -226,6 +245,7 @@ export function MachinesSheet() {
 
     useEffect(() => {
         attempt(load);
+        recheck();
     }, []);
 
     return html`<${Sheet} title="Machines" onClose=${closeSheet}>
@@ -238,7 +258,7 @@ export function MachinesSheet() {
             machines !== null &&
             machines.length > 0 &&
             html`<div class="sheet-list">
-                ${machines.map((machine) => html`<${MachineRow} key=${machine.id} machine=${machine} keys=${keys} onChanged=${() => attempt(load)} />`)}
+                ${machines.map((machine) => html`<${MachineRow} key=${machine.id} machine=${machine} keys=${keys} health=${health[machine.id]} onRecheck=${recheck} onChanged=${() => attempt(load)} />`)}
             </div>`
         }
         ${

@@ -19,6 +19,7 @@ import {
 } from "@earendil-works/pi-env";
 import { HttpError } from "./errors.ts";
 import type { Machine, Machines } from "./machines.ts";
+import { sshProblem } from "./machines.ts";
 
 const PREFIX = "machine:";
 
@@ -48,6 +49,11 @@ export const isRemote = (cwd: string): boolean => cwd.startsWith(PREFIX);
 
 /** The cwd's path part, for display: the folder on the phone, or on the machine. */
 export const pathOf = (cwd: string): string => parsePlace(cwd).path;
+
+/** A machine's answer to `Places.health`: when it was checked, and if it failed, why (and what ssh said). */
+export type MachineHealth = { ok: boolean; at: number; problem?: string; said?: string };
+
+const HEALTH_MS = 60_000;
 
 export class Places {
     readonly #machines: Machines;
@@ -121,6 +127,35 @@ export class Places {
             clearTimeout(timer);
         }
     }
+
+    /**
+     * Whether each set-up machine answers now, checked all at once (`reach`, 10 s each), with what a failure means
+     * (`sshProblem`). Kept a minute, so the Machines sheet and the folder picker do not each wait for it; `fresh`
+     * checks again.
+     */
+    async health(fresh = false): Promise<Record<string, MachineHealth>> {
+        if (!fresh && this.#health !== undefined && Date.now() - this.#health.at < HEALTH_MS) {
+            return this.#health.machines;
+        }
+
+        const machines = this.#machines.list().filter((machine) => machine.remote !== undefined);
+        const checked = await Promise.all(
+            machines.map(async (machine) => {
+                const reached = await this.reach(machine.id, 10_000);
+                const health: MachineHealth = reached.ok
+                    ? { ok: true, at: Date.now() }
+                    : { ok: false, at: Date.now(), problem: sshProblem(reached.error), said: reached.error.slice(0, 300) };
+
+                return [machine.id, health] as const;
+            }),
+        );
+
+        this.#health = { at: Date.now(), machines: Object.fromEntries(checked) };
+
+        return this.#health.machines;
+    }
+
+    #health: { at: number; machines: Record<string, MachineHealth> } | undefined;
 
     /**
      * One connection per machine, lazily: nothing happens until the first request, which starts the daemon over ssh

@@ -11783,6 +11783,20 @@ textarea.notes {
     flex: none;
 }
 
+/* A set-up machine that does not answer now (Places.health). */
+.machine-problem {
+    margin-top: 0.35rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
+    color: var(--text);
+}
+
+.fp-place .warn {
+    margin-left: auto;
+    color: var(--warn);
+}
+
 /* An interactive answer (OpenUI): its frame fits the answer, or fills the artifact viewer. */
 .openui-frame {
     display: block;

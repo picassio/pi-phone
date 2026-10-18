@@ -39,6 +39,8 @@ function server(
         {
             env: {
                 ...process.env,
+                // A home of its own: with the real one, the server writes the owner's ~/.ssh/pi-phone_config.
+                HOME: join(root, name, "home"),
                 PI_CODING_AGENT_DIR: join(root, name, "agent"),
                 PI_POCKET_GUARD: "off",
                 PI_POCKET_LAUNCHER: "",

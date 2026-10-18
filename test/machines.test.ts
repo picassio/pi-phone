@@ -7,7 +7,7 @@ import { createServer } from "node:net";
 import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import { Machines, parseAddress } from "../src/server/machines.ts";
+import { Machines, parseAddress, sshProblem } from "../src/server/machines.ts";
 import { SshKeys } from "../src/server/ssh-keys.ts";
 
 const root = mkdtempSync(join(tmpdir(), "pi-phone-machines-"));
@@ -161,4 +161,12 @@ test("a place is a machine and a path; a session on a machine not connected is r
     assert.equal(isRemote("machine:abc:/x"), true);
     assert.equal(pathOf("machine:abc:/x"), "/x");
     assert.throws(() => parsePlace("machine:abc"), /Not a place/);
+});
+
+test("what an ssh failure means, in the owner's words", () => {
+    assert.match(sshProblem("ubuntu@192.168.1.5: Permission denied (publickey)."), /refused the key: is its public key in ~\/\.ssh\/authorized_keys/);
+    assert.match(sshProblem("ssh: connect to host 192.168.1.5 port 22: No route to host"), /not reachable from the phone/);
+    assert.match(sshProblem("no answer in 10 s"), /not reachable from the phone/);
+    assert.match(sshProblem("@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@"), /host key changed/);
+    assert.equal(sshProblem("something else"), "something else");
 });

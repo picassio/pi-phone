@@ -117,7 +117,12 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
   stayed on the phone; all were checked working there on 2026-10-18. The environment section says which machine, that
   its git/gh logins are the machine's, that attachments are copied there, and that a command stops ~30 s after the link
   drops; AGENTS.md and skills are not read for a machine (they would be the phone's). The folder picker
-  browses the machine through its environment (New folder makes one there). Worktrees are for the phone's folders.
+  browses the machine through its environment (New folder makes one there). **Health:** a machine counts as set up once
+  connected, but whether it answers now is `Places.health()`: every set-up machine `reach`ed at once (10 s each),
+  kept a minute, with `sshProblem()` saying what a failure means (key refused, host key changed, not reachable). It is
+  served at `GET /api/machines/health` (`?fresh=1` checks again). The Machines sheet asks fresh as it opens and shows
+  "Answers now" or "Can't connect" with the reason and Check again; the folder picker marks a machine that does not
+  answer. Worktrees are for the phone's folders.
   The Files panel (pi-env's gitignore-aware `listFiles`), the file viewer, images in replies (the image route reads
   them there), Changes, diffs, and undo (git run there through `folder-access.ts`) work on a machine's folder.
   The Files panel uploads into the open file's folder or the session's (`workspace.putFile`), here or on the machine,
