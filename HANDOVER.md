@@ -58,7 +58,7 @@ Done:
   the shell outlives its socket for 15 min and is taken up again by id with its last output; Paste, Select, End.
 - Notifications (PiService polls `/api/phone/events`), downloads to Downloads (bridge `download`), ports of
   machines (`forwards.ts`), branches on a machine, This phone (battery optimisation, backup and restore, `backup.ts`).
-- The PARA wiki: pi-para 0.8.1 and qmd-engine 2.7.0 (both on node:sqlite), tools and prompt context (`para.ts`). Wiki page
+- The PARA wiki: pi-para 0.8.2 and qmd-engine 2.7.1 (both on node:sqlite), tools and prompt context (`para.ts`). Wiki page
   and editor, capture (`para-capture.ts`) done. Wiki settings (embedding picker included) done.
   sqlite-vec for Android (`native/android-arm64/vec0.so`) done: search by meaning works with an OpenRouter embedding
   model. Never a local model (AGENTS.md).
