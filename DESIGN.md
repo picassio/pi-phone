@@ -262,6 +262,15 @@ them. pi-pocket's Chromium driver lives on in `test/support/` for the UI tests.
     ask-first approvals.
   - **Diagrams and documents:** core, with no module to turn off.
   - **The Extensions sheet** lists Secrets, Interview and Web access by title, in `ORDER`.
+- **Math** (`web/math.js`, KaTeX 0.19.0 pinned): a marked extension turns `$…$`, `\(…\)` (inline) and `$$…$$`,
+  `\[…\]` (display; as a block only at a line's start, inside a sentence it stays inline) into
+  `<code data-math="inline|display">` placeholders, with the TeX as text. `data-math` is the one data attribute
+  added to the sanitizer's. A single `$` follows pandoc's rule (it opens before a non-space, closes after one, and
+  not before a digit), so prices stay text. `Markdown` calls `drawMath` after every render: it loads KaTeX (`/vendor/katex/katex.mjs`
+  and its CSS; `katexFile` in `http/assets.ts` serves the module, the stylesheet, and the woff2 fonts) the first time,
+  and replaces each placeholder with KaTeX's output (`trust: false`, `throwOnError: false`). A drawn one stays,
+  because Preact leaves unchanged HTML alone, so there is no cache to clear. In `ui.js`, sanitizing skips
+  `code[data-math]` (no path links, no inline-code part).
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

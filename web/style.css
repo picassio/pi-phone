@@ -11783,6 +11783,19 @@ textarea.notes {
     flex: none;
 }
 
+/* Math (KaTeX): inline in the line, display math on its own line, scrolling sideways when wider than the screen. */
+.md .math-display {
+    margin: 0.5rem 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* Before KaTeX draws it: the TeX, quietly. */
+.md code[data-math] {
+    font-family: var(--mono);
+    opacity: 0.7;
+}
+
 /* A Mermaid diagram (pele), in the theme's colors: pele reads these variables, so a theme change needs no redraw. */
 .rich-diagram {
     padding: 0.6rem;

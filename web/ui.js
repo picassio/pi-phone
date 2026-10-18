@@ -7,6 +7,7 @@ import { Component, createContext, h } from "preact";
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useDragToClose } from "./gestures.js";
 import { highlight, langOf } from "./highlight.js";
+import { drawMath, mathExtension } from "./math.js";
 import { machineById, splitPlace } from "./place.js";
 import { actions, filesShown, notify, openSheet, store } from "./store.js";
 
@@ -94,6 +95,8 @@ const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (char) => ESCAPES[
 /** A fence's language as it may be kept: a short name of safe characters, or nothing. */
 const FENCE_NAME = /^[\w+#.-]{1,24}$/;
 
+marked.use(mathExtension);
+
 marked.use({
     renderer: {
         // Task list boxes as characters: the sanitizer drops form controls.
@@ -129,7 +132,8 @@ const PURIFY = {
         "picture",
     ],
     ALLOW_DATA_ATTR: false,
-    ADD_ATTR: ["data-lang"],
+    // A code block's language, and math's placeholder: its TeX is text KaTeX draws, nothing else.
+    ADD_ATTR: ["data-lang", "data-math"],
     // `data-path` is the app's own mark for file paths (`sanitize`): a reply may not set it.
     FORBID_ATTR: [
         "style",
@@ -254,7 +258,8 @@ function sanitize(html, fold) {
     const fragment = DOMPurify.sanitize(html, PURIFY);
 
     // `src/app.ts` in a reply opens the file: inline code that is a path, not code blocks.
-    for (const code of fragment.querySelectorAll("code")) {
+    // Math's placeholders are not code: `drawMath` draws them.
+    for (const code of fragment.querySelectorAll("code:not([data-math])")) {
         // Code in a line of words, for themes; a code block is `code-block`.
         if (!code.closest("pre")) {
             code.dataset.part = "inline-code";
@@ -483,15 +488,20 @@ export function Markdown({
     conversationId,
 }) {
     const parts = markdownParts(text, conversationId, cache, base, breaks);
+    const root = useRef(null);
+
+    // After every render: what changed may hold new math (a reply still being written, say).
+    useLayoutEffect(() => drawMath(root.current));
 
     if (parts.length === 1 && parts[0].kind === undefined) {
         return html`<div
+            ref=${root}
             class=${`md ${className}`}
             dangerouslySetInnerHTML=${{ __html: parts[0].html }}
         ></div>`;
     }
 
-    return html`<div class=${`md ${className}`}>
+    return html`<div ref=${root} class=${`md ${className}`}>
         ${parts.map((part, index) =>
             part.kind === undefined || RichBlock === null
                 ? html`<div

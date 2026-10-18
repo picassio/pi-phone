@@ -23,6 +23,27 @@ export const VENDOR: Record<string, string> = {
     "pele.mjs": join(MODULES, "pele", "dist", "pele.js"),
 };
 
+/**
+ * KaTeX (`web/ui.js`, math in Markdown), served from its package as a folder: its module and stylesheet, and the fonts
+ * the stylesheet loads by relative path (`fonts/…`). Browsers take the woff2 ones, so only those are served.
+ */
+export const KATEX = join(MODULES, "katex", "dist");
+
+/** A KaTeX file's path, or undefined for anything else. */
+export function katexFile(parts: readonly string[]): string | undefined {
+    const [first, second] = parts;
+
+    if (parts.length === 1 && (first === "katex.mjs" || first === "katex.min.css")) {
+        return join(KATEX, first);
+    }
+
+    if (parts.length === 2 && first === "fonts" && /^KaTeX_[A-Za-z0-9-]+\.woff2$/.test(second ?? "")) {
+        return join(KATEX, "fonts", second!);
+    }
+
+    return undefined;
+}
+
 export const TYPES: Record<string, string> = {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
