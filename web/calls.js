@@ -73,7 +73,7 @@ export function describeCall(call) {
                 title = String(args.questions ?? "").startsWith("{") ? "" : String(args.questions ?? "");
             }
 
-            return { icon: "?", label: "Interview", subject: title };
+            return { icon: "?", label: args.async === true ? "Interview, answered later" : "Interview", subject: title };
         }
         case "web_search": {
             const queries = [...(args.query ? [args.query] : []), ...(args.queries ?? [])];

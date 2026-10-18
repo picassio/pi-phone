@@ -17,11 +17,11 @@ import {
     defineExtension,
     defineTask,
     defineTool,
-    LiveDoc,
     type TaskRuntime,
 } from "@earendil-works/pi-durable";
 import { type CiWatch, CiWatchesDoc } from "../docs.ts";
 import type { PocketHost } from "../host.ts";
+import { sendFollowUp } from "../deliver.ts";
 
 const run = promisify(execFile);
 
@@ -37,7 +37,6 @@ const MAX_FAILURES = 6;
  * is idle).
  */
 const MAX_SENDS = 5;
-const SEND_CHECK_MS = 2_000;
 /** The end of a failed run's log that goes to Pi. */
 const LOG_CHARS = 6_000;
 const BACKGROUND = { ownership: { kind: "conversation" }, background: true } as const;
@@ -245,51 +244,23 @@ function createWatchTask(host: PocketHost) {
                     return forget(runtime, input, context);
                 }
 
-                const conversation = (await runtime.conversation(runtime.conversationId, context))!;
                 // Its own request id per send: a send made before a restart is found again, not made twice.
-                const submission = await conversation.submit(
-                    {
-                        type: "input",
-                        content: state.text,
-                        whenBusy: "followUp",
-                        requestId: `ci-watch:${String(runtime.taskId)}${attempt === 0 ? "" : `:${attempt}`}`,
-                    },
+                const sent = await sendFollowUp(
+                    runtime,
+                    state.text,
+                    `ci-watch:${String(runtime.taskId)}${attempt === 0 ? "" : `:${attempt}`}`,
                     context,
                 );
-                let idleChecks = 0;
 
-                // Delivered once it is in the transcript (an entry); withdrawn ones are sent again.
-                for (;;) {
-                    const record = await submission.status(context);
-
-                    if (record.entry !== undefined) {
-                        break;
-                    }
-
-                    let withdrawn = record.status === "unanswered";
-
-                    if (!withdrawn) {
-                        const live = await runtime.snapshot(LiveDoc, runtime.conversationId, context);
-
-                        idleChecks = live?.run === undefined ? idleChecks + 1 : 0;
-
-                        // Queued behind no run, twice in a row: stranded after a failed run.
-                        if (idleChecks >= 2 && (await submission.abort(context)) === "aborted") {
-                            withdrawn = true;
-                        }
-                    }
-
-                    if (withdrawn) {
-                        return runtime.commit(
-                            () => ({
-                                status: "running",
-                                checkpoint: { phase: "report", text: state.text, attempt: attempt + 1 },
-                            }),
-                            context,
-                        );
-                    }
-
-                    await new Promise((resolve) => setTimeout(resolve, SEND_CHECK_MS));
+                // Withdrawn ones are sent again.
+                if (sent === "withdrawn") {
+                    return runtime.commit(
+                        () => ({
+                            status: "running",
+                            checkpoint: { phase: "report", text: state.text, attempt: attempt + 1 },
+                        }),
+                        context,
+                    );
                 }
 
                 await forget(runtime, input, context);

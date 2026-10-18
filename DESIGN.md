@@ -256,8 +256,10 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   and answers the approval. A plain Allow is refused. An optional `timeout` ends it as pi-interview's timeout does.
   Media: images (paths through `fileUrl`, data: or https URLs), tables, Mermaid (pele), HTML (`HtmlPreview`).
   Chart.js charts are not drawn: the tool's description points to Mermaid pie and xychart. Image answers upload to
-  the session's upload folder and reach Pi as paths, which on a machine are the phone's (not yet copied there). Not
-  yet: async mode, and pi-interview's AI helpers. Allowed in plan mode. Docs are copied as JSON, not with
+  the session's upload folder and reach Pi as paths; in a session on a machine, each is copied there as the draft is
+  saved (`Workspace.placeUploads`), and Pi gets its path there. `async: true` returns at once with a short id; a
+  durable background task (`pocket.interview`) holds the approval instead, and once it ends sends the outcome as a
+  follow-up starting "Interview <id> finished." (`src/server/deliver.ts`, shared with `watch_ci`). Allowed in plan mode. Docs are copied as JSON, not with
   `structuredClone`: `tx.doc` objects are proxies, which it cannot clone ("#<Object> could not be cloned").
 - **Web access** (`src/server/web/`, `extensions/web.ts`, `web/sheets/web-access.js`): pi-web-access's tools, native, with
   the same names and arguments. **`web_search`** searches with the one provider the owner picks in Settings › Web

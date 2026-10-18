@@ -4,9 +4,15 @@
  * conversation has Answer, which opens the form; the phone tells the person; the session shows it waits for them. The
  * questions and the person's draft are in the conversation (`InterviewsDoc`), so a restart loses nothing: the call asks
  * again, or finds the answer given while it was away.
+ *
+ * With `async: true` the call returns at once with the interview's id and Pi keeps working: a durable background task
+ * waits for the person instead, and when they submit, skip, or it times out, sends the conversation the same words as
+ * a message starting "Interview <id> finished." (`deliver.ts`), which starts Pi's next turn when it is idle.
  */
+import type { Context } from "@earendil-works/chord";
 import { Type } from "@earendil-works/pi-ai";
-import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
+import { type ConversationId, defineExtension, defineTask, defineTool, section, type TaskId } from "@earendil-works/pi-durable";
+import { sendFollowUp } from "../deliver.ts";
 import type { PocketHost } from "../host.ts";
 import { type Interview, InterviewsDoc, outcomeText, parseQuestions, type QuestionsFile, validateQuestions } from "../interviews.ts";
 
@@ -27,12 +33,153 @@ const DESCRIPTION =
     "When there are recommendations, set description to guide the review (e.g. 'Review my suggestions and adjust as needed'). " +
     'content shows code or Markdown (lang "md") above the options; Markdown can hold ```mermaid diagrams. ' +
     'Media: { type: "image", src, alt, caption } (a file path or data: URL), { type: "table", table: { headers, rows, highlights } }, { type: "mermaid", mermaid: "flowchart LR..." } (for charts too: pie, xychart), { type: "html", html }. ' +
-    "Types: single (one choice), multi (several), text (free text), image (photos the person takes or picks, returned as file paths: read them), info (context only, no answer).";
+    "Types: single (one choice), multi (several), text (free text), image (photos the person takes or picks, returned as file paths: read them), info (context only, no answer). " +
+    "async: true returns at once with the interview's id, so you keep working; the answers come later in a message starting \"Interview <id> finished.\", which starts a turn when you are idle.";
+
+const TASK = "pocket.interview";
+/** Sends of an async interview's answers before it gives up (see `deliver.ts`). */
+const MAX_SENDS = 5;
+const BACKGROUND = { ownership: { kind: "conversation" }, background: true } as const;
+
+type AsyncInput = { callId: string; title: string; timeout?: number; deadline?: number };
+type AsyncState = { phase: "ask" } | { phase: "report"; text: string; attempt: number };
+
+/** The short id Pi and the person see for an async interview. */
+const shortId = (callId: string) => callId.replace(/[^A-Za-z0-9]/g, "").slice(-8);
 
 /** In every prompt while the module is on. */
 export const ASKING = `Asking the person: when you need them to choose between options, or to answer several things at once (requirements, a decision with parts, which of several next steps), call interview instead of writing the questions in chat. Give your recommendation with each question. A single yes/no question, or one short question, stays in chat. Ask before acting, not after.`;
 
 export default function createInterview(host: PocketHost) {
+    /**
+     * Wait for the person: the interview's card asks them (an approval with the form), the phone tells them. Answered
+     * in its form, its status is set there; denied from its card, or timed out at `deadline` (ms), `settle` marks it
+     * so (`ending`) and gives the interview as it ended.
+     */
+    const waitForPerson = async (
+        where: { conversationId: ConversationId; taskId: TaskId; callId: string },
+        item: Interview,
+        deadline: number | undefined,
+        settle: (ending: (items: Record<string, Interview>) => Interview) => Promise<Interview>,
+        context: Context,
+    ): Promise<Interview> => {
+        const { questions } = item;
+        const id = `interview-${String(where.taskId)}-${where.callId}`;
+        const title = questions.title ?? "Questions";
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let timedOut = false;
+
+        if (deadline !== undefined) {
+            timer = setTimeout(() => {
+                timedOut = true;
+                host.approvals.answer(id, { allow: false, by: "timeout" });
+            }, Math.max(0, deadline - Date.now()));
+        }
+
+        try {
+            await host.approvals.request(
+                {
+                    id,
+                    conversationId: where.conversationId,
+                    taskId: where.taskId,
+                    callId: where.callId,
+                    tool: "interview",
+                    subject: title,
+                    reason: questions.description ?? "",
+                    form: { type: "interview", callId: where.callId, title, count: questions.questions.filter((question) => question.type !== "info").length },
+                    createdAt: Date.now(),
+                },
+                context,
+            );
+        } finally {
+            clearTimeout(timer);
+        }
+
+        return settle((items) => {
+            const ended = items[where.callId]!;
+
+            if (ended.status === "waiting") {
+                ended.status = timedOut ? "timeout" : "cancelled";
+                ended.at = Date.now();
+            }
+
+            return JSON.parse(JSON.stringify(ended)) as Interview;
+        });
+    };
+
+    const finishedText = (callId: string, item: Interview, timeout: number | undefined) =>
+        `Interview ${shortId(callId)} finished.\n\n${outcomeText(item, timeout)}`;
+
+    /** An async interview: waits for the person in the background, then tells Pi, once. */
+    const AsyncInterview = defineTask<AsyncInput, AsyncState, null>({
+        name: TASK,
+        version: 1,
+        initial: () => ({ phase: "ask" }),
+        phases: {
+            ask: async (task, runtime, context) => {
+                const { callId, timeout, deadline } = task.input;
+                const item = (await runtime.snapshot(InterviewsDoc, runtime.conversationId, context))?.items[callId];
+
+                if (item === undefined) {
+                    return runtime.commit(() => ({ status: "terminal", outcome: { status: "completed", result: null } }), context);
+                }
+
+                // Answered while the app was away, or now.
+                const final =
+                    item.status === "waiting"
+                        ? await waitForPerson(
+                              { conversationId: runtime.conversationId, taskId: runtime.taskId, callId },
+                              item,
+                              deadline,
+                              async (ending) => {
+                                  let ended: Interview | undefined;
+
+                                  // The task's state stays as it is (undefined); the interview's is marked.
+                                  await runtime.commit(async (tx) => {
+                                      ended = ending((await tx.doc(InterviewsDoc, runtime.conversationId)).items);
+
+                                      return undefined;
+                                  }, context);
+
+                                  return ended!;
+                              },
+                              context,
+                          )
+                        : item;
+
+                await runtime.commit(
+                    () => ({ status: "running", checkpoint: { phase: "report", text: finishedText(callId, final, timeout), attempt: 0 } }),
+                    context,
+                );
+            },
+            report: async (task, runtime, context) => {
+                const state = task.state.checkpoint as Extract<AsyncState, { phase: "report" }>;
+
+                if (state.attempt >= MAX_SENDS) {
+                    host.notice("warning", `Pi could not be told the answers of "${task.input.title}": ${MAX_SENDS} sends were withdrawn.`, runtime.conversationId);
+
+                    return runtime.commit(() => ({ status: "terminal", outcome: { status: "completed", result: null } }), context);
+                }
+
+                const sent = await sendFollowUp(
+                    runtime,
+                    state.text,
+                    `interview:${String(runtime.taskId)}${state.attempt === 0 ? "" : `:${state.attempt}`}`,
+                    context,
+                );
+
+                await runtime.commit(
+                    () =>
+                        sent === "delivered"
+                            ? { status: "terminal", outcome: { status: "completed", result: null } }
+                            : { status: "running", checkpoint: { phase: "report", text: state.text, attempt: state.attempt + 1 } },
+                    context,
+                );
+            },
+        },
+        abort: (_task, runtime, context) => runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }) as const, context),
+    });
+
     const interview = defineTool({
         name: "interview",
         description: DESCRIPTION,
@@ -40,6 +187,9 @@ export default function createInterview(host: PocketHost) {
             questions: Type.String({ description: "Inline JSON with the questions, or a path to a JSON file" }),
             timeout: Type.Optional(
                 Type.Number({ description: "Seconds before the form ends without the person; default: no limit" }),
+            ),
+            async: Type.Optional(
+                Type.Boolean({ description: "Return at once; the answers come later as a message starting \"Interview <id> finished.\"" }),
             ),
         }),
         // Waiting for a person: after a restart, it asks again, or takes the answer given meanwhile.
@@ -80,6 +230,33 @@ export default function createInterview(host: PocketHost) {
                           },
                       ],
             );
+            const timeout = args.timeout !== undefined && args.timeout > 0 ? args.timeout : undefined;
+
+            if (args.async === true) {
+                // Once per call: after a restart, the task made the first time goes on.
+                await api.commit(async (tx) => {
+                    const items = (await tx.doc(InterviewsDoc, api.conversationId)).items;
+
+                    if (items[callId] === undefined) {
+                        items[callId] = { questions, draft: prefill, status: "waiting", createdAt: Date.now() };
+                        await tx.createTask(
+                            AsyncInterview,
+                            {
+                                callId,
+                                title: questions.title ?? "Questions",
+                                ...(timeout === undefined ? {} : { timeout, deadline: Date.now() + timeout * 1000 }),
+                            },
+                            BACKGROUND,
+                        );
+                    }
+                }, context);
+
+                return reply(
+                    `Interview ${shortId(callId)} is open in the app for the person to answer. Keep working, or end your turn: the answers come in a message starting "Interview ${shortId(callId)} finished."`,
+                    { status: "async", id: shortId(callId), title: questions.title ?? "" },
+                );
+            }
+
             const start = await api.commit(async (tx) => {
                 const items = (await tx.doc(InterviewsDoc, api.conversationId)).items;
 
@@ -94,56 +271,22 @@ export default function createInterview(host: PocketHost) {
                 return ended(start);
             }
 
-            const id = `interview-${String(api.taskId)}-${callId}`;
-            const title = questions.title ?? "Questions";
-            let timer: ReturnType<typeof setTimeout> | undefined;
-            let timedOut = false;
-
-            if (args.timeout !== undefined && args.timeout > 0) {
-                timer = setTimeout(() => {
-                    timedOut = true;
-                    host.approvals.answer(id, { allow: false, by: "timeout" });
-                }, args.timeout * 1000);
-            }
-
-            try {
-                await host.approvals.request(
-                    {
-                        id,
-                        conversationId: api.conversationId,
-                        taskId: api.taskId,
-                        callId,
-                        tool: "interview",
-                        subject: title,
-                        reason: questions.description ?? "",
-                        form: { type: "interview", callId, title, count: questions.questions.filter((question) => question.type !== "info").length },
-                        createdAt: Date.now(),
-                    },
+            return ended(
+                await waitForPerson(
+                    { conversationId: api.conversationId, taskId: api.taskId, callId },
+                    start,
+                    timeout === undefined ? undefined : Date.now() + timeout * 1000,
+                    (ending) => api.commit(async (tx) => ending((await tx.doc(InterviewsDoc, api.conversationId)).items), context),
                     context,
-                );
-            } finally {
-                clearTimeout(timer);
-            }
-
-            // Answered in its form, the status is set there; denied from its card or timed out, it is set here.
-            const final = await api.commit(async (tx) => {
-                const item = (await tx.doc(InterviewsDoc, api.conversationId)).items[callId]!;
-
-                if (item.status === "waiting") {
-                    item.status = timedOut ? "timeout" : "cancelled";
-                    item.at = Date.now();
-                }
-
-                return JSON.parse(JSON.stringify(item)) as Interview;
-            }, context);
-
-            return ended(final);
+                ),
+            );
         },
     });
 
     return defineExtension({
         name: "pocket-interview",
         tools: [interview],
+        tasks: [AsyncInterview],
         // A rule, not only the tool's description: the habit of asking in chat is stronger than a description.
         sections: [section("asking", () => ASKING)],
     });

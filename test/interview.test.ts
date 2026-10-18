@@ -34,6 +34,18 @@ const route: FauxResponseStep = (request) => {
         return fauxAssistantMessage([fauxToolCall("interview", { questions: file, timeout: 1 })], { stopReason: "toolUse" });
     }
 
+    if (role === "user" && text.endsWith("ask me later")) {
+        return fauxAssistantMessage([fauxToolCall("interview", { questions: JSON.stringify(QUESTIONS), async: true })], { stopReason: "toolUse" });
+    }
+
+    if (role === "user" && text.endsWith("ask later, briefly")) {
+        return fauxAssistantMessage([fauxToolCall("interview", { questions: JSON.stringify({ questions: [{ id: "n", type: "text", question: "Name?" }] }), async: true, timeout: 1 })], { stopReason: "toolUse" });
+    }
+
+    if (role === "user" && /Interview \w+ finished\./.test(text)) {
+        return fauxAssistantMessage([fauxText(`heard back: ${text}`)]);
+    }
+
     if (role === "user" && text.endsWith("ask badly")) {
         return fauxAssistantMessage([fauxToolCall("interview", { questions: '{"questions": [{"id": "a", "type": "single", "question": "?"}]}' })], { stopReason: "toolUse" });
     }
@@ -141,6 +153,34 @@ test("skipping from the card, or a timeout, still gives Pi what was answered; ba
     assert.equal(waiting(id), undefined);
 
     assert.match(await (await ask(id, "ask badly")).done(), /options required for type ..single/);
+});
+
+test("async: the call returns at once, Pi keeps going, and the answers come later as a message that starts a turn", async () => {
+    const id = await newSession(app);
+    const answer = await (await ask(id, "ask me later")).done();
+    const shortId = /Interview (\w+) is open in the app/.exec(answer)?.[1];
+
+    assert.ok(shortId, answer);
+    assert.match(answer, new RegExp(`answers come in a message starting \\\\?"Interview ${shortId} finished\\.`));
+    // The turn ended, and the form still waits for the person.
+    await until(() => waiting(id) !== undefined, "the interview");
+    const request = waiting(id)!;
+    const callId = request.form?.type === "interview" ? request.form.callId : "";
+
+    await app.answerInterview(id, callId, owner(app), { draft: [{ id: "framework", value: { option: "Vue" } }, { id: "notes", value: "later is fine" }], action: "submit" });
+    await until(async () => (await modelTexts(app, id)).some((text) => text.includes("heard back:")), "the answers' message, and Pi's turn");
+    const heard = (await modelTexts(app, id)).find((text) => text.includes("heard back:"))!;
+
+    assert.match(heard, new RegExp(`Interview ${shortId} finished\\.`));
+    assert.match(heard, /User completed the interview form/);
+    assert.match(heard, /Which framework\?: Vue/);
+    assert.match(heard, /Anything else\?: later is fine/);
+    assert.equal(waiting(id), undefined);
+
+    // A timeout ends it too, and says so.
+    await (await ask(id, "ask later, briefly")).done();
+    await until(async () => (await modelTexts(app, id)).filter((text) => text.includes("heard back:")).length === 2, "the timeout's message");
+    assert.match((await modelTexts(app, id)).filter((text) => text.includes("heard back:"))[1]!, /timed out after 1 seconds, without answers/);
 });
 
 test("asking is allowed in plan mode: the person answers, Pi changes nothing", () => {
