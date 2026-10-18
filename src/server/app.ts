@@ -2502,8 +2502,9 @@ export class PocketApp {
             // Unreadable settings: the default folders still count, and no project is trusted unasked.
         }
 
-        // OfficeCLI's skills, while it runs here: after Pi's own, so a skill of the owner's by the same name comes first.
-        const builtIn = this.officecli.available() ? [this.officecli.skillsDir] : [];
+        // The app's skills: after Pi's own, so a skill of the owner's by the same name comes first.
+        // Effective HTML's (artifacts), and OfficeCLI's where it runs (`third_party/`).
+        const builtIn = [join(APP_ROOT, "third_party", "effective-html", "skills"), ...(this.officecli.available() ? [this.officecli.skillsDir] : [])];
 
         return { agentDir: getAgentDir(), home: this.#home, settingsPaths, defaultProjectTrust, builtIn };
     }

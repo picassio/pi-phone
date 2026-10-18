@@ -1,0 +1,7 @@
+interface:
+  display_name: "Big Pics, Little Words"
+  short_description: "Explain with large visuals and minimal text"
+  default_prompt: "Use $big-pics-little-words to explain the current subject in HTML with large visuals and minimal text while preserving key details."
+
+policy:
+  allow_implicit_invocation: false

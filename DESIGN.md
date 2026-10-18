@@ -352,6 +352,12 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     `officecli view <file> html` with no resident process), in the artifacts' sandbox CSP. `hello`'s
     `server.officecli` says whether it runs.
   - **Machines:** see Machine tools.
+- **Effective HTML** (`third_party/effective-html/`; owner's decision of 2026-10-18): plannotator/effective-html's 7
+  skills (MIT, at commit `975b047`) for HTML artifacts: `html` (router), `design-artifact`, `html-wireframe`,
+  `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every
+  phone session (`SkillSources.builtIn`, first among the app's, after the owner's). Each gets one marked note: publish with
+  the `artifact` tool, self-contained, phone widths first, say what could not be checked. Plan mode's prompt points long
+  plans to `html-plan`, as an artifact beside the numbered list.
 - **Machine tools** (`src/server/machine-tools.ts`; owner's decisions of 2026-10-18): command-line programs run where
   bash runs, which in a session on a machine is the machine, so OfficeCLI, ripgrep, and fd are installed there.
   - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT
