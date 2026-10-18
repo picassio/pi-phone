@@ -80,6 +80,8 @@ export function openApp(
         log: () => {},
         configureModels: (models) => models.registerNativeProvider(model.provider),
         home,
+        // Off unless a test stands one in (test/officecli.test.ts): on the phone the bundled binary would run.
+        officecli: { runs: false },
         ...(now === undefined ? {} : { now }),
     });
 }

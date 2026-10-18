@@ -128,6 +128,18 @@ export async function artifact(
         });
     }
 
+    // A Word, Excel, or PowerPoint file as OfficeCLI renders it (`workspace.ts`'s `officePage`): the viewer's preview.
+    if (parts.length === 2 && parts[0] === "office") {
+        const page = await app.workspace.officePage(conversationId(parts[1]), user, query.get("path") ?? "");
+
+        return send(response, 200, page, "text/html; charset=utf-8", {
+            "content-security-policy": ARTIFACT_CSP,
+            "x-content-type-options": "nosniff",
+            "referrer-policy": "no-referrer",
+            "cache-control": "no-store",
+        });
+    }
+
     if (parts.length === 1 && parts[0] === "frame") {
         return send(response, 200, RUN_FRAME, "text/html; charset=utf-8", {
             "content-security-policy": ARTIFACT_CSP,

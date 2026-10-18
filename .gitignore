@@ -10,3 +10,5 @@ android/app/src/main/assets/termux-packages.json
 android/app/src/main/assets/shell-version
 android/app/src/main/assets/rootfs-version
 web/vendor/intelligent-ui/
+# OfficeCLI's Android binary (52 MB), fetched at build time: scripts/officecli.ts.
+native/android-arm64/officecli/

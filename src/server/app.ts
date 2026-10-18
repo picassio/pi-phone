@@ -79,6 +79,7 @@ import { Para } from "./para.ts";
 import { CAPTURE_EXTENSION, ParaCapture } from "./para-capture.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
+import { OfficeCli, type OfficeCliOptions } from "./officecli.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
 import { SshAgent } from "./ssh-agent.ts";
@@ -239,6 +240,8 @@ export interface OpenOptions {
     now?: () => number;
     /** The home folder, whose `.agents/skills/` every session has. Undefined is Pi's: `$HOME`. Tests use their own. */
     home?: string;
+    /** OfficeCLI as tests stand it in (a binary of their own); default the bundled one, on Android. */
+    officecli?: Omit<OfficeCliOptions, "dataDir">;
 }
 
 /** A send limit as given: a whole number of 1 to 10000 an hour, or null for none. */
@@ -305,6 +308,8 @@ export class PocketApp {
     readonly web: WebSearch;
     /** Other computers sessions can work on, over ssh (`machines.ts`). */
     readonly machines: Machines;
+    /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
+    readonly officecli: OfficeCli;
     /** Where sessions work, here or on a machine, and each place's execution environment (`places.ts`). */
     readonly places: Places;
     /** Ports of machines opened here (`forwards.ts`). */
@@ -376,6 +381,8 @@ export class PocketApp {
             void this.#refreshClients().catch((error: unknown) => this.log(`machines not sent to the tabs: ${describe(error)}`)),
         );
         this.places = new Places(this.machines);
+        this.officecli = new OfficeCli({ dataDir: options.dataDir, ...options.officecli });
+        this.officecli.install();
         this.forwards = new Forwards(this.machines);
         this.para = new Para({
             home: this.#home,
@@ -518,9 +525,11 @@ export class PocketApp {
                         prepare: async (execution, api, context) => {
                             const cwd = (await api.agent(context)).cwd ?? this.defaultCwd;
 
-                            // On the phone, `pi-ssh` (the app's machines, through its agent) is on the PATH.
+                            // On the phone, `pi-ssh` (the app's machines, through its agent) and `officecli` are on the PATH.
                             if (!isRemote(cwd)) {
-                                execution.env.PATH = `${join(this.machines.piSsh, "..")}:${process.env.PATH ?? ""}`;
+                                const office = this.officecli.available() ? `${this.officecli.binDir}:` : "";
+
+                                execution.env.PATH = `${office}${join(this.machines.piSsh, "..")}:${process.env.PATH ?? ""}`;
                             }
 
                             const named = namesIn(execution.command);
@@ -1715,6 +1724,8 @@ export class PocketApp {
                     .filter((machine) => machine.remote !== undefined)
                     .map((machine) => ({ id: machine.id, name: machine.name, home: machine.remote!.home })),
                 extensions: this.loader.extensionNames(),
+                // OfficeCLI runs here (`officecli.ts`): the Files viewer shows Word, Excel, and PowerPoint files.
+                officecli: this.officecli.available(),
                 // The browser modules this person's tabs load (`extension-ui.js`), each with the tools its module
                 // installs: the only ones whose calls it may describe (`pocket.toolCall`).
                 ui: this.#browserModules(user),
@@ -2463,7 +2474,10 @@ export class PocketApp {
             // Unreadable settings: the default folders still count, and no project is trusted unasked.
         }
 
-        return { agentDir: getAgentDir(), home: this.#home, settingsPaths, defaultProjectTrust };
+        // OfficeCLI's skills, while it runs here: after Pi's own, so a skill of the owner's by the same name comes first.
+        const builtIn = this.officecli.available() ? [this.officecli.skillsDir] : [];
+
+        return { agentDir: getAgentDir(), home: this.#home, settingsPaths, defaultProjectTrust, builtIn };
     }
 
     /** Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`). */

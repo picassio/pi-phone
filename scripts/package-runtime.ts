@@ -45,6 +45,11 @@ if (!existsSync(join(ROOT, "web", "vendor", "intelligent-ui", "frame.js"))) {
     throw new Error("web/vendor/intelligent-ui is not built: run node scripts/intelligent-ui.ts first.");
 }
 
+// OfficeCLI for Android (scripts/officecli.ts), fetched before packaging: not in git. The owner chose it bundled.
+if (!existsSync(join(ROOT, "native", "android-arm64", "officecli", "officecli"))) {
+    throw new Error("native/android-arm64/officecli is not fetched: run node scripts/officecli.ts first.");
+}
+
 // markit's engine for Android (`fetch_content`, attachments): npm installs it only when told the platform is Android.
 if (!existsSync(join(ROOT, "node_modules", "markit-engine-android-arm64", "markit.android-arm64.node"))) {
     throw new Error("markit-engine-android-arm64 is not in node_modules: install with npm ci --os=android --cpu=arm64.");

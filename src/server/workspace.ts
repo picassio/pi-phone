@@ -4,13 +4,15 @@
  * operations people call directly check who may do them; the path helpers (`conversationPath`, `conversationFile`,
  * `readableFile`, `uploadDirectory`) leave seeing the conversation to their callers.
  */
-import { lstatSync, mkdirSync, realpathSync, statSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { readFile, writeFile } from "node:fs/promises";
-import { basename, isAbsolute, join, posix, resolve, sep } from "node:path";
+import { basename, extname, isAbsolute, join, posix, resolve, sep } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
+import { OFFICE_EXTENSIONS } from "./officecli.ts";
 import {
     type Branches,
     branchesIn,
@@ -655,6 +657,37 @@ export class Workspace {
             }
 
             throw new HttpError(409, describe(error));
+        }
+    }
+
+    /**
+     * A Word, Excel, or PowerPoint file as OfficeCLI renders it to one HTML page (`officecli.ts`), for the viewer: from
+     * here or the session's machine, read as a download is (who may, and how large). The page is served in the
+     * artifacts' sandbox (`http/artifacts.ts`).
+     */
+    async officePage(id: ConversationId, user: User, path: string): Promise<string> {
+        const officecli = this.#app.officecli;
+
+        if (!officecli.available()) {
+            throw new HttpError(501, "OfficeCLI is not available on this device.");
+        }
+
+        if (!OFFICE_EXTENSIONS.has(extname(path).toLowerCase())) {
+            throw new HttpError(400, `${path} is not a .docx, .xlsx, or .pptx file.`);
+        }
+
+        const { name, data } = await this.downloadFile(id, user, path);
+        const work = mkdtempSync(join(tmpdir(), "office-page-"));
+        const file = join(work, name);
+
+        try {
+            writeFileSync(file, data, { mode: 0o600 });
+
+            return await officecli.renderHtml(file);
+        } catch (error) {
+            throw error instanceof HttpError ? error : new HttpError(422, describe(error));
+        } finally {
+            rmSync(work, { recursive: true, force: true });
         }
     }
 

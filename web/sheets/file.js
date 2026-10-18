@@ -53,6 +53,8 @@ export function FileView({ path, line, onOpen = openFile, onLoad }) {
     const [error, setError] = useState(null);
     const markdown = isMarkdown(path);
     const page = isPage(path);
+    // Word, Excel, and PowerPoint, as OfficeCLI renders them on the server (`/a/office/`), where it runs.
+    const office = /\.(docx|xlsx|pptx)$/i.test(path) && store.state.server?.officecli === true;
     const [preview, setPreview] = useState(markdown && line === undefined);
     const [running, setRunning] = useState(false);
     const [all, setAll] = useState(line !== undefined && line > FILE_LINES);
@@ -123,6 +125,17 @@ export function FileView({ path, line, onOpen = openFile, onLoad }) {
         }
         ${
             file?.kind === "binary" &&
+            office &&
+            html`<iframe
+                class="file-office"
+                title=${name}
+                src=${`/a/office/${store.state.conversationId}?path=${encodeURIComponent(file.path)}`}
+                sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads"
+            ></iframe>`
+        }
+        ${
+            file?.kind === "binary" &&
+            !office &&
             html`<p class="muted">A binary file: nothing to show as text.</p>`
         }
         ${

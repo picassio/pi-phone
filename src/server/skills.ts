@@ -42,6 +42,8 @@ export type SkillSources = {
     settingsPaths: readonly string[];
     /** Pi's `defaultProjectTrust` setting: whether a project nobody decided about is trusted. */
     defaultProjectTrust: "always" | "never" | "ask";
+    /** Skills the app brings (OfficeCLI's): last, so any of the owner's or a project's by the same name comes first. */
+    builtIn?: readonly string[];
 };
 
 /** The root of the git repository `folder` is in, or undefined outside one. */
@@ -183,6 +185,7 @@ export function skillPlaces(cwd: string, sources: SkillSources): string[] {
         ...(decision === "trusted" ? agents : []),
         ...sources.settingsPaths,
         ...user.filter((each) => existsSync(each)),
+        ...(sources.builtIn ?? []),
     ];
 }
 

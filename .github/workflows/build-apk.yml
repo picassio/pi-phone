@@ -76,6 +76,9 @@ jobs:
         run: |
           npm ci --ignore-scripts
           node scripts/intelligent-ui.ts
+      # OfficeCLI's Android release (picassio/OfficeCLI), checked against its sha256: bundled in the runtime.
+      - name: OfficeCLI for Android
+        run: node scripts/officecli.ts
       - name: Server dependencies for Android arm64, no lifecycle scripts
         run: npm ci --omit=dev --ignore-scripts --os=android --cpu=arm64
       - name: Server runtime

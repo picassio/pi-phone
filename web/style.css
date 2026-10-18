@@ -11383,6 +11383,16 @@ textarea.notes {
     color: var(--accent);
 }
 
+/* A Word, Excel, or PowerPoint file as OfficeCLI renders it (sheets/file.js): the page, full width, scrolling inside. */
+.file-office {
+    display: block;
+    width: 100%;
+    height: min(78vh, 900px);
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    background: #fff;
+}
+
 .file-image {
     max-width: 100%;
     border: 1px solid var(--hair);

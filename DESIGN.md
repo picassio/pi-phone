@@ -335,6 +335,26 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   and replaces each placeholder with KaTeX's output (`trust: false`, `throwOnError: false`). A drawn one stays,
   because Preact leaves unchanged HTML alone, so there is no cache to clear. In `ui.js`, sanitizing skips
   `code[data-math]` (no path links, no inline-code part).
+- **OfficeCLI** (`src/server/officecli.ts`; owner's decisions of 2026-10-18): Word, Excel, and PowerPoint files.
+  - **Binary:** the fork picassio/OfficeCLI's Android release (`android-v1.0.157`: NativeAOT for `linux-bionic-arm64`,
+    one 52 MB binary; the CoreCLR folder build crashes on bionic). `scripts/officecli.ts` fetches it in CI, checked
+    against its sha256, into `native/android-arm64/officecli/` (gitignored); `package-runtime.ts` refuses without it.
+    Bundled in the APK, as the owner chose.
+  - **Pi's bash:** `<data>/bin/officecli`, a wrapper written at start-up, on the PATH of phone sessions' bash (beside
+    `pi-ssh`). It sets `LD_LIBRARY_PATH=$PREFIX/lib` (Termux's OpenSSL 3: Android's BoringSSL libssl aborts every
+    command), `OFFICECLI_SKIP_UPDATE=1`, and `OFFICECLI_NO_AUTO_INSTALL=1` (a bare `officecli` installs itself into
+    other agents' config folders). No wrapper tool: it is a CLI made for agents (JSON output, element paths).
+  - **Skills:** OfficeCLI's 11 (`third_party/officecli/skills/`, at the fork's commit), with each install section
+    replaced by "already installed, never install or update it" (its README). Offered as `SkillSources.builtIn`, after
+    every other skill place, so one of the owner's by the same name wins; only where OfficeCLI runs.
+  - **Files viewer:** a .docx/.xlsx/.pptx that is binary to the viewer shows in an iframe of
+    `/a/office/<conversation>?path=` (`Workspace.officePage`: read as a download is, here or on the machine, then
+    `officecli view <file> html` with no resident process), in the artifacts' sandbox CSP. `hello`'s
+    `server.officecli` says whether it runs.
+  - **Machines:** upstream's Linux x64 release 1.0.157 in `~/.local/bin` on han-devbox and tuanlh-devbox-01, with
+    `autoUpdate false`. Sessions on a machine read no skills, so Pi there uses `officecli help`.
+  - **Tests** stand in a script for the binary (`test/officecli.test.ts`); `openApp` turns OfficeCLI off, as on the
+    phone the real binary would run.
 - **Interactive answers** (Open Intelligent UI): Pi writes a program in OpenUI Lang 1.0, and a frame draws it with
   Open Intelligent UI's component library: layout, inputs bound to `$state`, charts, tables, MapLibre maps with OSRM
   street routes, Wikipedia photos, KaTeX math, SVG, flashcards, 59 `@functions`. It shows in a reply as an
