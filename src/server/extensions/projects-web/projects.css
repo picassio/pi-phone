@@ -224,6 +224,7 @@
     border-radius: 4px;
     background: var(--kcol);
     transition: border-color 0.15s, background 0.15s;
+    align-items: stretch;
 }
 
 .pj-tbar {
@@ -311,10 +312,12 @@
     padding: 2px 8px 10px;
     overflow-y: auto;
     overflow-x: hidden;
+    align-items: stretch;
 }
 
 .pj-col-empty {
     flex: none;
+    align-self: stretch;
     height: 96px;
     margin: 4px 0;
     display: grid;
@@ -327,6 +330,7 @@
 
 .pj-add-row {
     flex: none;
+    align-self: stretch;
     margin: 0 8px 8px;
     min-height: 32px;
     padding: 7px;
