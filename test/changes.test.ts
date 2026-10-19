@@ -200,7 +200,7 @@ function repository(name: string, files: Record<string, string>): string {
     return folder;
 }
 
-test("someone invited to one session sees the changes in its folder, not the rest of the repository", async () => {
+test("a session sees the changes in its folder, not the rest of the repository it is in", async () => {
     const shared = repository("shared", {
         "public/page.txt": "hello\n",
         "private/notes.txt": "notes\n",
@@ -220,10 +220,21 @@ test("someone invited to one session sees the changes in its folder, not the res
         status: 404,
         message: /no uncommitted changes/,
     });
+    const mine = await app.workspace.changes(id, owner(app));
+
     assert.deepEqual(
-        (await app.workspace.changes(id, owner(app))).files.map((file) => file.path),
-        ["public/page.txt", "private/secret.txt"],
-        "the owner sees them all",
+        mine.files.map((file) => [file.path, file.added, file.removed]),
+        [["public/page.txt", 1, 1]],
+        "the owner too: a folder inside a bigger repository is not shown the rest of it",
+    );
+    await assert.rejects(app.workspace.changeDiff(id, owner(app), "private/secret.txt"), { status: 404 });
+
+    // At the top of the repository, all of it.
+    const top = await newSession(app, shared);
+
+    assert.deepEqual(
+        (await app.workspace.changes(top, owner(app))).files.map((file) => file.path).sort(),
+        ["private/secret.txt", "public/page.txt"],
     );
 });
 

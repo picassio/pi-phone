@@ -285,13 +285,20 @@ async function prefixOf(git: Git, cwd: string): Promise<string> {
 }
 
 /**
- * The changes in a folder's repository, with the files Pi edited according to `entries`. `onlyHere` leaves out the
- * changes outside the folder: someone invited to one session sees its files only.
+ * The pathspec for a folder of its repository, by its prefix: none at the top, so the whole repository. Git runs with
+ * literal pathspecs (`GIT_LITERAL_PATHSPECS`), so the prefix is taken as it is.
+ */
+function within(prefix: string): string[] {
+    return prefix === "" ? [] : ["--", prefix];
+}
+
+/**
+ * The changes in a folder, with the files Pi edited according to `entries`. Only the folder's own: a folder inside a
+ * bigger repository (a new folder in a home that is one) shows what changed in it, not in the rest of the repository.
  */
 export async function changesIn(
     cwd: string,
     entries: readonly ClientEntry[],
-    onlyHere = false,
     access: FolderAccess = localAccess,
 ): Promise<Changes> {
     const git = gitOf(access);
@@ -319,16 +326,16 @@ export async function changesIn(
         (id) => id.trim() || undefined,
         () => undefined,
     );
-    const prefix = onlyHere ? await prefixOf(git, cwd) : "";
+    const prefix = await prefixOf(git, cwd);
     const changed = parseStatus(
-        await git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
+        await git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all", ...within(prefix)]),
     ).filter(({ path }) => path.startsWith(prefix));
     const status = changed.slice(0, MAX_FILES);
     // Without a first commit there is nothing to compare with: every file is new.
     const counts =
         head === undefined
             ? new Map()
-            : parseNumstat(await git(root, ["diff", "HEAD", "--numstat", "-z", ...DIFF_FLAGS]));
+            : parseNumstat(await git(root, ["diff", "HEAD", "--numstat", "-z", ...DIFF_FLAGS, ...within(prefix)]));
 
     // HEAD diffs omit untracked files. Count only the visible, permitted files; Git keeps binary, attributes,
     // symlinks and final-newline handling the same as each file's diff. No index or files are changed.
@@ -400,12 +407,11 @@ export async function changesIn(
 
 /**
  * The diff of one changed file of the repository `cwd` is in, against the last commit; a new file's whole content.
- * Only files that git lists as changed: the path cannot point anywhere else. With `onlyHere`, only files in `cwd`.
+ * Only files in `cwd` that git lists as changed: the path cannot point anywhere else.
  */
 export async function diffOf(
     cwd: string,
     path: string,
-    onlyHere = false,
     access: FolderAccess = localAccess,
 ): Promise<string> {
     const git = gitOf(access);
@@ -415,7 +421,7 @@ export async function diffOf(
     ).find((each) => each.path === path);
 
     // A file outside the folder is as unknown as one without changes.
-    if (change === undefined || (onlyHere && !path.startsWith(await prefixOf(git, cwd)))) {
+    if (change === undefined || !path.startsWith(await prefixOf(git, cwd))) {
         throw new Error("That file has no uncommitted changes");
     }
 
@@ -440,13 +446,12 @@ export async function diffOf(
 
 /**
  * Put one changed file back as the last commit has it: edits undone, a deleted file back, a new file gone. As with
- * `diffOf`, only a file git lists as changed, so the path cannot point anywhere else; with `onlyHere`, only one in
- * `cwd`. A renamed file is left alone, as undoing it changes two paths.
+ * `diffOf`, only a file in `cwd` git lists as changed, so the path cannot point anywhere else.
+ * A renamed file is left alone, as undoing it changes two paths.
  */
 export async function revertFile(
     cwd: string,
     path: string,
-    onlyHere = false,
     access: FolderAccess = localAccess,
 ): Promise<ChangeKind> {
     const git = gitOf(access);
@@ -455,7 +460,7 @@ export async function revertFile(
         await git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
     ).find((each) => each.path === path);
 
-    if (change === undefined || (onlyHere && !path.startsWith(await prefixOf(git, cwd)))) {
+    if (change === undefined || !path.startsWith(await prefixOf(git, cwd))) {
         throw new Error("That file has no uncommitted changes");
     }
 

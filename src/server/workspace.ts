@@ -60,7 +60,7 @@ export class Workspace {
      * ask while a look is under way share it, as each reads the whole history for Pi's edits and runs git. One asked
      * after it ends looks again, so what it says is never older than the question.
      */
-    readonly #changesUnderWay = new Map<string, Promise<Changes>>();
+    readonly #changesUnderWay = new Map<ConversationId, Promise<Changes>>();
 
     /**
      * Where each folder's repository keeps its files, for a minute: views ask on every update. A folder in none is
@@ -808,7 +808,7 @@ export class Workspace {
         }
 
         const folder = this.#folder(id);
-        const kind = await revertFile(folder.cwd, path, user.sessions !== undefined, folder.access).catch(
+        const kind = await revertFile(folder.cwd, path, folder.access).catch(
             (error: unknown) => {
                 throw new HttpError(409, describe(error));
             },
@@ -828,9 +828,9 @@ export class Workspace {
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
 
-        // Someone invited to this session only sees the files in its folder, here as in `conversationFile`.
-        const onlyHere = user.sessions !== undefined;
-        const key = `${id}:${onlyHere}`;
+        // Only the folder's own changes, for everyone: someone invited sees no more, and a folder inside a bigger
+        // repository is not shown the rest of it.
+        const key = id;
         const underWay = this.#changesUnderWay.get(key);
 
         if (underWay !== undefined) {
@@ -839,7 +839,7 @@ export class Workspace {
 
         const folder = this.#folder(id);
         const pending = (async () =>
-            changesIn(folder.cwd, await this.#app.transcripts.allEntries(id, false), onlyHere, folder.access))().finally(() => {
+            changesIn(folder.cwd, await this.#app.transcripts.allEntries(id, false), folder.access))().finally(() => {
             if (this.#changesUnderWay.get(key) === pending) {
                 this.#changesUnderWay.delete(key);
             }
@@ -852,8 +852,7 @@ export class Workspace {
 
     /** Looks under way began before a file was undone: one asked from now on looks again. */
     #forgetChanges(id: ConversationId): void {
-        this.#changesUnderWay.delete(`${id}:true`);
-        this.#changesUnderWay.delete(`${id}:false`);
+        this.#changesUnderWay.delete(id);
     }
 
     /** The diff of one changed file in a session's repository. */
@@ -863,7 +862,7 @@ export class Workspace {
         const folder = this.#folder(id);
 
         try {
-            return await diffOf(folder.cwd, path, user.sessions !== undefined, folder.access);
+            return await diffOf(folder.cwd, path, folder.access);
         } catch (error) {
             throw new HttpError(404, describe(error));
         }
