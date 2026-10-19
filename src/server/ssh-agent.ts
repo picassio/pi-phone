@@ -24,7 +24,8 @@ function sshAdd(socket: string, args: string[], input?: string): Promise<string>
         child.stdout!.on("data", (chunk: Buffer) => (out += chunk.toString()));
         child.stderr!.on("data", (chunk: Buffer) => (err += chunk.toString()));
         child.once("error", reject);
-        child.once("exit", (code) =>
+        // "close", not "exit": exit can come before its output has all been read, which then looks empty.
+        child.once("close", (code) =>
             code === 0 ? resolve(out) : reject(new Error(`ssh-add ${args.join(" ")} failed (${code}): ${err.trim() || out.trim()}`)),
         );
         if (input !== undefined) {

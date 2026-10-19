@@ -34,7 +34,9 @@ function run(command: string, args: string[]): Promise<{ stdout: string }> {
         child.stdout!.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
         child.stderr!.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
         child.once("error", reject);
-        child.once("exit", (code) =>
+        // "close", not "exit": exit can come before its output has all been read, which then looks empty (a CI flake:
+        // "ssh-keygen -l gave an unexpected answer for <id>: ").
+        child.once("close", (code) =>
             code === 0 ? resolve({ stdout }) : reject(Object.assign(new Error(`${command} failed (${code})`), { stderr })),
         );
     });
