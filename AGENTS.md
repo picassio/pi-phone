@@ -23,6 +23,10 @@
   user asks for them.
 - Checks run on the phone: `npm run check` (tsc 6 + `scripts/check-web-imports.ts`) and `npm test`. UI tests need a
   Chromium and are skipped on the phone; CI runs them.
+- Every release has notes (the owner's rule): the release job writes them from the commits since the previous release
+  (`scripts/release-notes.ts`). So write each commit's subject for people, with its kind and scope: `feat(machines): …`
+  is listed as new, `fix(…): …` as a fix, anything else under other changes.
+- README.md lists every feature people can use: a new one, or one changed or removed, changes it in the same commit.
 - Design lives in DESIGN.md; update it when a decision changes. Upstream commits are in UPSTREAM.md. Current state
   and next steps: HANDOVER.md.
 - For running, testing, and driving the app on the phone, load and follow

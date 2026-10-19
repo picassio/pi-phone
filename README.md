@@ -10,29 +10,73 @@ No Termux, no laptop, no cloud VM.
 
 ## What it does
 
+### The agent
 - **A durable agent on the phone.** Sessions, subagents, and tool calls are stored as they happen (SQLite). Kill the
   app or update it mid-run and the work continues where it stopped.
 - **Real tools.** `bash`, `read` (text and images), `write`, `edit`, and `codemode` (scripts that call the tools),
-  with git, gh, ssh, Node, and npm in the bundled userland.
+  with git, gh, ssh, Node, npm, ripgrep, and fd in the bundled userland.
 - **Sign in once.** Claude Pro/Max, other providers' OAuth, or API keys, from the Providers sheet. GitHub through a
   device code (Settings › GitHub), used by the agent's `git` and `gh`.
+- **Plan mode.** The Plan button by the message box: Pi reads and plans before it changes anything, and a long plan
+  comes as a reviewable HTML page.
+- **Interview.** Pi asks several questions at once in a form (choices with its recommendation, text, photos), and waits
+  for the answers, or carries on and gets them later.
+- **Schedules and goals.** Pi messages itself later or on repeat (`schedule`), and a session can keep working toward a
+  goal it checks.
+- **Other sessions.** Pi can list, read, start, message, wait for, and stop the app's other sessions, as the person it
+  works for.
+
+### Web, documents, and answers
+- **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for
+  pages, PDFs and Office files, GitHub repositories, issues, and pull requests.
+- **Documents.** `file_to_markdown` reads PDF, Word, PowerPoint, Excel, EPUB, notebooks, and more
+  ([markit](https://github.com/picassio/markit)).
+- **Office files.** [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) is built in: Pi creates and edits `.docx`,
+  `.xlsx`, and `.pptx` from bash, with skills for decks, dashboards, financial models, papers, and forms, and the Files
+  viewer previews them.
+- **Rich replies.** Math (KaTeX), Mermaid diagrams and charts, HTML artifacts in a sandbox (with
+  [effective-html](https://github.com/plannotator/effective-html)'s design skills), and **interactive answers**: a
+  trip with a map, a calculator, a checklist, drawn as a working UI that keeps its state.
+- **Pi sees its work.** `screenshot` renders an artifact, an HTML or Office file, or a web page in the phone's own
+  WebView, at phone and desktop widths, even with the screen off, so Pi checks a page before calling it done.
+
+### Secrets and the wiki
+- **Secrets.** API keys and tokens in Settings › Secrets, used by name (`$NPM_TOKEN`) and never shown: output that
+  contains one shows `[secret NAME]`. Pi asks for a missing one through a hidden field.
+- **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
+  search, tracks its open questions until they are answered, and captures idle sessions into it.
+
+### Other machines
 - **Work on other machines.** Add an SSH key and a machine (Settings › SSH keys, Machines). A session on a machine
   runs its tools there through [pi-env](https://github.com/earendil-works/pi/tree/main/packages/env)'s small daemon;
-  the conversation and your logins stay on the phone. The Files panel, viewer, and Changes follow the session there.
-- **Continue in Pi, and back.** Send a session to pi on a machine (`pi --session <id>` there), then bring
-  back what you did there into the same session.
-- **Notifications** when a session finishes, fails, or asks for approval; **downloads** to the phone; **ports**
-  of a machine (a dev server there) in the phone's browser; **backup and restore** of everything.
-- **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with
-  qmd's search, in the same format as pi-para in pi.
+  the conversation and your logins stay on the phone. The Files panel, viewer, Changes, and the terminal follow the
+  session there. Linux, macOS, Termux, and **Windows** (through its OpenSSH Server and Git Bash; the app gives you a
+  PowerShell script that sets it up).
+- **Machine tools.** OfficeCLI, ripgrep, and fd installed on a machine from the app, checked by their SHA-256.
+- **From any session.** `machine_run` and `machine_copy` run a command or copy a file on a machine, and `pi-ssh`
+  gives bash ssh, rsync, scp, and tunnels with the app's keys, which nothing can read out.
+- **Ports** of a machine (a dev server there) open in the phone's browser.
+- **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's
+  `~/.pi/agent/sessions`, with its history; or send a session to `pi` on a machine and bring back what was done there.
+  Pi can do both itself (`pi_sessions`, `pi_session_import`, `continue_in_pi`, `pi_bring_back`).
+
+### People and devices
+- **Other devices and people** over your Tailscale network (Settings › Access): your laptop's browser signs in as you
+  (People › Sign in as me), and invited people steer or watch sessions, all of them or one.
+- **Signed in now** shows every open tab and device; **Sign out every device** replaces your sign-in everywhere else.
+- **Dictation** with Android's speech recognizer, in the language you choose.
+
+### The app
 - **A terminal.** A real shell inside the app, on the phone or on a machine, with Esc, Tab, Ctrl, and arrow keys
   above the keyboard.
-- **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's
-  `~/.pi/agent/sessions`, with its history.
+- **Changes** of the session's folder (only its own, even inside a bigger repository), with diffs and undo.
+- **Notifications** when a session finishes, fails, or asks for approval; **downloads** to the phone; **backup and
+  restore** of everything.
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
   they finish, so it pushes, ends its turn, and is woken by the result.
-- **Updates from GitHub.** Every passing build on `master` is a release. The app checks it (at start, or Settings ›
-  Check for app updates): server and UI changes swap in within seconds; a new Android shell is a one-tap install.
+- **Updates from GitHub.** Every passing build on `master` is a release, with release notes. The app checks it (at
+  start, or Settings › Check for app updates): server and UI changes swap in within seconds; a new Android shell is a
+  one-tap install.
 - **It builds itself.** The agent works on a clone of this repository inside the app, pushes, and CI ships the release
   the app then installs.
 
@@ -49,10 +93,10 @@ Updates come through the app afterwards; uninstalling deletes its sessions and l
 
 ```
 android/   Android shell (Java): WebView, foreground service running node, runtime installer, updater
-src/server pi-pocket's server, cut down, plus pi-phone's parts (machines, places, SSH keys, CI watch, GitHub login,
-           Claude Code billing patch)
+src/server pi-pocket's server, cut down, plus pi-phone's parts (machines, places, SSH keys, secrets, web access,
+           documents, interview, wiki, screenshots, CI watch, GitHub login, Claude Code billing patch)
 web/       pi-pocket's web app (Preact + htm, no build step)
-scripts/   Termux rootfs and runtime packaging, versions, web import check
+scripts/   Termux rootfs and runtime packaging, OfficeCLI, versions, release notes, web import check
 test/      node:test
 ```
 
@@ -104,6 +148,13 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
 - **[Preact](https://preactjs.com)** (MIT), **[htm](https://github.com/developit/htm)** (Apache-2.0),
   **[marked](https://github.com/markedjs/marked)** (MIT), **[DOMPurify](https://github.com/cure53/DOMPurify)**
   (MPL-2.0 or Apache-2.0), **[node-qrcode](https://github.com/soldair/node-qrcode)** (MIT): the web app.
+- **[OfficeCLI](https://github.com/iOfficeAI/OfficeCLI)** by iOfficeAI (Apache-2.0): Office files, built for Android
+  (NativeAOT) in our fork [picassio/OfficeCLI](https://github.com/picassio/OfficeCLI), with its skills in
+  `third_party/officecli/`.
+- **[effective-html](https://github.com/plannotator/effective-html)** by plannotator (MIT): the HTML design skills in
+  `third_party/effective-html/`.
+- **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT or Unlicense) and **[fd](https://github.com/sharkdp/fd)**
+  (MIT or Apache-2.0): installed on machines from their own releases.
 - **[pi-web-access](https://github.com/nicobailon/pi-web-access)** by Nico Bailon (MIT): `web_search` and `fetch_content`,
   and the 37 search providers ported from it to `src/server/web/providers/`.
 - **[markit](https://github.com/shift-labs-ai/markit)** by Shift Labs (MIT): documents to Markdown, through our fork

@@ -123,14 +123,24 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG: build-${{ github.run_number }}
     steps:
+      # The whole history and its tags: the notes list the commits since the previous release.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
       - uses: actions/download-artifact@v4
         with:
           name: pi-phone-release
           path: release
+      # Every release has notes (the owner's rule): the changes since the previous one, from their commit messages.
+      - name: Release notes
+        run: node scripts/release-notes.ts "$GITHUB_REPOSITORY" "$GITHUB_SHA" > "$RUNNER_TEMP/notes.md"
       - name: Publish
         run: |
           gh release create "$TAG" release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
-            --title "pi-phone $TAG" --notes "Build of $GITHUB_SHA."
+            --title "pi-phone $TAG" --notes-file "$RUNNER_TEMP/notes.md"
       - name: Keep the last 10 releases
         run: |
           gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,createdAt \
