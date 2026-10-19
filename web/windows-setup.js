@@ -2,7 +2,7 @@
 // Server installed, started, and started with Windows; the firewall letting SSH (TCP 22) in on every network profile;
 // the machine's public key where Windows' sshd reads it (an administrator's in administrators_authorized_keys, with the
 // access rights sshd demands); Git for Windows, whose Git Bash runs Pi's commands there; and the addresses to give
-// pi-phone. Pasted into PowerShell run as administrator; every step may run again, and a failed one stops it, saying why.
+// pi-phone. Pasted into PowerShell (Windows PowerShell 5.1 or PowerShell 7) run as administrator; every step may run again, and a failed one stops it, saying why.
 // No imports: the Machines sheet shows it, and the tests read it in Node.
 
 /** A PowerShell single-quoted string. */
@@ -28,6 +28,8 @@ Write-Host '1/5 OpenSSH Server'
 if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {
     Write-Host '    Installing it from Windows Update: this often takes 5 to 15 minutes, with no progress shown.'
     Write-Host '    If Windows Update is blocked here (a work PC), stop this, run: winget install Microsoft.OpenSSH.Preview, then paste this again.'
+    # PowerShell 7 cannot load the DISM module itself ("Class not registered"): it runs in Windows PowerShell for it.
+    if ($PSVersionTable.PSEdition -eq 'Core') { Import-Module Dism -UseWindowsPowerShell -WarningAction SilentlyContinue }
     $cap = Get-WindowsCapability -Online -Name 'OpenSSH.Server*' | Select-Object -First 1
     if ($null -eq $cap) { throw 'This Windows has no OpenSSH Server to install (Windows 10 1809 or later has it): run winget install Microsoft.OpenSSH.Preview, then paste this again.' }
     if ($cap.State -ne 'Installed') { Add-WindowsCapability -Online -Name $cap.Name | Out-Null }
