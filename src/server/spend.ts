@@ -8,7 +8,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { type ConversationId, UsageDoc, type UsageState } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
-import { SessionsDoc, SpendDoc } from "./docs.ts";
+import { SessionsDoc, SpendDoc, type WikiSpend } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
 import { usageCost } from "./projection.ts";
 
@@ -17,11 +17,22 @@ const context = BACKGROUND_CONTEXT;
 /** Spend stored for people a little after it happens: a run commits its usage with every response. */
 const COUNT_AFTER_MS = 250;
 
-export const dollars = (amount: number) => `$${amount.toFixed(2)}`;
+export const dollars = (amount: number) => `${amount.toFixed(2)}`;
+
+/** Two counts of the wiki's embeddings as one: summed, and since the earlier. */
+function addWiki(a: WikiSpend | undefined, b: WikiSpend | undefined): WikiSpend | undefined {
+    if (a === undefined || b === undefined) {
+        return a ?? b;
+    }
+
+    return { cost: a.cost + b.cost, tokens: a.tokens + b.tokens, requests: a.requests + b.requests, since: Math.min(a.since, b.since) };
+}
 
 export type SpendSummary = {
-    /** Everything Pi spent on this server; only the owner sees it. */
+    /** Everything Pi spent on this server, the wiki's embeddings with it; only the owner sees it. */
     total?: number;
+    /** The wiki's search by meaning (remote embeddings), counted since `since`; only the owner sees it. */
+    wiki?: WikiSpend;
     sessions: { id: number; title: string; spent: number; budget?: number }[];
     /** Everyone for the owner; others see themselves. */
     people: { id: string; name: string; spent: number; budget?: number }[];
@@ -40,6 +51,9 @@ export class Spend {
     #timer: NodeJS.Timeout | undefined;
     /** Told when the owner changes a limit: work held back by one may go now. */
     readonly #limits = new Set<() => void>();
+    /** The wiki's embeddings as stored at the last count, and what came since, to be added with the next. */
+    #wiki: WikiSpend | undefined;
+    #wikiAdded: WikiSpend | undefined;
 
     constructor(app: PocketApp) {
         this.#app = app;
@@ -71,6 +85,7 @@ export class Spend {
         const stored = await harness.snapshot(SpendDoc, context);
 
         this.#people = { ...stored?.people };
+        this.#wiki = stored?.wiki;
 
         for (const id of ids) {
             const added = (this.#costs.get(id) ?? 0) - (stored?.counted[String(id)] ?? 0);
@@ -105,6 +120,17 @@ export class Spend {
             this.#owe(id, this.#payer(id), added);
         }
 
+        this.#later();
+    }
+
+    /** A remote embedding request for the wiki: added to the wiki's spend, nobody's budget. */
+    wikiUsed(usage: { model: string; tokens: number; cost: number }): void {
+        this.#wikiAdded = addWiki(this.#wikiAdded, { cost: usage.cost, tokens: usage.tokens, requests: 1, since: Date.now() });
+        this.#later();
+    }
+
+    /** Store what was added, in a moment. */
+    #later(): void {
         this.#timer ??= setTimeout(() => {
             this.#timer = undefined;
             void this.#count().catch((error: unknown) =>
@@ -127,16 +153,23 @@ export class Spend {
     /** Store the spend added to people, then stop work that went past a limit. */
     async #count(): Promise<void> {
         const owed = [...this.#owed];
+        const wiki = this.#wikiAdded;
 
         this.#owed.clear();
+        this.#wikiAdded = undefined;
 
-        if (owed.length === 0) {
+        if (owed.length === 0 && wiki === undefined) {
             return;
         }
 
         try {
             this.#people = await this.#app.harness.commit(async (tx) => {
                 const doc = await tx.doc(SpendDoc);
+
+                if (wiki !== undefined) {
+                    doc.wiki = addWiki(doc.wiki, wiki);
+                    this.#wiki = doc.wiki;
+                }
 
                 for (const [id, payers] of owed) {
                     for (const [payer, added] of payers) {
@@ -149,6 +182,8 @@ export class Spend {
             }, context);
         } catch (error) {
             // Still owed: the next count stores it.
+            this.#wikiAdded = wiki === undefined ? this.#wikiAdded : addWiki(wiki, this.#wikiAdded);
+
             for (const [id, payers] of owed) {
                 for (const [payer, added] of payers) {
                     this.#owe(id, payer, added);
@@ -414,10 +449,12 @@ export class Spend {
                 spent: this.personSpent(person.id),
                 ...(person.budget === undefined ? {} : { budget: person.budget }),
             }));
-        const total = [...this.#costs.values()].reduce((sum, cost) => sum + cost, 0);
+        const wiki = addWiki(this.#wiki, this.#wikiAdded);
+        const total = [...this.#costs.values()].reduce((sum, cost) => sum + cost, 0) + (wiki?.cost ?? 0);
 
         return {
             ...(owner ? { total } : {}),
+            ...(owner && wiki !== undefined ? { wiki } : {}),
             sessions: sessions.sort((a, b) => b.spent - a.spent),
             people: people.sort((a, b) => b.spent - a.spent),
         };

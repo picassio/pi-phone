@@ -434,6 +434,7 @@ export class PocketApp {
 
                 return { path: parsePlace(cwd).path, env: this.places.env(cwd) };
             },
+            spent: (usage) => this.spend.wikiUsed(usage),
             log: (message) => this.#log(message),
         });
         this.#lockFile = join(options.dataDir, "harness.lock");

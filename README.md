@@ -29,6 +29,9 @@ No Termux, no laptop, no cloud VM.
   windows (Copilot: the month's premium requests), with reset times, as bars in Providers, in the model menu, and as a
   meter in the session's top bar that opens to every window. At 90% of a window the session says so, with **Switch to** your other
   accounts; a request that fails on the limit offers **Continue on** another account. pi-phone never switches by itself.
+- **Spend.** What Pi spent, by person and by session, with limits the owner sets (past one, Pi takes no new
+  messages there). The wiki's search by meaning has a line of its own: its remote embeddings (indexing and queries),
+  with requests and tokens, in the total and in nobody's limit.
 - **Plan mode.** The Plan button by the message box: Pi reads and plans before it changes anything, and a long plan
   comes as a reviewable HTML page.
 - **Interview.** Pi asks several questions at once in a form (choices with its recommendation, text, photos), and waits

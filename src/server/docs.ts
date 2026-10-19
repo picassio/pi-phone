@@ -313,6 +313,9 @@ export const PlanDoc = defineDoc<{ on: boolean; by?: string; at?: number }>({
     initial: () => ({ on: false }),
 });
 
+/** What the wiki's remote embeddings cost so far: dollars, tokens, requests, and since when it was counted. */
+export type WikiSpend = { cost: number; tokens: number; requests: number; since: number };
+
 /**
  * What Pi spent for each person, in dollars: the work goes to whoever asked for it. `counted` is how much of each
  * conversation's spend is in `people` already, so every dollar is counted once, also across restarts.
@@ -320,6 +323,8 @@ export const PlanDoc = defineDoc<{ on: boolean; by?: string; at?: number }>({
 export const SpendDoc = defineDoc<{
     people: Record<string, number>;
     counted: Record<string, number>;
+    /** The wiki's search by meaning: its remote embeddings (indexing pages, and queries), nobody's in particular. */
+    wiki?: WikiSpend;
 }>({
     kind: "pocket.spend",
     version: 1,

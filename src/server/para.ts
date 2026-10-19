@@ -82,6 +82,8 @@ export interface ParaHost {
     models(): { provider: string; id: string; name: string }[];
     /** A session folder on a machine: its path there and its environment; undefined for one on the phone. */
     remote(cwd: string): { path: string; env: ExecutionEnv } | undefined;
+    /** A remote embedding request for the wiki's search (indexing, or a query): its model, tokens, and cost in dollars. */
+    spent(usage: { model: string; tokens: number; cost: number }): void;
     log(message: string): void;
 }
 
@@ -96,6 +98,8 @@ export class Para {
     /** The prompt context of each scope, until the wiki changes. */
     readonly #contexts = new Map<string, Promise<string>>();
     #embeddingModels: { at: number; list: Promise<EmbeddingModel[]> } | undefined;
+    /** Stops hearing what embedding requests cost; set once, the first time the wiki opens. */
+    #stopUsage: (() => void) | undefined;
 
     constructor(host: ParaHost) {
         this.#host = host;
@@ -113,6 +117,10 @@ export class Para {
         const { loadParaConfig, initWiki, openStore, startWikiScheduler } = pi;
 
         this.#pi = pi;
+        // What search by meaning costs: every embedding request qmd sends, indexing and queries, goes to Spend.
+        this.#stopUsage ??= pi.onApiUsage((usage) => {
+            void this.#spent(usage).catch((error: unknown) => this.#host.log(`wiki embedding not counted: ${error instanceof Error ? error.message : String(error)}`));
+        });
         const config = await loadParaConfig({ homeDir: this.#host.home, migrate: true });
 
         this.#config = config;
@@ -545,6 +553,17 @@ export class Para {
         list.catch(() => this.#embeddingModels === entry && (this.#embeddingModels = undefined));
 
         return list;
+    }
+
+    /** An embedding request's cost: what the provider said, else its tokens at the model's price on OpenRouter's list. */
+    async #spent(usage: { model: string; promptTokens: number; cost?: number }): Promise<void> {
+        const price = usage.cost === undefined ? (await this.embeddingModels()).find((each) => each.id === usage.model)?.pricePerMillion : undefined;
+
+        if (usage.cost === undefined && price === undefined) {
+            this.#host.log(`wiki embedding: no price for ${usage.model}; its ${usage.promptTokens} tokens are counted at nothing`);
+        }
+
+        this.#host.spent({ model: usage.model, tokens: usage.promptTokens, cost: usage.cost ?? ((price ?? 0) * usage.promptTokens) / 1_000_000 });
     }
 
     async close(): Promise<void> {

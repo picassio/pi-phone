@@ -16182,3 +16182,8 @@ pre.gallery-code {
     padding: 0;
     gap: 0;
 }
+
+/* A Spend row's second line (the wiki's embeddings: requests, tokens, since when). */
+.spend-sub {
+    display: block;
+}

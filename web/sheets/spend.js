@@ -106,6 +106,22 @@ export function SpendSheet() {
                 <span>Pi spent</span> <strong>${money(data.total)}</strong> <span>on this server so far.</span>
             </p>`
         }
+        ${
+            data?.wiki &&
+            html`<div class="group">
+                <div class="group-title">Wiki search</div>
+                <div class="sheet-list">
+                    <div class="spend-row">
+                        <span class="grow">
+                            Embeddings for search by meaning
+                            <small class="muted spend-sub">${data.wiki.requests} ${data.wiki.requests === 1 ? "request" : "requests"} · ${data.wiki.tokens.toLocaleString()} tokens · since ${new Date(data.wiki.since).toLocaleDateString()}</small>
+                        </span>
+                        <span class="mono">${data.wiki.cost > 0 && data.wiki.cost < 0.01 ? `${data.wiki.cost.toFixed(4)}` : money(data.wiki.cost)}</span>
+                    </div>
+                </div>
+                <p class="muted small">Indexing pages and each search by meaning (OpenRouter): counted in the total, not in anyone's limit.</p>
+            </div>`
+        }
         <p class="muted small">
             Spend goes to whoever asked for the work. Past a limit, Pi takes no new messages there, a run that crosses it stops, and subagents' reports wait until it is raised.
         </p>
