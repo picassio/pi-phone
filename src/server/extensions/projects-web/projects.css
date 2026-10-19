@@ -270,7 +270,7 @@
     font-variant-numeric: tabular-nums;
 }
 
-.pj-col.empty .pj-count {
+.pj-col.pj-empty .pj-count {
     background: color-mix(in srgb, var(--body) 9%, transparent);
     color: var(--muted);
 }

@@ -198,6 +198,7 @@ export default function projects(pocket) {
 
         const project = list.find((each) => each.key === key);
         const counts = project?.counts ?? {};
+        const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
 
         return html`<div class="pj">
             <div class="pj-top">
@@ -254,7 +255,7 @@ export default function projects(pocket) {
                             <i></i>${label} <b>${counts[state]}</b>
                         </span>`,
                 )}
-                <span class="pj-chip quiet">${Object.values(counts).reduce((sum, n) => sum + n, 0)} tasks · ${counts.done ?? 0} done</span>
+                <span class="pj-chip quiet">${total} ${total === 1 ? "task" : "tasks"} · ${counts.done ?? 0} done</span>
             </div>
             ${problem && html`<p class="pj-problem">${problem}</p>`}
             ${board === null ? html`<${Loader} label="Opening the board" />` : html`<${Kanban} board=${board} people=${people} reload=${loadBoard} />`}
@@ -474,7 +475,7 @@ export default function projects(pocket) {
                     const atWip = state.wip !== undefined && items.length >= state.wip;
 
                     return html`<section
-                        class=${`pj-col ${isCollapsed ? "collapsed" : ""} ${items.length === 0 ? "empty" : ""}`}
+                        class=${`pj-col ${isCollapsed ? "collapsed" : ""} ${items.length === 0 ? "pj-empty" : ""}`}
                         data-state=${state.id}
                         key=${state.id}
                         style=${`--tone:${state.tone};--fill:${Math.max(Math.min(items.length * 10, 100), 8)}%`}
