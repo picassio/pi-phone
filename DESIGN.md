@@ -152,6 +152,12 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   asked when Providers or the model menu opens (`GET /api/usage-limits`, `fresh=1` skips the minute), after a run on
   the account (`afterRun`), and pushed to tabs (`usage` events; `hello` carries the known ones). Shown as bars in
   Providers, a line per model in the menu, and the top bar's meter (`UsageMeter`, open state per device).
+  **Switching** (web only, `web/usage.js`): at 90% of a window of the session's account, a bar over the composer
+  (`UsageWarning`) names it and offers Switch to each other account of the provider with the same model, signed in, least
+  used first; closed, it stays closed until that window resets (localStorage). Under a request that failed with a limit's
+  words (`limitError`), `LimitSwitch` offers Continue on each: the session's model moves (`configure`), then "Continue."
+  is sent in the same session (Pi keeps the failed turn in context; sending the last message again would repeat it).
+  Only on a tap: pi-phone never rotates accounts.
 - **Choice** (`web/ui.js`): the sheets' dropdowns (Web access, Dictation, a machine's key, Ports) in the app's own
   style, the model and branch menus' `.pop-menu` rows, not the system's `<select>`: fixed to the screen under its field (over
   it with too little room), closed by a tap elsewhere, a scroll, a resize, or Escape. **Settings by link:** `/?sheet=<name>`

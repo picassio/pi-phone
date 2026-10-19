@@ -22,7 +22,8 @@ No Termux, no laptop, no cloud VM.
   model you pick for it, so you can start a session on any account or move one to another.
 - **Plan usage.** Each Claude, Codex, and Copilot account's limits as its own app shows them: the 5-hour and weekly
   windows (Copilot: the month's premium requests), with reset times, as bars in Providers, in the model menu, and as a
-  meter in the session's top bar that opens to every window.
+  meter in the session's top bar that opens to every window. At 90% of a window the session says so, with **Switch to** your other
+  accounts; a request that fails on the limit offers **Continue on** another account. pi-phone never switches by itself.
 - **Plan mode.** The Plan button by the message box: Pi reads and plans before it changes anything, and a long plan
   comes as a reviewable HTML page.
 - **Interview.** Pi asks several questions at once in a form (choices with its recommendation, text, photos), and waits

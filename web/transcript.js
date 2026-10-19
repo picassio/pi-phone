@@ -53,6 +53,7 @@ import {
     splitAttachments,
     Thumb,
 } from "./ui.js";
+import { LimitSwitch } from "./usage.js";
 
 const REPORT = /^\[subagent (\S+) (answered|failed)([^\]]*)\]\s?([\s\S]*)$/;
 /** Where the next report starts, in a message of several that arrived together (`extensions/subagents.ts`). */
@@ -1547,7 +1548,8 @@ function AnswerEnd({ entry }) {
 
     return html`${
         entry.stopReason === "error" &&
-        html`<div class="error-box">${entry.error ?? "The model request failed."}</div>`
+        html`<div class="error-box">${entry.error ?? "The model request failed."}</div>
+            <${LimitSwitch} error=${entry.error} />`
     }
     ${entry.stopReason === "aborted" && html`<div class="muted small">Stopped.</div>`}
     ${answer && html`<${AnswerActions} entry=${entry} />`}`;

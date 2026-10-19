@@ -5248,6 +5248,14 @@ pre.diff .del {
     overflow-wrap: anywhere;
 }
 
+/* Continue on another account, under a request that failed on its plan's limit. */
+.limit-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
 /* The top bar's meter: the first window's share, a tap opens all of them under it. */
 .usage-meter-wrap {
     position: relative;

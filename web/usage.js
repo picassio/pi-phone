@@ -1,7 +1,7 @@
 // Subscription accounts' plan limits (src/server/usage-limits.ts), as the Providers sheet, the model menu, and the top bar
 // show them: each window's share used, a bar colored by how close it is, and when it resets.
 import { useState } from "preact/hooks";
-import { store } from "./store.js";
+import { actions, attempt, store } from "./store.js";
 import { html } from "./ui.js";
 
 const SHORT = { "5-hour": "5h", Weekly: "wk", "Weekly Opus": "wk Opus", "Weekly Sonnet": "wk Sonnet", "Premium requests": "premium" };
@@ -108,4 +108,101 @@ export function UsageMeter({ provider }) {
         </button>
         ${open && html`<div class="usage-meter-panel"><${UsageBars} provider=${provider} /></div>`}
     </div>`;
+}
+
+/** The base provider of an account's id (`anthropic~work` is Anthropic's), as src/server/accounts.ts names them. */
+const baseOf = (provider) => provider.split("~")[0];
+
+/** An account's name for people: its own, "Default" for the original, or the provider's id when it has no others. */
+export const accountName = (provider) =>
+    store.state.models.find((model) => model.provider === provider)?.account ?? provider;
+
+/**
+ * The other accounts the session's model can move to: the same model, signed in, on another account of its provider
+ * (src/server/accounts.ts), with their figures' peak. Least used first.
+ */
+export function otherAccounts(provider, modelId) {
+    if (provider === undefined) {
+        return [];
+    }
+
+    const seen = new Set();
+
+    return store.state.models
+        .filter((model) => model.id === modelId && model.provider !== provider && baseOf(model.provider) === baseOf(provider) && !model.signIn)
+        .filter((model) => !seen.has(model.provider) && seen.add(model.provider))
+        .map((model) => ({ provider: model.provider, name: model.account ?? model.provider, peak: usagePeak(model.provider) }))
+        .sort((a, b) => (a.peak ?? 0) - (b.peak ?? 0));
+}
+
+/** Move this session to `provider`'s account, the same model; then, when asked, carry on where it stopped. */
+export async function switchAccount(provider, modelId, carryOn = false) {
+    await actions.configure({ model: { provider, modelId } });
+
+    if (carryOn) {
+        await actions.submit("Continue.");
+    }
+}
+
+/** Whether a failed request says it hit a plan's limit (Claude's, Codex's, Copilot's words for it). */
+export const limitError = (text) =>
+    /usage limit|rate.?limit|limit reached|reached your|hit your limit|quota|too many requests|\b429\b|UsageLimitExceeded/i.test(text ?? "");
+
+/**
+ * Over the composer, when a window of the session's account is at 90% or more: which, when it resets, and Switch to each
+ * other account with the same model. Closed, it stays closed until that window resets.
+ */
+export function UsageWarning() {
+    const { view } = store.state;
+    const provider = view.agent?.model?.provider;
+    const modelId = view.agent?.model?.modelId;
+    const usage = provider === undefined ? undefined : store.state.usage[provider];
+    const window = usage?.windows?.filter((each) => each.usedPercent >= 90).sort((a, b) => b.usedPercent - a.usedPercent)[0];
+    const key = window === undefined ? "" : `pi-phone.usage-warned:${provider}:${window.label}:${window.resetsAt ?? ""}`;
+    const [, redraw] = useState(0);
+
+    if (window === undefined || localStorage.getItem(key) === "1") {
+        return null;
+    }
+
+    const others = otherAccounts(provider, modelId);
+    const close = () => {
+        localStorage.setItem(key, "1");
+        redraw((n) => n + 1);
+    };
+
+    return html`<div class="watch-bar usage-warning" data-part="usage-warning">
+        <span class="grow">
+            <strong>${accountName(provider)}: ${window.label.toLowerCase()} limit at ${Math.round(window.usedPercent)}%</strong>${window.resetsAt === undefined ? "" : `, ${resetText(window.resetsAt)}`}.
+        </span>
+        ${others.map(
+            (other) => html`<button class="link small" onClick=${() => attempt(() => switchAccount(other.provider, modelId))}>
+                Switch to ${other.name}${other.peak === undefined ? "" : ` (${Math.round(other.peak)}%)`}
+            </button>`,
+        )}
+        <button class="link small" aria-label="Close" onClick=${close}>Close</button>
+    </div>`;
+}
+
+/** Under a request that failed on its plan's limit: Continue on each other account with the same model. */
+export function LimitSwitch({ error }) {
+    const { view } = store.state;
+    const provider = view.agent?.model?.provider;
+    const modelId = view.agent?.model?.modelId;
+
+    if (!limitError(error)) {
+        return null;
+    }
+
+    const others = otherAccounts(provider, modelId);
+
+    return others.length === 0
+        ? null
+        : html`<div class="limit-switch">
+              ${others.map(
+                  (other) => html`<button class="button small" onClick=${() => attempt(() => switchAccount(other.provider, modelId, true))}>
+                      Continue on ${other.name}${other.peak === undefined ? "" : ` (${Math.round(other.peak)}% used)`}
+                  </button>`,
+              )}
+          </div>`;
 }

@@ -44,6 +44,7 @@ import {
     modelLabel,
     Spinner,
 } from "./ui.js";
+import { UsageWarning } from "./usage.js";
 
 /** The explicit route to the parent on every layout, outside the dock and the scrolling conversation. */
 function ParentSessionButton() {
@@ -1217,6 +1218,7 @@ export function Composer() {
             <${PlanBar} blocked=${blocked} />
             <${GoalBar} />
             <${MachineBar} />
+            <${UsageWarning} />
             <${PiBar} />
             <${CiWatchBar} />
             <${SubagentsBar} />
