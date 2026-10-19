@@ -489,11 +489,16 @@ function Devices() {
  */
 function RecoveryCode() {
     const [madeAt, setMadeAt] = useState(undefined);
+    // Made only in the app on the phone: elsewhere the row says so.
+    const [here, setHere] = useState(false);
     const [shown, setShown] = useState(null);
 
     useEffect(() => {
         api("recovery-code").then(
-            (answer) => setMadeAt(answer.madeAt),
+            (answer) => {
+                setMadeAt(answer.madeAt);
+                setHere(answer.here === true);
+            },
             () => {},
         );
     }, []);
@@ -517,7 +522,7 @@ function RecoveryCode() {
                         : madeAt === null
                           ? "None yet. A code to sign a browser in as you if no device can, kept somewhere safe off this phone."
                           : `Made ${ago(madeAt)}. It works once: paste it into the sign-in screen of any browser that reaches this phone.`
-                }
+                }${here ? "" : " Only the pi-phone app on the phone can make one."}
             </div>
             ${
                 shown &&
@@ -529,7 +534,7 @@ function RecoveryCode() {
         </div>
         <div class="provider-actions">
             ${shown && html`<button class="button small" onClick=${() => copyText(shown).then(() => notify("info", "Copied."), () => notify("error", "Could not copy."))}>Copy</button>`}
-            <button class="button small ghost" onClick=${make}>${madeAt ? "Make a new code" : "Make a code"}</button>
+            ${here && html`<button class="button small ghost" onClick=${make}>${madeAt ? "Make a new code" : "Make a code"}</button>`}
         </div>
     </div>`;
 }

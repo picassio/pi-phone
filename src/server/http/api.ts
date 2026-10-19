@@ -27,6 +27,7 @@ import {
 } from "../auth.ts";
 import type { User } from "../config.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
+import { addressOf } from "../devices.ts";
 import { HttpError } from "../errors.ts";
 import { machinePaths } from "../machine-paths.ts";
 import { formatPlace, isRemote, parsePlace } from "../places.ts";
@@ -51,6 +52,12 @@ function lanAddresses(): string[] {
 export function createApi(options: HttpOptions, auth: Auth) {
     const { app } = options;
     const { events, poll } = createEventStreams(app);
+
+    /** The request is the pi-phone app on this phone: its own device (its WebView, signed in here), from this phone. */
+    const onThePhone = (request: IncomingMessage): boolean =>
+        auth.session(request)?.device?.app === true &&
+        /^(127\.|::1$)/.test(addressOf(request)) &&
+        request.headers["x-forwarded-for"] === undefined;
 
     const requireUser = (request: IncomingMessage): User => {
         const user = auth.user(request);
@@ -207,11 +214,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
         if (first === "recovery-code" && second === undefined && method === "GET") {
             requireOwner(user);
 
-            return json(response, 200, { madeAt: app.config.recoveryMadeAt ?? null });
+            return json(response, 200, { madeAt: app.config.recoveryMadeAt ?? null, here: onThePhone(request) });
         }
 
+        // Made only in the app on the phone (owner's decision): a browser elsewhere, signed in or stolen, cannot mint a
+        // way in.
         if (first === "recovery-code" && second === undefined && method === "POST") {
             requireOwner(user);
+
+            if (!onThePhone(request)) {
+                throw new HttpError(403, "Make the recovery code in the pi-phone app on the phone.");
+            }
 
             return json(response, 200, app.config.newRecoveryCode());
         }

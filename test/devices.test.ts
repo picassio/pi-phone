@@ -198,10 +198,18 @@ test("the recovery code (break glass): only the owner makes one; it signs a brow
 
     try {
         assert.equal((await bearer(guest.token, "recovery-code", {})).status, 403, "the owner's only");
-        assert.deepEqual(await (await bearer(app.config.ownerToken, "recovery-code")).json(), { madeAt: null });
 
-        const old = ((await (await bearer(app.config.ownerToken, "recovery-code", {})).json()) as { code: string }).code;
-        const made = (await (await bearer(app.config.ownerToken, "recovery-code", {})).json()) as { code: string; createdAt: number };
+        // Made only in the app on the phone: not by a browser of the owner's elsewhere, nor with the token itself.
+        const phone = await logIn(app.config.ownerToken, APP);
+        const laptop = await logIn(app.config.ownerToken, CHROME);
+
+        assert.equal((await bearer(app.config.ownerToken, "recovery-code", {})).status, 403);
+        assert.equal((await asCookie(laptop, "recovery-code", {})).status, 403);
+        assert.deepEqual(await (await asCookie(laptop, "recovery-code")).json(), { madeAt: null, here: false });
+        assert.deepEqual(await (await asCookie(phone, "recovery-code")).json(), { madeAt: null, here: true });
+
+        const old = ((await (await asCookie(phone, "recovery-code", {})).json()) as { code: string }).code;
+        const made = (await (await asCookie(phone, "recovery-code", {})).json()) as { code: string; createdAt: number };
 
         assert.match(made.code, /^([a-z0-9]{4}-){5}[a-z0-9]{4}$/);
         assert.equal((await recover(old)).status, 401, "a new code ends the one before");
@@ -216,7 +224,7 @@ test("the recovery code (break glass): only the owner makes one; it signs a brow
         assert.equal(app.config.deviceByToken(cookie)?.userId, owner(app).id, "a device of the owner's");
         assert.equal((await asCookie(cookie, "me")).status, 200);
         assert.equal((await recover(made.code)).status, 401, "it works once");
-        assert.deepEqual((await (await bearer(app.config.ownerToken, "recovery-code")).json()) as unknown, { madeAt: null });
+        assert.deepEqual((await (await asCookie(phone, "recovery-code")).json()) as unknown, { madeAt: null, here: true });
 
         const told = (await app.phoneEvents.after(seq, new AbortController().signal)).events;
 
