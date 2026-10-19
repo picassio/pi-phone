@@ -1,0 +1,1083 @@
+/* Projects (index.js): ACS's original board look, in the app's own tokens (web/style.css). The column canvas is lighter
+ * than the board and the cards darker than the column, so cards read as resting on a board; light themes turn the
+ * column grey and the cards white. Near-square corners, 1px lines, no shadows. */
+.pj,
+.pj-move,
+.pj-task {
+    --kcol: color-mix(in srgb, var(--body) 9%, var(--bg));
+    --kcard: var(--o-bg-dark);
+    --kline: color-mix(in srgb, var(--body) 14%, var(--bg));
+    --kline-strong: color-mix(in srgb, var(--body) 26%, var(--bg));
+}
+
+:root[data-mode="light"] .pj,
+:root[data-mode="light"] .pj-ghost {
+    --kcol: color-mix(in srgb, var(--body) 6%, var(--bg));
+    --kcard: #fff;
+}
+
+/* The page uses all of its place: the board scrolls inside, not the page. */
+.ext-page[data-module="projects"] .ext-page-body {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.pj {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.pj-sp {
+    flex: 1;
+}
+
+.pj-problem {
+    color: var(--err);
+    margin: 8px 14px;
+}
+
+/* ─── The top: project, settings, + Task; then what needs looking at ─── */
+
+.pj-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px 6px;
+    flex: none;
+}
+
+.pj-picker {
+    position: relative;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.pj-title-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 4px 6px;
+    margin-left: -6px;
+    border: 0;
+    border-radius: var(--r-row);
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    cursor: pointer;
+}
+
+.pj-title-button:hover {
+    background: var(--hover);
+}
+
+.pj-name {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pj-key {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: var(--r-tag);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font: 600 11px var(--mono);
+}
+
+.pj-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: -6px;
+    z-index: 20;
+    min-width: 240px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 4px;
+    border-radius: var(--r-window);
+    background: var(--bg);
+    box-shadow: var(--pop);
+    display: flex;
+    flex-direction: column;
+}
+
+.pj-menu button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--r-row);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pj-menu button:hover,
+.pj-menu button.on {
+    background: var(--hover);
+}
+
+.pj-menu .pj-menu-new {
+    color: var(--accent);
+    border-top: 1px solid var(--hair);
+    border-radius: 0 0 var(--r-row) var(--r-row);
+}
+
+.pj-chips {
+    display: flex;
+    gap: 6px;
+    padding: 0 12px 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex: none;
+}
+
+.pj-chips::-webkit-scrollbar,
+.pj-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.pj-chip {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border: 1px solid var(--hair);
+    border-radius: 999px;
+    background: var(--card);
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.pj-chip i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--tone);
+}
+
+.pj-chip b {
+    color: var(--text);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.pj-chip.need {
+    border-color: color-mix(in srgb, var(--err) 45%, transparent);
+    background: color-mix(in srgb, var(--err) 10%, transparent);
+    color: var(--text);
+}
+
+.pj-chip.quiet {
+    border-color: transparent;
+    background: none;
+    color: var(--faint);
+}
+
+/* ─── The board ─── */
+
+.pj-kanban {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--hair);
+}
+
+.pj-tabs {
+    display: none;
+}
+
+.pj-board {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    overflow-x: auto;
+    align-items: stretch;
+}
+
+.pj-col {
+    --tone: var(--faint);
+    position: relative;
+    flex: 0 0 16rem;
+    width: 16rem;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--kline);
+    border-radius: 4px;
+    background: var(--kcol);
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.pj-tbar {
+    height: 2px;
+    flex: none;
+    background: var(--tone);
+}
+
+.pj-col header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    flex: none;
+    padding: 0 8px 0 12px;
+}
+
+.pj-col-icon {
+    color: var(--tone);
+    flex: none;
+}
+
+.pj-col-label {
+    color: var(--text);
+    font: 600 11.5px var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.pj-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    min-width: 24px;
+    padding: 0 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--tone) 16%, transparent);
+    color: var(--tone);
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.pj-col.empty .pj-count {
+    background: color-mix(in srgb, var(--body) 9%, transparent);
+    color: var(--muted);
+}
+
+.pj-wip {
+    color: var(--faint);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.pj-wip.over {
+    color: var(--o-orange);
+    font-weight: 600;
+}
+
+.pj-fold {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: var(--r-seg);
+    background: none;
+    color: var(--faint);
+    cursor: pointer;
+}
+
+.pj-fold:hover {
+    background: var(--hover);
+    color: var(--muted);
+}
+
+.pj-cards {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 2px 8px 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.pj-col-empty {
+    flex: none;
+    height: 96px;
+    margin: 4px 0;
+    display: grid;
+    place-items: center;
+    border: 2px dashed color-mix(in srgb, var(--body) 14%, transparent);
+    border-radius: 3px;
+    color: var(--faint);
+    font-size: 12px;
+}
+
+.pj-add-row {
+    flex: none;
+    margin: 0 8px 8px;
+    min-height: 32px;
+    padding: 7px;
+    border: 0;
+    border-radius: var(--r-row);
+    background: none;
+    color: var(--faint);
+    font: inherit;
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pj-add-row:hover {
+    background: var(--hover);
+    color: var(--muted);
+}
+
+/* A drop target while a card is dragged over it. */
+.pj-col.over {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 7%, var(--kcol));
+}
+
+/* Collapsed: a narrow strip that reads from the top, with the load fill (ACS). */
+.pj-col.collapsed {
+    flex: 0 0 44px;
+    width: 44px;
+    cursor: pointer;
+}
+
+.pj-col.collapsed::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: var(--fill);
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--tone) 16%, transparent), transparent);
+    pointer-events: none;
+}
+
+.pj-col.collapsed header {
+    writing-mode: vertical-rl;
+    height: auto;
+    flex: 1;
+    gap: 8px;
+    padding: 10px 0;
+    justify-content: flex-start;
+}
+
+.pj-col.collapsed .pj-count {
+    writing-mode: horizontal-tb;
+}
+
+.pj-unfold {
+    color: var(--faint);
+}
+
+/* ─── A card (ACS's task card) ─── */
+
+.pj-card {
+    flex: none;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 10px 11px 0;
+    border: 1px solid var(--kline);
+    border-radius: 3px;
+    background: var(--kcard);
+    color: var(--body);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.pj-card:hover {
+    border-color: var(--kline-strong);
+}
+
+.pj-card.edge {
+    border-top: 2px solid var(--tone);
+}
+
+.pj-card.needs {
+    border-color: color-mix(in srgb, var(--err) 45%, transparent);
+    border-top-color: var(--err);
+}
+
+.pj-card.pj-dragging {
+    opacity: 0.35;
+}
+
+.pj-ghost {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0.95;
+    box-shadow: var(--pop);
+}
+
+.pj-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.pj-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 19px;
+    padding: 0 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--tt) 14%, transparent);
+    color: var(--tt);
+    font-size: 11.5px;
+    font-weight: 500;
+}
+
+.pj-type-task,
+.pj-type-subtask {
+    background: color-mix(in srgb, var(--body) 9%, transparent);
+    color: var(--body);
+}
+
+.pj-prio {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1.5px;
+    height: 11px;
+}
+
+.pj-prio i {
+    width: 3px;
+    border-radius: 1px;
+    background: var(--hair-2);
+}
+
+.pj-prio i:nth-child(1) {
+    height: 4px;
+}
+
+.pj-prio i:nth-child(2) {
+    height: 7px;
+}
+
+.pj-prio i:nth-child(3) {
+    height: 11px;
+}
+
+.pj-prio[data-p="1"] i:nth-child(1) {
+    background: var(--faint);
+}
+
+.pj-prio[data-p="2"] i:nth-child(-n + 2) {
+    background: var(--muted);
+}
+
+.pj-prio[data-p="3"] i {
+    background: var(--warn);
+}
+
+.pj-prio.urgent {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    background: var(--err);
+    color: var(--bg);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 13px;
+    text-align: center;
+}
+
+.pj-approve {
+    color: var(--warn);
+    display: inline-flex;
+}
+
+.pj-card-title {
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.35;
+}
+
+.pj-parent {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--body) 7%, transparent);
+    color: var(--muted);
+    font-size: 11.5px;
+}
+
+.pj-parent span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pj-waiting {
+    color: var(--warn);
+    font-size: 11.5px;
+}
+
+.pj-blocked {
+    color: var(--err);
+    font-size: 11.5px;
+}
+
+.pj-prog {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.pj-bar {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--body) 12%, transparent);
+    overflow: hidden;
+}
+
+.pj-bar i {
+    display: block;
+    height: 100%;
+    background: var(--ok);
+}
+
+.pj-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px -11px 0;
+    padding: 8px 11px;
+    border-top: 1px solid var(--kline);
+    color: var(--faint);
+    font-size: 11.5px;
+}
+
+.pj-id {
+    color: var(--faint);
+    font: 11.5px var(--mono);
+}
+
+.pj-due.soon {
+    color: var(--warn);
+}
+
+.pj-due.late {
+    color: var(--err);
+}
+
+.pj-av {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--o-orange);
+    color: var(--bg);
+    font-size: 9.5px;
+    font-weight: 600;
+}
+
+.pj-av.pi {
+    background: linear-gradient(135deg, var(--spark), var(--accent));
+    font-size: 11px;
+}
+
+.pj-av.none {
+    background: none;
+    border: 1px dashed var(--faint);
+    color: var(--faint);
+}
+
+/* ─── Empty page ─── */
+
+.pj-empty-page {
+    max-width: 420px;
+    margin: 12vh auto 0;
+    padding: 0 20px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.pj-empty-page h3 {
+    margin: 6px 0 0;
+    color: var(--text);
+}
+
+.pj-empty-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--r-card);
+    background: var(--card-2);
+    color: var(--muted);
+}
+
+/* ─── Sheets ─── */
+
+.pj-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Fields in the sheets: the app's own look, smaller than its full-width forms. */
+.pj-task select,
+.pj-task input:not([type="checkbox"]),
+.pj-inline select {
+    width: auto;
+    min-width: 0;
+    padding: 5px 9px;
+    font-size: 13.5px;
+}
+
+.pj-task textarea {
+    padding: 7px 9px;
+    font-size: 13.5px;
+}
+
+.pj-id {
+    white-space: nowrap;
+}
+
+.pj-check input[type="checkbox"],
+.pj-share input[type="checkbox"] {
+    flex: none;
+    width: 17px;
+    height: 17px;
+    padding: 0;
+    accent-color: var(--accent);
+}
+
+.pj-props dd.pj-dates {
+    flex-wrap: wrap;
+}
+
+.pj-props dd.pj-dates > input[type="date"] {
+    flex: 1 1 130px;
+}
+
+.pj-two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.pj-move {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pj-move-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--r-row);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pj-move-row svg {
+    color: var(--tone);
+}
+
+.pj-move-row:hover {
+    background: var(--hover);
+}
+
+.pj-move-row.on {
+    border-color: color-mix(in srgb, var(--tone) 50%, transparent);
+    background: color-mix(in srgb, var(--tone) 12%, transparent);
+}
+
+.pj-task {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pj-task-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pj-task .pj-state-select {
+    margin-left: auto;
+    flex: 0 1 auto;
+    border-color: color-mix(in srgb, var(--tone) 55%, transparent) !important;
+    color: var(--tone) !important;
+    font-weight: 600 !important;
+}
+
+.pj-task .pj-task-title {
+    width: 100%;
+    padding: 6px 8px;
+    margin: -4px -8px 0;
+    border-color: transparent;
+    background: none;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.pj-task .pj-task-title:hover,
+.pj-task .pj-task-title:focus {
+    border-color: var(--hair-2);
+}
+
+.pj-props {
+    display: grid;
+    grid-template-columns: 104px 1fr;
+    gap: 4px 10px;
+    margin: 0;
+    font-size: 13px;
+}
+
+.pj-props dt {
+    padding: 8px 0;
+    color: var(--faint);
+}
+
+.pj-props dd {
+    margin: 0;
+    padding: 2px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--text);
+}
+
+.pj-props dd > select,
+.pj-props dd > input:not([type="checkbox"]) {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.pj-props dd > .muted {
+    min-width: 0;
+}
+
+.pj-props .pj-short {
+    flex: 0 1 110px;
+    min-width: 80px;
+}
+
+.pj-sec {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    color: var(--faint);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.pj-desc {
+    width: 100%;
+    resize: vertical;
+}
+
+.pj-md {
+    font-size: 13.5px;
+}
+
+.pj-check {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 4px 0;
+    color: var(--text);
+    font-size: 13.5px;
+}
+
+.pj-check.done span {
+    color: var(--faint);
+    text-decoration: line-through;
+}
+
+.pj-check span,
+.pj-link-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.pj-x {
+    border: 0;
+    background: none;
+    color: var(--faint);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--r-seg);
+}
+
+.pj-x:hover {
+    background: var(--hover);
+    color: var(--err);
+}
+
+.pj-inline {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.pj-inline input {
+    flex: 1;
+}
+
+.pj-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.pj-link-title {
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pj-state-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--tone);
+    flex: none;
+}
+
+.pj-session {
+    display: block;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.pj-activity {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 18px;
+}
+
+.pj-activity::before {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 6px;
+    bottom: 6px;
+    width: 1px;
+    background: var(--hair-2);
+}
+
+.pj-act {
+    position: relative;
+}
+
+.pj-act::before {
+    content: "";
+    position: absolute;
+    left: -17px;
+    top: 5px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 2px solid var(--faint);
+    background: var(--bg);
+}
+
+.pj-act.pi::before {
+    border-color: var(--spark);
+}
+
+.pj-act.comment .pj-md {
+    margin-top: 4px;
+    padding: 7px 10px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-row);
+    background: var(--card);
+    color: var(--text);
+}
+
+.pj-comment {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.pj-comment textarea {
+    width: 100%;
+    resize: vertical;
+}
+
+.pj-delete {
+    align-self: flex-start;
+    color: var(--err);
+}
+
+.pj-share {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 0;
+}
+
+.pj-share span:first-of-type {
+    flex: 1;
+}
+
+.pj-mode-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* ─── Phone: the states as tabs over one column at a time, swiped (the app's own layout) ─── */
+
+@media (max-width: 760px) {
+    .pj-top {
+        padding: 6px 10px 6px 14px;
+    }
+
+    .pj-chips {
+        padding: 0 14px 8px;
+    }
+
+    .pj-tabs {
+        display: flex;
+        gap: 6px;
+        padding: 8px 12px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        flex: none;
+        border-bottom: 1px solid var(--hair);
+    }
+
+    .pj-tabs button {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 30px;
+        padding: 0 10px;
+        border: 1px solid transparent;
+        border-radius: var(--r-control);
+        background: var(--card);
+        color: var(--muted);
+        font: inherit;
+        font-size: 12.5px;
+        cursor: pointer;
+    }
+
+    .pj-tabs button i {
+        width: 6px;
+        height: 6px;
+        border-radius: 2px;
+        background: var(--tone);
+    }
+
+    .pj-tabs button b {
+        color: var(--text);
+        font-weight: 600;
+    }
+
+    .pj-tabs button.on {
+        border-color: color-mix(in srgb, var(--tone) 55%, transparent);
+        background: color-mix(in srgb, var(--tone) 16%, var(--bg));
+        color: var(--text);
+    }
+
+    .pj-board {
+        gap: 0;
+        padding: 0;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+    }
+
+    .pj-board::-webkit-scrollbar {
+        display: none;
+    }
+
+    .pj-col,
+    .pj-col.collapsed {
+        flex: 0 0 100%;
+        width: 100%;
+        scroll-snap-align: start;
+        scroll-snap-stop: always;
+        border: 0;
+        border-radius: 0;
+        cursor: default;
+    }
+
+    .pj-col header,
+    .pj-tbar,
+    .pj-col.collapsed::before {
+        display: none;
+    }
+
+    .pj-cards {
+        padding: 10px 12px;
+    }
+
+    .pj-card {
+        padding: 10px 12px 0;
+    }
+
+    .pj-foot {
+        margin: 2px -12px 0;
+        padding: 8px 12px;
+    }
+
+    .pj-props {
+        grid-template-columns: 92px 1fr;
+    }
+}

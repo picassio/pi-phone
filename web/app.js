@@ -14,7 +14,7 @@ import {
     setFilesOpen,
     toggleFiles,
 } from "./files-panel.js";
-import { ExtensionPage } from "./extension-ui.js";
+import { ExtensionPage, openPageWhenReady } from "./extension-ui.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
 import { Splash } from "./home.js";
 import { UsageMeter } from "./usage.js";
@@ -841,6 +841,16 @@ const linkedSheet = new URLSearchParams(location.search).get("sheet");
 if (linkedSheet !== null && LINKED_SHEETS.has(linkedSheet)) {
     replaceAddress(location.pathname);
     openSheet({ type: linkedSheet });
+}
+
+// An extension's page by link, `/?page=projects:projects` (module:page): a notification's, or Pi's screenshots. The page
+// shows once its module has loaded.
+const linkedPage = /^([A-Za-z0-9_-]+):([A-Za-z0-9][A-Za-z0-9_.:-]{0,63})$/.exec(new URLSearchParams(location.search).get("page") ?? "");
+
+if (linkedPage !== null) {
+    // A `#…` after it is the page's own (a task, say): kept for it.
+    replaceAddress(location.pathname + location.hash);
+    openPageWhenReady(linkedPage[1], linkedPage[2]);
 }
 
 start();

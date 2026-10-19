@@ -277,6 +277,20 @@ onSafeModeEnd(() => follow(store.state));
 
 // ─── Loading ─────────────────────────────────────────────────────────────────
 
+/** A page a link asked for (`/?page=module:id`), opened once its module is ready: before, the module list would close it. */
+let linked = null;
+
+/** Open an extension's page as soon as its module has loaded (now, if it has). */
+export function openPageWhenReady(module, id) {
+    const record = modules.get(module);
+
+    if (record?.status === "ready" && !record.dead && !record.gone) {
+        openPage(module, id);
+    } else {
+        linked = { module, id };
+    }
+}
+
 /** The list the tab loaded last, as a key: the server sends hello again for many reasons. */
 let loadedKey = null;
 
@@ -438,6 +452,13 @@ async function load(entry) {
         }
 
         record.status = "ready";
+
+        if (linked?.module === record.module) {
+            const { id } = linked;
+
+            linked = null;
+            openPage(record.module, id);
+        }
     } catch (error) {
         if (!record.gone && !record.dead) {
             fail(record, error, "failed to load");

@@ -328,6 +328,10 @@ test("the board's routes: shared people see and change it, others get nothing, v
         assert.equal(done.status, 409);
         assert.match(((await done.json()) as { error: string }).error, /verify the fix first/);
 
+        const names = (await (await call(guest.token, "GET", "people")).json()) as { people: { name: string }[] };
+
+        assert.ok(names.people.some((person) => person.name === "Gina"), "people to assign and share with");
+
         const board = (await (await call(guest.token, "GET", "projects/PP")).json()) as { tasks: { ref: string; type: string }[] };
 
         assert.deepEqual(board.tasks.map((task) => task.ref).sort(), ["PP-1", "PP-2", "PP-3"]);

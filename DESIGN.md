@@ -518,6 +518,16 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   - Routes under `/api/x/projects/` (`projects`, `projects/:key`, `projects/:key/tasks`, `projects/:key/members`,
     `tasks/:ref`, `tasks/:ref/comments`, `tasks/:ref/links`, `board-mode/:conversation`); changes are sent to
     open boards as the module's `changed` event. Tests: `test/projects.test.ts`.
+  - Screens: the browser module `extensions/projects-web/` (`index.js`, `projects.css`). The page `projects`, with ACS's
+    original board look in the app's tokens (column canvas lighter than the board, cards darker, near-square corners;
+    light themes: grey columns, white cards), a column per state (16rem, the load fill on collapsed ones), and cards
+    with type, priority, parent, waiting-on, progress, and a footer. Desktop: mouse drag between states, placed by
+    position (the midpoint of its neighbours). Phone: the states as tabs over one full-width column at a time
+    (scroll-snap), and a long press opens Move to. Sheets: `task`, `new-task`, `new-project`, `project` (name, folder,
+    sharing, delete), `move`, `board-mode` (the session menu's "Board for this session").
+  - Links: `/?page=<module>:<page>` opens an extension's page once its module is ready (`openPageWhenReady` in
+    `extension-ui.js`: opened earlier, the module list would close it); `#task:PP-3` opens a task, from a link anywhere
+    or the address (asked again until the sheet shows, as the linked page's opening closes sheets).
 
 ## 5. Build
 

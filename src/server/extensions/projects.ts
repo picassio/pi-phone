@@ -60,6 +60,8 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     const steer = { access: "steer" as const };
 
     web.onDispose(() => projects.close());
+    // The Projects page, the task sheet, and the session menu's board switch (`projects-web/`).
+    web.client("projects-web", view);
     // Open boards follow changes as they happen.
     projects.onChange((projectId) => web.send("changed", { projectId }));
 
@@ -89,6 +91,8 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     const body = (request: WebRequest) => request.body as never;
 
     route("GET", "projects", (_request, actor) => ({ projects: projects.list(actor), states: STATES, types: TYPES }), view);
+    // People to share a project with and assign tasks to: names only.
+    route("GET", "people", () => ({ people: people().map(({ id, name, role }) => ({ id, name, role })) }), view);
     route("POST", "projects", (request, actor) => projects.create(actor, body(request)), steer);
     route("GET", "projects/:key", (request, actor) => projects.board(actor, request.params.key!), view);
     route("PATCH", "projects/:key", (request, actor) => projects.update(actor, request.params.key!, body(request)), steer);

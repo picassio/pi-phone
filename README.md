@@ -36,7 +36,10 @@ No Termux, no laptop, no cloud VM.
   being forgotten. Pi asks once before it tracks a session's work on a board ("Track this on the board?"), then keeps
   its tasks current with `task_create`, `task_update`, and `task_comment`. Epics, Stories, Tasks, Bugs, and Sub-tasks;
   Inbox → Planning → Assigned → In Progress → Testing → Review → Done, and Blocked. Only a person approves a task that
-  needs it, and Pi never approves its own work. Shared with the people you choose. The board screens come next.
+  needs it, and Pi never approves its own work. Shared with the people you choose. The Projects page (rail) shows a
+  board in ACS's look: drag cards between states on a desktop; on a phone, swipe between states and long-press a card to
+  move it. A card opens its task: every field, checklist, links, comments, activity, and the sessions that worked on it.
+  The session menu's "Board for this session" turns board mode on or off. `#task:PP-3` links open a task anywhere.
 
 ### Web, documents, and answers
 - **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for
