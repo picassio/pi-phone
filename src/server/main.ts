@@ -254,15 +254,20 @@ const token = encodeURIComponent(opened.config.ownerToken);
     console.log("\npi-phone is running.");
     console.log(`  data:     ${options.data}`);
     console.log(`  sessions: new sessions start in ${options.cwd}`);
-    console.log(
-        "  Open one of these once per browser to sign in as the owner (keep them private):",
-    );
+    // Under the app (PiService), never the token: its log is a file Pi's tools can read, and the app signs itself in.
+    if (process.env.PI_POCKET_SUPERVISED === "1") {
+        console.log("  Other devices: Settings › People › “Sign in as me”.\n");
+    } else {
+        console.log(
+            "  Open one of these once per browser to sign in as the owner (keep them private):",
+        );
 
-    for (const host of hosts) {
-        console.log(`    http://${host}:${options.port}/login?token=${token}`);
+        for (const host of hosts) {
+            console.log(`    http://${host}:${options.port}/login?token=${token}`);
+        }
+
+        console.log("  Other devices: open the app's menu and use “Sign in another device”.\n");
     }
-
-    console.log("  Other devices: open the app's menu and use “Sign in another device”.\n");
 }
 
 if (stopWhenStarted !== undefined) {
