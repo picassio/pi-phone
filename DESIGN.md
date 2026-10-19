@@ -150,6 +150,10 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   once, so places, the web's path joins, and Git Bash read them alike. `machine_run` gives Windows the command line
   (Git Bash) instead of `sh -c`; `machine_copy` takes `<machine>:C:/…`. The environment section tells Pi it is
   Windows with Git Bash. Machine tools are not offered there.
+  Its **terminal**: pi-env's Windows daemon has no pseudo-terminals ("Terminals are not supported on this system yet"),
+  so `Places.terminal` opens one on the phone's own daemon running the app's `ssh -F <config> -tt <alias>` with PowerShell's
+  `-EncodedCommand` (cmd.exe dropped the quotes around `C:\\Program Files`), which starts Git Bash `--login -i` in the folder
+  (`CHERE_INVOKING=1`). Windows' sshd gives it a ConPTY.
   Adding one, "It's a Windows PC" shows a PowerShell script (`web/windows-setup.js`) with the chosen key in it, to paste
   into PowerShell run as administrator: OpenSSH Server installed by winget (`Microsoft.OpenSSH.Preview`: seconds, with
   progress; Windows Update's optional feature showed none for many minutes, and its DISM module fails in PowerShell 7),

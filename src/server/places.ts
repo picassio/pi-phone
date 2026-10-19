@@ -182,12 +182,49 @@ export class Places {
         options: { cols: number; rows: number; onData: (bytes: Uint8Array) => void },
     ): Promise<RemoteTerminal> {
         const place = parsePlace(cwd);
+
+        if (place.machineId !== undefined && this.#machines.ready(place.machineId).remote!.platform === "windows") {
+            return this.#windowsTerminal(this.#machines.ready(place.machineId), place.path, options);
+        }
+
         const connection =
             place.machineId === undefined
                 ? (this.#localDaemon ??= new Connection({ command: [localDaemon()] }))
                 : this.connection(this.#machines.ready(place.machineId));
 
         return openTerminal(connection, { cwd: place.path, env: { TERM: "xterm-256color" }, ...options });
+    }
+
+    /**
+     * A Windows machine's terminal. pi-env's Windows daemon has no pseudo-terminals ("Terminals are not supported on this
+     * system yet"), but Windows' OpenSSH Server has (ConPTY): so a pseudo-terminal here, on the phone's own daemon, runs the
+     * app's `ssh -tt` to the machine (its config: the agent's key, its known hosts), which starts Git Bash in the folder.
+     * The command is PowerShell's `-EncodedCommand`: no quotes for cmd.exe to mangle (it dropped those around
+     * `C:\Program Files`), and it runs from either shell sshd may use. `CHERE_INVOKING` keeps Git Bash's login profile
+     * from going to the home folder. Checked against a Windows 11 machine on 2026-10-19.
+     */
+    #windowsTerminal(
+        machine: Machine,
+        path: string,
+        options: { cols: number; rows: number; onData: (bytes: Uint8Array) => void },
+    ): Promise<RemoteTerminal> {
+        const alias = this.#machines.sshHosts().find((each) => each.machine.id === machine.id)?.alias;
+
+        if (alias === undefined) {
+            throw new HttpError(409, `Accept ${machine.name}'s host key first.`);
+        }
+
+        const folder = path.replaceAll("/", "\\").replaceAll("'", "''");
+        const script = `$env:CHERE_INVOKING = '1'; Set-Location -LiteralPath '${folder}'; & "$env:ProgramFiles\\Git\\bin\\bash.exe" --login -i; exit $LASTEXITCODE`;
+        const command = `powershell -NoLogo -NoProfile -EncodedCommand ${Buffer.from(script, "utf16le").toString("base64")}`;
+        const connection = (this.#localDaemon ??= new Connection({ command: [localDaemon()] }));
+
+        return openTerminal(connection, {
+            cwd: process.env.HOME ?? "/",
+            argv: ["ssh", "-F", this.#machines.configFile, "-tt", alias, command],
+            env: { TERM: "xterm-256color" },
+            ...options,
+        });
     }
 
     /** Checks that the place's folder exists there, and answers the cwd in canonical form. */
