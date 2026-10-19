@@ -15369,6 +15369,21 @@ pre.gallery-code {
     flex: 1;
 }
 
+/* A Windows PC's setup (sheets/machines.js): the steps, Copy, and the script, which scrolls rather than fill the sheet. */
+.windows-setup ol {
+    margin: 0.5rem 0;
+    padding-left: 1.2rem;
+}
+
+.windows-setup li {
+    margin: 0.25rem 0;
+}
+
+.windows-setup pre {
+    max-height: 14rem;
+    overflow: auto;
+}
+
 /* Tools pi-phone installs on a machine (sheets/machines.js): a tick, the tool, where it stands. */
 .machine-tool {
     display: flex;

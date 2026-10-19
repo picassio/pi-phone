@@ -136,6 +136,11 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   once, so places, the web's path joins, and Git Bash read them alike. `machine_run` gives Windows the command line
   (Git Bash) instead of `sh -c`; `machine_copy` takes `<machine>:C:/…`. The environment section tells Pi it is
   Windows with Git Bash. Machine tools are not offered there.
+  Adding one, "It's a Windows PC" shows a PowerShell script (`web/windows-setup.js`) with the chosen key in it, to paste
+  into PowerShell run as administrator: OpenSSH Server installed, started, and automatic; the firewall rule
+  `OpenSSH-Server-In-TCP` (TCP 22, every profile); the key in `administrators_authorized_keys` when sshd_config has
+  `Match Group administrators` (rights by SID with icacls, as sshd demands), else `~/.ssh/authorized_keys`, written as
+  ASCII (no BOM); Git for Windows by winget when Git Bash is missing; then the addresses to enter. Each step may run again.
 - **Sessions on a machine** (`src/server/places.ts`): a session's `cwd` is a folder here, or
   `machine:<id>:<path on the machine>`. pi-pocket carries that one string everywhere; `Places.env(cwd)` gives
   `NodeExecutionEnv` or pi-env's `RemoteExecutionEnv` (one lazily started connection per machine), so the agent's

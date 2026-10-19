@@ -3,6 +3,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet, notify, openSheet } from "../store.js";
 import { copyText, html, Icon, Loader, Sheet, timeAgo } from "../ui.js";
+import { windowsSetupScript } from "../windows-setup.js";
 
 const address = (machine) => `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`;
 
@@ -12,6 +13,8 @@ function MachineForm({ machine, keys, onDone }) {
     const [where, setWhere] = useState(machine ? address(machine) : "");
     const [keyId, setKeyId] = useState(machine?.keyId ?? keys[0]?.id ?? "");
     const [busy, setBusy] = useState(false);
+    const [windows, setWindows] = useState(false);
+    const key = keys.find((each) => each.id === keyId);
     const save = () =>
         attempt(async () => {
             setBusy(true);
@@ -58,12 +61,46 @@ function MachineForm({ machine, keys, onDone }) {
                     </select>`
             }
         </div>
+        ${!machine && key && html`<label class="check">
+            <input type="checkbox" checked=${windows} onChange=${(event) => setWindows(event.currentTarget.checked)} /> It's a Windows PC
+        </label>`}
+        ${windows && key && html`<${WindowsSetup} publicKey=${key.publicKey} />`}
         <div class="sheet-actions">
             <button class="button" onClick=${() => onDone(null)}>Cancel</button>
             <button class="button primary" disabled=${busy || name.trim() === "" || where.trim() === "" || keyId === ""} onClick=${save}>
                 ${busy ? "Saving…" : machine ? "Save" : "Add"}
             </button>
         </div>
+    </div>`;
+}
+
+/**
+ * Getting a Windows PC ready (web/windows-setup.js): one script, with this key in it, pasted into PowerShell as
+ * administrator; it says which addresses to put above.
+ */
+function WindowsSetup({ publicKey }) {
+    const script = windowsSetupScript(publicKey);
+
+    return html`<div class="windows-setup">
+        <ol class="small">
+            <li>On the PC, open the Start menu, type <b>PowerShell</b>, and choose <b>Run as administrator</b>, signed in as the account pi-phone will use.</li>
+            <li>Paste this script and press Enter. It turns on OpenSSH Server, lets SSH (port 22) through the firewall, adds this key, and installs Git for Windows if it is missing (Git Bash runs Pi's commands there).</li>
+            <li>It ends with addresses like <span class="mono">you@192.168.1.20</span>: put one in Address above, then Add, and connect.</li>
+        </ol>
+        <div class="sheet-actions">
+            <button
+                class="button"
+                onClick=${() =>
+                    copyText(script).then(
+                        () => notify("info", "Script copied: paste it into PowerShell on the PC."),
+                        () => notify("error", "Could not copy."),
+                    )}
+            >
+                <${Icon} name="copy" size=${14} /> Copy script
+            </button>
+        </div>
+        <pre class="ssh-public-key">${script}</pre>
+        <p class="muted small">From another network, put the PC on your Tailscale network too and use its 100.x address.</p>
     </div>`;
 }
 
