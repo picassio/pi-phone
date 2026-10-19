@@ -5,7 +5,8 @@ import { mentionText } from "../files.js";
 import { highlightLines, langOf } from "../highlight.js";
 import { HtmlPreview } from "../rich.js";
 import { RunFrame } from "../run-frame.js";
-import { actions, canSteer, closeSheet, insertIntoComposer, notify, store } from "../store.js";
+import { actions, attempt, canSteer, closeSheet, insertIntoComposer, notify, store } from "../store.js";
+import { downloadFile } from "../download.js";
 import {
     copyText,
     fileUrl,
@@ -136,7 +137,12 @@ export function FileView({ path, line, onOpen = openFile, onLoad }) {
         ${
             file?.kind === "binary" &&
             !office &&
-            html`<p class="muted">A binary file: nothing to show as text.</p>`
+            html`<div class="file-binary">
+                <p class="muted">A binary file: nothing to show as text.</p>
+                <button class="button primary" onClick=${() => downloadSessionFile(file.path, name)}>
+                    <${Icon} name="download" size=${16} /> Download ${name}
+                </button>
+            </div>`
         }
         ${
             file?.kind === "other" &&
@@ -276,15 +282,39 @@ function FileActions({ file, shown, previewable, preview, onPreview, running, on
     }`;
 }
 
+/**
+ * Save a file of the session's to this device: in the app, to the phone's Downloads; in a browser elsewhere (the laptop),
+ * as that browser's download. Here or on the session's machine, as the Files panel's Download does.
+ */
+export const downloadSessionFile = (path, name) =>
+    attempt(() => downloadFile(`/api/c/${store.state.conversationId}/download?path=${encodeURIComponent(path)}`, name));
+
 /** The viewer as a sheet: opened from a path in a reply, a tool card, a mention, or Changes. */
 export function FileSheet({ path, line }) {
     const [name, setName] = useState(path.replace(/\/$/, "").split("/").pop() || path);
+    const [file, setFile] = useState(null);
+    // Any file Pi made or named can be saved: in the app to Downloads, in a browser elsewhere as its download.
+    const download =
+        file !== null &&
+        file.kind !== "folder" &&
+        html`<button
+            class="icon-button"
+            type="button"
+            aria-label=${`Download ${name}`}
+            title="Download (to Downloads on the phone)"
+            onClick=${() => downloadSessionFile(file.path, name)}
+        >
+            <${Icon} name="download" size=${18} />
+        </button>`;
 
-    return html`<${Sheet} title=${name} onClose=${closeSheet} wide=${true}>
+    return html`<${Sheet} title=${name} onClose=${closeSheet} wide=${true} actions=${download || null}>
         <${FileView}
             path=${path}
             line=${line}
-            onLoad=${(file) => setName((file.display ?? path).replace(/\/$/, "").split("/").pop() || path)}
+            onLoad=${(loaded) => {
+                setFile(loaded);
+                setName((loaded.display ?? path).replace(/\/$/, "").split("/").pop() || path);
+            }}
         />
     <//>`;
 }

@@ -81,7 +81,8 @@ No Termux, no laptop, no cloud VM.
 - **A terminal.** A real shell inside the app, on the phone or on a machine, with Esc, Tab, Ctrl, and arrow keys
   above the keyboard.
 - **Changes** of the session's folder (only its own, even inside a bigger repository), with diffs and undo.
-- **Notifications** when a session finishes, fails, or asks for approval; **downloads** to the phone; **backup and
+- **Notifications** when a session finishes, fails, or asks for approval; **downloads** of any file Pi made or
+  named (tap its path, then Download): to the phone's Downloads in the app, or as the browser's download elsewhere; **backup and
   restore** of everything.
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
   they finish, so it pushes, ends its turn, and is woken by the result.
