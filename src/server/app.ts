@@ -7,6 +7,8 @@
  * `alerts.ts`, provider sign-ins in `providers.ts`, and each conversation's shared live view in `room.ts`.
  */
 import { Accounts } from "./accounts.ts";
+import { PhoneSettingsFile } from "./phone-settings.ts";
+import { UsageLimits } from "./usage-limits.ts";
 import { rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -241,6 +243,8 @@ export interface OpenOptions {
     log?: (line: string) => void;
     /** Tests register scripted providers here. */
     configureModels?: (models: ModelRuntime) => void;
+    /** How plan limits are asked (`usage-limits.ts`); tests answer for the providers. */
+    usageFetch?: typeof fetch;
     /** The providers that may have more accounts, and how to make each (`accounts.ts`); tests use their scripted one. */
     accountProviders?: ConstructorParameters<typeof Accounts>[2];
     /** The clock durable work runs by, such as scheduled messages. Tests move it ahead. */
@@ -321,6 +325,8 @@ export class PocketApp {
     readonly machines: Machines;
     /** More accounts of a subscription provider, each a provider of its own (`accounts.ts`). */
     readonly accounts: Accounts;
+    /** The subscription accounts' plan limits (`usage-limits.ts`). */
+    readonly usageLimits: UsageLimits;
     /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
     readonly officecli: OfficeCli;
     /** Tools pi-phone installs on machines: OfficeCLI, rg, fd (`machine-tools.ts`). */
@@ -397,6 +403,18 @@ export class PocketApp {
         );
         this.places = new Places(this.machines);
         this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
+        const phoneSettings = new PhoneSettingsFile(options.dataDir);
+
+        this.usageLimits = new UsageLimits({
+            models: () => this.models,
+            claudeVersion: () => phoneSettings.current().claudeCodeBilling.version,
+            publish: (usage) => {
+                for (const client of this.#clients) {
+                    client.send("usage", usage);
+                }
+            },
+            ...(options.usageFetch === undefined ? {} : { fetch: options.usageFetch }),
+        });
         this.officecli = new OfficeCli({ dataDir: options.dataDir, ...options.officecli });
         this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools));
         this.officecli.install();
@@ -846,14 +864,17 @@ export class PocketApp {
                 // A run that failed because its provider's sign-in could not be renewed marks that provider; one that
                 // was answered shows its provider works, and a mark it had (signed in again in Pi's terminal app, say)
                 // is asked again.
+                const ranOn = this.#agents.get(change.value.conversationId)?.model?.provider;
+
                 if (change.value.status === "unanswered" && change.value.reason === "model_error") {
                     this.providers.runFailed(change.value.detail);
-                } else if (change.value.status === "done") {
-                    const provider = this.#agents.get(change.value.conversationId)?.model?.provider;
+                } else if (change.value.status === "done" && ranOn !== undefined) {
+                    this.providers.runAnswered(ranOn);
+                }
 
-                    if (provider !== undefined) {
-                        this.providers.runAnswered(provider);
-                    }
+                // A run spent some of its account's plan: its figures are asked again (`usage-limits.ts`).
+                if (ranOn !== undefined && (change.value.status === "done" || change.value.status === "unanswered")) {
+                    this.usageLimits.afterRun(ranOn);
                 }
 
                 // Its run failed: the commit that settles it ends the run too, so the list hears of both at once.
@@ -1771,6 +1792,8 @@ export class PocketApp {
             },
             users: this.people(user),
             models: await this.modelList(),
+            // The plan limits known now (`usage-limits.ts`), without asking: the top bar's meter has them at once.
+            usage: this.usageLimits.known(),
             server: {
                 supervised: this.supervised,
                 startedAt: this.startedAt,

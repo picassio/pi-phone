@@ -72,6 +72,9 @@ export const store = {
         me: undefined, // undefined: unknown, null: signed out
         users: [],
         models: [],
+        // Subscription accounts' plan limits, by provider id (src/server/usage-limits.ts): from `hello`, `usage` events, and
+        // `loadUsage`.
+        usage: {},
         /** This tab's shared model refresh state and last result (`model-refresh.js`). */
         modelRefresh: { loading: false, result: null, error: null },
         guard: null,
@@ -542,6 +545,19 @@ export function onExtensionEvent(listener) {
 }
 
 /** What the server sends, by event name. Both transports deliver the same events. */
+const usageMap = (list) => Object.fromEntries(list.map((each) => [each.provider, each]));
+
+/**
+ * The subscription accounts' plan limits, asked now: kept on the server a minute, unless `fresh` (Providers' Check again).
+ * Providers and the model menu ask as they open; failures stay quiet, as the figures are extra.
+ */
+export function loadUsage(fresh = false) {
+    return api(`usage-limits${fresh ? "?fresh=1" : ""}`).then(
+        (answer) => store.set((state) => ({ usage: { ...state.usage, ...usageMap(answer.usage) } })),
+        () => {},
+    );
+}
+
 const handlers = {
     hello: (data) =>
         store.set({
@@ -549,6 +565,7 @@ const handlers = {
             users: data.users,
             folderFavorites: data.folderFavorites ?? [],
             models: data.models,
+            ...(Array.isArray(data.usage) ? { usage: usageMap(data.usage) } : {}),
             guard: data.guard,
             server: data.server,
             // Every theme folder (`theme.js`): an older server lists none.
@@ -564,6 +581,7 @@ const handlers = {
         })),
     "folder-favorites": (folderFavorites) => store.set({ folderFavorites }),
     models: (models) => store.set({ models }),
+    usage: (usage) => store.set((state) => ({ usage: { ...state.usage, [usage.provider]: usage } })),
     // A theme folder came, went, or changed (`theme.js` loads its new version).
     themes: (themeList) => store.set({ themeList }),
     // Every subagent in every session, while this tab shows the subagents board (`subagents-board.js`).

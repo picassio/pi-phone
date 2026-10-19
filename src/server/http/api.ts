@@ -1063,6 +1063,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, app.providers.list(user.role === "owner"));
         }
 
+        // The subscription accounts' plan limits (`usage-limits.ts`): Providers and the model menu ask `fresh` as they open.
+        if (first === "usage-limits" && second === undefined && method === "GET") {
+            return json(response, 200, { usage: await app.usageLimits.all(url.searchParams.get("fresh") === "1") });
+        }
+
         // More accounts of a subscription provider (`accounts.ts`): the owner's. Each is a provider of its own, signed in
         // with the providers' login route.
         if (first === "accounts" && second === undefined && method === "POST") {

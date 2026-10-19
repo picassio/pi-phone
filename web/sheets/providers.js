@@ -1,7 +1,8 @@
 // Model providers: signing in and out, the models subagents may use besides their session's own, and the dialog a
 // sign-in uses to ask for a code or a key.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
-import { api, attempt, closeSheet, closeSignIn, signInAnswered, store } from "../store.js";
+import { api, attempt, closeSheet, closeSignIn, loadUsage, signInAnswered, store } from "../store.js";
+import { UsageBars } from "../usage.js";
 import { html, Icon, Loader, Sheet } from "../ui.js";
 import { RefreshModels } from "../model-refresh.js";
 
@@ -149,6 +150,10 @@ export function ProvidersSheet() {
     useEffect(() => {
         load();
     }, [store.state.models]);
+    // The plan limits of each signed-in subscription account (src/server/usage-limits.ts), as the sheet opens.
+    useEffect(() => {
+        void loadUsage();
+    }, []);
     useLayoutEffect(() => {
         if (!auth) {
             loginButton.current?.focus();
@@ -282,6 +287,7 @@ export function ProvidersSheet() {
                             provider.needsSignIn &&
                             html`<div class="muted small mono provider-why">${provider.needsSignIn}</div>`
                         }
+                        ${provider.configured && html`<${UsageBars} provider=${provider.id} />`}
                         ${adding === provider.id && nameField(() => addAccount(provider), "New account's name")}
                         ${renaming === provider.id && nameField(() => renameAccount(provider), "Account's name")}
                     </div>

@@ -17,6 +17,7 @@ import {
 import { ExtensionPage } from "./extension-ui.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
 import { Splash } from "./home.js";
+import { UsageMeter } from "./usage.js";
 import { Launcher } from "./launcher.js";
 import {
     PEEK_WIDE,
@@ -42,6 +43,7 @@ import {
     dismiss,
     filesShown,
     holdNotice,
+    loadUsage,
     navigate,
     notify,
     openSheet,
@@ -95,6 +97,20 @@ function ChangesButton() {
         ${removed > 0 && html`<span class="removed">−${removed}</span>`}
         <span class=${lines ? "changes-files" : ""}>${counted}</span>
     </button>`;
+}
+
+/**
+ * The plan usage of the session's account, in the top bar (web/usage.js): asked once when a session on a subscription
+ * account opens without figures; runs on it bring new ones.
+ */
+function SessionUsage({ provider }) {
+    useEffect(() => {
+        if (provider !== undefined && store.state.usage[provider] === undefined) {
+            void loadUsage();
+        }
+    }, [provider]);
+
+    return provider === undefined ? null : html`<${UsageMeter} provider=${provider} />`;
 }
 
 function Topbar() {
@@ -182,6 +198,7 @@ function Topbar() {
                 }
             </span>
         </div>
+        <${SessionUsage} provider=${view.agent?.model?.provider} />
         ${
             busySubagents > 0 &&
             html`<button

@@ -1,7 +1,8 @@
 // The model picker: a menu over the model chip, searchable once there are many models; and the same menu for the model
 // and thinking level new sessions start with.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { actions, attempt, closeSheet, openSheet, store } from "../store.js";
+import { actions, attempt, closeSheet, loadUsage, openSheet, store } from "../store.js";
+import { usageLine } from "../usage.js";
 import { useDragToClose } from "../gestures.js";
 import {
     anchorStyle,
@@ -130,6 +131,11 @@ export function ModelPicker() {
                 thinkingLevel,
             }),
         );
+
+    // The plan limits of the accounts in the list (src/server/usage-limits.ts), as the menu opens.
+    useEffect(() => {
+        void loadUsage();
+    }, []);
 
     useEffect(() => {
         // The default's picker has no chip to open from: it stays in the middle.
@@ -319,7 +325,7 @@ export function ModelPicker() {
                         <span class="pop-menu-row-text">
                             <span class="pop-menu-row-name">${model.name}</span>
                             <span class="pop-menu-row-sub">
-                                ${model.account ? `${model.provider.split("~")[0]} · ${model.account} account` : model.provider}${!forDefault && isDefault(model) ? " · default" : ""}${model.signIn ? " · needs sign-in" : ""}
+                                ${model.account ? `${model.provider.split("~")[0]} · ${model.account} account` : model.provider}${!forDefault && isDefault(model) ? " · default" : ""}${model.signIn ? " · needs sign-in" : ""}${usageLine(model.provider) ? ` · ${usageLine(model.provider)}` : ""}
                             </span>
                         </span>
                         ${isCurrent(model) && html`<${Icon} name="check" size=${14} />`}

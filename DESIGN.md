@@ -143,6 +143,15 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   schedules follow. `accounts.json` holds them; ids are fixed, names change. The billing patch takes `anthropic~…` as
   Anthropic. Providers lists each account under its provider (Add account, Rename, Remove); the menus label models with
   their account (`ModelSummary.account`, "Default" for the original once it has others).
+- **Plan usage** (`src/server/usage-limits.ts`, `web/usage.js`): each subscription (OAuth) account of Claude, Codex, or
+  Copilot (its accounts too), asked with its own sign-in: Claude `GET api.anthropic.com/api/oauth/usage` (`anthropic-beta:
+  oauth-2025-04-20`, `user-agent: claude-code/<the billing patch's version>`), Codex `GET chatgpt.com/backend-api/wham/usage`
+  (`chatgpt-account-id` from the token's claim), Copilot `GET api.github.com/copilot_internal/user` with the GitHub token
+  the sign-in keeps (`readStoredCredential(...).refresh`). Undocumented: each answer is parsed strictly, another shape is
+  "usage unavailable: …". `limited()` asks `checkAuth` (a new account's runtime status comes later). Kept a minute;
+  asked when Providers or the model menu opens (`GET /api/usage-limits`, `fresh=1` skips the minute), after a run on
+  the account (`afterRun`), and pushed to tabs (`usage` events; `hello` carries the known ones). Shown as bars in
+  Providers, a line per model in the menu, and the top bar's meter (`UsageMeter`, open state per device).
 - **Choice** (`web/ui.js`): the sheets' dropdowns (Web access, Dictation, a machine's key, Ports) in the app's own
   style, the model and branch menus' `.pop-menu` rows, not the system's `<select>`: fixed to the screen under its field (over
   it with too little room), closed by a tap elsewhere, a scroll, a resize, or Escape. **Settings by link:** `/?sheet=<name>`
