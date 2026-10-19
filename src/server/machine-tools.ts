@@ -259,7 +259,8 @@ export class MachineTools {
     async status(id: string): Promise<ToolStatus[]> {
         const machine = this.#connected(id);
         const target = targetOf(machine);
-        const { out } = await this.#run(machine, statusScript(this.catalog), 60);
+        // No builds for Windows: nothing to look for there (and its shell is Git Bash, not `sh` on its PATH).
+        const { out } = target === undefined ? { out: "" } : await this.#run(machine, statusScript(this.catalog), 60);
         const lines = new Map(
             out
                 .split("\n")

@@ -669,14 +669,28 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 // Its own paths: on Windows, drive paths with forward slashes (`machine-paths.ts`).
                 const paths = machinePaths(machine.remote);
                 const cwd = await app.workspace.checkPlace(
-                    formatPlace({ machineId: machine.id, path: paths.expandHome(place.path, home) }),
+                    formatPlace({ machineId: machine.id, path: paths.onDrive(paths.expandHome(place.path, home), home) }),
                 );
                 const path = parsePlace(cwd).path;
                 const env = app.places.env(cwd);
                 const reader = await env.openDirReader(path, BACKGROUND_CONTEXT);
 
+                // A file with a name Windows reserves (`nul`, `con`, …; a slip of `> nul` in Git Bash makes one) stops
+                // pi-env's listing of its folder: say which, and how to delete it.
+                const listingFailed = (message: string) => {
+                    const reserved = /lstat '.*\\((?:nul|con|prn|aux|com\d|lpt\d)(?:\.[^\\']*)?)'/i.exec(message)?.[1];
+                    const file = reserved === undefined ? "" : `${path.replaceAll("/", "\\")}\\${reserved}`.replace(/\\\\+/g, "\\");
+
+                    return new HttpError(
+                        502,
+                        reserved === undefined
+                            ? `Could not list ${path} on ${machine.name}: ${message}`
+                            : `Could not list ${path} on ${machine.name}: it holds a file named ${reserved}, a name Windows reserves. Delete it there (in Git Bash): cmd //c "del \\\\?\\${file}"`,
+                    );
+                };
+
                 if (!reader.ok) {
-                    throw new HttpError(502, `Could not list ${path} on ${machine.name}: ${reader.error.message}`);
+                    throw listingFailed(reader.error.message);
                 }
 
                 const remoteDirs: { name: string; path: string }[] = [];
@@ -686,12 +700,12 @@ export function createApi(options: HttpOptions, auth: Auth) {
                         const page = await reader.value.next(1000, BACKGROUND_CONTEXT);
 
                         if (!page.ok) {
-                            throw new HttpError(502, `Could not list ${path} on ${machine.name}: ${page.error.message}`);
+                            throw listingFailed(page.error.message);
                         }
 
                         for (const entry of page.value.entries) {
                             if ((showHidden || !entry.name.startsWith(".")) && entry.kind === "directory") {
-                                remoteDirs.push({ name: entry.name, path: formatPlace({ machineId: machine.id, path: paths.normal(entry.path) }) });
+                                remoteDirs.push({ name: entry.name, path: formatPlace({ machineId: machine.id, path: paths.onDrive(paths.normal(entry.path), home) }) });
                             }
                         }
 

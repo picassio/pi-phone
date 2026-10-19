@@ -22,6 +22,8 @@ export type MachinePaths = {
     within(root: string, path: string): boolean;
     /** `~` and `~/…` (or `~\…`) from `home`; other paths as written. */
     expandHome(path: string, home: string): string;
+    /** On Windows, a path from `/` (no drive: Windows reads it on the current one) on `home`'s drive; others as they are. */
+    onDrive(path: string, home: string): string;
 };
 
 const slashes = (path: string) => path.replaceAll("\\", "/");
@@ -36,6 +38,7 @@ const POSIX: MachinePaths = {
     basename: (path) => posix.basename(path),
     within: (root, path) => path === root || path.startsWith(root.endsWith("/") ? root : `${root}/`),
     expandHome: (path, home) => (path === "~" ? home : path.startsWith("~/") ? `${home}${path.slice(1)}` : path),
+    onDrive: (path) => path,
 };
 
 const WINDOWS: MachinePaths = {
@@ -53,6 +56,7 @@ const WINDOWS: MachinePaths = {
         return p === r || p.startsWith(r.endsWith("/") ? r : `${r}/`);
     },
     expandHome: (path, home) => (path === "~" ? home : /^~[\\/]/.test(path) ? `${home}/${slashes(path.slice(2))}` : path),
+    onDrive: (path, home) => (/^[\\/](?![\\/])/.test(path) && /^[a-zA-Z]:/.test(home) ? `${home.slice(0, 2)}${slashes(path)}` : path),
 };
 
 /** The paths of a machine with this system; POSIX until it is known. */

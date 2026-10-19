@@ -22,6 +22,10 @@ test("a Windows machine's paths are drive paths with forward slashes", () => {
     assert.ok(paths.within("C:/Users/tuan/proj", "C:/Users/tuan/proj"));
     assert.ok(!paths.within("C:/Users/tuan/proj", "C:/Users/tuan/project"));
     assert.ok(!paths.within("C:/Users/tuan/proj", "C:/Users/tuan/projx"));
+    assert.equal(paths.onDrive("/", "C:/Users/tuan"), "C:/", "the root is the home's drive's");
+    assert.equal(paths.onDrive("\\$Recycle.Bin", "D:/home"), "D:/$Recycle.Bin");
+    assert.equal(paths.onDrive("E:/x", "C:/Users/tuan"), "E:/x");
+    assert.equal(paths.onDrive("//server/share", "C:/Users/tuan"), "//server/share");
 });
 
 test("POSIX machines, and machines not yet connected, keep their paths as they are", () => {

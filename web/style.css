@@ -15360,9 +15360,16 @@ pre.gallery-code {
 
 /* ─── Machines (pi-phone) ────────────────────────────────────── */
 
+/* A machine's row holds a lot (its state, the tools list, the setup steps): its buttons go under it at any width, so
+   they never squeeze it into a column of single words. */
+.provider.machine {
+    flex-direction: column;
+    align-items: stretch;
+}
+
 .machine .provider-actions {
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
 }
 
 .machine-form {

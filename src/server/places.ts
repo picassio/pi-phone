@@ -216,7 +216,9 @@ export class Places {
             throw new HttpError(404, `There is no folder ${absolute.value} on ${machine.name}.`);
         }
 
-        return formatPlace({ machineId: machine.id, path: machinePaths(machine.remote).normal(absolute.value) });
+        const paths = machinePaths(machine.remote);
+
+        return formatPlace({ machineId: machine.id, path: paths.onDrive(paths.normal(absolute.value), machine.remote!.home) });
     }
 
     /** A machine was edited or removed: its connection and environments are dropped, and start afresh next time. */
