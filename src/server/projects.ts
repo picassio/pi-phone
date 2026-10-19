@@ -77,12 +77,46 @@ export interface ChecklistItem {
     done: boolean;
 }
 
+/** Where a project's tasks run: its repository's folder there (here, or `machine:<id>:<path>`), and how many at once. */
+export interface ProjectPlace {
+    folder: string;
+    cap: number;
+}
+
+export const RUN_STATES = ["queued", "starting", "running", "done", "failed", "stopped", "cancelled"] as const;
+export type RunState = (typeof RUN_STATES)[number];
+/** Runs that hold a place, or wait for one. */
+export const ACTIVE_RUNS: readonly RunState[] = ["queued", "starting", "running"];
+
+/** A task's run: a task session in a git worktree on a branch of its own, at one of the project's places. */
+export interface Run {
+    id: string;
+    taskId: string;
+    projectId: string;
+    state: RunState;
+    /** The repository's folder at the place it runs (a project place's `folder`). */
+    place: string | null;
+    /** The worktree's folder, a session folder (here, or on a machine). */
+    worktree: string | null;
+    branch: string | null;
+    /** The branch the worktree started from, which a merge goes back into. */
+    base: string | null;
+    conversationId: string | null;
+    /** Why it ended as it did, or what it waits for. */
+    note: string | null;
+    createdAt: number;
+    startedAt: number | null;
+    endedAt: number | null;
+}
+
 export interface Project {
     id: string;
     key: string;
     name: string;
     /** The folder its work happens in, here or on a machine (a session folder, `machine:<id>:<path>` for one). */
     folder: string | null;
+    /** Where its tasks run; none set, its folder with 2 at once. */
+    places: ProjectPlace[];
     owner: string;
     members: string[];
     labels: string[];
@@ -130,6 +164,8 @@ export interface TaskLink {
 
 /** A task as the board shows it: its parent's and children's refs, what it waits on, and its progress. */
 export interface BoardTask extends Task {
+    /** Its latest run, if it ever ran. */
+    run: Run | null;
     parentRef: string | null;
     children: string[];
     /** Open tasks that block this one: shown, never acted on. */
@@ -204,6 +240,7 @@ export class Projects {
     readonly #people: () => Person[];
     readonly #now: () => number;
     readonly #listeners = new Set<(projectId: string) => void>();
+    readonly #assigned = new Set<(task: Task) => void>();
 
     /** `people`: everyone in the app, as config has them now. */
     constructor(dataDir: string, people: () => Person[], now: () => number = Date.now) {
@@ -244,14 +281,30 @@ export class Projects {
                 id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, project_id TEXT NOT NULL, actor TEXT NOT NULL,
                 kind TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL
             ) STRICT;
+            CREATE TABLE IF NOT EXISTS pocket_task_runs (
+                id TEXT PRIMARY KEY, task_id TEXT NOT NULL, project_id TEXT NOT NULL, state TEXT NOT NULL, place TEXT,
+                worktree TEXT, branch TEXT, base TEXT, conversation_id TEXT, note TEXT, created_at INTEGER NOT NULL,
+                started_at INTEGER, ended_at INTEGER
+            ) STRICT;
+            CREATE INDEX IF NOT EXISTS pocket_task_runs_task ON pocket_task_runs (task_id, created_at);
             CREATE TABLE IF NOT EXISTS pocket_board_sessions (
                 conversation_id TEXT PRIMARY KEY, project_id TEXT, on_board INTEGER NOT NULL, decided_at INTEGER NOT NULL
             ) STRICT;
         `);
+        this.#migrate();
     }
 
     close(): void {
         this.#db.close();
+    }
+
+    /** Columns added after a table was first made. */
+    #migrate(): void {
+        const columns = (this.#db.prepare("PRAGMA table_info(pocket_projects)").all() as Row[]).map((row) => String(row.name));
+
+        if (!columns.includes("places")) {
+            this.#db.exec("ALTER TABLE pocket_projects ADD COLUMN places TEXT NOT NULL DEFAULT '[]'");
+        }
     }
 
     /** Call `listener` with a project's id whenever it or its tasks change; returns how to stop. */
@@ -259,6 +312,13 @@ export class Projects {
         this.#listeners.add(listener);
 
         return () => this.#listeners.delete(listener);
+    }
+
+    /** Call `listener` when a task is given to Pi (made assigned to it, or assigned to it later), while it is open. */
+    onAssignedToPi(listener: (task: Task) => void): () => void {
+        this.#assigned.add(listener);
+
+        return () => this.#assigned.delete(listener);
     }
 
     // ---- Projects ------------------------------------------------------------------------------------------------
@@ -313,7 +373,14 @@ export class Projects {
     update(
         actor: Actor,
         key: string,
-        patch: { name?: string; folder?: string | null; labels?: string[]; autoRuns?: boolean; mainSession?: string | null },
+        patch: {
+            name?: string;
+            folder?: string | null;
+            labels?: string[];
+            autoRuns?: boolean;
+            mainSession?: string | null;
+            places?: ProjectPlace[];
+        },
     ): Project {
         const project = this.#edit(actor, key);
         const name = patch.name === undefined ? project.name : String(patch.name).trim();
@@ -324,7 +391,7 @@ export class Projects {
 
         this.#db
             .prepare(
-                "UPDATE pocket_projects SET name = ?, folder = ?, labels = ?, auto_runs = ?, main_session = ?, updated_at = ? WHERE id = ?",
+                "UPDATE pocket_projects SET name = ?, folder = ?, labels = ?, auto_runs = ?, main_session = ?, places = ?, updated_at = ? WHERE id = ?",
             )
             .run(
                 name,
@@ -332,6 +399,7 @@ export class Projects {
                 JSON.stringify(patch.labels === undefined ? project.labels : labelsOf(patch.labels)),
                 (patch.autoRuns ?? project.autoRuns) ? 1 : 0,
                 patch.mainSession === undefined ? project.mainSession : patch.mainSession,
+                JSON.stringify(patch.places === undefined ? project.places : placesOf(patch.places)),
                 this.#now(),
                 project.id,
             );
@@ -445,7 +513,13 @@ export class Projects {
         });
         this.#changed(project.id);
 
-        return this.#taskById(id)!;
+        const made = this.#taskById(id)!;
+
+        if (made.assignee === "pi") {
+            this.#toPi(made);
+        }
+
+        return made;
     }
 
     /** A task with its comments, activity, sessions, links, and board fields. */
@@ -677,7 +751,13 @@ export class Projects {
         });
         this.#changed(project.id);
 
-        return this.#taskById(task.id)!;
+        const saved = this.#taskById(task.id)!;
+
+        if (changes.assignee === "pi" && saved.state !== "done") {
+            this.#toPi(saved);
+        }
+
+        return saved;
     }
 
     comment(actor: Actor, ref: string, text: string): Comment {
@@ -771,6 +851,153 @@ export class Projects {
 
         this.#linkSession(task.id, conversationId, role);
         this.#changed(project.id);
+    }
+
+    // ---- Runs ----------------------------------------------------------------------------------------------------
+
+    /** The places a project's tasks run at: its own, or its folder with 2 at once. */
+    placesOf(project: Project): ProjectPlace[] {
+        return project.places.length > 0 ? project.places : project.folder === null ? [] : [{ folder: project.folder, cap: 2 }];
+    }
+
+    /** Queue a run of a task: Pi works on it in a task session. A person's start, or Pi's after the person said yes. */
+    queueRun(actor: Actor, ref: string): Run {
+        const { project, task } = this.#editTask(actor, ref);
+
+        if (task.state === "done") {
+            throw new HttpError(409, `${task.ref} is done.`);
+        }
+
+        if (task.type === "epic") {
+            throw new HttpError(409, `${task.ref} is an epic: run its stories or tasks instead.`);
+        }
+
+        if (this.placesOf(project).length === 0) {
+            throw new HttpError(409, `${project.key} has no folder to run tasks in: set one in its settings.`);
+        }
+
+        const active = this.activeRun(task.id);
+
+        if (active !== undefined) {
+            throw new HttpError(409, `${task.ref} is already ${active.state === "queued" ? "waiting to run" : "running"}.`);
+        }
+
+        const id = randomUUID();
+        const now = this.#now();
+
+        this.#transaction(() => {
+            this.#db
+                .prepare("INSERT INTO pocket_task_runs (id, task_id, project_id, state, created_at) VALUES (?, ?, ?, 'queued', ?)")
+                .run(id, task.id, project.id, now);
+
+            if (task.assignee !== "pi") {
+                this.#db.prepare("UPDATE pocket_tasks SET assignee = 'pi', updated_at = ? WHERE id = ?").run(now, task.id);
+            }
+
+            this.#record(actor, task.id, project.id, "run", { state: "queued" });
+        });
+        this.#changed(project.id);
+
+        return this.#runById(id)!;
+    }
+
+    /** A queued run withdrawn, before it starts. */
+    cancelRun(actor: Actor, ref: string): void {
+        const { project, task } = this.#editTask(actor, ref);
+        const active = this.activeRun(task.id);
+
+        if (active?.state !== "queued") {
+            throw new HttpError(409, `${task.ref} has no run waiting to start.`);
+        }
+
+        this.setRun(active.id, { state: "cancelled", endedAt: this.#now() });
+        this.#record(actor, task.id, project.id, "run", { state: "cancelled" });
+        this.#changed(project.id);
+    }
+
+    /** A run's progress, as the scheduler and the sessions' ends move it: no person's rights involved. */
+    setRun(id: string, patch: Partial<Pick<Run, "state" | "place" | "worktree" | "branch" | "base" | "conversationId" | "note" | "startedAt" | "endedAt">>): Run {
+        const run = this.#runById(id);
+
+        if (run === undefined) {
+            throw new HttpError(404, "No such run.");
+        }
+
+        const next = { ...run, ...patch };
+
+        this.#db
+            .prepare(
+                "UPDATE pocket_task_runs SET state = ?, place = ?, worktree = ?, branch = ?, base = ?, conversation_id = ?, note = ?, started_at = ?, ended_at = ? WHERE id = ?",
+            )
+            .run(next.state, next.place, next.worktree, next.branch, next.base, next.conversationId, next.note, next.startedAt, next.endedAt, id);
+
+        if (patch.state !== undefined && patch.state !== run.state) {
+            this.#db
+                .prepare("INSERT INTO pocket_task_activity (task_id, project_id, actor, kind, data, created_at) VALUES (?, ?, 'pi', 'run', ?, ?)")
+                .run(run.taskId, run.projectId, JSON.stringify({ state: patch.state, ...(next.note === null ? {} : { note: next.note }) }), this.#now());
+        }
+
+        this.#changed(run.projectId);
+
+        return this.#runById(id)!;
+    }
+
+    activeRun(taskId: string): Run | undefined {
+        return this.#runs("SELECT * FROM pocket_task_runs WHERE task_id = ? AND state IN ('queued', 'starting', 'running') ORDER BY created_at DESC LIMIT 1", taskId)[0];
+    }
+
+    lastRun(taskId: string): Run | null {
+        return this.#runs("SELECT * FROM pocket_task_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1", taskId)[0] ?? null;
+    }
+
+    /** Runs in a state, oldest first: the queue, or what holds places. */
+    runsIn(states: readonly RunState[]): Run[] {
+        return this.#runs(`SELECT * FROM pocket_task_runs WHERE state IN (${states.map(() => "?").join(", ")}) ORDER BY created_at`, ...states);
+    }
+
+    /** The run a task session works in. */
+    runOfSession(conversationId: string): Run | undefined {
+        return this.#runs("SELECT * FROM pocket_task_runs WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1", conversationId)[0];
+    }
+
+    /** A task and its project, by id, for the scheduler (no person's rights). */
+    taskById(id: string): { project: Project; task: Task } | undefined {
+        const task = this.#taskById(id);
+
+        return task === undefined ? undefined : { project: this.#projectById(task.projectId)!, task };
+    }
+
+    /** A project by id (no person's rights): the scheduler's, and the sessions'. */
+    projectById(id: string): Project | undefined {
+        return this.#projectById(id);
+    }
+
+    /** The project a session leads, if it is a project's main session. */
+    projectLedBy(conversationId: string): Project | undefined {
+        return this.#allProjects().find((project) => project.mainSession === conversationId);
+    }
+
+    /** Pi moves a task as a run does: In Progress when it starts (no person's rights; the run's session works on it). */
+    startWork(taskId: string, conversationId: string): void {
+        const task = this.#taskById(taskId);
+
+        if (task === undefined) {
+            return;
+        }
+
+        this.#transaction(() => {
+            if (task.state !== "in_progress") {
+                this.#db
+                    .prepare("UPDATE pocket_tasks SET state = 'in_progress', blocked_reason = NULL, position = ?, updated_at = ? WHERE id = ?")
+                    .run(this.#endOf(task.projectId, "in_progress"), this.#now(), taskId);
+                this.#db
+                    .prepare("INSERT INTO pocket_task_activity (task_id, project_id, actor, kind, data, created_at) VALUES (?, ?, 'pi', 'changed', ?, ?)")
+                    .run(taskId, task.projectId, JSON.stringify({ state: "in_progress" }), this.#now());
+            }
+
+            this.#linkSession(taskId, conversationId, "worker");
+        });
+        this.#changed(task.projectId);
     }
 
     // ---- Board mode ----------------------------------------------------------------------------------------------
@@ -1039,6 +1266,7 @@ export class Projects {
                 (member) => String(member.user_id),
             ),
             labels: JSON.parse(String(row.labels)) as string[],
+            places: JSON.parse(String(row.places ?? "[]")) as ProjectPlace[],
             autoRuns: Number(row.auto_runs) === 1,
             mainSession: row.main_session === null ? null : String(row.main_session),
             createdAt: Number(row.created_at),
@@ -1076,6 +1304,38 @@ export class Projects {
         return row === undefined ? undefined : taskOf(row, this.#projectById(projectId)!.key);
     }
 
+    #runById(id: string): Run | undefined {
+        return this.#runs("SELECT * FROM pocket_task_runs WHERE id = ?", id)[0];
+    }
+
+    #runs(sql: string, ...params: SQLInputValue[]): Run[] {
+        return (this.#db.prepare(sql).all(...params) as Row[]).map((row) => ({
+            id: String(row.id),
+            taskId: String(row.task_id),
+            projectId: String(row.project_id),
+            state: String(row.state) as RunState,
+            place: row.place === null ? null : String(row.place),
+            worktree: row.worktree === null ? null : String(row.worktree),
+            branch: row.branch === null ? null : String(row.branch),
+            base: row.base === null ? null : String(row.base),
+            conversationId: row.conversation_id === null ? null : String(row.conversation_id),
+            note: row.note === null ? null : String(row.note),
+            createdAt: Number(row.created_at),
+            startedAt: row.started_at === null ? null : Number(row.started_at),
+            endedAt: row.ended_at === null ? null : Number(row.ended_at),
+        }));
+    }
+
+    #toPi(task: Task): void {
+        for (const listener of this.#assigned) {
+            try {
+                listener(task);
+            } catch {
+                // A listener's trouble is its own.
+            }
+        }
+    }
+
     #childrenOf(id: string): Task[] {
         return (this.#db.prepare("SELECT id FROM pocket_tasks WHERE parent_id = ? ORDER BY number").all(id) as Row[]).map(
             (row) => this.#taskById(String(row.id))!,
@@ -1099,6 +1359,7 @@ export class Projects {
 
             return {
                 ...task,
+                run: this.lastRun(task.id),
                 parentRef: task.parent === null ? null : (byId.get(task.parent)?.ref ?? null),
                 children: children.map((child) => child.ref),
                 waitingOn: links
@@ -1148,7 +1409,7 @@ export class Projects {
     #deleteTaskRows(id: string): void {
         this.#db.prepare("DELETE FROM pocket_task_links WHERE from_id = ? OR to_id = ?").run(id, id);
 
-        for (const table of ["pocket_task_comments", "pocket_task_sessions", "pocket_task_activity"]) {
+        for (const table of ["pocket_task_comments", "pocket_task_sessions", "pocket_task_activity", "pocket_task_runs"]) {
             this.#db.prepare(`DELETE FROM ${table} WHERE task_id = ?`).run(id);
         }
 
@@ -1271,6 +1532,35 @@ function dayOf(day: unknown, what: string): string | null {
     }
 
     return day;
+}
+
+function placesOf(places: unknown): ProjectPlace[] {
+    if (!Array.isArray(places) || places.length > 10) {
+        throw bad("Places are a list of at most 10.");
+    }
+
+    const seen = new Set<string>();
+
+    return places.map((place: unknown) => {
+        const { folder, cap } = (place ?? {}) as { folder?: unknown; cap?: unknown };
+        const path = folderOf(folder);
+
+        if (path === null) {
+            throw bad("Each place has the folder of the project's repository there.");
+        }
+
+        if (seen.has(path)) {
+            throw bad(`${path} is listed twice.`);
+        }
+
+        seen.add(path);
+
+        if (typeof cap !== "number" || !Number.isInteger(cap) || cap < 1 || cap > 8) {
+            throw bad("A place runs 1 to 8 tasks at once.");
+        }
+
+        return { folder: path, cap };
+    });
 }
 
 function folderOf(folder: unknown): string | null {

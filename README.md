@@ -40,6 +40,11 @@ No Termux, no laptop, no cloud VM.
   board in ACS's look: drag cards between states on a desktop; on a phone, swipe between states and long-press a card to
   move it. A card opens its task: every field, checklist, links, comments, activity, and the sessions that worked on it.
   The session menu's "Board for this session" turns board mode on or off. `#task:PP-3` links open a task anywhere.
+  **An agent team per project:** its main session leads (plans, asks before a task runs, reviews, never writes code);
+  a task given to Pi runs in a task session of its own, in a git worktree on `task/PP-12`, at the place (the phone or a
+  machine) with room, as many at once as each place allows. Its end is reported to the main session; you see the
+  branch's diff and merge it from the task. Task and main sessions do not notify the phone when they finish; approvals
+  and failures do.
 
 ### Web, documents, and answers
 - **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for

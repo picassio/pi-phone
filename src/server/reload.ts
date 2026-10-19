@@ -169,6 +169,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "task_create",
     "task_update",
     "task_comment",
+    "task_run",
     "board_mode",
 ]);
 

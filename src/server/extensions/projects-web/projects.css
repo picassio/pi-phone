@@ -719,6 +719,10 @@
     flex: none;
 }
 
+.pj-form > .button.small {
+    align-self: flex-start;
+}
+
 .pj-two {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1108,4 +1112,158 @@
     .pj-props {
         grid-template-columns: 92px 1fr;
     }
+}
+
+/* ─── Runs and the team (build 3) ─── */
+
+.pj-running {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--o-cyan);
+    font-size: 11.5px;
+}
+
+.pj-running i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pj-pulse 1.6s ease-in-out infinite;
+}
+
+.pj-running.queued {
+    color: var(--faint);
+}
+
+.pj-running.queued i {
+    animation: none;
+}
+
+@keyframes pj-pulse {
+    50% {
+        opacity: 0.35;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pj-running i {
+        animation: none;
+    }
+}
+
+.pj-chip.pj-lead-chip {
+    color: var(--text);
+    text-decoration: none;
+}
+
+.pj-run-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    font-size: 13px;
+}
+
+.pj-run-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--tone) 14%, transparent);
+    color: var(--tone);
+    font-weight: 600;
+}
+
+.pj-run-state i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.pj-run-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.pj-diff {
+    max-height: 50vh;
+    overflow: auto;
+    margin: 8px 0 0;
+    padding: 10px;
+    border-radius: var(--r-row);
+    background: var(--code-bg, var(--card));
+    color: var(--text);
+    font: 12px/1.45 var(--mono);
+    white-space: pre;
+}
+
+.pj-team {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+    background: var(--card);
+}
+
+.pj-team .button {
+    align-self: flex-start;
+}
+
+.pj-team-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pj-grow {
+    flex: 1;
+    min-width: 0;
+}
+
+.pj-team-sub {
+    padding-top: 6px;
+    border-top: 1px solid var(--hair);
+}
+
+.pj-place {
+    font: 12.5px var(--mono);
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
+.pj-stepper {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    border: 1px solid var(--hair-2);
+    border-radius: var(--r-row);
+}
+
+.pj-stepper button {
+    width: 28px;
+    height: 28px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.pj-stepper button:disabled {
+    color: var(--faint);
+    cursor: default;
+}
+
+.pj-stepper span {
+    min-width: 20px;
+    text-align: center;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
 }

@@ -26,8 +26,38 @@ export class PhoneEvents {
     #seq = 0;
     readonly #events: PhoneEvent[] = [];
     readonly #waiting = new Set<() => void>();
+    /** Who hears every event as it happens (the Projects extension: a task session's run ended). */
+    readonly #listeners = new Set<(event: Omit<PhoneEvent, "seq" | "at">) => void>();
+    /** Sessions whose ends the phone does not hear (task and main sessions: the board says it); approvals it always does. */
+    readonly #quiet = new Set<(session: number) => boolean>();
+
+    /** Hear every event, quiet or not; returns how to stop. */
+    subscribe(listener: (event: Omit<PhoneEvent, "seq" | "at">) => void): () => void {
+        this.#listeners.add(listener);
+
+        return () => this.#listeners.delete(listener);
+    }
+
+    /** Keep the ends of the sessions `test` names from the phone (not their approvals); returns how to stop. */
+    quiet(test: (session: number) => boolean): () => void {
+        this.#quiet.add(test);
+
+        return () => this.#quiet.delete(test);
+    }
 
     add(event: Omit<PhoneEvent, "seq" | "at">): void {
+        for (const listener of this.#listeners) {
+            try {
+                listener(event);
+            } catch {
+                // A listener's trouble is its own: the phone still hears.
+            }
+        }
+
+        if (event.kind === "done" && [...this.#quiet].some((test) => test(event.session))) {
+            return;
+        }
+
         this.#events.push({ ...event, seq: ++this.#seq, at: Date.now() });
 
         if (this.#events.length > KEPT) {

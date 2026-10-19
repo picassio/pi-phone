@@ -6,6 +6,7 @@
  * What people ask of Pi lives in `commands.ts`, the people's side of a session in `collab.ts`, push notifications in
  * `alerts.ts`, provider sign-ins in `providers.ts`, and each conversation's shared live view in `room.ts`.
  */
+import { randomUUID } from "node:crypto";
 import { Accounts } from "./accounts.ts";
 import { PhoneSettingsFile } from "./phone-settings.ts";
 import { UsageLimits } from "./usage-limits.ts";
@@ -662,6 +663,62 @@ export class PocketApp {
             modelProblem: (ref, fresh) => this.providers.problem(ref, fresh),
             requesterOf: (conversationId) => this.attribution.requesterOf(conversationId),
             people: () => this.config.users.map((user) => ({ id: user.id, name: user.name, role: user.role })),
+            startSession: async ({ userId, cwd, title, message, via }) => {
+                const user = this.config.userById(userId);
+
+                if (user === undefined) {
+                    throw new HttpError(404, "That person is not in the app.");
+                }
+
+                const { id } = await this.commands.createSession(user, { cwd, title });
+
+                await this.commands.submit(id, user, { text: message, requestId: randomUUID() }, via);
+
+                return Number(id);
+            },
+            sendToSession: async ({ userId, session, message, via }) => {
+                const user = this.config.userById(userId);
+
+                if (user === undefined) {
+                    throw new HttpError(404, "That person is not in the app.");
+                }
+
+                await this.commands.submit(
+                    session as unknown as ConversationId,
+                    user,
+                    { text: message, requestId: randomUUID(), mode: "followUp" },
+                    via,
+                );
+            },
+            onSessionEvent: (listener) =>
+                this.phoneEvents.subscribe((event) => listener({ kind: event.kind, session: event.session, text: event.text })),
+            quietSessions: (test) => this.phoneEvents.quiet(test),
+            run: async (cwd, command, timeoutSeconds = 120) => {
+                const folder = await this.workspace.checkPlace(cwd);
+                let stdout = "";
+                let stderr = "";
+                const result = await this.places.env(folder).exec(
+                    command,
+                    {
+                        timeout: timeoutSeconds,
+                        onOutput: (text, _context, info) => {
+                            if (info.stream === "stdout") {
+                                stdout += text;
+                            } else {
+                                stderr += text;
+                            }
+                        },
+                    },
+                    context,
+                );
+
+                if (!result.ok) {
+                    return { code: -1, stdout, stderr: `${stderr}${result.error.message}` };
+                }
+
+                return { code: result.value.exitCode ?? -1, stdout, stderr };
+            },
+            sessionTitle: (session) => this.sessionMeta(session as unknown as ConversationId)?.title,
             canSee: (userId, conversationId) => {
                 const user = this.config.userById(userId);
 

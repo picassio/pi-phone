@@ -195,6 +195,21 @@ export interface PocketHost {
     modelProblem(ref: ModelRef, fresh?: boolean): Promise<string | undefined>;
     /** Who Pi works for in a conversation now: whose message led to its current work. */
     requesterOf(conversationId: ConversationId): string | undefined;
+    /**
+     * Start a session in `cwd` (here, or `machine:<id>:<path>`) as a person, with a first message sent for them
+     * (`via` says by what): the Projects extension's main and task sessions. Answers its id.
+     */
+    startSession(request: { userId: string; cwd: string; title: string; message: string; via: string }): Promise<number>;
+    /** Send a session a message for a person, after its current work (`via` says by what): a task session's report. */
+    sendToSession(request: { userId: string; session: number; message: string; via: string }): Promise<void>;
+    /** Hear sessions' runs end, fail, or wait for approval, as the phone does; returns how to stop. */
+    onSessionEvent(listener: (event: { kind: string; session: number; text: string }) => void): () => void;
+    /** Keep the ends of the sessions `test` names from the phone (approvals and failures still reach it). */
+    quietSessions(test: (session: number) => boolean): () => void;
+    /** Run a command in a folder here or on a machine; never throws for its exit code. */
+    run(cwd: string, command: string, timeoutSeconds?: number): Promise<{ code: number; stdout: string; stderr: string }>;
+    /** A session's title, or undefined when there is no such session. */
+    sessionTitle(session: number): string | undefined;
     /** Everyone in the app now, by id, name, and role (the Projects extension's sharing). */
     people(): { id: string; name: string; role: Role }[];
     /** Whether a person may see a session, as the app decides it for them (`canSee`). */

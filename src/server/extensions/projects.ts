@@ -9,6 +9,7 @@ import { type Static, type TSchema, Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { ExtensionWeb, PocketHost, WebRequest } from "../host.ts";
 import { HttpError } from "../errors.ts";
+import { LEAD_RULES, Team, taskRules } from "../project-runs.ts";
 import {
     type Actor,
     type BoardTask,
@@ -35,7 +36,7 @@ const BOARD_RULES = `- Track this work as tasks: task_create (type epic, story, 
 - Need an answer, an approval, or something you cannot do? Set the task blocked with blocked_reason, and say what you need. Never use review to ask a question.
 - Destructive or risky work (migrations, infrastructure, security, secrets, production config, first deploys): set operator_review, so only a person moves it to done. A bug is done only after you verified its fix (fix_verified).
 - Comment (task_comment) with results, questions, blockers, and decisions only: no acknowledgements or restated plans.
-- Assigning a task to pi does not start any work by itself.`;
+- Giving a task to pi does not start it: task_run does, after the person says yes (unless the project runs tasks by itself).`;
 
 const PROJECT = Type.Optional(Type.String({ description: "The project's key (PP); default: this session's project" }));
 const REF = Type.String({ description: "The task, like PP-12" });
@@ -59,7 +60,14 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     const view = { access: "view" as const };
     const steer = { access: "steer" as const };
 
-    web.onDispose(() => projects.close());
+    // The agent team: runs in worktrees at the project's places, and reports to its main session (`project-runs.ts`).
+    const team = new Team(projects, host);
+
+    team.start();
+    web.onDispose(() => {
+        team.stop();
+        projects.close();
+    });
     // The Projects page, the task sheet, and the session menu's board switch (`projects-web/`).
     web.client("projects-web", view);
     // Open boards follow changes as they happen.
@@ -79,10 +87,16 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             method,
             path,
             (request) => {
-                try {
-                    return handle(request, personOf(request));
-                } catch (error) {
+                const convert = (error: unknown) => {
                     throw error instanceof HttpError ? web.error(error.status, error.message) : error;
+                };
+
+                try {
+                    const result = handle(request, personOf(request));
+
+                    return result instanceof Promise ? result.catch(convert) : result;
+                } catch (error) {
+                    return convert(error);
                 }
             },
             access,
@@ -94,7 +108,19 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     // People to share a project with and assign tasks to: names only.
     route("GET", "people", () => ({ people: people().map(({ id, name, role }) => ({ id, name, role })) }), view);
     route("POST", "projects", (request, actor) => projects.create(actor, body(request)), steer);
-    route("GET", "projects/:key", (request, actor) => projects.board(actor, request.params.key!), view);
+    route(
+        "GET",
+        "projects/:key",
+        (request, actor) => {
+            const board = projects.board(actor, request.params.key!);
+            const lead = board.project.mainSession;
+            const title = lead === null ? undefined : host.sessionTitle(Number(lead));
+
+            return { ...board, lead: title === undefined ? null : { session: Number(lead), title }, places: projects.placesOf(board.project) };
+        },
+        view,
+    );
+    route("POST", "projects/:key/team", async (request, actor) => ({ session: await team.startLead(actor.person, request.params.key!) }), steer);
     route("PATCH", "projects/:key", (request, actor) => projects.update(actor, request.params.key!, body(request)), steer);
     route(
         "DELETE",
@@ -122,6 +148,69 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     );
     route("POST", "projects/:key/tasks", (request, actor) => projects.createTask(actor, request.params.key!, body(request)), steer);
     route("GET", "tasks/:ref", (request, actor) => projects.task(actor, request.params.ref!), view);
+    route(
+        "POST",
+        "tasks/:ref/run",
+        (request, actor) => {
+            const run = projects.queueRun(actor, request.params.ref!);
+
+            team.pump();
+
+            return run;
+        },
+        steer,
+    );
+    route(
+        "DELETE",
+        "tasks/:ref/run",
+        (request, actor) => {
+            projects.cancelRun(actor, request.params.ref!);
+
+            return {};
+        },
+        steer,
+    );
+    route(
+        "GET",
+        "tasks/:ref/diff",
+        async (request, actor) => {
+            const { task } = projects.task(actor, request.params.ref!);
+
+            if (task.run === null) {
+                throw new HttpError(404, `${task.ref} has not run yet.`);
+            }
+
+            return { diff: await team.diff(task.run), branch: task.run.branch, base: task.run.base };
+        },
+        view,
+    );
+    route(
+        "POST",
+        "tasks/:ref/merge",
+        async (request, actor) => {
+            const { task } = projects.task(actor, request.params.ref!);
+
+            if (task.run === null) {
+                throw new HttpError(404, `${task.ref} has not run yet.`);
+            }
+
+            if (task.run.state === "running" || task.run.state === "starting") {
+                throw new HttpError(409, `${task.ref} is still running.`);
+            }
+
+            const said = await team.merge(task.run, task);
+
+            // Merged by a person: the task is done, where its rules allow (a Bug waits for its verified fix).
+            try {
+                projects.updateTask(actor, task.ref, { state: "done" });
+            } catch {
+                // Left as it is; the sheet says why when the person moves it.
+            }
+
+            return { said };
+        },
+        steer,
+    );
     route("PATCH", "tasks/:ref", (request, actor) => projects.updateTask(actor, request.params.ref!, body(request)), steer);
     route(
         "DELETE",
@@ -505,6 +594,42 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             },
         ),
         tool(
+            "task_run",
+            "Run a task: Pi works on it in a task session of its own, in a git worktree on branch task/<ref>, at one of the project's places. Asks the person first unless the project runs tasks by itself. Reports come to the project's main session.",
+            Type.Object({ task: REF }),
+            async (args, conversationId, api, context) => {
+                const { actor } = onBoard(conversationId);
+                const ref = args.task.trim().toUpperCase();
+                const { project, task } = projects.task(actor, ref);
+
+                if (!project.autoRuns) {
+                    const answer = await host.approvals.request(
+                        {
+                            id: `task-run-${conversationId}-${String(api.callId)}`,
+                            conversationId: Number(conversationId) as never,
+                            taskId: api.taskId as never,
+                            ...(api.callId === undefined ? {} : { callId: api.callId }),
+                            tool: "task_run",
+                            subject: `${task.ref} · ${task.title}`,
+                            reason: `Run it now: a task session works on it in a git worktree on branch task/${task.ref}, at the place of ${project.key} with the most room.`,
+                            createdAt: Date.now(),
+                        },
+                        context,
+                    );
+
+                    if (!answer.allow) {
+                        return `${answer.by === "superseded" ? "The question was replaced" : `${answer.by} said not now`}: ${task.ref} does not run.`;
+                    }
+                }
+
+                const run = projects.queueRun({ kind: "person", person: actor.person }, ref);
+
+                team.pump();
+
+                return `${task.ref} is queued (run ${run.id.slice(0, 8)}); it starts at the first place with room. Its session reports here when it ends.`;
+            },
+        ),
+        tool(
             "task_comment",
             "Comment on a task: a result, a question, a blocker, or a decision.",
             Type.Object({ task: REF, text: Type.String() }),
@@ -523,7 +648,21 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tools,
         sections: [
             section("projects", (input) => {
-                const mode = projects.boardMode(String(input.conversationId));
+                const id = String(input.conversationId);
+                const led = projects.projectLedBy(id);
+
+                if (led !== undefined) {
+                    return `You are the main session of project ${led.key} · ${led.name}${led.autoRuns ? " (it runs tasks given to Pi by itself)" : ""}.\n${LEAD_RULES}\n${BOARD_RULES}`;
+                }
+
+                const run = projects.runOfSession(id);
+                const found = run === undefined ? undefined : projects.taskById(run.taskId);
+
+                if (run !== undefined && found !== undefined) {
+                    return `${taskRules(found.task, run)}\n${BOARD_RULES}`;
+                }
+
+                const mode = projects.boardMode(id);
 
                 if (mode?.on === true) {
                     return `Board mode is on in this session${mode.project === null ? "" : `, with project ${mode.project.key} · ${mode.project.name}`}: track this work on the board.\n${BOARD_RULES}`;

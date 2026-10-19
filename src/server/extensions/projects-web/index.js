@@ -29,6 +29,17 @@ const TYPES = [
 ];
 const TYPE = Object.fromEntries(TYPES.map((type) => [type.id, type]));
 const PRIORITIES = ["None", "Low", "Medium", "High", "Urgent"];
+// A run's states, in words, with the colour its chip takes.
+const RUN = {
+    queued: ["Waiting for a place", "var(--faint)"],
+    starting: ["Starting", "var(--o-cyan)"],
+    running: ["Running", "var(--o-cyan)"],
+    done: ["Finished", "var(--ok)"],
+    failed: ["Failed", "var(--err)"],
+    stopped: ["Stopped", "var(--warn)"],
+    cancelled: ["Cancelled", "var(--faint)"],
+};
+const ACTIVE = new Set(["queued", "starting", "running"]);
 const PHONE = matchMedia("(max-width: 760px)");
 const CURRENT = "pi-phone.projects.current";
 
@@ -255,6 +266,15 @@ export default function projects(pocket) {
                             <i></i>${label} <b>${counts[state]}</b>
                         </span>`,
                 )}
+                ${(() => {
+                    const runs = (board?.tasks ?? []).map((task) => task.run?.state);
+                    const running = runs.filter((state) => state === "running" || state === "starting").length;
+                    const queued = runs.filter((state) => state === "queued").length;
+
+                    return html`${running > 0 && html`<span class="pj-chip" style="--tone:var(--o-cyan)"><i></i>Running <b>${running}</b></span>`}
+                    ${queued > 0 && html`<span class="pj-chip" style="--tone:var(--faint)"><i></i>Queued <b>${queued}</b></span>`}`;
+                })()}
+                ${board?.lead && html`<a class="pj-chip pj-lead-chip" href=${`/s/${board.lead.session}`} title="The project's main session">${svg("M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z", 12)} Main session</a>`}
                 <span class="pj-chip quiet">${total} ${total === 1 ? "task" : "tasks"} · ${counts.done ?? 0} done</span>
             </div>
             ${problem && html`<p class="pj-problem">${problem}</p>`}
@@ -423,6 +443,10 @@ export default function projects(pocket) {
                 <div class="pj-row">
                     ${typeChip(task.type)}${priority(task.priority)}<span class="pj-sp"></span>
                     ${task.operatorReview && html`<span class="pj-approve" title="Needs a person's approval before Done">${svg("M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z", 12)}</span>`}
+                    ${
+                        task.run && ACTIVE.has(task.run.state) &&
+                        html`<span class=${`pj-running ${task.run.state}`} title=${RUN[task.run.state][0]}><i></i>${task.run.state === "queued" ? "queued" : "running"}</span>`
+                    }
                 </div>
                 <div class="pj-card-title">${task.title}</div>
                 ${parent && html`<div class="pj-parent">${svg("M6 4v7a4 4 0 0 0 4 4h8M15 12l3 3-3 3", 11)}<span>${parent.title}</span></div>`}
@@ -540,6 +564,15 @@ export default function projects(pocket) {
         const machine = /^machine:[^:]+:(.*)$/.exec(folder);
 
         return machine ? `${machine[1]} · on a machine` : folder;
+    };
+
+    /** A folder in few words: its last two parts (and the machine's mark). */
+    const shortFolder = (folder) => {
+        const label = folderLabel(folder);
+        const [path, where] = label.split(" · ");
+        const parts = path.split("/").filter(Boolean);
+
+        return `${parts.length > 2 ? "…/" : ""}${parts.slice(-2).join("/")}${where ? ` · ${where}` : ""}`;
     };
 
     /**
@@ -726,6 +759,7 @@ export default function projects(pocket) {
                 onChange=${(event) => event.currentTarget.value.trim() !== task.title && save({ title: event.currentTarget.value })}
             />
             ${task.waitingOn.length > 0 && html`<div class="pj-waiting">Waiting on ${task.waitingOn.join(", ")}: the main session decides when it runs.</div>`}
+            <${RunPanel} task=${task} project=${project} reload=${load} close=${close} />
             ${
                 task.state === "blocked" &&
                 html`<label class="field"
@@ -946,10 +980,74 @@ export default function projects(pocket) {
         </div>`;
     }
 
+    /** A task's run: its state, where, its session; Run now, Cancel, See diff, Merge (the person's). */
+    function RunPanel({ task, project, reload, close }) {
+        const [diff, setDiff] = useState(null);
+        const [busy, setBusy] = useState(false);
+        const run = task.run;
+        const act = (work) => {
+            setBusy(true);
+            work()
+                .then(reload, failed)
+                .finally(() => setBusy(false));
+        };
+        const canRun = (!run || !ACTIVE.has(run.state)) && task.state !== "done" && task.type !== "epic";
+        const branchReady = run && run.branch && !["queued", "starting", "running"].includes(run.state);
+
+        if (!run && !canRun) {
+            return null;
+        }
+
+        return html`<section class="pj-run" style=${run ? `--tone:${RUN[run.state][1]}` : ""}>
+            <div class="pj-sec">Run</div>
+            ${
+                run
+                    ? html`<div class="pj-run-row">
+                          <span class="pj-run-state"><i></i>${RUN[run.state][0]}</span>
+                          ${run.place && html`<span class="muted small" title=${run.place}>at ${shortFolder(run.place)}</span>`}
+                          ${run.branch && html`<span class="pj-id">${run.branch}</span>`}
+                          ${run.conversationId && html`<a class="small" href=${`/s/${run.conversationId}`} onClick=${() => close()}>Session #${run.conversationId}</a>`}
+                      </div>
+                      ${run.note && html`<p class="muted small">${run.note}</p>`}`
+                    : html`<p class="muted small">${project.autoRuns ? "Give it to Pi and it runs by itself." : "Not run yet. Run now starts a task session in a git worktree, at the place with room."}</p>`
+            }
+            <div class="pj-run-actions">
+                ${canRun && html`<button class="button small primary" disabled=${busy} onClick=${() => act(() => pocket.api(`tasks/${task.ref}/run`, {}))}>${run ? "Run again" : "Run now"}</button>`}
+                ${run?.state === "queued" && html`<button class="button small" disabled=${busy} onClick=${() => act(() => pocket.api(`tasks/${task.ref}/run`, undefined, { method: "DELETE" }))}>Cancel</button>`}
+                ${
+                    branchReady &&
+                    html`<button class="button small" disabled=${busy} onClick=${() => (diff === null ? pocket.api(`tasks/${task.ref}/diff`).then((answer) => setDiff(answer.diff || "No changes on this branch."), failed) : setDiff(null))}>
+                        ${diff === null ? "See diff" : "Hide diff"}
+                    </button>`
+                }
+                ${
+                    branchReady &&
+                    html`<button
+                        class="button small"
+                        disabled=${busy}
+                        onClick=${() =>
+                            confirm(`Merge ${run.branch} into ${run.base}? Its worktree and branch go after.`) &&
+                            act(async () => {
+                                await pocket.api(`tasks/${task.ref}/merge`, {});
+                                pocket.notify("info", `Merged ${run.branch} into ${run.base}.`);
+                            })}
+                    >
+                        Merge into ${run.base}
+                    </button>`
+                }
+            </div>
+            ${diff !== null && html`<pre class="pj-diff">${diff}</pre>`}
+        </section>`;
+    }
+
     /** An activity entry in words. */
     function describe(event) {
         if (event.kind === "created") {
             return `made it (${event.data.type}, ${STATE[event.data.state]?.label ?? event.data.state})`;
+        }
+
+        if (event.kind === "run") {
+            return `run: ${RUN[event.data.state]?.[0] ?? event.data.state}${event.data.note ? ` (${event.data.note})` : ""}`;
         }
 
         if (event.kind === "linked" || event.kind === "unlinked") {
@@ -969,13 +1067,88 @@ export default function projects(pocket) {
         return said.join(", ");
     }
 
+    /** The project's team: its main session, whether tasks given to Pi run by themselves, and where they run. */
+    function TeamSettings({ project, places, lead, save, close }) {
+        const [busy, setBusy] = useState(false);
+        const setPlaces = (next) => save({ places: next });
+        const addPlace = async () => {
+            const chosen = await pocket.pickFolder({ start: project.folder || undefined, title: "Where its tasks run: the repository there" });
+
+            if (chosen) {
+                await setPlaces([...places.filter((place) => place.folder !== chosen), { folder: chosen, cap: 2 }]);
+            }
+
+            pocket.openSheet("project", { project: project.key });
+        };
+
+        return html`<div class="field">
+            <span class="label">Team</span>
+            <div class="pj-team">
+                <div class="pj-team-row">
+                    <div class="pj-grow">
+                        <div>Main session</div>
+                        <div class="muted small">Leads the project: plans, asks before runs, gets the task sessions' reports, reviews. It never writes code itself.</div>
+                    </div>
+                    ${
+                        lead
+                            ? html`<a class="button small" href=${`/s/${lead.session}`} onClick=${() => close()}>Open #${lead.session}</a>`
+                            : html`<button
+                                  class="button small primary"
+                                  disabled=${busy || !project.folder}
+                                  title=${project.folder ? "" : "Give the project a folder first"}
+                                  onClick=${() => {
+                                      setBusy(true);
+                                      pocket
+                                          .api(`projects/${project.key}/team`, {})
+                                          .then((answer) => {
+                                              pocket.notify("info", `Started the main session, #${answer.session}.`);
+                                              pocket.openSheet("project", { project: project.key });
+                                          }, failed)
+                                          .finally(() => setBusy(false));
+                                  }}
+                              >
+                                  Start it
+                              </button>`
+                    }
+                </div>
+                <div class="pj-team-row">
+                    <div class="pj-grow">
+                        <div>Runs by itself</div>
+                        <div class="muted small">${project.autoRuns ? "A task given to Pi starts at once, where there is room." : "Off: the main session asks you before a task given to Pi runs."}</div>
+                    </div>
+                    <${Switch} on=${project.autoRuns} label="Run tasks given to Pi by themselves" onChange=${() => save({ autoRuns: !project.autoRuns })} />
+                </div>
+                <div class="pj-team-sub muted small">Where tasks run: each in a git worktree of the repository there, at most so many at once. A run goes to the place with the most room; when all are full, it waits.</div>
+                ${places.map(
+                    (place, index) => html`<div class="pj-team-row">
+                        <div class="pj-grow pj-place" title=${place.folder}>${shortFolder(place.folder)}</div>
+                        <div class="pj-stepper">
+                            <button aria-label="Fewer at once" disabled=${place.cap <= 1} onClick=${() => setPlaces(places.map((each, at) => (at === index ? { ...each, cap: each.cap - 1 } : each)))}>−</button>
+                            <span title="At once">${place.cap}</span>
+                            <button aria-label="More at once" disabled=${place.cap >= 8} onClick=${() => setPlaces(places.map((each, at) => (at === index ? { ...each, cap: each.cap + 1 } : each)))}>+</button>
+                        </div>
+                        <button class="pj-x" aria-label="Remove this place" disabled=${places.length === 1 && project.places.length === 0} onClick=${() => setPlaces(places.filter((_each, at) => at !== index))}>×</button>
+                    </div>`,
+                )}
+                ${places.length === 0 && html`<div class="muted small">Give the project a folder, or add a place.</div>`}
+                <button class="button small" onClick=${addPlace}>Add a place</button>
+            </div>
+        </div>`;
+    }
+
     function ProjectSheet({ project: key, close }) {
         const [project, setProject] = useState(null);
+        const [team, setTeam] = useState({ places: [], lead: null });
         const people = usePeople();
         const me = pocket.me();
+        const loadProject = () =>
+            pocket.api(`projects/${key}`).then((answer) => {
+                setProject(answer.project);
+                setTeam({ places: answer.places, lead: answer.lead });
+            }, failed);
 
         useEffect(() => {
-            pocket.api(`projects/${key}`).then((answer) => setProject(answer.project), failed);
+            loadProject();
         }, [key]);
 
         if (project === null) {
@@ -983,7 +1156,7 @@ export default function projects(pocket) {
         }
 
         const manage = me?.role === "owner" || me?.id === project.owner;
-        const save = (body) => pocket.api(`projects/${key}`, body, { method: "PATCH" }).then(setProject, failed);
+        const save = (body) => pocket.api(`projects/${key}`, body, { method: "PATCH" }).then(loadProject, failed);
         const share = (members) => pocket.api(`projects/${key}/members`, { members }, { method: "PUT" }).then(setProject, failed);
 
         return html`<div class="pj-form">
@@ -998,6 +1171,7 @@ export default function projects(pocket) {
                         .finally(() => pocket.openSheet("project", { project: key }))}
             />
             <button class="button small" onClick=${() => save({ folder: project.folder || null })}>Save the folder</button>
+            <${TeamSettings} project=${project} places=${team.places} lead=${team.lead} save=${save} close=${close} />
             <div class="field">
                 <span class="label">Shared with</span>
                 ${people
@@ -1108,7 +1282,9 @@ export default function projects(pocket) {
             pocket.openSheet("task", { task: match[1].toUpperCase() });
         }
     };
-    const linked = TASK_LINK.exec(location.hash) ?? (location.hash === "#project:new" ? ["", null] : null);
+    // `#project:new` opens New project, and `#project:PP` that project's settings.
+    const settingsLink = /^#project:([A-Za-z][A-Za-z0-9]{1,5})$/.exec(location.hash);
+    const linked = TASK_LINK.exec(location.hash) ?? (location.hash === "#project:new" || settingsLink ? ["", null] : null);
 
     document.addEventListener("click", anywhere);
     pocket.onDispose(() => document.removeEventListener("click", anywhere));
@@ -1116,6 +1292,7 @@ export default function projects(pocket) {
     if (linked) {
         history.replaceState(history.state, "", location.pathname + location.search);
         const task = linked[1]?.toUpperCase() ?? null;
+        const settings = settingsLink && settingsLink[1].toLowerCase() !== "new" ? settingsLink[1].toUpperCase() : null;
         const shown = () => (task === null ? document.querySelector(".pj-form") : document.querySelector(`.pj-task[data-task="${task}"]`));
         // The app opens a linked page as the modules load, and that closes sheets: until the task shows, ask again.
         let tries = 0;
@@ -1127,7 +1304,7 @@ export default function projects(pocket) {
             setTimeout(tryOpen, 300);
 
             try {
-                task === null ? pocket.openSheet("new-project") : pocket.openSheet("task", { task });
+                task !== null ? pocket.openSheet("task", { task }) : settings !== null ? pocket.openSheet("project", { project: settings }) : pocket.openSheet("new-project");
             } catch {
                 // Not ready yet: the next try.
             }

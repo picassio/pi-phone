@@ -525,6 +525,21 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     position (the midpoint of its neighbours). Phone: the states as tabs over one full-width column at a time
     (scroll-snap), and a long press opens Move to. Sheets: `task`, `new-task`, `new-project`, `project` (name, folder,
     sharing, delete), `move`, `board-mode` (the session menu's "Board for this session").
+  - **The agent team** (`project-runs.ts`, `Team`), owner's decisions of 2026-10-19: the project's main session
+    orchestrates (no auto-unblock, no daemon). `POST projects/:key/team` starts the main session in the project's folder
+    (`LEAD_RULES` in its prompt: plan, delegate, review; never implement). A task given to Pi (`onAssignedToPi`) is
+    queued at once when the project runs tasks by itself (`autoRuns`), else the main session is told and asks with
+    `task_run` (an approval card, "Run PP-12 now?"). Runs (`pocket_task_runs`: queued → starting → running → done,
+    failed, stopped, or cancelled) start at the project's place with the most room under its cap (`places`, default
+    the folder with 2); each gets a worktree `<repo>/.worktrees/<ref>` on `task/<ref>` from the repository's current
+    branch (`.worktrees/` in `info/exclude`), made with commands at the place (`host.run`, Git Bash on Windows), and a
+    task session there (`host.startSession`, as the project's owner) whose prompt has `taskRules`; the task goes In
+    Progress. The session's end (`host.onSessionEvent`, the phone's events) is reported to the main session
+    (`host.sendToSession`, after its current work): Review → done ("Done"), Blocked → "Needs the person", otherwise
+    "Stopped"; failed → "Failed"; an approval → "Needs the person". `host.quietSessions` keeps task and main sessions'
+    ends from the phone. `GET tasks/:ref/diff` (3-dot) and `POST tasks/:ref/merge` (`--no-ff` into the base, only when
+    the repository is on it and clean; then the worktree and branch go, and the task is done where its rules allow).
+    A restart fails runs cut off while starting; a running run's end that came while the server was down is not seen.
   - A project's folder is typed or chosen with the app's folder picker: `pocket.pickFolder({ start, title })` (an
     extension API) opens `CwdSheet` in its `pick` mode (browse, make folders, here or on a machine) and answers the
     folder or null; it takes the sheet's place, so the sheet comes back with the choice (`new-project` keeps a draft).
