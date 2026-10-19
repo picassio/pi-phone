@@ -460,7 +460,16 @@ function Collapsible({ text, limit = 600 }) {
 // ─── What Pi did: its thinking and tool calls, a line each on a timeline ───────────────
 
 /** What a step's mark says, by how the call went; a call still running shows a spinner instead. */
-const MARKS = { done: "✓", error: "×", denied: "×", stopped: "–", approval: "!" };
+// Drawn, not typed: a font draws these glyphs thin and off center in a 19px circle.
+const markSvg = (body) => html`<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const CROSS = markSvg(html`<path d="M2.8 2.8l4.4 4.4M7.2 2.8L2.8 7.2" />`);
+const MARKS = {
+    done: markSvg(html`<path d="M2.2 5.3l1.9 1.9 3.7-4.2" />`),
+    error: CROSS,
+    denied: CROSS,
+    stopped: markSvg(html`<path d="M2.6 5h4.8" />`),
+    approval: markSvg(html`<path d="M5 2.2v3.3" stroke-width="1.9" /><circle cx="5" cy="7.8" r="1.05" fill="currentColor" stroke="none" />`),
+};
 
 /** A step's mark: a small circle that says how it went. A thought is ✦, and a subagent's call ⑂ unless it failed. */
 function StepMark({ status, kind }) {
