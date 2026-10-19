@@ -498,6 +498,15 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   shell is up is queued. Paste and Select (a finger cannot select in xterm.js) open a text box over the screen. xterm.js 6 (ES modules, served from
   `/vendor/`) in a full-screen sheet with a row of keys a phone lacks (Esc, Tab, sticky Ctrl, arrows). Opened from the
   session menu, the launcher, and a connected machine's row.
+- **The session list** (`web/sessions.js`, after T3 Code's sidebar v2, MIT, owner's choices of 2026-10-19): a scope
+  picker (`pocket.sessionScope` on the device: `all`, `group:<id>`, `folder:<cwd>`, `archived`) in place of the tabs;
+  sections Pinned, Active (newest first; a group's `task` sessions under its `lead`), and Settled (folded; `open:settled`
+  in `pocket.closedGroups`). `settledOf(session)`: never while busy or waiting; `SessionMeta.settle` `{state, at, reason}`
+  settles until activity (`updatedAt` past `at` + 10 s), or keeps active (Un-settle); otherwise a day idle settles.
+  Sessions get `group` (`{id, title, role}`) from an extension (`host.groupSession`: a project's team) and `settle` from
+  the Settle action (`POST /api/sessions/<id> {settled}`), `session_settle`, or `host.settleSession` (a task run ended, a
+  branch merged). Rows: where (project, folder, machine), pin, time or working time (`busySince`); title; task ref and
+  branch, or why it settled; status on the right.
 - **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI publishes a release, and
   the app updates from it (section 5).
 - **Projects** (extension `extensions/projects.ts`, off by default; the store is `projects.ts`): project boards whose

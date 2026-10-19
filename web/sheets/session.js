@@ -1,11 +1,11 @@
 // A session's actions from its row in the session list, for touch screens, which cannot hover to show them.
-import { selectFromList, setArchived } from "../sessions.js";
+import { selectFromList, setArchived, setSettled, settledOf } from "../sessions.js";
 import { canSteer, closeSheet, isUnread, setUnread, store } from "../store.js";
 import { isPinned, togglePin } from "../theme.js";
 import { html, item, Sheet } from "../ui.js";
 
 /**
- * What a finger held on a row offers: pin it, mark it unread (or read), archive it or bring it back, or select it to
+ * What a finger held on a row offers: settle it (or bring it back), pin it, mark it unread (or read), archive it or bring it back, or select it to
  * act on more at once.
  */
 export function SessionSheet({ id }) {
@@ -17,8 +17,19 @@ export function SessionSheet({ id }) {
         run();
     };
 
+    const settled = settledOf(session);
+
     return html`<${Sheet} title=${session.title ?? "New session"} onClose=${closeSheet}>
         <div class="sheet-list">
+        ${
+            steer &&
+            !session.archived &&
+            item(
+                settled ? "Un-settle" : "Settle",
+                then(() => setSettled(id, !settled)),
+                settled ? `settled: ${settled}` : "out of the active list",
+            )
+        }
         ${
             !session.archived &&
             item(

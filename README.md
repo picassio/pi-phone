@@ -13,6 +13,11 @@ No Termux, no laptop, no cloud VM.
 ### The agent
 - **A durable agent on the phone.** Sessions, subagents, and tool calls are stored as they happen (SQLite). Kill the
   app or update it mid-run and the work continues where it stopped.
+- **A session list after T3 Code.** A scope picker (All, each project, each folder, Archived) instead of tabs; Pinned,
+  Active (a project's running task sessions under its main session), and a folded **Settled** shelf. A session settles
+  by itself after a day idle, when its task run ends, or when its branch is merged, and comes back with new activity;
+  Settle and Un-settle by hand too (and `session_settle` for Pi). Rows show where, the time (or how long it has been
+  working), the title, the branch or task, and the status.
 - **Real tools.** `bash`, `read` (text and images), `write`, `edit`, and `codemode` (scripts that call the tools),
   with git, gh, ssh, Node, npm, ripgrep, and fd in the bundled userland.
 - **Sign in once.** Claude Pro/Max, other providers' OAuth, or API keys, from the Providers sheet. GitHub through a

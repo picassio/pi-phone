@@ -977,6 +977,16 @@ export class Projects {
         return this.#projectById(id);
     }
 
+    /** Every project, for the team's own bookkeeping (no person's rights). */
+    allProjects(): Project[] {
+        return this.#allProjects();
+    }
+
+    /** A project's runs, oldest first (no person's rights). */
+    runsOf(projectId: string): Run[] {
+        return this.#runs("SELECT * FROM pocket_task_runs WHERE project_id = ? ORDER BY created_at", projectId);
+    }
+
     /** The project a session leads, if it is a project's main session. */
     projectLedBy(conversationId: string): Project | undefined {
         return this.#allProjects().find((project) => project.mainSession === conversationId);

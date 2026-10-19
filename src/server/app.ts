@@ -353,6 +353,8 @@ export class PocketApp {
     readonly #clients = new Set<Client>();
     readonly #rooms = new Map<ConversationId, Promise<Room>>();
     readonly #busy = new Set<ConversationId>();
+    /** When each busy session's run began: the list says how long it has been working. */
+    readonly #busySince = new Map<ConversationId, number>();
     /** When each conversation's last run ended, since this server started: peek tiles show sessions done since a look. */
     readonly #endedAt = new Map<ConversationId, number>();
     /**
@@ -719,6 +721,40 @@ export class PocketApp {
                 return { code: result.value.exitCode ?? -1, stdout, stderr };
             },
             sessionTitle: (session) => this.sessionMeta(session as unknown as ConversationId)?.title,
+            settleSession: async (session, reason) => {
+                if (this.sessionMeta(session as unknown as ConversationId) === undefined) {
+                    return;
+                }
+
+                await this.harness.commit(async (tx) => {
+                    const meta = (await tx.doc(SessionsDoc)).items[String(session)];
+
+                    if (meta !== undefined) {
+                        meta.settle = { state: "settled", at: Date.now(), reason };
+                    }
+                }, context);
+            },
+            groupSession: async (session, group) => {
+                const current = this.sessionMeta(session as unknown as ConversationId);
+
+                if (current === undefined || JSON.stringify(current.group ?? null) === JSON.stringify(group)) {
+                    return;
+                }
+
+                await this.harness.commit(async (tx) => {
+                    const meta = (await tx.doc(SessionsDoc)).items[String(session)];
+
+                    if (meta === undefined) {
+                        return;
+                    }
+
+                    if (group === null) {
+                        delete meta.group;
+                    } else {
+                        meta.group = group;
+                    }
+                }, context);
+            },
             canSee: (userId, conversationId) => {
                 const user = this.config.userById(userId);
 
@@ -859,6 +895,7 @@ export class PocketApp {
 
                 if (live?.run !== undefined) {
                     this.#busy.add(id);
+                    this.#busySince.set(id, Date.now());
                 }
 
                 const agent = await this.harness.snapshot(AgentDoc, id, context);
@@ -990,6 +1027,7 @@ export class PocketApp {
             if (busy !== this.#busy.has(id)) {
                 if (busy) {
                     this.#busy.add(id);
+                    this.#busySince.set(id, Date.now());
                     // A new run starts over: whether it fails is its own to say.
                     this.#failed.delete(id);
 
@@ -998,6 +1036,7 @@ export class PocketApp {
                     }
                 } else {
                     this.#busy.delete(id);
+                    this.#busySince.delete(id);
                 }
 
                 sessionsChanged = true;
@@ -1995,6 +2034,7 @@ export class PocketApp {
             .map(([id, meta]) => {
                 const model = this.#agents.get(Number(id) as unknown as ConversationId)?.model;
                 const busy = this.#busy.has(Number(id) as unknown as ConversationId);
+                const busySince = this.#busySince.get(Number(id) as unknown as ConversationId);
                 const here = [...(people.get(id) ?? new Map<string, string>())].map(
                     ([userId, name]) => ({ id: userId, name }),
                 );
@@ -2026,6 +2066,7 @@ export class PocketApp {
                     // Gone to Pi on a machine (`pi-handoff.ts`): the owner's to know, so the session can check on it.
                     ...(piLink !== undefined && user?.role === "owner" ? { inPi: piLink.machineId } : {}),
                     busy,
+                    ...(busy && busySince !== undefined ? { busySince } : {}),
                     waiting: waiting.has(id),
                     ...(endedAt === undefined ? {} : { endedAt }),
                     ...(this.#failed.has(Number(id) as unknown as ConversationId)

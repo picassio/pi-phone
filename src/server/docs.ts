@@ -15,6 +15,9 @@ import {
 import type { Repeat } from "./when.ts";
 import type { Worktree } from "./worktrees.ts";
 
+/** A group of sessions: what it is (`project:PP`), what the list calls it, and the session's part in it. */
+export type SessionGroup = { id: string; title: string; role: "lead" | "task" };
+
 export type SessionMeta = {
     title?: string;
     cwd: string;
@@ -46,6 +49,16 @@ export type SessionMeta = {
      * kept out of the session list; an older Pi Pocket, which does not know this field, lists it as a session.
      */
     pip?: string;
+    /**
+     * A group the session belongs to, set by an extension (a project's team: its main session and task sessions). The
+     * list shows a group's sessions together, folded in Recent, and in a tab of their own.
+     */
+    group?: SessionGroup;
+    /**
+     * Settled by hand or by an extension (a task session whose run ended), or kept active by hand (Un-settle), and when.
+     * The list settles a session that sat idle for a day on its own; activity after `at` (`updatedAt`) brings it back.
+     */
+    settle?: { state: "settled" | "active"; at: number; reason?: string };
 };
 
 /** The catalogue of user-facing sessions: ownerless conversations created by the app. Subagents are not listed. */

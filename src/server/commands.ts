@@ -687,7 +687,7 @@ export class Commands {
     async updateSession(
         id: ConversationId,
         user: User,
-        patch: { title?: string; archived?: boolean },
+        patch: { title?: string; archived?: boolean; settled?: boolean },
     ): Promise<void> {
         const app = this.#app;
 
@@ -697,6 +697,10 @@ export class Commands {
 
         if (patch.archived !== undefined && typeof patch.archived !== "boolean") {
             throw new HttpError(400, "archived must be true or false");
+        }
+
+        if (patch.settled !== undefined && typeof patch.settled !== "boolean") {
+            throw new HttpError(400, "settled must be true or false");
         }
 
         const before = app.sessionMeta(id);
@@ -717,6 +721,11 @@ export class Commands {
 
             if (patch.archived !== undefined) {
                 meta.archived = patch.archived;
+            }
+
+            // Settled by hand: out of the active list until something happens there. Un-settled: back, for a day at least.
+            if (patch.settled !== undefined) {
+                meta.settle = patch.settled ? { state: "settled", at: Date.now(), reason: "settled by hand" } : { state: "active", at: Date.now() };
             }
         }, context);
         const title = patch.title === undefined ? undefined : oneLine(patch.title);

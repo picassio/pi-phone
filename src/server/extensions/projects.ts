@@ -121,7 +121,19 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         view,
     );
     route("POST", "projects/:key/team", async (request, actor) => ({ session: await team.startLead(actor.person, request.params.key!) }), steer);
-    route("PATCH", "projects/:key", (request, actor) => projects.update(actor, request.params.key!, body(request)), steer);
+    route(
+        "PATCH",
+        "projects/:key",
+        (request, actor) => {
+            const saved = projects.update(actor, request.params.key!, body(request));
+
+            // Its sessions' group is named after it.
+            team.regroup(saved).catch((error: unknown) => host.notice("warning", `Projects: ${String(error)}`));
+
+            return saved;
+        },
+        steer,
+    );
     route(
         "DELETE",
         "projects/:key",
@@ -490,6 +502,8 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                     ...(args.auto_runs === undefined ? {} : { autoRuns: args.auto_runs }),
                     ...(args.places === undefined ? {} : { places: args.places }),
                 });
+
+                team.regroup(saved).catch((error: unknown) => host.notice("warning", `Projects: ${String(error)}`));
 
                 return `${saved.key} · ${saved.name}: folder ${saved.folder ?? "none"}; tasks given to Pi ${saved.autoRuns ? "run by themselves" : "run after the person says yes"}; places: ${projects.placesOf(saved).map((place) => `${place.folder} (${place.cap} at once)`).join(", ") || "none"}.`;
             },

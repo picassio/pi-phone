@@ -208,6 +208,10 @@ export interface PocketHost {
     quietSessions(test: (session: number) => boolean): () => void;
     /** Run a command in a folder here or on a machine; never throws for its exit code. */
     run(cwd: string, command: string, timeoutSeconds?: number): Promise<{ code: number; stdout: string; stderr: string }>;
+    /** Settle a session (out of the active list until something happens there): a task session whose run ended. */
+    settleSession(session: number, reason: string): Promise<void>;
+    /** Put a session in a group the list shows together (a project's team), or take it out (null). */
+    groupSession(session: number, group: { id: string; title: string; role: "lead" | "task" } | null): Promise<void>;
     /** A session's title, or undefined when there is no such session. */
     sessionTitle(session: number): string | undefined;
     /** Everyone in the app now, by id, name, and role (the Projects extension's sharing). */
@@ -240,7 +244,7 @@ export interface PocketHost {
     /** Other sessions, as the person a session works for (`session-control.ts`): the sessions tools. */
     readonly sessions: Pick<
         SessionControl,
-        "list" | "status" | "read" | "start" | "send" | "stop" | "wait" | "approvals" | "deny" | "piSessions" | "importPiSession" | "continueInPi" | "bringBack"
+        "list" | "status" | "read" | "start" | "send" | "stop" | "wait" | "approvals" | "deny" | "piSessions" | "importPiSession" | "continueInPi" | "bringBack" | "update"
     >;
     /** Messages to Pi for later: the schedule tool sets up Pi's own. */
     readonly schedules: Pick<Schedules, "add" | "cancel" | "list" | "task">;

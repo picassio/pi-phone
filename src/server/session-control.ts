@@ -329,6 +329,13 @@ export class SessionControl {
         );
     }
 
+    /** Archive or bring back, settle or un-settle a session, as the person the calling session works for. */
+    async update(caller: ConversationId, id: number, patch: { archived?: boolean; settled?: boolean }): Promise<void> {
+        const { user, target } = this.#target(caller, id, false);
+
+        await this.#app.commands.updateSession(target, user, patch);
+    }
+
     async stop(caller: ConversationId, id: number): Promise<void> {
         const { user, target } = this.#target(caller, id, true);
 

@@ -34,24 +34,6 @@ async function inPage<T>(script: string): Promise<T> {
     return JSON.parse(await page.evaluate(script)) as T;
 }
 
-async function selectTab(name: "Recent" | "Folders" | "Archived"): Promise<void> {
-    const index = await inPage<number>(`
-        const tabs = [...document.querySelectorAll(${JSON.stringify(`${list} .session-tabs [role="tab"]`)})];
-        return JSON.stringify(tabs.findIndex((tab) => tab.textContent.trim() === ${JSON.stringify(name)}));
-    `);
-
-    assert.ok(index >= 0, `${name} tab exists in the current list`);
-    await page.click({ selector: `${list} .session-tabs [role="tab"]:nth-of-type(${index + 1})` });
-    await until(
-        async () =>
-            await inPage<boolean>(`
-                const tab = document.querySelector(${JSON.stringify(`${list} .session-tabs [aria-selected="true"]`)});
-                return JSON.stringify(tab?.textContent.trim() === ${JSON.stringify(name)});
-            `),
-        `${name} tab selected`,
-    );
-}
-
 async function fresh(mobile = false): Promise<void> {
     list = mobile ? ".home-list" : ".sidebar";
     await page.setViewport(mobile ? VIEWPORTS.mobile : DESKTOP);
@@ -64,7 +46,7 @@ async function fresh(mobile = false): Promise<void> {
         "the session list",
         20_000,
     );
-    await selectTab("Recent");
+    // The list shows All by default (a fresh browser): the scope picker took the tabs' place.
     await page.hover({ x: 1, y: 1 });
     assert.equal(
         await inPage<boolean>(`return JSON.stringify(matchMedia("(hover: hover)").matches)`),

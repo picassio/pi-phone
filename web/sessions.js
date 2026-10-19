@@ -312,6 +312,8 @@ function SessionRow({
     selected,
     pressing,
     folders,
+    team = false,
+    settled = null,
     onPick,
     onSelect,
 }) {
@@ -354,11 +356,18 @@ function SessionRow({
     const mark = stateMark(session, live > 0, marked);
     // Finished since this browser last looked: its result is unread, so its title reads bold.
     const unseen = finishedUnseen(session);
-    // Archive, pin, and mark-unread show on hover; an archived session only comes back, and only for people who steer.
-    const acts = (canSteer() ? 1 : 0) + (session.archived ? 0 : 2);
+    // Archive (and Settle) for people who steer, pin, and mark-unread show on hover; an archived session only comes back.
+    const acts = (canSteer() ? (session.archived ? 1 : 2) : 0) + (session.archived ? 0 : 2);
+    // A task session (a project's): its task's ref leads its third line; its title says the rest.
+    const task = session.group?.role === "task" ? /^([A-Z][A-Z0-9]{1,5}-\d+) · (.*)$/.exec(title) : null;
+    const shownTitle = task ? task[2] : title;
+    const remote = session.cwd.startsWith("machine:");
+    const place = team ? "task session" : session.group ? session.group.title : path;
+    const branch = session.worktree?.branch ?? (task ? `task/${task[1]}` : null);
+    const when = session.waiting ? "waits" : session.busy && session.busySince ? workingFor(session.busySince) : timeAgo(session.updatedAt);
 
     return html`<div
-        class=${`session-row ${open ? "active" : ""} ${selected ? "selected" : ""} ${pressing ? "pressing" : ""} ${moving ? "moving" : ""} ${marked ? "marked-unread" : ""} ${unseen ? "unseen" : ""} ${["no-acts", "one-act", "", "three-acts"][acts]}`}
+        class=${`session-row ${open ? "active" : ""} ${selected ? "selected" : ""} ${pressing ? "pressing" : ""} ${moving ? "moving" : ""} ${marked ? "marked-unread" : ""} ${unseen ? "unseen" : ""} ${team ? "team" : ""} ${settled ? "settled" : ""} ${["no-acts", "one-act", "", "three-acts", "four-acts"][acts]}`}
         data-part="session-row"
         data-state=${ROW_STATES[mark.shape.split(" ")[0]]}
         data-id=${session.id}
@@ -383,71 +392,83 @@ function SessionRow({
             onContextMenu=${(event) => event.ctrlKey && event.preventDefault()}
             title=${tip}
         >
-            <span class="session-mark">
+            <span class="session-lines">
+                <span class="session-l1">
+                    <${Icon} name=${session.group ? "board" : remote ? "monitor" : "folder"} size=${12} />
+                    <span class="session-where">${place}</span>
+                    ${pinned && html`<span class="session-pinned" title="Pinned"><${Icon} name="pin" size=${10} /></span>`}
+                    <span class="session-side">
+                        ${
+                            fork &&
+                            html`<span
+                                class=${`session-fork ${live > 0 ? "" : "failed"}`}
+                                title=${subagentsTip(counts)}
+                            >
+                                <${Icon} name="fork" size=${10} />${live > 0 ? live : failed}
+                            </span>`
+                        }
+                        ${!fork && person && html`<${Avatar} person=${person} size=${16} />`}
+                        ${
+                            (unread || marked) &&
+                            html`<span
+                                class="unread-dot"
+                                title=${marked ? "Marked unread" : "New chat messages"}
+                            ></span>`
+                        }
+                        <span class=${`session-time ${session.waiting ? "need" : session.busy ? "work" : ""}`}>${when}</span>
+                        ${
+                            number !== undefined &&
+                            number < 9 &&
+                            html`<kbd class="session-num">${number + 1}</kbd>`
+                        }
+                    </span>
+                </span>
+                <span class=${`session-title ${hit ? "with-hit" : ""}`}>
+                    ${
+                        hit
+                            ? html`<span class="session-name">${shownTitle}</span>
+                                <span class="session-hit">
+                                    <${Highlight} text=${hit} needle=${needle} />
+                                </span>`
+                            : html`<${Highlight} text=${shownTitle} needle=${needle} />`
+                    }
+                </span>
+                ${
+                    (branch || task || settled) &&
+                    html`<span class="session-l3">
+                        ${task && html`<span class="session-ref">${task[1]}</span>`}
+                        ${branch && html`<${Icon} name="fork" size=${10} /><span class="session-branch">${branch}</span>`}
+                        ${settled && html`<span class="session-reason">${settled}</span>`}
+                    </span>`
+                }
+            </span>
+            <span class="session-status" data-part="session-mark" style=${`--folder:${folderColor(session.cwd)}`}>
                 ${
                     selected
-                        ? html`<span class="state-check" role="img" aria-label="Selected">
-                            <${Icon} name="check" size=${9} />
-                        </span>`
-                        : html`<span
-                            class=${`state-mark ${mark.shape}`}
-                            data-part="session-mark"
-                            style=${`--folder:${folderColor(session.cwd)}`}
-                            role=${mark.label ? "img" : undefined}
-                            aria-label=${mark.label || undefined}
-                            aria-hidden=${mark.label ? undefined : "true"}
-                        ></span>`
-                }
-            </span>
-            <span class=${`session-title ${hit ? "with-hit" : ""}`}>
-                ${
-                    hit
-                        ? html`<span class="session-name">${title}</span>
-                            <span class="session-hit">
-                                <${Highlight} text=${hit} needle=${needle} />
-                            </span>`
-                        : html`<${Highlight} text=${title} needle=${needle} />`
-                }
-            </span>
-            <span class="session-side">
-                ${
-                    fork &&
-                    html`<span
-                        class=${`session-fork ${live > 0 ? "" : "failed"}`}
-                        title=${subagentsTip(counts)}
-                    >
-                        <${Icon} name="fork" size=${10} />${live > 0 ? live : failed}
-                    </span>`
-                }
-                ${!fork && person && html`<${Avatar} person=${person} size=${18} />`}
-                ${
-                    session.busy &&
-                    !session.waiting &&
-                    !fork &&
-                    html`<span class="session-working" title="Working"></span>`
-                }
-                ${
-                    session.waiting &&
-                    html`<span class="session-needs" title="Waiting for approval">
-                        ${canSteer() ? "needs you" : "waiting"}
-                    </span>`
-                }
-                ${
-                    (unread || marked) &&
-                    html`<span
-                        class="unread-dot"
-                        title=${marked ? "Marked unread" : "New chat messages"}
-                    ></span>`
-                }
-                <span class="session-time">${timeAgo(session.updatedAt)}</span>
-                ${
-                    number !== undefined &&
-                    number < 9 &&
-                    html`<kbd class="session-num">${number + 1}</kbd>`
+                        ? html`<span class="state-check" role="img" aria-label="Selected"><${Icon} name="check" size=${9} /></span>`
+                        : session.waiting
+                          ? html`<span class="status-need" role="img" aria-label=${canSteer() ? "Needs you" : "Waiting"} title=${canSteer() ? "Needs you" : "Waiting for approval"}></span>`
+                          : session.busy
+                            ? html`<span class="status-work" role="img" aria-label="Working" title="Working"></span>`
+                            : session.failed
+                              ? html`<span class="status-fail" role="img" aria-label="Failed" title="Its last run failed"></span>`
+                              : html`<span class=${`status-idle ${mark.shape}`} role="img" aria-label=${mark.label || "Idle"} title=${mark.label || "Idle"}></span>`
                 }
             </span>
         </button>
         <span class="session-actions">
+            ${
+                canSteer() &&
+                !session.archived &&
+                html`<button
+                    class="session-act"
+                    title=${settled ? "Un-settle: back in the active list" : "Settle: out of the active list"}
+                    aria-label=${settled ? "Un-settle" : "Settle"}
+                    onClick=${() => setSettled(session.id, !settled)}
+                >
+                    <${Icon} name=${settled ? "undo" : "check"} size=${14} />
+                </button>`
+            }
             ${
                 canSteer() &&
                 html`<button
@@ -485,47 +506,202 @@ function SessionRow({
     </div>`;
 }
 
-/** Sessions in groups: pinned, then by day or by folder. While searching, one flat list of matches. */
-function groupsOf(shown, { tab, needle, home, pinned }) {
-    if (needle !== "" || tab === "archived") {
-        return [{ key: "flat", label: needle ? "Matches" : "Archived", rows: shown }];
-    }
+/** How long since `since`: "45s", "3m 40s", "2h 14m". */
+function workingFor(since) {
+    const seconds = Math.max(0, Math.round((Date.now() - since) / 1000));
 
-    const groups = [];
-    const pins = shown.filter((session) => pinned.includes(session.id));
-
-    if (pins.length > 0) {
-        groups.push({ key: "pinned", label: "Pinned", rows: pins });
-    }
-
-    const rest = shown.filter((session) => !pinned.includes(session.id));
-    const byKey = new Map();
-
-    for (const session of rest) {
-        const key = tab === "folders" ? `dir:${session.cwd}` : `day:${dayGroup(session.updatedAt)}`;
-
-        if (!byKey.has(key)) {
-            byKey.set(key, {
-                key,
-                label:
-                    tab === "folders"
-                        ? html`<${FolderName} path=${shortPath(session.cwd, home)} />`
-                        : dayGroup(session.updatedAt),
-                rows: [],
-            });
-        }
-
-        byKey.get(key).rows.push(session);
-    }
-
-    return [...groups, ...byKey.values()];
+    return seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 }
 
-const TABS = [
-    ["recent", "Recent"],
-    ["folders", "Folders"],
-    ["archived", "Archived"],
-];
+/** How long a session sits idle before it settles by itself (owner's choice: a day). */
+const SETTLE_IDLE_MS = DAY;
+/** Activity this soon after a session settled is its run's own end, not something new. */
+const SETTLE_GRACE_MS = 10_000;
+
+/**
+ * Why a session is settled (out of the active list, in the folded Settled shelf), or null while it is active, after T3
+ * Code's sidebar: settled by hand or by an extension (a task session whose run ended, a merged branch) until something
+ * happens there again, or idle for a day. Work going on, or a call waiting for you, keeps it active; Un-settle keeps it
+ * up for another day.
+ */
+export function settledOf(session, now = Date.now()) {
+    if (session.busy || session.waiting || session.archived) {
+        return null;
+    }
+
+    const settle = session.settle;
+    const updated = session.updatedAt ?? 0;
+
+    if (settle?.state === "settled" && updated <= settle.at + SETTLE_GRACE_MS) {
+        return settle.reason ?? "settled";
+    }
+
+    const touched = Math.max(updated, settle?.state === "active" ? settle.at : 0);
+
+    return now - touched > SETTLE_IDLE_MS ? "idle a day" : null;
+}
+
+/** When a settled session settled, for the shelf's order. */
+const settledAt = (session) => (session.settle?.state === "settled" ? session.settle.at : (session.updatedAt ?? 0) + SETTLE_IDLE_MS);
+
+/** Settle a session (out of the active list) or bring it back. Settling unpins it, as in T3 Code. */
+export async function setSettled(id, settled) {
+    if (settled && isPinned(id)) {
+        togglePin(id);
+    }
+
+    try {
+        await actions.updateSession(id, { settled });
+    } catch (error) {
+        notify("error", error.message);
+    }
+}
+
+/** What the list shows: everything, one project's team, one folder, or the archive. Kept on this device. */
+const SCOPE_KEY = "pocket.sessionScope";
+const readScope = () => localStorage.getItem(SCOPE_KEY) ?? "all";
+
+function inScope(session, scope) {
+    if (scope.startsWith("group:")) {
+        return session.group?.id === scope.slice(6);
+    }
+
+    if (scope.startsWith("folder:")) {
+        const folder = scope.slice(7);
+
+        return session.cwd === folder || session.cwd.startsWith(`${folder}/`);
+    }
+
+    return true;
+}
+
+/**
+ * Sessions in sections, as T3 Code's sidebar has them: Pinned, Active (newest first; a project's running task sessions
+ * under its main session), then the folded Settled shelf (the last settled first). While searching, or in the archive,
+ * one flat list. `team` holds the rows drawn under their main session.
+ */
+function groupsOf(shown, { scope, needle, pinned, now }) {
+    if (needle !== "" || scope === "archived") {
+        return [{ key: "flat", label: needle ? "Matches" : "Archived", rows: shown, team: new Set() }];
+    }
+
+    const live = shown.filter((session) => settledOf(session, now) === null);
+    const settled = shown.filter((session) => settledOf(session, now) !== null).sort((a, b) => settledAt(b) - settledAt(a));
+    const pins = live.filter((session) => pinned.includes(session.id));
+    const active = live.filter((session) => !pinned.includes(session.id)).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+    const leads = new Set(active.filter((session) => session.group?.role === "lead").map((session) => session.group.id));
+    const team = new Set();
+    const ordered = [];
+
+    for (const session of active) {
+        if (session.group?.role === "task" && leads.has(session.group.id)) {
+            continue;
+        }
+
+        ordered.push(session);
+
+        if (session.group?.role === "lead") {
+            for (const child of active) {
+                if (child.group?.id === session.group.id && child.group.role === "task") {
+                    team.add(child.id);
+                    ordered.push(child);
+                }
+            }
+        }
+    }
+
+    return [
+        ...(pins.length > 0 ? [{ key: "pinned", label: "Pinned", rows: pins, team: new Set() }] : []),
+        ...(ordered.length > 0 ? [{ key: "active", label: "Active", rows: ordered, team }] : []),
+        ...(settled.length > 0 ? [{ key: "settled", label: "Settled", foldable: true, rows: settled, team: new Set() }] : []),
+    ];
+}
+
+/** Whether a group shows folded: the Settled shelf unless opened, the others when closed. */
+const folded = (group, closed) => (group.key === "flat" ? false : group.foldable ? !closed.has(`open:${group.key}`) : closed.has(group.key));
+
+/**
+ * The list's scope, in place of tabs (after T3 Code's "All projects"): All, each project (its team's sessions), each
+ * folder, or the archive, with how many are there and how many work.
+ */
+function ScopePicker({ scope, onScope, sessions, home }) {
+    const [open, setOpen] = useState(false);
+    const live = sessions.filter((session) => !session.archived);
+    const teams = new Map();
+    const folders = new Map();
+
+    for (const session of live) {
+        if (session.group) {
+            const team = teams.get(session.group.id) ?? { id: session.group.id, title: session.group.title, count: 0, working: 0, at: 0 };
+
+            team.count += 1;
+            team.working += session.busy ? 1 : 0;
+            team.at = Math.max(team.at, session.updatedAt ?? 0);
+            team.title = session.group.role === "lead" ? session.group.title : team.title;
+            teams.set(session.group.id, team);
+        } else {
+            const folder = folders.get(session.cwd) ?? { cwd: session.cwd, count: 0, at: 0 };
+
+            folder.count += 1;
+            folder.at = Math.max(folder.at, session.updatedAt ?? 0);
+            folders.set(session.cwd, folder);
+        }
+    }
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        const away = (event) => !event.target.closest?.(".session-scope") && setOpen(false);
+
+        addEventListener("pointerdown", away, true);
+
+        return () => removeEventListener("pointerdown", away, true);
+    }, [open]);
+
+    const pick = (next) => {
+        setOpen(false);
+        onScope(next);
+    };
+    const name =
+        scope === "archived"
+            ? "Archived"
+            : scope.startsWith("group:")
+              ? (teams.get(scope.slice(6))?.title ?? "Project")
+              : scope.startsWith("folder:")
+                ? shortPath(scope.slice(7), home)
+                : "All";
+    const icon = scope === "archived" ? "archive" : scope.startsWith("group:") ? "board" : scope.startsWith("folder:") ? "folder" : "menu";
+    const option = (key, iconName, label, hint) => html`<button role="option" aria-selected=${scope === key} class=${scope === key ? "on" : ""} onClick=${() => pick(key)}>
+        ${iconName && html`<${Icon} name=${iconName} size=${13} />`}<span class="scope-label">${label}</span><small>${hint}</small>
+    </button>`;
+
+    return html`<div class=${`session-scope ${open ? "open" : ""}`} data-part="session-scope">
+        <button class="session-scope-button" aria-haspopup="listbox" aria-expanded=${open} onClick=${() => setOpen(!open)}>
+            <${Icon} name=${icon} size=${14} />
+            <span class="scope-label">${name}</span>
+            <${Icon} name="down" size=${12} />
+        </button>
+        ${
+            open &&
+            html`<div class="session-scope-menu" role="listbox" aria-label="Show">
+                ${option("all", "menu", "All", `${live.length}`)}
+                ${teams.size > 0 && html`<div class="scope-sec">Projects</div>`}
+                ${[...teams.values()]
+                    .sort((a, b) => b.at - a.at)
+                    .map((team) => option(`group:${team.id}`, "board", team.title, `${team.count}${team.working > 0 ? ` · ${team.working} working` : ""}`))}
+                ${folders.size > 0 && html`<div class="scope-sec">Folders</div>`}
+                ${[...folders.values()]
+                    .sort((a, b) => b.at - a.at)
+                    .slice(0, 20)
+                    .map((folder) => option(`folder:${folder.cwd}`, "folder", shortPath(folder.cwd, home), `${folder.count}`))}
+                <div class="scope-sec"></div>
+                ${option("archived", "archive", "Archived", `${sessions.length - live.length}`)}
+            </div>`
+        }
+    </div>`;
+}
 
 /**
  * What the full list searched for and how far it was scrolled, kept while the tab lives: on a phone the list goes when a
@@ -537,7 +713,7 @@ export function SessionList({ compact = false }) {
     const { sessions, sessionsLoaded, server, pinned } = store.state;
     const canStart = canSteer() && !scoped();
     const [query, setQueryState] = useState(() => (compact ? "" : listKept.query));
-    const [tab, setTabState] = useState(() => (prefs().group === "folder" ? "folders" : "recent"));
+    const [scope, setScopeState] = useState(readScope);
     const [closed, setClosed] = useState(readClosed);
     const [selected, setSelectedState] = useState(() => new Set());
     // Taps select rows instead of opening them: a selection started from a long press's sheet, on a touch screen.
@@ -551,9 +727,8 @@ export function SessionList({ compact = false }) {
     const held = useRef(null);
     const visible = useRef([]);
     const list = useRef(null);
-    const tabs = useRef(null);
     const needle = query.trim().toLowerCase();
-    const archived = tab === "archived";
+    const archived = scope === "archived";
 
     const setQuery = (next) => {
         if (!compact) {
@@ -605,36 +780,30 @@ export function SessionList({ compact = false }) {
         setSelected(new Set());
     };
 
-    const setTab = (next) => {
-        setTabState(next);
+    const setScope = (next) => {
+        setScopeState(next);
+        localStorage.setItem(SCOPE_KEY, next);
         clearSelection();
-
-        if (next !== "archived") {
-            setPrefs({ group: next === "folders" ? "folder" : "recent" });
-        }
     };
 
     const shown = sessions.filter(
         (session) =>
             Boolean(session.archived) === archived &&
+            inScope(session, scope) &&
             (needle === "" ||
                 `${session.title ?? ""} ${session.cwd} ${shortPath(session.cwd, server?.home)} ${session.model ?? ""}`
                     .toLowerCase()
                     .includes(needle)),
     );
-    const forest = sessionForest(shown, { pinned, folders: tab === "folders" });
-    const groups = groupsOf(forest.roots, { tab, needle, home: server?.home, pinned }).map(
+    const forest = sessionForest(shown, { pinned, folders: false });
+    const groups = groupsOf(forest.roots, { scope, needle, pinned, now: Date.now() }).map(
         (group) => ({
             ...group,
             rows: group.rows.flatMap((root) => forest.rows.get(root.id)),
         }),
     );
 
-    visible.current = groups.flatMap((group) =>
-        closed.has(group.key) && group.key !== "flat"
-            ? []
-            : group.rows.map(({ session }) => session.id),
-    );
+    visible.current = groups.flatMap((group) => (folded(group, closed) ? [] : group.rows.map(({ session }) => session.id)));
     const chosen = shown.filter((session) => selected.has(session.id)).map((session) => session.id);
     // Taps select while the bar shows: not for rows selected and then hidden (archived, or searched away).
     const tapping = tapSelects && chosen.length > 0;
@@ -982,7 +1151,6 @@ export function SessionList({ compact = false }) {
         setClosed(next);
     };
 
-    const tabBar = useSlide(tabs, "button.on", "x");
     const count = sessions.filter((session) => !session.archived).length;
     let index = 0;
 
@@ -1052,19 +1220,7 @@ export function SessionList({ compact = false }) {
                         </button>`
             }
         </label>
-        <div class="session-tabs" data-part="session-tabs" role="tablist" ref=${tabs}>
-            ${TABS.map(
-                ([key, label]) => html`<button
-                    role="tab"
-                    aria-selected=${tab === key}
-                    class=${tab === key ? "on" : ""}
-                    onClick=${() => setTab(key)}
-                >
-                    ${label}
-                </button>`,
-            )}
-            <${Slide} box=${tabBar} axis="x" />
-        </div>
+        <${ScopePicker} scope=${scope} onScope=${setScope} sessions=${sessions} home=${server?.home} />
         <div
             class="session-items"
             ref=${list}
@@ -1079,7 +1235,7 @@ export function SessionList({ compact = false }) {
                 </div>`
             }
             ${groups.map((group) => {
-                const isClosed = closed.has(group.key) && group.key !== "flat";
+                const isClosed = folded(group, closed);
                 // A folded group hides its rows' marks: say when one waits for you or its run failed.
                 const trouble = isClosed
                     ? group.rows
@@ -1090,14 +1246,14 @@ export function SessionList({ compact = false }) {
                 return html`<section
                     class=${`session-group ${isClosed ? "closed" : ""}`}
                     data-part="session-group"
-                    key=${`${tab}:${group.key}`}
+                    key=${`${scope}:${group.key}`}
                 >
                     ${
                         group.key !== "flat" || needle
                             ? html`<button
                                 class="group-head"
                                 data-part="session-group-head"
-                                onClick=${() => group.key !== "flat" && toggleGroup(group.key)}
+                                onClick=${() => group.key !== "flat" && toggleGroup(group.foldable ? `open:${group.key}` : group.key)}
                                 aria-expanded=${!isClosed}
                             >
                                 <span class="group-name" data-part="session-group-name">
@@ -1136,7 +1292,9 @@ export function SessionList({ compact = false }) {
                                         needle=${needle}
                                         selected=${selected.has(session.id)}
                                         pressing=${pressing === session.id}
-                                        folders=${tab === "folders" && needle === ""}
+                                        folders=${false}
+                                        team=${group.team?.has(session.id)}
+                                        settled=${group.key === "settled" ? settledOf(session) : null}
                                         onPick=${pick}
                                         onSelect=${select}
                                     />`,

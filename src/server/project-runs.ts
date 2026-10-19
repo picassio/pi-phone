@@ -59,6 +59,29 @@ export class Team {
             this.#projects.onAssignedToPi((task) => void this.#assigned(task).catch((error: unknown) => this.#warn(error))),
         );
         this.pump();
+        // Sessions of teams from before groups, and any whose project was renamed while this was off.
+        void (async () => {
+            for (const project of this.#projects.allProjects()) {
+                await this.regroup(project);
+            }
+        })().catch((error: unknown) => this.#warn(error));
+    }
+
+    /** Put a project's main session and its task sessions in the project's group, named as the project is now. */
+    async regroup(project: Project): Promise<void> {
+        if (project.mainSession !== null && this.#host.sessionTitle(Number(project.mainSession)) !== undefined) {
+            await this.#host.groupSession(Number(project.mainSession), this.#group(project, "lead"));
+        }
+
+        for (const run of this.#projects.runsOf(project.id)) {
+            if (run.conversationId !== null && this.#host.sessionTitle(Number(run.conversationId)) !== undefined) {
+                await this.#host.groupSession(Number(run.conversationId), this.#group(project, "task"));
+            }
+        }
+    }
+
+    #group(project: Project, role: "lead" | "task"): { id: string; title: string; role: "lead" | "task" } {
+        return { id: `project:${project.key}`, title: `${project.key} · ${project.name}`, role };
     }
 
     stop(): void {
@@ -90,6 +113,7 @@ export class Team {
 
         this.#projects.update(actor, key, { mainSession: String(session) });
         this.#projects.setBoardMode(actor, String(session), true, project.key);
+        await this.#host.groupSession(session, this.#group(project, "lead"));
 
         return session;
     }
@@ -133,6 +157,10 @@ export class Team {
 
         if (result.code !== 0) {
             throw new HttpError(409, (result.stderr || result.stdout).trim().slice(0, 1000) || "The merge failed.");
+        }
+
+        if (run.conversationId !== null) {
+            await this.#host.settleSession(Number(run.conversationId), "its branch was merged");
         }
 
         return result.stdout.trim();
@@ -214,6 +242,7 @@ export class Team {
         });
         this.#projects.setBoardMode({ kind: "person", person: owner }, String(session), true, project.key);
         this.#projects.startWork(task.id, String(session));
+        await this.#host.groupSession(session, this.#group(project, "task"));
     }
 
     /** A worktree for a task in the repository at `place`, on `task/<ref>` (made, or found from before). */
@@ -287,6 +316,7 @@ export class Team {
 
         if (event.kind === "failed") {
             this.#projects.setRun(run.id, { state: "failed", note: "Its session's run failed.", endedAt: Date.now() });
+            await this.#host.settleSession(event.session, "its run failed");
             await this.#report(project, `Failed: ${task.ref} (${task.title}). Its session #${event.session} failed; open it to see why. Work so far is on ${where}.`, from);
         } else if (event.kind === "approval") {
             await this.#report(project, `Needs the person: ${task.ref} (${task.title}). Its session #${event.session} waits for an approval: ${event.text}`, from);
@@ -295,6 +325,7 @@ export class Team {
         } else if (event.kind === "done") {
             if (task.state === "review" || task.state === "done") {
                 this.#projects.setRun(run.id, { state: "done", endedAt: Date.now() });
+                await this.#host.settleSession(event.session, "its run finished");
                 await this.#report(
                     project,
                     `Done: ${task.ref} (${task.title}) is in ${STATE_NAMES[task.state]}. ${this.#summary(task, run, event.text)}\nIts work is on ${where}. Review it, then move it on.`,
@@ -310,6 +341,7 @@ export class Team {
                 return;
             } else {
                 this.#projects.setRun(run.id, { state: "stopped", note: `Its session stopped with the task still ${STATE_NAMES[task.state]}.`, endedAt: Date.now() });
+                await this.#host.settleSession(event.session, "it stopped");
                 await this.#report(
                     project,
                     `Stopped: ${task.ref} (${task.title}) is still ${STATE_NAMES[task.state]}, but its session #${event.session} stopped. Its last words: ${this.#host.text.quoted(event.text, 300)}. Work so far is on ${where}. Decide: message that session to go on, run it again, or ask the person.`,
