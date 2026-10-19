@@ -1980,6 +1980,11 @@ export class PocketApp {
         return { ...hello, connection: client.connection };
     }
 
+    /** Session lists change from outside their documents (a machine's branch came back): tabs get them again. */
+    sessionsChanged(): void {
+        this.#scheduleSessions();
+    }
+
     #scheduleSessions(): void {
         if (this.#sessionsTimer !== undefined) {
             return;

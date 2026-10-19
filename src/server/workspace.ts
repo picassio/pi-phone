@@ -136,6 +136,8 @@ export class Workspace {
 
                     if (changed) {
                         this.#app.refreshView(id);
+                        // The session list shows the branch too.
+                        this.#app.sessionsChanged();
                     }
                 });
         }

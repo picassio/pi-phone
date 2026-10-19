@@ -362,7 +362,10 @@ function SessionRow({
     const task = session.group?.role === "task" ? /^([A-Z][A-Z0-9]{1,5}-\d+) · (.*)$/.exec(title) : null;
     const shownTitle = task ? task[2] : title;
     const remote = session.cwd.startsWith("machine:");
-    const place = team ? "task session" : session.group ? session.group.title : path;
+    // On a machine, as the design has it: the machine, then the folder's last two parts ("tualh-laptop · source/cmg").
+    const machine = remote ? /^([^:]+):\s*(.*)$/.exec(path) : null;
+    const shortWhere = machine ? `${machine[1]} · ${machine[2].split("/").filter((part) => part !== "" && part !== "~").slice(-2).join("/") || machine[2]}` : path;
+    const place = team ? "task session" : session.group ? session.group.title : shortWhere;
     const branch = session.worktree?.branch ?? session.branch ?? (task ? `task/${task[1]}` : null);
     const when = session.waiting ? "waits" : session.busy && session.busySince ? workingFor(session.busySince) : timeAgo(session.updatedAt);
 
@@ -672,12 +675,21 @@ function ScopePicker({ scope, onScope, sessions, home }) {
             : scope.startsWith("group:")
               ? (teams.get(scope.slice(6))?.title ?? "Project")
               : scope.startsWith("folder:")
-                ? shortPath(scope.slice(7), home)
+                ? folderPlace(scope.slice(7))
                 : "All";
     const icon = scope === "archived" ? "archive" : scope.startsWith("group:") ? "board" : scope.startsWith("folder:") ? "folder" : "menu";
-    const option = (key, iconName, label, hint) => html`<button role="option" aria-selected=${scope === key} class=${scope === key ? "on" : ""} onClick=${() => pick(key)}>
-        ${iconName && html`<${Icon} name=${iconName} size=${13} />`}<span class="scope-label">${label}</span><small>${hint}</small>
+    const option = (key, lead, label, hint) => html`<button role="option" aria-selected=${scope === key} class=${scope === key ? "on" : ""} onClick=${() => pick(key)}>
+        ${lead}<span class="scope-label">${label}</span><small>${hint}</small>
     </button>`;
+    // A project as the design shows it: its key in a chip, then its name.
+    const teamKey = (team) => /^project:(.+)$/.exec(team.id)?.[1] ?? "";
+    const teamName = (team) => team.title.replace(/^[A-Z][A-Z0-9]{1,5} · /, "");
+    const folderPlace = (cwd) => {
+        const short = shortPath(cwd, home);
+        const machine = cwd.startsWith("machine:") ? /^([^:]+):\s*(.*)$/.exec(short) : null;
+
+        return machine ? `${machine[1]} · ${machine[2].split("/").filter((part) => part !== "" && part !== "~").slice(-2).join("/") || machine[2]}` : short;
+    };
 
     return html`<div class=${`session-scope ${open ? "open" : ""}`} data-part="session-scope">
         <button class="session-scope-button" aria-haspopup="listbox" aria-expanded=${open} onClick=${() => setOpen(!open)}>
@@ -688,18 +700,32 @@ function ScopePicker({ scope, onScope, sessions, home }) {
         ${
             open &&
             html`<div class="session-scope-menu" role="listbox" aria-label="Show">
-                ${option("all", "menu", "All", `${live.length}`)}
+                ${option("all", null, "All", `${live.length} active`)}
                 ${teams.size > 0 && html`<div class="scope-sec">Projects</div>`}
                 ${[...teams.values()]
                     .sort((a, b) => b.at - a.at)
-                    .map((team) => option(`group:${team.id}`, "board", team.title, `${team.count}${team.working > 0 ? ` · ${team.working} working` : ""}`))}
+                    .map((team) =>
+                        option(
+                            `group:${team.id}`,
+                            html`<span class="scope-key">${teamKey(team)}</span>`,
+                            teamName(team),
+                            `${team.count}${team.working > 0 ? ` · ${team.working} working` : ""}`,
+                        ),
+                    )}
                 ${folders.size > 0 && html`<div class="scope-sec">Folders</div>`}
                 ${[...folders.values()]
                     .sort((a, b) => b.at - a.at)
                     .slice(0, 20)
-                    .map((folder) => option(`folder:${folder.cwd}`, "folder", shortPath(folder.cwd, home), `${folder.count}`))}
+                    .map((folder) =>
+                        option(
+                            `folder:${folder.cwd}`,
+                            html`<${Icon} name=${folder.cwd.startsWith("machine:") ? "monitor" : "folder"} size=${13} />`,
+                            folderPlace(folder.cwd),
+                            `${folder.count}`,
+                        ),
+                    )}
                 <div class="scope-sec"></div>
-                ${option("archived", "archive", "Archived", `${sessions.length - live.length}`)}
+                ${option("archived", null, "Archived", `${sessions.length - live.length}`)}
             </div>`
         }
     </div>`;
@@ -1248,6 +1274,7 @@ export function SessionList({ compact = false }) {
                 return html`<section
                     class=${`session-group ${isClosed ? "closed" : ""}`}
                     data-part="session-group"
+                    data-group=${group.key}
                     key=${`${scope}:${group.key}`}
                 >
                     ${

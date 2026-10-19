@@ -16137,3 +16137,28 @@ pre.gallery-code {
         min-width: 97px;
     }
 }
+
+/* As the design: titles in medium weight (bolder while unread); Pinned and Active are plain labels, only Settled shows
+ * its count and folds. */
+.session-title {
+    font-weight: 500;
+}
+
+.session-row.settled .session-title {
+    font-weight: 400;
+}
+
+.sessions .session-group:is([data-group="pinned"], [data-group="active"]) > .group-head .group-count,
+.sessions .session-group:is([data-group="pinned"], [data-group="active"]) > .group-head .icon {
+    display: none;
+}
+
+/* The scope menu as the design has it: a project's key in a chip. */
+.scope-key {
+    flex: none;
+    padding: 1px 5px;
+    border-radius: var(--r-tag);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font: 600 10.5px var(--mono);
+}
