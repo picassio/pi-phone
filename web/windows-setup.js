@@ -25,9 +25,13 @@ $me = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
 if (-not $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Run PowerShell as administrator, then paste this again.' }
 
 Write-Host '1/5 OpenSSH Server'
-$cap = Get-WindowsCapability -Online -Name 'OpenSSH.Server*' | Select-Object -First 1
-if ($null -eq $cap) { throw 'This Windows has no OpenSSH Server to install (Windows 10 1809 or later has it).' }
-if ($cap.State -ne 'Installed') { Add-WindowsCapability -Online -Name $cap.Name | Out-Null }
+if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {
+    Write-Host '    Installing it from Windows Update: this often takes 5 to 15 minutes, with no progress shown.'
+    Write-Host '    If Windows Update is blocked here (a work PC), stop this, run: winget install Microsoft.OpenSSH.Preview, then paste this again.'
+    $cap = Get-WindowsCapability -Online -Name 'OpenSSH.Server*' | Select-Object -First 1
+    if ($null -eq $cap) { throw 'This Windows has no OpenSSH Server to install (Windows 10 1809 or later has it): run winget install Microsoft.OpenSSH.Preview, then paste this again.' }
+    if ($cap.State -ne 'Installed') { Add-WindowsCapability -Online -Name $cap.Name | Out-Null }
+}
 Set-Service -Name sshd -StartupType Automatic
 Start-Service sshd
 
