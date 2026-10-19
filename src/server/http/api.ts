@@ -679,13 +679,12 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 // pi-env's listing of its folder: say which, and how to delete it.
                 const listingFailed = (message: string) => {
                     const reserved = /lstat '.*\\((?:nul|con|prn|aux|com\d|lpt\d)(?:\.[^\\']*)?)'/i.exec(message)?.[1];
-                    const file = reserved === undefined ? "" : `${path.replaceAll("/", "\\")}\\${reserved}`.replace(/\\\\+/g, "\\");
 
                     return new HttpError(
                         502,
                         reserved === undefined
                             ? `Could not list ${path} on ${machine.name}: ${message}`
-                            : `Could not list ${path} on ${machine.name}: it holds a file named ${reserved}, a name Windows reserves. Delete it there (in Git Bash): cmd //c "del \\\\?\\${file}"`,
+                            : `Could not list ${path} on ${machine.name}: it holds a file named ${reserved}, a name Windows reserves. Delete it in Git Bash there (it can, where Windows tools cannot): rm -- '${path}/${reserved}'`,
                     );
                 };
 
