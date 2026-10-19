@@ -51,10 +51,15 @@ interface Poller {
     expiry: NodeJS.Timeout | undefined;
 }
 
-function newClient(url: URL, user: User, send: Client["send"]): Client {
+function newClient(url: URL, user: User, send: Client["send"], request: IncomingMessage): Client {
     const raw = url.searchParams.get("c");
 
     return {
+        device: {
+            address: (request.socket.remoteAddress ?? "").replace(/^::ffff:/, ""),
+            agent: String(request.headers["user-agent"] ?? "").slice(0, 300),
+            since: Date.now(),
+        },
         id: (url.searchParams.get("tab") ?? randomUUID()).slice(0, 64),
         connection: randomUUID(),
         user,
@@ -112,7 +117,7 @@ export function createEventStreams(app: PocketApp) {
             if (keepsUp()) {
                 write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
             }
-        });
+        }, request);
 
         client.close = () => response.end();
         response.writeHead(200, {
@@ -292,7 +297,7 @@ export function createEventStreams(app: PocketApp) {
                     clearTimeout(created.timer);
                     created.timer = setTimeout(() => answerPoll(created), 30);
                 }
-            });
+            }, request);
             created.client.close = () => closePoller(created);
             pollers.set(created.id, created);
             // Its time runs while its first view is built, however long that takes, as long as the tab waits for it: a

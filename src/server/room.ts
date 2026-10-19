@@ -135,6 +135,8 @@ export interface Client {
      * briefly overlaps the old connection. Sent in `hello`; peek lists name it.
      */
     readonly connection: string;
+    /** Where the connection comes from, for the owner's list of who is signed in now (`PocketApp.connections`). */
+    readonly device?: { address: string; agent: string; since: number };
     /** Other sessions this tab shows as peek tiles on screen now; each gets `peek` events (`PocketApp.setPeeks`). */
     peeks?: Set<ConversationId>;
     /** The number of the last peek list taken, so one that arrives late does not undo a newer one. */

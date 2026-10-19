@@ -12,6 +12,7 @@ import {
     openSheet,
     scoped,
     store,
+    thisTab,
 } from "../store.js";
 import { copyText, html, Icon, Loader, Sheet, timeAgo } from "../ui.js";
 
@@ -389,6 +390,106 @@ function PeopleList() {
     </div>`;
 }
 
+/** A browser's name and system from its user agent, in a few words; the app's own WebView by name. */
+export function deviceName(agent, address) {
+    if (/; wv\)/.test(agent) && /^(127\.|::1$)/.test(address)) {
+        return "pi-phone app";
+    }
+
+    const browser = /Edg\//.test(agent)
+        ? "Edge"
+        : /SamsungBrowser\//.test(agent)
+          ? "Samsung Internet"
+          : /OPR\//.test(agent)
+            ? "Opera"
+            : /Firefox\//.test(agent)
+              ? "Firefox"
+              : /Chrome\//.test(agent)
+                ? "Chrome"
+                : /Safari\//.test(agent)
+                  ? "Safari"
+                  : "A browser";
+    const system = /Windows/.test(agent)
+        ? "Windows"
+        : /Android/.test(agent)
+          ? "Android"
+          : /iPhone|iPad/.test(agent)
+            ? "iOS"
+            : /Mac OS X/.test(agent)
+              ? "macOS"
+              : /CrOS/.test(agent)
+                ? "ChromeOS"
+                : /Linux/.test(agent)
+                  ? "Linux"
+                  : "";
+
+    return system ? `${browser} on ${system}` : browser;
+}
+
+/** Where a connection comes from: this phone, the Tailscale network (100.64.0.0/10), or an address. */
+export function placeName(address) {
+    if (/^(127\.|::1$)/.test(address)) {
+        return "this phone";
+    }
+
+    const [first, second] = address.split(".").map(Number);
+
+    return first === 100 && second >= 64 && second <= 127 ? `Tailscale · ${address}` : address || "unknown";
+}
+
+/**
+ * Who is signed in now (the owner's; `App.connections`): every open tab and the app, by person, with the device, where
+ * it connects from, the session it shows, and since when. Everyone signed in as the owner shares one sign-in, so this is
+ * where the owner's own devices show. Looked at again every 10 seconds while open.
+ */
+function SignedInNow() {
+    const [list, setList] = useState(null);
+
+    useEffect(() => {
+        const load = () =>
+            api("connections").then(
+                (answer) => setList(answer.connections),
+                () => {},
+            );
+        const timer = setInterval(load, 10_000);
+
+        load();
+
+        return () => clearInterval(timer);
+    }, []);
+
+    return html`<div class="group">
+        <div class="group-title">Signed in now</div>
+        ${list === null && html`<${Loader} label="Loading" />`}
+        ${
+            list !== null &&
+            html`<div class="sheet-list">
+                ${list.map(
+                    (each) => html`<div class="person-row" key=${each.tab}>
+                        <${Icon} name=${/app|Android|iOS/.test(deviceName(each.agent, each.address)) ? "phone" : "monitor"} size=${20} />
+                        <div class="person-main">
+                            <div>
+                                ${deviceName(each.agent, each.address)}
+                                ${each.tab === thisTab && html` <span class="muted small">(this tab)</span>`}
+                            </div>
+                            <div class="muted small">
+                                ${[
+                                    each.user.role === "owner" ? "you" : each.user.name,
+                                    placeName(each.address),
+                                    timeAgo(each.since) === "now" ? "connected now" : `connected ${timeAgo(each.since)} ago`,
+                                    ...(each.visible ? [] : ["in the background"]),
+                                ].join(" · ")}
+                            </div>
+                            ${each.session && html`<div class="muted small">on ${each.session.title}</div>`}
+                        </div>
+                    </div>`,
+                )}
+                <${SignOutEverywhere} />
+            </div>`
+        }
+    </div>`;
+}
+
 /**
  * The owner's "Sign out every device" (`App.signOutEverywhere`): a new owner token, so every other device signed in as
  * the owner (a browser, a laptop, a link not used yet) signs in again. This one stays signed in; the app on the phone
@@ -413,9 +514,7 @@ function SignOutEverywhere() {
             }
         });
 
-    return html`<div class="group">
-        <div class="group-title">Your devices</div>
-        <div class="provider">
+    return html`<div class="provider">
             <div>
                 <div>Sign out every device</div>
                 <div class="muted small">
@@ -426,8 +525,7 @@ function SignOutEverywhere() {
             <div class="provider-actions">
                 <button class="button small ghost" disabled=${busy} onClick=${run}>${busy ? "Signing out…" : "Sign out all"}</button>
             </div>
-        </div>
-    </div>`;
+        </div>`;
 }
 
 export function PeopleSheet() {
@@ -442,6 +540,6 @@ export function PeopleSheet() {
             </button>`
         }
         <${PeopleList} />
-        ${owner && html`<${SignOutEverywhere} />`}
+        ${owner && html`<${SignedInNow} />`}
     <//>`;
 }

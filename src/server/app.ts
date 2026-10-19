@@ -2375,6 +2375,47 @@ export class PocketApp {
     }
 
     /**
+     * Who is signed in now, for the owner (Settings › People): every open tab or app connection, by tab (a reconnect can
+     * briefly overlap the old connection), with whose it is, where it comes from, its browser, since when, whether it is
+     * on screen, and the session it shows. Everyone signed in as the owner shares one token, so this is how the owner sees
+     * those devices at all. Newest first.
+     */
+    connections(viewer: User) {
+        if (viewer.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        const byTab = new Map<string, Client>();
+
+        for (const client of this.#clients) {
+            const seen = byTab.get(client.id);
+
+            if (seen === undefined || (client.device?.since ?? 0) > (seen.device?.since ?? 0)) {
+                byTab.set(client.id, client);
+            }
+        }
+
+        return [...byTab.values()]
+            .map((client) => ({
+                tab: client.id,
+                user: { id: client.user.id, name: client.user.name, role: client.user.role },
+                address: client.device?.address ?? "",
+                agent: client.device?.agent ?? "",
+                since: client.device?.since ?? 0,
+                visible: client.visible !== false,
+                ...(client.conversationId === undefined
+                    ? {}
+                    : {
+                          session: {
+                              id: client.conversationId,
+                              title: this.#sessions[String(client.conversationId)]?.title ?? "Session",
+                          },
+                      }),
+            }))
+            .sort((a, b) => b.since - a.since);
+    }
+
+    /**
      * Sign out every device signed in as the owner: a new owner token (`Config.rotateOwnerToken`, which also drops owner
      * invites not yet used), and every owner tab closed now. The app on the phone signs in again by itself (it reads the
      * token from config.json); the device that asked gets the new token as its cookie (`/api/sign-out-everywhere`).

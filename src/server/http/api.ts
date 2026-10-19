@@ -196,6 +196,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, app.people(user));
         }
 
+        // Settings › People's "Signed in now": the owner's.
+        if (first === "connections" && second === undefined && method === "GET") {
+            return json(response, 200, { connections: app.connections(user) });
+        }
+
         // Settings › People's "Sign out every device": this device stays signed in, with the new token as its cookie.
         if (first === "sign-out-everywhere" && second === undefined && method === "POST") {
             setAuthCookie(request, response, app.signOutEverywhere(user));

@@ -957,6 +957,51 @@ test("the owner signs another device in as the owner: owner only, once, no one n
     }
 });
 
+test("the owner sees who is signed in now: each open tab, whose, from where, with its browser; no one else may", async () => {
+    const { createServer } = await import("node:http");
+    const { createHandler } = await import("../src/server/http.ts");
+    const server = createServer(
+        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
+    );
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const guest = app.config.addUser("Gus", "guest");
+    const stream = new AbortController();
+    const agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+
+    try {
+        const opened = await fetch(`${base}/api/events?tab=laptop-tab&p=2`, {
+            headers: { authorization: `Bearer ${app.config.ownerToken}`, "user-agent": agent },
+            signal: stream.signal,
+        });
+
+        assert.equal(opened.status, 200);
+        // The first event says the tab is attached.
+        await opened.body!.getReader().read();
+
+        const listed = (await (
+            await fetch(`${base}/api/connections`, { headers: { authorization: `Bearer ${app.config.ownerToken}` } })
+        ).json()) as { connections: { tab: string; user: { role: string }; address: string; agent: string; since: number }[] };
+        const laptop = listed.connections.find((each) => each.tab === "laptop-tab");
+
+        assert.equal(laptop?.user.role, "owner");
+        assert.equal(laptop?.address, "127.0.0.1");
+        assert.equal(laptop?.agent, agent);
+        assert.ok(laptop!.since > 0);
+        assert.equal(
+            (await fetch(`${base}/api/connections`, { headers: { authorization: `Bearer ${guest.token}` } })).status,
+            403,
+            "the owner's only",
+        );
+    } finally {
+        stream.abort();
+        app.config.removeUser(guest.user.id);
+        server.closeAllConnections();
+        server.close();
+    }
+});
+
 test("Sign out every device: owner only; a new owner token, the old one refused, the asking device kept; guests stay", async () => {
     const { createServer } = await import("node:http");
     const { createHandler } = await import("../src/server/http.ts");

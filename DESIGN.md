@@ -127,7 +127,11 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   a new owner token (`Config.rotateOwnerToken`, which drops unused owner invites too), every owner tab closed. The device
   that asked gets the new token as its cookie and reloads; the app on the phone signs in again by itself (its sign-in
   screen calls the bridge's `signIn()`, which loads `/login?token=` with config.json's token, at most once a minute);
-  PiService reads the token afresh for every call. Invited people stay. Devices are not listed yet: one token per person
+  PiService reads the token afresh for every call. Invited people stay.
+  **Signed in now** (People, owner only; `App.connections`, `GET /api/connections`): every open tab and the app, from
+  the event connections (`Client.device`: address, user agent, since), one row per tab, with whose, where from (this
+  phone, Tailscale, an address), browser and system (the app's WebView by `; wv)` from 127.0.0.1), the session it shows,
+  and whether it is in the background. One token per person, so a single device cannot be signed out yet
   (wiki: pi-phone-sign-in-management).
 - **Choice** (`web/ui.js`): the sheets' dropdowns (Web access, Dictation, a machine's key, Ports) in the app's own
   style, the model and branch menus' `.pop-menu` rows, not the system's `<select>`: fixed to the screen under its field (over

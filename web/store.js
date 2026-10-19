@@ -38,6 +38,9 @@ const TAB = sessionStorage.getItem(TAB_KEY) ?? uid();
 
 sessionStorage.setItem(TAB_KEY, TAB);
 
+/** This tab's id, as its event connection names it: People marks it in the list of who is signed in. */
+export const thisTab = TAB;
+
 const emptyView = () => ({
     conversation: null,
     entries: new Map(),
