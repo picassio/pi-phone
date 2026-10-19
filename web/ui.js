@@ -1345,7 +1345,8 @@ export const scrimPress = (close) => (event) =>
     close();
 
 /** A bottom sheet on phones, a centered dialog on wide screens. */
-export function Sheet({ title, onClose, children, wide = false, actions = null, className = "" }) {
+/** A sheet. `bare`: no title bar, only the grip; what is in it draws its own header (an extension's task sheet). */
+export function Sheet({ title, onClose, children, wide = false, actions = null, className = "", bare = false }) {
     const ref = useRef(null);
     const onBack = useContext(SheetBack);
     const info = useContext(SheetInfo);
@@ -1383,7 +1384,7 @@ export function Sheet({ title, onClose, children, wide = false, actions = null, 
         onMouseDown=${scrimPress(onClose)}
     >
         <section
-            class=${`sheet ${wide ? "wide" : ""} ${className}`}
+            class=${`sheet ${wide ? "wide" : ""} ${bare ? "bare" : ""} ${className}`}
             data-part="sheet"
             data-sheet=${info?.type ?? undefined}
             data-size=${wide ? "wide" : undefined}
@@ -1395,7 +1396,11 @@ export function Sheet({ title, onClose, children, wide = false, actions = null, 
             tabindex="-1"
             onKeyDown=${scrollFromKeys}
         >
-            <header class="sheet-head" data-part="sheet-head">
+            ${
+                bare
+                    ? html`<header class="sheet-head bare" data-part="sheet-head"><div class="grip" aria-hidden="true"></div></header>
+                          <div class="sheet-body" data-part="sheet-body">${children}</div>`
+                    : html`<header class="sheet-head" data-part="sheet-head">
                 <div class="grip" aria-hidden="true"></div>
                 ${
                     onBack &&
@@ -1409,7 +1414,8 @@ export function Sheet({ title, onClose, children, wide = false, actions = null, 
                     <${Icon} name="close" />
                 </button>
             </header>
-            <div class="sheet-body" data-part="sheet-body">${children}</div>
+            <div class="sheet-body" data-part="sheet-body">${children}</div>`
+            }
         </section>
     </div>`;
 }

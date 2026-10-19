@@ -256,14 +256,20 @@ export class Team {
      * Merge a task's branch into the branch it started from, in the repository at its place (which must be on that
      * branch, with nothing uncommitted), then remove its worktree and branch. A person's.
      */
-    async merge(run: Run, task: Task): Promise<string> {
+    async merge(run: Run, task: Task, actor: Actor): Promise<string> {
+        if (run.merged !== null) {
+            throw new HttpError(409, `${task.ref}'s branch was merged already (${run.merged.commit}).`);
+        }
+
         const { place, branch, base } = this.#readyRun(run);
         const script = [
             "set -e",
             `current=$(git rev-parse --abbrev-ref HEAD)`,
             `[ "$current" = ${quote(base)} ] || { echo "The repository is on $current, not ${base}: switch it to ${base} first." >&2; exit 3; }`,
             `git diff --quiet && git diff --cached --quiet || { echo "The repository has uncommitted changes: commit or stash them first." >&2; exit 3; }`,
+            `stat=$(git diff --shortstat ${quote(`${base}...${branch}`)})`,
             `git merge --no-ff -m ${quote(`Merge ${branch}: ${task.title}`)} ${quote(branch)}`,
+            `echo "@@merged $(git rev-parse --short HEAD) $stat"`,
             run.worktree === null ? "true" : `git worktree remove --force ${quote(parsePlace(run.worktree).path)} || true`,
             `git branch -d ${quote(branch)} || true`,
         ].join("\n");
@@ -273,8 +279,24 @@ export class Team {
             throw new HttpError(409, (result.stderr || result.stdout).trim().slice(0, 1000) || "The merge failed.");
         }
 
+        const marker = /^@@merged (\S+) ?(.*)$/m.exec(result.stdout);
+
+        this.#projects.markMerged(actor, run.id, { commit: marker?.[1] ?? "", stat: marker?.[2]?.trim() ?? "" });
+
         if (run.conversationId !== null) {
             await this.#host.settleSession(Number(run.conversationId), "its branch was merged");
+        }
+
+        return result.stdout.replace(/^@@merged .*$/m, "").trim();
+    }
+
+    /** What a task's branch changed, in git's words ("2 files changed, 142 insertions(+), 3 deletions(-)"). */
+    async stat(run: Run): Promise<string> {
+        const { place, branch, base } = this.#readyRun(run);
+        const result = await this.#host.run(place, `git diff --shortstat ${quote(`${base}...${branch}`)}`);
+
+        if (result.code !== 0) {
+            throw new HttpError(409, `The branch could not be read: ${(result.stderr || result.stdout).trim().slice(0, 300)}`);
         }
 
         return result.stdout.trim();

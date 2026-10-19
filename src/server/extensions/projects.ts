@@ -159,7 +159,39 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         steer,
     );
     route("POST", "projects/:key/tasks", (request, actor) => projects.createTask(actor, request.params.key!, body(request)), steer);
-    route("GET", "tasks/:ref", (request, actor) => projects.task(actor, request.params.ref!), view);
+    // With every run of the task, and its sessions' titles and where their work is (the sheet's run card and rows).
+    route(
+        "GET",
+        "tasks/:ref",
+        (request, actor) => {
+            const seen = projects.task(actor, request.params.ref!);
+
+            return {
+                ...seen,
+                runs: projects.runsOfTask(seen.task.id),
+                sessions: seen.sessions.map((session) => {
+                    const id = Number(session.conversationId);
+
+                    return { ...session, title: host.sessionTitle(id) ?? null, state: host.sessionState(id) ?? null };
+                }),
+            };
+        },
+        view,
+    );
+    route(
+        "GET",
+        "tasks/:ref/stat",
+        async (request, actor) => {
+            const { task } = projects.task(actor, request.params.ref!);
+
+            if (task.run === null || task.run.merged !== null) {
+                throw new HttpError(409, `${task.ref} has no branch to read.`);
+            }
+
+            return { stat: await team.stat(task.run) };
+        },
+        view,
+    );
     route(
         "POST",
         "tasks/:ref/run",
@@ -210,7 +242,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 throw new HttpError(409, `${task.ref} is still running.`);
             }
 
-            const said = await team.merge(task.run, task);
+            const said = await team.merge(task.run, task, actor);
 
             // Merged by a person: the task is done, where its rules allow (a Bug waits for its verified fix).
             try {
@@ -682,7 +714,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 }
 
                 const person: Actor = { kind: "person", person: actor.person };
-                const said = await team.merge(task.run, task);
+                const said = await team.merge(task.run, task, person);
 
                 try {
                     projects.updateTask(person, task.ref, { state: "done" });

@@ -16162,3 +16162,23 @@ pre.gallery-code {
     color: var(--accent);
     font: 600 10.5px var(--mono);
 }
+
+/* A bare sheet (an extension's task sheet): no title bar, only the grip on a phone; what is in it fills the body edge to
+ * edge and draws its own header. */
+.sheet.bare > .sheet-head {
+    min-height: 0;
+    height: 0;
+    padding: 0;
+    border: 0;
+}
+
+@media (max-width: 699px) {
+    .sheet.bare > .sheet-head {
+        height: 14px;
+    }
+}
+
+.sheet.bare > .sheet-body {
+    padding: 0;
+    gap: 0;
+}

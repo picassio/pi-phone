@@ -107,6 +107,16 @@ export interface Run {
     createdAt: number;
     startedAt: number | null;
     endedAt: number | null;
+    /** When its branch was merged, by whom, into which commit, and what it changed (git's short stat). */
+    merged: RunMerge | null;
+}
+
+export interface RunMerge {
+    at: number;
+    by: string;
+    byName: string;
+    commit: string;
+    stat: string;
 }
 
 export interface Project {
@@ -304,6 +314,12 @@ export class Projects {
 
         if (!columns.includes("places")) {
             this.#db.exec("ALTER TABLE pocket_projects ADD COLUMN places TEXT NOT NULL DEFAULT '[]'");
+        }
+
+        const runColumns = (this.#db.prepare("PRAGMA table_info(pocket_task_runs)").all() as Row[]).map((row) => String(row.name));
+
+        if (!runColumns.includes("merged")) {
+            this.#db.exec("ALTER TABLE pocket_task_runs ADD COLUMN merged TEXT");
         }
     }
 
@@ -1338,7 +1354,31 @@ export class Projects {
             createdAt: Number(row.created_at),
             startedAt: row.started_at === null ? null : Number(row.started_at),
             endedAt: row.ended_at === null ? null : Number(row.ended_at),
+            merged: typeof row.merged === "string" ? (JSON.parse(row.merged) as RunMerge) : null,
         }));
+    }
+
+    /** A run's branch was merged (its worktree and branch are gone): kept on the run, and in the task's activity. */
+    markMerged(actor: Actor, runId: string, merge: { commit: string; stat: string }): Run {
+        const run = this.#runById(runId);
+
+        if (run === undefined) {
+            throw new HttpError(404, "No such run.");
+        }
+
+        const by = authorOf(actor);
+        const merged: RunMerge = { at: this.#now(), by, byName: by === "pi" ? "Pi" : (this.#people().find((person) => person.id === by)?.name ?? "Someone"), ...merge };
+
+        this.#db.prepare("UPDATE pocket_task_runs SET merged = ? WHERE id = ?").run(JSON.stringify(merged), runId);
+        this.#record(actor, run.taskId, run.projectId, "merged", { branch: run.branch, base: run.base, commit: merge.commit, stat: merge.stat });
+        this.#changed(run.projectId);
+
+        return this.#runById(runId)!;
+    }
+
+    /** Every run of a task, oldest first. */
+    runsOfTask(taskId: string): Run[] {
+        return this.#runs("SELECT * FROM pocket_task_runs WHERE task_id = ? ORDER BY created_at", taskId);
     }
 
     /** A session of Pi's that made, changed, or commented on a task: the project's main session leads it, another mentions it. */

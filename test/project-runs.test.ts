@@ -84,7 +84,7 @@ const call = async (method: string, path: string, body?: unknown) => {
 
     return json;
 };
-const board = async () => (await call("GET", "projects/RT")) as { tasks: { ref: string; state: string; run: { state: string; conversationId: string | null; branch: string | null } | null }[]; lead: { session: number } | null };
+const board = async () => (await call("GET", "projects/RT")) as { tasks: { ref: string; state: string; run: { state: string; conversationId: string | null; branch: string | null; merged: { byName: string; commit: string; stat: string } | null } | null }[]; lead: { session: number } | null };
 const taskOf = async (ref: string) => (await board()).tasks.find((task) => task.ref === ref)!;
 const said = async (session: number) => (await modelTexts(app, session as never)).join("\n");
 let lead = 0;
@@ -150,11 +150,25 @@ test("the person sees the branch's diff and merges it; the task is done and its 
 
     assert.equal(diff.base, "main");
     assert.match(diff.diff, /hello\.txt/);
+    assert.match(((await call("GET", "tasks/RT-2/stat")) as { stat: string }).stat, /1 file changed, 1 insertion/);
+
+    const seen = (await call("GET", "tasks/RT-2")) as { runs: unknown[]; sessions: { role: string; title: string | null; state: { busy: boolean } | null }[] };
+
+    assert.equal(seen.runs.length, 1, "the sheet gets every run of the task");
+    assert.ok(seen.sessions.some((session) => session.role === "worker" && session.title?.startsWith("RT-2 · ") && session.state?.busy === false), "and its sessions' titles and states");
 
     await call("POST", "tasks/RT-2/merge", {});
     assert.ok(existsSync(join(repo, "hello.txt")), "merged into main");
     assert.ok(!existsSync(worktree), "its worktree removed");
     assert.equal((await taskOf("RT-2")).state, "done");
+
+    // The merge is kept on the run (when, by whom, the commit, what it changed), so it is not offered again.
+    const merged = (await taskOf("RT-2")).run?.merged;
+
+    assert.equal(merged?.byName, "Owner");
+    assert.match(merged?.commit ?? "", /^[0-9a-f]{7,}$/);
+    assert.match(merged?.stat ?? "", /1 file changed/);
+    assert.ok(((await call("GET", "tasks/RT-2")) as { activity: { kind: string }[] }).activity.some((each) => each.kind === "merged"));
 });
 
 test("with automatic runs off, the main session asks the person before a task runs", async () => {

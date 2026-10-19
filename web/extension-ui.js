@@ -586,8 +586,8 @@ function check(kind, spec) {
         throw new Error(`${name} ${spec.id}: keywords are a list of words`);
     }
 
-    // A page can keep Esc and sideways swipes for itself; a sheet can be wide.
-    const flags = { page: ["escape", "swipe"], sheet: ["wide"] }[kind] ?? [];
+    // A page can keep Esc and sideways swipes for itself; a sheet can be wide, and bare (it draws its own header).
+    const flags = { page: ["escape", "swipe"], sheet: ["wide", "bare"] }[kind] ?? [];
 
     for (const field of flags) {
         if (spec[field] !== undefined && typeof spec[field] !== "boolean") {
@@ -1730,7 +1730,7 @@ export function ExtensionSheet({ sheet }) {
     const title = spec?.title ?? record?.title ?? "Extension";
     const close = useMemo(() => sheetCloser(record, sheet.sheetId), [record, sheet.sheetId]);
 
-    return html`<${Sheet} title=${title} onClose=${closeSheet} wide=${spec?.wide === true}>
+    return html`<${Sheet} title=${title} onClose=${closeSheet} wide=${spec?.wide === true} bare=${spec?.bare === true}>
         <${Body}
             record=${record}
             spec=${spec}

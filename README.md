@@ -43,7 +43,10 @@ No Termux, no laptop, no cloud VM.
   Inbox → Planning → Assigned → In Progress → Testing → Review → Done, and Blocked. Only a person approves a task that
   needs it, and Pi never approves its own work. Shared with the people you choose. The Projects page (rail) shows a
   board in ACS's look: drag cards between states on a desktop; on a phone, swipe between states and long-press a card to
-  move it. A card opens its task: every field, checklist, links, comments, activity, and the sessions that worked on it.
+  move it. A card opens its task: its state in a pill, a run card that says what to do (review and merge with the
+  diff size, open the working session, run it), quiet property rows, the checklist with its progress, relations, the
+  sessions that led or worked on it, comments (or all activity, a run in one line), and a comment box at the foot. A
+  merge is kept on the run (who, when, the commit), so a merged branch is not offered again.
   The session menu's "Board for this session" turns board mode on or off. `#task:PP-3` links open a task anywhere.
   **An agent team per project:** its main session leads (plans, asks before a task runs, reviews, never writes code);
   a task given to Pi runs in a task session of its own, in a git worktree on `task/PP-12`, at the place (the phone or a
