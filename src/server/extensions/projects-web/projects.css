@@ -2480,6 +2480,7 @@ i.live {
     display: grid;
     grid-template-columns: 1fr 260px;
     align-items: start;
+    align-content: start;
     gap: 12px;
     padding: 0 12px 12px;
 }
@@ -2602,7 +2603,8 @@ i.live {
     color: var(--text);
 }
 
-.pv-agenda {
+.pv-agenda,
+.pv-mini {
     display: none;
 }
 
@@ -2650,5 +2652,81 @@ i.live {
 
     .pv-panel {
         position: static;
+    }
+
+    /* Nothing unscheduled: on a phone there is nowhere to drag to, so the box says nothing worth its room. */
+    .pv-panel.empty {
+        display: none;
+    }
+
+    .pv-mini {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 2px;
+        margin-bottom: 12px;
+        padding: 8px 6px;
+        border: 1px solid var(--hair);
+        border-radius: var(--r-card);
+        background: var(--card);
+    }
+
+    .pv-mini-wd {
+        padding-bottom: 4px;
+        text-align: center;
+        font-size: 11px;
+        color: var(--faint);
+    }
+
+    .pv-mini-day {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        height: 44px;
+        padding-top: 5px;
+        border-radius: var(--r-row);
+    }
+
+    .pv-mini-day b {
+        display: grid;
+        place-items: center;
+        width: 26px;
+        height: 22px;
+        border-radius: 7px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text);
+    }
+
+    .pv-mini-day.out b {
+        color: var(--faint);
+    }
+
+    .pv-mini-day.today b {
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-weight: 600;
+    }
+
+    .pv-mini-day.picked {
+        background: var(--raised);
+    }
+
+    .pv-mini-dots {
+        display: flex;
+        gap: 3px;
+        height: 5px;
+    }
+
+    .pv-mini-dots i {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--tone);
+    }
+
+    .pv-all {
+        align-self: flex-start;
+        padding-left: 0;
     }
 }

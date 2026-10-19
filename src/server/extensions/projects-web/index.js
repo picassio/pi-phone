@@ -620,6 +620,8 @@ export default function projects(pocket) {
         const now = today();
         const [month, setMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
         const [over, setOver] = useState(null);
+        // On a phone, a day tapped in the month: its tasks alone; none, the month's.
+        const [picked, setPicked] = useState(null);
         const open = board.tasks.filter((task) => task.state !== "done" || task.due);
         const byDay = new Map();
 
@@ -633,7 +635,11 @@ export default function projects(pocket) {
         const gridStart = addDays(month, -weekday(month));
         const cells = Array.from({ length: 42 }, (_each, index) => addDays(gridStart, index));
         const weeks = cells[35].getMonth() !== month.getMonth() ? 5 : 6;
-        const shift = (by) => setMonth(new Date(month.getFullYear(), month.getMonth() + by, 1));
+        const shift = (by) => {
+            setPicked(null);
+            setMonth(new Date(month.getFullYear(), month.getMonth() + by, 1));
+        };
+        const openTasks = board.tasks.filter((task) => task.state !== "done").length;
         const drop = (event, day) => {
             event.preventDefault();
             setOver(null);
@@ -669,9 +675,9 @@ export default function projects(pocket) {
             onDragLeave: () => setOver((current) => (current === day ? null : current)),
             onDrop: (event) => drop(event, day),
         });
-        const agenda = cells
-            .filter((date) => date.getMonth() === month.getMonth())
-            .filter((date) => byDay.has(dayOf(date)) || daysBetween(date, now) === 0);
+        const agenda = picked
+            ? [dateOf(picked)]
+            : cells.filter((date) => date.getMonth() === month.getMonth() && byDay.has(dayOf(date)));
 
         return html`<div class="pv pv-calendar">
             <div class="pv-bar-top">
@@ -700,7 +706,25 @@ export default function projects(pocket) {
                             </div>`;
                         })}
                     </div>
+                    <div class="pv-mini" role="grid" aria-label=${`${MONTHS[month.getMonth()]} ${month.getFullYear()}`}>
+                        ${WEEKDAYS.map((name) => html`<span class="pv-mini-wd">${name[0]}</span>`)}
+                        ${cells.slice(0, weeks * 7).map((date) => {
+                            const day = dayOf(date);
+                            const items = byDay.get(day) ?? [];
+
+                            return html`<button
+                                class=${`pv-mini-day ${date.getMonth() !== month.getMonth() ? "out" : ""} ${daysBetween(date, now) === 0 ? "today" : ""} ${picked === day ? "picked" : ""}`}
+                                aria-pressed=${picked === day}
+                                aria-label=${`${date.getDate()} ${MONTHS[date.getMonth()]}: ${items.length === 0 ? "nothing due" : `${items.length} due`}`}
+                                onClick=${() => setPicked(picked === day ? null : day)}
+                            >
+                                <b>${date.getDate()}</b>
+                                <span class="pv-mini-dots">${items.slice(0, 3).map((task) => html`<i style=${`--tone:${STATE[task.state].tone}`}></i>`)}</span>
+                            </button>`;
+                        })}
+                    </div>
                     <div class="pv-agenda">
+                        ${picked && html`<button class="pt-act pv-all" onClick=${() => setPicked(null)}>All of ${MONTHS[month.getMonth()]}</button>`}
                         ${agenda.length === 0 && html`<p class="pv-empty">Nothing is due in ${MONTHS[month.getMonth()]}.</p>`}
                         ${agenda.map((date) => {
                             const day = dayOf(date);
@@ -713,14 +737,14 @@ export default function projects(pocket) {
                         })}
                     </div>
                 </div>
-                <div class=${`pv-panel ${over === "none" ? "over" : ""}`}
+                <div class=${`pv-panel ${over === "none" ? "over" : ""} ${unscheduled.length === 0 ? "empty" : ""}`}
                     onDragOver=${(event) => (event.preventDefault(), setOver("none"))}
                     onDragLeave=${() => setOver((current) => (current === "none" ? null : current))}
                     onDrop=${(event) => drop(event, null)}
                 >
                     <h3>Unscheduled <span class="pt-n">${unscheduled.length}</span></h3>
                     ${unscheduled.map(chip)}
-                    <span class="pv-hint">${unscheduled.length === 0 ? "Every open task has a due date." : "Drag one onto a day to give it a due date, or set it in its sheet."}</span>
+                    <span class="pv-hint">${openTasks === 0 ? "No open tasks." : unscheduled.length === 0 ? "Every open task has a due date." : "Drag one onto a day to give it a due date, or set it in its sheet."}</span>
                 </div>
             </div>
         </div>`;
