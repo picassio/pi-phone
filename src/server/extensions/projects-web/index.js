@@ -601,12 +601,26 @@ export default function projects(pocket) {
         const [type, setType] = useState("task");
         const [parent, setParent] = useState("");
         const [chosen, setChosen] = useState(state ?? "inbox");
+        const [description, setDescription] = useState("");
+        const [priority, setPriority] = useState(0);
+        const [assignee, setAssignee] = useState("");
+        const [due, setDue] = useState("");
         const [busy, setBusy] = useState(false);
+        const people = usePeople();
         const submit = (event) => {
             event.preventDefault();
             setBusy(true);
             pocket
-                .api(`projects/${key}/tasks`, { title: title.trim(), type, state: chosen, parent: parent.trim() || null })
+                .api(`projects/${key}/tasks`, {
+                    title: title.trim(),
+                    type,
+                    state: chosen,
+                    parent: parent.trim() || null,
+                    description,
+                    priority,
+                    assignee: assignee || null,
+                    due: due || null,
+                })
                 .then(
                     (made) => {
                         close();
@@ -633,6 +647,35 @@ export default function projects(pocket) {
                     </select></label
                 >
             </div>
+            <label class="field"
+                ><span class="label">Description</span
+                ><textarea
+                    rows="5"
+                    value=${description}
+                    placeholder="What to do and how to tell it is done (Markdown)"
+                    onInput=${(event) => setDescription(event.currentTarget.value)}
+                ></textarea></label
+            >
+            <div class="pj-two">
+                <label class="field"
+                    ><span class="label">Priority</span
+                    ><select value=${priority} onChange=${(event) => setPriority(Number(event.currentTarget.value))}>
+                        ${PRIORITIES.map((label, index) => html`<option value=${index}>${label}</option>`)}
+                    </select></label
+                >
+                <label class="field"
+                    ><span class="label">Assignee</span
+                    ><select value=${assignee} onChange=${(event) => setAssignee(event.currentTarget.value)}>
+                        <option value="">Nobody</option>
+                        <option value="pi">Pi</option>
+                        ${people.map((person) => html`<option value=${person.id}>${person.name}</option>`)}
+                    </select></label
+                >
+            </div>
+            <label class="field"
+                ><span class="label">Due (optional)</span
+                ><input type="date" value=${due} onInput=${(event) => setDue(event.currentTarget.value)} /></label
+            >
             <label class="field"
                 ><span class="label">Under (optional)</span
                 ><input value=${parent} placeholder=${`${key}-1`} onInput=${(event) => setParent(event.currentTarget.value.toUpperCase())} />
