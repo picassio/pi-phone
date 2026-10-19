@@ -64,6 +64,9 @@ const SCHEDULED = "[scheduled] ";
 
 /** A message the app sent for a person, and what sent it: PiP, a PR watch, a webhook (`submit` in src/server/commands.ts). */
 const VIA = /^\[via ([^\]\n]{1,300})\] /;
+// A project team's report: from a task's session ("TD-4 · task session #22858"), the board, or the project. Sent in the
+// name of the person the run works for, but shown as from where it came.
+const TEAM_VIA = /^(?:(?:([A-Z][A-Z0-9]{1,5}-\d+) · )?task session #(\d+)|the board|project ([A-Z][A-Z0-9]{1,5}))$/;
 /** What came from outside in such a message, fenced as data for Pi: a check's log, a webhook's post, GitHub's events. */
 const FENCED =
     /<(ci-log|webhook-payload|github-event)((?: [a-z]+="[^"\n]*")*)>\n([\s\S]*?)\n<\/\1>/g;
@@ -312,11 +315,19 @@ function UserEntry({ entry, view, users }) {
     const skill = SKILL.exec(body);
     const pictures = files.filter((file) => file.path && file.mime.startsWith("image/"));
     const others = files.filter((file) => !pictures.includes(file));
-    const name = author ?? (scheduled ? "Pi" : undefined);
+    const team = via && !scheduled ? TEAM_VIA.exec(via[1]) : null;
+    const name = team
+        ? team[2]
+            ? (team[1] ?? "Task session")
+            : team[3]
+              ? `Project ${team[3]}`
+              : "The board"
+        : (author ?? (scheduled ? "Pi" : undefined));
+    const viaNote = team?.[2] ? `task session #${team[2]}` : team ? null : via?.[1];
     // Your own messages take the accent; someone else's, their color; one from someone the app does not know (a name
     // the message carries, the main agent, Pi's own schedule), a quiet one.
     const mark =
-        authorId === store.state.me?.id || (authorId === undefined && name === undefined)
+        !team && (authorId === store.state.me?.id || (authorId === undefined && name === undefined))
             ? "var(--accent)"
             : authorId === undefined
               ? "var(--muted)"
@@ -327,7 +338,9 @@ function UserEntry({ entry, view, users }) {
     const from =
         peerText !== undefined
             ? "linked"
-            : authorId === undefined
+            : team
+              ? "team"
+              : authorId === undefined
               ? "other"
               : authorId === store.state.me?.id
                 ? "me"
@@ -362,12 +375,12 @@ function UserEntry({ entry, view, users }) {
                     style=${`--who:${mark}`}
                     aria-hidden="true"
                 >
-                    ${name ? initials(name) : "›"}
+                    ${team ? html`<${Icon} name="board" size=${12} />` : name ? initials(name) : "›"}
                 </span>
                 ${name && html`<b class="prompt-author" data-part="prompt-author">${name}</b>`}
                 ${entry.at && html`<span class="prompt-time">${clock(entry.at)}</span>`}
                 ${scheduled && html`<span class="prompt-time">· scheduled</span>`}
-                ${via && html`<span class="prompt-time">· via ${peerText === undefined ? via[1] : "a linked session"}</span>`}
+                ${via && viaNote && html`<span class="prompt-time">· ${team ? "" : "via "}${peerText === undefined ? viaNote : "a linked session"}</span>`}
             </span>
             <div class="prompt-body" data-part="prompt-text">
                 ${

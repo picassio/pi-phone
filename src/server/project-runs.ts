@@ -336,7 +336,8 @@ export class Team {
         }
 
         const { project, task } = found;
-        const from = `task session #${event.session}`;
+        // The report shows as from the task, not from the person the run works for.
+        const from = `${task.ref} · task session #${event.session}`;
         const where = `branch ${run.branch} (from ${run.base}) at ${run.place}`;
 
         if (event.kind === "failed") {
