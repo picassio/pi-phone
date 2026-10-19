@@ -16064,15 +16064,36 @@ pre.gallery-code {
     font-weight: 400;
 }
 
-/* Hover actions sit on the first line now; four with Settle. */
+/* Hover actions sit on the first line only, small, so the middle of a row always opens it; four with Settle. */
 .session-actions {
-    top: calc(4px + 3px * var(--space-y));
-    margin-top: -4px;
+    top: calc(2px + 3px * var(--space-y));
+    margin-top: 0;
+    gap: 3px;
+}
+
+.session-actions .session-act {
+    width: 22px;
+    height: 18px;
 }
 
 @media (hover: hover) {
+    .session-row:not(.no-acts):hover .session-side,
+    .session-row:not(.no-acts):has(:focus-visible) .session-side {
+        min-width: 47px;
+    }
+
+    .session-row.one-act:hover .session-side,
+    .session-row.one-act:has(:focus-visible) .session-side {
+        min-width: 22px;
+    }
+
+    .session-row.three-acts:hover .session-side,
+    .session-row.three-acts:has(:focus-visible) .session-side {
+        min-width: 72px;
+    }
+
     .session-row.four-acts:hover .session-side,
     .session-row.four-acts:has(:focus-visible) .session-side {
-        min-width: 116px;
+        min-width: 97px;
     }
 }

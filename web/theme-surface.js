@@ -135,7 +135,7 @@ export const PARTS = [
     "session-list",
     "session-list-title",
     "session-search",
-    "session-tabs",
+    "session-scope",
     "segment-thumb",
     "session-group",
     "session-group-head",
