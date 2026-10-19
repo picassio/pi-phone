@@ -55,6 +55,7 @@ const ORDER = [
     "codemode.ts",
     "ci-watch.ts",
     "sessions.ts",
+    "pi-sessions.ts",
     "secrets.ts",
     "interview.ts",
     "web.ts",
@@ -155,6 +156,10 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "watch_pr",
     "repo_watch",
     "session_watch_pr",
+    "pi_sessions",
+    "pi_session_import",
+    "continue_in_pi",
+    "pi_bring_back",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */

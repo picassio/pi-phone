@@ -6,6 +6,7 @@ import {
     context,
     lastText,
     openApp,
+    newSession,
     owner,
     root,
     say,
@@ -35,8 +36,16 @@ let requested: Message[] = [];
 
 const route: FauxResponseStep = (request) => {
     requested = (request as { messages: Message[] }).messages;
+    const said = lastText(request as never);
 
-    return fauxAssistantMessage([fauxText(`echo: ${lastText(request as never).text}`)]);
+    // `tool:<name> <json>` calls that tool (the agent tools for Pi's sessions); its result is answered with a word.
+    if (said.role === "user" && said.text.startsWith("tool:")) {
+        const [name, ...json] = said.text.slice(5).split(" ");
+
+        return fauxAssistantMessage([fauxToolCall(name!, JSON.parse(json.join(" ")))], { stopReason: "toolUse" });
+    }
+
+    return fauxAssistantMessage([fauxText(said.role === "toolResult" ? "done" : `echo: ${said.text}`)]);
 };
 
 let app: App;
@@ -421,4 +430,26 @@ test("a tool result without its call: Pi would send it, providers refuse it, Pi 
 
     assert.ok(piContext(path).some((message) => message.role === "toolResult"));
     assert.deepEqual(await pocketContext(id), without);
+});
+
+test("Pi's tools list Pi's sessions and continue one as a new session", async () => {
+    const path = save(rich(), "by-tool");
+    const id = await newSession(app);
+    const toolOutput = () => JSON.stringify(requested.filter((message) => message.role === "toolResult"));
+
+    // The phone's list is kept 5 seconds (`FOUND_FOR_MS`): one an earlier test made would not have this file yet.
+    await new Promise((resolve) => setTimeout(resolve, 5_100));
+    await say(app, id, 'tool:pi_sessions {"query":"checkout total"}');
+    assert.match(toolOutput(), /Fix the checkout total/);
+    assert.ok(toolOutput().includes(path.replaceAll("\\", "\\\\")), "with the file's path");
+    assert.match(toolOutput(), /busy: changed in the last 2 minutes/, "a file just written is busy");
+
+    await say(app, id, `tool:pi_session_import ${JSON.stringify({ path })}`);
+    const made = /Continued as session #(\d+)/.exec(toolOutput());
+
+    assert.ok(made, toolOutput());
+    assert.equal(app.sessionMeta(Number(made![1]) as unknown as ConversationId)?.title, "Fix the checkout total");
+    assert.equal(app.cwdOf(Number(made![1]) as unknown as ConversationId), work, "in the folder Pi worked in");
+
+    // Guests are refused by the same check as the sheet (`PiSessions`), tested above through its routes.
 });

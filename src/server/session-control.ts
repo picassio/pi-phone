@@ -17,6 +17,24 @@ import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
 import { clip, defang, quoted } from "./fence.ts";
+import { formatPlace } from "./places.ts";
+
+/** A Pi session file changed this recently may still be written by a `pi` running there: listed as busy. */
+const BUSY_MS = 2 * 60_000;
+
+/** One of Pi's own sessions (from the terminal), on this phone or a machine, as the pi_sessions tool lists it. */
+export type PiSessionListing = {
+    path: string;
+    title: string;
+    cwd: string;
+    modified: number;
+    /** Bytes (a machine's) or messages (the phone's): what each list knows. */
+    size?: number;
+    messages?: number;
+    /** The session here that continues it. */
+    continuedIn?: number;
+    busy: boolean;
+};
 
 const context = BACKGROUND_CONTEXT;
 
@@ -219,6 +237,84 @@ export class SessionControl {
         await this.#app.commands.submit(id, user, { text: request.message, requestId: request.key }, this.#via(root));
 
         return { id: Number(id) };
+    }
+
+    /**
+     * Pi's own sessions (the terminal's, `pi-sessions.ts`) on this phone or on a machine, newest first, those with
+     * `query` in their title or folder. The owner's, as the Pi sessions sheet is.
+     */
+    async piSessions(caller: ConversationId, machineId: string | undefined, query: string): Promise<PiSessionListing[]> {
+        const { user } = this.#caller(caller);
+        const now = Date.now();
+        const wanted = query.trim().toLowerCase();
+
+        if (machineId === undefined) {
+            return (await this.#app.piSessions.list(user, query)).sessions.map((each) => ({
+                path: each.path,
+                title: each.title,
+                cwd: each.cwd,
+                modified: each.modified,
+                messages: each.messages,
+                ...(each.pocket === undefined ? {} : { continuedIn: each.pocket.id }),
+                busy: now - each.modified < BUSY_MS,
+            }));
+        }
+
+        return (await this.#app.piSessions.listOnMachine(user, machineId)).sessions
+            .filter((each) => wanted === "" || `${each.title}\n${each.cwd}`.toLowerCase().includes(wanted))
+            .sort((a, b) => b.modified - a.modified)
+            .map((each) => ({
+                path: each.path,
+                title: each.title,
+                cwd: each.cwd,
+                modified: each.modified,
+                size: each.size,
+                ...(each.phoneSession === undefined ? {} : { continuedIn: each.phoneSession }),
+                busy: now - each.modified < BUSY_MS,
+            }));
+    }
+
+    /**
+     * Continue one of Pi's sessions here, as the Pi sessions sheet does: a machine's is copied in first (with where it came
+     * from), then a new session continues it in its folder (on that machine), or in `folder`. Counts as a start.
+     */
+    async importPiSession(
+        caller: ConversationId,
+        request: { machineId?: string; path: string; folder?: string },
+    ): Promise<{ id: number; cwd: string; title: string }> {
+        const { user, root } = this.#caller(caller);
+        const pi = this.#app.piSessions;
+        const local = request.machineId === undefined ? request.path : (await pi.importFromMachine(user, request.machineId, request.path)).path;
+        const preview = await pi.preview(user, local);
+        const cwd =
+            request.folder === undefined
+                ? preview.cwd
+                : request.machineId === undefined
+                  ? request.folder
+                  : formatPlace({ machineId: request.machineId, path: request.folder });
+
+        if (request.folder === undefined && !preview.cwdExists) {
+            throw new Error(`The folder this Pi session worked in is not there any more: ${preview.cwd}. Give folder.`);
+        }
+
+        this.#spend(root);
+        const { id } = await this.#app.commands.continuePiSession(user, local, cwd);
+
+        return { id: Number(id), cwd: this.#app.cwdOf(id), title: preview.title };
+    }
+
+    /** Hand a session to Pi in a machine's terminal (Continue in Pi): a new Pi session file in `folder` there. */
+    async continueInPi(caller: ConversationId, id: number, machineId: string, folder: string): Promise<{ machine: string; path: string; cwd: string }> {
+        const { user, target } = this.#target(caller, id, true);
+
+        return this.#app.piHandoff.continueInPi(user, target, formatPlace({ machineId, path: folder }));
+    }
+
+    /** What Pi did in the terminal since a session went there, into that session (Bring back), or as a new one. */
+    async bringBack(caller: ConversationId, id: number, asNew: boolean): Promise<{ id: number; added: number }> {
+        const { user, target } = this.#target(caller, id, true);
+
+        return this.#app.piHandoff.bringBack(user, target, asNew);
     }
 
     async send(caller: ConversationId, id: number, message: string, now: boolean, key: string): Promise<void> {

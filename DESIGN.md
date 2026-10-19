@@ -190,6 +190,11 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   through its environment (first lines only: id, folder, first message as title), copies the chosen file into the
   imported folder with an `.origin.json` beside it, and the preview then defaults to the session's folder on that
   machine (checked there).
+- **Pi's sessions as tools** (`src/server/extensions/pi-sessions.ts`; owner's decisions of 2026-10-19, wiki:
+  pi-session-agent-tools): `pi_sessions` (the phone's or a machine's, a file changed in the last 2 minutes marked busy),
+  `pi_session_import` (a machine's copied in with its origin, then continued in its folder there), `continue_in_pi`,
+  and `pi_bring_back`: the sheet's and the session menu's own steps through `SessionControl`, as the person Pi works
+  for, so the owner's only, as those are. An import counts against the hourly limit, as a start does.
 - **Continue in Pi, and back** (`src/server/pi-handoff.ts`, `web/sheets/pi-handoff.js`): the session's context as
   the model has it (no system messages) becomes a Pi session file (format 3) in the machine's
   `~/.pi/agent/sessions/--<folder>--/`, with a `custom` entry naming the session and entries named `pp<entry>-<n>`;

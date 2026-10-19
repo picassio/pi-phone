@@ -219,7 +219,10 @@ export interface PocketHost {
     /** Capture of idle sessions into the wiki (`para-capture.ts`). */
     readonly wikiCapture: Pick<ParaCapture, "capture" | "status" | "setMinutes">;
     /** Other sessions, as the person a session works for (`session-control.ts`): the sessions tools. */
-    readonly sessions: Pick<SessionControl, "list" | "status" | "read" | "start" | "send" | "stop" | "wait" | "approvals" | "deny">;
+    readonly sessions: Pick<
+        SessionControl,
+        "list" | "status" | "read" | "start" | "send" | "stop" | "wait" | "approvals" | "deny" | "piSessions" | "importPiSession" | "continueInPi" | "bringBack"
+    >;
     /** Messages to Pi for later: the schedule tool sets up Pi's own. */
     readonly schedules: Pick<Schedules, "add" | "cancel" | "list" | "task">;
     /** Sessions' goals: the goals extension runs their checks and counts them. */
