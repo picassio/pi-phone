@@ -742,14 +742,12 @@ export default function projects(pocket) {
                 </dd>
                 <dt>Priority</dt>
                 <dd>
-                    ${priority(task.priority)}
                     <select value=${task.priority} onChange=${(event) => save({ priority: Number(event.currentTarget.value) })}>
                         ${PRIORITIES.map((label, index) => html`<option value=${index}>${label}</option>`)}
                     </select>
                 </dd>
                 <dt>Assignee</dt>
                 <dd>
-                    ${avatar(task.assignee, people)}
                     <select value=${task.assignee ?? ""} onChange=${(event) => save({ assignee: event.currentTarget.value || null })}>
                         <option value="">Nobody</option>
                         <option value="pi">Pi</option>

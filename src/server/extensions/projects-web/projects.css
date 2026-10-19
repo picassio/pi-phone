@@ -380,7 +380,17 @@
     justify-content: flex-start;
 }
 
+/* Read from the top, and the same in every column: open arrow, icon, count, then the name (whose length varies). */
+.pj-col.collapsed .pj-unfold {
+    order: -3;
+}
+
+.pj-col.collapsed .pj-col-icon {
+    order: -2;
+}
+
 .pj-col.collapsed .pj-count {
+    order: -1;
     writing-mode: horizontal-tb;
 }
 
