@@ -1,14 +1,21 @@
 package io.piphone;
 
+import android.app.Presentation;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.PixelFormat;
+import android.hardware.display.DisplayManager;
+import android.hardware.display.VirtualDisplay;
+import android.media.Image;
+import android.media.ImageReader;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -38,6 +45,10 @@ import java.util.function.Supplier;
  * own WebView is (the same cookies, and the owner token on the app's own pages), and posts JPEGs back
  * (`POST /api/phone/renders/<id>`). The WebView is never shown: it is measured and laid out at the width, and drawn
  * whole (`enableSlowWholeDocumentDraw`, set before the app's first WebView) into a bitmap at CSS-pixel scale.
+ *
+ * The WebViews live in a window of their own: a Presentation on a small private virtual display the service owns. A
+ * WebView in no window drew only while the app's activity was on screen: with it stopped (the app in the background,
+ * or the screen off) every picture came out white, without an error.
  */
 final class Renderer {
 
@@ -50,6 +61,12 @@ final class Renderer {
     private final Supplier<String> token;
     private final BooleanSupplier serving;
     private final Handler main = new Handler(Looper.getMainLooper());
+    /** The window the page WebViews are in, made on first use (main thread). */
+    private ViewGroup host;
+    /** Kept as long as the window: the display and the surface it draws into, whose frames are dropped. */
+    private VirtualDisplay display;
+    private ImageReader frames;
+    private Presentation window;
 
     /** Before any WebView of the process: drawing then covers the whole page, not only what would be on screen. */
     static void prepare() {
@@ -141,7 +158,10 @@ final class Renderer {
         });
         boolean finished = done.await(SHOT_MS, TimeUnit.MILLISECONDS);
         main.post(() -> {
-            if (made[0] != null) made[0].destroy();
+            if (made[0] != null) {
+                if (host != null) host.removeView(made[0]);
+                made[0].destroy();
+            }
         });
         if (!finished) throw new IOException("the page did not finish loading within " + (SHOT_MS / 1000) + " seconds");
         if (result[0] instanceof Exception) throw (Exception) result[0];
@@ -156,7 +176,8 @@ final class Renderer {
     private WebView start(String url, int width, boolean fullPage, int maxHeight, long settleMs, Done done) {
         float density = context.getResources().getDisplayMetrics().density;
         int viewport = width < 600 ? 844 : 800;
-        WebView view = new WebView(context);
+        ViewGroup into = host();
+        WebView view = new WebView(into.getContext());
         // No layer of its own: draw() into our canvas renders it in software, without a page-sized buffer.
         view.setBackgroundColor(Color.WHITE);
         WebSettings settings = view.getSettings();
@@ -165,6 +186,7 @@ final class Renderer {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
+        into.addView(view, new ViewGroup.LayoutParams(Math.round(width * density), Math.round(viewport * density)));
         layout(view, Math.round(width * density), Math.round(viewport * density));
         boolean[] settled = {false};
         view.setWebViewClient(new WebViewClient() {
@@ -189,7 +211,7 @@ final class Renderer {
                                 page.invalidate();
                                 main.postDelayed(() -> {
                                     try {
-                                        done.accept(draw(page, width, height, density));
+                                        done.accept(draw(page, width, height, density, !MainActivity.inFront));
                                     } catch (Exception e) {
                                         done.accept(e);
                                     }
@@ -218,20 +240,81 @@ final class Renderer {
         return view;
     }
 
+    /**
+     * The window for the page WebViews: a Presentation on a private virtual display of the screen's density. Private
+     * and the app's own, it needs no permission; its frames go to a small surface and are dropped at once.
+     */
+    private ViewGroup host() {
+        if (host != null) return host;
+        int dpi = context.getResources().getDisplayMetrics().densityDpi;
+        frames = ImageReader.newInstance(64, 64, PixelFormat.RGBA_8888, 2);
+        frames.setOnImageAvailableListener((reader) -> {
+            Image frame = reader.acquireLatestImage();
+            if (frame != null) frame.close();
+        }, main);
+        display = context.getSystemService(DisplayManager.class)
+                .createVirtualDisplay("pi-phone-screenshots", 64, 64, dpi, frames.getSurface(), 0);
+        if (display == null) throw new IllegalStateException("Android gave no display for screenshots");
+        window = new Presentation(context, display.getDisplay());
+        ViewGroup pages = new Pages(window.getContext());
+        window.setContentView(pages);
+        window.show();
+        host = pages;
+        return host;
+    }
+
+    /** Lays each page WebView out at its own size, however small the window: what is not on it is drawn anyway. */
+    private static final class Pages extends ViewGroup {
+        Pages(Context context) {
+            super(context);
+        }
+
+        @Override
+        protected void onMeasure(int widthSpec, int heightSpec) {
+            for (int index = 0; index < getChildCount(); index++) {
+                View child = getChildAt(index);
+                LayoutParams params = child.getLayoutParams();
+                child.measure(MeasureSpec.makeMeasureSpec(params.width, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(params.height, MeasureSpec.EXACTLY));
+            }
+            setMeasuredDimension(MeasureSpec.getSize(widthSpec), MeasureSpec.getSize(heightSpec));
+        }
+
+        @Override
+        protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+            for (int index = 0; index < getChildCount(); index++) {
+                View child = getChildAt(index);
+                child.layout(0, 0, child.getMeasuredWidth(), child.getMeasuredHeight());
+            }
+        }
+    }
+
     private static void layout(WebView view, int widthPx, int heightPx) {
+        ViewGroup.LayoutParams params = view.getLayoutParams();
+        params.width = widthPx;
+        params.height = heightPx;
+        view.setLayoutParams(params);
         view.measure(View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(heightPx, View.MeasureSpec.EXACTLY));
         view.layout(0, 0, widthPx, heightPx);
     }
 
-    /** The page as a JPEG at CSS-pixel scale: `width` × `height`. */
-    private static JSONObject draw(WebView view, int width, int height, float density) throws Exception {
+    /**
+     * The page as a JPEG at CSS-pixel scale: `width` × `height`. All white with the app off screen is an error, not a
+     * picture: Android may have stopped drawing, and a blank picture would pass for a blank page.
+     */
+    private static JSONObject draw(WebView view, int width, int height, float density, boolean offScreen) throws Exception {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         try {
             Canvas canvas = new Canvas(bitmap);
             canvas.drawColor(Color.WHITE);
             canvas.scale(1f / density, 1f / density);
             view.draw(canvas);
+            if (offScreen && allWhite(bitmap)) {
+                throw new IOException("The page came out all white while pi-phone was not on screen (in the background, or "
+                        + "with the screen off), where Android may not draw it. Ask the person to open pi-phone, then try "
+                        + "again: if it is still white, the page is.");
+            }
             ByteArrayOutputStream jpeg = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.JPEG, 82, jpeg);
             return new JSONObject()
@@ -241,6 +324,19 @@ final class Renderer {
         } finally {
             bitmap.recycle();
         }
+    }
+
+    /** Every pixel white, row by row. */
+    private static boolean allWhite(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int[] row = new int[width];
+        for (int y = 0; y < bitmap.getHeight(); y++) {
+            bitmap.getPixels(row, 0, width, 0, y, width, 1);
+            for (int pixel : row) {
+                if (pixel != Color.WHITE) return false;
+            }
+        }
+        return true;
     }
 
     private void post(String id, JSONObject reply) throws IOException {

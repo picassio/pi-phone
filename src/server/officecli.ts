@@ -130,3 +130,28 @@ export class OfficeCli {
         }
     }
 }
+
+/**
+ * A workbook's page with every sheet in full, one after another, for a screenshot of the whole page: OfficeCLI's page
+ * fits the window, scrolls inside, and shows one sheet behind tabs, so a picture of it is only its first screen. This is
+ * the page's own print layout, on screen, with each sheet's name above it.
+ */
+export function wholeWorkbookPage(html: string): string {
+    const style = `<style>
+html, body { height: auto !important; }
+.sheet-tabs { display: none !important; }
+.sheet-slider { display: block !important; flex: none !important; overflow: visible !important; }
+.sheet-content { display: block !important; flex: none !important; }
+.table-wrapper { max-height: none !important; overflow: visible !important; flex: none !important; }
+caption.sr-only { position: static !important; width: auto !important; height: auto !important; clip: auto !important;
+  clip-path: none !important; overflow: visible !important; margin: 0 !important; white-space: nowrap !important;
+  text-align: left; font: 600 14px sans-serif; padding: 14px 8px 6px; }
+</style>`;
+    const at = html.lastIndexOf("</head>");
+
+    if (at === -1) {
+        throw new Error("OfficeCLI's page has no </head>");
+    }
+
+    return `${html.slice(0, at)}${style}${html.slice(at)}`;
+}

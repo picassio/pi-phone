@@ -10,7 +10,7 @@ import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { PocketApp } from "../src/server/app.ts";
-import { OfficeCli } from "../src/server/officecli.ts";
+import { OfficeCli, wholeWorkbookPage } from "../src/server/officecli.ts";
 
 type App = Awaited<ReturnType<typeof PocketApp.open>>;
 
@@ -127,4 +127,13 @@ test("the Files viewer's preview: an Office file as OfficeCLI renders it, in the
         server.closeAllConnections();
         await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+});
+
+test("a workbook's whole page shows every sheet in full, for a screenshot", () => {
+    const page = '<html><head><style>html, body { height: 100%; }</style></head><body><div class="sheet-tabs"></div></body></html>';
+    const whole = wholeWorkbookPage(page);
+
+    assert.match(whole, /\.sheet-content \{ display: block !important;/);
+    assert.ok(whole.indexOf("height: auto !important") < whole.indexOf("</head>"), "in the head, after the page's own");
+    assert.throws(() => wholeWorkbookPage("<p>no head</p>"), /no <\/head>/);
 });

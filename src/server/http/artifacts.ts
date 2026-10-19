@@ -3,10 +3,12 @@
  * the page that runs HTML from a reply, once someone taps Run, in the same sandbox.
  */
 import type { ServerResponse } from "node:http";
+import { extname } from "node:path";
 import { marked } from "marked";
 import type { PocketApp } from "../app.ts";
 import type { User } from "../config.ts";
 import { HttpError } from "../errors.ts";
+import { wholeWorkbookPage } from "../officecli.ts";
 import { conversationId, escapeHtml, send } from "./io.ts";
 
 /** Artifacts get an opaque origin even when opened in their own tab: no cookies, no access to the app. */
@@ -130,9 +132,13 @@ export async function artifact(
 
     // A Word, Excel, or PowerPoint file as OfficeCLI renders it (`workspace.ts`'s `officePage`): the viewer's preview.
     if (parts.length === 2 && parts[0] === "office") {
-        const page = await app.workspace.officePage(conversationId(parts[1]), user, query.get("path") ?? "");
+        const path = query.get("path") ?? "";
+        const page = await app.workspace.officePage(conversationId(parts[1]), user, path);
+        // For `screenshot` of a whole workbook: every sheet in full, not the first screen of the first.
+        const whole = query.get("whole") === "1" && extname(path).toLowerCase() === ".xlsx";
 
-        return send(response, 200, page, "text/html; charset=utf-8", {
+
+        return send(response, 200, whole ? wholeWorkbookPage(page) : page, "text/html; charset=utf-8", {
             "content-security-policy": ARTIFACT_CSP,
             "x-content-type-options": "nosniff",
             "referrer-policy": "no-referrer",

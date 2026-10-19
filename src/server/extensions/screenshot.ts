@@ -78,7 +78,10 @@ export default function createScreenshot(host: PocketHost) {
                     return reply("path is a .html, .htm, .svg, .docx, .xlsx, or .pptx file.", true);
                 }
 
-                url = `${base}/a/${office ? "office" : "file"}/${String(api.conversationId)}?path=${encodeURIComponent(path)}`;
+                // A whole workbook: every sheet in full (`wholeWorkbookPage`), as its own page shows one screen of one.
+                const whole = (args.fullPage ?? true) && /\.xlsx$/i.test(path) ? "&whole=1" : "";
+
+                url = `${base}/a/${office ? "office" : "file"}/${String(api.conversationId)}?path=${encodeURIComponent(path)}${whole}`;
                 what = path;
             }
 
