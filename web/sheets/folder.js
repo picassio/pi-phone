@@ -127,13 +127,31 @@ function LineInput({ value, placeholder, label, onSubmit, onCancel, class: class
     </form>`;
 }
 
-export function CwdSheet({ mode, start }) {
+/** Who waits for `pickFolder`'s answer: the folder chosen, or null when the picker closed without one. */
+let picked = null;
+
+/**
+ * The folder picker as a question (an extension's `pocket.pickFolder`): browse, make folders, here or on a machine, and
+ * answer with the folder chosen, or null. It takes the sheet's place.
+ */
+export function pickFolder({ start, title } = {}) {
+    picked?.(null);
+
+    return new Promise((resolve) => {
+        picked = resolve;
+        openSheet({ type: "cwd", mode: "pick", start, title });
+    });
+}
+
+export function CwdSheet({ mode, start, title }) {
     const { view, server, folderFavorites: favorites } = store.state;
     // "pi": where on a machine the session continues in Pi (sheets/pi-handoff.js), from `start`.
     const forPi = mode === "pi";
-    const changing = mode === "change" || forPi;
+    // "pick": a folder for whoever asked (`pickFolder`), from `start`.
+    const picking = mode === "pick";
+    const changing = mode === "change" || forPi || picking;
     const initial =
-        (forPi ? start : changing ? (view.agent?.cwd ?? server?.defaultCwd) : server?.defaultCwd) ?? "~";
+        (forPi || picking ? (start || server?.defaultCwd) : changing ? (view.agent?.cwd ?? server?.defaultCwd) : server?.defaultCwd) ?? "~";
     const [listing, setListing] = useState(null);
     const [failed, setFailed] = useState(null);
     // The folder a click selected (mouse only): Open takes it over the one you are in.
@@ -160,7 +178,17 @@ export function CwdSheet({ mode, start }) {
     const folder = listing?.path ?? null;
     const dirs = listing?.dirs ?? [];
     const target = selected ?? folder;
-    const here = !forPi && changing && target !== null && target === view.agent?.cwd;
+    const here = !forPi && !picking && changing && target !== null && target === view.agent?.cwd;
+
+    // Closed without a choice: whoever asked hears null.
+    useEffect(() => () => {
+        if (picking && picked !== null) {
+            const answer = picked;
+
+            picked = null;
+            answer(null);
+        }
+    }, []);
     const offMachine = forPi && target !== null && splitPlace(target).machineId === undefined;
 
     /** Show a folder; `select`, a folder in it to select (the one stepped up from, with a mouse). */
@@ -248,6 +276,18 @@ export function CwdSheet({ mode, start }) {
 
     /** Start the session in the folder Open names (or a favorite's), or move this one there. */
     const use = async (path = target) => {
+        if (picking) {
+            if (path !== null && picked !== null) {
+                const answer = picked;
+
+                picked = null;
+                closeSheet();
+                answer(path);
+            }
+
+            return;
+        }
+
         if (path === null || starting.current || (!forPi && changing && path === view.agent?.cwd) || (forPi && splitPlace(path).machineId === undefined)) {
             return;
         }
@@ -449,7 +489,7 @@ export function CwdSheet({ mode, start }) {
     </button>`;
 
     return html`<${Sheet}
-        title=${forPi ? "Continue in Pi: pick a folder on a machine" : changing ? "Move this session: pick a folder" : "New session: pick a folder"}
+        title=${picking ? (title ?? "Pick a folder") : forPi ? "Continue in Pi: pick a folder on a machine" : changing ? "Move this session: pick a folder" : "New session: pick a folder"}
         onClose=${closeSheet}
         wide=${true}
         className="folder-sheet"
@@ -709,7 +749,7 @@ export function CwdSheet({ mode, start }) {
                     disabled=${target === null || busy || here || offMachine}
                     onClick=${() => use()}
                 >
-                    ${offMachine ? "Pick a machine" : here ? "Already here" : forPi ? (busy ? "Writing…" : "Continue in Pi here") : changing ? "Move here" : "Open"}
+                    ${picking ? "Choose" : offMachine ? "Pick a machine" : here ? "Already here" : forPi ? (busy ? "Writing…" : "Continue in Pi here") : changing ? "Move here" : "Open"}
                 </button>
             </div>
         </div>

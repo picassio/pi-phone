@@ -691,6 +691,20 @@
     flex: 1 1 130px;
 }
 
+.pj-folder {
+    display: flex;
+    gap: 8px;
+}
+
+.pj-folder input {
+    flex: 1;
+    min-width: 0;
+}
+
+.pj-folder .button {
+    flex: none;
+}
+
 .pj-two {
     display: grid;
     grid-template-columns: 1fr 1fr;

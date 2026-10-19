@@ -534,10 +534,38 @@ export default function projects(pocket) {
         </div>`;
     }
 
-    function NewProjectSheet({ close }) {
-        const [key, setKey] = useState("");
-        const [name, setName] = useState("");
-        const [folder, setFolder] = useState("");
+    /** A folder as people read it: a machine's as "path · on a machine". */
+    const folderLabel = (folder) => {
+        const machine = /^machine:[^:]+:(.*)$/.exec(folder);
+
+        return machine ? `${machine[1]} · on a machine` : folder;
+    };
+
+    /**
+     * The project's folder: typed, or chosen with the app's folder picker (browse, make a folder, here or on a machine).
+     * The picker takes the sheet's place; `reopen(folder)` brings the sheet back with the choice.
+     */
+    function FolderField({ value, onInput, reopen }) {
+        const choose = async () => {
+            const chosen = await pocket.pickFolder({ start: value || undefined, title: "The project's folder" });
+
+            reopen(chosen ?? value);
+        };
+
+        return html`<div class="field">
+            <span class="label">Folder</span>
+            <div class="pj-folder">
+                <input value=${value} placeholder="~/work/project" aria-label="Folder" onInput=${(event) => onInput(event.currentTarget.value)} />
+                <button type="button" class="button" onClick=${choose}>Choose…</button>
+            </div>
+            <span class="muted small">${value && /^machine:/.test(value) ? folderLabel(value) : "Where its work happens: a folder here or on a machine. Choose… browses and makes folders, as New session does."}</span>
+        </div>`;
+    }
+
+    function NewProjectSheet({ draft, close }) {
+        const [key, setKey] = useState(draft?.key ?? "");
+        const [name, setName] = useState(draft?.name ?? "");
+        const [folder, setFolder] = useState(draft?.folder ?? "");
         const [busy, setBusy] = useState(false);
         const submit = (event) => {
             event.preventDefault();
@@ -563,11 +591,7 @@ export default function projects(pocket) {
                 ><input value=${key} placeholder="PP" onInput=${(event) => setKey(event.currentTarget.value.toUpperCase())} required pattern="[A-Za-z][A-Za-z0-9]{1,5}" maxlength="6" />
                 <span class="muted small">2 to 6 letters or digits. Tasks are named after it: ${key || "PP"}-1, ${key || "PP"}-2…</span></label
             >
-            <label class="field"
-                ><span class="label">Folder (optional)</span
-                ><input value=${folder} placeholder="~/work/pi-phone" onInput=${(event) => setFolder(event.currentTarget.value)} />
-                <span class="muted small">Where its work happens: a folder here, or machine:&lt;id&gt;:&lt;path&gt; on a machine.</span></label
-            >
+            <${FolderField} value=${folder} onInput=${setFolder} reopen=${(chosen) => pocket.openSheet("new-project", { draft: { key, name, folder: chosen } })} />
             <button class="button primary" disabled=${busy || key === "" || name.trim() === ""}>Make the project</button>
         </form>`;
     }
@@ -922,11 +946,16 @@ export default function projects(pocket) {
 
         return html`<div class="pj-form">
             <label class="field"><span class="label">Name</span><input value=${project.name} onChange=${(event) => save({ name: event.currentTarget.value })} /></label>
-            <label class="field"
-                ><span class="label">Folder</span
-                ><input value=${project.folder ?? ""} placeholder="~/work/project" onChange=${(event) => save({ folder: event.currentTarget.value || null })} />
-                <span class="muted small">Where its work happens: a folder here, or machine:&lt;id&gt;:&lt;path&gt;.</span></label
-            >
+            <${FolderField}
+                value=${project.folder ?? ""}
+                onInput=${(value) => setProject({ ...project, folder: value })}
+                reopen=${(chosen) =>
+                    pocket
+                        .api(`projects/${key}`, { folder: chosen || null }, { method: "PATCH" })
+                        .catch(failed)
+                        .finally(() => pocket.openSheet("project", { project: key }))}
+            />
+            <button class="button small" onClick=${() => save({ folder: project.folder || null })}>Save the folder</button>
             <div class="field">
                 <span class="label">Shared with</span>
                 ${people
@@ -1037,25 +1066,26 @@ export default function projects(pocket) {
             pocket.openSheet("task", { task: match[1].toUpperCase() });
         }
     };
-    const linked = TASK_LINK.exec(location.hash);
+    const linked = TASK_LINK.exec(location.hash) ?? (location.hash === "#project:new" ? ["", null] : null);
 
     document.addEventListener("click", anywhere);
     pocket.onDispose(() => document.removeEventListener("click", anywhere));
 
     if (linked) {
         history.replaceState(history.state, "", location.pathname + location.search);
-        const task = linked[1].toUpperCase();
+        const task = linked[1]?.toUpperCase() ?? null;
+        const shown = () => (task === null ? document.querySelector(".pj-form") : document.querySelector(`.pj-task[data-task="${task}"]`));
         // The app opens a linked page as the modules load, and that closes sheets: until the task shows, ask again.
         let tries = 0;
         const tryOpen = () => {
-            if (document.querySelector(`.pj-task[data-task="${task}"]`) !== null || tries++ > 30) {
+            if (shown() !== null || tries++ > 30) {
                 return;
             }
 
             setTimeout(tryOpen, 300);
 
             try {
-                pocket.openSheet("task", { task });
+                task === null ? pocket.openSheet("new-project") : pocket.openSheet("task", { task });
             } catch {
                 // Not ready yet: the next try.
             }

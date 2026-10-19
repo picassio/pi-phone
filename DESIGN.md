@@ -525,6 +525,9 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     position (the midpoint of its neighbours). Phone: the states as tabs over one full-width column at a time
     (scroll-snap), and a long press opens Move to. Sheets: `task`, `new-task`, `new-project`, `project` (name, folder,
     sharing, delete), `move`, `board-mode` (the session menu's "Board for this session").
+  - A project's folder is typed or chosen with the app's folder picker: `pocket.pickFolder({ start, title })` (an
+    extension API) opens `CwdSheet` in its `pick` mode (browse, make folders, here or on a machine) and answers the
+    folder or null; it takes the sheet's place, so the sheet comes back with the choice (`new-project` keeps a draft).
   - Links: `/?page=<module>:<page>` opens an extension's page once its module is ready (`openPageWhenReady` in
     `extension-ui.js`: opened earlier, the module list would close it); `#task:PP-3` opens a task, from a link anywhere
     or the address (asked again until the sheet shows, as the linked page's opening closes sheets).

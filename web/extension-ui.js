@@ -18,6 +18,7 @@ import { describersChanged, setCallDescriber } from "./calls.js";
 import { leaveSafeMode, onSafeModeEnd, safeMode } from "./safe-mode.js";
 import { api, closeSheet, insertIntoComposer, notify, onExtensionEvent, openSheet, store } from "./store.js";
 import { setCallSummary } from "./turns.js";
+import { pickFolder } from "./sheets/folder.js";
 import { html, Icon, iconPath, Loader, Markdown, railState, Sheet, Spinner, Switch } from "./ui.js";
 
 /**
@@ -811,6 +812,22 @@ function pocketFor(record) {
         launcher: (spec) => add("launcher", spec),
         page: (spec) => add("page", spec),
         sheet: (spec) => add("sheet", spec),
+        /**
+         * The app's folder picker (browse, make folders, here or on a machine), taking the sheet's place: answers the
+         * folder chosen (a path, or `machine:<id>:<path>`), or null. `start` is where it opens; `title`, its title.
+         */
+        pickFolder(options = {}) {
+            tick(record);
+
+            if (!live()) {
+                return Promise.resolve(null);
+            }
+
+            return pickFolder({
+                ...(typeof options.start === "string" ? { start: options.start } : {}),
+                ...(typeof options.title === "string" ? { title: options.title } : {}),
+            });
+        },
         /** How calls of one of its tools show: in a line in transcripts and peek tiles, and in a group's summary. */
         toolCall(spec) {
             tick(record);
