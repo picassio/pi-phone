@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ConfigStore, Role, User } from "./config.ts";
+import type { ConfigStore, Role, StoredDevice, User } from "./config.ts";
+import { addressOf, deviceName, isApp } from "./devices.ts";
 
 export const COOKIE = "pocket_auth";
 
@@ -92,19 +93,51 @@ export class Auth {
     }
 
     user(request: IncomingMessage): User | undefined {
-        const token = parseCookies(request.headers.cookie)[COOKIE];
+        return this.session(request)?.user;
+    }
 
-        if (token === undefined || token === "") {
-            const bearer = String(request.headers.authorization ?? "");
+    /**
+     * Who a request is from, and how. A device's cookie (`StoredDevice`), whose last seen time and address are kept; an
+     * old-style cookie that holds the person's own token (`legacy`), from before devices, upgraded on the next `/api/me`;
+     * or `Authorization: Bearer` with a person's token (the phone's service, the screenshot renderer) or a device's.
+     */
+    session(request: IncomingMessage): { user: User; device?: StoredDevice; legacy?: true } | undefined {
+        const cookie = parseCookies(request.headers.cookie)[COOKIE];
+        const bearer = String(request.headers.authorization ?? "");
+        const token = cookie !== undefined && cookie !== "" ? cookie : bearer.startsWith("Bearer ") ? bearer.slice(7).trim() : "";
 
-            if (bearer.startsWith("Bearer ")) {
-                return this.#config.userByToken(bearer.slice(7).trim());
-            }
-
+        if (token === "") {
             return undefined;
         }
 
-        return this.#config.userByToken(token);
+        const device = this.#config.deviceByToken(token);
+
+        if (device !== undefined) {
+            const user = this.#config.userById(device.userId);
+
+            if (user === undefined) {
+                return undefined;
+            }
+
+            this.#config.touchDevice(device, addressOf(request));
+
+            return { user, device };
+        }
+
+        const user = this.#config.userByToken(token);
+
+        return user === undefined ? undefined : { user, ...(cookie === token ? { legacy: true as const } : {}) };
+    }
+
+    /**
+     * Sign a browser in as `user`: a new device, named from its browser, whose token is its cookie and goes nowhere else.
+     * The phone's app stays one device: its new sign-in replaces the last.
+     */
+    signIn(user: User, request: IncomingMessage): string {
+        const agent = String(request.headers["user-agent"] ?? "");
+        const address = addressOf(request);
+
+        return this.#config.addDevice(user.id, deviceName(agent, address), address, isApp(agent, address)).token;
     }
 
     tokenUser(token: string): User | undefined {
@@ -159,10 +192,10 @@ export class Auth {
     }
 
     /**
-     * Spend an invite on a new device: a user with the invite's role and scope, and its own token. An owner invite makes
-     * no one new: the device gets the owner and the owner's token. Either way the invite is gone, used or not.
+     * Spend an invite: a new person with the invite's role and scope, or for an owner invite, the owner. The device it is
+     * spent on then signs in as them (`signIn`): a person's own token is never handed out. Either way the invite is gone.
      */
-    redeem(code: string, name: string): { user: User; token: string } | undefined {
+    redeem(code: string, name: string): { user: User } | undefined {
         const invite = this.#config.invite(code);
 
         if (invite === undefined || !this.#config.removeInvite(code)) {
@@ -177,17 +210,13 @@ export class Auth {
         }
 
         if (invite.role === "owner") {
-            return creator.role === "owner"
-                ? { user: creator, token: this.#config.ownerToken }
-                : undefined;
+            return creator.role === "owner" ? { user: creator } : undefined;
         }
 
         const clean = name.replace(/\s+/g, " ").trim().slice(0, 40) || "Guest";
 
-        return this.#config.addUser(
-            clean,
-            invite.role,
-            invite.session === undefined ? undefined : [invite.session],
-        );
+        return {
+            user: this.#config.addUser(clean, invite.role, invite.session === undefined ? undefined : [invite.session]).user,
+        };
     }
 }

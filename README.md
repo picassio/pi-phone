@@ -71,7 +71,9 @@ No Termux, no laptop, no cloud VM.
 ### People and devices
 - **Other devices and people** over your Tailscale network (Settings › Access): your laptop's browser signs in as you
   (People › Sign in as me), and invited people steer or watch sessions, all of them or one.
-- **Signed in now** shows every open tab and device; **Sign out every device** replaces your sign-in everywhere else.
+- **Devices.** Each sign-in is a device of its own, so People lists every signed-in device (open now or not, where it
+  was last seen) and signs any one out; invited people see and sign out their own. **Sign out every device** signs out
+  all your others at once.
 - **Dictation** with Android's speech recognizer, in the language you choose.
 
 ### The app

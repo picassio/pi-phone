@@ -148,15 +148,22 @@ export function createApi(options: HttpOptions, auth: Auth) {
         const [first, second, third] = parts;
         const route: ApiRequest = { app, request, response, url, user };
 
+        // Each tab's connection knows its device, so signing that device out closes it.
         if (first === "events" && method === "GET") {
-            return events(request, response, url, user);
+            return events(request, response, url, user, auth.session(request)?.device?.id);
         }
 
         if (first === "poll" && method === "GET") {
-            return poll(request, response, url, user);
+            return poll(request, response, url, user, auth.session(request)?.device?.id);
         }
 
         if (first === "me" && method === "GET") {
+            // A browser signed in before devices (its cookie holds the person's token) becomes a device now: no one signs
+            // in again, and the token leaves the browser.
+            if (auth.session(request)?.legacy === true) {
+                setAuthCookie(request, response, auth.signIn(user, request));
+            }
+
             return json(response, 200, await app.hello(user));
         }
 
@@ -196,14 +203,27 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, app.people(user));
         }
 
-        // Settings › People's "Signed in now": the owner's.
-        if (first === "connections" && second === undefined && method === "GET") {
-            return json(response, 200, { connections: app.connections(user) });
+        // Settings › People › Devices: the owner's list is everyone's, others see their own.
+        if (first === "devices" && second === undefined && method === "GET") {
+            return json(response, 200, { devices: app.devices(user, auth.session(request)?.device?.id) });
         }
 
-        // Settings › People's "Sign out every device": this device stays signed in, with the new token as its cookie.
+        if (first === "devices" && second !== undefined && third === "sign-out" && method === "POST") {
+            app.signOutDevice(user, decodeURIComponent(second));
+
+            return json(response, 200, { ok: true });
+        }
+
+        // "Sign out every device": every other device of the one asking; it stays signed in (a device of its own, if it
+        // was not one yet).
         if (first === "sign-out-everywhere" && second === undefined && method === "POST") {
-            setAuthCookie(request, response, app.signOutEverywhere(user));
+            const current = auth.session(request)?.device?.id;
+
+            app.signOutEverywhere(user, current);
+
+            if (current === undefined) {
+                setAuthCookie(request, response, auth.signIn(user, request));
+            }
 
             return json(response, 200, { ok: true });
         }

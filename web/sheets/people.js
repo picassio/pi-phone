@@ -12,7 +12,6 @@ import {
     openSheet,
     scoped,
     store,
-    thisTab,
 } from "../store.js";
 import { copyText, html, Icon, Loader, Sheet, timeAgo } from "../ui.js";
 
@@ -390,67 +389,39 @@ function PeopleList() {
     </div>`;
 }
 
-/** A browser's name and system from its user agent, in a few words; the app's own WebView by name. */
-export function deviceName(agent, address) {
-    if (/; wv\)/.test(agent) && /^(127\.|::1$)/.test(address)) {
-        return "pi-phone app";
+/** How long ago, in words: "just now", "5m ago". */
+const ago = (at) => (timeAgo(at) === "now" ? "just now" : `${timeAgo(at)} ago`);
+
+/** Where a device was last seen from: this phone, the Tailscale network (100.64.0.0/10), or an address. */
+export function placeName(address) {
+    if (address === undefined || address === "") {
+        return "";
     }
 
-    const browser = /Edg\//.test(agent)
-        ? "Edge"
-        : /SamsungBrowser\//.test(agent)
-          ? "Samsung Internet"
-          : /OPR\//.test(agent)
-            ? "Opera"
-            : /Firefox\//.test(agent)
-              ? "Firefox"
-              : /Chrome\//.test(agent)
-                ? "Chrome"
-                : /Safari\//.test(agent)
-                  ? "Safari"
-                  : "A browser";
-    const system = /Windows/.test(agent)
-        ? "Windows"
-        : /Android/.test(agent)
-          ? "Android"
-          : /iPhone|iPad/.test(agent)
-            ? "iOS"
-            : /Mac OS X/.test(agent)
-              ? "macOS"
-              : /CrOS/.test(agent)
-                ? "ChromeOS"
-                : /Linux/.test(agent)
-                  ? "Linux"
-                  : "";
-
-    return system ? `${browser} on ${system}` : browser;
-}
-
-/** Where a connection comes from: this phone, the Tailscale network (100.64.0.0/10), or an address. */
-export function placeName(address) {
     if (/^(127\.|::1$)/.test(address)) {
         return "this phone";
     }
 
     const [first, second] = address.split(".").map(Number);
 
-    return first === 100 && second >= 64 && second <= 127 ? `Tailscale · ${address}` : address || "unknown";
+    return first === 100 && second >= 64 && second <= 127 ? `Tailscale · ${address}` : address;
 }
 
 /**
- * Who is signed in now (the owner's; `App.connections`): every open tab and the app, by person, with the device, where
- * it connects from, the session it shows, and since when. Everyone signed in as the owner shares one sign-in, so this is
- * where the owner's own devices show. Looked at again every 10 seconds while open.
+ * Signed-in devices (src/server/app.ts `devices`): the owner sees everyone's, others their own. Each with whose it is,
+ * where it was last seen, when it signed in and was last active, a dot when a tab of it is open now, and Sign out
+ * (not for this device, nor the phone's app, which signs in again by itself). Looked at again every 10 seconds.
  */
-function SignedInNow() {
+function Devices() {
+    const owner = store.state.me?.role === "owner";
     const [list, setList] = useState(null);
+    const load = () =>
+        api("devices").then(
+            (answer) => setList(answer.devices),
+            () => {},
+        );
 
     useEffect(() => {
-        const load = () =>
-            api("connections").then(
-                (answer) => setList(answer.connections),
-                () => {},
-            );
         const timer = setInterval(load, 10_000);
 
         load();
@@ -458,48 +429,69 @@ function SignedInNow() {
         return () => clearInterval(timer);
     }, []);
 
+    const signOut = (device) =>
+        confirm(`Sign out ${device.name}${owner && device.user.role !== "owner" ? ` (${device.user.name})` : ""}? It needs a new sign-in link to come back.`) &&
+        attempt(async () => {
+            await api(`devices/${encodeURIComponent(device.id)}/sign-out`, {});
+            notify("info", `${device.name} is signed out.`);
+            load();
+        });
+
     return html`<div class="group">
-        <div class="group-title">Signed in now</div>
+        <div class="group-title">${owner ? "Devices" : "Your devices"}</div>
         ${list === null && html`<${Loader} label="Loading" />`}
         ${
             list !== null &&
             html`<div class="sheet-list">
+                ${list.length === 0 && html`<div class="person-row muted small">No devices signed in yet.</div>`}
                 ${list.map(
-                    (each) => html`<div class="person-row" key=${each.tab}>
-                        <${Icon} name=${/app|Android|iOS/.test(deviceName(each.agent, each.address)) ? "phone" : "monitor"} size=${20} />
+                    (device) => html`<div class="person-row" key=${device.id}>
+                        <span class="people-here">
+                            <${Icon} name=${/app|Android|iOS/.test(device.name) ? "phone" : "monitor"} size=${20} />
+                            ${device.open && html`<span class="online-mark" aria-label="Open now"></span>`}
+                        </span>
                         <div class="person-main">
                             <div>
-                                ${deviceName(each.agent, each.address)}
-                                ${each.tab === thisTab && html` <span class="muted small">(this tab)</span>`}
+                                ${device.name}
+                                ${device.current && html` <span class="muted small">(this device)</span>`}
                             </div>
                             <div class="muted small">
                                 ${[
-                                    each.user.role === "owner" ? "you" : each.user.name,
-                                    placeName(each.address),
-                                    timeAgo(each.since) === "now" ? "connected now" : `connected ${timeAgo(each.since)} ago`,
-                                    ...(each.visible ? [] : ["in the background"]),
-                                ].join(" · ")}
+                                    owner ? (device.user.role === "owner" ? "you" : device.user.name) : "",
+                                    placeName(device.address),
+                                    device.open ? (device.background ? "open, in the background" : "open now") : device.lastSeen ? `active ${ago(device.lastSeen)}` : "",
+                                    `signed in ${ago(device.createdAt)}`,
+                                ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
                             </div>
-                            ${each.session && html`<div class="muted small">on ${each.session.title}</div>`}
                         </div>
+                        ${
+                            device.current || device.app
+                                ? html`<span class="muted small">${device.current ? "" : "signs in again by itself"}</span>`
+                                : html`<div class="person-actions">
+                                      <button class="button small ghost" onClick=${() => signOut(device)}>Sign out</button>
+                                  </div>`
+                        }
                     </div>`,
                 )}
-                <${SignOutEverywhere} />
+                <${SignOutEverywhere} owner=${owner} />
             </div>`
         }
     </div>`;
 }
 
 /**
- * The owner's "Sign out every device" (`App.signOutEverywhere`): a new owner token, so every other device signed in as
- * the owner (a browser, a laptop, a link not used yet) signs in again. This one stays signed in; the app on the phone
- * signs in again by itself. Invited people are removed one by one, above.
+ * "Sign out every device" (src/server/app.ts `signOutEverywhere`): every other device of yours signs out, and your own
+ * token is replaced, so no old sign-in holds it. This one stays signed in; the phone's app signs in again by itself.
  */
-function SignOutEverywhere() {
+function SignOutEverywhere({ owner }) {
     const [busy, setBusy] = useState(false);
     const run = () =>
         confirm(
-            "Sign out every device signed in as you?\n\nOthers (a laptop's browser, a sign-in link not used yet) need a new link from \"Sign in as me\". This device stays signed in, and the app on the phone signs in again by itself. Invited people are not affected.",
+            owner
+                ? "Sign out every other device signed in as you?\n\nThey need a new link from \"Sign in as me\" to come back. This device stays signed in, and the app on the phone signs in again by itself. Invited people are not affected."
+                : "Sign out every other device of yours?\n\nThey need a new invite to come back. This device stays signed in.",
         ) &&
         attempt(async () => {
             setBusy(true);
@@ -507,7 +499,7 @@ function SignOutEverywhere() {
             try {
                 await api("sign-out-everywhere", {});
                 notify("info", "Every other device is signed out.");
-                // This tab's connection closed with the others: start again with the new sign-in.
+                // Start again with this device's sign-in, if it only now became a device of its own.
                 setTimeout(() => location.reload(), 800);
             } finally {
                 setBusy(false);
@@ -516,10 +508,9 @@ function SignOutEverywhere() {
 
     return html`<div class="provider">
             <div>
-                <div>Sign out every device</div>
+                <div>${owner ? "Sign out every device" : "Sign out my other devices"}</div>
                 <div class="muted small">
-                    For a lost device or a sign-in link that got out: every device signed in as you signs out, except this
-                    one and the app on the phone.
+                    For a lost device or a sign-in link that got out: every other device signed in as you signs out${owner ? ", except the app on the phone" : ""}.
                 </div>
             </div>
             <div class="provider-actions">
@@ -530,8 +521,6 @@ function SignOutEverywhere() {
 
 export function PeopleSheet() {
     const canInvite = canSteer() && !scoped();
-    const owner = store.state.me?.role === "owner";
-
     return html`<${Sheet} title="People" onClose=${closeSheet}>
         ${
             canInvite &&
@@ -540,6 +529,6 @@ export function PeopleSheet() {
             </button>`
         }
         <${PeopleList} />
-        ${owner && html`<${SignedInNow} />`}
+        <${Devices} />
     <//>`;
 }

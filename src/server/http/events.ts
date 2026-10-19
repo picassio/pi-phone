@@ -51,7 +51,7 @@ interface Poller {
     expiry: NodeJS.Timeout | undefined;
 }
 
-function newClient(url: URL, user: User, send: Client["send"], request: IncomingMessage): Client {
+function newClient(url: URL, user: User, send: Client["send"], request: IncomingMessage, deviceId?: string): Client {
     const raw = url.searchParams.get("c");
 
     return {
@@ -59,6 +59,7 @@ function newClient(url: URL, user: User, send: Client["send"], request: Incoming
             address: (request.socket.remoteAddress ?? "").replace(/^::ffff:/, ""),
             agent: String(request.headers["user-agent"] ?? "").slice(0, 300),
             since: Date.now(),
+            ...(deviceId === undefined ? {} : { id: deviceId }),
         },
         id: (url.searchParams.get("tab") ?? randomUUID()).slice(0, 64),
         connection: randomUUID(),
@@ -79,6 +80,7 @@ export function createEventStreams(app: PocketApp) {
         response: ServerResponse,
         url: URL,
         user: User,
+        deviceId?: string,
     ): Promise<void> => {
         // What went to the stream, and of it what the tab took (left the stream's buffer), and when it last took some.
         let written = 0;
@@ -117,7 +119,7 @@ export function createEventStreams(app: PocketApp) {
             if (keepsUp()) {
                 write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
             }
-        }, request);
+        }, request, deviceId);
 
         client.close = () => response.end();
         response.writeHead(200, {
@@ -212,6 +214,7 @@ export function createEventStreams(app: PocketApp) {
         response: ServerResponse,
         url: URL,
         user: User,
+        deviceId?: string,
     ): Promise<void> => {
         let poller = pollers.get(url.searchParams.get("session") ?? "");
 
@@ -297,7 +300,7 @@ export function createEventStreams(app: PocketApp) {
                     clearTimeout(created.timer);
                     created.timer = setTimeout(() => answerPoll(created), 30);
                 }
-            }, request);
+            }, request, deviceId);
             created.client.close = () => closePoller(created);
             pollers.set(created.id, created);
             // Its time runs while its first view is built, however long that takes, as long as the tab waits for it: a

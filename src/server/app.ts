@@ -2420,70 +2420,84 @@ export class PocketApp {
     }
 
     /**
-     * Who is signed in now, for the owner (Settings › People): every open tab or app connection, by tab (a reconnect can
-     * briefly overlap the old connection), with whose it is, where it comes from, its browser, since when, whether it is
-     * on screen, and the session it shows. Everyone signed in as the owner shares one token, so this is how the owner sees
-     * those devices at all. Newest first.
+     * Signed-in devices (Settings › People › Devices; `StoredDevice`): the owner sees everyone's, others their own. Each
+     * with whose it is, its name, where it was last seen, when it signed in and was last active, whether a tab of it is
+     * open now (and in front), and whether it is the one asking. Open ones first, then the most recently active.
      */
-    connections(viewer: User) {
-        if (viewer.role !== "owner") {
-            throw new HttpError(403, "Only the owner can do that");
-        }
-
-        const byTab = new Map<string, Client>();
+    devices(viewer: User, current?: string) {
+        const open = new Map<string, { visible: boolean }>();
 
         for (const client of this.#clients) {
-            const seen = byTab.get(client.id);
+            const id = client.device?.id;
 
-            if (seen === undefined || (client.device?.since ?? 0) > (seen.device?.since ?? 0)) {
-                byTab.set(client.id, client);
+            if (id !== undefined) {
+                open.set(id, { visible: (open.get(id)?.visible ?? false) || client.visible !== false });
             }
         }
 
-        return [...byTab.values()]
-            .map((client) => ({
-                tab: client.id,
-                user: { id: client.user.id, name: client.user.name, role: client.user.role },
-                address: client.device?.address ?? "",
-                agent: client.device?.agent ?? "",
-                since: client.device?.since ?? 0,
-                visible: client.visible !== false,
-                ...(client.conversationId === undefined
-                    ? {}
-                    : {
-                          session: {
-                              id: client.conversationId,
-                              title: this.#sessions[String(client.conversationId)]?.title ?? "Session",
+        return this.config
+            .devices(viewer.role === "owner" ? undefined : viewer.id)
+            .flatMap((device) => {
+                const user = this.config.userById(device.userId);
+
+                return user === undefined
+                    ? []
+                    : [
+                          {
+                              id: device.id,
+                              user: { id: user.id, name: user.name, role: user.role },
+                              name: device.name,
+                              createdAt: device.createdAt,
+                              ...(device.lastSeen === undefined ? {} : { lastSeen: device.lastSeen }),
+                              ...(device.address === undefined ? {} : { address: device.address }),
+                              ...(device.app === true ? { app: true } : {}),
+                              open: open.has(device.id),
+                              ...(open.get(device.id)?.visible === false ? { background: true } : {}),
+                              ...(device.id === current ? { current: true } : {}),
                           },
-                      }),
-            }))
-            .sort((a, b) => b.since - a.since);
+                      ];
+            })
+            .sort((a, b) => Number(b.open) - Number(a.open) || (b.lastSeen ?? 0) - (a.lastSeen ?? 0));
+    }
+
+    /** Close the open tabs of devices `which` picks, now: their next request finds them signed out. */
+    #closeDevices(which: (client: Client) => boolean): void {
+        for (const client of [...this.#clients]) {
+            if (which(client)) {
+                client.send("closing", {});
+                this.detach(client);
+                client.close?.();
+            }
+        }
+    }
+
+    /** Sign one device out: the owner any, others only their own. Its tabs close; the phone's app signs in again. */
+    signOutDevice(viewer: User, id: string): void {
+        const device = this.config.deviceById(id);
+
+        if (device === undefined || (viewer.role !== "owner" && device.userId !== viewer.id)) {
+            throw new HttpError(device === undefined ? 404 : 403, device === undefined ? "There is no such device." : "That device is someone else's.");
+        }
+
+        this.config.removeDevices((each) => each.id === id);
+        this.#closeDevices((client) => client.device?.id === id);
     }
 
     /**
-     * Sign out every device signed in as the owner: a new owner token (`Config.rotateOwnerToken`, which also drops owner
-     * invites not yet used), and every owner tab closed now. The app on the phone signs in again by itself (it reads the
-     * token from config.json); the device that asked gets the new token as its cookie (`/api/sign-out-everywhere`).
-     * Invited people stay: the owner removes them one by one. Returns the new token, for that cookie only.
+     * Sign out every other device of `user`'s (Settings › People): each device but `keep` (the one asking), and their
+     * tabs. Their own token is replaced too, so an old-style sign-in holding it stops: the owner's (`rotateOwnerToken`,
+     * which drops unused owner invites; the phone's service and app read it afresh), or another's. Invited people's
+     * devices stay: the owner signs them out one by one, or removes the person.
      */
-    signOutEverywhere(owner: User): string {
-        if (owner.role !== "owner") {
-            throw new HttpError(403, "Only the owner can do that");
+    signOutEverywhere(user: User, keep?: string): void {
+        if (user.role === "owner") {
+            this.config.rotateOwnerToken();
+        } else {
+            this.config.rotateUserToken(user.id);
         }
 
-        const token = this.config.rotateOwnerToken();
-
-        for (const client of [...this.#clients]) {
-            if (client.user.role !== "owner") {
-                continue;
-            }
-
-            client.send("closing", {});
-            this.detach(client);
-            client.close?.();
-        }
-
-        return token;
+        this.config.removeDevices((device) => device.userId === user.id && device.id !== keep);
+        this.#closeDevices((client) => client.user.id === user.id && (keep === undefined || client.device?.id !== keep));
     }
 
     /**

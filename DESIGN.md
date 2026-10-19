@@ -123,41 +123,18 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   - **Moving in:** keys from before (`~/.ssh/keys/<id>`) move in once at startup (`SshKeys.open`). Each must derive
     its public key, is stored, then its files are deleted; a mismatch stays and shows as its row's problem.
   - Each machine is assigned one key (Machines, next).
-- **Sign out every device** (Settings › People, owner only; `App.signOutEverywhere`, `POST /api/sign-out-everywhere`):
-  a new owner token (`Config.rotateOwnerToken`, which drops unused owner invites too), every owner tab closed. The device
-  that asked gets the new token as its cookie and reloads; the app on the phone signs in again by itself (its sign-in
-  screen calls the bridge's `signIn()`, which loads `/login?token=` with config.json's token, at most once a minute);
-  PiService reads the token afresh for every call. Invited people stay.
-  **Signed in now** (People, owner only; `App.connections`, `GET /api/connections`): every open tab and the app, from
-  the event connections (`Client.device`: address, user agent, since), one row per tab, with whose, where from (this
-  phone, Tailscale, an address), browser and system (the app's WebView by `; wv)` from 127.0.0.1), the session it shows,
-  and whether it is in the background. One token per person, so a single device cannot be signed out yet
-  (wiki: pi-phone-sign-in-management).
-- **Accounts** (`src/server/accounts.ts`; owner's decisions of 2026-10-19, wiki: provider-accounts-and-usage): more
-  accounts of Anthropic, OpenAI Codex, and GitHub Copilot. Each is a provider of its own, `<provider>~<slug>` (`anthropic~work`):
-  a new instance from pi-ai's factory, registered with `registerNativeProvider` as the app opens (before sessions resume),
-  with the same sign-in flows, its models labelled with the account's id, and requests handed to the instance with the
-  model's own provider id again, so pi-ai's checks on `model.provider` (Claude's sign-in identity, Copilot's request
-  shape) see what they always do. Pi's runtime keeps each account's sign-in under its id in `auth.json`; the original
-  stays the default account and is never touched. A session's model picks its account, so subagents, titles, and
-  schedules follow. `accounts.json` holds them; ids are fixed, names change. The billing patch takes `anthropic~…` as
-  Anthropic. Providers lists each account under its provider (Add account, Rename, Remove); the menus label models with
-  their account (`ModelSummary.account`, "Default" for the original once it has others).
-- **Plan usage** (`src/server/usage-limits.ts`, `web/usage.js`): each subscription (OAuth) account of Claude, Codex, or
-  Copilot (its accounts too), asked with its own sign-in: Claude `GET api.anthropic.com/api/oauth/usage` (`anthropic-beta:
-  oauth-2025-04-20`, `user-agent: claude-code/<the billing patch's version>`), Codex `GET chatgpt.com/backend-api/wham/usage`
-  (`chatgpt-account-id` from the token's claim), Copilot `GET api.github.com/copilot_internal/user` with the GitHub token
-  the sign-in keeps (`readStoredCredential(...).refresh`). Undocumented: each answer is parsed strictly, another shape is
-  "usage unavailable: …". `limited()` asks `checkAuth` (a new account's runtime status comes later). Kept a minute;
-  asked when Providers or the model menu opens (`GET /api/usage-limits`, `fresh=1` skips the minute), after a run on
-  the account (`afterRun`), and pushed to tabs (`usage` events; `hello` carries the known ones). Shown as bars in
-  Providers, a line per model in the menu, and the top bar's meter (`UsageMeter`, open state per device).
-  **Switching** (web only, `web/usage.js`): at 90% of a window of the session's account, a bar over the composer
-  (`UsageWarning`) names it and offers Switch to each other account of the provider with the same model, signed in, least
-  used first; closed, it stays closed until that window resets (localStorage). Under a request that failed with a limit's
-  words (`limitError`), `LimitSwitch` offers Continue on each: the session's model moves (`configure`), then "Continue."
-  is sent in the same session (Pi keeps the failed turn in context; sending the last message again would repeat it).
-  Only on a tap: pi-phone never rotates accounts.
+- **Devices** (`src/server/devices.ts`, `config.ts` `StoredDevice`, `auth.ts`; owner's decisions of 2026-10-19, wiki:
+  pi-phone-sign-in-management): each sign-in is a device with a token of its own (sha256 in `config.json` `devices`),
+  named from its browser, with created, last seen (written at most once a minute) and address. Login links,
+  invites (an owner invite included) and Sign out every device make one (`Auth.signIn`); the cookie holds the
+  device's token, so a person's own token never leaves the server. `Auth.session` reads a device's cookie first, then
+  an old-style cookie holding a person's token (`legacy`: upgraded to a device on `GET /api/me`, so no one signs in
+  again), then `Bearer` (the phone's service, the renderer). `GET /api/devices`: the owner's list is everyone's, others
+  see their own; `POST /api/devices/<id>/sign-out`: the owner any, others their own; the device's tabs close (each
+  event connection carries its device). `POST /api/sign-out-everywhere`: every other device of the person's, and a new
+  token for them (`rotateOwnerToken`, or `rotateUserToken`). Removing a person removes their devices. The phone's app
+  (its WebView, `; wv)` from this phone) stays one device, replaced at each of its sign-ins, and signs in again by itself
+  through the bridge's `signIn()`. People shows Devices ("Your devices" for others).
 - **Choice** (`web/ui.js`): the sheets' dropdowns (Web access, Dictation, a machine's key, Ports) in the app's own
   style, the model and branch menus' `.pop-menu` rows, not the system's `<select>`: fixed to the screen under its field (over
   it with too little room), closed by a tap elsewhere, a scroll, a resize, or Escape. **Settings by link:** `/?sheet=<name>`

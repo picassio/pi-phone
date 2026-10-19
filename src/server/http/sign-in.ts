@@ -69,7 +69,8 @@ export async function login(
         );
     }
 
-    setAuthCookie(request, response, token);
+    // This browser becomes a device of its own: its cookie is the device's token, never the person's.
+    setAuthCookie(request, response, auth.signIn(signingIn, request));
     response.writeHead(303, { location: next });
     response.end();
 
@@ -108,7 +109,7 @@ export async function join(
             app.config.updateUser(redeemed.user.id, { tunnel });
         }
 
-        setAuthCookie(request, response, redeemed.token);
+        setAuthCookie(request, response, auth.signIn(redeemed.user, request));
         response.writeHead(303, { location: "/" });
         response.end();
 

@@ -914,7 +914,7 @@ test("the owner signs another device in as the owner: owner only, once, no one n
             "the invite still works",
         );
 
-        // The device gets the owner's token, and no one new is made.
+        // The device signs in as the owner with a token of its own (never the owner's), and no one new is made.
         const people = app.config.users.length;
         const signed = await signIn(invite.code, "same-origin");
 
@@ -923,7 +923,8 @@ test("the owner signs another device in as the owner: owner only, once, no one n
             /pocket_auth=([^;]+)/.exec(signed.headers.get("set-cookie") ?? "")![1]!,
         );
 
-        assert.equal(cookie, app.config.ownerToken);
+        assert.notEqual(cookie, app.config.ownerToken, "the owner token never leaves the server");
+        assert.equal(app.config.deviceByToken(cookie)?.userId, owner().id);
         assert.equal(app.config.users.length, people);
         const me = await fetch(`${base}/api/me`, { headers: { cookie: `pocket_auth=${cookie}` } });
 
@@ -942,8 +943,8 @@ test("the owner signs another device in as the owner: owner only, once, no one n
         assert.equal(auth.redeem(forged.code, ""), undefined);
         assert.equal(auth.invite(forged.code), undefined, "and it is spent");
 
-        // A new owner token signs the device out.
-        app.config.rotateOwnerToken();
+        // Signing the device out ends it.
+        assert.equal((await call(app.config.ownerToken, `devices/${app.config.deviceByToken(cookie)!.id}/sign-out`, {})).status, 200);
         assert.equal(
             (await fetch(`${base}/api/me`, { headers: { cookie: `pocket_auth=${cookie}` } }))
                 .status,
@@ -952,89 +953,6 @@ test("the owner signs another device in as the owner: owner only, once, no one n
     } finally {
         app.config.removeUser(guest.user.id);
         app.config.removeUser(viewer.user.id);
-        server.closeAllConnections();
-        server.close();
-    }
-});
-
-test("the owner sees who is signed in now: each open tab, whose, from where, with its browser; no one else may", async () => {
-    const { createServer } = await import("node:http");
-    const { createHandler } = await import("../src/server/http.ts");
-    const server = createServer(
-        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
-    );
-
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-    const guest = app.config.addUser("Gus", "guest");
-    const stream = new AbortController();
-    const agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
-
-    try {
-        const opened = await fetch(`${base}/api/events?tab=laptop-tab&p=2`, {
-            headers: { authorization: `Bearer ${app.config.ownerToken}`, "user-agent": agent },
-            signal: stream.signal,
-        });
-
-        assert.equal(opened.status, 200);
-        // The first event says the tab is attached.
-        await opened.body!.getReader().read();
-
-        const listed = (await (
-            await fetch(`${base}/api/connections`, { headers: { authorization: `Bearer ${app.config.ownerToken}` } })
-        ).json()) as { connections: { tab: string; user: { role: string }; address: string; agent: string; since: number }[] };
-        const laptop = listed.connections.find((each) => each.tab === "laptop-tab");
-
-        assert.equal(laptop?.user.role, "owner");
-        assert.equal(laptop?.address, "127.0.0.1");
-        assert.equal(laptop?.agent, agent);
-        assert.ok(laptop!.since > 0);
-        assert.equal(
-            (await fetch(`${base}/api/connections`, { headers: { authorization: `Bearer ${guest.token}` } })).status,
-            403,
-            "the owner's only",
-        );
-    } finally {
-        stream.abort();
-        app.config.removeUser(guest.user.id);
-        server.closeAllConnections();
-        server.close();
-    }
-});
-
-test("Sign out every device: owner only; a new owner token, the old one refused, the asking device kept; guests stay", async () => {
-    const { createServer } = await import("node:http");
-    const { createHandler } = await import("../src/server/http.ts");
-    const server = createServer(
-        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
-    );
-
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-    const call = (token: string, path: string, method = "GET") =>
-        fetch(`${base}/api/${path}`, {
-            method,
-            headers: { authorization: `Bearer ${token}`, "x-pocket": "1", "content-type": "application/json" },
-            ...(method === "POST" ? { body: "{}" } : {}),
-        });
-    const guest = app.config.addUser("Gina", "guest");
-    const old = app.config.ownerToken;
-
-    try {
-        assert.equal((await call(guest.token, "sign-out-everywhere", "POST")).status, 403, "only the owner");
-        assert.equal(app.config.ownerToken, old);
-
-        const answer = await call(old, "sign-out-everywhere", "POST");
-        const cookie = /pocket_auth=([^;]+)/.exec(answer.headers.get("set-cookie") ?? "")?.[1];
-
-        assert.equal(answer.status, 200);
-        assert.notEqual(app.config.ownerToken, old, "a new owner token");
-        assert.equal(decodeURIComponent(cookie ?? ""), app.config.ownerToken, "the asking device has it as its cookie");
-        assert.equal((await call(old, "me")).status, 401, "every other device is signed out");
-        assert.equal((await call(app.config.ownerToken, "me")).status, 200);
-        assert.equal((await call(guest.token, "me")).status, 200, "invited people stay");
-    } finally {
-        app.config.removeUser(guest.user.id);
         server.closeAllConnections();
         server.close();
     }
@@ -1347,10 +1265,11 @@ test("the web edge: page policy, local redirects, asked account switches, no cro
         const switched = await post("/login", `token=${guest.token}`, "same-origin");
 
         assert.equal(switched.status, 303);
-        assert.match(
-            cookie(switched),
-            new RegExp(`pocket_auth=${encodeURIComponent(guest.token)}`),
-        );
+        // A device of the guest's own, never their token.
+        const switchedTo = decodeURIComponent(/pocket_auth=([^;]+)/.exec(cookie(switched))![1]!);
+
+        assert.notEqual(switchedTo, guest.token);
+        assert.equal(app.config.deviceByToken(switchedTo)?.userId, guest.user.id);
         assert.equal(
             cookie(
                 await login(`token=${ownerToken}`, { cookie: `pocket_auth=${ownerToken}` }),

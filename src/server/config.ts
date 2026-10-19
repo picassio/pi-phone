@@ -45,6 +45,28 @@ export interface StoredInvite {
     createdBy: string;
 }
 
+/**
+ * One signed-in device (a browser, the phone's app): its own token, kept by its sha256, which the device's cookie holds.
+ * A person's own token is never handed to a device; signing a device out ends only it (owner's decisions of 2026-10-19,
+ * wiki: pi-phone-sign-in-management).
+ */
+export interface StoredDevice {
+    id: string;
+    userId: string;
+    tokenHash: string;
+    /** "Chrome on Windows", "pi-phone app": from the browser that signed in. */
+    name: string;
+    createdAt: number;
+    lastSeen?: number;
+    /** The address it was last seen from. */
+    address?: string;
+    /** The phone's own app (its WebView): signs in again by itself, and stays one device. */
+    app?: true;
+}
+
+/** How often a device's last seen time is written to the file; it is kept to the second in memory. */
+const DEVICE_SEEN_SAVE_MS = 60_000;
+
 /** The theme (a theme folder's id, or "pocket") and the colors ("desktop", a palette's id, or a folder's) a browser
  * starts with until its person chooses. */
 export interface ThemeDefault {
@@ -64,6 +86,8 @@ interface PocketConfig {
     users: User[];
     /** Invites not yet used: kept here so one that lasts a day or a week outlives a restart. */
     invites?: StoredInvite[];
+    /** Signed-in devices, each with its own token (`StoredDevice`). */
+    devices?: StoredDevice[];
     lastModel?: ModelChoice;
     /** The model and thinking level new sessions start with, as the owner chose; absent: the last one picked. */
     defaultModel?: ModelChoice;
@@ -415,7 +439,7 @@ export class ConfigStore {
         this.save();
     }
 
-    /** Remove someone (never the owner), and the invites they made, which could no longer be used. */
+    /** Remove someone (never the owner), the invites they made, which could no longer be used, and their devices. */
     removeUser(id: string): void {
         this.#config.users = this.#config.users.filter(
             (user) => user.id !== id || user.role === "owner",
@@ -425,8 +449,93 @@ export class ConfigStore {
             this.#config.invites = this.#config.invites?.filter(
                 (invite) => invite.createdBy !== id,
             );
+            this.#config.devices = this.#config.devices?.filter((device) => device.userId !== id);
         }
 
+        this.save();
+    }
+
+    /**
+     * A new signed-in device of `userId`, and its token (for its cookie only). The phone's app is one device: a new
+     * sign-in of it replaces the one before.
+     */
+    addDevice(userId: string, name: string, address: string | undefined, app = false): { device: StoredDevice; token: string } {
+        const token = newToken();
+        const now = Date.now();
+        const device: StoredDevice = {
+            id: randomUUID(),
+            userId,
+            tokenHash: hashToken(token),
+            name,
+            createdAt: now,
+            lastSeen: now,
+            ...(address === undefined || address === "" ? {} : { address }),
+            ...(app ? { app: true as const } : {}),
+        };
+        const kept = (this.#config.devices ?? []).filter((each) => !(app && each.app === true && each.userId === userId));
+
+        this.#config.devices = [...kept, device];
+        this.save();
+
+        return { device, token };
+    }
+
+    deviceByToken(token: string): StoredDevice | undefined {
+        const hash = hashToken(token);
+
+        return this.#config.devices?.find((device) => sameHash(device.tokenHash, hash));
+    }
+
+    deviceById(id: string): StoredDevice | undefined {
+        return this.#config.devices?.find((device) => device.id === id);
+    }
+
+    /** Every device, or one person's. */
+    devices(userId?: string): readonly StoredDevice[] {
+        return (this.#config.devices ?? []).filter((device) => userId === undefined || device.userId === userId);
+    }
+
+    /** Sign devices out: those `which` picks. Answers how many went. */
+    removeDevices(which: (device: StoredDevice) => boolean): number {
+        const before = this.#config.devices?.length ?? 0;
+
+        this.#config.devices = (this.#config.devices ?? []).filter((device) => !which(device));
+
+        if (this.#config.devices.length !== before) {
+            this.save();
+        }
+
+        return before - this.#config.devices.length;
+    }
+
+    #deviceSeenSaved = 0;
+
+    /** A device was here: when, and from where. Written to the file at most once a minute (and with any other change). */
+    touchDevice(device: StoredDevice, address: string | undefined): void {
+        const now = Date.now();
+        const moved = address !== undefined && address !== "" && address !== device.address;
+
+        device.lastSeen = now;
+
+        if (moved) {
+            device.address = address;
+        }
+
+        if (moved || now - this.#deviceSeenSaved > DEVICE_SEEN_SAVE_MS) {
+            this.#deviceSeenSaved = now;
+            this.save();
+        }
+    }
+
+    /** A new token for someone who is not the owner: an old-style sign-in that holds their token stops working. */
+    rotateUserToken(id: string): void {
+        const user = this.userById(id);
+
+        if (user === undefined || user.role === "owner") {
+            return;
+        }
+
+        user.tokenHash = hashToken(newToken());
         this.save();
     }
 
