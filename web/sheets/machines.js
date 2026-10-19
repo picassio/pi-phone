@@ -264,11 +264,8 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
 
             notify("info", `${machine.name} is connected: ${connected.remote.platform} ${connected.remote.arch}, pi-env ${connected.daemon}.`);
 
-            // Then the tools ticked: those the machine has a build of and, for rg and fd, has none of its own. Windows
-            // has none of them yet.
-            if (state === "trusted" && wanted.size > 0 && connected.remote.platform === "windows") {
-                notify("info", `${machine.name}: OfficeCLI, rg and fd are not offered on Windows yet.`);
-            } else if (state === "trusted" && wanted.size > 0) {
+            // Then the tools ticked: those the machine has a build of and, for rg and fd, has none of its own.
+            if (state === "trusted" && wanted.size > 0) {
                 const path = `machines/${encodeURIComponent(machine.id)}/tools`;
                 const status = (await api(path, {})).tools;
                 const install = status.filter((tool) => tool.offered && wanted.has(tool.id)).map((tool) => tool.id);
@@ -436,7 +433,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 </button>`
             }
             ${state === "connected" && html`<button class="button small" onClick=${() => openSheet({ type: "forwards", machineId: machine.id })}>Ports</button>`}
-            ${state === "connected" && machine.remote.platform !== "windows" && html`<button class="button small" disabled=${toolsOpen} onClick=${() => setToolsOpen(true)}>Install tools</button>`}
+            ${state === "connected" && html`<button class="button small" disabled=${toolsOpen} onClick=${() => setToolsOpen(true)}>Install tools</button>`}
             ${state === "connected" && html`<button class="button small" disabled=${busy !== null} onClick=${detect}>${busy === "detect" ? "Testing…" : "Test"}</button>`}
             </div>
             <div class="action-group">

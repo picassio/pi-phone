@@ -435,7 +435,9 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT
     build for Termux on Android), ripgrep 15.2.0 and fd 10.5.0 (static musl builds for Linux and Android, and macOS),
     each pinned with its sha256 (OfficeCLI's and rg's from their releases; fd publishes none, so the files'). rg and fd
-    are offered only when the machine has none of its own. Windows gets none.
+    are offered only when the machine has none of its own. **Windows** (2026-10-19): the projects' own Windows builds
+    (OfficeCLI's `.exe`, rg's and fd's `.zip`s, x64 and arm64), installed by the same script in Git Bash (curl, sha256sum,
+    `unzip -p` for a zip); a program keeps its `.exe`, and the wrapper execs it by its drive path (`C:/Users/…`).
   - **Install:** the machine downloads each itself (curl or wget), checks the sha256 (sha256sum or shasum) before
     keeping anything, into `~/.pi/mobile/tools/<tool>/<version>/`, and a wrapper `~/.pi/mobile/tools/bin/<command>`
     (marked `# pi-phone-tool <id> <version>`, written by a quoted heredoc) runs it with what it needs (OfficeCLI: no

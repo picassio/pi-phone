@@ -25,8 +25,9 @@ export const TOOLS_DIR = ".pi/mobile/tools";
 /** The folder on bash's PATH there. */
 export const TOOLS_BIN = `${TOOLS_DIR}/bin`;
 
-type Target = `${"linux" | "darwin" | "android"}-${"x64" | "arm64"}`;
-type Asset = { url: string; sha256: string; /** The binary inside a .tar.gz; absent: the download is the binary. */ member?: string };
+type Target = `${"linux" | "darwin" | "android" | "windows"}-${"x64" | "arm64"}`;
+/** The binary inside a .tar.gz (or a .zip, by the url); absent: the download is the binary. */
+type Asset = { url: string; sha256: string; member?: string };
 
 export type ToolSpec = {
     id: string;
@@ -66,6 +67,8 @@ export const TOOLS: readonly ToolSpec[] = [
             "linux-arm64": { url: `${OFFICECLI}/officecli-linux-arm64`, sha256: "60db926c8a1371984b9e99622a834777befb02b6f73d0f3fff914ffcc2760d2f" },
             "darwin-arm64": { url: `${OFFICECLI}/officecli-mac-arm64`, sha256: "0dae0990a9cc29688a5d54469f984c34e5b15ab6bbd194a0ffdc571bb9040124" },
             "darwin-x64": { url: `${OFFICECLI}/officecli-mac-x64`, sha256: "178c1e9ebaf44c24d2b4b359064a5dea6eb7b2f539809871a3de1c09599dff9f" },
+            "windows-x64": { url: `${OFFICECLI}/officecli-win-x64.exe`, sha256: "bd64eba587e56cc71709cdd1f38ae9ac77cd65a9c8ea744b0996897c0557e343" },
+            "windows-arm64": { url: `${OFFICECLI}/officecli-win-arm64.exe`, sha256: "786e08b1ccf09c3a2107912537fe25fa82970b30145e3c59e09d83bf4032b065" },
             // Termux on Android: the fork's NativeAOT build, as the phone runs it (scripts/officecli.ts).
             "android-arm64": {
                 url: "https://github.com/picassio/OfficeCLI/releases/download/android-v1.0.157/officecli-android-arm64.tar.gz",
@@ -88,6 +91,8 @@ export const TOOLS: readonly ToolSpec[] = [
             "android-arm64": { url: `${RG}/ripgrep-15.2.0-aarch64-unknown-linux-musl.tar.gz`, sha256: "800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915", member: "ripgrep-15.2.0-aarch64-unknown-linux-musl/rg" },
             "darwin-arm64": { url: `${RG}/ripgrep-15.2.0-aarch64-apple-darwin.tar.gz`, sha256: "3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4", member: "ripgrep-15.2.0-aarch64-apple-darwin/rg" },
             "darwin-x64": { url: `${RG}/ripgrep-15.2.0-x86_64-apple-darwin.tar.gz`, sha256: "af7825fcc69a2afc7a7aea55fc9af90e26421d8f20fe59df32e233c0b8a231c1", member: "ripgrep-15.2.0-x86_64-apple-darwin/rg" },
+            "windows-x64": { url: `${RG}/ripgrep-15.2.0-x86_64-pc-windows-msvc.zip`, sha256: "71b2fef860abe467217a538ff31de02f5258807c0129f771846f87bd029aafc5", member: "ripgrep-15.2.0-x86_64-pc-windows-msvc/rg.exe" },
+            "windows-arm64": { url: `${RG}/ripgrep-15.2.0-aarch64-pc-windows-msvc.zip`, sha256: "e4abca10c3a64ebea742667dd7009449d49403db5460dd6873e389fa2945360f", member: "ripgrep-15.2.0-aarch64-pc-windows-msvc/rg.exe" },
         },
     },
     {
@@ -105,6 +110,8 @@ export const TOOLS: readonly ToolSpec[] = [
             "android-arm64": { url: `${FD}/fd-v10.5.0-aarch64-unknown-linux-musl.tar.gz`, sha256: "d76c4317f7d5dba69f8a2a15856c90c777e7f0dd4e85f0de8c76de6992c374d4", member: "fd-v10.5.0-aarch64-unknown-linux-musl/fd" },
             "darwin-arm64": { url: `${FD}/fd-v10.5.0-aarch64-apple-darwin.tar.gz`, sha256: "b67e1836c468e42e411984b56e52fa7abec08c2bd22c867398e7cc134aac5e12", member: "fd-v10.5.0-aarch64-apple-darwin/fd" },
             "darwin-x64": { url: `${FD}/fd-v10.5.0-x86_64-apple-darwin.tar.gz`, sha256: "7e31028c62c6955877735d0406807aa484c2a5e6f86235a59e26c29c301da590", member: "fd-v10.5.0-x86_64-apple-darwin/fd" },
+            "windows-x64": { url: `${FD}/fd-v10.5.0-x86_64-pc-windows-msvc.zip`, sha256: "a227701b8551c35a9931d9f6da75503cf86d88e182d71fb849a70864c5d57cd7", member: "fd-v10.5.0-x86_64-pc-windows-msvc/fd.exe" },
+            "windows-arm64": { url: `${FD}/fd-v10.5.0-aarch64-pc-windows-msvc.zip`, sha256: "a2bcddcfd259b05357a77bbc6cd671fdb30f63fd266a0e748305890a8c5ceaa6", member: "fd-v10.5.0-aarch64-pc-windows-msvc/fd.exe" },
         },
     },
 ];
@@ -116,7 +123,7 @@ export type ToolStatus = {
     version: string;
     description: string;
     size: string;
-    /** The machine has no build of it (Windows, say): not offered. */
+    /** The machine has no build of it: not offered. */
     supported: boolean;
     /** Installed by pi-phone, and which version. */
     installed?: string;
@@ -135,7 +142,7 @@ const q = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
 function targetOf(machine: Machine): Target | undefined {
     const remote = machine.remote;
 
-    if (remote === undefined || remote.platform === "windows") {
+    if (remote === undefined) {
         return undefined;
     }
 
@@ -169,9 +176,11 @@ export function wrapperOf(tool: ToolSpec, binary: string): string {
 }
 
 /** The script that installs one tool's asset, checks it, and writes its wrapper; its last line is the tool's version. */
-function installScript(tool: ToolSpec, asset: Asset, home: string): string {
+export function installScript(tool: ToolSpec, asset: Asset, home: string, windows = false): string {
     const dir = `"$T/${tool.id}/${tool.version}"`;
-    const wrapper = wrapperOf(tool, `${home}/${TOOLS_DIR}/${tool.id}/${tool.version}/${tool.command}`);
+    // On Windows a program keeps its .exe: Windows runs files by it. Git Bash (Pi's shell there) runs the wrapper.
+    const file = windows ? `${tool.command}.exe` : tool.command;
+    const wrapper = wrapperOf(tool, `${home}/${TOOLS_DIR}/${tool.id}/${tool.version}/${file}`);
 
     if (wrapper.includes("PI_PHONE_TOOL_END")) {
         throw new Error("A wrapper may not hold its own heredoc's end.");
@@ -193,9 +202,11 @@ function installScript(tool: ToolSpec, asset: Asset, home: string): string {
         `got=$(sum "$tmp/download")`,
         `if [ "$got" != ${q(asset.sha256)} ]; then echo "The download's sha256 is $got, not ${asset.sha256}: nothing was installed." >&2; exit 4; fi`,
         ...(asset.member === undefined
-            ? [`cp "$tmp/download" ${dir}/${tool.command}`]
-            : [`tar -xzf "$tmp/download" -C "$tmp"`, `cp "$tmp/${asset.member}" ${dir}/${tool.command}`]),
-        `chmod 755 ${dir}/${tool.command}`,
+            ? [`cp "$tmp/download" ${dir}/${file}`]
+            : asset.url.endsWith(".zip")
+              ? [`unzip -p "$tmp/download" ${q(asset.member)} > ${dir}/${file}`]
+              : [`tar -xzf "$tmp/download" -C "$tmp"`, `cp "$tmp/${asset.member}" ${dir}/${file}`]),
+        `chmod 755 ${dir}/${file}`,
         // The wrapper, as written (a quoted heredoc expands nothing).
         `cat > "$T/bin/${tool.command}.new" <<'PI_PHONE_TOOL_END'`,
         wrapper.trimEnd(),
@@ -242,8 +253,9 @@ export class MachineTools {
     async #run(machine: Machine & { remote: NonNullable<Machine["remote"]> }, script: string, timeout = 120): Promise<{ code: number; out: string }> {
         const env = this.#places.env(`machine:${machine.id}:${machine.remote.home}`);
         let out = "";
+        // On Windows the daemon runs a command line with Git Bash; `sh` may not be on Windows' own PATH.
         const result = await env.exec(
-            ["sh", "-c", script],
+            machine.remote.platform === "windows" ? script : ["sh", "-c", script],
             { cwd: machine.remote.home, timeout, onOutput: (chunk) => (out += chunk) },
             BACKGROUND_CONTEXT,
         );
@@ -259,8 +271,7 @@ export class MachineTools {
     async status(id: string): Promise<ToolStatus[]> {
         const machine = this.#connected(id);
         const target = targetOf(machine);
-        // No builds for Windows: nothing to look for there (and its shell is Git Bash, not `sh` on its PATH).
-        const { out } = target === undefined ? { out: "" } : await this.#run(machine, statusScript(this.catalog), 60);
+        const { out } = await this.#run(machine, statusScript(this.catalog), 60);
         const lines = new Map(
             out
                 .split("\n")
@@ -320,7 +331,11 @@ export class MachineTools {
                 continue;
             }
 
-            const { code, out } = await this.#run(machine, installScript(tool, asset, machine.remote.home), 600);
+            const { code, out } = await this.#run(
+                machine,
+                installScript(tool, asset, machine.remote.home, machine.remote.platform === "windows"),
+                600,
+            );
             const said = out.trim().split("\n").slice(-6).join("\n");
 
             if (code !== 0) {
