@@ -518,9 +518,16 @@ export class PocketApp {
         const app = new PocketApp(options);
 
         await app.#open();
+        app.#markReady();
 
         return app;
     }
+
+    /** Opened: sessions read back and the harness up. Extensions load before this, so they wait for it (`host.ready`). */
+    #markReady: () => void = () => {};
+    readonly #ready = new Promise<void>((resolve) => {
+        this.#markReady = resolve;
+    });
 
     async #open(): Promise<void> {
         takeLock(this.#lockFile);
@@ -664,6 +671,7 @@ export class PocketApp {
             subagentModels: () => this.config.subagentModels,
             modelProblem: (ref, fresh) => this.providers.problem(ref, fresh),
             requesterOf: (conversationId) => this.attribution.requesterOf(conversationId),
+            ready: () => this.#ready,
             people: () => this.config.users.map((user) => ({ id: user.id, name: user.name, role: user.role })),
             startSession: async ({ userId, cwd, title, message, via }) => {
                 const user = this.config.userById(userId);
@@ -721,7 +729,7 @@ export class PocketApp {
                 return { code: result.value.exitCode ?? -1, stdout, stderr };
             },
             sessionTitle: (session) => this.sessionMeta(session as unknown as ConversationId)?.title,
-            settleSession: async (session, reason) => {
+            settleSession: async (session, reason, ifUnset = false) => {
                 if (this.sessionMeta(session as unknown as ConversationId) === undefined) {
                     return;
                 }
@@ -729,7 +737,7 @@ export class PocketApp {
                 await this.harness.commit(async (tx) => {
                     const meta = (await tx.doc(SessionsDoc)).items[String(session)];
 
-                    if (meta !== undefined) {
+                    if (meta !== undefined && !(ifUnset && meta.settle !== undefined)) {
                         meta.settle = { state: "settled", at: Date.now(), reason };
                     }
                 }, context);
@@ -2035,6 +2043,9 @@ export class PocketApp {
                 const model = this.#agents.get(Number(id) as unknown as ConversationId)?.model;
                 const busy = this.#busy.has(Number(id) as unknown as ConversationId);
                 const busySince = this.#busySince.get(Number(id) as unknown as ConversationId);
+                // What its folder has checked out, for the list's third line: the HEAD file here, git's last word on a machine.
+                const head = meta.archived === true ? undefined : this.workspace.head(Number(id) as unknown as ConversationId, 10 * 60_000);
+                const branch = head === undefined ? undefined : "branch" in head ? head.branch : head.detached.slice(0, 7);
                 const here = [...(people.get(id) ?? new Map<string, string>())].map(
                     ([userId, name]) => ({ id: userId, name }),
                 );
@@ -2067,6 +2078,7 @@ export class PocketApp {
                     ...(piLink !== undefined && user?.role === "owner" ? { inPi: piLink.machineId } : {}),
                     busy,
                     ...(busy && busySince !== undefined ? { busySince } : {}),
+                    ...(branch === undefined ? {} : { branch }),
                     waiting: waiting.has(id),
                     ...(endedAt === undefined ? {} : { endedAt }),
                     ...(this.#failed.has(Number(id) as unknown as ConversationId)

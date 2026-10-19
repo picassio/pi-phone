@@ -208,12 +208,20 @@ export interface PocketHost {
     quietSessions(test: (session: number) => boolean): () => void;
     /** Run a command in a folder here or on a machine; never throws for its exit code. */
     run(cwd: string, command: string, timeoutSeconds?: number): Promise<{ code: number; stdout: string; stderr: string }>;
-    /** Settle a session (out of the active list until something happens there): a task session whose run ended. */
-    settleSession(session: number, reason: string): Promise<void>;
+    /**
+     * Settle a session (out of the active list until something happens there): a task session whose run ended. `ifUnset`:
+     * only when nothing settled or un-settled it before (a backfill must not undo a person's Un-settle).
+     */
+    settleSession(session: number, reason: string, ifUnset?: boolean): Promise<void>;
     /** Put a session in a group the list shows together (a project's team), or take it out (null). */
     groupSession(session: number, group: { id: string; title: string; role: "lead" | "task" } | null): Promise<void>;
     /** A session's title, or undefined when there is no such session. */
     sessionTitle(session: number): string | undefined;
+    /**
+     * Resolves once the app has opened: its sessions read back and the harness up. Extensions load before that, so what
+     * they do with sessions as they start waits for it.
+     */
+    ready(): Promise<void>;
     /** Everyone in the app now, by id, name, and role (the Projects extension's sharing). */
     people(): { id: string; name: string; role: Role }[];
     /** Whether a person may see a session, as the app decides it for them (`canSee`). */

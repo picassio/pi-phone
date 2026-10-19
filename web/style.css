@@ -16033,16 +16033,56 @@ pre.gallery-code {
     transform: rotate(45deg);
 }
 
+/* Idle: a cloud, as in T3 Code; finished and not read yet, in the folder's color. */
 .status-idle {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    border: 1.5px solid color-mix(in srgb, var(--folder) 75%, var(--faint));
+    display: inline-flex;
+    color: var(--faint);
 }
 
 .status-idle.fresh {
-    background: var(--folder);
-    border-color: var(--folder);
+    color: var(--folder);
+}
+
+/* Sections as the design has them: a small label and a hairline, the count in the label; Settled folds. */
+.sessions .session-group > .group-head {
+    height: auto;
+    padding: 12px 10px 4px;
+    gap: 8px;
+    background: none;
+}
+
+.sessions .session-group > .group-head .group-name b {
+    font-weight: 500;
+    font-size: 11.5px;
+    color: var(--faint);
+    letter-spacing: 0.02em;
+}
+
+.sessions .session-group > .group-head .group-count {
+    order: 1;
+    font-size: 11.5px;
+    color: var(--faint);
+}
+
+.sessions .session-group > .group-head .group-count::before {
+    content: "(";
+}
+
+.sessions .session-group > .group-head .group-count::after {
+    content: ")";
+}
+
+.sessions .session-group > .group-head::after {
+    content: "";
+    order: 2;
+    flex: 1;
+    height: 1px;
+    background: var(--hair);
+}
+
+.sessions .session-group > .group-head .icon {
+    order: 3;
+    color: var(--faint);
 }
 
 /* A project's running task sessions, under its main session. */

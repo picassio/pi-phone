@@ -102,13 +102,13 @@ export class Workspace {
     /**
      * What a conversation's folder has checked out, for its view: its repository's HEAD file, read as it is now. On a
      * machine, what git there said last; asked again when that is older than `REMOTE_HEAD_MS`, and the view updates
-     * when the answer differs.
+     * when the answer differs. The session list asks with a longer `maxAgeMs`: many machine folders at once.
      */
-    head(id: ConversationId): Head | undefined {
+    head(id: ConversationId, maxAgeMs = REMOTE_HEAD_MS): Head | undefined {
         const cwd = this.#app.cwdOf(id);
 
         if (isRemote(cwd)) {
-            return this.#remoteHead(id, cwd);
+            return this.#remoteHead(id, cwd, maxAgeMs);
         }
 
         const gitDir = this.#gitDir(cwd);
@@ -116,12 +116,12 @@ export class Workspace {
         return gitDir === undefined ? undefined : headOf(gitDir);
     }
 
-    #remoteHead(id: ConversationId, cwd: string): Head | undefined {
+    #remoteHead(id: ConversationId, cwd: string, maxAgeMs: number): Head | undefined {
         const known = this.#remoteHeads.get(cwd) ?? { head: undefined, at: 0, asking: false };
 
         this.#remoteHeads.set(cwd, known);
 
-        if (!known.asking && Date.now() - known.at > REMOTE_HEAD_MS) {
+        if (!known.asking && Date.now() - known.at > maxAgeMs) {
             known.asking = true;
             const remote = this.#remote(id)!;
 

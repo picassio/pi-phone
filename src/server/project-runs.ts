@@ -53,6 +53,18 @@ export class Team {
             this.#projects.setRun(run.id, { state: "failed", note: "The server restarted while it was being prepared.", endedAt: Date.now() });
         }
 
+        // The rest needs the app's sessions, which are read back after extensions load.
+        void this.#host
+            .ready()
+            .then(() => this.#started())
+            .catch((error: unknown) => this.#warn(error));
+    }
+
+    #started(): void {
+        if (this.#stopped) {
+            return;
+        }
+
         this.#stops.push(
             this.#host.onSessionEvent((event) => void this.#ended(event).catch((error: unknown) => this.#warn(error))),
             this.#host.quietSessions((session) => this.#projects.runOfSession(String(session)) !== undefined || this.#projects.projectLedBy(String(session)) !== undefined),
@@ -76,15 +88,28 @@ export class Team {
         for (const run of this.#projects.runsOf(project.id)) {
             if (run.conversationId !== null && this.#host.sessionTitle(Number(run.conversationId)) !== undefined) {
                 await this.#host.groupSession(Number(run.conversationId), this.#group(project, "task"));
+
+                // Runs that ended before sessions could settle: their sessions settle now, once.
+                if (["done", "failed", "stopped"].includes(run.state) && !this.#settledOnce.has(run.id)) {
+                    this.#settledOnce.add(run.id);
+                    await this.#host.settleSession(Number(run.conversationId), run.state === "done" ? "its run finished" : run.state === "failed" ? "its run failed" : "it stopped", true);
+                }
             }
         }
     }
+
+    /** Runs whose sessions this process settled already, so a regroup does not settle them again after an Un-settle. */
+    readonly #settledOnce = new Set<string>();
 
     #group(project: Project, role: "lead" | "task"): { id: string; title: string; role: "lead" | "task" } {
         return { id: `project:${project.key}`, title: `${project.key} · ${project.name}`, role };
     }
 
+    #stopped = false;
+
     stop(): void {
+        this.#stopped = true;
+
         for (const stop of this.#stops.splice(0)) {
             stop();
         }

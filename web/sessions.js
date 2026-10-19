@@ -363,7 +363,7 @@ function SessionRow({
     const shownTitle = task ? task[2] : title;
     const remote = session.cwd.startsWith("machine:");
     const place = team ? "task session" : session.group ? session.group.title : path;
-    const branch = session.worktree?.branch ?? (task ? `task/${task[1]}` : null);
+    const branch = session.worktree?.branch ?? session.branch ?? (task ? `task/${task[1]}` : null);
     const when = session.waiting ? "waits" : session.busy && session.busySince ? workingFor(session.busySince) : timeAgo(session.updatedAt);
 
     return html`<div
@@ -452,7 +452,9 @@ function SessionRow({
                             ? html`<span class="status-work" role="img" aria-label="Working" title="Working"></span>`
                             : session.failed
                               ? html`<span class="status-fail" role="img" aria-label="Failed" title="Its last run failed"></span>`
-                              : html`<span class=${`status-idle ${mark.shape}`} role="img" aria-label=${mark.label || "Idle"} title=${mark.label || "Idle"}></span>`
+                              : html`<span class=${`status-idle ${mark.shape}`} role="img" aria-label=${mark.label || "Idle"} title=${mark.label || "Idle"}>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9a4.5 4.5 0 0 0 1 9z" /></svg>
+                                </span>`
                 }
             </span>
         </button>
