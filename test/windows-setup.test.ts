@@ -9,9 +9,8 @@ test("the Windows setup script turns on sshd, opens the firewall, adds the key, 
     const script: string = windowsSetupScript(`${KEY}\n`);
 
     assert.match(script, /if \(-not \(Get-Service sshd -ErrorAction SilentlyContinue\)\) \{/, "Windows Update only when sshd is not there");
-    assert.match(script, /Add-WindowsCapability -Online -Name \$cap\.Name/);
-    assert.match(script, /5 to 15 minutes/);
-    assert.match(script, /if \(\$PSVersionTable\.PSEdition -eq 'Core'\) \{ Import-Module Dism -UseWindowsPowerShell/, "PowerShell 7 too");
+    assert.match(script, /winget install --id Microsoft\.OpenSSH\.Preview --exact/, "OpenSSH by winget, not Windows Update");
+    assert.doesNotMatch(script, /Add-WindowsCapability/);
     assert.match(script, /Set-Service -Name sshd -StartupType Automatic/);
     assert.match(script, /New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' .* -LocalPort 22 -Action Allow -Profile Any/);
     assert.match(script, /administrators_authorized_keys/);

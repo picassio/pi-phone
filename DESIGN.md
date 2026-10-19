@@ -137,7 +137,9 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   (Git Bash) instead of `sh -c`; `machine_copy` takes `<machine>:C:/…`. The environment section tells Pi it is
   Windows with Git Bash. Machine tools are not offered there.
   Adding one, "It's a Windows PC" shows a PowerShell script (`web/windows-setup.js`) with the chosen key in it, to paste
-  into PowerShell run as administrator: OpenSSH Server installed, started, and automatic; the firewall rule
+  into PowerShell run as administrator: OpenSSH Server installed by winget (`Microsoft.OpenSSH.Preview`: seconds, with
+  progress; Windows Update's optional feature showed none for many minutes, and its DISM module fails in PowerShell 7),
+  started, and automatic; the firewall rule
   `OpenSSH-Server-In-TCP` (TCP 22, every profile); the key in `administrators_authorized_keys` when sshd_config has
   `Match Group administrators` (rights by SID with icacls, as sshd demands), else `~/.ssh/authorized_keys`, written as
   ASCII (no BOM); Git for Windows by winget when Git Bash is missing; then the addresses to enter. Each step may run again.

@@ -25,14 +25,12 @@ $me = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
 if (-not $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Run PowerShell as administrator, then paste this again.' }
 
 Write-Host '1/5 OpenSSH Server'
+# By winget (Microsoft's own OpenSSH package): a few seconds, with progress. Windows' optional feature comes from
+# Windows Update, which shows none for many minutes and never ends where it is blocked.
 if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {
-    Write-Host '    Installing it from Windows Update: this often takes 5 to 15 minutes, with no progress shown.'
-    Write-Host '    If Windows Update is blocked here (a work PC), stop this, run: winget install Microsoft.OpenSSH.Preview, then paste this again.'
-    # PowerShell 7 cannot load the DISM module itself ("Class not registered"): it runs in Windows PowerShell for it.
-    if ($PSVersionTable.PSEdition -eq 'Core') { Import-Module Dism -UseWindowsPowerShell -WarningAction SilentlyContinue }
-    $cap = Get-WindowsCapability -Online -Name 'OpenSSH.Server*' | Select-Object -First 1
-    if ($null -eq $cap) { throw 'This Windows has no OpenSSH Server to install (Windows 10 1809 or later has it): run winget install Microsoft.OpenSSH.Preview, then paste this again.' }
-    if ($cap.State -ne 'Installed') { Add-WindowsCapability -Online -Name $cap.Name | Out-Null }
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'winget is missing: install App Installer from the Microsoft Store, or add OpenSSH Server in Settings > System > Optional features, then paste this again.' }
+    winget install --id Microsoft.OpenSSH.Preview --exact --source winget --silent --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0 -or -not (Get-Service sshd -ErrorAction SilentlyContinue)) { throw 'winget could not install OpenSSH: add OpenSSH Server in Settings > System > Optional features, then paste this again.' }
 }
 Set-Service -Name sshd -StartupType Automatic
 Start-Service sshd
