@@ -128,3 +128,49 @@ test("the patch still applies to the request pi-ai's own Anthropic provider buil
     assert.match(patched.system[0]!.text!, /^x-anthropic-billing-header: cc_version=/);
     assert.ok(!JSON.stringify(patched.system).includes("You are Claude Code"), JSON.stringify(patched.system));
 });
+
+// An account of Anthropic (accounts.ts) is a new Anthropic provider under its own id: the request it builds is still a
+// Claude sign-in's (pi-ai checks the model's provider), and the patch still bills it to the subscription.
+test("an account of Anthropic builds the same Claude sign-in request, and the patch applies to it", async () => {
+    const { anthropicProvider } = await import("@earendil-works/pi-ai/providers/anthropic");
+    const { normalizeContext } = await import("@earendil-works/pi-ai/utils/transcript");
+    const { accountProvider } = await import("../src/server/accounts.ts");
+    const { createBillingTransform } = await import("../src/server/claude-billing.ts");
+    const account = accountProvider(anthropicProvider() as never, "anthropic~work", "Work");
+    const model = (await account.getModels()).find((each) => each.id.startsWith("claude-"))!;
+    const settings = new PhoneSettingsFile(mkdtempSync(join(tmpdir(), "pi-phone-billing-")));
+    let built: unknown;
+    let builtFor: string | undefined;
+
+    assert.equal(model.provider, "anthropic~work", "its models carry the account's id");
+
+    const stream = account.streamSimple(
+        model,
+        normalizeContext({ messages: [{ role: "user", content: "hi", timestamp: 1 }] }),
+        {
+            apiKey: "sk-ant-oat01-test",
+            fetch: async () => {
+                throw new Error("no network in this test");
+            },
+            onPayload: (payload, requestModel) => {
+                built = payload;
+                builtFor = requestModel.provider;
+
+                return undefined;
+            },
+        },
+    );
+
+    for await (const event of stream) {
+        if (event.type === "error" || event.type === "done") {
+            break;
+        }
+    }
+
+    assert.equal(builtFor, "anthropic", "the provider's own code sees its own id");
+    assert.ok(JSON.stringify(built).includes("You are Claude Code"), "a Claude sign-in's request");
+
+    const patched = createBillingTransform(settings)(built, { ...model } as Model<Api>) as { system: { text?: string }[] } | undefined;
+
+    assert.match(patched!.system[0]!.text!, /^x-anthropic-billing-header: cc_version=/, "billed as the account's id too");
+});

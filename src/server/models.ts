@@ -43,6 +43,8 @@ type ModelSummary = {
     scoped?: true;
     /** Its provider's sign-in expired and could not be renewed: it works again once someone signs in. */
     signIn?: true;
+    /** Which account of its provider it is on (`accounts.ts`), when the provider has more than one. */
+    account?: string;
 };
 
 /** Whether a provider's sign-in expired and needs a person to sign in again (`Providers.needsSignIn`). */
@@ -74,6 +76,7 @@ export function modelList(
     models: ModelRuntime,
     signInNeeded: SignInNeeded = () => false,
     scopedModels: readonly ScopedModel[] = [],
+    accountOf: (provider: string) => string | undefined = () => undefined,
 ): ModelSummary[] {
     const scoped = new Set(scopedModels.map(({ model }) => `${model.provider}/${model.id}`));
 
@@ -85,6 +88,7 @@ export function modelList(
         ...capabilities(model),
         ...(scoped.has(`${model.provider}/${model.id}`) ? { scoped: true as const } : {}),
         ...(signInNeeded(model.provider) ? { signIn: true as const } : {}),
+        ...(accountOf(model.provider) === undefined ? {} : { account: accountOf(model.provider)! }),
     }));
 }
 

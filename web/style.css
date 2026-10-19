@@ -6532,6 +6532,31 @@ pre.diff .del {
     justify-content: flex-end;
 }
 
+/* A provider that may have more accounts, and each account (accounts.ts): several buttons, so they go under the row. */
+.provider.family {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.provider.family .provider-actions {
+    justify-content: flex-start;
+}
+
+/* An account of a provider (accounts.ts): under its provider, set in. */
+.provider.account {
+    padding-left: 30px;
+}
+
+.account-name {
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.account-name input {
+    flex: 1;
+    min-width: 0;
+}
+
 /* What a provider said when it would not renew a sign-in. */
 .provider-why {
     overflow-wrap: anywhere;

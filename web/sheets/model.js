@@ -49,7 +49,7 @@ export function defaultLabel(chosen, models) {
 
 /** Whether a model is one the picker's search finds: each word in its id or name, as `/model` finds them. */
 const matches = (model, query) => {
-    const haystack = `${model.provider}/${model.id} ${model.name}`.toLowerCase();
+    const haystack = `${model.provider}/${model.id} ${model.name} ${model.account ?? ""}`.toLowerCase();
 
     return query
         .trim()
@@ -319,7 +319,7 @@ export function ModelPicker() {
                         <span class="pop-menu-row-text">
                             <span class="pop-menu-row-name">${model.name}</span>
                             <span class="pop-menu-row-sub">
-                                ${model.provider}${!forDefault && isDefault(model) ? " · default" : ""}${model.signIn ? " · needs sign-in" : ""}
+                                ${model.account ? `${model.provider.split("~")[0]} · ${model.account} account` : model.provider}${!forDefault && isDefault(model) ? " · default" : ""}${model.signIn ? " · needs sign-in" : ""}
                             </span>
                         </span>
                         ${isCurrent(model) && html`<${Icon} name="check" size=${14} />`}

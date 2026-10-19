@@ -133,6 +133,16 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   phone, Tailscale, an address), browser and system (the app's WebView by `; wv)` from 127.0.0.1), the session it shows,
   and whether it is in the background. One token per person, so a single device cannot be signed out yet
   (wiki: pi-phone-sign-in-management).
+- **Accounts** (`src/server/accounts.ts`; owner's decisions of 2026-10-19, wiki: provider-accounts-and-usage): more
+  accounts of Anthropic, OpenAI Codex, and GitHub Copilot. Each is a provider of its own, `<provider>~<slug>` (`anthropic~work`):
+  a new instance from pi-ai's factory, registered with `registerNativeProvider` as the app opens (before sessions resume),
+  with the same sign-in flows, its models labelled with the account's id, and requests handed to the instance with the
+  model's own provider id again, so pi-ai's checks on `model.provider` (Claude's sign-in identity, Copilot's request
+  shape) see what they always do. Pi's runtime keeps each account's sign-in under its id in `auth.json`; the original
+  stays the default account and is never touched. A session's model picks its account, so subagents, titles, and
+  schedules follow. `accounts.json` holds them; ids are fixed, names change. The billing patch takes `anthropic~…` as
+  Anthropic. Providers lists each account under its provider (Add account, Rename, Remove); the menus label models with
+  their account (`ModelSummary.account`, "Default" for the original once it has others).
 - **Choice** (`web/ui.js`): the sheets' dropdowns (Web access, Dictation, a machine's key, Ports) in the app's own
   style, the model and branch menus' `.pop-menu` rows, not the system's `<select>`: fixed to the screen under its field (over
   it with too little room), closed by a tap elsewhere, a scroll, a resize, or Escape. **Settings by link:** `/?sheet=<name>`

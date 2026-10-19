@@ -246,9 +246,14 @@ export class Providers {
                 }
             ).auth;
 
+            const account = this.#app.accounts.get(provider.id);
+
             return {
                 id: provider.id,
                 name: provider.name,
+                // An account (`accounts.ts`): whose, and its name; a provider that may have more: so it says.
+                ...(account === undefined ? {} : { account: { name: account.name, of: account.provider } }),
+                ...(this.#app.accounts.providers().includes(provider.id) ? { accounts: true } : {}),
                 configured: status.configured,
                 source: status.source ?? null,
                 label: status.label ?? null,

@@ -6,6 +6,7 @@
  * What people ask of Pi lives in `commands.ts`, the people's side of a session in `collab.ts`, push notifications in
  * `alerts.ts`, provider sign-ins in `providers.ts`, and each conversation's shared live view in `room.ts`.
  */
+import { Accounts } from "./accounts.ts";
 import { rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -240,6 +241,8 @@ export interface OpenOptions {
     log?: (line: string) => void;
     /** Tests register scripted providers here. */
     configureModels?: (models: ModelRuntime) => void;
+    /** The providers that may have more accounts, and how to make each (`accounts.ts`); tests use their scripted one. */
+    accountProviders?: ConstructorParameters<typeof Accounts>[2];
     /** The clock durable work runs by, such as scheduled messages. Tests move it ahead. */
     now?: () => number;
     /** The home folder, whose `.agents/skills/` every session has. Undefined is Pi's: `$HOME`. Tests use their own. */
@@ -316,6 +319,8 @@ export class PocketApp {
     readonly web: WebSearch;
     /** Other computers sessions can work on, over ssh (`machines.ts`). */
     readonly machines: Machines;
+    /** More accounts of a subscription provider, each a provider of its own (`accounts.ts`). */
+    readonly accounts: Accounts;
     /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
     readonly officecli: OfficeCli;
     /** Tools pi-phone installs on machines: OfficeCLI, rg, fd (`machine-tools.ts`). */
@@ -391,6 +396,7 @@ export class PocketApp {
             void this.#refreshClients().catch((error: unknown) => this.log(`machines not sent to the tabs: ${describe(error)}`)),
         );
         this.places = new Places(this.machines);
+        this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
         this.officecli = new OfficeCli({ dataDir: options.dataDir, ...options.officecli });
         this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools));
         this.officecli.install();
@@ -514,6 +520,8 @@ export class PocketApp {
         this.models = await ModelRuntime.create();
         this.providers.modelRefresh.watch(this.models);
         this.#configureModels?.(this.models);
+        // Before anything reads the models: sessions on an account's models resume with it there.
+        this.accounts.registerAll();
         measureModelStreams(this.models);
         await this.models.getAvailable().catch(() => []);
 
@@ -1736,7 +1744,21 @@ export class PocketApp {
                   }))
                 : { scopedModels: [] };
 
-        return modelList(this.models, this.signInNeeded, scopedModels);
+        return modelList(this.models, this.signInNeeded, scopedModels, (provider) => this.accountLabel(provider));
+    }
+
+    /**
+     * Which account a provider's models are of, for the menus: an account's name; "Default" for the original of a
+     * provider that has more accounts; none otherwise.
+     */
+    accountLabel(provider: string): string | undefined {
+        const account = this.accounts.get(provider);
+
+        if (account !== undefined) {
+            return account.name;
+        }
+
+        return this.accounts.list().some((each) => each.provider === provider) ? "Default" : undefined;
     }
 
     async hello(user: User) {

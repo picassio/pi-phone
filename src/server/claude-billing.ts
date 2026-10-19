@@ -5,6 +5,7 @@
  */
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { baseProvider } from "./accounts.ts";
 import { patchClaudeCodePayload } from "./cc-patch.ts";
 import type { PhoneSettingsFile } from "./phone-settings.ts";
 
@@ -20,7 +21,8 @@ export function createBillingTransform(settings: PhoneSettingsFile): OnPayload {
             return undefined;
         }
 
-        return patchClaudeCodePayload(payload, model.provider, { version: billing.version });
+        // An account of Anthropic (`anthropic~work`, accounts.ts) is Anthropic.
+        return patchClaudeCodePayload(payload, baseProvider(model.provider), { version: billing.version });
     };
 }
 

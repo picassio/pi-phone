@@ -172,18 +172,64 @@ export function ProvidersSheet() {
             load();
         });
     const needle = query.trim().toLowerCase();
+    const byId = new Map((providers ?? []).map((provider) => [provider.id, provider]));
+    // A provider's accounts (accounts.ts) come right after it, by name: the family sorts as its original does.
+    const family = (provider) => (provider.account ? (byId.get(provider.account.of) ?? provider) : provider);
     const list = (providers ?? [])
         .filter(
             (provider) =>
                 needle === "" ||
                 `${provider.id} ${provider.name} ${provider.oauth ?? ""}`.toLowerCase().includes(needle),
         )
-        .sort(
-            (a, b) =>
-                Number(Boolean(b.needsSignIn)) - Number(Boolean(a.needsSignIn)) ||
-                Number(b.configured) - Number(a.configured) ||
-                a.name.localeCompare(b.name),
-        );
+        .sort((a, b) => {
+            const [x, y] = [family(a), family(b)];
+
+            return (
+                Number(Boolean(y.needsSignIn)) - Number(Boolean(x.needsSignIn)) ||
+                Number(y.configured) - Number(x.configured) ||
+                x.name.localeCompare(y.name) ||
+                Number(Boolean(a.account)) - Number(Boolean(b.account)) ||
+                a.name.localeCompare(b.name)
+            );
+        });
+    const hasAccounts = (provider) => (providers ?? []).some((each) => each.account?.of === provider.id);
+    const [adding, setAdding] = useState(null);
+    const [renaming, setRenaming] = useState(null);
+    const [name, setName] = useState("");
+    const addAccount = (provider) =>
+        attempt(async () => {
+            await api("accounts", { provider: provider.id, name });
+            setAdding(null);
+            setName("");
+            load();
+        });
+    const renameAccount = (provider) =>
+        attempt(async () => {
+            await api(`accounts/${encodeURIComponent(provider.id)}`, { name });
+            setRenaming(null);
+            setName("");
+            load();
+        });
+    const removeAccount = (provider) =>
+        confirm(`Remove the account “${provider.account.name}”? It is signed out, and sessions on its models need another model.`) &&
+        attempt(async () => {
+            await api(`accounts/${encodeURIComponent(provider.id)}/remove`, {});
+            load();
+        });
+    /** The account's name, typed in place: for a new account of `provider`, or a new name for one. */
+    const nameField = (onSave, label) => html`<div class="account-name row">
+        <input
+            autofocus
+            aria-label=${label}
+            placeholder="Work"
+            maxlength="40"
+            value=${name}
+            onInput=${(event) => setName(event.currentTarget.value)}
+            onKeyDown=${(event) => (event.key === "Enter" ? onSave() : event.key === "Escape" && (setAdding(null), setRenaming(null)))}
+        />
+        <button class="button small primary" disabled=${name.trim() === ""} onClick=${onSave}>Save</button>
+        <button class="button small" onClick=${() => (setAdding(null), setRenaming(null), setName(""))}>Cancel</button>
+    </div>`;
 
     return html`<${Sheet} title="Providers" onClose=${closeSheet}>
         <p class="muted small">
@@ -217,10 +263,12 @@ export function ProvidersSheet() {
                 </div>`
             }
             ${list.map(
-                (provider) => html`<div class="provider">
+                (provider) => html`<div class=${`provider ${provider.account ? "account" : ""} ${provider.account || provider.accounts ? "family" : ""}`}>
                     <div>
                         <div>
-                            ${provider.name}
+                            ${provider.account ? provider.account.name : provider.name}
+                            ${!provider.account && hasAccounts(provider) && html` <span class="muted small">· Default account</span>`}
+                            ${provider.account && html` <span class="muted small">· account of ${family(provider).name}</span>`}
                             ${
                                 provider.needsSignIn
                                     ? html` <span class="warn provider-needs">needs sign-in</span>`
@@ -234,6 +282,8 @@ export function ProvidersSheet() {
                             provider.needsSignIn &&
                             html`<div class="muted small mono provider-why">${provider.needsSignIn}</div>`
                         }
+                        ${adding === provider.id && nameField(() => addAccount(provider), "New account's name")}
+                        ${renaming === provider.id && nameField(() => renameAccount(provider), "Account's name")}
                     </div>
                     ${
                         owner &&
@@ -265,6 +315,17 @@ export function ProvidersSheet() {
                                 >
                                     Log out
                                 </button>`
+                            }
+                            ${
+                                provider.accounts &&
+                                html`<button class="button small ghost" onClick=${() => (setRenaming(null), setName(""), setAdding(provider.id))}>
+                                    Add account
+                                </button>`
+                            }
+                            ${
+                                provider.account &&
+                                html`<button class="button small ghost" onClick=${() => (setAdding(null), setName(provider.account.name), setRenaming(provider.id))}>Rename</button>
+                                    <button class="button small ghost" onClick=${() => removeAccount(provider)}>Remove</button>`
                             }
                         </div>`
                     }

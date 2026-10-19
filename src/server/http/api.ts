@@ -1063,6 +1063,36 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, app.providers.list(user.role === "owner"));
         }
 
+        // More accounts of a subscription provider (`accounts.ts`): the owner's. Each is a provider of its own, signed in
+        // with the providers' login route.
+        if (first === "accounts" && second === undefined && method === "POST") {
+            requireOwner(user);
+            const body = await readJson<{ provider?: unknown; name?: unknown }>(request);
+            const account = app.accounts.add(body.provider, body.name);
+
+            app.providers.modelsChanged();
+
+            return json(response, 200, { account });
+        }
+
+        if (first === "accounts" && second !== undefined && third === undefined && method === "POST") {
+            requireOwner(user);
+            const body = await readJson<{ name?: unknown }>(request);
+            const account = app.accounts.rename(decodeURIComponent(second), body.name);
+
+            app.providers.modelsChanged();
+
+            return json(response, 200, { account });
+        }
+
+        if (first === "accounts" && second !== undefined && third === "remove" && method === "POST") {
+            requireOwner(user);
+            await app.accounts.remove(decodeURIComponent(second));
+            app.providers.modelsChanged();
+
+            return json(response, 200, { ok: true });
+        }
+
         if (
             first === "providers" &&
             second !== undefined &&

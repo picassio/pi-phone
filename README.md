@@ -17,6 +17,9 @@ No Termux, no laptop, no cloud VM.
   with git, gh, ssh, Node, npm, ripgrep, and fd in the bundled userland.
 - **Sign in once.** Claude Pro/Max, other providers' OAuth, or API keys, from the Providers sheet. GitHub through a
   device code (Settings › GitHub), used by the agent's `git` and `gh`.
+- **More than one account.** Add a second (or third) Claude, Codex, or Copilot account in Providers; each has its
+  own sign-in, and its models are listed per account ("Claude Opus · Work"). A session uses the account of the
+  model you pick for it, so you can start a session on any account or move one to another.
 - **Plan mode.** The Plan button by the message box: Pi reads and plans before it changes anything, and a long plan
   comes as a reviewable HTML page.
 - **Interview.** Pi asks several questions at once in a form (choices with its recommendation, text, photos), and waits

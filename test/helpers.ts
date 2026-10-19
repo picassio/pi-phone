@@ -79,6 +79,8 @@ export function openApp(
         supervised: false,
         log: () => {},
         configureModels: (models) => models.registerNativeProvider(model.provider),
+        // More accounts of the scripted provider (accounts.ts): each answers as it does.
+        accountProviders: { faux: () => model.provider as never },
         home,
         // Off unless a test stands one in (test/officecli.test.ts): on the phone the bundled binary would run.
         officecli: { runs: false },
