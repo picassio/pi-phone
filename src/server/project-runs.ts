@@ -20,7 +20,7 @@ const quote = (text: string) => `'${text.replace(/'/g, `'\\''`)}'`;
 export const LEAD_RULES = `You lead this project's team: you plan, delegate, ask, and review; you never write code or change files yourself, however small the change.
 - Planning: for work bigger than one task, research, ask the person 2 or 3 targeted questions (interview), write a phased plan, and wait for their approval before making tasks.
 - Delegating: create every task first (task_create, with real values and an acceptance checklist in its description), link what blocks what, and only then give them to Pi. A task runs only through task_run, which asks the person first unless the project runs tasks by itself.
-- Reports from task sessions come to you as messages. Done: review the task's branch with a 3-dot diff in the repository (git diff <base>...task/<ref>), not by reading the base branch; if the base moved on, that is drift, not the task's work. Then move it to done with a short comment, or back to assigned with what to fix. Needs you or stopped or failed: decide (answer, ask the person, run it again), and say what you decided.
+- Reports from task sessions come to you as messages. Done: review the task's branch with a 3-dot diff in the repository (git diff <base>...task/<ref>), not by reading the base branch; if the base moved on, that is drift, not the task's work. Then move it to done with a short comment, or back to assigned with what to fix. Needs you or stopped or failed: decide (answer, ask the person, run it again), and say what you decided. Still working (30 minutes without stopping): read that session; message it only if it is off track or stuck.
 - After a task is done, look at what waited on it, and ask to run what can go now.
 - Merging a branch is the person's (a button in the task). Close an epic or story when everything under it is done.
 - Keep your messages short: what changed, what you decided, what you need.`;
@@ -33,6 +33,13 @@ export function taskRules(task: Task, run: Run): string {
 - Need the person (an answer, an approval, something you cannot do)? Set it blocked with blocked_reason, and stop.
 - Noticed a problem outside this task? Say so in a comment for the main session; do not fix it here.`;
 }
+
+/** How often the team checks on its running task sessions. */
+const CHECK_EVERY_MS = 60_000;
+/** A task session idle this long with its run still running ended unheard (a restart, a lost event): it is handled then. */
+export const UNHEARD_AFTER_MS = 2 * 60_000;
+/** A task session working this long without a break: its main session hears, once a stretch, to check on it. */
+export const LONG_RUN_MS = 30 * 60_000;
 
 export class Team {
     readonly #projects: Projects;
@@ -65,6 +72,11 @@ export class Team {
             return;
         }
 
+        const timer = setInterval(() => void this.check().catch((error: unknown) => this.#warn(error)), CHECK_EVERY_MS);
+
+        timer.unref();
+        this.#stops.push(() => clearInterval(timer));
+
         this.#stops.push(
             this.#host.onSessionEvent((event) => void this.#ended(event).catch((error: unknown) => this.#warn(error))),
             this.#host.quietSessions((session) => this.#projects.runOfSession(String(session)) !== undefined || this.#projects.projectLedBy(String(session)) !== undefined),
@@ -96,6 +108,83 @@ export class Team {
                 }
             }
         }
+    }
+
+    /** When each run's session was first seen idle by a check, for runs whose end this process never saw. */
+    readonly #idleSince = new Map<string, number>();
+    /** When an end of each run's session was last handled (heard, or found by a check). */
+    readonly #handled = new Map<string, number>();
+    /** The work stretch (its start) each run was last reported as long for. */
+    readonly #longFor = new Map<string, number>();
+
+    /**
+     * Check on running task sessions: one whose end went unheard (the server restarted, an event was lost) is handled as
+     * if heard; one gone without its session fails; one working past LONG_RUN_MS is reported once a stretch.
+     */
+    async check(now = Date.now()): Promise<void> {
+        for (const run of this.#projects.runsIn(["running"])) {
+            if (run.conversationId === null) {
+                continue;
+            }
+
+            const session = Number(run.conversationId);
+            const state = this.#host.sessionState(session);
+
+            if (state === undefined) {
+                await this.#gone(run, session);
+                continue;
+            }
+
+            if (state.busy || state.waiting) {
+                this.#idleSince.delete(run.id);
+                await this.#long(run, session, state.busySince, now);
+                continue;
+            }
+
+            const idle = state.endedAt ?? this.#idleSince.get(run.id) ?? now;
+
+            this.#idleSince.set(run.id, idle);
+
+            if (now - idle < UNHEARD_AFTER_MS || (this.#handled.get(run.id) ?? 0) >= idle - 5_000) {
+                continue;
+            }
+
+            await this.#ended({ kind: state.failed ? "failed" : "done", session, text: await this.#host.lastAnswer(session) });
+            this.#handled.set(run.id, now);
+        }
+    }
+
+    /** A run whose session is gone (deleted): it failed, and its main session hears. */
+    async #gone(run: Run, session: number): Promise<void> {
+        const found = this.#projects.taskById(run.taskId);
+
+        this.#projects.setRun(run.id, { state: "failed", note: "Its session is gone.", endedAt: Date.now() });
+
+        if (found !== undefined) {
+            await this.#report(
+                found.project,
+                `Failed: ${found.task.ref} (${found.task.title}). Its session #${session} is gone (deleted). Work so far is on branch ${run.branch ?? "?"} at ${run.place ?? "?"}. Decide: run it again, or ask the person.`,
+                `${found.task.ref} · task session #${session}`,
+            );
+        }
+
+        this.pump();
+    }
+
+    /** Report a run working past LONG_RUN_MS, once for this stretch of work. */
+    async #long(run: Run, session: number, since: number | undefined, now: number): Promise<void> {
+        const found = this.#projects.taskById(run.taskId);
+
+        if (since === undefined || now - since < LONG_RUN_MS || this.#longFor.get(run.id) === since || found === undefined) {
+            return;
+        }
+
+        this.#longFor.set(run.id, since);
+        await this.#report(
+            found.project,
+            `Still working: ${found.task.ref} (${found.task.title}) has worked for ${Math.round((now - since) / 60_000)} minutes in session #${session} without stopping. Check on it: read that session; message it to wrap up or change course; or leave it.`,
+            `${found.task.ref} · task session #${session}`,
+        );
     }
 
     /** Runs whose sessions this process settled already, so a regroup does not settle them again after an Un-settle. */
@@ -336,6 +425,8 @@ export class Team {
         }
 
         const { project, task } = found;
+
+        this.#handled.set(run.id, Date.now());
         // The report shows as from the task, not from the person the run works for.
         const from = `${task.ref} · task session #${event.session}`;
         const where = `branch ${run.branch} (from ${run.base}) at ${run.place}`;

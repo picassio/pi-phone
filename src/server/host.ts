@@ -218,6 +218,13 @@ export interface PocketHost {
     /** A session's title, or undefined when there is no such session. */
     sessionTitle(session: number): string | undefined;
     /**
+     * Where a session's work is now: working (since when), waiting for an approval, or ended (failed or not, and when, if
+     * this process saw it end). Undefined when there is no such session.
+     */
+    sessionState(session: number): { busy: boolean; busySince?: number; waiting: boolean; failed: boolean; endedAt?: number } | undefined;
+    /** A session's last answer, as one line (empty when it has none): what a run that ended unheard said. */
+    lastAnswer(session: number): Promise<string>;
+    /**
      * Resolves once the app has opened: its sessions read back and the harness up. Extensions load before that, so what
      * they do with sessions as they start waits for it.
      */

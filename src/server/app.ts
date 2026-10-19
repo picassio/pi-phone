@@ -729,6 +729,8 @@ export class PocketApp {
                 return { code: result.value.exitCode ?? -1, stdout, stderr };
             },
             sessionTitle: (session) => this.sessionMeta(session as unknown as ConversationId)?.title,
+            sessionState: (session) => this.sessionState(session as unknown as ConversationId),
+            lastAnswer: (session) => this.lastAnswer(session as unknown as ConversationId),
             settleSession: async (session, reason, ifUnset = false) => {
                 if (this.sessionMeta(session as unknown as ConversationId) === undefined) {
                     return;
@@ -1251,20 +1253,43 @@ export class PocketApp {
                     return;
                 }
 
-                const view = await (await this.harness.conversation(id, context))?.context(context);
-                const answer = view?.messages.findLast((message) => message.role === "assistant");
-                const text =
-                    answer?.role === "assistant"
-                        ? answer.content
-                              .flatMap((part) => (part.type === "text" ? [part.text] : []))
-                              .join(" ")
-                              .replace(/\s+/g, " ")
-                              .trim()
-                        : "";
+                const text = await this.lastAnswer(id);
 
                 this.phoneEvents.add({ kind: "done", session: Number(id), title, text: text.slice(0, 300) || "Done." });
             })().catch((error: unknown) => this.log(`phone not told: ${describe(error)}`));
         });
+    }
+
+    /** Where a session's work is now (the Projects extension's checks on its task sessions). */
+    sessionState(id: ConversationId): { busy: boolean; busySince?: number; waiting: boolean; failed: boolean; endedAt?: number } | undefined {
+        if (this.#sessions[String(id)] === undefined) {
+            return undefined;
+        }
+
+        const busySince = this.#busySince.get(id);
+        const endedAt = this.#endedAt.get(id);
+
+        return {
+            busy: this.#busy.has(id),
+            ...(busySince === undefined ? {} : { busySince }),
+            waiting: this.approvals.all().some((approval) => this.rootOf(approval.conversationId) === id),
+            failed: this.#failed.has(id),
+            ...(endedAt === undefined ? {} : { endedAt }),
+        };
+    }
+
+    /** A session's last answer as one line, or empty. */
+    async lastAnswer(id: ConversationId): Promise<string> {
+        const view = await (await this.harness.conversation(id, context))?.context(context);
+        const answer = view?.messages.findLast((message) => message.role === "assistant");
+
+        return answer?.role === "assistant"
+            ? answer.content
+                  .flatMap((part) => (part.type === "text" ? [part.text] : []))
+                  .join(" ")
+                  .replace(/\s+/g, " ")
+                  .trim()
+            : "";
     }
 
     /** Session `id`'s view builds again: something it shows changed outside its documents. */

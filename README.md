@@ -49,7 +49,8 @@ No Termux, no laptop, no cloud VM.
   a task given to Pi runs in a task session of its own, in a git worktree on `task/PP-12`, at the place (the phone or a
   machine) with room, as many at once as each place allows. Its end is reported to the main session; you see the
   branch's diff and merge it from the task. Task and main sessions do not notify the phone when they finish; approvals
-  and failures do.
+  and failures do. The team checks on its task sessions each minute: an end it missed (a restart) is still reported,
+  a task whose session was deleted fails, and one working over 30 minutes is flagged to the main session.
   Pi has a tool for every action (`project_create`, `project_update`, `project_share`, `project_team`, `task_create`,
   `task_update`, `task_comment`, `task_run`, `task_diff`, `task_link_session`, …); deleting and merging ask you on a card.
 
