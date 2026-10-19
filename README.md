@@ -43,7 +43,10 @@ No Termux, no laptop, no cloud VM.
   Inbox → Planning → Assigned → In Progress → Testing → Review → Done, and Blocked. Only a person approves a task that
   needs it, and Pi never approves its own work. Shared with the people you choose. The Projects page (rail) shows a
   board in ACS's look: drag cards between states on a desktop; on a phone, swipe between states and long-press a card to
-  move it. A card opens its task: its state in a pill, a run card that says what to do (review and merge with the
+  move it. **List** groups tasks by state, assignee, priority, or label (a table on a desktop, rows on a phone);
+  **Timeline** shows open tasks with dates as bars from start to due (dashed without a start), by week or month, with
+  today marked; **Calendar** shows tasks by due date in a month (the month's days as a list on a phone), with the
+  unscheduled beside it, and on a desktop you drag a task to another day. A card opens its task: its state in a pill, a run card that says what to do (review and merge with the
   diff size, open the working session, run it), quiet property rows, the checklist with its progress, relations, the
   sessions that led or worked on it, comments (or all activity, a run in one line), and a comment box at the foot. A
   merge is kept on the run (who, when, the commit), so a merged branch is not offered again.

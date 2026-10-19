@@ -42,6 +42,14 @@ const RUN = {
 const ACTIVE = new Set(["queued", "starting", "running"]);
 const PHONE = matchMedia("(max-width: 760px)");
 const CURRENT = "pi-phone.projects.current";
+/** The view the page shows (kept on this device), and the views. */
+const VIEW = "pi-phone.projects.view";
+const VIEWS = [
+    ["board", "Board", "M4 4h4v16H4zM10 4h4v10h-4zM16 4h4v13h-4z"],
+    ["list", "List", "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"],
+    ["timeline", "Timeline", "M4 6h9M8 12h12M6 18h8"],
+    ["calendar", "Calendar", "M5 5h14v15H5zM5 10h14M9 3v4M15 3v4"],
+];
 
 /** "2026-10-20" as "Oct 20". */
 function dayLabel(day) {
@@ -139,6 +147,7 @@ export default function projects(pocket) {
         const [board, setBoard] = useState(null);
         const [problem, setProblem] = useState(null);
         const [picking, setPicking] = useState(false);
+        const [view, setView] = useState(() => localStorage.getItem(VIEW) ?? "board");
         const people = usePeople();
         const keyRef = useRef(key);
 
@@ -277,8 +286,443 @@ export default function projects(pocket) {
                 ${board?.lead && html`<a class="pj-chip pj-lead-chip" href=${`/s/${board.lead.session}`} title="The project's main session">${svg("M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z", 12)} Main session</a>`}
                 <span class="pj-chip quiet">${total} ${total === 1 ? "task" : "tasks"} · ${counts.done ?? 0} done</span>
             </div>
+            <div class="pj-views" role="tablist" aria-label="View">
+                ${VIEWS.map(
+                    ([id, label, path]) => html`<button
+                        role="tab"
+                        aria-selected=${view === id}
+                        class=${view === id ? "on" : ""}
+                        onClick=${() => {
+                            setView(id);
+                            localStorage.setItem(VIEW, id);
+                        }}
+                    >${svg(path, 14)}<span>${label}</span></button>`,
+                )}
+            </div>
             ${problem && html`<p class="pj-problem">${problem}</p>`}
-            ${board === null ? html`<${Loader} label="Opening the board" />` : html`<${Kanban} board=${board} people=${people} reload=${loadBoard} />`}
+            ${
+                board === null
+                    ? html`<${Loader} label="Opening the board" />`
+                    : view === "list"
+                      ? html`<${ListView} board=${board} people=${people} />`
+                      : view === "timeline"
+                        ? html`<${TimelineView} board=${board} people=${people} />`
+                        : view === "calendar"
+                          ? html`<${CalendarView} board=${board} />`
+                          : html`<${Kanban} board=${board} people=${people} reload=${loadBoard} />`
+            }
+        </div>`;
+    }
+
+    // ─── List, Timeline, Calendar ─────────────────────────────────────────────────
+
+    /** A day as the app keeps it ("2026-10-19"), from a Date in local time. */
+    const dayOf = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    /** A kept day as a Date at local midnight. */
+    const dateOf = (day) => {
+        const [year, month, date] = day.split("-").map(Number);
+
+        return new Date(year, month - 1, date);
+    };
+    const addDays = (date, days) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+    const daysBetween = (from, to) => Math.round((to - from) / 86_400_000);
+    const today = () => dateOf(dayOf(new Date()));
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    /** Monday 0 … Sunday 6. */
+    const weekday = (date) => (date.getDay() + 6) % 7;
+
+    /** A task's run, in a word and a color, for rows and chips; or null when it never ran or it is long over. */
+    const runWord = (task) => {
+        const run = task.run;
+
+        if (!run) {
+            return null;
+        }
+
+        if (run.state === "running" || run.state === "starting") {
+            return { text: "Working", tone: "var(--o-cyan)", live: true };
+        }
+
+        if (run.state === "queued") {
+            return { text: "Queued", tone: "var(--faint)" };
+        }
+
+        if (run.merged) {
+            return { text: "Merged", tone: "var(--ok)" };
+        }
+
+        if (run.state === "done" && task.state === "review") {
+            return { text: "To review", tone: "var(--accent)" };
+        }
+
+        if (run.state === "failed" || run.state === "stopped") {
+            return { text: RUN[run.state][0], tone: RUN[run.state][1] };
+        }
+
+        return null;
+    };
+    const progressBar = (task) =>
+        task.progress && html`<span class="pv-sub" title=${`${task.progress[0]} of ${task.progress[1]} done`}><span class="pv-bar"><i style=${`width:${Math.round((task.progress[0] / task.progress[1]) * 100)}%`}></i></span>${task.progress[0]}/${task.progress[1]}</span>`;
+    const dueChip = (task) => task.due && html`<span class=${`pv-due ${dueClass(task.due, task.state)}`}>${dayLabel(task.due)}</span>`;
+    const openTask = (ref) => pocket.openSheet("task", { task: ref });
+
+    /** Every task, grouped by state, assignee, priority, or label; a row each, a table on a desk. */
+    function ListView({ board, people }) {
+        const storeKey = "pi-phone.projects.list";
+        const [group, setGroup] = useState(() => localStorage.getItem(`${storeKey}.group`) ?? "state");
+        const [folded, setFolded] = useState(() => new Set(JSON.parse(localStorage.getItem(`${storeKey}.folded`) ?? '["state:done"]')));
+        const name = (assignee) => (assignee === null ? "Nobody" : assignee === "pi" ? "Pi" : (people.find((person) => person.id === assignee)?.name ?? "Someone"));
+        const order = (a, b) => b.priority - a.priority || a.number - b.number;
+        const groups = (() => {
+            const tasks = board.tasks;
+
+            if (group === "assignee") {
+                const keys = [...new Set(tasks.map((task) => task.assignee))].sort((a, b) => (a === null) - (b === null) || (a === "pi" ? -1 : b === "pi" ? 1 : name(a).localeCompare(name(b))));
+
+                return keys.map((key) => ({ key: `assignee:${key}`, label: name(key), mark: key === null ? null : avatar(key, people), tasks: tasks.filter((task) => task.assignee === key) }));
+            }
+
+            if (group === "priority") {
+                return [4, 3, 2, 1, 0].map((value) => ({ key: `priority:${value}`, label: value === 0 ? "No priority" : PRIORITIES[value], mark: value > 0 ? priority(value) : null, tasks: tasks.filter((task) => task.priority === value) }));
+            }
+
+            if (group === "label") {
+                const labels = [...new Set(tasks.flatMap((task) => task.labels))].sort();
+
+                return [
+                    ...labels.map((label) => ({ key: `label:${label}`, label, mark: null, tasks: tasks.filter((task) => task.labels.includes(label)) })),
+                    { key: "label:", label: "No label", mark: null, tasks: tasks.filter((task) => task.labels.length === 0) },
+                ];
+            }
+
+            return STATES.map((state) => ({ key: `state:${state.id}`, label: state.label, mark: html`<span class="pt-dot" style=${`--tone:${state.tone}`}></span>`, tasks: tasks.filter((task) => task.state === state.id) }));
+        })().filter((each) => each.tasks.length > 0);
+        const fold = (key) => {
+            const next = new Set(folded);
+
+            next.has(key) ? next.delete(key) : next.add(key);
+            setFolded(next);
+            localStorage.setItem(`${storeKey}.folded`, JSON.stringify([...next]));
+        };
+        const pick = (value) => {
+            setGroup(value);
+            localStorage.setItem(`${storeKey}.group`, value);
+        };
+
+        return html`<div class="pv pv-list">
+            <div class="pv-bar-top">
+                <span class="pv-hint">Group</span>
+                <span class="pt-seg">
+                    ${[
+                        ["state", "State"],
+                        ["assignee", "Assignee"],
+                        ["priority", "Priority"],
+                        ["label", "Label"],
+                    ].map(([value, label]) => html`<button class=${group === value ? "on" : ""} aria-pressed=${group === value} onClick=${() => pick(value)}>${label}</button>`)}
+                </span>
+                <span class="pj-sp"></span>
+                <span class="pv-hint pv-wide">By priority, then number</span>
+            </div>
+            ${board.tasks.length === 0 && html`<p class="pv-empty">No tasks yet. + Task adds one.</p>`}
+            <div class="pv-scroll">
+                <table class="pv-table">
+                    <thead>
+                        <tr><th>ID</th><th>Title</th><th>Priority</th><th>Assignee</th><th>Labels</th><th>Due</th><th>Run</th></tr>
+                    </thead>
+                    ${groups.map(
+                        (each) => html`<tbody>
+                            <tr class="pv-group" onClick=${() => fold(each.key)}>
+                                <td colspan="7">
+                                    <span class="pv-group-in">${svg(folded.has(each.key) ? CHEVRON : "M6 9l6 6 6-6", 12)}${each.mark}${each.label}<span class="pt-n">${each.tasks.length}</span></span>
+                                </td>
+                            </tr>
+                            ${
+                                !folded.has(each.key) &&
+                                [...each.tasks].sort(order).map((task) => {
+                                    const run = runWord(task);
+
+                                    return html`<tr class="pv-task" tabindex="0" onClick=${() => openTask(task.ref)} onKeyDown=${(event) => event.key === "Enter" && openTask(task.ref)}>
+                                        <td class="pv-ref">${task.ref}</td>
+                                        <td class="pv-title">${task.type !== "task" && html`${typeChip(task.type)} `}${task.title}${task.state === "blocked" && html` <span class="pv-blocked">Blocked</span>`}</td>
+                                        <td>${task.priority > 0 ? priority(task.priority) : html`<span class="pv-none">—</span>`}</td>
+                                        <td><span class="pv-who">${avatar(task.assignee, people)}${name(task.assignee)}</span></td>
+                                        <td>${task.labels.map((label) => html`<span class="pv-label">${label}</span>`)}</td>
+                                        <td>${dueChip(task) || html`<span class="pv-none">—</span>`}</td>
+                                        <td>${run ? html`<span class="pv-run" style=${`--tone:${run.tone}`}><i class=${run.live ? "live" : ""}></i>${run.text}</span>` : progressBar(task)}</td>
+                                    </tr>`;
+                                })
+                            }
+                        </tbody>`,
+                    )}
+                </table>
+                <div class="pv-rows">
+                    ${groups.map(
+                        (each) => html`<button class="pv-row-group" aria-expanded=${!folded.has(each.key)} onClick=${() => fold(each.key)}>
+                                ${svg(folded.has(each.key) ? CHEVRON : "M6 9l6 6 6-6", 12)}${each.mark}${each.label}<span class="pt-n">${each.tasks.length}</span>
+                            </button>
+                            ${
+                                !folded.has(each.key) &&
+                                [...each.tasks].sort(order).map((task) => {
+                                    const run = runWord(task);
+
+                                    return html`<button class="pv-row" onClick=${() => openTask(task.ref)}>
+                                        <span class="pv-row-prio">${task.priority > 0 ? priority(task.priority) : null}</span>
+                                        <span class="pv-row-main">
+                                            <span class="pv-row-title">${task.title}</span>
+                                            <span class="pv-meta">
+                                                <span class="pv-ref">${task.ref}</span>
+                                                ${group !== "state" && html`<span class="pt-dot" style=${`--tone:${STATE[task.state].tone}`} title=${STATE[task.state].label}></span>`}
+                                                ${dueChip(task)}${progressBar(task)}
+                                                ${run && html`<span class="pv-run" style=${`--tone:${run.tone}`}><i class=${run.live ? "live" : ""}></i>${run.text}</span>`}
+                                            </span>
+                                        </span>
+                                        ${avatar(task.assignee, people)}
+                                    </button>`;
+                                })
+                            }`,
+                    )}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    /** Tasks with dates on a time line, by state: a bar from start to due (dashed from when it was made, without a start). */
+    function TimelineView({ board, people }) {
+        const [zoom, setZoom] = useState(() => localStorage.getItem("pi-phone.projects.zoom") ?? "week");
+        const scroller = useRef(null);
+        const now = today();
+        const width = zoom === "week" ? 32 : 14;
+        const dated = board.tasks.filter((task) => task.state !== "done" && (task.due || task.start));
+        const undated = board.tasks.filter((task) => task.state !== "done" && !task.due && !task.start).length;
+        const spanOf = (task) => {
+            const made = dateOf(dayOf(new Date(task.createdAt)));
+            const start = task.start ? dateOf(task.start) : null;
+            const due = task.due ? dateOf(task.due) : null;
+            // No start: from when it was made, but not after its due day. No due: one day.
+            const from = start ?? (due && made > due ? due : made);
+            const to = due ?? from;
+
+            return { from, to: to < from ? from : to, inferred: start === null };
+        };
+        const spans = new Map(dated.map((task) => [task.ref, spanOf(task)]));
+        const first = addDays([now, ...[...spans.values()].map((span) => span.from)].reduce((a, b) => (b < a ? b : a)), -3);
+        const last = addDays([addDays(now, zoom === "week" ? 21 : 60), ...[...spans.values()].map((span) => span.to)].reduce((a, b) => (b > a ? b : a)), 3);
+        const days = Array.from({ length: daysBetween(first, last) + 1 }, (_each, index) => addDays(first, index));
+        const x = (date) => daysBetween(first, date) * width;
+        // The months the days span: a stretch each, whose name stays in view while its days scroll by.
+        const months = days.reduce((all, date) => {
+            const last = all.at(-1);
+
+            if (last && last.month === date.getMonth() && last.year === date.getFullYear()) {
+                last.days += 1;
+            } else {
+                all.push({ month: date.getMonth(), year: date.getFullYear(), days: 1 });
+            }
+
+            return all;
+        }, []);
+        const groups = STATES.filter((state) => state.id !== "done")
+            .map((state) => ({ state, tasks: dated.filter((task) => task.state === state.id).sort((a, b) => spans.get(a.ref).from - spans.get(b.ref).from) }))
+            .filter((each) => each.tasks.length > 0);
+        const toToday = (smooth) => {
+            const box = scroller.current;
+
+            if (box) {
+                box.scrollTo({ left: Math.max(0, x(now) - 2 * width), behavior: smooth ? "smooth" : "auto" });
+            }
+        };
+
+        // Open at today, with two days before it in view.
+        useEffect(() => {
+            toToday(false);
+            requestAnimationFrame(() => toToday(false));
+        }, [zoom, board.project.key]);
+
+        return html`<div class="pv pv-timeline">
+            <div class="pv-bar-top">
+                <span class="pt-seg">
+                    ${[
+                        ["week", "Week"],
+                        ["month", "Month"],
+                    ].map(
+                        ([value, label]) => html`<button
+                            class=${zoom === value ? "on" : ""}
+                            aria-pressed=${zoom === value}
+                            onClick=${() => {
+                                setZoom(value);
+                                localStorage.setItem("pi-phone.projects.zoom", value);
+                            }}
+                        >${label}</button>`,
+                    )}
+                </span>
+                <span class="pj-sp"></span>
+                <span class="pv-hint pv-wide">${undated > 0 ? `${undated} without dates · ` : ""}Dashed: no start date</span>
+                <button class="pv-btn" onClick=${() => toToday(true)}>Today</button>
+            </div>
+            ${
+                groups.length === 0
+                    ? html`<p class="pv-empty">No open task has a date yet. Give one a start or due date in its sheet${undated > 0 ? ` (${undated} without dates)` : ""}.</p>`
+                    : html`<div class="pv-tl-scroll" ref=${scroller}>
+                          <div class="pv-tl">
+                              <div class="pv-tl-labels">
+                                  <div class="pv-tl-corner">Task</div>
+                                  ${groups.map(
+                                      (each) => html`<div class="pv-tl-group"><span class="pt-dot" style=${`--tone:${each.state.tone}`}></span>${each.state.label}<span class="pt-n">${each.tasks.length}</span></div>
+                                          ${each.tasks.map((task) => html`<button class="pv-tl-label" onClick=${() => openTask(task.ref)}>${avatar(task.assignee, people)}<span>${task.title}</span></button>`)}`,
+                                  )}
+                              </div>
+                              <div class="pv-tl-track" style=${`width:${days.length * width}px`}>
+                                  <div class="pv-tl-head">
+                                      <div class="pv-tl-months">
+                                          ${months.map(
+                                              (each) => html`<div class="pv-tl-month" style=${`width:${each.days * width}px`}><span>${MONTHS[each.month]}${each.year !== now.getFullYear() || each === months[0] ? ` ${each.year}` : ""}</span></div>`,
+                                          )}
+                                      </div>
+                                      <div class="pv-tl-days">
+                                          ${days.map(
+                                              (date) => html`<div class=${`pv-tl-day ${weekday(date) === 0 ? "mon" : ""} ${daysBetween(date, now) === 0 ? "today" : ""}`} style=${`width:${width}px`}>
+                                                  ${zoom === "week" && html`<span>${"MTWTFSS"[weekday(date)]}</span>`}
+                                                  <b>${zoom === "week" || weekday(date) === 0 ? date.getDate() : ""}</b>
+                                              </div>`,
+                                          )}
+                                      </div>
+                                  </div>
+                                  ${days.filter((date) => weekday(date) >= 5).map((date) => html`<div class="pv-tl-weekend" style=${`left:${x(date)}px;width:${width}px`}></div>`)}
+                                  <div class="pv-tl-today" style=${`left:${x(now) + width / 2 - 1}px`}></div>
+                                  ${groups.map(
+                                      (each) => html`<div class="pv-tl-gap"></div>
+                                          ${each.tasks.map((task) => {
+                                              const span = spans.get(task.ref);
+                                              const run = runWord(task);
+
+                                              return html`<div class="pv-tl-row">
+                                                  <button
+                                                      class=${`pv-tl-bar ${span.inferred ? "inferred" : ""}`}
+                                                      style=${`left:${x(span.from) + 2}px;width:${Math.max(width - 4, (daysBetween(span.from, span.to) + 1) * width - 4)}px;--tone:${each.state.tone}`}
+                                                      title=${`${task.ref}: ${task.title}, ${span.inferred ? "made" : "from"} ${dayLabel(dayOf(span.from))}${task.due ? ` → due ${dayLabel(task.due)}` : ""}`}
+                                                      onClick=${() => openTask(task.ref)}
+                                                  >
+                                                      ${run?.live && html`<i class="live"></i>`}<span class="pv-ref">${task.ref}</span>${zoom === "week" && html`<span class="pv-tl-name">${task.title}</span>`}
+                                                  </button>
+                                              </div>`;
+                                          })}`,
+                                  )}
+                              </div>
+                          </div>
+                      </div>`
+            }
+        </div>`;
+    }
+
+    /** Tasks by due date: a month on a desk, the month's days with work as a list on a phone; and what has no date. */
+    function CalendarView({ board }) {
+        const now = today();
+        const [month, setMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
+        const [over, setOver] = useState(null);
+        const open = board.tasks.filter((task) => task.state !== "done" || task.due);
+        const byDay = new Map();
+
+        for (const task of open) {
+            if (task.due) {
+                byDay.set(task.due, [...(byDay.get(task.due) ?? []), task]);
+            }
+        }
+
+        const unscheduled = board.tasks.filter((task) => !task.due && task.state !== "done");
+        const gridStart = addDays(month, -weekday(month));
+        const cells = Array.from({ length: 42 }, (_each, index) => addDays(gridStart, index));
+        const weeks = cells[35].getMonth() !== month.getMonth() ? 5 : 6;
+        const shift = (by) => setMonth(new Date(month.getFullYear(), month.getMonth() + by, 1));
+        const drop = (event, day) => {
+            event.preventDefault();
+            setOver(null);
+
+            const ref = event.dataTransfer.getData("text/x-task");
+
+            if (ref) {
+                patchTask(ref, { due: day }).then(() => pocket.notify("info", `${ref} is due ${day === null ? "on no day" : dayLabel(day)}.`), failed);
+            }
+        };
+        const chip = (task) => {
+            const run = runWord(task);
+
+            return html`<button
+                class=${`pv-chip ${task.state === "done" ? "done" : ""}`}
+                style=${`--tone:${STATE[task.state].tone}`}
+                draggable="true"
+                title=${`${task.ref}: ${task.title} (${STATE[task.state].label})`}
+                onDragStart=${(event) => {
+                    event.dataTransfer.setData("text/x-task", task.ref);
+                    event.dataTransfer.effectAllowed = "move";
+                }}
+                onClick=${() => openTask(task.ref)}
+            >
+                ${run?.live && html`<i class="live"></i>`}<span class="pv-chip-text"><span class="pv-ref">${task.ref}</span> ${task.title}</span>
+            </button>`;
+        };
+        const target = (day) => ({
+            onDragOver: (event) => {
+                event.preventDefault();
+                setOver(day);
+            },
+            onDragLeave: () => setOver((current) => (current === day ? null : current)),
+            onDrop: (event) => drop(event, day),
+        });
+        const agenda = cells
+            .filter((date) => date.getMonth() === month.getMonth())
+            .filter((date) => byDay.has(dayOf(date)) || daysBetween(date, now) === 0);
+
+        return html`<div class="pv pv-calendar">
+            <div class="pv-bar-top">
+                <button class="pv-btn" aria-label="Previous month" onClick=${() => shift(-1)}>${svg("M15 6l-6 6 6 6", 14)}</button>
+                <strong class="pv-month">${MONTHS[month.getMonth()]} ${month.getFullYear()}</strong>
+                <button class="pv-btn" aria-label="Next month" onClick=${() => shift(1)}>${svg(CHEVRON, 14)}</button>
+                ${(month.getMonth() !== now.getMonth() || month.getFullYear() !== now.getFullYear()) && html`<button class="pv-btn" onClick=${() => setMonth(new Date(now.getFullYear(), now.getMonth(), 1))}>Today</button>`}
+                <span class="pj-sp"></span>
+                <span class="pv-hint pv-wide">By due date · drag a task to another day</span>
+            </div>
+            <div class="pv-cal">
+                <div class="pv-cal-main">
+                    <div class="pv-grid" style=${`--weeks:${weeks}`}>
+                        ${WEEKDAYS.map((name) => html`<div class="pv-wd">${name}</div>`)}
+                        ${cells.slice(0, weeks * 7).map((date) => {
+                            const day = dayOf(date);
+                            const items = byDay.get(day) ?? [];
+
+                            return html`<div
+                                class=${`pv-cell ${date.getMonth() !== month.getMonth() ? "out" : ""} ${daysBetween(date, now) === 0 ? "today" : ""} ${over === day ? "over" : ""}`}
+                                ...${target(day)}
+                            >
+                                <span class="pv-d">${date.getDate()}</span>
+                                ${items.slice(0, 3).map(chip)}
+                                ${items.length > 3 && html`<button class="pv-more" onClick=${() => openTask(items[3].ref)}>+${items.length - 3} more</button>`}
+                            </div>`;
+                        })}
+                    </div>
+                    <div class="pv-agenda">
+                        ${agenda.length === 0 && html`<p class="pv-empty">Nothing is due in ${MONTHS[month.getMonth()]}.</p>`}
+                        ${agenda.map((date) => {
+                            const day = dayOf(date);
+
+                            return html`<div class=${`pv-aday ${daysBetween(date, now) === 0 ? "today" : ""}`}>
+                                <h4>${WEEKDAYS[weekday(date)]} ${date.getDate()} ${MONTHS[date.getMonth()].slice(0, 3)}${daysBetween(date, now) === 0 ? " · today" : ""}</h4>
+                                ${(byDay.get(day) ?? []).map(chip)}
+                                ${!byDay.has(day) && html`<span class="pv-hint">Nothing due</span>`}
+                            </div>`;
+                        })}
+                    </div>
+                </div>
+                <div class=${`pv-panel ${over === "none" ? "over" : ""}`}
+                    onDragOver=${(event) => (event.preventDefault(), setOver("none"))}
+                    onDragLeave=${() => setOver((current) => (current === "none" ? null : current))}
+                    onDrop=${(event) => drop(event, null)}
+                >
+                    <h3>Unscheduled <span class="pt-n">${unscheduled.length}</span></h3>
+                    ${unscheduled.map(chip)}
+                    <span class="pv-hint">${unscheduled.length === 0 ? "Every open task has a due date." : "Drag one onto a day to give it a due date, or set it in its sheet."}</span>
+                </div>
+            </div>
         </div>`;
     }
 
