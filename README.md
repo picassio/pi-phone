@@ -32,6 +32,11 @@ No Termux, no laptop, no cloud VM.
   goal it checks.
 - **Other sessions.** Pi can list, read, start, message, wait for, and stop the app's other sessions, as the person it
   works for.
+- **Projects** (an extension, off until you turn it on in Settings › Extensions): boards of tasks that keep work from
+  being forgotten. Pi asks once before it tracks a session's work on a board ("Track this on the board?"), then keeps
+  its tasks current with `task_create`, `task_update`, and `task_comment`. Epics, Stories, Tasks, Bugs, and Sub-tasks;
+  Inbox → Planning → Assigned → In Progress → Testing → Review → Done, and Blocked. Only a person approves a task that
+  needs it, and Pi never approves its own work. Shared with the people you choose. The board screens come next.
 
 ### Web, documents, and answers
 - **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for
@@ -167,6 +172,8 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   `third_party/effective-html/`.
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT or Unlicense) and **[fd](https://github.com/sharkdp/fd)**
   (MIT or Apache-2.0): installed on machines from their own releases.
+- **agent-board** and **ACS (agent-crew)** by Picassio (MIT): the task types, states, and task
+  protocol of Projects, and the board's design.
 - **[pi-web-access](https://github.com/nicobailon/pi-web-access)** by Nico Bailon (MIT): `web_search` and `fetch_content`,
   and the 37 search providers ported from it to `src/server/web/providers/`.
 - **[markit](https://github.com/shift-labs-ai/markit)** by Shift Labs (MIT): documents to Markdown, through our fork

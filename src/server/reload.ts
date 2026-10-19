@@ -62,6 +62,7 @@ const ORDER = [
     "openui.ts",
     "machines.ts",
     "para.ts",
+    "projects.ts",
     "memory.ts",
     "pip.ts",
     "triggers.ts",
@@ -78,7 +79,7 @@ export const BUILT_IN_MODULES: ReadonlySet<string> = new Set(
  */
 const REQUIRED = new Set(["prompt.ts", "secrets.ts"]);
 /** Built-in modules that stay off until the owner turns them on. Drop-ins all do. */
-const OFF_BY_DEFAULT = new Set(["guard.ts", "agent-teams.ts"]);
+const OFF_BY_DEFAULT = new Set(["guard.ts", "agent-teams.ts", "projects.ts"]);
 const TITLES: Record<string, string> = {
     "prompt.ts": "System prompt",
     "artifacts.ts": "Artifacts",
@@ -98,6 +99,7 @@ const TITLES: Record<string, string> = {
     "openui.ts": "Interactive answers",
     "machines.ts": "Machine tools",
     "para.ts": "Wiki (PARA)",
+    "projects.ts": "Projects",
     "memory.ts": "Memory",
     "pip.ts": "PiP",
     "triggers.ts": "Triggers",
@@ -160,6 +162,14 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "pi_session_import",
     "continue_in_pi",
     "pi_bring_back",
+    "project_list",
+    "project_create",
+    "task_list",
+    "task_get",
+    "task_create",
+    "task_update",
+    "task_comment",
+    "board_mode",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */

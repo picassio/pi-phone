@@ -500,6 +500,24 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   session menu, the launcher, and a connected machine's row.
 - **Self-hosting**: the agent works on a clone of this repo in `home/projects`, pushes, CI publishes a release, and
   the app updates from it (section 5).
+- **Projects** (extension `extensions/projects.ts`, off by default; the store is `projects.ts`): project boards whose
+  tasks people and Pi share. Tables `pocket_projects`, `pocket_project_members`, `pocket_tasks`, `pocket_task_links`,
+  `pocket_task_comments`, `pocket_task_sessions`, `pocket_task_activity`, `pocket_board_sessions` in `pocket.sqlite`
+  (so backups hold them). A project has a key (`PP`); tasks are numbered in it (`PP-12`).
+  - agent-board's five types and hierarchy (Epic → Story/Task/Bug; Story → Task/Bug/Sub-task; Task, Bug → Sub-task)
+    and its eight states. The store keeps what must hold whatever a model does: who sees a project (the owner all;
+    others the ones they own or are members of; viewers only read), the hierarchy (no circles), Done only after a
+    person where `operatorReview` is set, after a Bug's `fixVerified`, and after a parent's children; Pi never moves
+    to Done a task its own session set In Progress (that session is the task's `worker`), and never lifts
+    `operatorReview`. `blocks` links show as "waiting on" (`waitingOn`) and never move a task or start work: the
+    project's main session orchestrates (owner's decision of 2026-10-19), not a daemon.
+  - **Board mode**: Pi uses a board only in sessions where the person said yes. `board_mode` asks once on an inline
+    card (an approval with `tool: "board_mode"`, drawn by `BoardModeCard`); a no is kept and Pi does not ask again;
+    `PUT /api/x/projects/board-mode/<session>` is the session's switch. Every other board tool except
+    `project_list` refuses while it is off. Pi acts as the person it works for (`requesterOf`).
+  - Routes under `/api/x/projects/` (`projects`, `projects/:key`, `projects/:key/tasks`, `projects/:key/members`,
+    `tasks/:ref`, `tasks/:ref/comments`, `tasks/:ref/links`, `board-mode/:conversation`); changes are sent to
+    open boards as the module's `changed` event. Tests: `test/projects.test.ts`.
 
 ## 5. Build
 

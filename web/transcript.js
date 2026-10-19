@@ -1399,6 +1399,37 @@ function SecretRequestCard({ approval }) {
     </div>`;
 }
 
+/**
+ * Pi's question before it tracks a session's work on a project board (the Projects extension's `board_mode`): yes turns
+ * board mode on here, no keeps the board out of this session (its menu can turn it on later).
+ */
+function BoardModeCard({ approval }) {
+    const [busy, setBusy] = useState(false);
+    const answer = (allow) => {
+        setBusy(true);
+        attempt(() => actions.approve(approval.id, allow)).finally(() => setBusy(false));
+    };
+
+    return html`<div class="approval" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="board" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">Track this on the board?</span>
+                <span class="approval-reason">${approval.reason}</span>
+            </div>
+        </div>
+        <div class="muted small">${approval.subject}. Yes turns board mode on for this session; the session menu turns it off.</div>
+        ${
+            canSteer()
+                ? html`<div class="approval-actions">
+                      <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>Not now</button>
+                      <button class="button primary" disabled=${busy} onClick=${() => answer(true)}>Yes, use the board</button>
+                  </div>`
+                : html`<div class="muted small">Waiting for someone who can steer to answer.</div>`
+        }
+    </div>`;
+}
+
 function ApprovalCard({ approval }) {
     const { me, server } = store.state;
     const [busy, setBusy] = useState(false);
@@ -1409,6 +1440,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "interview") {
         return html`<${InterviewCard} approval=${approval} />`;
+    }
+
+    if (approval.tool === "board_mode") {
+        return html`<${BoardModeCard} approval=${approval} />`;
     }
 
     const answer = (allow) => {

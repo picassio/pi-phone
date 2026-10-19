@@ -87,6 +87,22 @@ export function describeCall(call) {
         }
         case "file_to_markdown":
             return { icon: "▤", label: "As Markdown", subject: args.path ?? "", mono: true };
+        case "board_mode":
+            return { icon: "▦", label: "Asks to use the board", subject: `${args.project ?? ""}`, mono: true };
+        case "project_list":
+            return { icon: "▦", label: "Projects", subject: "the boards Pi may use" };
+        case "project_create":
+            return { icon: "▦", label: "Makes project", subject: `${args.key ?? ""} · ${args.name ?? ""}` };
+        case "task_list":
+            return { icon: "▦", label: "Tasks", subject: [args.project, args.state, args.text].filter(Boolean).join(" · ") || "on the board" };
+        case "task_get":
+            return { icon: "▦", label: "Reads task", subject: `${args.task ?? ""}`, mono: true };
+        case "task_create":
+            return { icon: "▦", label: "Adds task", subject: `${args.title ?? ""}` };
+        case "task_update":
+            return { icon: "▦", label: "Updates task", subject: `${args.task ?? ""}${args.state ? ` → ${args.state}` : ""}`, mono: true };
+        case "task_comment":
+            return { icon: "▦", label: "Comments on", subject: `${args.task ?? ""}`, mono: true };
         case "secrets_list":
             return { icon: "⚿", label: "Secrets", subject: "the names Pi may use here" };
         case "secret_request":

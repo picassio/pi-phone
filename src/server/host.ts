@@ -195,6 +195,10 @@ export interface PocketHost {
     modelProblem(ref: ModelRef, fresh?: boolean): Promise<string | undefined>;
     /** Who Pi works for in a conversation now: whose message led to its current work. */
     requesterOf(conversationId: ConversationId): string | undefined;
+    /** Everyone in the app now, by id, name, and role (the Projects extension's sharing). */
+    people(): { id: string; name: string; role: Role }[];
+    /** Whether a person may see a session, as the app decides it for them (`canSee`). */
+    canSee(userId: string, conversationId: ConversationId): boolean;
     /** Report something odd to the log and the connected clients: with `conversationId`, to that session's tabs only. */
     notice(
         level: "info" | "warning" | "error",
