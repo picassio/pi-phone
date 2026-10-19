@@ -808,6 +808,20 @@ export function SessionList({ compact = false }) {
         setSelected(new Set());
     };
 
+    // A working session shows how long it has worked: while one does, the list draws again each second.
+    const [, setTick] = useState(0);
+    const working = sessions.some((session) => session.busy && session.busySince);
+
+    useEffect(() => {
+        if (!working) {
+            return undefined;
+        }
+
+        const timer = setInterval(() => setTick((tick) => tick + 1), 1000);
+
+        return () => clearInterval(timer);
+    }, [working]);
+
     const setScope = (next) => {
         setScopeState(next);
         localStorage.setItem(SCOPE_KEY, next);
