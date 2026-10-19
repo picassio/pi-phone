@@ -23,6 +23,7 @@ import {
     origin,
     parseCookies,
     quickTunnelHost,
+    setAuthCookie,
 } from "../auth.ts";
 import type { User } from "../config.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
@@ -193,6 +194,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
         if (first === "users" && second === undefined && method === "GET") {
             return json(response, 200, app.people(user));
+        }
+
+        // Settings › People's "Sign out every device": this device stays signed in, with the new token as its cookie.
+        if (first === "sign-out-everywhere" && second === undefined && method === "POST") {
+            setAuthCookie(request, response, app.signOutEverywhere(user));
+
+            return json(response, 200, { ok: true });
         }
 
         if (first === "users" && second !== undefined && third === "remove" && method === "POST") {

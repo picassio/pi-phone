@@ -1,10 +1,22 @@
 // The sign-in screen, for a browser that is not signed in.
 
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { html } from "./ui.js";
 
 export function SignIn() {
     const [value, setValue] = useState("");
+
+    // In the pi-phone app, the shell signs in with the owner token as it is now (MainActivity's bridge): after "Sign out
+    // every device", the old one in this WebView's cookie no longer works.
+    // Once a minute at most: a sign-in that fails lands here again, and must not loop.
+    useEffect(() => {
+        const last = Number(sessionStorage.getItem("pi-phone.app-sign-in") ?? 0);
+
+        if (window.PiPhoneApp?.signIn && Date.now() - last > 60_000) {
+            sessionStorage.setItem("pi-phone.app-sign-in", String(Date.now()));
+            window.PiPhoneApp.signIn();
+        }
+    }, []);
 
     const go = () => {
         const text = value.trim();

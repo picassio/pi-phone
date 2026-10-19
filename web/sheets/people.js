@@ -389,8 +389,50 @@ function PeopleList() {
     </div>`;
 }
 
+/**
+ * The owner's "Sign out every device" (`App.signOutEverywhere`): a new owner token, so every other device signed in as
+ * the owner (a browser, a laptop, a link not used yet) signs in again. This one stays signed in; the app on the phone
+ * signs in again by itself. Invited people are removed one by one, above.
+ */
+function SignOutEverywhere() {
+    const [busy, setBusy] = useState(false);
+    const run = () =>
+        confirm(
+            "Sign out every device signed in as you?\n\nOthers (a laptop's browser, a sign-in link not used yet) need a new link from \"Sign in as me\". This device stays signed in, and the app on the phone signs in again by itself. Invited people are not affected.",
+        ) &&
+        attempt(async () => {
+            setBusy(true);
+
+            try {
+                await api("sign-out-everywhere", {});
+                notify("info", "Every other device is signed out.");
+                // This tab's connection closed with the others: start again with the new sign-in.
+                setTimeout(() => location.reload(), 800);
+            } finally {
+                setBusy(false);
+            }
+        });
+
+    return html`<div class="group">
+        <div class="group-title">Your devices</div>
+        <div class="provider">
+            <div>
+                <div>Sign out every device</div>
+                <div class="muted small">
+                    For a lost device or a sign-in link that got out: every device signed in as you signs out, except this
+                    one and the app on the phone.
+                </div>
+            </div>
+            <div class="provider-actions">
+                <button class="button small ghost" disabled=${busy} onClick=${run}>${busy ? "Signing out…" : "Sign out all"}</button>
+            </div>
+        </div>
+    </div>`;
+}
+
 export function PeopleSheet() {
     const canInvite = canSteer() && !scoped();
+    const owner = store.state.me?.role === "owner";
 
     return html`<${Sheet} title="People" onClose=${closeSheet}>
         ${
@@ -400,5 +442,6 @@ export function PeopleSheet() {
             </button>`
         }
         <${PeopleList} />
+        ${owner && html`<${SignOutEverywhere} />`}
     <//>`;
 }

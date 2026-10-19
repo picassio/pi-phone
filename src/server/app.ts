@@ -2375,6 +2375,32 @@ export class PocketApp {
     }
 
     /**
+     * Sign out every device signed in as the owner: a new owner token (`Config.rotateOwnerToken`, which also drops owner
+     * invites not yet used), and every owner tab closed now. The app on the phone signs in again by itself (it reads the
+     * token from config.json); the device that asked gets the new token as its cookie (`/api/sign-out-everywhere`).
+     * Invited people stay: the owner removes them one by one. Returns the new token, for that cookie only.
+     */
+    signOutEverywhere(owner: User): string {
+        if (owner.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        const token = this.config.rotateOwnerToken();
+
+        for (const client of [...this.#clients]) {
+            if (client.user.role !== "owner") {
+                continue;
+            }
+
+            client.send("closing", {});
+            this.detach(client);
+            client.close?.();
+        }
+
+        return token;
+    }
+
+    /**
      * How other devices reach this server, from the launcher. People who signed in through another Cloudflare quick
      * tunnel can never sign in again (its address is gone, and their cookie works only there), so they are removed.
      */

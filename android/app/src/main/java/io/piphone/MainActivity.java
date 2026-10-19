@@ -81,6 +81,17 @@ public final class MainActivity extends Activity {
 
     /** What the web app may ask of the shell. */
     private final class Bridge {
+        /** Sign in again with the owner token as config.json has it now: after the owner signed out every device. */
+        @JavascriptInterface
+        public void signIn() {
+            try {
+                String url = BASE + "/login?token=" + Uri.encode(PiService.ownerToken(MainActivity.this));
+                runOnUiThread(() -> web.loadUrl(url));
+            } catch (Exception e) {
+                runOnUiThread(() -> failure("Cannot sign in", e.toString()));
+            }
+        }
+
         @JavascriptInterface
         public void checkForUpdates() {
             runOnUiThread(() -> MainActivity.this.checkForUpdates(true));

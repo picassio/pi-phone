@@ -957,6 +957,44 @@ test("the owner signs another device in as the owner: owner only, once, no one n
     }
 });
 
+test("Sign out every device: owner only; a new owner token, the old one refused, the asking device kept; guests stay", async () => {
+    const { createServer } = await import("node:http");
+    const { createHandler } = await import("../src/server/http.ts");
+    const server = createServer(
+        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
+    );
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const call = (token: string, path: string, method = "GET") =>
+        fetch(`${base}/api/${path}`, {
+            method,
+            headers: { authorization: `Bearer ${token}`, "x-pocket": "1", "content-type": "application/json" },
+            ...(method === "POST" ? { body: "{}" } : {}),
+        });
+    const guest = app.config.addUser("Gina", "guest");
+    const old = app.config.ownerToken;
+
+    try {
+        assert.equal((await call(guest.token, "sign-out-everywhere", "POST")).status, 403, "only the owner");
+        assert.equal(app.config.ownerToken, old);
+
+        const answer = await call(old, "sign-out-everywhere", "POST");
+        const cookie = /pocket_auth=([^;]+)/.exec(answer.headers.get("set-cookie") ?? "")?.[1];
+
+        assert.equal(answer.status, 200);
+        assert.notEqual(app.config.ownerToken, old, "a new owner token");
+        assert.equal(decodeURIComponent(cookie ?? ""), app.config.ownerToken, "the asking device has it as its cookie");
+        assert.equal((await call(old, "me")).status, 401, "every other device is signed out");
+        assert.equal((await call(app.config.ownerToken, "me")).status, 200);
+        assert.equal((await call(guest.token, "me")).status, 200, "invited people stay");
+    } finally {
+        app.config.removeUser(guest.user.id);
+        server.closeAllConnections();
+        server.close();
+    }
+});
+
 test("an invite lasts as long as asked (an owner's always 15 minutes), outlives a restart, and ends when its maker moves on", async () => {
     const { createServer } = await import("node:http");
     const { createHandler } = await import("../src/server/http.ts");

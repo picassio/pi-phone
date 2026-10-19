@@ -123,6 +123,12 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   - **Moving in:** keys from before (`~/.ssh/keys/<id>`) move in once at startup (`SshKeys.open`). Each must derive
     its public key, is stored, then its files are deleted; a mismatch stays and shows as its row's problem.
   - Each machine is assigned one key (Machines, next).
+- **Sign out every device** (Settings › People, owner only; `App.signOutEverywhere`, `POST /api/sign-out-everywhere`):
+  a new owner token (`Config.rotateOwnerToken`, which drops unused owner invites too), every owner tab closed. The device
+  that asked gets the new token as its cookie and reloads; the app on the phone signs in again by itself (its sign-in
+  screen calls the bridge's `signIn()`, which loads `/login?token=` with config.json's token, at most once a minute);
+  PiService reads the token afresh for every call. Invited people stay. Devices are not listed yet: one token per person
+  (wiki: pi-phone-sign-in-management).
 - **Choice** (`web/ui.js`): the sheets' dropdowns (Web access, Dictation, a machine's key, Ports) in the app's own
   style, the model and branch menus' `.pop-menu` rows, not the system's `<select>`: fixed to the screen under its field (over
   it with too little room), closed by a tap elsewhere, a scroll, a resize, or Escape. **Settings by link:** `/?sheet=<name>`
