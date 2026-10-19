@@ -2,7 +2,7 @@
 // sign-in, a key (kept in Settings › Secrets), or an address — with a test search. Off until a provider is picked.
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet, openSheet } from "../store.js";
-import { html, Loader, Sheet } from "../ui.js";
+import { Choice, html, Loader, Sheet } from "../ui.js";
 
 function KeyField({ provider, onSaved }) {
     const [value, setValue] = useState("");
@@ -84,8 +84,8 @@ export function WebAccessSheet() {
 
     return html`<${Sheet} title="Web access" onClose=${closeSheet}>
         <p class="muted small">
-            The search provider Pi's <span class="mono">web_search</span> uses. Pi reads pages, documents, and GitHub with
-            <span class="mono">fetch_content</span> without one. Model providers use your sign-in from Settings › Providers;
+            The search provider Pi's <span class="mono">web_search</span> uses. Pi reads pages, documents, and GitHub
+            with <span class="mono">fetch_content</span> without one. Model providers use your sign-in from Settings › Providers;
             the others use a key kept in Settings › Secrets.
         </p>
         ${!state && html`<${Loader} label="Loading providers" />`}
@@ -93,14 +93,19 @@ export function WebAccessSheet() {
             state &&
             html`<div class="field">
                 <div class="label">Search provider</div>
-                <select value=${state.provider ?? ""} onChange=${(event) => pick(event.currentTarget.value)}>
-                    <option value="">Off: no web search</option>
-                    ${state.providers.map(
-                        (provider) => html`<option value=${provider.id}>
-                            ${provider.name}${provider.missing ? " · not set up" : ""}${provider.price ? ` · ${provider.price}` : ""}
-                        </option>`,
-                    )}
-                </select>
+                <${Choice}
+                    label="Search provider"
+                    value=${state.provider ?? ""}
+                    options=${[
+                        { value: "", label: "Off: no web search" },
+                        ...state.providers.map((provider) => ({
+                            value: provider.id,
+                            label: provider.name,
+                            detail: [provider.missing ? "not set up" : "", provider.price ?? ""].filter(Boolean).join(" · "),
+                        })),
+                    ]}
+                    onChange=${pick}
+                />
             </div>`
         }
         ${

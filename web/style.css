@@ -5197,6 +5197,83 @@ pre.diff .del {
     }
 }
 
+/* ─── Choice: a dropdown in the menus' style (ui.js) ───────────── */
+
+/* The closed dropdown: a field, as the text fields are, with the chosen option and a chevron. */
+.choice {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    min-height: 2.6rem;
+    padding: 0.45rem 0.75rem;
+    background: var(--card);
+    border: 1px solid var(--hair-2);
+    border-radius: var(--radius);
+    color: var(--text);
+    text-align: left;
+    transition: border-color var(--t-hover) var(--ease-out);
+}
+
+@media (hover: hover) {
+    .choice:hover:not(:disabled) {
+        border-color: var(--edge);
+    }
+}
+
+.choice.open,
+.choice:focus-visible {
+    border-color: var(--accent-line);
+    outline: none;
+}
+
+.choice:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.choice-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.choice-text > span:first-child {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.choice-detail {
+    font-size: 0.72rem;
+    color: var(--muted);
+}
+
+.choice > .icon {
+    flex: none;
+    color: var(--muted);
+    transition: transform var(--t-hover) var(--ease-out);
+}
+
+.choice.open > .icon {
+    transform: rotate(180deg);
+}
+
+.field .choice {
+    font-size: 14.5px;
+    border-radius: calc(var(--r-control) + 1px);
+}
+
+/* Its list: the menus' pop-up, over the sheet it opens in; rows measured from the list's top (`reveal`). */
+.choice-menu {
+    z-index: 40;
+}
+
+.choice-menu .pop-menu-list {
+    position: relative;
+}
+
 /* ─── Pop-up menus: the model and branch pickers ───────────── */
 
 /* A menu up from the control that opens it (the model chip, the branch), over the conversation without dimming it. */
@@ -15360,20 +15437,63 @@ pre.gallery-code {
 
 /* ─── Machines (pi-phone) ────────────────────────────────────── */
 
-/* A machine's row holds a lot (its state, the tools list, the setup steps): its buttons go under it at any width, so
-   they never squeeze it into a column of single words. */
-.provider.machine {
+/* A machine's or an SSH key's row holds a lot (state, a fingerprint, the tools list, setup steps): its buttons go under
+   it at any width, so they never squeeze it into a column of single words or sit on top of it. A machine's buttons come
+   in two groups, using it (Terminal, Ports, …) and looking after it (Edit, Remove, …), each on its own line. */
+.provider.machine,
+.provider.ssh-key {
     flex-direction: column;
     align-items: stretch;
 }
 
-.machine .provider-actions {
+.machine .provider-actions,
+.ssh-key .provider-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+}
+
+.ssh-key .provider-actions {
+    flex-direction: row;
     flex-wrap: wrap;
     justify-content: flex-start;
 }
 
+.provider-actions .action-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.provider-actions .action-group:empty {
+    display: none;
+}
+
+.ssh-key .mono {
+    overflow-wrap: anywhere;
+}
+
+/* A row whose control is a switch keeps it beside its words, on a phone too. */
+@media (max-width: 699px) {
+    .provider.toggle {
+        flex-direction: row;
+        align-items: center;
+    }
+}
+
+/* What keeps a setting from working (Access, Web access, an interview): one short line, in the error color. */
+.wiki-problem {
+    margin: 0.35rem 0 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--err);
+}
+
 .machine-form {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
 /* A Windows PC's setup (sheets/machines.js): the steps, Copy, and the script, which scrolls rather than fill the sheet. */

@@ -801,4 +801,29 @@ if (new URLSearchParams(location.search).has("chat")) {
     openSheet({ type: "chat" });
 }
 
+// A settings sheet by link, `/?sheet=machines`: for Pi's screenshots of the app's own settings, and to share a place
+// in them. Only sheets that need nothing else to open.
+const LINKED_SHEETS = new Set([
+    "access",
+    "appearance",
+    "dictation",
+    "github",
+    "machines",
+    "people",
+    "phone",
+    "providers",
+    "schedules",
+    "secrets",
+    "shortcuts",
+    "spend",
+    "ssh-keys",
+    "web-access",
+]);
+const linkedSheet = new URLSearchParams(location.search).get("sheet");
+
+if (linkedSheet !== null && LINKED_SHEETS.has(linkedSheet)) {
+    replaceAddress(location.pathname);
+    openSheet({ type: linkedSheet });
+}
+
 start();

@@ -3,7 +3,7 @@
 // Providers sheet.
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet, store } from "../store.js";
-import { html, Loader, Sheet, timeAgo } from "../ui.js";
+import { Choice, html, Loader, Sheet, timeAgo } from "../ui.js";
 
 export function ForwardsSheet({ machineId }) {
     const machines = store.state.server?.machines ?? [];
@@ -55,9 +55,12 @@ export function ForwardsSheet({ machineId }) {
                     machines.length > 1 &&
                     html`<div class="field">
                         <div class="label">Machine</div>
-                        <select value=${chosen} onChange=${(event) => setChosen(event.currentTarget.value)} aria-label="Machine">
-                            ${machines.map((each) => html`<option value=${each.id}>${each.name}</option>`)}
-                        </select>
+                        <${Choice}
+                            label="Machine"
+                            value=${chosen}
+                            options=${machines.map((each) => ({ value: each.id, label: each.name }))}
+                            onChange=${setChosen}
+                        />
                     </div>`
                 }
                 <div class="field">

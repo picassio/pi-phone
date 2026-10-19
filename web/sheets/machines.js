@@ -2,7 +2,7 @@
 // Add one, accept its host key, approve the daemon install, test it, edit, remove. Laid out as the Providers sheet.
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet, notify, openSheet } from "../store.js";
-import { copyText, html, Icon, Loader, Sheet, timeAgo } from "../ui.js";
+import { Choice, copyText, html, Icon, Loader, Sheet, timeAgo } from "../ui.js";
 import { windowsSetupScript } from "../windows-setup.js";
 
 const address = (machine) => `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`;
@@ -12,6 +12,13 @@ function MachineForm({ machine, keys, onDone }) {
     const [name, setName] = useState(machine?.name ?? "");
     const [where, setWhere] = useState(machine ? address(machine) : "");
     const [keyId, setKeyId] = useState(machine?.keyId ?? keys[0]?.id ?? "");
+
+    // Keys that arrive after the form opened: the first one, as when they were there.
+    useEffect(() => {
+        if (keyId === "" && keys.length > 0) {
+            setKeyId(keys[0].id);
+        }
+    }, [keys]);
     const [busy, setBusy] = useState(false);
     const [windows, setWindows] = useState(false);
     const key = keys.find((each) => each.id === keyId);
@@ -56,9 +63,12 @@ function MachineForm({ machine, keys, onDone }) {
                     ? html`<p class="muted small">
                         No keys yet. <button class="link" onClick=${() => openSheet({ type: "ssh-keys" })}>Make one under SSH keys</button>, then come back.
                     </p>`
-                    : html`<select aria-label="SSH key" value=${keyId} onChange=${(event) => setKeyId(event.currentTarget.value)}>
-                        ${keys.map((key) => html`<option value=${key.id}>${key.name} · ${key.fingerprint.slice(0, 20)}…</option>`)}
-                    </select>`
+                    : html`<${Choice}
+                        label="SSH key"
+                        value=${keyId}
+                        options=${keys.map((key) => ({ value: key.id, label: key.name, detail: `${key.type} · ${key.fingerprint.slice(0, 27)}…` }))}
+                        onChange=${setKeyId}
+                    />`
             }
         </div>
         ${!machine && key && html`<label class="check">
@@ -86,6 +96,7 @@ function WindowsSetup({ publicKey }) {
             <li>On the PC, open the Start menu, type <b>PowerShell</b>, and choose <b>Run as administrator</b>, signed in as the account pi-phone will use.</li>
             <li>Paste this script and press Enter. It turns on OpenSSH Server, lets SSH (port 22) through the firewall, adds this key, and installs Git for Windows if it is missing (Git Bash runs Pi's commands there).</li>
             <li>It ends with addresses like <span class="mono">you@192.168.1.20</span>: put one in Address above, then Add, and connect.</li>
+            <li>By hand instead: OpenSSH Server (<span class="mono">winget install Microsoft.OpenSSH.Preview</span>), Git for Windows, port 22 open in the firewall, and this key in <span class="mono">~/.ssh/authorized_keys</span>, or for an administrator in <span class="mono">C:\\ProgramData\\ssh\\administrators_authorized_keys</span>.</li>
         </ol>
         <div class="sheet-actions">
             <button
@@ -413,6 +424,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             }
         </div>
         <div class="provider-actions">
+            <div class="action-group">
             ${state === "new" && !scan && html`<button class="button small primary" disabled=${busy !== null} onClick=${doScan}>${busy === "scan" ? "Scanning…" : "Scan host key"}</button>`}
             ${
                 state === "connected" &&
@@ -426,11 +438,14 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             ${state === "connected" && html`<button class="button small" onClick=${() => openSheet({ type: "forwards", machineId: machine.id })}>Ports</button>`}
             ${state === "connected" && machine.remote.platform !== "windows" && html`<button class="button small" disabled=${toolsOpen} onClick=${() => setToolsOpen(true)}>Install tools</button>`}
             ${state === "connected" && html`<button class="button small" disabled=${busy !== null} onClick=${detect}>${busy === "detect" ? "Testing…" : "Test"}</button>`}
+            </div>
+            <div class="action-group">
             ${state === "connected" && html`<button class="button small ghost" disabled=${busy !== null} onClick=${connect}>${busy === "connect" ? "Updating…" : "Update helper"}</button>`}
             ${key && html`<button class="button small ghost" onClick=${copyKey}>Copy public key</button>`}
             <button class="button small ghost" onClick=${() => setEditing(true)}>Edit</button>
             ${machine.hostKey && html`<button class="button small ghost" disabled=${busy !== null} onClick=${forget}>Forget host key</button>`}
             <button class="button small ghost" disabled=${busy !== null} onClick=${remove}>Remove</button>
+            </div>
         </div>
     </div>`;
 }
@@ -461,9 +476,6 @@ export function MachinesSheet() {
     return html`<${Sheet} title="Machines" onClose=${closeSheet}>
         <p class="muted small">
             Other computers a session can work on. Pi's tools then run there over ssh; the conversation, its history, and your Claude sign-in stay on this phone. Each machine uses one of your SSH keys; its public half must be in the machine's <span class="mono">~/.ssh/authorized_keys</span>.
-        </p>
-        <p class="muted small">
-            Windows: turn on OpenSSH Server (Settings › System › Optional features) and install Git for Windows, whose Git Bash runs Pi's commands there. For an administrator account the key goes in <span class="mono">C:\ProgramData\ssh\administrators_authorized_keys</span> instead.
         </p>
         ${machines === null && html`<${Loader} label="Loading machines" />`}
         ${machines !== null && machines.length === 0 && !adding && html`<p class="muted">No machines yet.</p>`}

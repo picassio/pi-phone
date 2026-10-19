@@ -36,7 +36,7 @@ export function AccessSheet() {
         ${!state && html`<${Loader} label="Loading" />`}
         ${
             state &&
-            html`<div class="provider">
+            html`<div class="provider toggle">
                 <div class="grow">
                     <div>Tailscale</div>
                     <div class="muted small">

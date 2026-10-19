@@ -123,6 +123,10 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   - **Moving in:** keys from before (`~/.ssh/keys/<id>`) move in once at startup (`SshKeys.open`). Each must derive
     its public key, is stored, then its files are deleted; a mismatch stays and shows as its row's problem.
   - Each machine is assigned one key (Machines, next).
+- **Choice** (`web/ui.js`): the sheets' dropdowns (Web access, Dictation, a machine's key, Ports) in the app's own
+  style, the model and branch menus' `.pop-menu` rows, not the system's `<select>`: fixed to the screen under its field (over
+  it with too little room), closed by a tap elsewhere, a scroll, a resize, or Escape. **Settings by link:** `/?sheet=<name>`
+  opens a settings sheet (`LINKED_SHEETS` in `app.js`), so Pi can screenshot the app's own sheets after changing them.
 - **Machines** (`src/server/machines.ts`, `web/sheets/machines.js`): other computers sessions can work on, through
   `@earendil-works/pi-env` (its daemon on the machine, deployed over ssh and verified by hash). `machines.json` holds
   name, `user@host[:port]`, and the SSH key; host keys the owner accepted are in `~/.ssh/pi-phone_known_hosts` under

@@ -3,7 +3,7 @@
 import { useState } from "preact/hooks";
 import { DICTATION_LANGUAGE_KEY } from "../android-speech.js";
 import { closeSheet, notify } from "../store.js";
-import { html, Sheet } from "../ui.js";
+import { Choice, html, Sheet } from "../ui.js";
 
 /** Languages Google's recognizer hears well, by BCP 47 tag; names come from the browser, in its own language. */
 const LANGUAGES = [
@@ -43,10 +43,12 @@ export function DictationSheet() {
         </p>
         <div class="field">
             <div class="label">Language</div>
-            <select value=${picked} onChange=${(event) => pick(event.currentTarget.value)}>
-                <option value="">The phone's: ${named(phone)}</option>
-                ${LANGUAGES.map((tag) => html`<option value=${tag}>${named(tag)}</option>`)}
-            </select>
+            <${Choice}
+                label="Language"
+                value=${picked}
+                options=${[{ value: "", label: `The phone's: ${named(phone)}` }, ...LANGUAGES.map((tag) => ({ value: tag, label: named(tag) }))]}
+                onChange=${pick}
+            />
         </div>
     <//>`;
 }

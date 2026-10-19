@@ -1529,6 +1529,171 @@ export function modelLabel(agent) {
 }
 
 /** An on and off switch, named for screen readers by `label`. */
+/**
+ * A dropdown in the app's own style, as the model and branch menus are (`.pop-menu`), for the sheets' choices instead of
+ * the system's: a field-like button with the chosen option, and a list that opens under it, or over it with too little
+ * room below. `options`: `{ value, label, detail? }`. Arrow keys move, Enter picks, Escape closes; a tap elsewhere,
+ * a scroll, or a new size closes it too. Fixed to the screen, so a sheet's scrolling body does not clip it. With no
+ * option chosen, `placeholder` shows.
+ */
+export function Choice({ value, options, onChange, label, disabled, placeholder = "Choose…" }) {
+    const [open, setOpen] = useState(null);
+    const [active, setActive] = useState(0);
+    const button = useRef(null);
+    const menu = useRef(null);
+    const chosen = options.find((option) => option.value === value);
+    const show = () => {
+        const rect = button.current.getBoundingClientRect();
+        const top = visualViewport?.offsetTop ?? 0;
+        const bottom = top + (visualViewport?.height ?? innerHeight);
+        const below = bottom - rect.bottom - 8;
+        const above = rect.top - top - 8;
+        const down = below >= 200 || below >= above;
+
+        setOpen({
+            left: rect.left,
+            width: rect.width,
+            height: Math.min(320, down ? below : above),
+            ...(down ? { top: rect.bottom + 4, down: true } : { bottom: innerHeight - rect.top + 4 }),
+        });
+        setActive(Math.max(0, options.findIndex((option) => option.value === value)));
+    };
+    const close = () => setOpen(null);
+    // The active row into view, scrolling the list only: `scrollIntoView` would scroll the sheet too, which closes it.
+    const reveal = () => {
+        const list = menu.current?.querySelector(".pop-menu-list");
+        const row = list?.querySelector(".pop-menu-row.on");
+
+        if (!row) {
+            return;
+        }
+
+        if (row.offsetTop < list.scrollTop) {
+            list.scrollTop = row.offsetTop;
+        } else if (row.offsetTop + row.offsetHeight > list.scrollTop + list.clientHeight) {
+            list.scrollTop = row.offsetTop + row.offsetHeight - list.clientHeight;
+        }
+    };
+    const pick = (option) => {
+        close();
+        button.current?.focus();
+
+        if (option.value !== value) {
+            onChange(option.value);
+        }
+    };
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        const away = (event) => {
+            if (!menu.current?.contains(event.target) && !button.current?.contains(event.target)) {
+                close();
+            }
+        };
+        const scrolled = (event) => {
+            if (!menu.current?.contains(event.target)) {
+                close();
+            }
+        };
+
+        document.addEventListener("pointerdown", away, true);
+        document.addEventListener("scroll", scrolled, true);
+        addEventListener("resize", close);
+        reveal();
+
+        return () => {
+            document.removeEventListener("pointerdown", away, true);
+            document.removeEventListener("scroll", scrolled, true);
+            removeEventListener("resize", close);
+        };
+    }, [open]);
+
+    useEffect(reveal, [active]);
+
+    const onKeyDown = (event) => {
+        if (!open) {
+            if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+                event.preventDefault();
+                show();
+            }
+
+            return;
+        }
+
+        if (event.key === "Escape") {
+            // Only the menu: the sheet stays.
+            event.preventDefault();
+            event.stopPropagation();
+            close();
+        } else if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setActive((index) => Math.min(options.length - 1, index + 1));
+        } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActive((index) => Math.max(0, index - 1));
+        } else if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+
+            if (options[active]) {
+                pick(options[active]);
+            }
+        } else if (event.key === "Tab") {
+            close();
+        }
+    };
+
+    return html`<button
+            type="button"
+            ref=${button}
+            class=${`choice ${open ? "open" : ""}`}
+            aria-haspopup="listbox"
+            aria-expanded=${open ? "true" : "false"}
+            aria-label=${label}
+            disabled=${disabled}
+            onClick=${() => (open ? close() : show())}
+            onKeyDown=${onKeyDown}
+        >
+            <span class=${`choice-text ${chosen ? "" : "muted"}`}>
+                <span>${chosen?.label ?? placeholder}</span>
+                ${chosen?.detail && html`<span class="choice-detail">${chosen.detail}</span>`}
+            </span>
+            <${Icon} name="down" size=${16} />
+        </button>
+        ${
+            open &&
+            html`<div
+                ref=${menu}
+                class=${`pop-menu choice-menu ${open.down ? "down" : ""}`}
+                style=${anchorStyle(open)}
+                role="listbox"
+                aria-label=${label}
+            >
+                <div class="pop-menu-list">
+                    ${options.map(
+                        (option, index) => html`<button
+                            type="button"
+                            key=${String(option.value)}
+                            class=${`pop-menu-row ${index === active ? "on" : ""}`}
+                            role="option"
+                            aria-selected=${option.value === value}
+                            onMouseMove=${() => index !== active && setActive(index)}
+                            onClick=${() => pick(option)}
+                        >
+                            <span class="pop-menu-row-text">
+                                <span class="pop-menu-row-name">${option.label}</span>
+                                ${option.detail && html`<span class="pop-menu-row-sub">${option.detail}</span>`}
+                            </span>
+                            ${option.value === value && html`<${Icon} name="check" size=${14} />`}
+                        </button>`,
+                    )}
+                </div>
+            </div>`
+        }`;
+}
+
 export function Switch({ on, disabled, label, onChange }) {
     return html`<button
         type="button"
