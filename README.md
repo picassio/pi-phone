@@ -45,6 +45,8 @@ No Termux, no laptop, no cloud VM.
   machine) with room, as many at once as each place allows. Its end is reported to the main session; you see the
   branch's diff and merge it from the task. Task and main sessions do not notify the phone when they finish; approvals
   and failures do.
+  Pi has a tool for every action (`project_create`, `project_update`, `project_share`, `project_team`, `task_create`,
+  `task_update`, `task_comment`, `task_run`, `task_diff`, `task_link_session`, …); deleting and merging ask you on a card.
 
 ### Web, documents, and answers
 - **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for

@@ -510,6 +510,7 @@ export class Projects {
                     now,
                 );
             this.#record(actor, id, project.id, "created", { type, state });
+            this.#piTouched(actor, project, id);
         });
         this.#changed(project.id);
 
@@ -738,9 +739,12 @@ export class Projects {
                     task.id,
                 );
 
-            // The session that sets a task In Progress works on it: it may not move it to Done later.
+            // The session that sets a task In Progress works on it: it may not move it to Done later. Any other session
+            // of Pi's that changes it is linked too: the main session as leading it, another as mentioning it.
             if (actor.kind === "pi" && changes.state === "in_progress") {
                 this.#linkSession(task.id, actor.conversationId, "worker");
+            } else {
+                this.#piTouched(actor, project, task.id);
             }
 
             const { position: _position, ...said } = changes;
@@ -777,6 +781,7 @@ export class Projects {
                 .prepare("INSERT INTO pocket_task_comments (id, task_id, author, session, text, created_at) VALUES (?, ?, ?, ?, ?, ?)")
                 .run(id, task.id, authorOf(actor), session, body, now);
             this.#db.prepare("UPDATE pocket_tasks SET updated_at = ? WHERE id = ?").run(now, task.id);
+            this.#piTouched(actor, project, task.id);
         });
         this.#changed(project.id);
 
@@ -1324,6 +1329,13 @@ export class Projects {
             startedAt: row.started_at === null ? null : Number(row.started_at),
             endedAt: row.ended_at === null ? null : Number(row.ended_at),
         }));
+    }
+
+    /** A session of Pi's that made, changed, or commented on a task: the project's main session leads it, another mentions it. */
+    #piTouched(actor: Actor, project: Project, taskId: string): void {
+        if (actor.kind === "pi") {
+            this.#linkSession(taskId, actor.conversationId, project.mainSession === actor.conversationId ? "main" : "linked");
+        }
     }
 
     #toPi(task: Task): void {

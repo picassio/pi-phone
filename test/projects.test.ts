@@ -3,7 +3,7 @@
 // task needs it, a Bug's verified fix, a parent's children), never approving your own work, links that never circle.
 // Then the extension in a running app: off until the owner turns it on; Pi asks once before using a board (an inline
 // card), its tools refuse until the person says yes, and the board's routes answer only the people it is shared with.
-import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -182,6 +182,12 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "list projects": ["project_list", {}],
     "start it": ["task_update", { task: "PP-1", state: "in_progress" }],
     "approve it": ["task_update", { task: "PP-1", state: "done" }],
+    "give it a folder": ["project_update", { project: "PP", folder: "__WORK__", auto_runs: false, places: [{ folder: "__WORK__", cap: 3 }] }],
+    "start the team": ["project_team", { project: "PP" }],
+    "link this session": ["task_link_session", { task: "PP-2" }],
+    "link a stranger": ["task_link_session", { task: "PP-2", session: 99999 }],
+    "share it with Zed": ["project_share", { project: "PP", people: ["Zed"] }],
+    "delete PP-2": ["task_delete", { task: "PP-2" }],
 };
 let prompt = "";
 const route: FauxResponseStep = (request) => {
@@ -195,7 +201,7 @@ const route: FauxResponseStep = (request) => {
 
     for (const [ask, [tool, args]] of Object.entries(calls)) {
         if (role === "user" && text.endsWith(ask)) {
-            return fauxAssistantMessage([fauxToolCall(tool, args as never)], { stopReason: "toolUse" });
+            return fauxAssistantMessage([fauxToolCall(tool, JSON.parse(JSON.stringify(args).replaceAll("__WORK__", work)) as never)], { stopReason: "toolUse" });
         }
     }
 
@@ -297,6 +303,33 @@ test("a no is kept: Pi does not ask again, and works without the board", async (
 
     assert.deepEqual(await on.json(), { on: true, decided: true, project: "PP" });
     assert.match(await turn(id, "add a task"), /Made PP-2/);
+});
+
+test("Pi sets a project up with its tools: its folder and places, its main session, and sessions linked to tasks", async () => {
+    const id = await newSession(app);
+
+    await call(app.config.ownerToken, "PUT", `board-mode/${String(id)}`, { on: true, project: "PP" });
+    assert.match(await turn(id, "give it a folder"), /PP · pi-phone: folder .*; tasks given to Pi run after the person says yes; places: .* \(3 at once\)/);
+    assert.match(await turn(id, "start the team"), /Started PP's main session, #\d+/);
+    assert.match(await turn(id, "link this session"), new RegExp(`Linked session #${String(id)} to PP-2`));
+    assert.match(await turn(id, "link a stranger"), /no session #99999/);
+    assert.match(await turn(id, "share it with Zed"), /Nobody is called Zed\. People: Owner/);
+
+    // Deleting asks on a card: a no keeps the task.
+    const { submissionId } = await app.commands.submit(id, owner(app), { text: "delete PP-2", requestId: ownRequest(owner(app).id, crypto.randomUUID()) });
+
+    await until(() => app.approvals.forConversation(id).some((each) => each.tool === "task_delete"), "the card");
+    const card = app.approvals.forConversation(id).find((each) => each.tool === "task_delete")!;
+
+    assert.match(card.subject, /^Delete PP-2 · /);
+    await app.answerApproval(card.id, false, owner(app));
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    await app.harness.waitForIdle(context);
+    assert.match((await modelTexts(app, id)).at(-1)!, /said no: PP-2 stays/);
+
+    const detail = (await (await call(app.config.ownerToken, "GET", "tasks/PP-2")).json()) as { sessions: { conversationId: string; role: string }[] };
+
+    assert.ok(detail.sessions.some((each) => each.conversationId === String(id) && each.role === "linked"));
 });
 
 test("the board's routes: shared people see and change it, others get nothing, viewers only read", async () => {

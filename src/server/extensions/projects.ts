@@ -472,6 +472,214 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             },
         ),
         tool(
+            "project_update",
+            "Change a project: its name, folder, whether tasks given to Pi run by themselves, and where its tasks run (places: each the repository's folder there, here or machine:<id>:<path>, with how many run at once).",
+            Type.Object({
+                project: PROJECT,
+                name: Type.Optional(Type.String()),
+                folder: Type.Optional(Type.String()),
+                auto_runs: Type.Optional(Type.Boolean({ description: "Tasks given to Pi start by themselves; off, the main session asks the person first" })),
+                places: Type.Optional(Type.Array(Type.Object({ folder: Type.String(), cap: Type.Number({ description: "1 to 8 at once" }) }))),
+            }),
+            (args, conversationId) => {
+                const { actor, project } = onBoard(conversationId);
+                const key = projectOf(args.project, project);
+                const saved = projects.update(actor, key, {
+                    ...(args.name === undefined ? {} : { name: args.name }),
+                    ...(args.folder === undefined ? {} : { folder: args.folder || null }),
+                    ...(args.auto_runs === undefined ? {} : { autoRuns: args.auto_runs }),
+                    ...(args.places === undefined ? {} : { places: args.places }),
+                });
+
+                return `${saved.key} · ${saved.name}: folder ${saved.folder ?? "none"}; tasks given to Pi ${saved.autoRuns ? "run by themselves" : "run after the person says yes"}; places: ${projects.placesOf(saved).map((place) => `${place.folder} (${place.cap} at once)`).join(", ") || "none"}.`;
+            },
+        ),
+        tool(
+            "project_team",
+            "Start a project's main session: it leads the project's team (plans, asks before runs, gets the task sessions' reports, reviews) in the project's folder. Answers its session id.",
+            Type.Object({ project: PROJECT }),
+            async (args, conversationId) => {
+                const { actor, project } = onBoard(conversationId);
+                const key = projectOf(args.project, project);
+                const session = await team.startLead(actor.person, key);
+
+                return `Started ${key}'s main session, #${session}. Reports from task sessions and tasks given to Pi go there.`;
+            },
+        ),
+        tool(
+            "task_link_session",
+            "Link a session to a task, so the task lists it: this session, or another one you can see. The project's main session is linked as leading it.",
+            Type.Object({ task: REF, session: Type.Optional(Type.Number({ description: "Another session's id; default: this one" })) }),
+            (args, conversationId) => {
+                const { actor } = onBoard(conversationId);
+                const session = args.session === undefined ? conversationId : String(args.session);
+
+                if (!host.canSee(actor.person.id, Number(session) as never) || host.sessionTitle(Number(session)) === undefined) {
+                    throw new HttpError(404, `There is no session #${session} the person you work for can see.`);
+                }
+
+                const { project } = projects.task(actor, args.task);
+
+                projects.linkSession(actor, args.task, session, project.mainSession === session ? "main" : "linked");
+
+                return `Linked session #${session} to ${args.task.toUpperCase()}.`;
+            },
+        ),
+        tool(
+            "project_share",
+            "Share a project with people (by name): they see its board and, unless they are viewers, change it. Replaces who it is shared with; the project's owner or the app's owner only.",
+            Type.Object({ project: PROJECT, people: Type.Array(Type.String({ description: "A person's name" })) }),
+            (args, conversationId) => {
+                const { actor, project } = onBoard(conversationId);
+                const key = projectOf(args.project, project);
+                const everyone = people();
+                const ids = args.people.map((name) => {
+                    const found = everyone.find((person) => person.name.toLowerCase() === name.trim().toLowerCase());
+
+                    if (found === undefined) {
+                        throw new HttpError(400, `Nobody is called ${name}. People: ${everyone.map((person) => person.name).join(", ")}.`);
+                    }
+
+                    return found.id;
+                });
+                const saved = projects.setMembers(actor, key, ids);
+
+                return `${saved.key} is shared with ${saved.members.map((id) => everyone.find((person) => person.id === id)?.name ?? id).join(", ") || "nobody else"}.`;
+            },
+        ),
+        tool(
+            "project_delete",
+            "Delete a project and all its tasks, for good. Asks the person on a card first.",
+            Type.Object({ project: Type.String({ description: "The project's key" }) }),
+            async (args, conversationId, api, context) => {
+                const { actor } = onBoard(conversationId);
+                const project = projects.project(actor, args.project);
+                const total = Object.values(projects.list(actor).find((each) => each.id === project.id)?.counts ?? {}).reduce((sum, n) => sum + n, 0);
+                const answer = await host.approvals.request(
+                    {
+                        id: `project-delete-${conversationId}-${String(api.callId)}`,
+                        conversationId: Number(conversationId) as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "project_delete",
+                        subject: `Delete ${project.key} · ${project.name} and its ${total} task${total === 1 ? "" : "s"}`,
+                        reason: "For good: its tasks, comments, and runs go. Worktrees and branches in the repository stay.",
+                        createdAt: Date.now(),
+                    },
+                    context,
+                );
+
+                if (!answer.allow) {
+                    return `${answer.by} said no: ${project.key} stays.`;
+                }
+
+                projects.remove({ kind: "person", person: actor.person }, project.key);
+
+                return `Deleted ${project.key}.`;
+            },
+        ),
+        tool(
+            "task_delete",
+            "Delete a task with nothing under it, for good. Asks the person on a card first.",
+            Type.Object({ task: REF }),
+            async (args, conversationId, api, context) => {
+                const { actor } = onBoard(conversationId);
+                const { task } = projects.task(actor, args.task);
+                const answer = await host.approvals.request(
+                    {
+                        id: `task-delete-${conversationId}-${String(api.callId)}`,
+                        conversationId: Number(conversationId) as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "task_delete",
+                        subject: `Delete ${task.ref} · ${task.title}`,
+                        reason: "For good: its comments and activity go too.",
+                        createdAt: Date.now(),
+                    },
+                    context,
+                );
+
+                if (!answer.allow) {
+                    return `${answer.by} said no: ${task.ref} stays.`;
+                }
+
+                projects.removeTask({ kind: "person", person: actor.person }, task.ref);
+
+                return `Deleted ${task.ref}.`;
+            },
+        ),
+        tool(
+            "task_cancel_run",
+            "Withdraw a task's run that waits for a place, before it starts.",
+            Type.Object({ task: REF }),
+            (args, conversationId) => {
+                const { actor } = onBoard(conversationId);
+
+                projects.cancelRun(actor, args.task);
+
+                return `${args.task.toUpperCase()}'s run is withdrawn.`;
+            },
+        ),
+        tool(
+            "task_diff",
+            "What a task's branch changed against the branch it started from (a 3-dot diff): the stat, then the patch, cut at 200 KB.",
+            Type.Object({ task: REF }),
+            async (args, conversationId) => {
+                const { actor } = onBoard(conversationId);
+                const { task } = projects.task(actor, args.task);
+
+                if (task.run === null) {
+                    throw new HttpError(404, `${task.ref} has not run yet.`);
+                }
+
+                const diff = await team.diff(task.run);
+
+                return `${task.run.base}...${task.run.branch} at ${task.run.place}:\n${diff.trim() === "" ? "No changes." : diff}`;
+            },
+        ),
+        tool(
+            "task_merge",
+            "Merge a task's branch into the branch it started from (the repository there must be on it, with nothing uncommitted), then remove its worktree and branch. Merging is the person's call: asks on a card first.",
+            Type.Object({ task: REF }),
+            async (args, conversationId, api, context) => {
+                const { actor } = onBoard(conversationId);
+                const { task } = projects.task(actor, args.task);
+
+                if (task.run?.branch == null || task.run.state === "running" || task.run.state === "starting" || task.run.state === "queued") {
+                    throw new HttpError(409, `${task.ref} has no finished run with a branch to merge.`);
+                }
+
+                const answer = await host.approvals.request(
+                    {
+                        id: `task-merge-${conversationId}-${String(api.callId)}`,
+                        conversationId: Number(conversationId) as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "task_merge",
+                        subject: `Merge ${task.run.branch} into ${task.run.base} (${task.ref} · ${task.title})`,
+                        reason: `At ${task.run.place}. Its worktree and branch go after.`,
+                        createdAt: Date.now(),
+                    },
+                    context,
+                );
+
+                if (!answer.allow) {
+                    return `${answer.by} said not now: ${task.run.branch} is not merged.`;
+                }
+
+                const person: Actor = { kind: "person", person: actor.person };
+                const said = await team.merge(task.run, task);
+
+                try {
+                    projects.updateTask(person, task.ref, { state: "done" });
+                } catch {
+                    // Left as it is (a Bug waits for its verified fix).
+                }
+
+                return `Merged ${task.run.branch} into ${task.run.base}.${said === "" ? "" : `\n${said.slice(-1500)}`}`;
+            },
+        ),
+        tool(
             "task_list",
             "Tasks on a board, filtered: by state, type, assignee (pi or a name), parent, or words. Newest first.",
             Type.Object({
@@ -510,6 +718,9 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                     links.length === 0
                         ? ""
                         : `\nLinks: ${links.map((link) => (link.kind === "blocks" ? (link.direction === "out" ? `blocks ${link.ref}` : `waits on ${link.ref}`) : `relates to ${link.ref}`)).join(", ")}`,
+                    task.run === null
+                        ? ""
+                        : `\nRun: ${task.run.state}${task.run.place === null ? "" : ` at ${task.run.place}`}${task.run.branch === null ? "" : `, branch ${task.run.branch} from ${task.run.base}`}${task.run.conversationId === null ? "" : `, session #${task.run.conversationId}`}${task.run.note === null ? "" : ` (${task.run.note})`}`,
                     sessions.length === 0 ? "" : `\nSessions: ${sessions.map((each) => `#${each.conversationId} (${each.role})`).join(", ")}`,
                     comments.length === 0
                         ? ""

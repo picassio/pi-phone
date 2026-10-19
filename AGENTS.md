@@ -18,6 +18,10 @@
 - People never edit files to configure pi-phone: every setting a person may change has a place in the app (a sheet,
   the menu). That includes the settings of what pi-phone embeds, such as pi-para's `~/.pi/para/config.jsonc`: the app
   reads and writes those files, people do not. Errors and hints name the app's setting, never a file to edit.
+- A tool for everything (the owner's rule): whatever a person can do in the app, Pi can do with a tool too, so any
+  session (and the agent building pi-phone) can do the work. A new screen or button ships with its tool in the same
+  commit. Where the person must decide (deleting, merging, spending), the tool asks on a card (an approval) rather than
+  being left out.
 - Pin direct dependencies to exact versions. Install with `npm install --ignore-scripts`.
 - Don't migrate what we don't need: features removed from pi-pocket (DESIGN.md section 3) stay removed unless the
   user asks for them.

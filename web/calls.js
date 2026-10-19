@@ -93,6 +93,26 @@ export function describeCall(call) {
             return { icon: "▦", label: "Projects", subject: "the boards Pi may use" };
         case "project_create":
             return { icon: "▦", label: "Makes project", subject: `${args.key ?? ""} · ${args.name ?? ""}` };
+        case "project_update":
+            return { icon: "▦", label: "Changes project", subject: `${args.project ?? ""}` };
+        case "project_team":
+            return { icon: "▦", label: "Starts the main session of", subject: `${args.project ?? ""}` };
+        case "task_link_session":
+            return { icon: "▦", label: "Links a session to", subject: `${args.task ?? ""}`, mono: true };
+        case "project_share":
+            return { icon: "▦", label: "Shares project", subject: `${args.project ?? ""} with ${(args.people ?? []).join(", ")}` };
+        case "project_delete":
+            return { icon: "▦", label: "Deletes project", subject: `${args.project ?? ""}`, mono: true };
+        case "task_delete":
+            return { icon: "▦", label: "Deletes task", subject: `${args.task ?? ""}`, mono: true };
+        case "task_cancel_run":
+            return { icon: "▦", label: "Withdraws the run of", subject: `${args.task ?? ""}`, mono: true };
+        case "task_diff":
+            return { icon: "▦", label: "Diff of", subject: `${args.task ?? ""}`, mono: true };
+        case "task_merge":
+            return { icon: "▦", label: "Merges", subject: `${args.task ?? ""}`, mono: true };
+        case "task_run":
+            return { icon: "▦", label: "Runs", subject: `${args.task ?? ""}`, mono: true };
         case "task_list":
             return { icon: "▦", label: "Tasks", subject: [args.project, args.state, args.text].filter(Boolean).join(" · ") || "on the board" };
         case "task_get":

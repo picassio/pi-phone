@@ -24,6 +24,13 @@ const route: FauxResponseStep = (request) => {
         return fauxAssistantMessage([fauxToolCall("task_update", { task: "RT-2", state: "review" })], { stopReason: "toolUse" });
     }
 
+    // The main session reviews what it hears is done: a comment, which links it to the task as leading it.
+    const done = /Done: (RT-\d+) /.exec(text);
+
+    if (role === "user" && done) {
+        return fauxAssistantMessage([fauxToolCall("task_comment", { task: done[1]!, text: "Reviewed: looks right." })], { stopReason: "toolUse" });
+    }
+
     const given = /(RT-\d+) \([^)]*\) was given to Pi/.exec(text);
 
     if (role === "user" && given) {
@@ -117,6 +124,13 @@ test("a task session that finishes moves its task to Review, and the main sessio
 
     assert.equal((await taskOf("RT-2")).state, "review");
     await until(async () => /Done: RT-2 \(Add a file\) is in Review/.test(await said(lead)), "the report");
+
+    // The task lists both: the session that worked on it, and the main session that reviewed it.
+    await until(async () => {
+        const detail = (await call("GET", "tasks/RT-2")) as { sessions: { conversationId: string; role: string }[] };
+
+        return detail.sessions.some((each) => each.conversationId === String(lead) && each.role === "main");
+    }, "the main session linked");
 
     // The phone heard neither session finish: the board says it.
     const { events } = await app.phoneEvents.after(0, new AbortController().signal);

@@ -540,6 +540,11 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     ends from the phone. `GET tasks/:ref/diff` (3-dot) and `POST tasks/:ref/merge` (`--no-ff` into the base, only when
     the repository is on it and clean; then the worktree and branch go, and the task is done where its rules allow).
     A restart fails runs cut off while starting; a running run's end that came while the server was down is not seen.
+  - **A tool for every action** (AGENTS.md): `project_update` (folder, places, runs by itself), `project_share`,
+    `project_team` (start the main session), `project_delete` and `task_delete` (a card first), `task_cancel_run`,
+    `task_diff`, `task_merge` (a card first: merging is the person's call), `task_link_session`; `task_get` shows the run.
+    Pi's sessions link themselves to the tasks they make, change, or comment on: the main session as `main`, others as
+    `linked` (a task session that set In Progress stays `worker`).
   - A project's folder is typed or chosen with the app's folder picker: `pocket.pickFolder({ start, title })` (an
     extension API) opens `CwdSheet` in its `pick` mode (browse, make folders, here or on a machine) and answers the
     folder or null; it takes the sheet's place, so the sheet comes back with the choice (`new-project` keeps a draft).
