@@ -5,6 +5,7 @@ import { html } from "./ui.js";
 
 export function SignIn() {
     const [value, setValue] = useState("");
+    const [problem, setProblem] = useState("");
 
     // In the pi-phone app, the shell signs in with the owner token as it is now (MainActivity's bridge): after "Sign out
     // every device", the old one in this WebView's cookie no longer works.
@@ -22,6 +23,23 @@ export function SignIn() {
         const text = value.trim();
 
         if (!text) {
+            return;
+        }
+
+        // The owner's recovery code (break glass; src/server/http/sign-in.ts `recover`): six groups of four.
+        if (/^([a-z0-9]{4}[\s-]*){5}[a-z0-9]{4}$/i.test(text)) {
+            setProblem("");
+            fetch("/recover", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: text }) }).then(
+                async (response) => {
+                    if (response.ok) {
+                        location.href = "/";
+                    } else {
+                        setProblem((await response.json().catch(() => ({}))).error ?? "That did not work.");
+                    }
+                },
+                () => setProblem("Could not reach pi-phone."),
+            );
+
             return;
         }
 
@@ -50,12 +68,12 @@ export function SignIn() {
         <div class="pi big"><img class="brand-icon" src="/icon.svg" alt="" /></div>
         <h1>pi-phone</h1>
         <p class="muted">
-            The pi-phone app signs in by itself: close it and open it again. You can also paste a sign-in link, the token, or an invite code here.
+            The pi-phone app signs in by itself: close it and open it again. You can also paste a sign-in link, the token, an invite code, or your recovery code here.
         </p>
         <div class="row">
             <input
                 value=${value}
-                placeholder="Link, token, or invite code"
+                placeholder="Link, token, invite, or recovery code"
                 autocapitalize="none"
                 autocorrect="off"
                 autocomplete="off"
@@ -65,5 +83,6 @@ export function SignIn() {
             />
             <button class="button primary" onClick=${go}>Sign in</button>
         </div>
+        ${problem && html`<p class="wiki-problem">${problem}</p>`}
     </div>`;
 }

@@ -2,6 +2,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { PocketApp } from "../app.ts";
 import { type Auth, quickTunnelHost, setAuthCookie } from "../auth.ts";
+import { addressOf, deviceName } from "../devices.ts";
 import { HttpError } from "../errors.ts";
 import { conversationId, escapeHtml, readBody, send } from "./io.ts";
 
@@ -181,4 +182,49 @@ export function sharePage(response: ServerResponse): void {
         ),
         "text/html; charset=utf-8",
     );
+}
+
+/** Wrong recovery codes, to slow guessing: after `RECOVERY_TRIES` within the window, every try is refused for a while. */
+const RECOVERY_TRIES = 5;
+const RECOVERY_WINDOW_MS = 15 * 60_000;
+let recoveryFailures: number[] = [];
+
+/**
+ * `POST /recover`: the owner's recovery code (break glass) signs this browser in as the owner, as a device of its own,
+ * once; the phone says so (a security notification), so a code someone else used does not go unseen. From pi-phone's
+ * own page only. Wrong codes are slowed: `RECOVERY_TRIES` in 15 minutes, then none for 15.
+ */
+export async function recover(app: PocketApp, auth: Auth, request: IncomingMessage, response: ServerResponse): Promise<void> {
+    if (crossSite(request)) {
+        throw new HttpError(403, "Use a recovery code from pi-phone's own page.");
+    }
+
+    const now = Date.now();
+
+    recoveryFailures = recoveryFailures.filter((at) => now - at < RECOVERY_WINDOW_MS);
+
+    if (recoveryFailures.length >= RECOVERY_TRIES) {
+        throw new HttpError(429, "Too many wrong recovery codes: wait 15 minutes, then try again.");
+    }
+
+    const body = JSON.parse((await readBody(request, 2_000)).toString("utf8") || "{}") as { code?: unknown };
+    const owner = app.config.users.find((user) => user.role === "owner");
+
+    if (typeof body.code !== "string" || owner === undefined || !app.config.useRecoveryCode(body.code)) {
+        recoveryFailures.push(now);
+
+        throw new HttpError(401, "That recovery code is not valid (each works once).");
+    }
+
+    setAuthCookie(request, response, auth.signIn(owner, request));
+    const device = String(request.headers["user-agent"] ?? "");
+
+    app.phoneEvents.add({
+        kind: "security",
+        session: 0,
+        title: "Your recovery code was used",
+        text: `A browser signed in as you with it (${deviceName(device, addressOf(request))}, from ${addressOf(request)}). If it was not you, sign it out in People › Devices and sign out every device.`,
+    });
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ ok: true }));
 }

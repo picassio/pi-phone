@@ -88,6 +88,8 @@ interface PocketConfig {
     invites?: StoredInvite[];
     /** Signed-in devices, each with its own token (`StoredDevice`). */
     devices?: StoredDevice[];
+    /** The owner's recovery code (break glass), by its sha256: it signs a browser in as the owner once. */
+    recovery?: { codeHash: string; createdAt: number };
     lastModel?: ModelChoice;
     /** The model and thinking level new sessions start with, as the owner chose; absent: the last one picked. */
     defaultModel?: ModelChoice;
@@ -525,6 +527,43 @@ export class ConfigStore {
             this.#deviceSeenSaved = now;
             this.save();
         }
+    }
+
+    /**
+     * A new recovery code for the owner (break glass): shown once, kept only by its sha256, and the one before it ends.
+     * Six groups of four letters and digits that cannot be mistaken for one another, about 120 bits.
+     */
+    newRecoveryCode(): { code: string; createdAt: number } {
+        const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
+        const bytes = randomBytes(24);
+        const letters = [...bytes].map((byte) => alphabet[byte % alphabet.length]).join("");
+        const code = letters.match(/.{4}/g)!.join("-");
+        const createdAt = Date.now();
+
+        this.#config.recovery = { codeHash: hashToken(code), createdAt };
+        this.save();
+
+        return { code, createdAt };
+    }
+
+    /** When the owner's recovery code was made; undefined when there is none. */
+    get recoveryMadeAt(): number | undefined {
+        return this.#config.recovery?.createdAt;
+    }
+
+    /** Spend the recovery code: true once for the right one (spaces, dashes, and letter case aside), then never again. */
+    useRecoveryCode(code: string): boolean {
+        const kept = this.#config.recovery;
+        const typed = code.toLowerCase().replace(/[^a-z0-9]/g, "").match(/.{1,4}/g)?.join("-") ?? "";
+
+        if (kept === undefined || !sameHash(kept.codeHash, hashToken(typed))) {
+            return false;
+        }
+
+        delete this.#config.recovery;
+        this.save();
+
+        return true;
     }
 
     /** A new token for someone who is not the owner: an old-style sign-in that holds their token stops working. */

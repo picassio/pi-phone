@@ -180,3 +180,57 @@ test("Sign out every device: every other one of yours goes, this one stays, your
         app.config.removeUser(guest.user.id);
     }
 });
+
+test("the recovery code (break glass): only the owner makes one; it signs a browser in as the owner once, and the phone says so", async () => {
+    const guest = app.config.addUser("Gina", "guest");
+    const bearer = (token: string, path: string, body?: unknown) =>
+        fetch(`${base}/api/${path}`, {
+            method: body === undefined ? "GET" : "POST",
+            headers: { authorization: `Bearer ${token}`, "x-pocket": "1", "content-type": "application/json" },
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+    const recover = (code: string, site = "same-origin") =>
+        fetch(`${base}/recover`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "sec-fetch-site": site, "user-agent": CHROME },
+            body: JSON.stringify({ code }),
+        });
+
+    try {
+        assert.equal((await bearer(guest.token, "recovery-code", {})).status, 403, "the owner's only");
+        assert.deepEqual(await (await bearer(app.config.ownerToken, "recovery-code")).json(), { madeAt: null });
+
+        const old = ((await (await bearer(app.config.ownerToken, "recovery-code", {})).json()) as { code: string }).code;
+        const made = (await (await bearer(app.config.ownerToken, "recovery-code", {})).json()) as { code: string; createdAt: number };
+
+        assert.match(made.code, /^([a-z0-9]{4}-){5}[a-z0-9]{4}$/);
+        assert.equal((await recover(old)).status, 401, "a new code ends the one before");
+        assert.equal((await recover(made.code, "cross-site")).status, 403, "not from another site");
+
+        const { seq } = await app.phoneEvents.after(-1, new AbortController().signal);
+        // Typed with spaces and capitals, as from paper.
+        const used = await recover(made.code.toUpperCase().replaceAll("-", " "));
+        const cookie = cookieOf(used);
+
+        assert.equal(used.status, 200);
+        assert.equal(app.config.deviceByToken(cookie)?.userId, owner(app).id, "a device of the owner's");
+        assert.equal((await asCookie(cookie, "me")).status, 200);
+        assert.equal((await recover(made.code)).status, 401, "it works once");
+        assert.deepEqual((await (await bearer(app.config.ownerToken, "recovery-code")).json()) as unknown, { madeAt: null });
+
+        const told = (await app.phoneEvents.after(seq, new AbortController().signal)).events;
+
+        assert.equal(told.length, 1);
+        assert.equal(told[0]!.kind, "security");
+        assert.match(told[0]!.text, /Chrome on Windows/);
+
+        // Guessing is slowed: five wrong codes in all (two above), then none for a while.
+        for (let n = 0; n < 3; n++) {
+            assert.equal((await recover("aaaa-aaaa-aaaa-aaaa-aaaa-aaaa")).status, 401);
+        }
+
+        assert.equal((await recover("aaaa-aaaa-aaaa-aaaa-aaaa-aaaa")).status, 429);
+    } finally {
+        app.config.removeUser(guest.user.id);
+    }
+});

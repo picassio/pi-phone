@@ -73,7 +73,8 @@ No Termux, no laptop, no cloud VM.
   (People › Sign in as me), and invited people steer or watch sessions, all of them or one.
 - **Devices.** Each sign-in is a device of its own, so People lists every signed-in device (open now or not, where it
   was last seen) and signs any one out; invited people see and sign out their own. **Sign out every device** signs out
-  all your others at once.
+  all your others at once. A **recovery code** (break glass), made in People and kept off the phone, signs a
+  browser in as you once if no device can; the phone notifies you when it is used.
 - **Dictation** with Android's speech recognizer, in the language you choose.
 
 ### The app

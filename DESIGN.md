@@ -135,6 +135,11 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   token for them (`rotateOwnerToken`, or `rotateUserToken`). Removing a person removes their devices. The phone's app
   (its WebView, `; wv)` from this phone) stays one device, replaced at each of its sign-ins, and signs in again by itself
   through the bridge's `signIn()`. People shows Devices ("Your devices" for others).
+  **Recovery code** (break glass, owner's request of 2026-10-19): `POST /api/recovery-code` (owner) makes one, shown once,
+  kept as a sha256 (`config.recovery`), and ends the one before; six groups of four from 31 letters and digits (~120
+  bits). `POST /recover` (same site only) with it signs the browser in as the owner, a device of its own, once, and adds a
+  `security` phone event (PiService shows those even with the app in front, and opens the app). Wrong codes: 5 in 15
+  minutes, then 429 for 15. The sign-in screen takes it as typed (spaces, dashes, capitals).
 - **Choice** (`web/ui.js`): the sheets' dropdowns (Web access, Dictation, a machine's key, Ports) in the app's own
   style, the model and branch menus' `.pop-menu` rows, not the system's `<select>`: fixed to the screen under its field (over
   it with too little room), closed by a tap elsewhere, a scroll, a resize, or Escape. **Settings by link:** `/?sheet=<name>`

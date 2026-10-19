@@ -203,6 +203,19 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, app.people(user));
         }
 
+        // The owner's recovery code (break glass): when it was made; a new one, shown once, ends the one before.
+        if (first === "recovery-code" && second === undefined && method === "GET") {
+            requireOwner(user);
+
+            return json(response, 200, { madeAt: app.config.recoveryMadeAt ?? null });
+        }
+
+        if (first === "recovery-code" && second === undefined && method === "POST") {
+            requireOwner(user);
+
+            return json(response, 200, app.config.newRecoveryCode());
+        }
+
         // Settings › People › Devices: the owner's list is everyone's, others see their own.
         if (first === "devices" && second === undefined && method === "GET") {
             return json(response, 200, { devices: app.devices(user, auth.session(request)?.device?.id) });

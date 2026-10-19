@@ -10,7 +10,8 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 
 export type PhoneEvent = {
     seq: number;
-    kind: "done" | "failed" | "approval";
+    /** `security`: about the owner's sign-in (a recovery code was used); `session` is 0, and it opens the app. */
+    kind: "done" | "failed" | "approval" | "security";
     session: number;
     title: string;
     text: string;

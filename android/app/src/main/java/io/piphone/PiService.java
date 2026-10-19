@@ -234,7 +234,9 @@ public final class PiService extends Service {
                 }
                 JSONArray events = answer.getJSONArray("events");
                 for (int index = 0; index < events.length(); index++) {
-                    if (!MainActivity.inFront) post(events.getJSONObject(index));
+                    JSONObject event = events.getJSONObject(index);
+                    // About the owner's sign-in (a recovery code was used): shown even with the app in front.
+                    if (!MainActivity.inFront || "security".equals(event.getString("kind"))) post(event);
                 }
                 after = seq;
             } catch (InterruptedException e) {
@@ -257,9 +259,12 @@ public final class PiService extends Service {
         int session = event.getInt("session");
         String kind = event.getString("kind");
         String title = event.getString("title");
-        String what = "approval".equals(kind) ? "Waiting for you: " : "failed".equals(kind) ? "Failed: " : "Done: ";
-        PendingIntent open = PendingIntent.getActivity(this, session,
-                new Intent(this, MainActivity.class).putExtra(EXTRA_SESSION, session),
+        boolean security = "security".equals(kind);
+        String what = security ? "" : "approval".equals(kind) ? "Waiting for you: " : "failed".equals(kind) ? "Failed: " : "Done: ";
+        // A security notice opens the app, not a session.
+        Intent target = new Intent(this, MainActivity.class);
+        if (!security) target.putExtra(EXTRA_SESSION, session);
+        PendingIntent open = PendingIntent.getActivity(this, session, target,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification notification = new Notification.Builder(this, EVENTS_CHANNEL)
                 .setContentTitle(what + title)
@@ -269,8 +274,8 @@ public final class PiService extends Service {
                 .setContentIntent(open)
                 .setAutoCancel(true)
                 .build();
-        // One per session: its newest says where it is.
-        manager.notify(1000 + session, notification);
+        // One per session: its newest says where it is. Security notices each their own.
+        manager.notify(security ? (int) (System.currentTimeMillis() & 0x3fffffff) : 1000 + session, notification);
     }
 
     /** Marks the server running once the activity has seen it answer. */

@@ -12,7 +12,7 @@ import { artifact } from "./http/artifacts.ts";
 import { extensionFile } from "./http/extension-routes.ts";
 import { intelligentUiFile, katexFile, serveApp, serveFile, TYPES, VENDOR, WEB } from "./http/assets.ts";
 import { type HttpOptions, json } from "./http/io.ts";
-import { join as joinPage, login, sharePage } from "./http/sign-in.ts";
+import { join as joinPage, login, recover, sharePage } from "./http/sign-in.ts";
 import { themeFile } from "./http/theme-routes.ts";
 
 export function createHandler(options: HttpOptions) {
@@ -83,6 +83,10 @@ export function createHandler(options: HttpOptions) {
 
             if (parts[0] === "login" && (request.method === "GET" || request.method === "POST")) {
                 return await login(auth, request, response, url);
+            }
+
+            if (parts[0] === "recover" && parts.length === 1 && request.method === "POST") {
+                return await recover(app, auth, request, response);
             }
 
             if (parts[0] === "join" && parts[1] !== undefined) {

@@ -476,8 +476,61 @@ function Devices() {
                     </div>`,
                 )}
                 <${SignOutEverywhere} owner=${owner} />
+                ${owner && html`<${RecoveryCode} />`}
             </div>`
         }
+    </div>`;
+}
+
+/**
+ * The owner's recovery code (break glass): a way in when no device is signed in and the app cannot sign in either. Made
+ * here and shown once, to keep off the phone; it signs one browser in as the owner, once, and the phone says when it was
+ * used. A new one ends the one before.
+ */
+function RecoveryCode() {
+    const [madeAt, setMadeAt] = useState(undefined);
+    const [shown, setShown] = useState(null);
+
+    useEffect(() => {
+        api("recovery-code").then(
+            (answer) => setMadeAt(answer.madeAt),
+            () => {},
+        );
+    }, []);
+
+    const make = () =>
+        (madeAt === null || confirm("Make a new recovery code? The one you have stops working.")) &&
+        attempt(async () => {
+            const made = await api("recovery-code", {});
+
+            setShown(made.code);
+            setMadeAt(made.createdAt);
+        });
+
+    return html`<div class="provider family">
+        <div>
+            <div>Recovery code</div>
+            <div class="muted small">
+                ${
+                    madeAt === undefined
+                        ? "…"
+                        : madeAt === null
+                          ? "None yet. A code to sign a browser in as you if no device can, kept somewhere safe off this phone."
+                          : `Made ${ago(madeAt)}. It works once: paste it into the sign-in screen of any browser that reaches this phone.`
+                }
+            </div>
+            ${
+                shown &&
+                html`<div class="recovery-code">
+                    <pre class="ssh-public-key">${shown}</pre>
+                    <p class="muted small">Shown only now. Keep it in a password manager or on paper, not on this phone. The phone notifies you when it is used.</p>
+                </div>`
+            }
+        </div>
+        <div class="provider-actions">
+            ${shown && html`<button class="button small" onClick=${() => copyText(shown).then(() => notify("info", "Copied."), () => notify("error", "Could not copy."))}>Copy</button>`}
+            <button class="button small ghost" onClick=${make}>${madeAt ? "Make a new code" : "Make a code"}</button>
+        </div>
     </div>`;
 }
 
