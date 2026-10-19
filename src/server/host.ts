@@ -167,7 +167,7 @@ export interface PocketHost {
     /** Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`). */
     skills(cwd: string): Skill[];
     /** The connected machines, each with the short alias Pi names it by (machine_run, machine_copy). */
-    machines(): { id: string; name: string; alias: string; address: string; home: string }[];
+    machines(): { id: string; name: string; alias: string; address: string; home: string; windows: boolean }[];
     /** The phone's home folder. */
     readonly home: string;
     /** The machine a session's cwd is on (`places.ts`), with what the prompt says about it; undefined on this phone. */

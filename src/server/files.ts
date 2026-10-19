@@ -205,9 +205,10 @@ export async function listFiles(cwd: string, max = MAX_FILES): Promise<FileList>
 
 /**
  * The files of a folder on a machine (`places.ts`), through its environment: pi-env lists them in its daemon, as
- * `fd --hidden --exclude .git` does, skipping what git ignores and the folders a walk here skips.
+ * `fd --hidden --exclude .git` does, skipping what git ignores and the folders a walk here skips. A Windows machine's
+ * paths come with `\`: they are listed with `/`, as the app spells them (`machine-paths.ts`).
  */
-export async function listRemoteFiles(env: ExecutionEnv, path: string, max = MAX_FILES): Promise<FileList> {
+export async function listRemoteFiles(env: ExecutionEnv, path: string, windows: boolean, max = MAX_FILES): Promise<FileList> {
     if (env.listFiles === undefined) {
         throw new Error("This machine's helper cannot list files; update it in Settings > Machines.");
     }
@@ -224,6 +225,7 @@ export async function listRemoteFiles(env: ExecutionEnv, path: string, max = MAX
 
     // Files only, hidden folders' files left out, as the walk here does.
     const files = listed.value.entries
+        .map((entry) => ({ ...entry, path: windows ? entry.path.replaceAll("\\", "/") : entry.path }))
         .filter((entry) => entry.kind !== "directory" && !entry.path.split("/").some((part) => part.startsWith(".")))
         .map((entry) => entry.path)
         .sort();

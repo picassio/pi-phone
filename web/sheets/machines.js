@@ -422,6 +422,9 @@ export function MachinesSheet() {
         <p class="muted small">
             Other computers a session can work on. Pi's tools then run there over ssh; the conversation, its history, and your Claude sign-in stay on this phone. Each machine uses one of your SSH keys; its public half must be in the machine's <span class="mono">~/.ssh/authorized_keys</span>.
         </p>
+        <p class="muted small">
+            Windows: turn on OpenSSH Server (Settings › System › Optional features) and install Git for Windows, whose Git Bash runs Pi's commands there. For an administrator account the key goes in <span class="mono">C:\ProgramData\ssh\administrators_authorized_keys</span> instead.
+        </p>
         ${machines === null && html`<${Loader} label="Loading machines" />`}
         ${machines !== null && machines.length === 0 && !adding && html`<p class="muted">No machines yet.</p>`}
         ${

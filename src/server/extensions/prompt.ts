@@ -161,6 +161,11 @@ export default function createPrompt(host: PocketHost) {
                 return [
                     `Your tools (bash, read, write, edit) run on the machine "${machine.name}" (${machine.address}, ${machine.platform}), not on the phone. Working directory there: ${machine.path}`,
                     "That machine's git, gh, and other programs use its own logins and tools, not the phone's. Files the user attaches are copied to ~/.pi/mobile/uploads on that machine; the message lists their paths there.",
+                    ...(machine.platform.startsWith("windows")
+                        ? [
+                              "It runs Windows. bash there is Git Bash: Unix commands work, and Windows programs (.exe, cmd /c, powershell -NoProfile -Command) run from it. Give read, write and edit Windows paths with forward slashes (C:/Users/…); in bash the same folder is also /c/Users/….",
+                          ]
+                        : []),
                     "A command stops about 30 seconds after the phone's connection to the machine drops, with an error; check what happened before running it again.",
                     ...(Object.keys(machine.tools).length === 0
                         ? []

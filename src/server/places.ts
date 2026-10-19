@@ -18,6 +18,7 @@ import {
     sshConnection,
 } from "@earendil-works/pi-env";
 import { HttpError } from "./errors.ts";
+import { machinePaths } from "./machine-paths.ts";
 import type { Machine, Machines } from "./machines.ts";
 import { sshProblem } from "./machines.ts";
 
@@ -215,7 +216,7 @@ export class Places {
             throw new HttpError(404, `There is no folder ${absolute.value} on ${machine.name}.`);
         }
 
-        return formatPlace({ machineId: machine.id, path: absolute.value });
+        return formatPlace({ machineId: machine.id, path: machinePaths(machine.remote).normal(absolute.value) });
     }
 
     /** A machine was edited or removed: its connection and environments are dropped, and start afresh next time. */

@@ -19,6 +19,8 @@ import { randomUUID } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { machinePaths } from "./machine-paths.ts";
 import { quoteConfigValue, sshAlias } from "./ssh-config.ts";
 import type { SshAgent } from "./ssh-agent.ts";
 import {
@@ -28,6 +30,7 @@ import {
     forgetHostKey,
     HostKeyChangedError,
     HostKeyUnknownError,
+    RemoteExecutionEnv,
     type RemotePlatform,
     scanHostKey,
     SshError,
@@ -415,16 +418,32 @@ export class Machines {
 
         try {
             const { connection, remote } = await connectSsh(this.target(machine));
+            const home = machinePaths(remote).normal(remote.home);
 
             try {
                 const info = await connection.info();
 
                 machine.daemon = info.version;
+
+                // Pi's shell on Windows is Git Bash (the daemon runs commands with it): without it, no tool would run.
+                if (remote.platform === "windows") {
+                    const env = new RemoteExecutionEnv({ connection, id: `pi-env:${machine.id}:check`, cwd: home });
+                    const ran = await env.exec("exit 0", { timeout: 30 }, BACKGROUND_CONTEXT);
+
+                    if (!ran.ok) {
+                        throw new HttpError(
+                            409,
+                            ran.error.code === "shell_unavailable"
+                                ? `${machine.name} has no Git Bash, the shell Pi runs commands with on Windows: install Git for Windows (git-scm.com), then connect again.`
+                                : `${machine.name} could not run a command: ${ran.error.message}`,
+                        );
+                    }
+                }
             } finally {
                 connection.close();
             }
 
-            machine.remote = { platform: remote.platform, arch: remote.arch, home: remote.home };
+            machine.remote = { platform: remote.platform, arch: remote.arch, home };
             machine.connectedAt = Date.now();
             this.#save();
 
@@ -486,7 +505,7 @@ export function parseAddress(address: unknown): { user: string; host: string; po
  */
 export function sshProblem(said: string): string {
     if (/Permission denied|publickey|Authentication failed/i.test(said)) {
-        return "the machine refused the key: is its public key in ~/.ssh/authorized_keys there?";
+        return "the machine refused the key: is its public key in ~/.ssh/authorized_keys there? (On Windows, for an administrator account: C:\\ProgramData\\ssh\\administrators_authorized_keys.)";
     }
 
     if (/host key|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(said)) {

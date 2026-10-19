@@ -129,6 +129,13 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   one alias per machine (a changed key is refused). Three owner taps before anything runs there: scan the host key,
   accept it, "Install and connect" (deploys the daemon to `~/.pi/mobile/tools` on the machine). `ready(id)` refuses a
   machine not connected yet, so the agent can never trigger a deployment. Tested against the bundled `sshd`.
+  **Windows** (2026-10-19): through Windows' own OpenSSH Server (pi-env's Windows daemons, x64 and arm64, are in the
+  APK). The daemon runs command lines with Git Bash, so "Install and connect" runs one and refuses a Windows machine
+  without it (install Git for Windows). Paths there are drive paths with forward slashes (`C:/Users/tuan`,
+  `src/server/machine-paths.ts`): what the daemon answers with `\` (home, folder checks, listings) is turned to `/`
+  once, so places, the web's path joins, and Git Bash read them alike. `machine_run` gives Windows the command line
+  (Git Bash) instead of `sh -c`; `machine_copy` takes `<machine>:C:/…`. The environment section tells Pi it is
+  Windows with Git Bash. Machine tools are not offered there.
 - **Sessions on a machine** (`src/server/places.ts`): a session's `cwd` is a folder here, or
   `machine:<id>:<path on the machine>`. pi-pocket carries that one string everywhere; `Places.env(cwd)` gives
   `NodeExecutionEnv` or pi-env's `RemoteExecutionEnv` (one lazily started connection per machine), so the agent's

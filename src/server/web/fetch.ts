@@ -65,16 +65,15 @@ export function pageMarkdown(html: string, url: string): { title: string; markdo
     return { title, markdown: turndown.turndown(body).replace(/\n{3,}/g, "\n\n").trim() };
 }
 
-/** The home folder where `env` runs, by asking its shell. */
+/** The home folder where `env` runs, as its environment knows it: on Windows with `/`, as the app spells paths there. */
 async function homeOf(env: ExecutionEnv, context: Context): Promise<string> {
-    let out = "";
-    const result = await env.exec(["sh", "-c", 'printf %s "$HOME"'], { onOutput: (text) => (out += text) }, context);
+    const home = await env.absolutePath("~", context);
 
-    if (!result.ok || result.value.exitCode !== 0 || out === "") {
-        throw new Error("Could not find the home folder where this session runs.");
+    if (!home.ok) {
+        throw new Error(`Could not find the home folder where this session runs: ${home.error.message}`);
     }
 
-    return out;
+    return /^[a-zA-Z]:\\/.test(home.value) ? home.value.replaceAll("\\", "/") : home.value;
 }
 
 /** Run a command where the session works, and answer its output; a failure says what it printed. */

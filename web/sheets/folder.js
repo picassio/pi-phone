@@ -47,8 +47,14 @@ function crumbsOf(cwd, homeCwd) {
     const { machineId, path } = splitPlace(cwd);
     const home = splitPlace(homeCwd ?? "").path;
     const underHome = Boolean(home) && (path === home || path.startsWith(`${home}/`));
-    const start = underHome ? home : "";
-    const crumbs = [{ name: underHome ? "~" : "/", path: joinPlace(machineId, underHome ? home : "/") }];
+    // A Windows machine's paths start at a drive (`C:/…`, src/server/machine-paths.ts): it is the first step.
+    const drive = underHome ? undefined : /^[a-zA-Z]:(?=\/|$)/.exec(path)?.[0];
+    const start = underHome ? home : (drive ?? "");
+    const crumbs = [
+        drive === undefined
+            ? { name: underHome ? "~" : "/", path: joinPlace(machineId, underHome ? home : "/") }
+            : { name: drive, path: joinPlace(machineId, `${drive}/`) },
+    ];
     let at = start;
 
     for (const part of path.slice(start.length).split("/").filter(Boolean)) {

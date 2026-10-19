@@ -8,8 +8,8 @@
  */
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
-import { posix } from "node:path";
 import type { PocketHost } from "../host.ts";
+import { machinePaths } from "../machine-paths.ts";
 import { namesIn } from "../secrets.ts";
 
 type Text = { type: "text"; text: string };
@@ -37,29 +37,34 @@ export default function createMachines(host: PocketHost) {
         return found;
     };
 
-    /** `machine:/path` or a path on the phone (absolute or `~/…`): where, and the environment to reach it with. */
+    /**
+     * `machine:/path` (`machine:C:/path` on Windows) or a path on the phone (absolute or `~/…`): where, the
+     * environment to reach it with, and its system's paths (`machine-paths.ts`).
+     */
     const locate = (spec: string) => {
         const colon = spec.indexOf(":");
         const onMachine = colon > 0 && !spec.startsWith("/") && !spec.startsWith("~");
 
         if (onMachine) {
             const machine = find(spec.slice(0, colon));
-            const path = spec.slice(colon + 1).replace(/^~(?=\/|$)/, machine.home);
+            const paths = machinePaths(machine.windows ? { platform: "windows" } : undefined);
+            const path = paths.normal(paths.expandHome(spec.slice(colon + 1), machine.home));
 
-            if (!path.startsWith("/")) {
-                throw new Error(`${spec}: give the path on ${machine.alias} from / or ~.`);
+            if (!paths.isAbsolute(path)) {
+                throw new Error(`${spec}: give the path on ${machine.alias} from ${machine.windows ? "a drive (C:/…)" : "/"} or ~.`);
             }
 
-            return { where: `${machine.alias}:${path}`, path, env: host.envOf(`machine:${machine.id}:${machine.home}`) };
+            return { where: `${machine.alias}:${path}`, path, paths, env: host.envOf(`machine:${machine.id}:${machine.home}`) };
         }
 
-        const path = spec.replace(/^~(?=\/|$)/, host.home);
+        const paths = machinePaths(undefined);
+        const path = paths.expandHome(spec, host.home);
 
-        if (!path.startsWith("/")) {
+        if (!paths.isAbsolute(path)) {
             throw new Error(`${spec}: give a phone path from / or ~, or <machine>:<path>.`);
         }
 
-        return { where: `phone:${path}`, path, env: host.envOf(host.home) };
+        return { where: `phone:${path}`, path, paths, env: host.envOf(host.home) };
     };
 
     const run = defineTool({
@@ -68,7 +73,7 @@ export default function createMachines(host: PocketHost) {
             "Run one shell command on one of the owner's machines, over the app's connection (no ssh needed): to check a log, a disk, a service, or a quick build step there. Secrets work as in bash ($NAME). For longer work on a machine, start a session in a folder there instead.",
         parameters: Type.Object({
             machine: Type.String({ description: "The machine's name (or alias) from your environment section" }),
-            command: Type.String({ description: "A shell command, run with sh -c" }),
+            command: Type.String({ description: "A shell command, run with sh -c (Git Bash's bash on Windows)" }),
             cwd: Type.Optional(Type.String({ description: "Folder on the machine; default its home" })),
             timeout: Type.Optional(Type.Number({ description: "Seconds before it is stopped (default 120, at most 1800)" })),
         }),
@@ -81,14 +86,17 @@ export default function createMachines(host: PocketHost) {
                 return failed(error instanceof Error ? error.message : String(error));
             }
 
-            const cwd = (args.cwd ?? machine.home).replace(/^~(?=\/|$)/, machine.home);
+            const paths = machinePaths(machine.windows ? { platform: "windows" } : undefined);
+            const cwd = paths.normal(paths.expandHome(args.cwd ?? machine.home, machine.home));
             const place = `machine:${machine.id}:${cwd}`;
             const env = host.envOf(place);
             const secrets = host.secrets.environment(namesIn(args.command), place);
             let out = "";
             let skipped = 0;
+            // On Windows, the daemon runs a command line with Git Bash (`machines.ts` checks it is there); `sh` may
+            // not be on Windows' own PATH.
             const result = await env.exec(
-                ["sh", "-c", args.command],
+                machine.windows ? args.command : ["sh", "-c", args.command],
                 {
                     cwd,
                     env: secrets,
@@ -152,15 +160,15 @@ export default function createMachines(host: PocketHost) {
                 }
 
                 const target = await to.env.fileInfo(to.path, context);
-                const into = args.to.endsWith("/") || (target.ok && target.value.kind === "directory");
-                const destination = into ? posix.join(to.path, posix.basename(from.path)) : to.path;
+                const into = /[\\/]$/.test(args.to) || (target.ok && target.value.kind === "directory");
+                const destination = into ? to.paths.join(to.path, from.paths.basename(from.path)) : to.path;
                 const bytes = await from.env.readBinaryFile(from.path, context);
 
                 if (!bytes.ok) {
                     return failed(`${from.where}: ${bytes.error.message}`);
                 }
 
-                await to.env.createDir(posix.dirname(destination), { recursive: true }, context);
+                await to.env.createDir(to.paths.dirname(destination), { recursive: true }, context);
                 const written = await to.env.writeFile(destination, bytes.value, context);
 
                 if (!written.ok) {

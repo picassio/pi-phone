@@ -27,6 +27,7 @@ import {
 import type { User } from "../config.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { HttpError } from "../errors.ts";
+import { machinePaths } from "../machine-paths.ts";
 import { formatPlace, isRemote, parsePlace } from "../places.ts";
 import { runningNow } from "../running.ts";
 import { conversationRoutes } from "./conversation-routes.ts";
@@ -665,8 +666,10 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 const place = parsePlace(requested);
                 const machine = app.machines.ready(place.machineId!);
                 const home = machine.remote!.home;
+                // Its own paths: on Windows, drive paths with forward slashes (`machine-paths.ts`).
+                const paths = machinePaths(machine.remote);
                 const cwd = await app.workspace.checkPlace(
-                    formatPlace({ machineId: machine.id, path: place.path === "~" ? home : place.path.replace(/^~(?=\/)/, home) }),
+                    formatPlace({ machineId: machine.id, path: paths.expandHome(place.path, home) }),
                 );
                 const path = parsePlace(cwd).path;
                 const env = app.places.env(cwd);
@@ -688,7 +691,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
                         for (const entry of page.value.entries) {
                             if ((showHidden || !entry.name.startsWith(".")) && entry.kind === "directory") {
-                                remoteDirs.push({ name: entry.name, path: formatPlace({ machineId: machine.id, path: entry.path }) });
+                                remoteDirs.push({ name: entry.name, path: formatPlace({ machineId: machine.id, path: paths.normal(entry.path) }) });
                             }
                         }
 
@@ -701,7 +704,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 }
 
                 remoteDirs.sort((a, b) => a.name.localeCompare(b.name));
-                const parent = dirname(path);
+                const parent = paths.dirname(path);
 
                 return json(response, 200, {
                     path: cwd,

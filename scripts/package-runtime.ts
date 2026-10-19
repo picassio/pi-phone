@@ -7,8 +7,7 @@
  *
  * Needs a clean checkout (the version is the commit) and GNU `tar`. Hard links are stored as copies (Android forbids
  * hard links in app data); `node_modules/.bin` folders are left out (nothing runs them, and their links can dangle), and so
- * are pi-env's Windows daemons (DESIGN.md: machines are Linux, macOS, or Termux until a Windows one is wanted), the
- * better-sqlite3 copies pi-para and qmd-engine bundle (the app runs them on node:sqlite, `para-env.ts`; better-sqlite3
+ * are the better-sqlite3 copies pi-para and qmd-engine bundle (the app runs them on node:sqlite, `para-env.ts`; better-sqlite3
  * has no Android build), and qmd's tree-sitter grammars (it splits source code with them; the wiki is markdown).
  */
 import { execFileSync } from "node:child_process";
@@ -21,7 +20,7 @@ const ASSETS = join(ROOT, "android/app/src/main/assets");
 /** What the server reads at runtime, relative to the repository. */
 const CONTENTS = ["package.json", "DESIGN.md", "AGENTS.md", "src", "web", "native", "third_party", "node_modules"];
 /** Files and folders, by name, that the runtime never uses on the phone (see above). */
-const LEFT_OUT = /^(\.bin|pi-env-windows-.*|better-sqlite3|node-addon-api|tree-sitter-(go|javascript|python|rust|typescript))$/;
+const LEFT_OUT = /^(\.bin|better-sqlite3|node-addon-api|tree-sitter-(go|javascript|python|rust|typescript))$/;
 
 function git(...args: string[]): string {
     return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();

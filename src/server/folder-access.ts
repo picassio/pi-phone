@@ -47,7 +47,7 @@ const GIT_ENV = { GIT_LITERAL_PATHSPECS: "1", GIT_OPTIONAL_LOCKS: "0", LC_ALL: "
 export function remoteAccess(env: ExecutionEnv): FolderAccess {
     return {
         local: false,
-        // The machines are POSIX (DESIGN.md: no Windows daemons are shipped).
+        // Git takes "/dev/null" for no file on every system, Windows included (its diff --no-index checks the name).
         devNull: "/dev/null",
         async git(cwd, args, options = {}) {
             const { allowExit = [], timeoutMs = 60_000, maxBuffer = 16 * 1024 * 1024 } = options;

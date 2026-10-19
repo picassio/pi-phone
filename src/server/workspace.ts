@@ -7,7 +7,7 @@
 import { lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { readFile, writeFile } from "node:fs/promises";
-import { basename, extname, isAbsolute, join, posix, resolve, sep } from "node:path";
+import { basename, extname, isAbsolute, join, resolve, sep } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { ConversationId } from "@earendil-works/pi-durable";
@@ -32,6 +32,7 @@ import { describe, HttpError } from "./errors.ts";
 import { FileLists, type FileListing, type FileView, listRemoteFiles, viewFile, viewRemoteFile } from "./files.ts";
 import { type FolderAccess, localAccess, remoteAccess } from "./folder-access.ts";
 import { sniffImage } from "./http/assets.ts";
+import { machinePaths } from "./machine-paths.ts";
 import type { Machine } from "./machines.ts";
 import { displayPath, expandHome } from "./paths.ts";
 import { isRemote, parsePlace } from "./places.ts";
@@ -267,7 +268,7 @@ export class Workspace {
         const machine: Machine = this.#app.machines.ready(place.machineId!);
         const env = this.#app.places.env(cwd);
 
-        return { cwd: place.path, machine, env, access: remoteAccess(env) };
+        return { cwd: place.path, machine, env, access: remoteAccess(env), paths: machinePaths(machine.remote) };
     }
 
     /** The folder Changes looks in, and how it reaches it: here, or on the session's machine. */
@@ -290,12 +291,9 @@ export class Workspace {
             throw new HttpError(404, `${path} is not on this session's machine.`);
         }
 
-        const written = place.path;
-        const home = remote.machine.remote!.home;
-        const expanded = written === "~" ? home : written.startsWith("~/") ? `${home}${written.slice(1)}` : written;
-        const file = posix.resolve(remote.cwd, expanded);
+        const file = remote.paths.resolve(remote.cwd, remote.paths.expandHome(place.path, remote.machine.remote!.home));
 
-        if (user.sessions !== undefined && file !== remote.cwd && !file.startsWith(`${remote.cwd}/`)) {
+        if (user.sessions !== undefined && !remote.paths.within(remote.cwd, file)) {
             throw new HttpError(404, "Image not found");
         }
 
@@ -611,7 +609,7 @@ export class Workspace {
 
         return remote === undefined
             ? this.#files.get(this.#app.cwdOf(id))
-            : this.#files.get(this.#app.cwdOf(id), () => listRemoteFiles(remote.env, remote.cwd));
+            : this.#files.get(this.#app.cwdOf(id), () => listRemoteFiles(remote.env, remote.cwd, remote.paths.windows));
     }
 
     /**
@@ -720,7 +718,7 @@ export class Workspace {
                 throw new HttpError(502, `Could not read ${path} on ${remote.machine.name}: ${bytes.error.message}`);
             }
 
-            return { name: posix.basename(file), data: Buffer.from(bytes.value) };
+            return { name: remote.paths.basename(file), data: Buffer.from(bytes.value) };
         }
 
         let file: string;
@@ -755,9 +753,10 @@ export class Workspace {
         const remote = this.#remote(id);
         const root = remote === undefined ? this.#app.cwdOf(id) : remote.cwd;
         // A folder of the panel's: a place on the machine (`machine:<id>:<path>`), or a path.
-        const folder = posix.resolve(root, parsePlace(dir).path);
+        const paths = remote?.paths ?? machinePaths(undefined);
+        const folder = paths.resolve(root, parsePlace(dir).path);
 
-        if (folder !== root && !folder.startsWith(`${root}/`)) {
+        if (!paths.within(root, folder)) {
             throw new HttpError(400, "Files go into the session's folder, or a folder in it.");
         }
 
