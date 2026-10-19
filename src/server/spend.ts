@@ -17,7 +17,7 @@ const context = BACKGROUND_CONTEXT;
 /** Spend stored for people a little after it happens: a run commits its usage with every response. */
 const COUNT_AFTER_MS = 250;
 
-export const dollars = (amount: number) => `${amount.toFixed(2)}`;
+export const dollars = (amount: number) => `$${amount.toFixed(2)}`;
 
 /** Two counts of the wiki's embeddings as one: summed, and since the earlier. */
 function addWiki(a: WikiSpend | undefined, b: WikiSpend | undefined): WikiSpend | undefined {
