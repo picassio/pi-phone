@@ -2127,7 +2127,7 @@ kbd {
     color: var(--err);
 }
 
-.step-mark.approval {
+.step-mark.asking {
     --tint: var(--warn-soft);
     color: var(--warn);
     box-shadow:
@@ -2135,7 +2135,7 @@ kbd {
         0 0 0 3px var(--bg);
 }
 
-.step-mark.running,
+.step-mark.spinning,
 .step-mark.agent {
     --tint: var(--accent-soft);
     color: var(--accent);

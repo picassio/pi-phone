@@ -475,7 +475,8 @@ const MARKS = {
 function StepMark({ status, kind }) {
     const agent = kind === "agent" && (status === "done" || status === "running");
     const spinning = kind !== "thought" && !agent && status === "running";
-    const look = kind === "thought" ? "thought" : agent ? "agent" : status;
+    // "asking" and "spinning", not "approval" and "running": those are cards' classes, whose padding and border would land on the circle.
+    const look = kind === "thought" ? "thought" : agent ? "agent" : status === "approval" ? "asking" : status === "running" ? "spinning" : status;
     const mark = kind === "thought" ? "✦" : agent ? "⑂" : MARKS[status];
 
     return html`<span
