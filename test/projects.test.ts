@@ -193,6 +193,18 @@ test("a session's board settings: who closes tasks and its rules, kept; the proj
     const mode = again.boardMode("c-1")!;
 
     assert.deepEqual([mode.closer, mode.rules, mode.project?.rules], ["pi", "light", "light"], "kept across a restart and a board-mode change");
+
+    // Where Pi closes tasks, it may move one it worked on to Done; elsewhere it may not.
+    const worked = again.createTask(pi("c-1"), "PP", { title: "Mine" });
+
+    again.updateTask(pi("c-1"), worked.ref, { state: "in_progress" });
+    again.updateTask(pi("c-1"), worked.ref, { state: "done" });
+    again.setBoardMode(as(OWNER), "c-2", true, "PP");
+
+    const other = again.createTask(pi("c-2"), "PP", { title: "Theirs" });
+
+    again.updateTask(pi("c-2"), other.ref, { state: "in_progress" });
+    assert.throws(() => again.updateTask(pi("c-2"), other.ref, { state: "done" }), /cannot approve it/);
     again.close();
 
     const light = boardRules("light", "pi");

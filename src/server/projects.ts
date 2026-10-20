@@ -1234,8 +1234,10 @@ export class Projects {
             throw new HttpError(403, `${task.ref} needs a person's approval: only a person moves it to Done. Set it to Review.`);
         }
 
+        // In a session where the person chose that Pi closes tasks (their OK in chat is the approval), it may.
         if (
             actor.kind === "pi" &&
+            this.boardMode(actor.conversationId)?.closer !== "pi" &&
             this.sessionsOf(task.id).some((session) => session.role === "worker" && session.conversationId === actor.conversationId)
         ) {
             throw new HttpError(
