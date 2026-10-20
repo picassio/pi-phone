@@ -2551,23 +2551,6 @@ export function Transcript() {
     const rows = entries.filter(isRow);
     const start = windowStart(rows, transcriptFrom);
 
-    // The room the pane gives, for what may run wider than the column (a reply's code blocks and tables: style.css).
-    useEffect(() => {
-        const element = scroller.current;
-
-        if (!element || typeof ResizeObserver !== "function") {
-            return undefined;
-        }
-
-        const measure = new ResizeObserver(() =>
-            element.style.setProperty("--pane-room", `${element.clientWidth}px`),
-        );
-
-        measure.observe(element);
-
-        return () => measure.disconnect();
-    }, [scroller.current]);
-
     useLayoutEffect(() => {
         const element = scroller.current;
 

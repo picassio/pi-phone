@@ -1618,26 +1618,10 @@ kbd {
     font-weight: 600;
 }
 
-/*
- * A reply's code blocks and tables may run wider than its words, up to the pane's room (--pane-room, which
- * transcript.js measures) less the column's padding. A code block as wide as its longest line, at least the column's
- * width, centered on the column; a table as wide as its cells, from the column's start toward the pane's edge. On a
- * phone, and in a pane no wider than the column, the room is the column, so nothing changes.
- */
-.transcript {
-    --wide-room: max(
-        100%,
-        calc(var(--pane-room, 100%) - 56px * var(--space-x) - var(--transcript-gutter))
-    );
-}
-
+/* A reply's code blocks keep to its column, all one width: long lines scroll inside the block. (Wide blocks used to
+ * spread past the column, centred, which left a reply's blocks of different widths and looked broken.) */
 [data-part~="reply"] :is(.md, .md-part) > .code {
-    position: relative;
-    left: 50%;
-    width: max-content;
-    min-width: 100%;
-    max-width: var(--wide-room);
-    translate: -50%;
+    max-width: 100%;
 }
 
 /* Words in a code block (a draft to copy, say) wrap in the column, as a reply's words do: a paragraph on one line would
@@ -1656,27 +1640,10 @@ kbd {
     overflow-wrap: anywhere;
 }
 
-[data-part~="reply"]
-    :is(.md, .md-part)
-    > .code:not([data-kind]):has(
-        > pre:is(
-                :not([data-lang]),
-                [data-lang="text" i],
-                [data-lang="txt" i],
-                [data-lang="plaintext" i],
-                [data-lang="markdown" i],
-                [data-lang="md" i]
-            )
-    ) {
-    left: 0;
-    width: auto;
-    max-width: 100%;
-    translate: none;
-}
-
+/* A reply's tables keep to its column too, and scroll sideways when wider. */
 [data-part~="reply"] :is(.md, .md-part) > table:not(.dv-table) {
     width: max-content;
-    max-width: calc(100% + (var(--wide-room) - 100%) / 2);
+    max-width: 100%;
 }
 
 /* A reply's own tables, in a card; a diff it shows draws its table itself. */
