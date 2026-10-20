@@ -1545,7 +1545,18 @@ export function RailNav({ foldable = false, folded = false }) {
         </button>
         <${ExtensionRailButtons} />
         ${
-            collab()
+            // Behind the server edition's gateway, people and devices are its (PP-21): the rail opens its account page.
+            store.state.server?.gateway
+                ? html`<button
+                    class="rail-button"
+                    data-part="rail-button"
+                    title="Your account and people"
+                    aria-label="Your account"
+                    onClick=${() => (location.href = "/auth/account")}
+                >
+                    <${Icon} name="users" size=${19} />
+                </button>`
+                : collab()
                 ? html`<button
                     class="rail-button"
                     data-part="rail-button"
