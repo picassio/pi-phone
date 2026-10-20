@@ -217,6 +217,8 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "link a stranger": ["task_link_session", { task: "PP-2", session: 99999 }],
     "share it with Zed": ["project_share", { project: "PP", people: ["Zed"] }],
     "delete PP-2": ["task_delete", { task: "PP-2" }],
+    "make a board": ["project_create", { key: "ab", name: "Agent board", reason: "Track the agent work" }],
+    "make PP again": ["project_create", { key: "PP", name: "Again" }],
 };
 let prompt = "";
 const route: FauxResponseStep = (request) => {
@@ -361,6 +363,29 @@ test("Pi sets a project up with its tools: its folder and places, its main sessi
     assert.ok(detail.sessions.some((each) => each.conversationId === String(id) && each.role === "linked"));
 });
 
+test("Pi makes a board from any session, only after the person says yes; a taken key is refused before asking", async () => {
+    const id = await newSession(app);
+    const ask = async (answer: boolean) => {
+        const { submissionId } = await app.commands.submit(id, owner(app), { text: "make a board", requestId: ownRequest(owner(app).id, crypto.randomUUID()) });
+
+        await until(() => app.approvals.forConversation(id).some((each) => each.tool === "project_create"), "the card");
+        const card = app.approvals.forConversation(id).find((each) => each.tool === "project_create")!;
+
+        assert.equal(card.subject, "Make the board AB · Agent board");
+        assert.equal(card.reason, "Track the agent work");
+        await app.answerApproval(card.id, answer, owner(app));
+        await (await app.harness.submission(submissionId, context))!.wait(context);
+        await app.harness.waitForIdle(context);
+
+        return (await modelTexts(app, id)).at(-1)!;
+    };
+
+    assert.match(await turn(id, "make PP again"), /already a project PP/);
+    assert.match(await ask(false), /said no: no board was made/);
+    assert.ok(!((await (await call(app.config.ownerToken, "GET", "projects")).json()) as { projects: { key: string }[] }).projects.some((each) => each.key === "AB"));
+    assert.match(await ask(true), /Made AB · Agent board/);
+});
+
 test("the board's routes: shared people see and change it, others get nothing, viewers only read", async () => {
     const guest = app.config.addUser("Gina", "guest");
     const viewer = app.config.addUser("Vic", "viewer");
@@ -369,8 +394,7 @@ test("the board's routes: shared people see and change it, others get nothing, v
     try {
         const listed = (await (await call(app.config.ownerToken, "GET", "projects")).json()) as { projects: { key: string; counts: Record<string, number> }[] };
 
-        assert.equal(listed.projects[0]!.key, "PP");
-        assert.equal(listed.projects[0]!.counts.in_progress, 1);
+        assert.equal(listed.projects.find((each) => each.key === "PP")!.counts.in_progress, 1);
         assert.deepEqual(((await (await call(guest.token, "GET", "projects")).json()) as { projects: unknown[] }).projects, [], "not shared");
         assert.equal((await call(guest.token, "GET", "projects/PP")).status, 404);
         assert.equal((await call(invited.token, "GET", "projects")).status, 404, "people invited to one session never reach the app's parts");

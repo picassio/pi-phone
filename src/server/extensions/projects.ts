@@ -587,15 +587,50 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         ),
         tool(
             "project_create",
-            "Make a project board: a key of 2 to 6 letters or digits (PP), a name, and the folder its work happens in.",
+            "Make a project board: a key of 2 to 6 letters or digits (PP), a name, and the folder its work happens in. From any session; asks the person on a card first. It does not turn board mode on here (board_mode does).",
             Type.Object({
                 key: Type.String(),
                 name: Type.String(),
                 folder: Type.Optional(Type.String({ description: "Where its work happens: a folder here, or machine:<id>:<path>" })),
+                reason: Type.Optional(Type.String({ description: "What the board is for, in a sentence: shown on the card" })),
             }),
-            (args, conversationId) => {
-                const { actor } = onBoard(conversationId);
-                const made = projects.create(actor, { key: args.key, name: args.name, folder: args.folder ?? null });
+            async (args, conversationId, api, context) => {
+                const actor = piOf(conversationId);
+                const key = args.key.trim().toUpperCase();
+                const name = args.name.trim();
+
+                // What would be refused is said before anyone is asked.
+                if (!/^[A-Z0-9]{2,6}$/.test(key)) {
+                    throw new HttpError(400, "A project's key is 2 to 6 letters or digits.");
+                }
+
+                if (name === "" || name.length > 80) {
+                    throw new HttpError(400, "Give the project a name, up to 80 characters.");
+                }
+
+                if (projects.list(actor).some((project) => project.key === key)) {
+                    throw new HttpError(409, `There is already a project ${key}.`);
+                }
+
+                const answer = await host.approvals.request(
+                    {
+                        id: `project-create-${conversationId}-${String(api.callId)}`,
+                        conversationId: Number(conversationId) as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "project_create",
+                        subject: `Make the board ${key} · ${name}${args.folder ? ` in ${args.folder}` : ""}`,
+                        reason: args.reason ?? "A new project board, yours to see and change.",
+                        createdAt: Date.now(),
+                    },
+                    context,
+                );
+
+                if (!answer.allow) {
+                    return `${answer.by} said no: no board was made.`;
+                }
+
+                const made = projects.create({ kind: "person", person: actor.person }, { key, name, folder: args.folder ?? null });
 
                 return `Made ${made.key} · ${made.name}.`;
             },

@@ -63,7 +63,8 @@ No Termux, no laptop, no cloud VM.
   and failures do. The team checks on its task sessions each minute: an end it missed (a restart) is still reported,
   a task whose session was deleted fails, and one working over 30 minutes is flagged to the main session.
   Pi has a tool for every action (`project_create`, `project_update`, `project_share`, `project_team`, `task_create`,
-  `task_update`, `task_comment`, `task_run`, `task_diff`, `task_link_session`, …); deleting and merging ask you on a card.
+  `task_update`, `task_comment`, `task_run`, `task_diff`, `task_link_session`, …); making a board (from any session),
+  deleting, and merging ask you on a card.
 
 ### Web, documents, and answers
 - **Pi's browser.** Pi opens pages in a browser of its own (a WebView of the app, driven over its DevTools socket) and
