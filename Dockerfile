@@ -33,14 +33,14 @@ ARG GH_SHA256_AMD64=bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c601
 ARG GH_SHA256_ARM64=7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484
 ARG DEBIAN_MIRROR
 # git and ssh for Pi's work and machines; tini as PID 1; ICU for OfficeCLI (.NET); what Chrome headless shell needs, and
-# fonts for pages (Japanese, Chinese and Korean too).
+# fonts for pages: Latin, Arabic, Thai, Hebrew, Indic and more (Noto core), Japanese, Chinese and Korean, and emoji.
 RUN sed -i "s|http://deb.debian.org/debian$|${DEBIAN_MIRROR}|" /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates curl git openssh-client tini less procps unzip libicu76 \
         libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 \
         libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libpango-1.0-0 libcairo2 libdbus-1-3 libexpat1 \
-        fonts-liberation fonts-noto-color-emoji fonts-noto-cjk \
+        fonts-liberation fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/* \
     && arch="$(dpkg --print-architecture)" \
     && sum="$([ "$arch" = arm64 ] && echo "$GH_SHA256_ARM64" || echo "$GH_SHA256_AMD64")" \
