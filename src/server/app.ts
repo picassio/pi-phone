@@ -696,6 +696,10 @@ export class PocketApp {
             requesterOf: (conversationId) => this.attribution.requesterOf(conversationId),
             ready: () => this.#ready,
             people: () => this.config.users.map((user) => ({ id: user.id, name: user.name, role: user.role })),
+            devices: (userId) => this.devices(this.#person(userId)),
+            signOutDevice: (userId, id) => this.signOutDevice(this.#person(userId), id),
+            // From Pi no device is "this one": the owner's phone app signs in again by itself.
+            signOutEverywhere: (userId) => this.signOutEverywhere(this.#person(userId)),
             startSession: async ({ userId, cwd, title, message, via }) => {
                 const user = this.config.userById(userId);
 
@@ -2825,6 +2829,17 @@ export class PocketApp {
                 client.close?.();
             }
         }
+    }
+
+    /** A person by id, for what Pi does as them. */
+    #person(userId: string): User {
+        const user = this.config.userById(userId);
+
+        if (user === undefined) {
+            throw new HttpError(404, "That person is not here any more.");
+        }
+
+        return user;
     }
 
     /** Sign one device out: the owner any, others only their own. Its tabs close; the phone's app signs in again. */

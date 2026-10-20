@@ -262,6 +262,13 @@ export interface PocketHost {
     ready(): Promise<void>;
     /** Everyone in the app now, by id, name, and role (the Projects extension's sharing). */
     people(): { id: string; name: string; role: Role }[];
+    /**
+     * Signed-in devices as `userId` sees them (Settings › People › Devices): the owner everyone's, others their own; and
+     * signing one out, or every other one of theirs (the owner's also replaces the owner token).
+     */
+    devices(userId: string): { id: string; user: { id: string; name: string; role: Role }; name: string; createdAt: number; lastSeen?: number; address?: string; app?: boolean; open: boolean }[];
+    signOutDevice(userId: string, id: string): void;
+    signOutEverywhere(userId: string): void;
     /** Whether a person may see a session, as the app decides it for them (`canSee`). */
     canSee(userId: string, conversationId: ConversationId): boolean;
     /** Report something odd to the log and the connected clients: with `conversationId`, to that session's tabs only. */

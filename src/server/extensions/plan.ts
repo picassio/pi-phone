@@ -53,6 +53,8 @@ const ALWAYS_ALLOWED = new Set([
     "browser_new_tab",
     "browser_tabs",
     "openui_guide",
+    // Only reads: the devices signed in.
+    "devices",
     // Only looks: a picture of a page.
     "screenshot",
 ]);

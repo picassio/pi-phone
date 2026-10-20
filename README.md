@@ -128,7 +128,8 @@ No Termux, no laptop, no cloud VM.
 - **Devices.** Each sign-in is a device of its own, so People lists every signed-in device (open now or not, where it
   was last seen) and signs any one out; invited people see and sign out their own. **Sign out every device** signs out
   all your others at once. A **recovery code** (break glass), made in People in the phone's app only and kept off the phone, signs a
-  browser in as you once if no device can; the phone notifies you when it is used.
+  browser in as you once if no device can; the phone notifies you when it is used. Pi lists devices too (`devices`), and signs one or
+  all out (`device_sign_out`, `sign_out_everywhere`) after you say yes on a card.
 - **Dictation** with Android's speech recognizer, in the language you choose.
 
 ### The app
