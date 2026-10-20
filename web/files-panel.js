@@ -39,8 +39,13 @@ export function setFilesOpen(open, tab) {
         sessionStorage.setItem(TAB_KEY, tab);
     }
 
+    if (open) {
+        sessionStorage.removeItem("pocket.piBrowser");
+    }
+
     store.set({
         filesOpen: open,
+        ...(open ? { browserOpen: false } : {}),
         drawer: false,
         // Someone asked for the tile just now: Changes takes the keys (`DiffReview`).
         ...(open

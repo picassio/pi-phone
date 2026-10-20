@@ -1,0 +1,492 @@
+/**
+ * What Pi does on a page (`browser/pi-browser.ts`), over one DevTools connection: read it as numbered elements and visible
+ * text (`snapshot.js`), and act on an element it read: click, type, select. Every target is an observed DOM node, never a
+ * selector or a script the model wrote; just before input the element is checked to be the one observed, still in view,
+ * and not covered, or the action is refused as stale and the page read again. Input is real (DevTools input events).
+ * The loop's shape and the act-time checks follow jev-ultrafast (MIT, Browser Use).
+ */
+import { readFileSync } from "node:fs";
+import type { Cdp } from "./cdp.ts";
+
+const SNAPSHOT = readFileSync(new URL("./snapshot.js", import.meta.url), "utf8");
+
+/** Addresses Pi's browser never loads: the app itself, this device, and the local network (a page could act as you). */
+export const BLOCKED_URLS = [
+    "*://127.*",
+    "*://localhost*",
+    "*://[::1]*",
+    "*://0.0.0.0*",
+    "*://10.*",
+    "*://192.168.*",
+    "*://169.254.*",
+    ...Array.from({ length: 16 }, (_each, index) => `*://172.${16 + index}.*`),
+    // Tailscale's addresses (100.64.0.0/10), where the owner's machines and this app's other address are.
+    ...Array.from({ length: 64 }, (_each, index) => `*://100.${64 + index}.*`),
+];
+
+type RawAction = {
+    node: number;
+    role: string;
+    label: string;
+    rect: { x: number; y: number; w: number; h: number };
+    kind: "click" | "fill" | "select";
+    value?: string;
+    option?: string;
+    current_value?: string;
+    checked?: string;
+    selected?: string;
+    expanded?: string;
+};
+
+/** The page as read: its controls (raw, per action) and the guards that tell whether it changed since. */
+export type Observed = {
+    url: string;
+    title: string;
+    w: number;
+    h: number;
+    text: string;
+    scroll: { y: number; height: number };
+    actions: RawAction[];
+    marker: unknown;
+    page_key: unknown;
+    guards: Record<string, unknown>;
+    omitted: number;
+};
+
+/** A control on the page, numbered for Pi: what it is, what it holds, and what can be done with it. */
+export type Element = {
+    index: number;
+    node: number;
+    role: string;
+    label: string;
+    value?: string;
+    checked?: string;
+    selected?: string;
+    expanded?: string;
+    click: boolean;
+    fill: boolean;
+    /** A drop-down list's other choices (the chosen one is `value`). */
+    options?: { label: string; value: string }[];
+};
+
+/** The page changed (or the element moved, or something covers it) since it was read: read it again. */
+export class StalePage extends Error {}
+
+/** One element per observed node, in page order, numbered from 1. */
+export function elementsOf(observed: Observed): Element[] {
+    const byNode = new Map<number, Element>();
+
+    for (const action of observed.actions) {
+        let element = byNode.get(action.node);
+
+        if (element === undefined) {
+            element = {
+                index: byNode.size + 1,
+                node: action.node,
+                role: action.role,
+                label: action.label,
+                click: false,
+                fill: false,
+                ...(action.checked === undefined ? {} : { checked: action.checked }),
+                ...(action.selected === undefined ? {} : { selected: action.selected }),
+                ...(action.expanded === undefined ? {} : { expanded: action.expanded }),
+            };
+            byNode.set(action.node, element);
+        }
+
+        if (action.kind === "select") {
+            element.options = [...(element.options ?? []), { label: action.option ?? action.value ?? "", value: action.value ?? "" }];
+            element.value = action.current_value ?? "";
+        } else {
+            element[action.kind] = true;
+
+            if (action.value !== undefined && action.value !== "") {
+                element.value = action.value;
+            }
+        }
+    }
+
+    return [...byNode.values()];
+}
+
+const quote = (text: string) => JSON.stringify(text);
+
+/** The page in words for Pi: where it is, its numbered controls, and its visible text. */
+export function describe(observed: Observed, elements: Element[]): string {
+    const below = observed.scroll.height - (observed.scroll.y + observed.h);
+    const lines = [
+        `${observed.title || "(no title)"} — ${observed.url}`,
+        observed.scroll.height > observed.h + 2
+            ? `Scrolled ${Math.round(observed.scroll.y)} of ${Math.round(observed.scroll.height)} px${below > 2 ? ", more below" : ""}${observed.scroll.y > 0 ? ", more above" : ""}.`
+            : "",
+        "",
+        elements.length === 0 ? "No controls in view." : "Controls in view:",
+        ...elements.map((element) => {
+            const parts = [`[${element.index}] ${element.role} ${quote(element.label)}`];
+
+            if (element.options !== undefined) {
+                parts.push(`chosen ${quote(element.value ?? "")}, other options: ${element.options.slice(0, 12).map((option) => quote(option.label)).join(", ")}${element.options.length > 12 ? `, … (${element.options.length - 12} more)` : ""}`);
+            } else if (element.fill) {
+                parts.push(`value ${quote(element.value ?? "")}`);
+            }
+
+            for (const state of ["checked", "selected", "expanded"] as const) {
+                if (element[state] !== undefined) {
+                    parts.push(`${state}=${element[state]}`);
+                }
+            }
+
+            return parts.join(" ");
+        }),
+        observed.omitted > 0 ? `(${observed.omitted} more controls not listed: scroll, or open the section first)` : "",
+        "",
+        "Visible text:",
+        observed.text || "(none)",
+    ];
+
+    return lines.filter((line, index, all) => line !== "" || (all[index - 1] ?? "") !== "").join("\n").trim();
+}
+
+const KEYS: Record<string, { code: string; keyCode: number; text?: string }> = {
+    Enter: { code: "Enter", keyCode: 13, text: "\r" },
+    Escape: { code: "Escape", keyCode: 27 },
+    Tab: { code: "Tab", keyCode: 9 },
+    Backspace: { code: "Backspace", keyCode: 8 },
+    ArrowUp: { code: "ArrowUp", keyCode: 38 },
+    ArrowDown: { code: "ArrowDown", keyCode: 40 },
+    ArrowLeft: { code: "ArrowLeft", keyCode: 37 },
+    ArrowRight: { code: "ArrowRight", keyCode: 39 },
+    PageDown: { code: "PageDown", keyCode: 34 },
+    PageUp: { code: "PageUp", keyCode: 33 },
+};
+
+export const PRESSABLE = Object.keys(KEYS);
+
+/** An address as typed: words become a search, a bare name gets https. Only http and https pages. */
+export function addressOf(input: string): string {
+    const typed = input.trim();
+
+    if (typed === "") {
+        throw new Error("Give an address, or words to search for.");
+    }
+
+    if (/^https?:\/\//i.test(typed)) {
+        return new URL(typed).href;
+    }
+
+    if (/^[a-z][a-z0-9+.-]*:/i.test(typed) && !/^[^\s/]+\.[^\s/]+:\d/.test(typed)) {
+        throw new Error("Pi's browser opens http and https pages only.");
+    }
+
+    if (/\s/.test(typed) || !typed.includes(".")) {
+        return `https://duckduckgo.com/?q=${encodeURIComponent(typed)}`;
+    }
+
+    return new URL(`https://${typed}`).href;
+}
+
+export class BrowserPage {
+    readonly cdp: Cdp;
+    /** The element Pi typed into or clicked last, waited on before the next read (menus, suggestions). */
+    #afterInput: RawAction | undefined;
+    /** The last dialog the page opened (alert, confirm, prompt), dismissed: told to Pi with the next read. */
+    dialog: string | undefined;
+
+    constructor(cdp: Cdp) {
+        this.cdp = cdp;
+    }
+
+    /** Turn on what reading and acting need, block the local addresses, and dismiss dialogs (accepted only when asked). */
+    async init(viewport: { width: number; height: number; mobile: boolean }): Promise<void> {
+        await this.cdp.send("Page.enable");
+        await this.cdp.send("Network.enable");
+        await this.cdp.send("Network.setBlockedURLs", { urls: BLOCKED_URLS });
+        await this.cdp.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 0, mobile: viewport.mobile });
+        await this.cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
+        this.cdp.on("Page.javascriptDialogOpening", (params) => {
+            this.dialog = `${String(params.type)}: ${String(params.message ?? "").slice(0, 300)}`;
+            void this.cdp.send("Page.handleJavaScriptDialog", { accept: this.acceptDialogs }).catch(() => {});
+        });
+    }
+
+    /** Whether the next dialog is accepted (a click or key press Pi asked to accept them for); declined otherwise. */
+    acceptDialogs = false;
+
+    async evaluate<T>(expression: string, awaitPromise = false): Promise<T> {
+        const answer = await this.cdp.send<{ result?: { value?: unknown }; exceptionDetails?: { text?: string; exception?: { description?: string } } }>("Runtime.evaluate", {
+            expression,
+            returnByValue: true,
+            awaitPromise,
+        });
+
+        if (answer.exceptionDetails !== undefined) {
+            throw new StalePage(`The page changed while it was read (${answer.exceptionDetails.exception?.description?.split("\n")[0] ?? answer.exceptionDetails.text ?? "an error"}).`);
+        }
+
+        return answer.result?.value as T;
+    }
+
+    /** Open an address, and wait for it to load (15 seconds at most; a slow page is read as it is). */
+    async navigate(url: string): Promise<void> {
+        const answer = await this.cdp.send<{ errorText?: string }>("Page.navigate", { url });
+
+        if (answer.errorText !== undefined && answer.errorText !== "") {
+            throw new Error(answer.errorText === "net::ERR_BLOCKED_BY_CLIENT" ? `Pi's browser does not open ${url}: it is this device or its local network.` : `Could not open ${url}: ${answer.errorText}`);
+        }
+
+        await this.settle(15_000);
+    }
+
+    /** Wait until the document is loaded, up to `ms`. */
+    async settle(ms: number): Promise<void> {
+        const until = Date.now() + ms;
+
+        while (Date.now() < until) {
+            const state = await this.evaluate<string>("document.readyState").catch(() => "loading");
+
+            if (state === "complete") {
+                return;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+    }
+
+    /** Read the page: retried while it navigates (a read that finds no document, or one that changes under it). */
+    async observe(): Promise<Observed> {
+        const after = this.#afterInput;
+
+        this.#afterInput = undefined;
+
+        if (after !== undefined) {
+            // Menus and suggestions a click or typing opens: two frames, or up to 200 ms for a combobox's options.
+            await this.evaluate(
+                `(action => new Promise(resolve => {
+                    const field=window.__piBrowser?.nodes.get(action.node);
+                    const autocomplete=action.kind==='fill' && field?.getAttribute('role')==='combobox';
+                    let frames=0, stopped=false;
+                    const finish=()=>{stopped=true;resolve()};
+                    setTimeout(finish,autocomplete ? 200 : 50);
+                    const ready=()=>{
+                      if (stopped) return;
+                      const ids=(field?.getAttribute('aria-controls')||field?.getAttribute('aria-owns')||'').split(/\\s+/).filter(Boolean);
+                      const roots=ids.length ? ids.map(id=>document.getElementById(id)).filter(Boolean) : [document];
+                      const options=roots.flatMap(root=>[...root.querySelectorAll('[role="option"]')]);
+                      if (++frames>=2 && (!autocomplete || options.some(e=>{const r=e.getBoundingClientRect();
+                        return r.width && r.height && r.bottom>0 && r.top<innerHeight && e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true});}))) finish();
+                      else requestAnimationFrame(ready);
+                    };
+                    requestAnimationFrame(ready);
+                  }))(${JSON.stringify({ node: after.node, kind: after.kind })})`,
+                true,
+            ).catch(() => {});
+        }
+
+        for (let attempt = 0; attempt < 30; attempt++) {
+            try {
+                const observed = await this.evaluate<Observed | null>(SNAPSHOT);
+
+                if (observed !== null && observed !== undefined) {
+                    return observed;
+                }
+            } catch (error) {
+                if (!(error instanceof StalePage)) {
+                    throw error;
+                }
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        throw new StalePage("The page did not settle: it is still loading or changing.");
+    }
+
+    /** Whether the element (or, for none, the page) is as it was read. */
+    async #fresh(observed: Observed, node: number | undefined): Promise<boolean> {
+        if (node === undefined) {
+            return true;
+        }
+
+        const now = await this.evaluate<unknown>(`(() => { const c=window.__piBrowser; return c ? [c.pageKey(), c.guard(c.nodes.get(${node}))] : null; })()`);
+
+        return JSON.stringify(now) === JSON.stringify([observed.page_key, observed.guards[String(node)] ?? null]);
+    }
+
+    /** The element's centre now, if it is still there, in view, enabled, and not covered. */
+    async #point(element: Element, fill: boolean): Promise<{ x: number; y: number }> {
+        const point = await this.evaluate<{ x: number; y: number } | null>(`(node => {
+            const e=window.__piBrowser?.nodes.get(node);
+            if (!e?.isConnected || e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]') ||
+                !e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return null;
+            ${fill ? `if (e.readOnly || e.getAttribute('aria-readonly')==='true') return null;` : ""}
+            const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
+            if (!r.width || !r.height || x<0 || y<0 || x>=innerWidth || y>=innerHeight) return null;
+            if (!e.contains(document.elementFromPoint(x,y))) return null;
+            return {x,y};
+          })(${element.node})`);
+
+        if (point === null || point === undefined) {
+            throw new StalePage(`[${element.index}] ${element.label} changed, moved out of view, or is covered: read the page again.`);
+        }
+
+        return point;
+    }
+
+    async #click(point: { x: number; y: number }): Promise<void> {
+        await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+
+        for (const type of ["mousePressed", "mouseReleased"]) {
+            await this.cdp.send("Input.dispatchMouseEvent", { type, x: point.x, y: point.y, button: "left", clickCount: 1 });
+        }
+    }
+
+    async click(observed: Observed, element: Element): Promise<void> {
+        if (!(await this.#fresh(observed, element.node))) {
+            throw new StalePage("The page changed since it was read: read it again.");
+        }
+
+        await this.#click(await this.#point(element, false));
+        this.#afterInput = { node: element.node, kind: "click" } as RawAction;
+    }
+
+    async type(observed: Observed, element: Element, text: string, { clear = true, submit = false }: { clear?: boolean; submit?: boolean } = {}): Promise<void> {
+        if (!element.fill) {
+            throw new Error(`[${element.index}] ${element.label} is not a field to type into.`);
+        }
+
+        if (!(await this.#fresh(observed, element.node))) {
+            throw new StalePage("The page changed since it was read: read it again.");
+        }
+
+        await this.#click(await this.#point(element, true));
+
+        if (clear) {
+            for (const type of ["keyDown", "keyUp"]) {
+                await this.cdp.send("Input.dispatchKeyEvent", { type, key: "a", code: "KeyA", modifiers: 2, windowsVirtualKeyCode: 65, ...(type === "keyDown" ? { commands: ["selectAll"] } : {}) });
+            }
+        }
+
+        await this.cdp.send("Input.insertText", { text });
+        this.#afterInput = { node: element.node, kind: "fill" } as RawAction;
+
+        if (submit) {
+            await this.press("Enter");
+        }
+    }
+
+    /** Choose an option of a drop-down list, by its text (or value), as a person picking it would. */
+    async select(observed: Observed, element: Element, option: string): Promise<string> {
+        const wanted = option.trim().toLowerCase();
+        const match =
+            element.options?.find((each) => each.label.trim().toLowerCase() === wanted) ??
+            element.options?.find((each) => each.value.trim().toLowerCase() === wanted) ??
+            element.options?.find((each) => each.label.toLowerCase().includes(wanted));
+
+        if (match === undefined) {
+            throw new Error(
+                element.options === undefined
+                    ? `[${element.index}] ${element.label} is not a drop-down list.`
+                    : `[${element.index}] ${element.label} has no option ${quote(option)}: its options are ${element.options.map((each) => quote(each.label)).join(", ")}.`,
+            );
+        }
+
+        if (!(await this.#fresh(observed, element.node))) {
+            throw new StalePage("The page changed since it was read: read it again.");
+        }
+
+        await this.#point(element, false);
+
+        const done = await this.evaluate<boolean>(`((node, value) => {
+            const e=window.__piBrowser?.nodes.get(node);
+            if (!e || e.tagName!=='SELECT' || ![...e.options].some(o=>o.value===value && !o.disabled)) return false;
+            e.value=value;
+            e.dispatchEvent(new Event('input',{bubbles:true}));
+            e.dispatchEvent(new Event('change',{bubbles:true}));
+            return true;
+          })(${element.node}, ${JSON.stringify(match.value)})`);
+
+        if (!done) {
+            throw new StalePage(`[${element.index}] ${element.label} changed: read the page again.`);
+        }
+
+        this.#afterInput = { node: element.node, kind: "click" } as RawAction;
+
+        return match.label;
+    }
+
+    /** Scroll by screens, down or up (a wheel over the middle of the page). */
+    async scroll(direction: "up" | "down", screens: number): Promise<void> {
+        const size = await this.evaluate<{ w: number; h: number }>("({w: innerWidth, h: innerHeight})");
+        const delta = Math.round(size.h * 0.85 * screens) * (direction === "down" ? 1 : -1);
+
+        await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: Math.round(size.w / 2), y: Math.round(size.h / 2), deltaX: 0, deltaY: delta });
+        await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+
+    async press(key: string): Promise<void> {
+        const known = KEYS[key];
+
+        if (known === undefined) {
+            throw new Error(`Pi's browser presses ${PRESSABLE.join(", ")}; for text, type it.`);
+        }
+
+        await this.cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key, code: known.code, windowsVirtualKeyCode: known.keyCode, ...(known.text === undefined ? {} : { text: known.text }) });
+        await this.cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key, code: known.code, windowsVirtualKeyCode: known.keyCode });
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        await this.settle(5000);
+    }
+
+    /** Back or forward in this tab's history; false when there is nothing that way. */
+    async history(step: -1 | 1): Promise<boolean> {
+        const history = await this.cdp.send<{ currentIndex: number; entries: { id: number }[] }>("Page.getNavigationHistory");
+        const entry = history.entries[history.currentIndex + step];
+
+        if (entry === undefined) {
+            return false;
+        }
+
+        await this.cdp.send("Page.navigateToHistoryEntry", { entryId: entry.id });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        await this.settle(15_000);
+
+        return true;
+    }
+
+    /** All of the page's text at once (an article, docs, a table), up to `max` characters. */
+    async text(max: number): Promise<{ title: string; url: string; text: string; cut: boolean }> {
+        const page = await this.evaluate<{ title: string; url: string; text: string }>("({title: document.title, url: location.href, text: document.body ? document.body.innerText : ''})");
+        const text = page.text.replace(/\n{3,}/g, "\n\n").trim();
+
+        return { title: page.title, url: page.url, text: text.slice(0, max), cut: text.length > max };
+    }
+
+    /** What is in view now, as a JPEG (base64). */
+    async screenshot(quality = 70): Promise<string> {
+        const shot = await this.cdp.send<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality });
+
+        return shot.data;
+    }
+
+    /** Wait until the text shows (up to 30 s), or for some seconds (up to 10); true when the text showed. */
+    async wait({ text, seconds }: { text?: string; seconds?: number }): Promise<boolean> {
+        if (text !== undefined && text !== "") {
+            const until = Date.now() + 30_000;
+
+            while (Date.now() < until) {
+                const found = await this.evaluate<boolean>(`(document.body?.innerText ?? '').toLowerCase().includes(${JSON.stringify(text.toLowerCase())})`).catch(() => false);
+
+                if (found) {
+                    return true;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 250));
+            }
+
+            return false;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, Math.min(10, Math.max(0, seconds ?? 1)) * 1000));
+
+        return true;
+    }
+}

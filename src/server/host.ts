@@ -1,5 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import type { Shot } from "./screenshots.ts";
+import type { PiBrowser } from "./browser/pi-browser.ts";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { awaitWithContext } from "@earendil-works/chord/context";
 import type { Skill } from "@earendil-works/pi-coding-agent";
@@ -176,6 +177,8 @@ export interface PocketHost {
     serverBase(): string | undefined;
     /** Pictures of a page, rendered by the app's service on the phone (`screenshots.ts`). */
     render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number }): Promise<Shot[]>;
+    /** Pi's browser (`browser/pi-browser.ts`): the page Pi reads and acts on, which the owner watches. */
+    readonly browser: PiBrowser;
     /** The skills of tools pi-phone installed on the session's machine, formatted for the prompt; undefined for none. */
     machineSkills(cwd: string): string | undefined;
     /**

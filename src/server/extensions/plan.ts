@@ -39,6 +39,16 @@ const ALWAYS_ALLOWED = new Set([
     "interview",
     "web_search",
     "fetch_content",
+    // Pi's browser, looking only: opening and reading pages, scrolling, history. Clicking, typing, choosing and
+    // pressing keys can submit something, and wait for the plan.
+    "browser_open",
+    "browser_snapshot",
+    "browser_text",
+    "browser_screenshot",
+    "browser_wait",
+    "browser_scroll",
+    "browser_back",
+    "browser_forward",
     "openui_guide",
     // Only looks: a picture of a page.
     "screenshot",

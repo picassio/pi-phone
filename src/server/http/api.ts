@@ -36,6 +36,7 @@ import { conversationRoutes } from "./conversation-routes.ts";
 import { createEventStreams } from "./events.ts";
 import { extensionRoute } from "./extension-routes.ts";
 import { type ApiRequest, conversationId, type HttpOptions, json, readJson, readBody } from "./io.ts";
+import { addressOf as browserAddress } from "../browser/page.ts";
 
 /** Pictures from the phone's renderer, as base64 JSON: a few full-page shots. */
 const MAX_RENDER_BODY = 30 * 1024 * 1024;
@@ -505,6 +506,100 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
 
             return json(response, 200, { ok: true });
+        }
+
+        // Pi's browser (`browser/pi-browser.ts`): the app's service makes and removes its WebView (a long poll and answers).
+        if (first === "phone" && second === "browser" && third === undefined && method === "GET") {
+            requireOwner(user);
+            const abort = new AbortController();
+
+            request.on("close", () => abort.abort());
+
+            return json(response, 200, await app.browserRequests.after(Number(url.searchParams.get("after") ?? -1), abort.signal));
+        }
+
+        if (first === "phone" && second === "browser" && third !== undefined && method === "POST") {
+            requireOwner(user);
+
+            try {
+                app.browserRequests.answer(third, await readJson<Record<string, unknown>>(request));
+            } catch (error) {
+                throw error instanceof HttpError ? error : new HttpError(404, error instanceof Error ? error.message : String(error));
+            }
+
+            return json(response, 200, { ok: true });
+        }
+
+        // The Browser panel: what Pi's browser shows (frames while a tab watches), taking it over, and its input then.
+        if (first === "browser") {
+            requireOwner(user);
+
+            if (second === undefined && method === "GET") {
+                return json(response, 200, app.browser.state());
+            }
+
+            if (second === "watch" && method === "POST") {
+                const body = await readJson<{ connection?: unknown; on?: unknown }>(request);
+
+                app.setBrowserWatch(user, String(body.connection ?? ""), body.on === true);
+
+                return json(response, 200, app.browser.state());
+            }
+
+            if (second === "take-over" && method === "POST") {
+                const body = await readJson<{ on?: unknown }>(request);
+
+                app.browser.takeOver(body.on === true);
+
+                return json(response, 200, app.browser.state());
+            }
+
+            if (second === "input" && method === "POST") {
+                const body = await readJson<{ type?: unknown; x?: unknown; y?: unknown; dy?: unknown; text?: unknown; key?: unknown }>(request);
+                const number = (value: unknown, name: string) => {
+                    if (typeof value !== "number" || !Number.isFinite(value)) {
+                        throw new HttpError(400, `${name} must be a number`);
+                    }
+
+                    return value;
+                };
+
+                try {
+                    if (body.type === "tap") {
+                        await app.browser.input({ type: "tap", x: number(body.x, "x"), y: number(body.y, "y") });
+                    } else if (body.type === "scroll") {
+                        await app.browser.input({ type: "scroll", x: number(body.x, "x"), y: number(body.y, "y"), dy: number(body.dy, "dy") });
+                    } else if (body.type === "text" && typeof body.text === "string") {
+                        await app.browser.input({ type: "text", text: body.text });
+                    } else if (body.type === "key" && typeof body.key === "string") {
+                        await app.browser.input({ type: "key", key: body.key });
+                    } else {
+                        throw new HttpError(400, "Send a tap, a scroll, text, or a key.");
+                    }
+                } catch (error) {
+                    throw error instanceof HttpError ? error : new HttpError(409, error instanceof Error ? error.message : String(error));
+                }
+
+                return json(response, 200, { ok: true });
+            }
+
+            if (second === "open" && method === "POST") {
+                const body = await readJson<{ url?: unknown }>(request);
+
+                try {
+                    await app.browser.navigateFor(browserAddress(String(body.url ?? "")));
+                } catch (error) {
+                    throw new HttpError(409, error instanceof Error ? error.message : String(error));
+                }
+
+                return json(response, 200, app.browser.state());
+            }
+
+            if (second === "close" && method === "POST") {
+                await app.browser.close();
+
+                return json(response, 200, app.browser.state());
+            }
         }
 
         // A session to Pi on a machine and back (`pi-handoff.ts`): where it is there, continue it there, bring it back.

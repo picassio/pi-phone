@@ -86,6 +86,8 @@ import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
 import { Screenshots } from "./screenshots.ts";
+import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
+import { PhoneRequests } from "./phone-requests.ts";
 import { OfficeCli, type OfficeCliOptions } from "./officecli.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
@@ -254,6 +256,8 @@ export interface OpenOptions {
     home?: string;
     /** OfficeCLI as tests stand it in (a binary of their own); default the bundled one, on Android. */
     officecli?: Omit<OfficeCliOptions, "dataDir">;
+    /** Where Pi's browser comes from: the phone's WebView unless a test or a computer gives another (a Chrome). */
+    browserEngine?: BrowserEngine;
 }
 
 /** A send limit as given: a whole number of 1 to 10000 an hour, or null for none. */
@@ -276,6 +280,10 @@ export class PocketApp {
     readonly phoneEvents = new PhoneEvents();
     /** Pictures of pages, rendered by the app's service on the phone (`screenshots.ts`). */
     readonly screenshots = new Screenshots();
+    /** What the app's service does for Pi's browser: make and remove its WebView (`PiBrowser.java`). */
+    readonly browserRequests = new PhoneRequests("Pi's browser");
+    /** Pi's browser (`browser/pi-browser.ts`): one page Pi uses, that the owner watches and can take over. */
+    readonly browser: PiBrowser;
     /** Approvals the phone was told of already. */
     readonly #toldApprovals = new Set<string>();
     readonly dataDir: string;
@@ -422,6 +430,25 @@ export class PocketApp {
         this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools));
         this.officecli.install();
         this.forwards = new Forwards(this.machines);
+        this.browser = new PiBrowser({
+            engine: options.browserEngine ?? new PhoneEngine(this.browserRequests),
+            // Only the owner sees Pi's browser: it may be signed in to the owner's accounts.
+            changed: (state) => {
+                for (const client of this.#clients) {
+                    if (client.user.role === "owner") {
+                        client.send("browser", state);
+                    }
+                }
+            },
+            frame: (frame) => {
+                for (const client of this.#clients) {
+                    if (client.browserWatch !== undefined) {
+                        client.send("browser-frame", frame);
+                    }
+                }
+            },
+            log: (line) => this.#log(line),
+        });
         this.para = new Para({
             home: this.#home,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
@@ -637,6 +664,7 @@ export class PocketApp {
             },
             serverBase: () => (this.serverPort === undefined ? undefined : `http://127.0.0.1:${this.serverPort}`),
             render: (url, options) => this.screenshots.render(url, options),
+            browser: this.browser,
             machineSkills: (cwd) => {
                 const machine = this.places.machineOf(cwd);
 
@@ -1404,6 +1432,9 @@ export class PocketApp {
             return;
         }
 
+        client.browserWatch?.();
+        client.browserWatch = undefined;
+
         for (const id of client.peeks ?? []) {
             this.#unpeek(client, id);
         }
@@ -1834,6 +1865,23 @@ export class PocketApp {
 
             if (on) {
                 this.#sendBoard(client, this.subagents(client.user));
+            }
+        }
+    }
+
+    /** A tab opened or closed the Browser panel: while open, it gets Pi's browser's frames (`browser-frame`). The owner's. */
+    setBrowserWatch(user: User, connection: string, on: boolean): void {
+        for (const client of this.#clients) {
+            if (client.user.id !== user.id || client.connection !== connection) {
+                continue;
+            }
+
+            if (on && client.browserWatch === undefined) {
+                client.browserWatch = this.browser.watch();
+                client.send("browser", this.browser.state());
+            } else if (!on && client.browserWatch !== undefined) {
+                client.browserWatch();
+                client.browserWatch = undefined;
             }
         }
     }

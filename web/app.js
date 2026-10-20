@@ -14,6 +14,7 @@ import {
     setFilesOpen,
     toggleFiles,
 } from "./files-panel.js";
+import { BrowserButton, BrowserPanel, BrowserPreview, BrowserWatcher, browserShown } from "./browser-panel.js";
 import { ExtensionPage, openPageWhenReady } from "./extension-ui.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
 import { Splash } from "./home.js";
@@ -213,6 +214,7 @@ function Topbar() {
         }
         ${filesAvailable() && html`<${ChangesButton} key=${conversationId} />`}
         <${PeeksButton} />
+        <${BrowserButton} />
         <${FilesButton} />
         <button
             class=${`icon-button badge-host ${artifacts > 0 ? "quiet-phone" : "quiet"}`}
@@ -449,7 +451,9 @@ function App() {
     const page = !board && state.page !== null;
     const placed = board || page;
     const filing = !placed && filesShown(state);
-    const people = !placed && !filing && peopleDocked(state);
+    // Pi's browser takes the Files tile's place (one panel at a time), and the People panel's.
+    const browsing = !placed && !filing && inConversation && browserShown(state);
+    const people = !placed && !filing && !browsing && peopleDocked(state);
     const peeking = !placed && peeksWanted(state);
     const tiles = peeking ? peekTiles(state) : [];
     // The column takes the place beside the conversation when Browser and People leave it free; otherwise a strip,
@@ -457,7 +461,7 @@ function App() {
     const peekColumn = peeking && PEEK_WIDE.matches && !filing && !people;
 
     return html`<div
-        class=${`layout ${inConversation || placed ? "" : "home"} ${filing ? "filing" : ""}`}
+        class=${`layout ${inConversation || placed ? "" : "home"} ${filing || browsing ? "filing" : ""}`}
         data-part="app"
     >
         <aside class="sidebar window" data-part="sidebar">
@@ -485,7 +489,7 @@ function App() {
                     ${
                         state.view.conversation &&
                         !state.missing &&
-                        html`<${Composer} key=${state.conversationId} />`
+                        html`<${BrowserPreview} /><${Composer} key=${state.conversationId} />`
                     }`
                         : html`<div class="home-list" data-part="home-list">
                           <${RailNav} />
@@ -503,6 +507,8 @@ function App() {
             />`
         }
         <${PanelHost} key=${`files:${state.conversationId}`} shown=${filing} panel=${FilesPanel} />
+        <${PanelHost} key="pi-browser" shown=${browsing} panel=${BrowserPanel} />
+        <${BrowserWatcher} />
         ${inConversation && html`<${PeopleHost} shown=${people} replaced=${filing} />`}
         <${Drawer} />
         <${Sheets} />

@@ -64,6 +64,13 @@ No Termux, no laptop, no cloud VM.
   `task_update`, `task_comment`, `task_run`, `task_diff`, `task_link_session`, …); deleting and merging ask you on a card.
 
 ### Web, documents, and answers
+- **Pi's browser.** Pi opens pages in a browser of its own (a WebView of the app, driven over its DevTools socket) and
+  reads them as numbered controls and visible text; it clicks, types, chooses, scrolls, presses keys, goes back, reads a
+  whole page, or looks at it (`browser_open`, `browser_click`, …). Each click is checked first: the element as read,
+  still in view, nothing over it. You watch it live in the Browser panel (beside the conversation on wide screens, where
+  it opens by itself when Pi starts browsing; on a phone, a small live preview above the message box opens it), and can
+  **Take over** (your taps and typing go to the page) and **Hand back**. It never opens this phone or its local network,
+  and only works for what the owner asks.
 - **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for
   pages, PDFs and Office files, GitHub repositories, issues, and pull requests.
 - **Documents.** `file_to_markdown` reads PDF, Word, PowerPoint, Excel, EPUB, notebooks, and more
@@ -178,6 +185,11 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   PARA wiki, its tools and context, and its search.
 - **[pi-cc-patch](https://github.com/picassio/pi-cc-patch)** (MIT): the Claude Code billing transform, ported to
   `src/server/cc-patch.ts` with its tests.
+- **[jev-ultrafast](https://github.com/browser-use/jev-ultrafast)** by Browser Use (MIT, Copyright (c) 2026 Browser Use):
+  Pi's browser reads pages with its `snapshot.js` (adapted in `src/server/browser/snapshot.js`), and acts with its
+  act-time checks (the element as observed, in view, not covered). Ideas also from
+  [jev-ra](https://github.com/brnyxx/jev-ra) (MIT) and [browser-use](https://github.com/browser-use/browser-use) (MIT);
+  the browser panel's design from [Kuvo Code](https://github.com/serhatandic/kuvo-code) (ideas only, no code).
 
 ### Bundled and used
 

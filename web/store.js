@@ -122,6 +122,9 @@ export const store = {
         pendingShells: [],
         /** The Files tile shows (`files-panel.js`); kept per tab, so the reload after a live edit keeps it. */
         filesOpen: sessionStorage.getItem("pocket.files") === "1",
+        /** Pi's browser panel shows (`browser-panel.js`), and what the server last said of Pi's browser. */
+        browserOpen: sessionStorage.getItem("pocket.piBrowser") === "1" && sessionStorage.getItem("pocket.files") !== "1",
+        piBrowser: null,
         /** The Files tile's tab: `files` or `changes`. */
         filesTab: sessionStorage.getItem("pocket.filesTab") === "changes" ? "changes" : "files",
         /** The last file asked to open in the Files tile: `{ path, line, n }`, `n` telling requests apart. */
@@ -534,6 +537,14 @@ export function stillMoving(moving, sessions) {
 
 /** Who hears extensions' events: `extension-ui.js`, which imports this module and so cannot be imported here. */
 const extensionListeners = new Set();
+const browserFrameListeners = new Set();
+
+/** Hear Pi's browser's frames (`browser-panel.js`): they skip the store, which would redraw the app with each one. */
+export function onBrowserFrame(listener) {
+    browserFrameListeners.add(listener);
+
+    return () => browserFrameListeners.delete(listener);
+}
 
 /** Hear the events extension modules send their browser modules: `{ module, event, data }`. */
 export function onExtensionEvent(listener) {
@@ -600,6 +611,13 @@ const handlers = {
     // Pi's lessons changed somewhere: a Memory sheet or menu that shows them fetches them again (`sheets/memory.js`).
     memory: () => store.set((state) => ({ memoryRev: (state.memoryRev ?? 0) + 1 })),
     missing: (data) => store.set({ missing: data.message }),
+    // Pi's browser: what it shows and does (the owner's tabs), and frames of its page (the tabs that watch it).
+    browser: (data) => store.set({ piBrowser: data }),
+    "browser-frame": (data) => {
+        for (const listener of browserFrameListeners) {
+            listener(data);
+        }
+    },
     // An event an extension module sent its browser module (`extension-ui.js`).
     ext: (data) => {
         for (const listener of extensionListeners) {
@@ -1161,11 +1179,13 @@ function sheetChange(sheet, state) {
 
     sessionStorage.setItem(PEOPLE_KEY, "1");
     sessionStorage.removeItem("pocket.files");
+    sessionStorage.removeItem("pocket.piBrowser");
 
     return {
         sheet: null,
         peopleOpen: true,
         filesOpen: false,
+        browserOpen: false,
         peopleAsk: {
             tab: sheet.tab ?? null,
             highlight: sheet.highlight ?? null,

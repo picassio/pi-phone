@@ -77,6 +77,8 @@ public final class PiService extends Service {
     private Thread notifier;
     /** Screenshots for Pi (Renderer.java). */
     private Thread renderer;
+    /** Pi's browser (PiBrowser.java). */
+    private Thread browser;
     private volatile Process server;
 
     @Override
@@ -101,6 +103,15 @@ public final class PiService extends Service {
             }, () -> state == State.RUNNING || state == State.STARTING);
             renderer = new Thread(render::loop, "pi-render");
             renderer.start();
+            PiBrowser pages = new PiBrowser(this, () -> {
+                try {
+                    return ownerToken(this);
+                } catch (Exception e) {
+                    throw new IllegalStateException("no owner token: " + e, e);
+                }
+            }, () -> state == State.RUNNING || state == State.STARTING);
+            browser = new Thread(pages::loop, "pi-browser");
+            browser.start();
         } else if (intent != null && ACTION_UPDATE.equals(intent.getAction())) {
             // The runner swaps the update in once the server has stopped.
             Process running = server;
@@ -311,6 +322,7 @@ public final class PiService extends Service {
         if (runner != null) runner.interrupt();
         if (notifier != null) notifier.interrupt();
         if (renderer != null) renderer.interrupt();
+        if (browser != null) browser.interrupt();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         super.onDestroy();
     }
