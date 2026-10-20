@@ -109,7 +109,8 @@ export default function projects(pocket) {
         }
 
         if (assignee === "pi") {
-            return html`<span class="pj-av pi" title="Pi">π</span>`;
+            // pi-phone's own mark (web/icon.svg), as the rail and sign-in show it.
+            return html`<span class="pj-av pi" title="Pi"><img src="/icon.svg" alt="" draggable="false" /></span>`;
         }
 
         const name = people.find((person) => person.id === assignee)?.name ?? "Someone";

@@ -1349,8 +1349,9 @@ kbd {
 }
 
 .empty .pi {
-    font-size: 3.2rem;
-    opacity: 0.8;
+    width: 3.2rem;
+    height: 3.2rem;
+    opacity: 0.9;
 }
 
 .breadcrumb {
@@ -9525,12 +9526,18 @@ textarea.notes {
     color: var(--accent);
 }
 
-/* Pi's own words: its mark in Georgia, as everywhere. */
+/* Pi's own words: pi-phone's mark (web/icon.svg). */
 .peek-mark.pi {
-    color: var(--brand);
-    font:
-        13px / 1.5 Georgia,
-        serif;
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+}
+
+.peek-mark.pi img {
+    display: block;
+    width: 14px;
+    height: 14px;
+    border-radius: 24%;
 }
 
 .peek-text {
@@ -10489,8 +10496,10 @@ textarea.notes {
 }
 
 .dr-pi {
-    color: var(--spark);
-    font-size: 11px;
+    flex: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 24%;
 }
 
 .dr-tail {

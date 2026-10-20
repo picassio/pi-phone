@@ -623,8 +623,14 @@
 }
 
 .pj-av.pi {
-    background: linear-gradient(135deg, var(--spark), var(--accent));
-    font-size: 11px;
+    overflow: hidden;
+    background: none;
+}
+
+.pj-av.pi img {
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 .pj-av.none {

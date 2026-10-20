@@ -2808,7 +2808,7 @@ export function Transcript() {
                 entries.length === 0 &&
                 !view.live.busy &&
                 html`<div class="empty hint">
-                    <div class="pi">π</div>
+                    <div class="pi"><img class="brand-icon" src="/icon.svg" alt="" /></div>
                     <p>
                         ${conversation.kind === "subagent" ? "This subagent has no messages yet." : "Ask anything. Pi works in this session's folder, and keeps working if the server restarts."}
                     </p>
