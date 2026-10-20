@@ -99,6 +99,8 @@ No Termux, no laptop, no cloud VM.
   trip with a map, a calculator, a checklist, drawn as a working UI that keeps its state.
 - **Pi sees its work.** `screenshot` renders an artifact, an HTML or Office file, or a web page in the phone's own
   WebView, at phone and desktop widths, even with the screen off, so Pi checks a page before calling it done.
+- **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
+  out of its box or its parent, and whether the page is wider than the screen, with sizes. Pi goes by the numbers.
 
 ### Secrets and the wiki
 - **Secrets.** API keys and tokens in Settings › Secrets, used by name (`$NPM_TOKEN`) and never shown: output that
@@ -128,8 +130,6 @@ No Termux, no laptop, no cloud VM.
 ### People and devices
 - **Other devices and people** over your Tailscale network (Settings › Access): your laptop's browser signs in as you
   (People › Sign in as me), and invited people steer or watch sessions, all of them or one.
-- **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
-  out of its box or its parent, and whether the page is wider than the screen, with sizes. Pi goes by the numbers.
 - **Settings by tool.** Pi lists the app's settings with their values (`settings`), changes one (`setting_change`), or takes a
   one-off action (`app_action`), each after you approve the usual card showing the value now and the new one, through the
   same code as the app's screens: models, approvals, Pi's browser, web search, the wiki, spend limits, themes, extensions,
@@ -164,9 +164,50 @@ No Termux, no laptop, no cloud VM.
 1. Download `pi-phone.apk` from the [latest release](https://github.com/picassio/pi-phone/releases/latest).
 2. Open it on an arm64 Android phone and allow the install (sideloading).
 3. The first start unpacks the runtime (about a minute), then signs in by itself.
-4. Settings › Providers to sign in to a model provider.
+4. Sign in to a model provider: ⋯ (the session menu) › Providers. Then see [Use it](#use-it).
 
 Updates come through the app afterwards; uninstalling deletes its sessions and logins.
+
+## Use it
+
+### Every day
+- **Start a session:** **+ New** in the session list, then pick a folder on the phone or on a machine. The model menu
+  under the message box picks the model and how hard it thinks.
+- **Talk to Pi** by typing or with the microphone (dictation). Attach files and photos with the paperclip. **Plan**
+  makes Pi read and plan first, changing nothing until you approve.
+- **Approve or deny** the cards Pi puts in the conversation: risky commands, settings changes, sign-ins, questions.
+- **The session menu** (⋯ in the session's top bar) has the session's own things: rename, folder, terminal, context,
+  instructions, schedules, board. Below them, under **App**, are the app's settings, listed in the next part.
+- **The rail** (left edge on a wide screen) opens Sessions, Projects, and the Wiki. A session's **Places** open its Files,
+  Changes, Artifacts, Find, and Branch. The **Browser panel** opens when Pi browses: beside the chat on a wide screen, or
+  from the small preview above the message box on a phone.
+
+### Settings, and asking Pi instead
+Every setting below is in the session menu (⋯) under **App**. You can also just tell Pi, for example "use Jev for browser
+runs": it changes the setting with its `setting_change` tool after you tap **Allow** on a card that shows the value now
+and the new one. Ask "what can you change?" and Pi lists every setting with its value (`settings`).
+
+| What | Where | Ask Pi? |
+|---|---|---|
+| Model providers (Claude, Codex, Copilot, OpenRouter, …) | **Providers**: sign in, or **API key**; **Add account** for a second one | No for signing in, which is yours. Yes for removing an extra account or signing out |
+| Default model for new sessions | **Default model** | "Set the default model to anthropic/claude-opus-… high" |
+| GitHub for Pi's `git` and `gh` | **GitHub**: a device code | No for signing in. Yes for signing out |
+| **OpenRouter** (needed for Jev, the wiki's search by meaning, and OpenRouter web search) | **Providers › OpenRouter**: sign in, or **API key** | No, signing in is yours |
+| **Jev** as the model for `browser_run` | **Pi's browser › Run model**: *Jev*, id `typesafe/jev-1.13`, for every session or only this one (*Session model* uses each session's own model) | "Use Jev for browser runs" (or "…in this session only") |
+| **Wiki** search by meaning | **Wiki** (or *Wiki settings* from the search launcher) **› Search by meaning**: pick an OpenRouter embedding model, such as `openai/text-embedding-3-small`. Off means keyword search only | "Set the wiki embedding model to openai/text-embedding-3-small" |
+| Wiki capture and prompt context | **Wiki**: minutes idle before a session is captured, the model that writes captures, tokens of wiki in each prompt, lint options | "Capture idle sessions after 30 minutes", "use claude-haiku for wiki captures" |
+| Web search | **Web access**: a provider, and its key (typed there or kept in Secrets) | "Switch web search to exa". The key itself is yours to type |
+| API keys and tokens | **Secrets**. Pi asks for a missing one with a hidden field on a card, never in the chat | Pi can ask for one, change a secret's flags, or delete one. You type the value |
+| Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
+| Extensions (Projects, Wiki, Pi's browser, …) | **Extensions** | "Turn on Projects" |
+| Spend and limits | **Spend** | "Limit this session to $5" |
+| Other devices and people | **Access** (Tailscale), **People** (devices, invites, recovery code) | Yes for listing devices, signing one or all out, or changing a person's role. The recovery code is yours |
+| Notifications, screen off, backup | **This phone** | Yes for making a backup. Restoring one is yours |
+| Appearance, dictation language | **Appearance** and **Dictation**, per browser tab | Only the theme new browsers start with ("make lantern the default theme") |
+| App updates | **Check for app updates**. New builds also offer themselves in an update sheet. Tap **Install** | No |
+
+What stays yours: typing secrets and passwords, signing in to providers and GitHub, the recovery code, accepting a
+machine's host key, restoring a backup, and turning on plan mode. Pi says so and tells you where to do it.
 
 ## How it is built
 
