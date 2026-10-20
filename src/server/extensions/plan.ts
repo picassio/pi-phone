@@ -20,12 +20,13 @@ import { BUILT_IN_TOOLS } from "../reload.ts";
 
 /** While plan mode is off: when to suggest it (only a person turns it on). */
 export const SUGGEST_PLAN = `Plan mode: before a large or risky change (many files, a migration or refactor, deleting data, rewriting history, publishing or deploying), suggest that the person turn on plan mode with the Plan button by the message box, and wait for their answer. You cannot turn it on yourself. Small, clear tasks need no plan mode.`;
-const PLANNING = `Plan mode is on. Read and explore, then propose a plan; change nothing yet. You can use read, artifact, screenshot, and bash for simple read-only commands such as ls, cat, grep, find, and git status/log/diff/show, without redirects, globs, variables, or command substitution, and tools marked read-only. Writing, editing, other commands, and subagents are blocked until a person approves the plan. End your answer with the plan as a short numbered list. For a long plan (many steps, parts, or files), also publish it as an HTML artifact, following the html-plan skill (read its SKILL.md first): it keeps every commitment and is easier to review on a phone; the numbered list stays in your answer.`;
+const PLANNING = `Plan mode is on. Read and explore, then propose a plan; change nothing yet. You can use read, artifact, screenshot, and bash for simple read-only commands such as ls, cat, grep, find, and git status/log/diff/show, without redirects, globs, variables, or command substitution, and tools marked read-only. The wiki tools work too: record decisions, findings and open questions as you plan. Writing, editing, other commands, and subagents are blocked until a person approves the plan. End your answer with the plan as a short numbered list. For a long plan (many steps, parts, or files), also publish it as an HTML artifact, following the html-plan skill (read its SKILL.md first): it keeps every commitment and is easier to review on a phone; the numbered list stays in your answer.`;
 
 /** Tools that change nothing, or whose own calls are checked one by one (codemode). */
 /**
- * Tools that change nothing: reading files and the wiki, showing artifacts, scripts (whose calls are each checked), the
- * secrets Pi may use, and asking a person for one (the person's answer, not Pi's change).
+ * Tools that change nothing in the work: reading files, reading and writing the wiki (knowledge about the work), showing
+ * artifacts, scripts (whose calls are each checked), the secrets Pi may use, and asking a person for one (the person's
+ * answer, not Pi's change).
  */
 const ALWAYS_ALLOWED = new Set([
     "read",
@@ -34,6 +35,13 @@ const ALWAYS_ALLOWED = new Set([
     "wiki_query",
     "wiki_read",
     "wiki_summarize",
+    // Recording what planning found and decided (PP-27; the owner, 2026-10-20: "plan mode still need wiki tools"): the
+    // wiki is knowledge about the work, not the work. Its batch schema migration is not here.
+    "wiki_write",
+    "wiki_edit",
+    "wiki_ingest",
+    "wiki_move",
+    "wiki_lint",
     "secrets_list",
     "secret_request",
     "interview",

@@ -43,8 +43,8 @@ No Termux, no laptop, no cloud VM.
 - **Spend.** What Pi spent, by person and by session, with limits the owner sets (past one, Pi takes no new
   messages there). The wiki's search by meaning has a line of its own: its remote embeddings (indexing and queries),
   with requests and tokens, in the total and in nobody's limit.
-- **Plan mode.** The Plan button by the message box: Pi reads and plans before it changes anything, and a long plan
-  comes as a reviewable HTML page.
+- **Plan mode.** The Plan button by the message box: Pi reads and plans before it changes anything (it still records
+  decisions and findings in the wiki), and a long plan comes as a reviewable HTML page.
 - **Interview.** Pi asks several questions at once in a form (choices with its recommendation, text, photos), and waits
   for the answers, or carries on and gets them later.
 - **Schedules and goals.** Pi messages itself later or on repeat (`schedule`), and a session can keep working toward a

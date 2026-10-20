@@ -71,6 +71,11 @@ test("only commands that read pass, with arguments that keep them reading", () =
 test("in plan mode only reading tools pass", () => {
     assert.equal(blockedInPlanMode("read", { path: "a" }), undefined);
     assert.equal(blockedInPlanMode("bash", { command: "git log" }), undefined);
+    // The wiki records what planning found and decided (PP-27): its tools work, but not its batch migration.
+    for (const tool of ["wiki_write", "wiki_edit", "wiki_ingest", "wiki_move", "wiki_lint", "wiki_query", "wiki_read"]) {
+        assert.equal(blockedInPlanMode(tool, {}), undefined, tool);
+    }
+    assert.match(blockedInPlanMode("wiki_migrate", {}) ?? "", /Plan mode is on/);
     assert.match(
         blockedInPlanMode("write", { path: "a", content: "" }) ?? "",
         /^Plan mode is on: The write tool can change things/,
