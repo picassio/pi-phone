@@ -7,18 +7,14 @@ import { canSteer, navigate, openSheet, scoped, store, workspaceOrder } from "./
 import { lookLabel, prefs } from "./theme.js";
 import { html, Icon, Keys, shortPath, timeAgo } from "./ui.js";
 
-const LOGO = [
-    "▗▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▖",
-    "▝▀▀▀▜██▀▀▀▀▀▀██▛▀▀▀▘",
-    "    ▐██      ██▌   ",
-    "    ▐██      ██▌   ",
-    "    ▐██      ██▌   ",
-    "    ▐██      ██▌   ",
-    "   ▗██▘      ▝██▄▖ ",
-    "  ▝▀▀          ▀▀▀▘",
-].join("\n");
+/** pi-phone's mark (web/icon.svg's, which is Pi's logo), where fastfetch puts a machine's logo. */
+const LOGO = html`<svg class="fetch-logo" data-part="home-logo" viewBox="150 150 500 500" aria-hidden="true">
+    <path fill="#F09082" d="M165.29 165.29H517.36V400H400V282.65H165.29Z" />
+    <path fill="#4D9ABF" d="M165.29 282.65H282.65V400H400V517.36H282.65V634.72H165.29Z" />
+    <path fill="#F1BE58" d="M517.36 400H634.72V634.72H517.36Z" />
+</svg>`;
 
-/** The home screen on wide screens: what fastfetch shows for a machine, for this Pi Pocket. */
+/** The home screen on wide screens: what fastfetch shows for a machine, for this pi-phone. */
 export function Splash() {
     const { me, sessions, models, server, guard } = store.state;
     const p = prefs();
@@ -99,10 +95,10 @@ export function Splash() {
 
     return html`<div class="splash" data-part="home" ref=${splash}>
         <div class="fetch" data-part="home-facts">
-            <pre class="fetch-logo" data-part="home-logo" aria-hidden="true">${LOGO}</pre>
+            ${LOGO}
             <div class="fetch-info">
                 <div class="fetch-title" data-part="home-title" style=${`--i:${line++}`}>
-                    <b>${(me?.name ?? "you").toLowerCase().replace(/\s+/g, "-")}</b>@<b>pi-pocket</b>
+                    <b>${(me?.name ?? "you").toLowerCase().replace(/\s+/g, "-")}</b>@<b>pi-phone</b>
                 </div>
                 ${rows.map(
                     ([key, value]) => html`<dl

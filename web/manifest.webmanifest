@@ -1,7 +1,7 @@
 {
-    "name": "Pi Pocket",
-    "short_name": "Pi Pocket",
-    "description": "Durable, multiplayer Pi agents in your browser",
+    "name": "pi-phone",
+    "short_name": "pi-phone",
+    "description": "Pi, the coding agent, durable on your phone",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
