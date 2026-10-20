@@ -18,6 +18,8 @@ import { themeFile } from "./http/theme-routes.ts";
 export function createHandler(options: HttpOptions) {
     const { app } = options;
     const auth = new Auth(app.config);
+
+    app.restart = options.restart;
     const api = createApi(options, auth);
 
     return async (request: IncomingMessage, response: ServerResponse): Promise<void> => {

@@ -2,7 +2,8 @@
 // setting_change asks on the app's card (the value now → the new one) and applies through the app's own method only on
 // a yes; a no leaves it; a setting of one session needs its target; a guest is refused owner settings before any card;
 // app_action asks too.
-import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, scriptedModel, until, work } from "./helpers.ts";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
@@ -17,13 +18,17 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "limit spend here": ["setting_change", { id: "spend.sessionLimit", value: "12.50", target: "__SESSION__", reason: "A budget for this work" }],
     "refresh models": ["app_action", { id: "models.refresh", reason: "A new model came out" }],
     "no such": ["setting_change", { id: "nope.nothing", value: "1", reason: "x" }],
+    "list secrets": ["settings", { area: "secrets" }],
+    "ask for it": ["setting_change", { id: "secrets.ask", value: "on", target: "TEST_KEY", reason: "Make every use wait for you" }],
+    "drop it": ["app_action", { id: "secrets.delete", args: { name: "TEST_KEY" }, reason: "Not needed any more" }],
+    "back up": ["app_action", { id: "backup.make", args: { folder: "__WORK__" }, reason: "Before the upgrade" }],
 };
 const route: FauxResponseStep = (request) => {
     const { role, text } = lastText(request as never);
 
     for (const [ask, [tool, args]] of Object.entries(calls)) {
         if (role === "user" && text.endsWith(ask)) {
-            return fauxAssistantMessage([fauxToolCall(tool, JSON.parse(JSON.stringify(args).replaceAll("__SESSION__", sessionTarget)) as never)], { stopReason: "toolUse" });
+            return fauxAssistantMessage([fauxToolCall(tool, JSON.parse(JSON.stringify(args).replaceAll("__SESSION__", sessionTarget).replaceAll("__WORK__", work)) as never)], { stopReason: "toolUse" });
         }
     }
 
@@ -117,4 +122,34 @@ test("a guest is refused owner settings before any card; app_action asks on a ca
 
     assert.equal(action.card?.subject, "Refresh every provider's model list");
     assert.match(action.said, /said no: nothing was done/);
+});
+
+test("actions and targeted settings: a secret's flag by name, deleting it, and a backup into a folder", async () => {
+    const id = await newSession(app);
+
+    app.secrets.set("TEST_KEY", { value: "a-test-value-123", description: "For the test" });
+
+    const listed = (await turn(id, "list secrets")).said;
+
+    assert.match(listed, /secrets\.ask: \(per secret: give a target\)/);
+    assert.match(listed, /Targets:\\n- secret: TEST_KEY/);
+    assert.match(listed, /secrets\.delete: Delete a secret/);
+
+    const ask = await turn(id, "ask for it", true);
+
+    assert.equal(ask.card?.subject, "Change A secret's uses wait for a person (secret TEST_KEY): off → on");
+    assert.equal(app.secrets.list().find((each) => each.name === "TEST_KEY")?.ask, true);
+
+    const drop = await turn(id, "drop it", true);
+
+    assert.equal(drop.card?.subject, "Delete the secret TEST_KEY, for good");
+    assert.match(drop.said, /Deleted TEST_KEY/);
+    assert.equal(app.secrets.list().some((each) => each.name === "TEST_KEY"), false);
+
+    mkdirSync(work, { recursive: true });
+
+    const backup = await turn(id, "back up", true);
+
+    assert.match(backup.said, /Saved the backup as /);
+    assert.ok(readdirSync(work).some((name) => name.endsWith(".tar.gz") && existsSync(`${work}/${name}`)), "the backup is in the folder");
 });

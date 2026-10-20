@@ -73,7 +73,7 @@ export default function createSettings(host: PocketHost) {
             replay: "safe",
             execute: async (args) => {
                 try {
-                    const { settings, actions } = host.appSettings();
+                    const { settings, actions, targets } = host.appSettings();
 
                     if (args.id !== undefined) {
                         const setting = settings.find((each) => each.id === args.id);
@@ -94,11 +94,14 @@ export default function createSettings(host: PocketHost) {
                     }
 
                     const lines = await Promise.all(shown.map(line));
+                    const kinds = [...new Set(shown.map((each) => each.target).filter((kind) => kind !== undefined))];
+                    const targetLines = await Promise.all(kinds.map(async (kind) => `- ${kind}: ${(await targets[kind]()).join(", ") || "none yet"}`));
 
                     return reply(
                         [
                             `Settings${args.area === undefined ? "" : ` in ${args.area}`} (change one with setting_change):`,
                             ...lines,
+                            ...(targetLines.length === 0 ? [] : ["", "Targets:", ...targetLines]),
                             ...(doing.length === 0
                                 ? []
                                 : [

@@ -288,6 +288,8 @@ export class PocketApp {
     readonly browserRequests = new PhoneRequests("Pi's browser");
     /** Pi's browser on the phone (`browser/pi-browser.ts`): the pages Pi uses, that the owner watches and can take over. */
     readonly browser: PiBrowser;
+    /** Start the server again (the HTTP layer's, under the pi-phone app): Pi's server.restart action. */
+    restart: (() => void) | undefined;
     /** Pi's browsers on machines, by machine id: a Chrome there for sessions working there, made on first use. */
     readonly #machineBrowsers = new Map<string, PiBrowser>();
     /** Approvals the phone was told of already. */

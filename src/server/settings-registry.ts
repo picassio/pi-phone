@@ -12,9 +12,13 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
+import { makeBackup } from "./backup.ts";
+import { copyFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 /** What a setting applies to, when it is not the app as a whole. */
-export type TargetKind = "session" | "person";
+export type TargetKind = "session" | "person" | "secret" | "machine" | "ssh-key";
 
 export type Setting = {
     /** As Pi names it: `area.name` (`models.default`). */
@@ -95,7 +99,7 @@ const onOff = (value: string): boolean => {
 const money = (amount: number | undefined) => (amount === undefined ? "none" : `$${amount.toFixed(2)}`);
 
 /** Every setting and action as the app is now (the extensions list changes as modules come and go). */
-export function appSettings(app: PocketApp): { settings: Setting[]; actions: AppAction[] } {
+export function appSettings(app: PocketApp): { settings: Setting[]; actions: AppAction[]; targets: Record<TargetKind, () => Promise<string[]> | string[]> } {
     const session = (target: string | undefined) => {
         const id = Number(target);
 
@@ -110,6 +114,24 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
 
         if (found === undefined) {
             throw new HttpError(404, `Nobody is called ${target ?? ""}. People: ${app.config.users.map((user) => user.name).join(", ")}.`);
+        }
+
+        return found;
+    };
+    const machine = (target: string | undefined) => {
+        const found = app.machines.list().find((each) => each.id === target || each.name.toLowerCase() === (target ?? "").trim().toLowerCase());
+
+        if (found === undefined) {
+            throw new HttpError(404, `There is no machine ${target ?? ""}. Machines: ${app.machines.list().map((each) => each.name).join(", ") || "none"}.`);
+        }
+
+        return found;
+    };
+    const secret = (target: string | undefined) => {
+        const found = app.secrets.list().find((each) => each.name === (target ?? "").trim());
+
+        if (found === undefined) {
+            throw new HttpError(404, `There is no secret ${target ?? ""}. Secrets: ${app.secrets.list().map((each) => each.name).join(", ") || "none"}.`);
         }
 
         return found;
@@ -335,6 +357,68 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 return app.setThemeDefault(user, { look, colors: colors ?? look });
             },
         },
+        // ─── Secrets: their settings (a value is typed by the person: secret_request) ───
+        {
+            id: "secrets.ask",
+            area: "secrets",
+            title: "A secret's uses wait for a person",
+            help: "on (each call that uses it asks first) or off. Target: the secret's name.",
+            owner: true,
+            target: "secret",
+            read: (target) => (secret(target).ask ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (_user, value, target) => {
+                app.secrets.set(secret(target).name, { ask: onOff(value) });
+            },
+        },
+        {
+            id: "secrets.description",
+            area: "secrets",
+            title: "What a secret is for",
+            help: "Its description, as the list shows it. Target: the secret's name.",
+            owner: true,
+            target: "secret",
+            read: (target) => secret(target).description,
+            apply: (_user, value, target) => {
+                app.secrets.set(secret(target).name, { description: value.trim() });
+            },
+        },
+        {
+            id: "secrets.machines",
+            area: "secrets",
+            title: "Sessions on machines may use a secret",
+            help: "on or off. Target: the secret's name.",
+            owner: true,
+            target: "secret",
+            read: (target) => (secret(target).machines ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (_user, value, target) => {
+                app.secrets.set(secret(target).name, { machines: onOff(value) });
+            },
+        },
+        // ─── Machines and keys ───
+        {
+            id: "machines.name",
+            area: "machines",
+            title: "A machine's name",
+            help: "The name sessions, the folder picker, and pi-ssh use. Target: the machine's name or id.",
+            owner: true,
+            target: "machine",
+            read: (target) => machine(target).name,
+            apply: async (_user, value, target) => {
+                await app.machines.edit(machine(target).id, { name: value.trim() });
+            },
+        },
+        {
+            id: "sshKeys.name",
+            area: "machines",
+            title: "An SSH key's name",
+            help: "Target: the key's id (settings lists the keys under the ssh-keys.delete action).",
+            owner: true,
+            target: "ssh-key",
+            read: async (target) => (await app.sshKeys.list()).find((key) => key.id === target)?.name ?? `(no key ${target ?? ""})`,
+            apply: (_user, value, target) => app.sshKeys.rename(target ?? "", value.trim()),
+        },
         // ─── Extensions: one setting each ───
         ...app.loader.list().map(
             (module): Setting => ({
@@ -381,5 +465,220 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
         },
     ];
 
-    return { settings, actions };
+    actions.push(
+        {
+            id: "machines.installTools",
+            area: "machines",
+            title: "Install tools on a machine",
+            help: "Machine tools (officecli, rg, fd, chrome), each checked by its SHA-256 before it is kept; only those the machine has no own copy of are offered.",
+            owner: true,
+            args: { machine: "The machine's name or id", tools: "Tool ids, comma-separated (officecli, rg, fd, chrome)" },
+            describe: (args) => `Install ${args.tools ?? ""} on ${args.machine ?? ""}`,
+            run: async (_user, args) => {
+                const found = machine(args.machine);
+                const done = await app.machineTools.install(
+                    found.id,
+                    (args.tools ?? "").split(",").map((each) => each.trim()).filter(Boolean),
+                );
+
+                return done.results.map((result) => `${result.id}: ${result.ok ? `${result.version} installed` : `not installed: ${result.said}`}`).join("\n");
+            },
+        },
+        {
+            id: "machines.remove",
+            area: "machines",
+            title: "Remove a machine",
+            help: "Forget a machine: its sessions stay, but can no longer run there.",
+            owner: true,
+            args: { machine: "The machine's name or id" },
+            describe: (args) => `Remove the machine ${args.machine ?? ""}`,
+            run: async (_user, args) => {
+                const found = machine(args.machine);
+
+                await app.machines.remove(found.id);
+
+                return `Removed ${found.name}.`;
+            },
+        },
+        {
+            id: "machines.openPort",
+            area: "machines",
+            title: "Open a machine's port on this phone",
+            help: "A dev server there (localhost:5173), at http://127.0.0.1:<port> here, through ssh.",
+            owner: true,
+            args: { machine: "The machine's name or id", port: "The port on the machine" },
+            describe: (args) => `Open port ${args.port ?? ""} of ${args.machine ?? ""} on this phone`,
+            run: async (_user, args) => {
+                const forward = await app.forwards.open(machine(args.machine).id, Number(args.port));
+
+                return `Port ${forward.remotePort} of ${forward.machine} is at ${forward.url}.`;
+            },
+        },
+        {
+            id: "machines.closePort",
+            area: "machines",
+            title: "Close an opened port",
+            help: "Stop forwarding a machine's port here.",
+            owner: true,
+            args: { machine: "The machine's name or id", port: "The port on the machine" },
+            describe: (args) => `Close port ${args.port ?? ""} of ${args.machine ?? ""}`,
+            run: async (_user, args) => {
+                const id = machine(args.machine).id;
+                const open = app.forwards.list().find((each) => each.machineId === id && each.remotePort === Number(args.port));
+
+                if (open === undefined) {
+                    throw new HttpError(404, `Port ${args.port ?? ""} of ${args.machine ?? ""} is not open.`);
+                }
+
+                app.forwards.close(open.id);
+
+                return `Closed port ${args.port}.`;
+            },
+        },
+        {
+            id: "sshKeys.make",
+            area: "machines",
+            title: "Make an SSH key",
+            help: "A new ed25519 key for machines; its private half stays in the app.",
+            owner: true,
+            args: { name: "Its name" },
+            describe: (args) => `Make an SSH key named ${args.name ?? ""}`,
+            run: async (_user, args) => {
+                const key = await app.sshKeys.generate(args.name);
+
+                return `Made ${key.name} (${key.id}): ${key.publicKey}`;
+            },
+        },
+        {
+            id: "sshKeys.delete",
+            area: "machines",
+            title: "Delete an SSH key",
+            help: "For good; refused while a machine uses it.",
+            owner: true,
+            args: { id: "The key's id" },
+            describe: (args) => `Delete the SSH key ${args.id ?? ""}, for good`,
+            run: async (_user, args) => {
+                const using = app.machines.usingKey(args.id ?? "");
+
+                if (using.length > 0) {
+                    throw new HttpError(409, `This key is used by ${using.map((each) => each.name).join(", ")}. Give those machines another key first.`);
+                }
+
+                await app.sshKeys.remove(args.id ?? "");
+
+                return `Deleted the key ${args.id}.`;
+            },
+        },
+        {
+            id: "secrets.delete",
+            area: "secrets",
+            title: "Delete a secret",
+            help: "For good: commands that name it get nothing.",
+            owner: true,
+            args: { name: "The secret's name" },
+            describe: (args) => `Delete the secret ${args.name ?? ""}, for good`,
+            run: async (_user, args) => {
+                if (!app.secrets.remove(secret(args.name).name)) {
+                    throw new HttpError(404, "No such secret");
+                }
+
+                return `Deleted ${args.name}.`;
+            },
+        },
+        {
+            id: "providers.removeAccount",
+            area: "providers",
+            title: "Remove a provider account",
+            help: "One of a subscription's extra accounts (provider~name), with its sign-in.",
+            owner: true,
+            args: { account: "The account's id, provider~name" },
+            describe: (args) => `Remove the account ${args.account ?? ""} and its sign-in`,
+            run: async (_user, args) => {
+                await app.accounts.remove(args.account ?? "");
+                app.providers.modelsChanged();
+
+                return `Removed ${args.account}.`;
+            },
+        },
+        {
+            id: "providers.signOut",
+            area: "providers",
+            title: "Sign out of a provider",
+            help: "Its models go until someone signs in again (only a person can).",
+            owner: true,
+            args: { provider: "The provider's id" },
+            describe: (args) => `Sign out of ${args.provider ?? ""}`,
+            run: async (_user, args) => {
+                await app.providers.logout(args.provider ?? "");
+
+                return `Signed out of ${args.provider}.`;
+            },
+        },
+        {
+            id: "github.signOut",
+            area: "github",
+            title: "Sign gh and git out of GitHub",
+            help: "The app's GitHub sign-in (only a person can sign in again).",
+            owner: true,
+            args: {},
+            describe: () => "Sign the app's gh and git out of GitHub",
+            run: async () => {
+                await app.github.logout();
+
+                return "Signed out of GitHub.";
+            },
+        },
+        {
+            id: "backup.make",
+            area: "backup",
+            title: "Make a backup",
+            help: "The app's data, sign-ins, and keys in one file: keep it safe. Restoring stays the person's (Settings › Phone).",
+            owner: true,
+            args: { folder: "Where to put it, a folder on this phone" },
+            describe: (args) => `Make a backup (with your sign-ins and keys) into ${args.folder ?? ""}`,
+            run: async (_user, args) => {
+                const made = await makeBackup(app.home, app.dataDir, tmpdir());
+
+                try {
+                    const into = join(args.folder ?? "", made.name);
+
+                    copyFileSync(made.file, into);
+
+                    return `Saved the backup as ${into}.`;
+                } finally {
+                    rmSync(made.file, { force: true });
+                }
+            },
+        },
+        {
+            id: "server.restart",
+            area: "backup",
+            title: "Restart the server",
+            help: "The app starts it again in a few seconds; runs in progress go on after it.",
+            owner: true,
+            args: {},
+            describe: () => "Restart pi-phone's server (a few seconds)",
+            run: async () => {
+                if (app.restart === undefined || !app.supervised) {
+                    throw new HttpError(409, "Restarting needs the pi-phone app, which starts the server again.");
+                }
+
+                // After the answer is on its way.
+                setTimeout(() => app.restart?.(), 2000);
+
+                return "Restarting in two seconds.";
+            },
+        },
+    );
+
+    // What a target may name, for the settings list: ids and names as setting_change takes them.
+    const targets: Record<TargetKind, () => Promise<string[]> | string[]> = {
+        session: () => ["a session's number (#993 is 993)"],
+        person: () => app.config.users.filter((user) => user.role !== "owner").map((user) => user.name),
+        secret: () => app.secrets.list().map((each) => each.name),
+        machine: () => app.machines.list().map((each) => each.name),
+        "ssh-key": async () => (await app.sshKeys.list()).map((key) => `${key.id} (${key.name})`),
+    };
+
+    return { settings, actions, targets };
 }
