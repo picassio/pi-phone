@@ -158,14 +158,33 @@ export class ConfigStore {
     readonly file: string;
     #config: PocketConfig;
 
-    constructor(directory: string) {
+    /**
+     * `ownerToken`: the owner token to have, given from outside (the server edition's gateway makes each person's, PP-21):
+     * a new data folder starts with it, and one with another token takes it, as a rotation would.
+     */
+    constructor(directory: string, { ownerToken: given }: { ownerToken?: string } = {}) {
         mkdirSync(directory, { recursive: true, mode: 0o700 });
         this.file = join(directory, "config.json");
 
+        if (given !== undefined && !/^[A-Za-z0-9_-]{24,128}$/.test(given)) {
+            throw new Error("A given owner token is 24 to 128 letters, digits, - or _.");
+        }
+
         if (existsSync(this.file)) {
             this.#config = JSON.parse(readFileSync(this.file, "utf8")) as PocketConfig;
+
+            if (given !== undefined && given !== this.#config.ownerToken) {
+                this.#config.ownerToken = given;
+                const owner = this.#config.users.find((user) => user.role === "owner");
+
+                if (owner !== undefined) {
+                    owner.tokenHash = hashToken(given);
+                }
+
+                this.save();
+            }
         } else {
-            const ownerToken = newToken();
+            const ownerToken = given ?? newToken();
 
             this.#config = {
                 version: 1,

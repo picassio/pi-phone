@@ -36,10 +36,10 @@ after(async () => {
 type Message = { type: string; id?: string; code?: number; message?: string };
 
 /** A socket to a new shell, or to shell `id`; what it is told, and all it was sent as output. */
-function connect(token: string, { origin = `http://127.0.0.1:${port}`, id }: { origin?: string; id?: string } = {}) {
+function connect(token: string, { origin = `http://127.0.0.1:${port}`, id, headers = {} }: { origin?: string; id?: string; headers?: Record<string, string> } = {}) {
     const query = new URLSearchParams(id ? { id } : { place: work, cols: "80", rows: "24" });
     const ws = new WebSocket(`ws://127.0.0.1:${port}/api/terminal?${query}`, {
-        headers: { authorization: `Bearer ${token}`, origin },
+        headers: { authorization: `Bearer ${token}`, origin, ...headers },
     });
     const told: Message[] = [];
     const waiting: { type: string; resolve: (message: Message) => void }[] = [];
@@ -133,4 +133,16 @@ test("only the owner, and only from the app's own page", async () => {
 
     assert.equal(await refused(connect(guest.token).ws), 403);
     assert.equal(await refused(connect(app.config.ownerToken, { origin: "http://evil.example" }).ws), 403);
+    // Behind a TLS proxy (Caddy, the server edition): the page is https on the forwarded host.
+    const proxied = { "x-forwarded-proto": "https", "x-forwarded-host": "pi.example" };
+
+    assert.equal(await refused(connect(app.config.ownerToken, { origin: `http://127.0.0.1:${port}`, headers: proxied }).ws), 403);
+
+    const behind = connect(app.config.ownerToken, { origin: "https://pi.example", headers: proxied });
+
+    await new Promise<void>((resolve, reject) => {
+        behind.ws.once("open", () => resolve());
+        behind.ws.once("unexpected-response", (_request, response) => reject(new Error(`refused: ${response.statusCode}`)));
+    });
+    behind.ws.close();
 });

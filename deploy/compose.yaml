@@ -1,52 +1,94 @@
-# pi-phone server edition behind Caddy (HTTPS). See deploy/README.md.
+# pi-phone server edition for a TEAM (PP-21), behind Caddy (HTTPS). See deploy/README.md.
 #
 #   cd deploy && PI_HOST=devbox.example.ts.net docker compose up -d --build
+#   docker compose logs gateway | grep "setup token"      # the owner's first sign-in
 #
-# The image is built here, on this machine, from the repository (the owner's decision, 2026-10-20: not in CI).
-# DEBIAN_MIRROR picks a nearer Debian mirror for the build (http://debian.xtdv.net/debian in Vietnam).
-#
-# PI_HOST is the name people open. PI_TLS picks Caddy's certificate: `auto` (Let's Encrypt for a public name, or
-# Tailscale's for a *.ts.net name, with the tailscaled socket mounted below) or `internal` (Caddy's own CA, which each
-# device must trust).
+# - gateway:    people sign in here (better-auth: password, passkeys, TOTP; invite-only), and it forwards each person to
+#               their own pi-phone container. It never holds the Docker socket.
+# - controller: the only part with the Docker socket. It makes, starts, stops, and removes one container per person
+#               (pp-user-<key>, with its own network and volume), from this same image, with fixed options. It has no
+#               network: the gateway reaches it only through a Unix socket in the `control` volume, with a shared secret.
+# - caddy:      HTTPS for PI_HOST (`auto`: Let's Encrypt, or Tailscale's certificate for a *.ts.net name; `internal`: its
+#               own CA).
+# The image is built here, from the repository (DEBIAN_MIRROR picks a nearer Debian mirror for the build).
 services:
-  pi-phone:
+  gateway:
     image: pi-phone-server:local
     build:
       context: ..
       args:
         DEBIAN_MIRROR: ${DEBIAN_MIRROR:-http://deb.debian.org/debian}
+    # The controller attaches this container to each person's network by this name.
+    container_name: pi-phone-gateway
     restart: unless-stopped
-    volumes:
-      - pi-phone-data:/data
+    entrypoint: ["tini", "--", "node", "/app/src/gateway/main.ts"]
     environment:
+      PP_ORIGIN: https://${PI_HOST:?set PI_HOST to the name people open}
+      PP_GATEWAY_DATA: /data
+      PP_CONTROLLER_SOCKET: /run/pi-phone/controller.sock
+      PP_CONTROLLER_SECRET_FILE: /run/pi-phone/secret
+      PP_PERSON_MEMORY_MB: ${PP_PERSON_MEMORY_MB:-2048}
+      PP_PERSON_CPUS: ${PP_PERSON_CPUS:-1}
       TZ: ${TZ:-UTC}
-    # Not published: only Caddy reaches it.
-    expose:
-      - "8787"
-    networks: [pi-phone]
+    volumes:
+      - gateway-data:/data
+      - control:/run/pi-phone
+    depends_on: [controller]
+    networks: [front]
+
+  controller:
+    image: pi-phone-server:local
+    restart: unless-stopped
+    # Root, for the Docker socket; it makes the shared secret once and gives the gateway (uid/gid 1000) read of it.
+    user: "0:0"
+    entrypoint:
+      - tini
+      - --
+      - sh
+      - -c
+      - |
+        set -e
+        if [ ! -s /run/pi-phone/secret ]; then head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > /run/pi-phone/secret; fi
+        chown 0:1000 /run/pi-phone /run/pi-phone/secret
+        chmod 750 /run/pi-phone
+        chmod 640 /run/pi-phone/secret
+        exec node /app/src/controller/main.ts
+    environment:
+      PP_USER_IMAGE: pi-phone-server:local
+      PP_GATEWAY_CONTAINER: pi-phone-gateway
+      PP_CONTROLLER_SOCKET: /run/pi-phone/controller.sock
+      PP_CONTROLLER_SECRET_FILE: /run/pi-phone/secret
+      PP_GATEWAY_GID: "1000"
+      TZ: ${TZ:-UTC}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - control:/run/pi-phone
+    network_mode: none
 
   caddy:
     image: caddy:2.11.7-alpine
     restart: unless-stopped
-    depends_on: [pi-phone]
+    depends_on: [gateway]
     ports:
       - "80:80"
       - "443:443"
     environment:
       PI_HOST: ${PI_HOST:?set PI_HOST to the name people open}
       PI_TLS: ${PI_TLS:-auto}
+      PI_UPSTREAM: gateway:8080
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
       # For a *.ts.net name: Caddy asks the host's Tailscale for its certificate.
       - ${TAILSCALE_SOCKET:-/var/run/tailscale}:/var/run/tailscale
-    networks: [pi-phone]
+    networks: [front]
 
 volumes:
-  pi-phone-data:
+  gateway-data:
+  control:
   caddy-data:
   caddy-config:
 
 networks:
-  pi-phone:
+  front:

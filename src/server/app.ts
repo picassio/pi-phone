@@ -267,6 +267,13 @@ export interface OpenOptions {
     officecli?: Omit<OfficeCliOptions, "dataDir">;
     /** Where Pi's browser comes from: the phone's WebView unless a test or a computer gives another (a Chrome). */
     browserEngine?: BrowserEngine;
+    /** The owner token to have (`ConfigStore`): the server edition's gateway gives each person's container its own. */
+    ownerToken?: string;
+    /**
+     * Behind the server edition's gateway (PP-21): accounts, sign-out, people and devices are the gateway's, so the page
+     * offers the gateway's account page for them.
+     */
+    gateway?: boolean;
 }
 
 /** A send limit as given: a whole number of 1 to 10000 an hour, or null for none. */
@@ -314,6 +321,8 @@ export class PocketApp {
     readonly dataDir: string;
     readonly defaultCwd: string;
     readonly supervised: boolean;
+    /** Behind the server edition's gateway (`OpenOptions.gateway`). */
+    readonly gateway: boolean;
     readonly startedAt = Date.now();
     /** How other devices reach this server: the Tailscale address while it listens there (`setReach`). */
     access: AccessInfo | undefined;
@@ -424,7 +433,8 @@ export class PocketApp {
         this.dataDir = options.dataDir;
         this.defaultCwd = options.defaultCwd;
         this.supervised = options.supervised;
-        this.config = new ConfigStore(options.dataDir);
+        this.gateway = options.gateway === true;
+        this.config = new ConfigStore(options.dataDir, options.ownerToken === undefined ? {} : { ownerToken: options.ownerToken });
         // The app's own ssh (`ssh/` in the data folder): its agent holds the keys, which the database keeps.
         const sshDir = join(options.dataDir, "ssh");
 
@@ -2162,6 +2172,7 @@ export class PocketApp {
             usage: this.usageLimits.known(),
             server: {
                 supervised: this.supervised,
+                gateway: this.gateway,
                 startedAt: this.startedAt,
                 home: homedir(),
                 defaultCwd: this.defaultCwd,

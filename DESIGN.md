@@ -417,6 +417,19 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   `scripts/server-tools.ts` from the machine tools' pinned releases. The image is built on the machine
   that runs it (`docker compose up -d --build`; the owner's decision, 2026-10-20: not in CI), and checked with
   `deploy/smoke.sh`.
+- **Team edition** (PP-21; `src/gateway/`, `src/controller/`, `deploy/compose.yaml`): a **gateway** in front of one
+  pi-phone container per person.
+  - **Sign-in:** better-auth 1.7.12 on the gateway's `node:sqlite` file, with password, the twoFactor (TOTP) and passkey
+    plugins, and admin with roles owner and member. Sign-up is off: accounts come from the setup token and invites.
+    Migrations run from the options before better-auth starts, so its schema check sees the tables.
+  - **The gateway's data** (`store.ts`): the setup token, invites, and each person's key and owner token.
+  - **Forwarding:** everything outside `/auth/` goes to the person's container, HTTP and WebSockets, with that
+    container's owner token (`PI_PHONE_OWNER_TOKEN`, which `ConfigStore` takes) and none of the browser's cookies.
+    pi-phone's own sign-in, invites, devices and people routes are refused.
+  - **Containers:** they carry `PI_PHONE_GATEWAY=1`, so the menu offers the gateway's account page and its sign-out.
+  - **The controller** (`controller.ts`) holds the Docker socket alone, has no network, and serves a Unix socket with a
+    shared secret. Each person gets `pp-user-<key>` on `pp-net-<key>` (with only the gateway attached) and `pp-data-<key>`,
+    with CapDrop ALL, no-new-privileges, no published ports, a PID limit and memory/CPU caps.
 - **Effective HTML** (`third_party/effective-html/`; owner's decision of 2026-10-18): plannotator/effective-html's 7
   skills (MIT, at commit `975b047`) for HTML artifacts: `html` (router), `design-artifact`, `html-wireframe`,
   `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every

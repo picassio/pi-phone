@@ -21,7 +21,7 @@
 		-Server
 	}
 	# Event streams flush at once; WebSockets (the terminal) pass through.
-	reverse_proxy pi-phone:8787 {
+	reverse_proxy {$PI_UPSTREAM} {
 		flush_interval -1
 	}
 }

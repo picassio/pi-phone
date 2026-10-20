@@ -1,8 +1,21 @@
 # pi-phone on a server
 
-The server edition runs the same app as the phone, in Docker, behind Caddy for HTTPS. Today it is one person's (the
-owner, who signs in with the owner token). Accounts for a team, roles, and a container per person come next (board epic
-PP-19).
+The server edition runs the same app as the phone, in Docker, behind Caddy for HTTPS, for a **team**
+(`deploy/compose.yaml`):
+
+- **Sign-in:** a **gateway** signs people in with better-auth: email and password, a TOTP code as a second step if they
+  turn it on, and passkeys. There's no sign-up: the owner's account comes from the setup token, and everyone else's from
+  an invite link the owner makes (with a role, used once).
+- **A pi-phone each:** each person gets their own pi-phone in a **container of their own**, with their own sessions,
+  provider sign-ins, secrets, machines and files. It sits on its own network, which only the gateway shares, with all
+  capabilities dropped, no published ports, and memory and CPU caps.
+- **Docker:** a **controller** makes these containers. It's the only part that touches Docker, and it has no network: the
+  gateway reaches it through a Unix socket with a shared secret.
+- **The owner's pages:** the People page (`/auth/people`) has invites, password and 2FA resets, and disabling or removing
+  someone (their data is kept). Everyone has an Account page (`/auth/account`) for their password, two-factor and
+  passkeys.
+
+For one person only, with the owner token and no gateway, use `compose.single.yaml` instead (`-f compose.single.yaml`).
 
 What changes from the phone:
 
@@ -37,14 +50,19 @@ You need Docker with Compose on a Linux machine (x64 or arm64), and a name for i
 
    Add `DEBIAN_MIRROR=http://debian.xtdv.net/debian` (or another mirror near you) when deb.debian.org is slow from there.
 
-4. Find your sign-in link (the owner's: keep it private) and open it once per browser:
+4. Get the setup token, which makes the owner's account once (keep it private), then open
+   `https://<PI_HOST>/auth/setup` and give it with your name, email and a password:
 
    ```bash
-   docker compose logs pi-phone | grep login
+   docker compose logs gateway | grep "setup token"
    ```
 
-   Swap its `http://127.0.0.1:8787` for `https://<PI_HOST>`.
-5. In the app: ⋯ › Providers, sign in to a model provider.
+5. On your Account page, turn on two-factor and add a passkey. Then **Open my pi-phone**, and in the app go to
+   ⋯ › Providers and sign in to a model provider (each person signs in their own).
+6. **People › Make an invite link** for each teammate: they open it, make their account, and get their own pi-phone.
+
+(With `compose.single.yaml`: `docker compose -f compose.single.yaml logs pi-phone | grep login` gives the owner's
+sign-in link instead; swap its `http://127.0.0.1:8787` for `https://<PI_HOST>`.)
 
 Then use it as the README's "Use it" says. Pi can change settings for you on a card, as on the phone.
 

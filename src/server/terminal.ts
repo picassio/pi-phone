@@ -21,7 +21,7 @@ import type { Duplex } from "node:stream";
 import type { RemoteTerminal } from "@earendil-works/pi-env";
 import { type WebSocket, WebSocketServer } from "ws";
 import type { PocketApp } from "./app.ts";
-import type { Auth } from "./auth.ts";
+import { type Auth, origin } from "./auth.ts";
 import { describe } from "./errors.ts";
 
 const PATH = "/api/terminal";
@@ -179,7 +179,9 @@ export function attachTerminals(server: Server, app: PocketApp, auth: Auth): () 
             return refuse(socket, 403, "Forbidden");
         }
 
-        if (request.headers.origin !== `http://${request.headers.host}`) {
+        // The page's own address, as it sees it: through a TLS proxy (Caddy, the server edition) it is https and the
+        // forwarded host. A page elsewhere cannot add those headers to a WebSocket.
+        if (request.headers.origin !== origin(request)) {
             return refuse(socket, 403, "Forbidden");
         }
 

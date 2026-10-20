@@ -458,6 +458,14 @@ export async function attempt(action) {
 /** End this browser's sign-in, and go to the sign-in page. */
 export function signOut() {
     return attempt(async () => {
+        // Behind the server edition's gateway: its sign-in is the one to end (PP-21).
+        if (store.state.server?.gateway) {
+            await fetch("/auth/api/sign-out", { method: "POST", headers: { "content-type": "application/json" }, body: "{}", credentials: "same-origin" });
+            location.href = "/auth/sign-in";
+
+            return;
+        }
+
         await api("logout", {});
         location.href = "/";
     });

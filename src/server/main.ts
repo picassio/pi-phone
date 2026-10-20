@@ -224,6 +224,9 @@ const opened = await App.open({
     defaultCwd: options.cwd,
     supervised: process.env.PI_POCKET_SUPERVISED === "1",
     configureModels: (models) => installClaudeCodeBilling(models, phoneSettings),
+    // The server edition's gateway gives each person's container its owner token (PP-21), and is the only one to use it.
+    ...(process.env.PI_PHONE_OWNER_TOKEN === undefined ? {} : { ownerToken: process.env.PI_PHONE_OWNER_TOKEN }),
+    gateway: process.env.PI_PHONE_GATEWAY === "1",
     ...(options.platform === "server"
         ? {
               // Its profile in the home folder: sign-ins stay across restarts.

@@ -485,12 +485,19 @@ export function MenuSheet({ places = true }) {
                 )
             }
             ${item("Your name", () => openSheet({ type: "name" }), me?.name)}
-            ${collab() ? item("People", () => openSheet({ type: "people" }), me?.role === "viewer" ? "you can view" : "") : item("Sign in another device", () => openSheet({ type: "invite" }))}
+            ${
+                // Behind the server edition's gateway, accounts, people and devices are its (PP-21).
+                server?.gateway
+                    ? item("Your account", () => (location.href = "/auth/account"), "password, two-factor, passkeys, people")
+                    : collab()
+                      ? item("People", () => openSheet({ type: "people" }), me?.role === "viewer" ? "you can view" : "")
+                      : item("Sign in another device", () => openSheet({ type: "invite" }))
+            }
             ${item("Running now", () => openSheet({ type: "running" }), "everything Pi is doing")}
             ${item("Spend", () => openSheet({ type: "spend" }), me?.role === "owner" ? "by person and session, limits" : "yours")}
             ${me?.role === "owner" && item("Providers", () => openSheet({ type: "providers" }))}
             ${me?.role === "owner" && item("GitHub", () => openSheet({ type: "github" }), "for Pi's git and gh")}
-            ${me?.role === "owner" && item("Access", () => openSheet({ type: "access" }), "people on your Tailscale network")}
+            ${me?.role === "owner" && !server?.gateway && item("Access", () => openSheet({ type: "access" }), "people on your Tailscale network")}
             ${me?.role === "owner" && item("Machines", () => openSheet({ type: "machines" }), "run sessions on other computers")}
             ${me?.role === "owner" && item("SSH keys", () => openSheet({ type: "ssh-keys" }), "for machines")}
             ${me?.role === "owner" && webAvailable() && item("Web access", () => openSheet({ type: "web-access" }), "search provider for Pi")}

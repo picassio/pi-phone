@@ -1,0 +1,187 @@
+/* The gateway's page (PP-21): pi-phone's look (Pocket · Tokyo Night), plain CSS. */
+:root {
+    --bg: #1a1b26;
+    --card: #1f2335;
+    --card-2: #24283b;
+    --hair: #2f344d;
+    --text: #c0caf5;
+    --muted: #7a82a8;
+    --accent: #7aa2f7;
+    --ok: #9ece6a;
+    --bad: #f7768e;
+    --r: 12px;
+    color-scheme: dark;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: calc(28px + env(safe-area-inset-top)) 18px 48px;
+}
+
+h1 {
+    margin: 0 0 4px;
+    font-size: 1.45rem;
+}
+
+h2 {
+    margin: 26px 0 8px;
+    font-size: 1.02rem;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.brand img {
+    width: 36px;
+    height: 36px;
+    border-radius: 24%;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--hair);
+    border-radius: var(--r);
+    padding: 14px 16px;
+    margin: 10px 0;
+}
+
+form {
+    display: grid;
+    gap: 10px;
+}
+
+label {
+    display: grid;
+    gap: 4px;
+    font-size: 0.88rem;
+    color: var(--muted);
+}
+
+input,
+select {
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 12px;
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    background: var(--card-2);
+    color: var(--text);
+    font: inherit;
+}
+
+button,
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    background: var(--card-2);
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+button.primary,
+.button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #16161e;
+}
+
+button.danger {
+    color: var(--bad);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.spread {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+}
+
+.error {
+    color: var(--bad);
+    min-height: 1.2em;
+    margin: 4px 0 0;
+}
+
+.ok {
+    color: var(--ok);
+}
+
+.list {
+    display: grid;
+    gap: 8px;
+}
+
+.person b {
+    display: block;
+}
+
+.tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border: 1px solid var(--hair);
+    border-radius: 99px;
+    font-size: 0.78rem;
+    color: var(--muted);
+}
+
+code,
+.code {
+    font: 0.86rem ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--card-2);
+    padding: 2px 6px;
+    border-radius: 6px;
+    word-break: break-all;
+}
+
+.qr {
+    background: #fff;
+    border-radius: 10px;
+    padding: 10px;
+    width: 220px;
+    max-width: 100%;
+}
+
+.or {
+    text-align: center;
+    margin: 6px 0;
+}

@@ -1,0 +1,420 @@
+// The gateway's page (PP-21): sign in (password, then TOTP; or a passkey), the owner's setup, an invite, your account
+// (password, two-factor, passkeys, sign out), and for the owner, people and invites. Plain JS, no build; text goes in
+// with textContent only. better-auth's routes are /auth/api/*, the gateway's own /auth/gw/*.
+import { browserSupportsWebAuthn, startAuthentication, startRegistration } from "/auth/static/webauthn/index.js";
+
+const app = document.getElementById("app");
+
+/** An element: tag, properties (on* are listeners), children (strings become text). */
+function h(tag, props = {}, ...children) {
+    const node = document.createElement(tag);
+
+    for (const [name, value] of Object.entries(props)) {
+        if (name.startsWith("on") && typeof value === "function") {
+            node.addEventListener(name.slice(2).toLowerCase(), value);
+        } else if (value !== undefined && value !== false && value !== null) {
+            node.setAttribute(name, value === true ? "" : String(value));
+        }
+    }
+
+    for (const child of children.flat()) {
+        if (child !== undefined && child !== null && child !== false) {
+            node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+        }
+    }
+
+    return node;
+}
+
+async function call(path, body, method) {
+    const response = await fetch(path, {
+        method: method ?? (body === undefined ? "GET" : "POST"),
+        headers: body === undefined ? {} : { "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        credentials: "same-origin",
+    });
+    const text = await response.text();
+    let data = {};
+
+    try {
+        data = text ? JSON.parse(text) : {};
+    } catch {
+        data = { message: text };
+    }
+
+    if (!response.ok) {
+        throw new Error(data.error ?? data.message ?? `HTTP ${response.status}`);
+    }
+
+    return data;
+}
+
+const authApi = (path, body, method) => call(`/auth/api/${path}`, body, method);
+const gw = (path, body, method) => call(`/auth/gw/${path}`, body, method);
+
+function page(title, lede, ...content) {
+    app.replaceChildren(
+        h("div", { class: "brand" }, h("img", { src: "/auth/static/icon.svg", alt: "" }), h("b", {}, "pi-phone")),
+        h("h1", {}, title),
+        lede ? h("p", { class: "muted" }, lede) : null,
+        ...content,
+    );
+    document.title = `${title} · pi-phone`;
+}
+
+/** A form whose submit runs `action`; its error shows under it. */
+function form(fields, submit, action) {
+    const error = h("p", { class: "error", role: "alert" });
+    const button = h("button", { class: "primary", type: "submit" }, submit);
+    const node = h(
+        "form",
+        {
+            onsubmit: async (event) => {
+                event.preventDefault();
+                error.textContent = "";
+                button.disabled = true;
+
+                try {
+                    await action(Object.fromEntries(new FormData(node).entries()));
+                } catch (failed) {
+                    error.textContent = failed.message;
+                } finally {
+                    button.disabled = false;
+                }
+            },
+        },
+        ...fields,
+        button,
+        error,
+    );
+
+    return node;
+}
+
+const field = (label, name, type = "text", extra = {}) => h("label", {}, label, h("input", { name, type, required: true, ...extra }));
+const next = () => new URLSearchParams(location.search).get("next") || "/";
+const go = (path) => {
+    history.pushState({}, "", path);
+    void route();
+};
+
+// ─── Sign in ───
+
+function signIn() {
+    const passkey = browserSupportsWebAuthn()
+        ? h(
+              "button",
+              {
+                  type: "button",
+                  onclick: async () => {
+                      try {
+                          const options = await authApi("passkey/generate-authenticate-options");
+                          const response = await startAuthentication({ optionsJSON: options });
+
+                          await authApi("passkey/verify-authentication", { response });
+                          location.href = next();
+                      } catch (failed) {
+                          alert(`Passkey: ${failed.message}`);
+                      }
+                  },
+              },
+              "Sign in with a passkey",
+          )
+        : null;
+
+    page(
+        "Sign in",
+        "Your own pi-phone, on this server.",
+        form([field("Email", "email", "email", { autocomplete: "username" }), field("Password", "password", "password", { autocomplete: "current-password" })], "Sign in", async ({ email, password }) => {
+            const answer = await authApi("sign-in/email", { email, password, rememberMe: true });
+
+            if (answer.twoFactorRedirect) {
+                return twoFactorStep();
+            }
+
+            location.href = next();
+        }),
+        passkey ? h("p", { class: "muted or" }, "or") : null,
+        passkey,
+    );
+}
+
+function twoFactorStep() {
+    page(
+        "Two-factor code",
+        "The 6-digit code from your authenticator app.",
+        form([field("Code", "code", "text", { inputmode: "numeric", autocomplete: "one-time-code", pattern: "[0-9]{6}" })], "Verify", async ({ code }) => {
+            await authApi("two-factor/verify-totp", { code, trustDevice: false });
+            location.href = next();
+        }),
+    );
+}
+
+// ─── The owner's setup, and an invite ───
+
+function setup() {
+    page(
+        "Set up the owner",
+        "The first account on this server: the owner's. The setup token is in the gateway's log.",
+        form(
+            [field("Setup token", "setupToken", "password"), field("Your name", "name"), field("Email", "email", "email", { autocomplete: "username" }), field("Password (10 or more)", "password", "password", { minlength: 10, autocomplete: "new-password" })],
+            "Create the owner",
+            async ({ setupToken, name, email, password }) => {
+                await gw("setup", { setupToken, name, email, password });
+                await authApi("sign-in/email", { email, password, rememberMe: true });
+                go("/auth/account");
+            },
+        ),
+    );
+}
+
+async function invite(code) {
+    let live;
+
+    try {
+        live = await gw(`invite/${code}`);
+    } catch (failed) {
+        return page("Invite", failed.message, h("a", { class: "button", href: "/auth/sign-in" }, "Sign in"));
+    }
+
+    page(
+        "Join pi-phone",
+        `You're invited as ${live.role}. Your own pi-phone starts when you first open it.`,
+        form([field("Your name", "name"), field("Email", "email", "email", { autocomplete: "username" }), field("Password (10 or more)", "password", "password", { minlength: 10, autocomplete: "new-password" })], "Create my account", async ({ name, email, password }) => {
+            await gw(`invite/${code}`, { name, email, password });
+            await authApi("sign-in/email", { email, password, rememberMe: true });
+            go("/auth/account");
+        }),
+    );
+}
+
+// ─── Your account ───
+
+async function account(me) {
+    const twoFactor = h("div", { class: "card" });
+    const passkeys = h("div", { class: "card" });
+
+    page(
+        me.name,
+        `${me.email} · ${me.role}`,
+        h("div", { class: "row" }, h("a", { class: "button primary", href: "/" }, "Open my pi-phone"), me.role === "owner" ? h("a", { class: "button", href: "/auth/people", onclick: (event) => (event.preventDefault(), go("/auth/people")) }, "People") : null, h("button", { onclick: async () => (await authApi("sign-out", {}), go("/auth/sign-in")) }, "Sign out")),
+        h("h2", {}, "Two-factor sign-in"),
+        twoFactor,
+        h("h2", {}, "Passkeys"),
+        passkeys,
+        h("h2", {}, "Password"),
+        h(
+            "div",
+            { class: "card" },
+            form([field("Current password", "currentPassword", "password", { autocomplete: "current-password" }), field("New password (10 or more)", "newPassword", "password", { minlength: 10, autocomplete: "new-password" })], "Change password", async ({ currentPassword, newPassword }) => {
+                await authApi("change-password", { currentPassword, newPassword, revokeOtherSessions: true });
+                alert("Password changed; your other devices are signed out.");
+            }),
+        ),
+    );
+
+    renderTwoFactor(twoFactor, me);
+    void renderPasskeys(passkeys);
+}
+
+function renderTwoFactor(box, me) {
+    if (me.twoFactor) {
+        box.replaceChildren(
+            h("p", { class: "ok" }, "On: signing in asks for a code from your authenticator app."),
+            form([field("Password", "password", "password", { autocomplete: "current-password" })], "Turn off", async ({ password }) => {
+                await authApi("two-factor/disable", { password });
+                renderTwoFactor(box, { ...me, twoFactor: false });
+            }),
+        );
+
+        return;
+    }
+
+    box.replaceChildren(
+        h("p", { class: "muted" }, "Off. Turn it on to ask for a code from an authenticator app after your password."),
+        form([field("Password", "password", "password", { autocomplete: "current-password" })], "Turn on", async ({ password }) => {
+            const { totpURI, backupCodes } = await authApi("two-factor/enable", { password });
+            const qr = await gw("qr", { text: totpURI });
+
+            box.replaceChildren(
+                h("p", {}, "Scan this with your authenticator app, then type its code to finish."),
+                h("img", { class: "qr", src: qr.svg, alt: "QR code for your authenticator app" }),
+                h("p", { class: "muted" }, "Backup codes, each usable once (keep them safe):"),
+                h("p", { class: "code" }, backupCodes.join("  ")),
+                form([field("Code", "code", "text", { inputmode: "numeric", autocomplete: "one-time-code", pattern: "[0-9]{6}" })], "Finish", async ({ code }) => {
+                    await authApi("two-factor/verify-totp", { code });
+                    renderTwoFactor(box, { ...me, twoFactor: true });
+                }),
+            );
+        }),
+    );
+}
+
+async function renderPasskeys(box) {
+    const list = await authApi("passkey/list-user-passkeys");
+    const add = browserSupportsWebAuthn()
+        ? h(
+              "button",
+              {
+                  onclick: async () => {
+                      try {
+                          const options = await authApi("passkey/generate-register-options");
+                          const response = await startRegistration({ optionsJSON: options });
+
+                          await authApi("passkey/verify-registration", { response, name: navigator.platform || "Passkey" });
+                          void renderPasskeys(box);
+                      } catch (failed) {
+                          alert(`Passkey: ${failed.message}`);
+                      }
+                  },
+              },
+              "Add a passkey",
+          )
+        : h("p", { class: "muted" }, "This browser can't make passkeys.");
+
+    box.replaceChildren(
+        list.length === 0
+            ? h("p", { class: "muted" }, "None yet: a passkey signs you in without your password.")
+            : h(
+                  "div",
+                  { class: "list" },
+                  list.map((each) =>
+                      h(
+                          "div",
+                          { class: "spread" },
+                          h("span", {}, each.name || "Passkey", " ", h("span", { class: "muted" }, new Date(each.createdAt).toLocaleDateString())),
+                          h("button", { class: "danger", onclick: async () => (await authApi("passkey/delete-passkey", { id: each.id }), renderPasskeys(box)) }, "Remove"),
+                      ),
+                  ),
+              ),
+        add,
+    );
+}
+
+// ─── People (the owner) ───
+
+async function people(me) {
+    const listBox = h("div", { class: "list" });
+    const invitesBox = h("div", { class: "list" });
+
+    page(
+        "People",
+        "Everyone with an account here. Each has their own pi-phone.",
+        h("div", { class: "row" }, h("a", { class: "button", href: "/auth/account", onclick: (event) => (event.preventDefault(), go("/auth/account")) }, "My account"), h("a", { class: "button", href: "/" }, "Open my pi-phone")),
+        h("h2", {}, "Invite someone"),
+        h(
+            "div",
+            { class: "card" },
+            form(
+                [
+                    h("label", {}, "Role", h("select", { name: "role" }, h("option", { value: "member" }, "Member"), h("option", { value: "owner" }, "Owner"))),
+                    h("label", {}, "Lasts", h("select", { name: "minutes" }, h("option", { value: "60" }, "1 hour"), h("option", { value: "1440", selected: true }, "1 day"), h("option", { value: "10080" }, "7 days"))),
+                ],
+                "Make an invite link",
+                async ({ role, minutes }) => {
+                    const made = await gw("invites", { role, minutes: Number(minutes) });
+
+                    await navigator.clipboard?.writeText(made.url).catch(() => {});
+                    void renderInvites(invitesBox);
+                    alert(`Invite link (copied):\n${made.url}`);
+                },
+            ),
+        ),
+        h("h2", {}, "Invites"),
+        invitesBox,
+        h("h2", {}, "Accounts"),
+        listBox,
+    );
+
+    void renderInvites(invitesBox);
+    void renderPeople(listBox, me);
+}
+
+async function renderInvites(box) {
+    const { invites } = await gw("invites");
+    const now = Date.now();
+
+    box.replaceChildren(
+        ...(invites.length === 0
+            ? [h("p", { class: "muted" }, "None.")]
+            : invites.map((each) =>
+                  h(
+                      "div",
+                      { class: "card spread" },
+                      h("span", {}, h("span", { class: "tag" }, each.role), " ", each.usedBy ? "used" : each.expiresAt < now ? "expired" : `until ${new Date(each.expiresAt).toLocaleString()}`),
+                      !each.usedBy && each.expiresAt > now ? h("button", { onclick: async () => (await gw(`invites/${each.code}/cancel`, {}), renderInvites(box)) }, "Cancel") : null,
+                  ),
+              )),
+    );
+}
+
+async function renderPeople(box, me) {
+    const { people } = await gw("people");
+    const act = async (person, action, body = {}) => {
+        await gw(`people/${person.id}/${action}`, body);
+        void renderPeople(box, me);
+    };
+
+    box.replaceChildren(
+        ...people.map((person) =>
+            h(
+                "div",
+                { class: "card person" },
+                h("b", {}, person.name, " ", h("span", { class: "tag" }, person.role), person.banned ? h("span", { class: "tag" }, "disabled") : null, person.twoFactor ? h("span", { class: "tag" }, "2FA") : null),
+                h("span", { class: "muted" }, person.email),
+                person.id === me.id
+                    ? null
+                    : h(
+                          "div",
+                          { class: "row" },
+                          h("button", { onclick: () => { const password = prompt(`New password for ${person.name} (10 or more):`); if (password) void act(person, "reset-password", { password }); } }, "Reset password"),
+                          person.twoFactor ? h("button", { onclick: () => confirm(`Remove ${person.name}'s two-factor? They set it up again.`) && act(person, "reset-two-factor") }, "Reset 2FA") : null,
+                          person.banned ? h("button", { onclick: () => act(person, "enable") }, "Enable") : h("button", { onclick: () => confirm(`Disable ${person.name}? Their pi-phone stops.`) && act(person, "disable") }, "Disable"),
+                          h("button", { class: "danger", onclick: () => confirm(`Remove ${person.name}'s account? Their data is kept.`) && act(person, "remove") }, "Remove"),
+                      ),
+            ),
+        ),
+    );
+}
+
+// ─── Routes ───
+
+async function route() {
+    const path = location.pathname;
+    let state;
+
+    try {
+        state = await gw("state");
+    } catch (failed) {
+        return page("pi-phone", failed.message);
+    }
+
+    const invited = /^\/auth\/invite\/([A-Za-z0-9_-]+)$/.exec(path);
+
+    if (invited) {
+        return invite(invited[1]);
+    }
+
+    if (state.setup) {
+        return setup();
+    }
+
+    if (!state.me) {
+        return signIn();
+    }
+
+    if (path === "/auth/people" && state.me.role === "owner") {
+        return people(state.me);
+    }
+
+    if (path === "/auth/sign-in" && next() !== "/") {
+        location.href = next();
+
+        return;
+    }
+
+    return account(state.me);
+}
+
+addEventListener("popstate", () => void route());
+void route();
