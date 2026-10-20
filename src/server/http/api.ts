@@ -42,6 +42,14 @@ import { JevDecider, testDecision } from "../browser/run.ts";
 /** Pictures from the phone's renderer, as base64 JSON: a few full-page shots. */
 const MAX_RENDER_BODY = 30 * 1024 * 1024;
 
+/**
+ * Files a page has only in itself (an image in a conversation as a `data:` address), kept a few minutes at an address
+ * of the app so the app's shell can save them to Downloads (PP-16): it saves only the app's own addresses. Per person.
+ */
+const kept = new Map<string, { owner: string; type: string; bytes: Buffer; until: number }>();
+const KEEP_MS = 5 * 60_000;
+const MAX_KEPT = 25 * 1024 * 1024;
+
 /** This machine's non-internal IPv4 addresses, for invite links other devices on its networks can open. */
 function lanAddresses(): string[] {
     return Object.values(networkInterfaces())
@@ -509,6 +517,37 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ok: true });
         }
 
+        // A file to save from the page itself (an image's `data:` address): kept briefly, then fetched by a download.
+        if (first === "kept-downloads" && second === undefined && method === "POST") {
+            const bytes = await readBody(request, MAX_KEPT);
+            const type = String(request.headers["content-type"] ?? "application/octet-stream").split(";")[0]!;
+            const id = crypto.randomUUID();
+            const now = Date.now();
+
+            for (const [key, file] of kept) {
+                if (file.until < now) {
+                    kept.delete(key);
+                }
+            }
+
+            kept.set(id, { owner: user.id, type, bytes, until: now + KEEP_MS });
+
+            return json(response, 200, { url: `/api/kept-downloads/${id}` });
+        }
+
+        if (first === "kept-downloads" && second !== undefined && third === undefined && method === "GET") {
+            const file = kept.get(second);
+
+            if (file === undefined || file.owner !== user.id || file.until < Date.now()) {
+                throw new HttpError(404, "That download is no longer kept: download it again.");
+            }
+
+            response.writeHead(200, { "content-type": file.type, "content-length": file.bytes.length, "cache-control": "no-store" });
+            response.end(file.bytes);
+
+            return;
+        }
+
         // Pi's browser (`browser/pi-browser.ts`): the app's service makes and removes its WebView (a long poll and answers).
         if (first === "phone" && second === "browser" && third === undefined && method === "GET") {
             requireOwner(user);
@@ -535,9 +574,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
         if (first === "browser") {
             requireOwner(user);
 
-            // Which browser: the phone's, or a machine's (`machine:<id>`), as the panel shows the one of its session's place.
+            // Which browser: the session's own (PP-13), at the phone or a machine (`machine:<id>`), as the panel shows it.
+            // The run model routes below are the app's, of no session.
             const place = url.searchParams.get("place") ?? "phone";
-            const browser = () => app.browserAt(place);
+            const session = Number(url.searchParams.get("session"));
+            const browser = () => app.browserAt(place, session);
 
             if (second === undefined && method === "GET") {
                 return json(response, 200, browser().state());
@@ -546,7 +587,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
             if (second === "watch" && method === "POST") {
                 const body = await readJson<{ connection?: unknown; on?: unknown }>(request);
 
-                app.setBrowserWatch(user, String(body.connection ?? ""), place, body.on === true);
+                app.setBrowserWatch(user, String(body.connection ?? ""), place, session, body.on === true);
 
                 return json(response, 200, browser().state());
             }
@@ -569,23 +610,27 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     return value;
                 };
 
+                // What the person types goes straight to the page: never logged, never kept.
                 try {
-                    if (body.type === "tap") {
-                        await browser().input({ type: "tap", x: number(body.x, "x"), y: number(body.y, "y") });
-                    } else if (body.type === "scroll") {
-                        await browser().input({ type: "scroll", x: number(body.x, "x"), y: number(body.y, "y"), dy: number(body.dy, "dy") });
-                    } else if (body.type === "text" && typeof body.text === "string") {
-                        await browser().input({ type: "text", text: body.text });
-                    } else if (body.type === "key" && typeof body.key === "string") {
-                        await browser().input({ type: "key", key: body.key });
-                    } else {
+                    const focus =
+                        body.type === "tap"
+                            ? await browser().input({ type: "tap", x: number(body.x, "x"), y: number(body.y, "y") })
+                            : body.type === "scroll"
+                              ? await browser().input({ type: "scroll", x: number(body.x, "x"), y: number(body.y, "y"), dy: number(body.dy, "dy") })
+                              : body.type === "text" && typeof body.text === "string"
+                                ? await browser().input({ type: "text", text: body.text })
+                                : body.type === "key" && typeof body.key === "string"
+                                  ? await browser().input({ type: "key", key: body.key })
+                                  : undefined;
+
+                    if (focus === undefined) {
                         throw new HttpError(400, "Send a tap, a scroll, text, or a key.");
                     }
+
+                    return json(response, 200, { ok: true, ...focus });
                 } catch (error) {
                     throw error instanceof HttpError ? error : new HttpError(409, error instanceof Error ? error.message : String(error));
                 }
-
-                return json(response, 200, { ok: true });
             }
 
             if (second === "open" && method === "POST") {
@@ -608,6 +653,18 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 } catch (error) {
                     throw new HttpError(409, error instanceof Error ? error.message : String(error));
                 }
+
+                return json(response, 200, browser().state());
+            }
+
+            if (second === "size" && method === "POST") {
+                const size = (await readJson<{ size?: unknown }>(request)).size;
+
+                if (size !== "phone" && size !== "desktop") {
+                    throw new HttpError(400, "size is phone or desktop.");
+                }
+
+                await browser().resize(session, size);
 
                 return json(response, 200, browser().state());
             }

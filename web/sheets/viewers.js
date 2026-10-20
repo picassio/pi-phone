@@ -1,7 +1,8 @@
 // Artifacts and images, each in a viewer of its own. Images zoom by pinching, double-tapping, the wheel, or the bar's
 // buttons.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { closeSheet, openSheet, store } from "../store.js";
+import { attempt, closeSheet, openSheet, store } from "../store.js";
+import { downloadImage } from "../download.js";
 import { OpenUiFrame } from "../openui.js";
 import { modeOf, paletteOf, themeVars } from "../theme.js";
 import { formatBytes, html, Icon, Sheet, timeAgo } from "../ui.js";
@@ -384,6 +385,7 @@ export function ImageViewer({ src, alt }) {
             <button class="icon-button" onClick=${() => zoomBy(1.5)} disabled=${view.scale >= MAX} aria-label="Zoom in">
                 <span aria-hidden="true">+</span>
             </button>
+            <button class="button small" onClick=${() => attempt(() => downloadImage(src, alt))}>Download</button>
             ${!inApp && html`<a class="button small" href=${src} target="_blank" rel="noopener">Open</a>`}
             <button class="icon-button" onClick=${closeSheet} aria-label="Close">
                 <${Icon} name="close" />

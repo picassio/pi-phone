@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
-import { api, attempt, browserApi, browserPlace, closePeople, onBrowserFrame, panelsBeside, piBrowserState, setPiBrowser, store } from "./store.js";
+import { api, attempt, browserApi, browserPath, browserPlace, closePeople, onBrowserFrame, panelsBeside, piBrowserState, setPiBrowser, store } from "./store.js";
 import { html, Icon } from "./ui.js";
 
 const OPEN_KEY = "pocket.piBrowser";
@@ -41,16 +41,17 @@ export function browserShown(state = store.state) {
 
 /** Frames of Pi's page while the component shows: the server sends them to this tab only while it watches. */
 function useFrames(onFrame) {
-    const streamId = store.state.streamId;
+    const { streamId, conversationId: session } = store.state;
     const place = browserPlace();
 
     useEffect(() => {
-        if (streamId === undefined) {
+        if (streamId === undefined || typeof session !== "number") {
             return undefined;
         }
 
-        const off = onBrowserFrame((frame) => (frame.place ?? "phone") === place && onFrame(frame));
-        const watch = (on) => api(`browser/watch?place=${encodeURIComponent(place)}`, { connection: streamId, on });
+        const off = onBrowserFrame((frame) => (frame.place ?? "phone") === place && frame.session === session && onFrame(frame));
+        const path = browserPath("browser/watch");
+        const watch = (on) => api(path, { connection: streamId, on });
 
         void watch(true).then(setPiBrowser, () => {});
 
@@ -58,14 +59,110 @@ function useFrames(onFrame) {
             off();
             void watch(false).catch(() => {});
         };
-    }, [streamId, place]);
+    }, [streamId, place, session]);
+}
+
+/**
+ * What the person sends the page while they have it, in order (a fast typist's keys must not overtake each other).
+ * Answers where the focus is then: whether it takes text, and whether it is a password.
+ */
+let sending = Promise.resolve();
+
+const send = (body) => {
+    const next = sending.then(() => browserApi("browser/input", body));
+
+    sending = next.catch(() => {});
+
+    return attempt(() => next);
+};
+
+/**
+ * The keyboard, while the person has the page (PP-14): a hidden field that the phone's keyboard (or a computer's) types
+ * into. Each keystroke goes to the page as it is typed, and the field is emptied, so nothing typed stays on screen, in
+ * the panel, or in the keyboard's memory: autocomplete, autocorrect and spellcheck are off, and over a password field
+ * it is a password field itself, which keyboards do not learn from. Words a keyboard composes go as they change.
+ */
+function Capture({ field, password }) {
+    const sent = useRef("");
+    const composing = useRef(false);
+    const clear = (input) => {
+        input.value = "";
+        sent.current = "";
+    };
+    /** Send what changed since the last keystroke: backspaces for what went, then what came. */
+    const flush = (input) => {
+        const now = input.value;
+        const before = sent.current;
+        let same = 0;
+
+        while (same < now.length && same < before.length && now[same] === before[same]) {
+            same += 1;
+        }
+
+        for (let gone = before.length - same; gone > 0; gone -= 1) {
+            void send({ type: "key", key: "Backspace" });
+        }
+
+        if (now.length > same) {
+            void send({ type: "text", text: now.slice(same) });
+        }
+
+        sent.current = now;
+
+        if (!composing.current) {
+            clear(input);
+        }
+    };
+
+    return html`<input
+        ref=${field}
+        class="pb-capture"
+        type=${password ? "password" : "text"}
+        aria-label="Type into the page"
+        autocomplete=${password ? "new-password" : "off"}
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        enterkeyhint="go"
+        data-lpignore="true"
+        data-1p-ignore="true"
+        onInput=${(event) => flush(event.currentTarget)}
+        onCompositionStart=${() => (composing.current = true)}
+        onCompositionEnd=${(event) => {
+            composing.current = false;
+            flush(event.currentTarget);
+        }}
+        onKeyDown=${(event) => {
+            const keys = ["Enter", "Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+
+            if (keys.includes(event.key) || (event.key === "Backspace" && event.currentTarget.value === "")) {
+                event.preventDefault();
+                void send({ type: "key", key: event.key });
+            }
+        }}
+        onBlur=${(event) => clear(event.currentTarget)}
+    />`;
 }
 
 /** The live picture: an image updated in place (frames skip the store, which would redraw the whole app each time). */
-function Frame({ interactive, onTap, onWheel }) {
+function Frame({ interactive, onWheel }) {
     const image = useRef(null);
+    const field = useRef(null);
     const [has, setHas] = useState(false);
-    const viewport = piBrowserState()?.viewport ?? { width: 412, height: 860 };
+    const [password, setPassword] = useState(false);
+    const state = piBrowserState();
+    const viewport = state?.viewport ?? { width: 412, height: 860 };
+    /** A tap on the picture: the keyboard comes up at once (it must, within the tap), and goes if the page took no text. */
+    const tap = (event) => {
+        field.current?.focus({ preventScroll: true });
+        void send({ type: "tap", ...at(event) }).then((focus) => {
+            if (focus?.editable) {
+                setPassword(focus.password === true);
+            } else {
+                field.current?.blur();
+            }
+        });
+    };
 
     useFrames((frame) => {
         if (image.current) {
@@ -85,12 +182,15 @@ function Frame({ interactive, onTap, onWheel }) {
         };
     };
 
-    return html`<div class=${`pb-frame ${interactive ? "live" : ""}`} style=${`aspect-ratio:${viewport.width}/${viewport.height};--ratio:${viewport.width / viewport.height}`}>
+    return html`<div
+        class=${`pb-frame ${interactive ? "live" : ""}`}
+        style=${`aspect-ratio:${viewport.width}/${viewport.height};--ratio:${viewport.width / viewport.height};--frame-max:${state?.size === "desktop" ? "100cqw" : "460px"}`}
+    >
         <img
             ref=${image}
             alt=${has ? "Pi's browser, live" : ""}
             draggable="false"
-            onClick=${(event) => interactive && onTap?.(at(event))}
+            onClick=${(event) => interactive && tap(event)}
             onWheel=${(event) => {
                 if (interactive) {
                     event.preventDefault();
@@ -99,15 +199,33 @@ function Frame({ interactive, onTap, onWheel }) {
             }}
         />
         ${!has && html`<span class="pb-wait">Waiting for the page…</span>`}
+        ${interactive && html`<${Capture} field=${field} password=${password} />`}
     </div>`;
 }
 
-const send = (body) => attempt(() => browserApi("browser/input", body));
+/** Phone or Desktop: the size this session's pages are laid out at (PP-15). */
+function SizeSwitch({ state }) {
+    return html`<div class="segmented pb-size" role="group" aria-label="Page size">
+        ${[
+            ["phone", "Phone"],
+            ["desktop", "Desktop"],
+        ].map(
+            ([size, label]) => html`<button
+                class=${state.size === size ? "on" : ""}
+                aria-pressed=${state.size === size}
+                onClick=${() => state.size !== size && attempt(async () => setPiBrowser(await browserApi("browser/size", { size })))}
+            >
+                ${label}
+            </button>`,
+        )}
+    </div>`;
+}
 
-/** Typing, keys, and an address, while the person has the page. */
+/** Keys a phone's keyboard lacks, and an address, while the person has the page. Typing goes straight to the page. */
 function TakeOverBar() {
-    const [text, setText] = useState("");
     const [address, setAddress] = useState("");
+    // The keys keep the keyboard up: pressing one does not take the focus from the page's field.
+    const keep = (event) => event.preventDefault();
 
     return html`<div class="pb-takeover">
         <form
@@ -126,21 +244,9 @@ function TakeOverBar() {
             <input value=${address} placeholder="Address or search" aria-label="Open an address" onInput=${(event) => setAddress(event.currentTarget.value)} />
             <button class="button small">Go</button>
         </form>
-        <form
-            class="pb-row"
-            onSubmit=${(event) => {
-                event.preventDefault();
-
-                if (text !== "") {
-                    void send({ type: "text", text }).then(() => setText(""));
-                }
-            }}
-        >
-            <input value=${text} placeholder="Type into the page" aria-label="Type into the page" onInput=${(event) => setText(event.currentTarget.value)} />
-            <button class="button small">Type</button>
-        </form>
+        <p class="pb-hint">Tap the page to type into it: your keys go straight there, and nothing you type stays here.</p>
         <div class="pb-keys">
-            ${["Enter", "Backspace", "Tab", "Escape"].map((key) => html`<button class="pb-key" onClick=${() => send({ type: "key", key })}>${key === "Backspace" ? "⌫" : key}</button>`)}
+            ${["Enter", "Backspace", "Tab", "Escape"].map((key) => html`<button class="pb-key" onPointerDown=${keep} onClick=${() => send({ type: "key", key })}>${key === "Backspace" ? "⌫" : key}</button>`)}
         </div>
     </div>`;
 }
@@ -226,11 +332,7 @@ export function BrowserPanel({ leaving = false }) {
         <div class="pb-body">
             ${
                 state?.open
-                    ? html`<${Frame}
-                          interactive=${takenOver}
-                          onTap=${(point) => send({ type: "tap", ...point })}
-                          onWheel=${(point) => send({ type: "scroll", ...point })}
-                      />`
+                    ? html`<${Frame} interactive=${takenOver} onWheel=${(point) => send({ type: "scroll", ...point })} />`
                     : html`<div class="pb-empty">
                           <${Icon} name="globe" size=${28} />
                           <p>Pi's browser opens when Pi browses: ask Pi to open a page, or to do something on a site.</p>
@@ -241,7 +343,8 @@ export function BrowserPanel({ leaving = false }) {
         ${
             state?.open &&
             html`<footer class="pb-foot">
-                <button class="link small" onClick=${() => attempt(async () => setPiBrowser(await browserApi("browser/close", {})))}>Close Pi's browser</button>
+                <${SizeSwitch} state=${state} />
+                <button class="link small" onClick=${() => attempt(async () => setPiBrowser(await browserApi("browser/close", {})))}>Close this session's tabs</button>
             </footer>`
         }
     </section>`;
@@ -307,10 +410,10 @@ export function BrowserWatcher() {
     const doing = state?.doing ?? null;
 
     useEffect(() => {
-        if (owner) {
+        if (owner && typeof conversationId === "number") {
             void browserApi("browser").then(setPiBrowser, () => {});
         }
-    }, [owner, place]);
+    }, [owner, place, conversationId]);
 
     useEffect(() => {
         if (owner && doing !== null && state?.session === conversationId && panelsBeside() && !browserShown() && Date.now() - closedAt > QUIET_MS) {

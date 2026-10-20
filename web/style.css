@@ -16235,7 +16235,7 @@ pre.gallery-code {
 .pb-frame {
     position: relative;
     flex: none;
-    width: min(100cqw, 100cqh * var(--ratio, 0.48), 460px);
+    width: min(100cqw, 100cqh * var(--ratio, 0.48), var(--frame-max, 460px));
     border-radius: 10px;
     overflow: hidden;
     background: #fff;
@@ -16310,10 +16310,38 @@ pre.gallery-code {
 }
 
 .pb-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     flex: none;
     padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--hair);
-    text-align: center;
+}
+
+.pb-size {
+    align-self: center;
+}
+
+/* The keyboard's field while a person has the page (PP-14): on the picture, never seen, emptied after each key. */
+.pb-capture {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    font-size: 16px;
+    caret-color: transparent;
+    pointer-events: none;
+}
+
+.pb-hint {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
 }
 
 .icon-button.pb-active {

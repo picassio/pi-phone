@@ -1252,18 +1252,24 @@ export function browserPlace(state = store.state) {
     return machine === undefined ? "phone" : `machine:${machine}`;
 }
 
-/** The state of the browser the session shown uses, or null before it is known. */
-export const piBrowserState = (state = store.state) => state.piBrowsers?.[browserPlace(state)] ?? null;
+/** Which browser state belongs to a place and a session: each session has its own tabs at a place (PP-13). */
+const browserKey = (place, session) => `${place}#${session}`;
 
-/** Keep a browser's state, as the server sent it (each names its place). */
+/** The state of the session shown's own browser, or null before it is known. */
+export const piBrowserState = (state = store.state) => state.piBrowsers?.[browserKey(browserPlace(state), state.conversationId)] ?? null;
+
+/** Keep a browser's state, as the server sent it (each names its place and session). */
 export function setPiBrowser(data) {
-    if (data && typeof data === "object") {
-        store.set((state) => ({ piBrowsers: { ...state.piBrowsers, [data.place ?? "phone"]: data } }));
+    if (data && typeof data === "object" && typeof data.session === "number") {
+        store.set((state) => ({ piBrowsers: { ...state.piBrowsers, [browserKey(data.place ?? "phone", data.session)]: data } }));
     }
 }
 
-/** The panel's request to the browser the session shown uses. */
-export const browserApi = (path, body) => api(`${path}?place=${encodeURIComponent(browserPlace())}`, body);
+/** The address of a request to the session shown's own browser. */
+export const browserPath = (path) => `${path}?place=${encodeURIComponent(browserPlace())}&session=${store.state.conversationId}`;
+
+/** The panel's request to the session shown's own browser. */
+export const browserApi = (path, body) => api(browserPath(path), body);
 
 export function openSheet(sheet) {
     store.set((state) => ({ ...sheetChange(sheet, state), drawer: false }));

@@ -17,11 +17,12 @@ const reply = (text: string, isError = false) => ({ output: [{ type: "text" as c
 const TEXT_MAX = 40_000;
 
 /** In every prompt while the module is on. */
-export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code yourself: when a page asks to sign in, call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
+export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code yourself: when a page asks to sign in, call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
 
 export default function createBrowser(host: PocketHost) {
-    /** The browser of the place a session works in: the phone's, or its machine's Chrome. */
-    const browserOf = async (api: { agent(context: never): Promise<{ cwd?: string }> }, context: unknown): Promise<PiBrowser> => host.browserFor((await api.agent(context as never)).cwd ?? "");
+    /** The session's own browser at the place it works in: the phone's, or its machine's Chrome (its own tabs there). */
+    const browserOf = async (api: { conversationId: unknown; agent(context: never): Promise<{ cwd?: string }> }, context: unknown): Promise<PiBrowser> =>
+        host.browserFor((await api.agent(context as never)).cwd ?? "", Number(api.conversationId));
     /** Pi's browser is the owner's (it may be signed in to their accounts): only for work the owner asked for. */
     const mayBrowse = (conversationId: unknown): true | string => {
         const requester = host.requesterOf(Number(conversationId) as never);
@@ -247,6 +248,12 @@ export default function createBrowser(host: PocketHost) {
                 act(api, context, (browser, session) =>
                     args.close !== undefined ? browser.closeTab(session, args.close) : args.switch_to !== undefined ? browser.switchTab(session, args.switch_to) : browser.tabs(session),
                 ),
+        }),
+        defineTool({
+            name: "browser_size",
+            description: "Lay this session's pages in Pi's browser out as a phone's (412×860, touch: the default) or a desktop's (1280×800, a desktop Chrome): for a site whose phone page lacks what you need, or a desktop layout to check. Open pages load again at the new size; answers the page.",
+            parameters: Type.Object({ size: Type.Union([Type.Literal("phone"), Type.Literal("desktop")]) }),
+            execute: async (args, api, context) => act(api, context, (browser, session) => browser.resize(session, args.size)),
         }),
         defineTool({
             name: "browser_scroll",
@@ -507,7 +514,7 @@ export default function createBrowser(host: PocketHost) {
         }),
         defineTool({
             name: "browser_close",
-            description: "Close Pi's browser and every tab; its sign-ins stay for next time. The next browser_open starts it again.",
+            description: "Close this session's tabs in Pi's browser; its sign-ins stay for next time. The next browser_open starts it again.",
             parameters: Type.Object({}),
             execute: async (_args, api, context) => {
                 const owner = mayBrowse(api.conversationId);
@@ -520,7 +527,7 @@ export default function createBrowser(host: PocketHost) {
 
                 await browser.close();
 
-                return reply("Pi's browser is closed.");
+                return reply("This session's tabs in Pi's browser are closed.");
             },
         }),
     ];

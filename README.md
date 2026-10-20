@@ -86,9 +86,15 @@ No Termux, no laptop, no cloud VM.
   keys, goes back, reads a whole page, or looks at it (`browser_open`, `browser_click`, …). It uploads files from where
   the session works (`browser_upload`, to a file field or its Upload button), saves a page as a PDF there
   (`browser_save_pdf`), and keeps up to six tabs (`browser_new_tab`, `browser_tabs`; the panel shows them as a strip).
+  **Each session has its own tabs**, and its panel shows only those; sign-ins are shared by every session on the phone
+  (or on a machine). A session's tabs close after 30 minutes unused (not while you watch or have taken over), and at once
+  when it is archived or deleted; the sign-ins stay. Pages are laid out as a phone's, or as a desktop's (1280 px, a
+  desktop Chrome, no touch) with **Phone / Desktop** in the panel or `browser_size`.
   Each click is checked first: the element as read, still in view, nothing over it. You watch it live in the Browser panel (beside the conversation on wide screens, where
   it opens by itself when Pi starts browsing; on a phone, a small live preview above the message box opens it), and can
-  **Take over** (your taps and typing go to the page) and **Hand back**. It never opens this phone or its local network,
+  **Take over** and **Hand back**: taken over, tap the page and type on your keyboard, and your keys go straight to it.
+  Nothing you type stays in the panel, and over a password field the keyboard is in password mode, so it does not
+  learn what you type. It never opens this phone or its local network,
   keeps its cookies and sign-ins in a WebView profile of its own (apart from the app's), and only works for what the owner asks.
   **`browser_run`** carries out a whole goal on its own, a step at a time: each step is decided by the run model you
   pick in Settings › Pi's browser (the session's own model, or Jev, TypeSafe's decision model through OpenRouter:
@@ -162,7 +168,7 @@ No Termux, no laptop, no cloud VM.
   above the keyboard.
 - **Changes** of the session's folder (only its own, even inside a bigger repository), with diffs and undo.
 - **Notifications** when a session finishes, fails, or asks for approval; **downloads** of any file Pi made or
-  named (tap its path, then Download): to the phone's Downloads in the app, or as the browser's download elsewhere; **backup and
+  named (tap its path, then Download), and of any image in a conversation (tap it, then Download): to the phone's Downloads in the app, or as the browser's download elsewhere; **backup and
   restore** of everything.
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
   they finish, so it pushes, ends its turn, and is woken by the result.

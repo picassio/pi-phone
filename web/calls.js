@@ -130,8 +130,10 @@ export function describeCall(call) {
             return { icon: "◍", label: "Saves PDF", subject: args.path ?? "", mono: true };
         case "browser_tabs":
             return { icon: "◍", label: "Tabs", subject: args.close ? `closes ${args.close}` : args.switch_to ? `to ${args.switch_to}` : "lists them" };
+        case "browser_size":
+            return { icon: "◍", label: "Size", subject: args.size === "desktop" ? "desktop, 1280 px" : "phone, 412 px" };
         case "browser_close":
-            return { icon: "◍", label: "Closes", subject: "Pi's browser" };
+            return { icon: "◍", label: "Closes", subject: "this session's tabs" };
         case "browser_run":
             return { icon: "◍", label: "Browser run", subject: short(args.goal ?? "", 100) };
         case "browser_sign_in":

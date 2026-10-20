@@ -87,6 +87,7 @@ import { Machines } from "./machines.ts";
 import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
 import { Screenshots } from "./screenshots.ts";
 import { MachineEngine } from "./browser/machine-engine.ts";
+import { SessionEngine, TabOwners } from "./browser/session-engine.ts";
 import { installImageGuard } from "./image-guard.ts";
 import { appSettings } from "./settings-registry.ts";
 import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
@@ -145,6 +146,10 @@ export type AccessInfo = {
 
 /** How long the server waits, when it stops, for extension modules' cleanups that wait. */
 const CLEANUP_LIMIT_MS = 3000;
+/** A session's tabs in Pi's browser close after this long unused (PP-13): each costs memory on the phone or a machine. */
+export const BROWSER_IDLE_MS = 30 * 60_000;
+/** How often idle tabs are looked for. */
+const BROWSER_SWEEP_MS = 60_000;
 /** The extension module with the subagent tool, rebuilt when the models subagents may use change. */
 const SUBAGENTS_FILE = "subagents.ts";
 /** The most models the owner may allow subagents besides their session's own. */
@@ -287,13 +292,21 @@ export class PocketApp {
     /** What the app's service does for Pi's browser: make and remove its WebView (`PiBrowser.java`). */
     readonly browserRequests = new PhoneRequests("Pi's browser");
     /** Pi's browser on the phone (`browser/pi-browser.ts`): the pages Pi uses, that the owner watches and can take over. */
-    readonly browser: PiBrowser;
+    /** The phone's browser engine (`PiBrowser.java`'s WebViews), shared by every session's browser on the phone. */
+    readonly #phoneEngine: BrowserEngine;
     /** pi-phone's own settings (`phone.json`): the Claude Code billing patch. */
     readonly phoneSettings: PhoneSettingsFile;
     /** Start the server again (the HTTP layer's, under the pi-phone app): Pi's server.restart action. */
     restart: (() => void) | undefined;
     /** Pi's browsers on machines, by machine id: a Chrome there for sessions working there, made on first use. */
-    readonly #machineBrowsers = new Map<string, PiBrowser>();
+    /** Each machine's browser engine (a Chrome there, one profile), made on first use. */
+    readonly #machineEngines = new Map<string, BrowserEngine>();
+    /** Pi's browsers, one per place and session (`<place>#<session>`), each with its own tabs there (PP-13). */
+    readonly #browsers = new Map<string, PiBrowser>();
+    /** Which session owns each tab of each place's engine. */
+    readonly #tabOwners: TabOwners;
+    /** The sweep that closes idle sessions' tabs, and those of sessions archived or deleted. */
+    #browserSweep: NodeJS.Timeout | undefined;
     /** Approvals the phone was told of already. */
     readonly #toldApprovals = new Set<string>();
     readonly dataDir: string;
@@ -442,7 +455,8 @@ export class PocketApp {
         this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools));
         this.officecli.install();
         this.forwards = new Forwards(this.machines);
-        this.browser = this.#makeBrowser(options.browserEngine ?? new PhoneEngine(this.browserRequests), "phone", "the phone");
+        this.#phoneEngine = options.browserEngine ?? new PhoneEngine(this.browserRequests);
+        this.#tabOwners = new TabOwners(join(options.dataDir, "browser-tabs.json"));
         this.para = new Para({
             home: this.#home,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
@@ -661,7 +675,7 @@ export class PocketApp {
             },
             serverBase: () => (this.serverPort === undefined ? undefined : `http://127.0.0.1:${this.serverPort}`),
             render: (url, options) => this.screenshots.render(url, options),
-            browserFor: (cwd) => this.browserFor(cwd),
+            browserFor: (cwd, session) => this.browserFor(cwd, session),
             browserRunModel: (id) => this.sessionMeta(this.rootOf(id))?.browserRunModel ?? this.config.browserRunModel,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
             askSessionModel: async (id, prompt, maxTokens) => (await askSessionModel(this, id, prompt, { maxTokens })).text,
@@ -916,6 +930,31 @@ export class PocketApp {
         this.harness.resume();
         // Idle sessions' captures into the wiki, from now on.
         this.paraCapture.start();
+        // Tabs nobody uses cost memory (a WebView, a Chrome tab: 50–150 MB each): closed after a while.
+        this.#browserSweep = setInterval(() => void this.sweepBrowsers(Date.now()), BROWSER_SWEEP_MS);
+        this.#browserSweep.unref();
+    }
+
+    /**
+     * Close the tabs of sessions' browsers nobody has used for `BROWSER_IDLE_MS` (not while Pi acts, someone watches, or a
+     * person took over), and at once those of sessions archived or deleted. Sign-ins stay: they are the place's profile.
+     */
+    async sweepBrowsers(now: number): Promise<void> {
+        for (const [key, browser] of this.#browsers) {
+            const session = this.#sessions[key.slice(key.lastIndexOf("#") + 1)];
+            const gone = session === undefined || session.archived === true;
+
+            if (!browser.hasTabs || (!gone && browser.idleFor(now) < BROWSER_IDLE_MS)) {
+                continue;
+            }
+
+            try {
+                await browser.close();
+                this.#log(`browser: closed ${key}'s tabs (${gone ? "session archived or deleted" : "idle"})`);
+            } catch (error) {
+                this.#log(`browser: closing ${key}'s tabs: ${String(error)}`);
+            }
+        }
     }
 
     /**
@@ -1877,35 +1916,36 @@ export class PocketApp {
     }
 
     /**
-     * A tab opened or closed the Browser panel of one browser (`phone` or `machine:<id>`): while open, it gets that
-     * browser's frames (`browser-frame`). The owner's.
+     * A tab opened or closed the Browser panel of one session's browser at a place (`phone` or `machine:<id>`): while
+     * open, it gets that browser's frames (`browser-frame`). The owner's.
      */
-    setBrowserWatch(user: User, connection: string, place: string, on: boolean): void {
-        const browser = on ? this.browserAt(place) : undefined;
+    setBrowserWatch(user: User, connection: string, place: string, session: number, on: boolean): void {
+        const browser = on ? this.browserAt(place, session) : undefined;
 
         for (const client of this.#clients) {
             if (client.user.id !== user.id || client.connection !== connection) {
                 continue;
             }
 
-            if (client.browserWatch !== undefined && (!on || client.browserWatch.place !== place)) {
+            if (client.browserWatch !== undefined && (!on || client.browserWatch.place !== place || client.browserWatch.session !== session)) {
                 client.browserWatch.stop();
                 client.browserWatch = undefined;
             }
 
             if (browser !== undefined && client.browserWatch === undefined) {
-                client.browserWatch = { place, stop: browser.watch() };
+                client.browserWatch = { place, session, stop: browser.watch() };
                 client.send("browser", browser.state());
             }
         }
     }
 
     /** A browser of Pi's, whose state and frames go to the owner's tabs (frames only to tabs that watch it). */
-    #makeBrowser(engine: BrowserEngine, place: string, where: string): PiBrowser {
+    #makeBrowser(engine: BrowserEngine, place: string, where: string, session: number): PiBrowser {
         return new PiBrowser({
-            engine,
+            engine: new SessionEngine(engine, place, session, this.#tabOwners),
             place,
             where,
+            session,
             // Only the owner sees Pi's browser: it may be signed in to the owner's accounts.
             changed: (state) => {
                 for (const client of this.#clients) {
@@ -1916,8 +1956,8 @@ export class PocketApp {
             },
             frame: (frame) => {
                 for (const client of this.#clients) {
-                    if (client.browserWatch?.place === place) {
-                        client.send("browser-frame", { ...frame, place });
+                    if (client.browserWatch?.place === place && client.browserWatch.session === session) {
+                        client.send("browser-frame", { ...frame, place, session });
                     }
                 }
             },
@@ -1925,26 +1965,48 @@ export class PocketApp {
         });
     }
 
-    /** Pi's browser for a session working in `cwd`: on its machine for a session on one, else the phone's. */
-    browserFor(cwd: string): PiBrowser {
+    /** Pi's browser for session `session` working in `cwd`: on its machine for a session on one, else the phone's. */
+    browserFor(cwd: string, session: number): PiBrowser {
         const machine = /^machine:([^:]+):/.exec(cwd)?.[1];
 
-        return machine === undefined ? this.browser : this.browserAt(`machine:${machine}`);
+        return this.browserAt(machine === undefined ? "phone" : `machine:${machine}`, session);
     }
 
-    /** One of Pi's browsers by place: `phone`, or `machine:<id>` (a Chrome there, made on first use). */
-    browserAt(place: string): PiBrowser {
-        if (place === "phone") {
-            return this.browser;
+    /**
+     * One session's browser at a place: `phone`, or `machine:<id>` (a Chrome there, made on first use). Every session at a
+     * place shares its engine (one profile: a sign-in serves them all), and sees only its own tabs.
+     */
+    browserAt(place: string, session: number): PiBrowser {
+        if (!Number.isInteger(session) || session <= 0) {
+            throw new HttpError(400, "Which session's browser? (session=<number>)");
         }
 
-        const id = /^machine:(.+)$/.exec(place)?.[1];
+        const key = `${place}#${session}`;
+        const known = this.#browsers.get(key);
 
-        if (id === undefined) {
+        if (known !== undefined) {
+            return known;
+        }
+
+        const machine = place === "phone" ? undefined : /^machine:(.+)$/.exec(place)?.[1];
+
+        if (place !== "phone" && machine === undefined) {
             throw new HttpError(400, `No browser at ${place}.`);
         }
 
-        const known = this.#machineBrowsers.get(id);
+        const browser =
+            machine === undefined
+                ? this.#makeBrowser(this.#phoneEngine, "phone", "the phone", session)
+                : this.#makeBrowser(this.#machineEngine(machine), place, this.machines.ready(machine).name, session);
+
+        this.#browsers.set(key, browser);
+
+        return browser;
+    }
+
+    /** A machine's browser engine: a Chrome there, made on first use and shared by its sessions. */
+    #machineEngine(id: string): BrowserEngine {
+        const known = this.#machineEngines.get(id);
 
         if (known !== undefined) {
             return known;
@@ -1953,8 +2015,7 @@ export class PocketApp {
         const machine = this.machines.ready(id);
         const remote = machine.remote!;
         const env = this.places.env(`machine:${id}:${remote.home}`);
-        const browser = this.#makeBrowser(
-            new MachineEngine({
+        const engine = new MachineEngine({
                 name: machine.name,
                 home: remote.home,
                 run: async (script, timeout) => {
@@ -1991,14 +2052,11 @@ export class PocketApp {
                         },
                     };
                 },
-            }),
-            `machine:${id}`,
-            machine.name,
-        );
+            });
 
-        this.#machineBrowsers.set(id, browser);
+        this.#machineEngines.set(id, engine);
 
-        return browser;
+        return engine;
     }
 
     /** Send a tab's board its subagents, unless they are what it last got. */
@@ -2482,7 +2540,7 @@ export class PocketApp {
         }
 
         try {
-            await this.browserAt(form.place ?? "phone").fillFields(Number(request.conversationId), fields as { index: number; value: string }[]);
+            await this.browserAt(form.place ?? "phone", Number(request.conversationId)).fillFields(Number(request.conversationId), fields as { index: number; value: string }[]);
         } catch (error) {
             throw new HttpError(409, error instanceof Error ? error.message : String(error));
         }
@@ -3580,6 +3638,7 @@ export class PocketApp {
     close(): Promise<void> {
         this.#closing ??= (async () => {
             clearTimeout(this.#sessionsTimer);
+            clearInterval(this.#browserSweep);
             this.themes.close();
             this.spend.close();
             this.#unsubscribeCommits?.();

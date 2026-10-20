@@ -259,7 +259,13 @@ export class BrowserPage {
             await this.cdp.send("Fetch.enable", { patterns: BLOCKED_URLS.map((urlPattern) => ({ urlPattern })) });
         }
 
+        this.#ownAgent = await this.evaluate<string>("navigator.userAgent").catch(() => "");
         await this.cdp.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: phone ? 2 : 0, mobile: viewport.mobile });
+
+        if (!viewport.mobile) {
+            await this.#actAsDesktop();
+        }
+
         await this.cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
         this.#mainFrame = ((await this.cdp.send<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree")).frameTree.frame.id);
         this.cdp.on("Page.frameStartedLoading", (params) => {
@@ -308,6 +314,60 @@ export class BrowserPage {
             },
         });
         await this.cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+    }
+
+    /** The browser's own user agent, before any override: the phone's WebView's, to go back to it from Desktop. */
+    #ownAgent = "";
+
+    /**
+     * Lay the page out at another size (PP-15): a phone's (`mobile`, touch, a phone's user agent) or a desktop's (no touch,
+     * a desktop Chrome's user agent). An open page loads again, so its site serves the page for that size.
+     */
+    async resize(viewport: { width: number; height: number; mobile: boolean }, { phone = false }: { phone?: boolean } = {}): Promise<void> {
+        await this.cdp.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: phone ? 2 : 0, mobile: viewport.mobile });
+
+        if (!viewport.mobile) {
+            await this.#actAsDesktop();
+        } else if (phone) {
+            await this.#actAsPhone();
+        } else {
+            await this.cdp.send("Emulation.setUserAgentOverride", { userAgent: this.#ownAgent });
+            await this.cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+        }
+
+        const url = await this.evaluate<string>("location.href").catch(() => "");
+
+        if (/^https?:/.test(url)) {
+            await this.cdp.send("Page.reload", {});
+            await this.settle(1500);
+        }
+    }
+
+    /** Present as Chrome on a Windows desktop, without touch: sites serve their desktop pages. */
+    async #actAsDesktop(): Promise<void> {
+        const version = /\/([\d.]+)/.exec((await this.cdp.send<{ product: string }>("Browser.getVersion").catch(() => ({ product: "Chrome/155.0.0.0" }))).product)?.[1] ?? "155.0.0.0";
+        const major = version.split(".")[0]!;
+        const brands = [
+            { brand: "Chromium", version: major },
+            { brand: "Google Chrome", version: major },
+            { brand: "Not.A/Brand", version: "99" },
+        ];
+
+        await this.cdp.send("Emulation.setUserAgentOverride", {
+            userAgent: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`,
+            platform: "Win32",
+            userAgentMetadata: {
+                brands,
+                fullVersionList: brands.map((brand) => ({ ...brand, version: brand.brand === "Not.A/Brand" ? "99.0.0.0" : version })),
+                fullVersion: version,
+                platform: "Windows",
+                platformVersion: "15.0.0",
+                architecture: "x86",
+                model: "",
+                mobile: false,
+            },
+        });
+        await this.cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
     }
 
     /** Whether the next dialog is accepted (a click or key press Pi asked to accept them for); declined otherwise. */

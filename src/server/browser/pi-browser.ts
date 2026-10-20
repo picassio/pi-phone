@@ -16,6 +16,21 @@ import { type Decider, type RunResult, runGoal } from "./run.ts";
 
 /** The page's size in CSS pixels: a phone's, as the WebView is a phone's browser. */
 export const VIEWPORT = { width: 412, height: 860, mobile: true };
+/** Where the page's focus is: whether it takes text, and whether it is a password field (inside open shadow roots too). */
+const FOCUS_SCRIPT = `(() => {
+  let e = document.activeElement;
+  while (e && e.shadowRoot && e.shadowRoot.activeElement) e = e.shadowRoot.activeElement;
+  if (!e || e === document.body) return { editable: false, password: false };
+  const tag = e.tagName.toLowerCase();
+  const type = (e.getAttribute('type') || 'text').toLowerCase();
+  const fields = ['text', 'password', 'email', 'search', 'tel', 'url', 'number'];
+  const editable = e.isContentEditable || tag === 'textarea' || (tag === 'input' && fields.includes(type));
+  return { editable, password: tag === 'input' && type === 'password' };
+})()`;
+
+/** The two sizes a session's browser lays pages out at (PP-15). */
+export const SIZES = { phone: VIEWPORT, desktop: { width: 1280, height: 800, mobile: false } } as const;
+export type BrowserSize = keyof typeof SIZES;
 /** Tabs open at once, at most (each is a WebView on the phone). */
 export const MAX_TABS = 6;
 
@@ -336,6 +351,8 @@ export type BrowserState = {
     /** A person took it over: Pi's actions wait until they hand it back. */
     takenOver: boolean;
     viewport: { width: number; height: number };
+    /** Phone or Desktop: the size its pages are laid out at. */
+    size: BrowserSize;
 };
 
 /** A frame of the page for the panel: a JPEG (base64) of the viewport. */
@@ -346,6 +363,8 @@ export type PiBrowserOptions = {
     /** Which browser this is (`phone`, or `machine:<id>`), and where, in words ("the phone", a machine's name). */
     place?: string;
     where?: string;
+    /** The session whose browser this is (PP-13): each session has its own tabs at a place. */
+    session?: number;
     /** The state changed: tabs that show the panel get it. */
     changed(state: BrowserState): void;
     /** A frame for those watching. */
@@ -364,14 +383,16 @@ export class PiBrowser {
     #opening: Promise<Tab> | undefined;
     /** Pi's actions, one after another. */
     #queue: Promise<unknown> = Promise.resolve();
-    #state: BrowserState = { place: "phone", where: "the phone", open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height } };
+    #state: BrowserState = { place: "phone", where: "the phone", open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height }, size: "phone" };
     #watchers = 0;
+    /** When Pi or a person last used it (an action, a tap, a tab shown): idle tabs close (`idleFor`). */
+    #usedAt = Date.now();
     #casting: BrowserPage | undefined;
     #stopFrames: (() => void) | undefined;
 
     constructor(options: PiBrowserOptions) {
         this.#options = options;
-        this.#state = { ...this.#state, place: options.place ?? "phone", where: options.where ?? "the phone" };
+        this.#state = { ...this.#state, place: options.place ?? "phone", where: options.where ?? "the phone", session: options.session ?? null };
     }
 
     /** Which browser this is: `phone`, or `machine:<id>`. */
@@ -404,7 +425,7 @@ export class PiBrowser {
         const page = new BrowserPage(cdp);
         const tab: Tab = { id, page, observed: undefined, elements: [], url: "", title: "" };
 
-        await page.init(VIEWPORT, { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone });
+        await page.init(SIZES[this.#state.size], { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone });
         cdp.onClose = () => {
             if (!this.#tabs.includes(tab)) {
                 return;
@@ -501,10 +522,12 @@ export class PiBrowser {
             }
 
             this.#set({ doing, session });
+            this.#usedAt = Date.now();
 
             try {
                 return await work(await this.#ensure());
             } finally {
+                this.#usedAt = Date.now();
                 this.#set({ doing: null });
             }
         });
@@ -882,6 +905,7 @@ export class PiBrowser {
 
             stopped = true;
             this.#watchers -= 1;
+            this.#usedAt = Date.now();
 
             if (this.#watchers === 0) {
                 this.#stopFrames?.();
@@ -902,7 +926,7 @@ export class PiBrowser {
         const off = page.cdp.on("Page.screencastFrame", (params) => {
             const metadata = params.metadata as { deviceWidth?: number; deviceHeight?: number } | undefined;
 
-            this.#options.frame({ jpeg: String(params.data), width: metadata?.deviceWidth ?? VIEWPORT.width, height: metadata?.deviceHeight ?? VIEWPORT.height });
+            this.#options.frame({ jpeg: String(params.data), width: metadata?.deviceWidth ?? this.#state.viewport.width, height: metadata?.deviceHeight ?? this.#state.viewport.height });
             void page.cdp.send("Page.screencastFrameAck", { sessionId: params.sessionId }).catch(() => {});
         });
 
@@ -912,21 +936,74 @@ export class PiBrowser {
             this.#stopFrames = undefined;
             void page.cdp.send("Page.stopScreencast").catch(() => {});
         };
-        await page.cdp.send("Page.startScreencast", { format: "jpeg", quality: 60, maxWidth: VIEWPORT.width * 2, maxHeight: VIEWPORT.height * 2, everyNthFrame: 1 });
+        await page.cdp.send("Page.startScreencast", { format: "jpeg", quality: 60, maxWidth: Math.min(this.#state.viewport.width * 2, 1600), maxHeight: Math.min(this.#state.viewport.height * 2, 1720), everyNthFrame: 1 });
         // A still page sends no new frames: one now, so the panel has a picture at once.
-        this.#options.frame({ jpeg: await page.screenshot(60), width: VIEWPORT.width, height: VIEWPORT.height });
+        this.#options.frame({ jpeg: await page.screenshot(60), width: this.#state.viewport.width, height: this.#state.viewport.height });
+    }
+
+    /**
+     * Lay this session's pages out as a phone's or a desktop's (PP-15): its open tabs now, and every tab it opens after.
+     * Pi's tool and the panel's Phone/Desktop both come here. Answers the page as it is, for Pi.
+     */
+    async resize(session: number, size: BrowserSize): Promise<string> {
+        const resized = this.#queue.then(async () => {
+            this.#usedAt = Date.now();
+            this.#set({ size, viewport: { width: SIZES[size].width, height: SIZES[size].height } });
+
+            for (const tab of this.#tabs) {
+                tab.observed = undefined;
+                await tab.page.resize(SIZES[size], { phone: this.#options.engine.actAsPhone });
+            }
+
+            // Frames for those watching come again at the new size.
+            if (this.#casting !== undefined) {
+                this.#stopFrames?.();
+                await this.#startFrames().catch((error: unknown) => this.#options.log(`browser frames: ${String(error)}`));
+            }
+
+        });
+
+        this.#queue = resized.catch(() => {});
+        await resized;
+
+        return this.#tabs.length === 0 ? `Pi's browser will lay pages out as a ${size}.` : `Now laid out as a ${size} (${SIZES[size].width}×${SIZES[size].height}).\n${await this.snapshot(session)}`;
     }
 
     /** A person takes Pi's browser over (their taps and typing go to the page), or hands it back. */
     takeOver(on: boolean): void {
+        this.#usedAt = Date.now();
         this.#set({ takenOver: on });
     }
 
+    /**
+     * How long it has had tabs open with nothing using them, in ms at `now`: 0 while it has none, while Pi acts there,
+     * while someone watches the panel, or while a person has taken it over. Over a limit, the app closes its tabs.
+     */
+    idleFor(now: number): number {
+        if (this.#tabs.length === 0 || this.#state.doing !== null || this.#watchers > 0 || this.#state.takenOver) {
+            return 0;
+        }
+
+        return Math.max(0, now - this.#usedAt);
+    }
+
+    /** Whether it has tabs open. */
+    get hasTabs(): boolean {
+        return this.#tabs.length > 0;
+    }
+
     /** The person's input while they have it: a tap or a scroll at CSS pixels of the page, text, or a key. */
-    async input(event: { type: "tap"; x: number; y: number } | { type: "scroll"; x: number; y: number; dy: number } | { type: "text"; text: string } | { type: "key"; key: string }): Promise<void> {
+    /**
+     * A person's input while they have the page: a tap, a scroll, text as they type it, or a key. Answers where the focus
+     * is then (PP-14): whether it takes text, and whether it is a password, so the panel raises the keyboard in that mode.
+     * Nothing typed is kept or logged.
+     */
+    async input(event: { type: "tap"; x: number; y: number } | { type: "scroll"; x: number; y: number; dy: number } | { type: "text"; text: string } | { type: "key"; key: string }): Promise<{ editable: boolean; password: boolean }> {
         if (!this.#state.takenOver) {
             throw new Error("Take over Pi's browser first.");
         }
+
+        this.#usedAt = Date.now();
 
         const page = (await this.#ensure()).page;
 
@@ -941,6 +1018,8 @@ export class PiBrowser {
         } else {
             await page.press(event.key);
         }
+
+        return await page.evaluate<{ editable: boolean; password: boolean }>(FOCUS_SCRIPT).catch(() => ({ editable: false, password: false }));
     }
 
     /** Open an address for the person (the panel's address bar, while they have it). */
@@ -954,6 +1033,7 @@ export class PiBrowser {
 
     /** Bring tab `number` (from 1) to the front for the person (the panel's tab strip). */
     async showTab(number: number): Promise<void> {
+        this.#usedAt = Date.now();
         await this.#ensure();
 
         const tab = this.#tabs[number - 1];
