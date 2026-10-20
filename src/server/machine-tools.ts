@@ -40,8 +40,9 @@ export type ToolSpec = {
     size: string;
     /** Offered only when the machine has no command of this name of its own. */
     onlyIfMissing?: boolean;
-    /** Other commands that count as the machine's own (Chrome's other names). */
+    /** Other commands that count as the machine's own (Chrome's other names), and files that do (written for sh). */
     alsoOwn?: string[];
+    alsoOwnPaths?: string[];
     /** Set for the program (the wrapper exports them). */
     env?: Record<string, string>;
     /** Skills that go with it, from the phone's copy (`third_party/`): relative to APP_ROOT, or absolute (tests). */
@@ -56,9 +57,21 @@ const RG = "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0";
 const FD = "https://github.com/sharkdp/fd/releases/download/v10.5.0";
 const CHROME = "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.84";
 
+/** Where Chrome, Chromium, and Edge are put on macOS and Windows (Git Bash's paths), which no PATH may name. */
+export const CHROME_PATHS = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    "/c/Program Files/Google/Chrome/Application/chrome.exe",
+    "/c/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+    "$HOME/AppData/Local/Google/Chrome/Application/chrome.exe",
+    "/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+    "/c/Program Files/Microsoft/Edge/Application/msedge.exe",
+];
+
 /**
  * Pi's browser on a machine (`browser/machine-engine.ts`) for a machine without its own Chrome: Chrome for Testing's
- * headless shell. Not on Windows, where Chrome or Edge is there already.
+ * headless shell, offered when the machine has no Chrome, Chromium, or Edge of its own (by name on the PATH, or where
+ * their installers put them).
  */
 export const CHROME_TOOL: ToolSpec = {
     id: "chrome",
@@ -69,6 +82,7 @@ export const CHROME_TOOL: ToolSpec = {
     size: "about 285 MB",
     onlyIfMissing: true,
     alsoOwn: ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"],
+    alsoOwnPaths: CHROME_PATHS,
     whole: true,
     // Chrome for Testing publishes no sums: these are of the files as downloaded on 2026-10-20.
     assets: {
@@ -76,6 +90,9 @@ export const CHROME_TOOL: ToolSpec = {
         "linux-arm64": { url: `${CHROME}/linux-arm64/chrome-headless-shell-linux-arm64.zip`, sha256: "0c83c2520b513835c712590781adbdbcab4c14ca04d4809be5055ff2c8937a51", member: "chrome-headless-shell-linux-arm64/chrome-headless-shell" },
         "darwin-arm64": { url: `${CHROME}/mac-arm64/chrome-headless-shell-mac-arm64.zip`, sha256: "7f111980bcb41e908d0fa3e969a625e7777ff683c1fc43fd7759d05ec3ffe52b", member: "chrome-headless-shell-mac-arm64/chrome-headless-shell" },
         "darwin-x64": { url: `${CHROME}/mac-x64/chrome-headless-shell-mac-x64.zip`, sha256: "3c5bf34eb8daa874e8b50edf900eab618b74c1b9596e596340278eeba4ff1ae1", member: "chrome-headless-shell-mac-x64/chrome-headless-shell" },
+        "windows-x64": { url: `${CHROME}/win64/chrome-headless-shell-win64.zip`, sha256: "5ca590a4968864e219ea25ccd134597ef8898a733a4698c07fc3e8b2c480fef4", member: "chrome-headless-shell-win64/chrome-headless-shell.exe" },
+        // There is no Windows arm64 build: Windows on Arm runs the x64 one.
+        "windows-arm64": { url: `${CHROME}/win64/chrome-headless-shell-win64.zip`, sha256: "5ca590a4968864e219ea25ccd134597ef8898a733a4698c07fc3e8b2c480fef4", member: "chrome-headless-shell-win64/chrome-headless-shell.exe" },
     },
 };
 
@@ -179,13 +196,14 @@ function targetOf(machine: Machine): Target | undefined {
 }
 
 /** Status of each tool, from one script: the marker of pi-phone's wrapper, else the machine's own command. */
-function statusScript(catalog: readonly ToolSpec[]): string {
+export function statusScript(catalog: readonly ToolSpec[]): string {
     return [
         `T="$HOME/${TOOLS_DIR}"`,
         ...catalog.map(
             (tool) =>
                 `if [ -f "$T/bin/${tool.command}" ]; then echo "${tool.id} installed $(sed -n 's/^# pi-phone-tool [^ ]* //p' "$T/bin/${tool.command}" | head -n 1)"; ` +
                 `else own=$(PATH=$(printf %s "$PATH" | tr ':' '\\n' | grep -v "/${TOOLS_BIN}$" | paste -sd: -); for c in ${[tool.command, ...(tool.alsoOwn ?? [])].join(" ")}; do command -v $c 2>/dev/null && break; done | head -n 1); ` +
+                (tool.alsoOwnPaths === undefined ? "" : `[ -n "$own" ] || for p in ${tool.alsoOwnPaths.map((path) => `"${path}"`).join(" ")}; do if [ -x "$p" ]; then own="$p"; break; fi; done; `) +
                 `if [ -n "$own" ]; then echo "${tool.id} own $own"; else echo "${tool.id} none"; fi; fi`,
         ),
     ].join("\n");
@@ -209,7 +227,9 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
     const dir = `"$T/${tool.id}/${tool.version}"`;
     // On Windows a program keeps its .exe: Windows runs files by it. Git Bash (Pi's shell there) runs the wrapper.
     const file = windows ? `${tool.command}.exe` : tool.command;
-    const wrapper = wrapperOf(tool, `${home}/${TOOLS_DIR}/${tool.id}/${tool.version}/${file}`);
+    // A whole archive's program stays among its files (Chrome needs those beside it); the wrapper runs it there.
+    const program = tool.whole === true && asset.member !== undefined ? `files/${asset.member}` : file;
+    const wrapper = wrapperOf(tool, `${home}/${TOOLS_DIR}/${tool.id}/${tool.version}/${program}`);
 
     if (wrapper.includes("PI_PHONE_TOOL_END")) {
         throw new Error("A wrapper may not hold its own heredoc's end.");
@@ -237,10 +257,9 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
                   `if command -v unzip >/dev/null 2>&1; then unzip -q "$tmp/download" -d ${dir}/files;`,
                   `elif command -v python3 >/dev/null 2>&1; then python3 -m zipfile -e "$tmp/download" ${dir}/files && chmod -R u+x ${dir}/files;`,
                   'else echo "This machine has neither unzip nor python3 to unpack the download with." >&2; exit 3; fi',
-                  `ln -sf "files/${asset.member}" ${dir}/${file}`,
                   // A program that needs libraries the machine lacks says which, rather than failing when first run.
-                  `if command -v ldd >/dev/null 2>&1 && ldd ${dir}/${file} 2>/dev/null | grep -q "not found"; then`,
-                  `  echo "It needs libraries this machine lacks: $(ldd ${dir}/${file} | grep "not found" | awk '{print $1}' | tr '\\n' ' ')- install them (Ubuntu: sudo apt install libnss3 libatk-bridge2.0-0 libgbm1 libasound2t64, or the packages that have them), then install it again." >&2; exit 7; fi`,
+                  ...(windows ? [] : [`if command -v ldd >/dev/null 2>&1 && ldd ${dir}/files/${q(asset.member)} 2>/dev/null | grep -q "not found"; then`]),
+                  ...(windows ? [] : [`  echo "It needs libraries this machine lacks: $(ldd ${dir}/files/${q(asset.member)} | grep "not found" | awk '{print $1}' | tr '\\n' ' ')- install them (Ubuntu: sudo apt install libnss3 libatk-bridge2.0-0 libgbm1 libasound2t64, or the packages that have them), then install it again." >&2; exit 7; fi`]),
               ]
             : asset.member === undefined
             ? [`cp "$tmp/download" ${dir}/${file}`]

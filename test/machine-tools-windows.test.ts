@@ -3,7 +3,7 @@
 // (fd 10.5.0, 2026-10-19); the scripts run there, not in this test.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { installScript, TOOLS } from "../src/server/machine-tools.ts";
+import { installScript, statusScript, TOOLS } from "../src/server/machine-tools.ts";
 
 const tool = (id: string) => TOOLS.find((each) => each.id === id)!;
 
@@ -40,4 +40,24 @@ test("a Windows tool that is the download itself keeps its .exe; other systems' 
     assert.match(linux, /tar -xzf "\$tmp\/download" -C "\$tmp"/);
     assert.match(linux, /exec '\/home\/me\/\.pi\/mobile\/tools\/rg\/15\.2\.0\/rg' "\$@"/);
     assert.doesNotMatch(linux, /\.exe/);
+});
+
+test("Chrome (headless) unpacks whole and runs from among its files, Windows too; it counts a Chrome or Edge the machine has as its own", () => {
+    const chrome = tool("chrome");
+    const windows = installScript(chrome, chrome.assets["windows-x64"]!, "C:/Users/me", true);
+
+    assert.match(windows, /unzip -q "\$tmp\/download" -d "\$T\/chrome\/155\.0\.8059\.84"\/files/);
+    assert.match(windows, /exec 'C:\/Users\/me\/\.pi\/mobile\/tools\/chrome\/155\.0\.8059\.84\/files\/chrome-headless-shell-win64\/chrome-headless-shell\.exe' "\$@"/);
+    assert.doesNotMatch(windows, /ldd|ln -s|chmod 755 "\$T\/chrome/);
+
+    const linux = installScript(chrome, chrome.assets["linux-x64"]!, "/home/me");
+
+    assert.match(linux, /ldd "\$T\/chrome\/155\.0\.8059\.84"\/files\/'chrome-headless-shell-linux64\/chrome-headless-shell'/);
+    assert.match(linux, /exec '\/home\/me\/\.pi\/mobile\/tools\/chrome\/155\.0\.8059\.84\/files\/chrome-headless-shell-linux64\/chrome-headless-shell' "\$@"/);
+
+    const status = statusScript([chrome]);
+
+    assert.match(status, /for c in chrome-headless-shell google-chrome google-chrome-stable chromium chromium-browser;/);
+    assert.match(status, /"\/c\/Program Files \(x86\)\/Microsoft\/Edge\/Application\/msedge\.exe"/);
+    assert.match(status, /"\$HOME\/AppData\/Local\/Google\/Chrome\/Application\/chrome\.exe"/);
 });
