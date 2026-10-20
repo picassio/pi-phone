@@ -5,7 +5,7 @@
  * screens (`settings-registry.ts`), as the person Pi works for: a guest is refused owner settings before anyone is asked.
  */
 import { Type } from "@earendil-works/pi-ai";
-import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
+import { defineExtension, defineTool, hook, section, type ToolExecutionApi, ToolTask } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import type { AppAction, Setting } from "../settings-registry.ts";
 
@@ -15,6 +15,21 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 /** In every prompt while the module is on. */
 export const SETTINGS_RULE =
     "The app's settings: list them with settings, change one with setting_change, and take one-off actions (reload an extension, refresh models, …) with app_action; each change asks the person on a card. Never change the app with code: no curl or fetch to its API, no edits to its data files or database, no scripts in its WebView.";
+
+/** Said when a command reaches into the app instead of using its tools. */
+const REFUSED =
+    "Blocked: this command reaches into pi-phone itself (its API, the owner's token, or its WebView). Use the app's tools instead: settings, setting_change, and app_action (and the other tools: devices, secrets, schedules, boards, machines). If no tool does it, tell the person what is missing.";
+
+/**
+ * A bash command that reaches into the app rather than using its tools: a request to its API on this phone, the owner
+ * token (config.json), or a DevTools connection into its WebView. `base` is the server's own address.
+ */
+export function reachesIntoApp(command: string, base: string | undefined): boolean {
+    const port = base === undefined ? "8787" : (/:(\d+)/.exec(base)?.[1] ?? "8787");
+    const api = new RegExp(`(127\\.0\\.0\\.1|localhost|\\[::1\\]|0\\.0\\.0\\.0):${port}/(api|login|recover)\\b`);
+
+    return api.test(command) || /\.pi-pocket\/config\.json/.test(command) || /webview_devtools_remote/.test(command);
+}
 
 export default function createSettings(host: PocketHost) {
     /** The person Pi works for here, or why it cannot act. */
@@ -208,5 +223,30 @@ export default function createSettings(host: PocketHost) {
         }),
     ];
 
-    return defineExtension({ name: "pocket-settings", tools, sections: [section("app-settings", () => SETTINGS_RULE)] });
+    return defineExtension({
+        name: "pocket-settings",
+        tools,
+        sections: [section("app-settings", () => SETTINGS_RULE)],
+        hooks: [
+            // The app changes through its tools (SETTINGS_RULE): a command that reaches into it is refused, naming them.
+            hook(ToolTask, {
+                beforeTool: async (call, api, context) => {
+                    if (call.name !== "bash") {
+                        return undefined;
+                    }
+
+                    const runtime = api as typeof api & Partial<Pick<ToolExecutionApi, "agent">>;
+
+                    // A session on a machine runs its commands there, where 127.0.0.1 is that machine's.
+                    if (((await runtime.agent?.(context))?.cwd ?? "").startsWith("machine:")) {
+                        return undefined;
+                    }
+
+                    const command = (call.arguments as { command?: unknown }).command;
+
+                    return typeof command === "string" && reachesIntoApp(command, host.serverBase()) ? { block: REFUSED } : undefined;
+                },
+            }),
+        ],
+    });
 }

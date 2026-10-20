@@ -4,6 +4,7 @@
 // app_action asks too.
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, scriptedModel, until, work } from "./helpers.ts";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { reachesIntoApp } from "../src/server/extensions/settings.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
@@ -178,4 +179,19 @@ test("people, phone, and one session's settings, each through the app's own meth
 
     assert.match(instructions.said, /Changed sessions\.instructions \(\d+\): none → Answer in Vietnamese\./);
     assert.equal((await app.agentState(id as never))?.instructions, "Answer in Vietnamese.");
+});
+
+test("the guard: commands that reach into the app are refused; ordinary ones are not", () => {
+    for (const command of [
+        `curl -s -H "Authorization: Bearer $T" http://127.0.0.1:8787/api/machines/x/tools`,
+        "T=$(node -e 'console.log(require(process.env.HOME+\"/.pi-pocket/config.json\").ownerToken)')",
+        "curl localhost:8787/login?token=abc",
+        `node -e 'http.request({ socketPath: "\\0webview_devtools_remote_123" })'`,
+    ]) {
+        assert.equal(reachesIntoApp(command, "http://127.0.0.1:8787"), true, command);
+    }
+
+    for (const command of ["curl -s https://example.com/api/x", "grep -rn ownerToken src/server", "curl localhost:5173/api/health", "git status"]) {
+        assert.equal(reachesIntoApp(command, "http://127.0.0.1:8787"), false, command);
+    }
 });

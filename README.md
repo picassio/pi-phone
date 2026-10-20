@@ -128,12 +128,15 @@ No Termux, no laptop, no cloud VM.
 ### People and devices
 - **Other devices and people** over your Tailscale network (Settings › Access): your laptop's browser signs in as you
   (People › Sign in as me), and invited people steer or watch sessions, all of them or one.
+- **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
+  out of its box or its parent, and whether the page is wider than the screen, with sizes. Pi goes by the numbers.
 - **Settings by tool.** Pi lists the app's settings with their values (`settings`), changes one (`setting_change`), or takes a
   one-off action (`app_action`), each after you approve the usual card showing the value now and the new one, through the
   same code as the app's screens: models, approvals, Pi's browser, web search, the wiki, spend limits, themes, extensions,
   secrets (their flags; deleting one), machines (names, tools, ports, removing), SSH keys, provider accounts, GitHub
   sign-out, a backup, a restart, invited people (role, sessions, removing), Tailscale, the Claude Code billing patch, favorite
-  folders, and one session's model, instructions, trust, and limits.
+  folders, and one session's model, instructions, trust, and limits. A command that reaches into the app instead (its API,
+  your token in its config, its WebView's DevTools) is refused, naming the tools.
 - **Devices.** Each sign-in is a device of its own, so People lists every signed-in device (open now or not, where it
   was last seen) and signs any one out; invited people see and sign out their own. **Sign out every device** signs out
   all your others at once. A **recovery code** (break glass), made in People in the phone's app only and kept off the phone, signs a
