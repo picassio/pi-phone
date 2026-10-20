@@ -233,8 +233,9 @@ export class PiBrowser {
             this.#page = page;
             this.#set({ open: true });
 
+            // Pictures for those watching are extra: their failure never fails Pi's work.
             if (this.#watchers > 0) {
-                await this.#startFrames();
+                void this.#startFrames().catch((error: unknown) => this.#options.log(`browser frames: ${String(error)}`));
             }
 
             return page;
