@@ -230,6 +230,9 @@ export class BrowserPage {
         this.cdp = cdp;
     }
 
+    /** Whether pictures come from the GPU surface (a desktop Chrome: at the device scale) or the view (the phone's WebView). */
+    #fromSurface = false;
+
     /** Whether local addresses are refused: on the phone, where the app's own server is; not on a machine's own Chrome. */
     #blockLocal = true;
 
@@ -237,9 +240,15 @@ export class BrowserPage {
      * Turn on what reading and acting need, block the local addresses (unless `local`: a machine's Chrome may open that
      * machine's dev servers), and dismiss dialogs (accepted only when asked).
      */
-    async init(viewport: { width: number; height: number; mobile: boolean }, { local = false }: { local?: boolean } = {}): Promise<void> {
+    async init(viewport: { width: number; height: number; mobile: boolean }, { local = false, phone = false }: { local?: boolean; phone?: boolean } = {}): Promise<void> {
         await this.cdp.send("Page.enable");
         this.#blockLocal = !local;
+
+        if (phone) {
+            await this.#actAsPhone();
+        }
+
+        this.#fromSurface = phone;
 
         if (!local) {
             // Requests to the local addresses pause (only those) and fail: navigations, frames, scripts, fetches alike.
@@ -250,7 +259,7 @@ export class BrowserPage {
             await this.cdp.send("Fetch.enable", { patterns: BLOCKED_URLS.map((urlPattern) => ({ urlPattern })) });
         }
 
-        await this.cdp.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 0, mobile: viewport.mobile });
+        await this.cdp.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: phone ? 2 : 0, mobile: viewport.mobile });
         await this.cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
         this.#mainFrame = ((await this.cdp.send<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree")).frameTree.frame.id);
         this.cdp.on("Page.frameStartedLoading", (params) => {
@@ -268,6 +277,37 @@ export class BrowserPage {
             this.dialog = `${String(params.type)}: ${String(params.message ?? "").slice(0, 300)}`;
             void this.cdp.send("Page.handleJavaScriptDialog", { accept: this.acceptDialogs }).catch(() => {});
         });
+    }
+
+    /**
+     * A desktop Chrome (a machine's, CI's) presents itself as Chrome on an Android phone, as the phone's own WebView is:
+     * sites then serve their phone pages to the 412-pixel viewport, not a desktop page shrunk to fit (Wikipedia's is
+     * 1120 wide). Its own version, with the user agent, client hints, and touch a phone has.
+     */
+    async #actAsPhone(): Promise<void> {
+        const version = /\/([\d.]+)/.exec((await this.cdp.send<{ product: string }>("Browser.getVersion")).product)?.[1] ?? "155.0.0.0";
+        const major = version.split(".")[0]!;
+        const brands = [
+            { brand: "Chromium", version: major },
+            { brand: "Google Chrome", version: major },
+            { brand: "Not.A/Brand", version: "99" },
+        ];
+
+        await this.cdp.send("Emulation.setUserAgentOverride", {
+            userAgent: `Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Mobile Safari/537.36`,
+            platform: "Linux armv8l",
+            userAgentMetadata: {
+                brands,
+                fullVersionList: brands.map((brand) => ({ ...brand, version: brand.brand === "Not.A/Brand" ? "99.0.0.0" : version })),
+                fullVersion: version,
+                platform: "Android",
+                platformVersion: "14.0.0",
+                architecture: "",
+                model: "Pixel 8",
+                mobile: true,
+            },
+        });
+        await this.cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
     }
 
     /** Whether the next dialog is accepted (a click or key press Pi asked to accept them for); declined otherwise. */
@@ -641,9 +681,10 @@ export class BrowserPage {
 
     /** What is in view now, as a JPEG (base64). */
     async screenshot(quality = 70): Promise<string> {
-        // From the view, not the GPU surface: the phone's WebView sits on an off-screen display whose surface never
-        // answers a capture (it waits forever); from the view it takes a tenth of a second there, and works in Chrome too.
-        const shot = await this.cdp.send<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality, fromSurface: false });
+        // The phone's WebView from the view, not the GPU surface: it sits on an off-screen display whose surface never
+        // answers a capture (it waits forever); from the view it takes a tenth of a second. A desktop Chrome from its
+        // surface, which alone has the device scale (twice the CSS pixels: sharp text).
+        const shot = await this.cdp.send<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality, fromSurface: this.#fromSurface });
 
         return shot.data;
     }

@@ -115,6 +115,7 @@ const PAGES: Record<string, string> = {
         <button onclick="document.getElementById('pics').click()">Upload photos</button>
         <input type="file" id="pics" multiple style="display:none" onchange="out.textContent='Photos ' + [...this.files].map(f => f.name).join(',')">
         <a href="/two" target="_blank">Open in a new tab</a>`,
+    "/ua": `<!doctype html><title>UA</title><meta name="viewport" content="width=device-width"><p id="out"></p><script>out.textContent = (/Android.*Mobile/.test(navigator.userAgent) ? 'phone' : 'desktop') + ' ' + innerWidth + ' touch ' + navigator.maxTouchPoints;</script>`,
     "/two": `<!doctype html><title>Two</title><p>Page two</p><article>${"A long article. ".repeat(400)}</article>`,
 };
 
@@ -245,6 +246,14 @@ test("with Chrome: icons get names, hover, uploads to a field and through its bu
 
     try {
         const page = await browser.open(1, "http://pi.test/tools");
+
+        // A desktop Chrome presents itself as a phone's, at the phone's width, with pictures at twice its CSS pixels.
+        assert.match(await browser.open(1, "http://pi.test/ua"), /phone 412 touch 5/);
+
+        const picture = Buffer.from(await browser.screenshot(1), "base64");
+
+        assert.equal(picture.readUInt16BE(picture.indexOf(Buffer.from([0xff, 0xc0])) + 7), 824, "824 pixels wide");
+        await browser.open(1, "http://pi.test/tools");
 
         // Icons with no text: named by their sprite, or where they go.
         assert.match(page, /link "search"/);

@@ -27,6 +27,8 @@ export interface BrowserEngine {
     readonly popups: boolean;
     /** Whether it may open local addresses: a machine's own Chrome may (its dev servers); the phone's WebView never. */
     readonly local: boolean;
+    /** Whether its pages present themselves as a phone's (a desktop Chrome does; the phone's WebView is one). */
+    readonly actAsPhone: boolean;
     /** Pi's tabs there now (kept from before the server restarted, or opened by pages), by id, oldest first. */
     tabs(): Promise<string[]>;
     /** Make a new tab: its id. */
@@ -98,6 +100,7 @@ export class PhoneEngine implements BrowserEngine {
     readonly label = "the phone's browser";
     readonly popups = false;
     readonly local = false;
+    readonly actAsPhone = false;
     readonly #requests: PhoneRequests;
     #pid = 0;
     /** Each tab's address as the phone last said (a tab kept from before has moved on from its marker). */
@@ -201,6 +204,7 @@ export class ChromeEngine implements BrowserEngine {
     readonly label = "Chrome";
     readonly popups = true;
     readonly local = false;
+    readonly actAsPhone = true;
     readonly #binary: string;
     readonly #flags: string[];
     #child: ChildProcess | undefined;
@@ -400,7 +404,7 @@ export class PiBrowser {
         const page = new BrowserPage(cdp);
         const tab: Tab = { id, page, observed: undefined, elements: [], url: "", title: "" };
 
-        await page.init(VIEWPORT, { local: this.#options.engine.local });
+        await page.init(VIEWPORT, { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone });
         cdp.onClose = () => {
             if (!this.#tabs.includes(tab)) {
                 return;
