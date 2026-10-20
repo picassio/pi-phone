@@ -122,8 +122,11 @@ export interface RunMerge {
 /** The board rules in Pi's prompt: `full` (agent-board's task protocol) or `light` (track the work, keep it current). */
 export const BOARD_RULE_LEVELS = ["full", "light"] as const;
 export type BoardRules = (typeof BOARD_RULE_LEVELS)[number];
-/** Who moves a task Pi worked on to Done, in a session with board mode: a person on the board, or Pi once they approve in chat. */
-export const CLOSERS = ["person", "pi"] as const;
+/**
+ * Who moves a task Pi worked on to Done, in a session with board mode: a person on the board, Pi once they approve in
+ * chat (`pi`), or Pi once it verified the work itself (`verified`).
+ */
+export const CLOSERS = ["person", "pi", "verified"] as const;
 export type Closer = (typeof CLOSERS)[number];
 
 /** A session's board mode: on or off, its project, who closes tasks, and its own rules (null: its project's). */
@@ -1073,7 +1076,7 @@ export class Projects {
         return {
             on: Number(row.on_board) === 1,
             project: row.project_id === null ? null : (this.#projectById(String(row.project_id)) ?? null),
-            closer: row.closer === "pi" ? "pi" : "person",
+            closer: row.closer === "pi" || row.closer === "verified" ? row.closer : "person",
             rules: row.rules === "full" || row.rules === "light" ? row.rules : null,
         };
     }
@@ -1237,7 +1240,7 @@ export class Projects {
         // In a session where the person chose that Pi closes tasks (their OK in chat is the approval), it may.
         if (
             actor.kind === "pi" &&
-            this.boardMode(actor.conversationId)?.closer !== "pi" &&
+            (this.boardMode(actor.conversationId)?.closer ?? "person") === "person" &&
             this.sessionsOf(task.id).some((session) => session.role === "worker" && session.conversationId === actor.conversationId)
         ) {
             throw new HttpError(

@@ -43,9 +43,11 @@ export function boardRules(level: BoardRules, closer: Closer): string {
     const track =
         "- Track this work as tasks: task_create (type epic, story, task, bug or subtask: an epic holds stories, tasks and bugs; a story holds tasks, bugs and subtasks; a task or bug holds subtasks). Create tasks first, link what blocks what, and only then assign them.";
     const done =
-        closer === "pi"
-            ? "When a task is done, move it to review and tell the person in this chat what changed and how you checked it; when they say it is good, move it to done yourself (task_update). A task with operator_review still waits for a person to move it."
-            : "Never move a task you worked on to done: the main session or a person approves it.";
+        closer === "verified"
+            ? "Verify every task yourself before it is done: in the live app or system, not only a test page; with tests or measurements (sizes, outputs), not by eye; and when two checks disagree, find out why rather than explain it away. Once verified, move it to done yourself (task_update; a bug with fix_verified) and tell the person in this chat what you verified and how. A task with operator_review still waits for a person to move it."
+            : closer === "pi"
+              ? "When a task is done, move it to review and tell the person in this chat what changed and how you checked it; when they say it is good, move it to done yourself (task_update). A task with operator_review still waits for a person to move it."
+              : "Never move a task you worked on to done: the main session or a person approves it.";
 
     if (level === "light") {
         return [track, `- Keep tasks current with task_update as you work: in_progress when you start, review when it is done. ${done}`].join("\n");
@@ -538,7 +540,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         ),
         tool(
             "board_settings",
-            "How board mode works in this session, set by the person on a card: who moves tasks you worked on to Done (person: a person on the board; pi: you, once the person approves in this chat), and the board rules here (full, light, or project for the project's).",
+            "How board mode works in this session, set by the person on a card: who moves tasks you worked on to Done (person: a person on the board; pi: you, once the person approves in this chat; verified: you, once you verified the work yourself), and the board rules here (full, light, or project for the project's).",
             Type.Object({
                 closer: Type.Optional(Type.Union(CLOSERS.map((closer) => Type.Literal(closer)))),
                 rules: Type.Optional(Type.Union([...BOARD_RULE_LEVELS, "project"].map((level) => Type.Literal(level)))),
@@ -548,11 +550,17 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 const mode = projects.boardMode(conversationId)!;
 
                 if (args.closer === undefined && args.rules === undefined) {
-                    return `Here: ${mode.closer === "pi" ? "you move tasks to done once the person approves in chat" : "a person moves tasks to done"}; ${mode.rules ?? `the project's (${mode.project?.rules ?? "full"})`} board rules.`;
+                    return `Here: ${mode.closer === "verified" ? "you move tasks to done once you verified them" : mode.closer === "pi" ? "you move tasks to done once the person approves in chat" : "a person moves tasks to done"}; ${mode.rules ?? `the project's (${mode.project?.rules ?? "full"})`} board rules.`;
                 }
 
                 const said = [
-                    args.closer === undefined ? "" : args.closer === "pi" ? "Pi moves tasks to Done once you approve in chat" : "only a person moves tasks to Done",
+                    args.closer === undefined
+                        ? ""
+                        : args.closer === "verified"
+                          ? "Pi moves tasks to Done once it verified them"
+                          : args.closer === "pi"
+                            ? "Pi moves tasks to Done once you approve in chat"
+                            : "only a person moves tasks to Done",
                     args.rules === undefined ? "" : args.rules === "project" ? "the project's board rules" : `${args.rules} board rules`,
                 ].filter(Boolean);
                 const answer = await host.approvals.request(

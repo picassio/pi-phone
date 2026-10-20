@@ -2201,9 +2201,17 @@ export default function projects(pocket) {
                         <div class="setting-row">
                             <div class="setting-text">
                                 <span>Moves tasks to Done</span>
-                                <span>${mode.closer === "pi" ? "Pi, once you say in chat that a task is good." : "You, on the board: Pi stops at Review."}</span>
+                                <span>
+                                    ${
+                                        mode.closer === "verified"
+                                            ? "Pi, once it verified the work itself: live, measured, and it tells you how."
+                                            : mode.closer === "pi"
+                                              ? "Pi, once you say in chat that a task is good."
+                                              : "You, on the board: Pi stops at Review."
+                                    }
+                                </span>
                             </div>
-                            <${Segmented} value=${mode.closer} options=${[["person", "You"], ["pi", "Pi"]]} onChange=${(closer) => set({ closer })} />
+                            <${Segmented} value=${mode.closer} options=${[["person", "You"], ["pi", "Pi, after you"], ["verified", "Pi"]]} onChange=${(closer) => set({ closer })} />
                         </div>
                         <div class="setting-row">
                             <div class="setting-text">
