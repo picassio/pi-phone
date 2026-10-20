@@ -187,6 +187,10 @@ No Termux, no laptop, no cloud VM.
 
 Updates come through the app afterwards; uninstalling deletes its sessions and logins.
 
+**On a Linux server instead:** the same app runs in Docker behind Caddy (HTTPS), with Pi's browser and `screenshot` on a
+headless Chrome inside it: see [deploy/README.md](deploy/README.md). It is one owner's for now; a team edition (accounts,
+roles, a container per person) is being built.
+
 ## Use it
 
 ### Every day

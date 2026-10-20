@@ -1,0 +1,27 @@
+# pi-phone server edition: HTTPS in front of the server (deploy/compose.yaml).
+{
+	# A browser that opens an IP address sends no name: it still gets this site's certificate.
+	default_sni {$PI_HOST}
+}
+
+(tls-auto) {
+}
+
+(tls-internal) {
+	tls internal
+}
+
+{$PI_HOST} {
+	import tls-{$PI_TLS}
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	# Event streams flush at once; WebSockets (the terminal) pass through.
+	reverse_proxy pi-phone:8787 {
+		flush_interval -1
+	}
+}

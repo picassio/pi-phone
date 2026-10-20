@@ -1,0 +1,9 @@
+# The image builds these itself (Dockerfile), or never needs them.
+.git
+node_modules
+android
+native
+web/vendor
+test
+docs
+**/*.log

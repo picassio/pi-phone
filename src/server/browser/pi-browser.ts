@@ -220,7 +220,10 @@ export class PhoneEngine implements BrowserEngine {
     }
 }
 
-/** A headless Chrome of its own (tests, a computer): launched on first use, with a profile that goes with it. */
+/**
+ * A headless Chrome of its own (tests, a computer, the server edition): launched on first use, with a profile that goes
+ * with it, or one kept in `profile` (the server edition's, in its home: sign-ins stay across restarts).
+ */
 export class ChromeEngine implements BrowserEngine {
     readonly label = "Chrome";
     readonly popups = true;
@@ -229,14 +232,16 @@ export class ChromeEngine implements BrowserEngine {
     readonly reopensToResize: boolean = false;
     readonly #binary: string;
     readonly #flags: string[];
+    readonly #kept: string | undefined;
     #child: ChildProcess | undefined;
     #profile: string | undefined;
     #port: number | undefined;
 
     /** `flags`: more of Chrome's command line (a test maps a name to its local server: `--host-resolver-rules`). */
-    constructor(binary: string, flags: string[] = []) {
+    constructor(binary: string, flags: string[] = [], { profile }: { profile?: string } = {}) {
         this.#binary = binary;
         this.#flags = flags;
+        this.#kept = profile;
     }
 
     async #start(): Promise<number> {
@@ -244,7 +249,13 @@ export class ChromeEngine implements BrowserEngine {
             return this.#port;
         }
 
-        this.#profile = mkdtempSync(join(tmpdir(), "pi-browser-"));
+        if (this.#kept !== undefined) {
+            mkdirSync(this.#kept, { recursive: true, mode: 0o700 });
+            // The port of a Chrome that ran before is not this one's.
+            rmSync(join(this.#kept, "DevToolsActivePort"), { force: true });
+        }
+
+        this.#profile = this.#kept ?? mkdtempSync(join(tmpdir(), "pi-browser-"));
         this.#port = undefined;
         this.#child = spawn(
             this.#binary,
@@ -323,7 +334,7 @@ export class ChromeEngine implements BrowserEngine {
             await Promise.race([gone, new Promise((resolve) => setTimeout(resolve, 5000))]);
         }
 
-        if (this.#profile !== undefined) {
+        if (this.#profile !== undefined && this.#profile !== this.#kept) {
             rmSync(this.#profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
             this.#profile = undefined;
         }

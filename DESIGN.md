@@ -409,6 +409,13 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   at `/a/office/`. Without the service polling (tests, a server not on the phone) a render fails at once, saying so.
   Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
   OfficeCLI's pi-phone notes point to it.
+- **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
+  Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` picks the platform (`phone` on Android, else `server`). On a
+  server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from
+  `chrome-renderer.ts` (a headless Chrome that takes the render requests the phone's service would, and signs in only to
+  the app's own address), OfficeCLI is the Linux build, and there is no Tailscale serving. Its tools are fetched by
+  `scripts/server-tools.ts` from the machine tools' pinned releases. CI builds the image, runs `deploy/smoke.sh`, and
+  publishes `ghcr.io/picassio/pi-phone-server` from master.
 - **Effective HTML** (`third_party/effective-html/`; owner's decision of 2026-10-18): plannotator/effective-html's 7
   skills (MIT, at commit `975b047`) for HTML artifacts: `html` (router), `design-artifact`, `html-wireframe`,
   `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every
