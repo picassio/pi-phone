@@ -88,6 +88,7 @@ import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
 import { Screenshots } from "./screenshots.ts";
 import { MachineEngine } from "./browser/machine-engine.ts";
 import { installImageGuard } from "./image-guard.ts";
+import { appSettings } from "./settings-registry.ts";
 import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
 import { PhoneRequests } from "./phone-requests.ts";
 import { askSessionModel, chargeSession } from "./side-model.ts";
@@ -698,6 +699,8 @@ export class PocketApp {
             people: () => this.config.users.map((user) => ({ id: user.id, name: user.name, role: user.role })),
             devices: (userId) => this.devices(this.#person(userId)),
             signOutDevice: (userId, id) => this.signOutDevice(this.#person(userId), id),
+            appSettings: () => appSettings(this),
+            person: (userId) => this.#person(userId),
             // From Pi no device is "this one": the owner's phone app signs in again by itself.
             signOutEverywhere: (userId) => this.signOutEverywhere(this.#person(userId)),
             startSession: async ({ userId, cwd, title, message, via }) => {

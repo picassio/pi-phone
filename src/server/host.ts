@@ -1,6 +1,7 @@
 import type { Context } from "@earendil-works/chord";
 import type { Shot } from "./screenshots.ts";
 import type { PiBrowser } from "./browser/pi-browser.ts";
+import type { AppAction, Setting } from "./settings-registry.ts";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { awaitWithContext } from "@earendil-works/chord/context";
 import type { Skill } from "@earendil-works/pi-coding-agent";
@@ -268,6 +269,10 @@ export interface PocketHost {
      */
     devices(userId: string): { id: string; user: { id: string; name: string; role: Role }; name: string; createdAt: number; lastSeen?: number; address?: string; app?: boolean; open: boolean }[];
     signOutDevice(userId: string, id: string): void;
+    /** Every app setting and action Pi may use (`settings-registry.ts`), as `userId` may: the `settings` tools' source. */
+    appSettings(): { settings: Setting[]; actions: AppAction[] };
+    /** A person by id, for what Pi does as them. */
+    person(userId: string): User;
     signOutEverywhere(userId: string): void;
     /** Whether a person may see a session, as the app decides it for them (`canSee`). */
     canSee(userId: string, conversationId: ConversationId): boolean;

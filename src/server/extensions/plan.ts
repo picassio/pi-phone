@@ -55,6 +55,8 @@ const ALWAYS_ALLOWED = new Set([
     "openui_guide",
     // Only reads: the devices signed in.
     "devices",
+    // Only reads: the app's settings and their values.
+    "settings",
     // Only looks: a picture of a page.
     "screenshot",
 ]);
