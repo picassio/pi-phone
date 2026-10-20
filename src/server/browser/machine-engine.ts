@@ -97,7 +97,7 @@ export class MachineEngine implements BrowserEngine {
     readonly popups = true;
     readonly local = true;
     readonly actAsPhone = true;
-    readonly viewWidth = undefined;
+    readonly reopensToResize = false;
     readonly #machine: MachineAccess;
     /** The forward of Chrome's DevTools port, while it lasts. */
     #forward: { port: number; remote: number; close(): void } | undefined;

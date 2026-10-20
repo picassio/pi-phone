@@ -99,8 +99,8 @@ export class SessionEngine implements BrowserEngine {
         return this.#engine.actAsPhone;
     }
 
-    get viewWidth(): number | undefined {
-        return this.#engine.viewWidth;
+    get reopensToResize(): boolean {
+        return this.#engine.reopensToResize;
     }
 
     /** This session's tabs, oldest first: its own, and any nobody owns (taken now). */
@@ -122,8 +122,8 @@ export class SessionEngine implements BrowserEngine {
         });
     }
 
-    async newTab(): Promise<string> {
-        const tab = await this.#engine.newTab();
+    async newTab(size?: { width: number; height: number }): Promise<string> {
+        const tab = await this.#engine.newTab(size);
 
         this.#owners.set(this.#place, tab, this.#session);
 

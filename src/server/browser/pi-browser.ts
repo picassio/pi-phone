@@ -45,15 +45,14 @@ export interface BrowserEngine {
     /** Whether its pages present themselves as a phone's (a desktop Chrome does; the phone's WebView is one). */
     readonly actAsPhone: boolean;
     /**
-     * The width its view really is, in CSS pixels, when that cannot change (the phone's WebView, laid out at the phone's
-     * width): a wider page is drawn shrunk to fit it, since pictures of it are of that view. Undefined where the view
-     * takes any size (Chrome).
+     * Whether a tab's view keeps the size it was opened at (the phone's WebView, on a display of that size, which draws its
+     * pictures at it): a new size then reopens each tab at its address. Chrome lays a tab out at any size.
      */
-    readonly viewWidth: number | undefined;
+    readonly reopensToResize: boolean;
     /** Pi's tabs there now (kept from before the server restarted, or opened by pages), by id, oldest first. */
     tabs(): Promise<string[]>;
-    /** Make a new tab: its id. */
-    newTab(): Promise<string>;
+    /** Make a new tab, laid out at `size` (CSS pixels; the phone's by default): its id. */
+    newTab(size?: { width: number; height: number }): Promise<string>;
     /** Connect to a tab. */
     connect(id: string): Promise<Cdp>;
     closeTab(id: string): Promise<void>;
@@ -122,7 +121,7 @@ export class PhoneEngine implements BrowserEngine {
     readonly popups = false;
     readonly local = false;
     readonly actAsPhone = false;
-    readonly viewWidth = VIEWPORT.width;
+    readonly reopensToResize = true;
     readonly #requests: PhoneRequests;
     #pid = 0;
     /** Each tab's address as the phone last said (a tab kept from before has moved on from its marker). */
@@ -159,10 +158,10 @@ export class PhoneEngine implements BrowserEngine {
         return tabs.map((tab) => tab.marker);
     }
 
-    async newTab(): Promise<string> {
+    async newTab(size: { width: number; height: number } = VIEWPORT): Promise<string> {
         const marker = `pi-browser-${crypto.randomUUID()}`;
 
-        this.#socket(await this.#requests.request({ op: "open", marker, width: VIEWPORT.width, height: VIEWPORT.height }));
+        this.#socket(await this.#requests.request({ op: "open", marker, width: size.width, height: size.height }));
         this.#urls.set(marker, `about:blank#${marker}`);
 
         return marker;
@@ -227,7 +226,7 @@ export class ChromeEngine implements BrowserEngine {
     readonly popups = true;
     readonly local = false;
     readonly actAsPhone = true;
-    readonly viewWidth = undefined;
+    readonly reopensToResize: boolean = false;
     readonly #binary: string;
     readonly #flags: string[];
     #child: ChildProcess | undefined;
@@ -433,7 +432,7 @@ export class PiBrowser {
         const page = new BrowserPage(cdp);
         const tab: Tab = { id, page, observed: undefined, elements: [], url: "", title: "" };
 
-        await page.init(SIZES[this.#state.size], { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone, fit: this.#options.engine.viewWidth });
+        await page.init(SIZES[this.#state.size], { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone });
         cdp.onClose = () => {
             if (!this.#tabs.includes(tab)) {
                 return;
@@ -487,7 +486,7 @@ export class PiBrowser {
             const engine = this.#options.engine;
             const kept = await engine.tabs();
 
-            for (const id of kept.length === 0 ? [await engine.newTab()] : kept) {
+            for (const id of kept.length === 0 ? [await engine.newTab(SIZES[this.#state.size])] : kept) {
                 if (!this.#tabs.some((tab) => tab.id === id)) {
                     await this.#attach(id);
                 }
@@ -732,7 +731,7 @@ export class PiBrowser {
                 throw new Error(`Pi's browser has ${MAX_TABS} tabs open, the most it keeps: close one first (browser_tabs with close).`);
             }
 
-            const tab = await this.#attach(await this.#options.engine.newTab());
+            const tab = await this.#attach(await this.#options.engine.newTab(SIZES[this.#state.size]));
 
             this.#front(tab);
             this.#set({});
@@ -958,9 +957,13 @@ export class PiBrowser {
             this.#usedAt = Date.now();
             this.#set({ size, viewport: { width: SIZES[size].width, height: SIZES[size].height } });
 
-            for (const tab of this.#tabs) {
-                tab.observed = undefined;
-                await tab.page.resize(SIZES[size], { phone: this.#options.engine.actAsPhone, fit: this.#options.engine.viewWidth });
+            for (const tab of [...this.#tabs]) {
+                if (this.#options.engine.reopensToResize) {
+                    await this.#reopen(tab, size);
+                } else {
+                    tab.observed = undefined;
+                    await tab.page.resize(SIZES[size], { phone: this.#options.engine.actAsPhone });
+                }
             }
 
             // Frames for those watching come again at the new size.
@@ -995,11 +998,33 @@ export class PiBrowser {
         return Math.max(0, now - this.#usedAt);
     }
 
-    /** Whether its pages are drawn shrunk at the top of a narrower view (Desktop in the phone's WebView). */
-    get shrunk(): boolean {
-        const width = this.#options.engine.viewWidth;
+    /**
+     * Open `tab` again at `size` in its place, at its address, and close it (the phone's WebView, whose view keeps its
+     * size): the page loads again, as a size change loads it anyway; sign-ins stay in the profile.
+     */
+    async #reopen(tab: Tab, size: BrowserSize): Promise<void> {
+        const engine = this.#options.engine;
+        const fresh = await this.#attach(await engine.newTab(SIZES[size]));
+        const index = this.#tabs.indexOf(tab);
 
-        return width !== undefined && SIZES[this.#state.size].width > width;
+        // #attach put it last: it takes the old tab's place, and the front if it had it.
+        this.#tabs = this.#tabs.filter((each) => each !== fresh && each !== tab);
+        this.#tabs.splice(index, 0, fresh);
+
+        if (this.#tab === tab) {
+            this.#front(fresh);
+        }
+
+        if (/^https?:/.test(tab.url)) {
+            await fresh.page.navigate(tab.url);
+        }
+
+        fresh.url = await fresh.page.evaluate<string>("location.href").catch(() => tab.url);
+        fresh.title = await fresh.page.evaluate<string>("document.title").catch(() => tab.title);
+
+        tab.page.cdp.close();
+        await engine.closeTab(tab.id);
+        this.#set({});
     }
 
     /** Whether it has tabs open. */

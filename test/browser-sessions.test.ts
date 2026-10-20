@@ -120,3 +120,34 @@ test("Desktop lays pages out at 1280 as a desktop Chrome without touch, Phone at
         await engine.close();
     }
 });
+
+/** A Chrome that resizes as the phone's WebView does: by opening each tab again at the new size. */
+class ReopeningChrome extends ChromeEngine {
+    override readonly reopensToResize: boolean = true;
+}
+
+test("where a tab keeps its size (the phone's WebView), a new size opens each tab again at its address, in its place", real, async () => {
+    const engine = new ReopeningChrome(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+    const browser = new PiBrowser({ engine: new SessionEngine(engine, "phone", 9, new TabOwners(undefined)), place: "phone", session: 9, changed: () => {}, frame: () => {}, log: () => {} });
+
+    try {
+        await browser.open(9, "http://pi.test/a");
+        await browser.newTab(9, "http://pi.test/ua");
+        await browser.switchTab(9, 1);
+
+        const before = await engine.tabs();
+        const desktop = await browser.resize(9, "desktop");
+
+        assert.match(desktop, /^Now laid out as a desktop \(1280×800\)\.\nTab 1 of 2\. Page A — /, "the tab in front stays in front");
+
+        const after = await engine.tabs();
+
+        assert.equal(after.length, 2);
+        assert.equal(after.filter((id) => before.includes(id)).length, 0, "both tabs were opened again");
+        assert.match(await browser.tabs(9), /→ 1\. Page A — http:\/\/pi\.test\/a\n  2\. UA — http:\/\/pi\.test\/ua/);
+        assert.match(await browser.switchTab(9, 2), /desktop 1280 touch 0/);
+    } finally {
+        await browser.close();
+        await engine.close();
+    }
+});
