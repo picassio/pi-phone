@@ -744,11 +744,11 @@ export class BrowserPage {
     }
 
     /** What is in view now, as a JPEG (base64). */
-    async screenshot(quality = 70): Promise<string> {
+    async screenshot(quality = 70, timeoutMs?: number): Promise<string> {
         // The phone's WebView from the view, not the GPU surface: it sits on an off-screen display whose surface never
         // answers a capture (it waits forever); from the view it takes a tenth of a second. A desktop Chrome from its
         // surface, which alone has the device scale (twice the CSS pixels: sharp text).
-        const shot = await this.cdp.send<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality, fromSurface: this.#fromSurface });
+        const shot = await this.cdp.send<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality, fromSurface: this.#fromSurface }, timeoutMs);
 
         return shot.data;
     }

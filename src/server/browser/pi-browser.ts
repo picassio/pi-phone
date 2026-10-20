@@ -935,6 +935,19 @@ export class PiBrowser {
         this.#stopFrames?.();
         this.#casting = page;
 
+        // A still page sends no new frames: one first, so the panel has a picture at once. Before the screencast: the
+        // phone's WebView does not answer a capture while it casts (the panel opened again showed nothing, 30 s later
+        // an error). A capture that does not come in 5 s is left out; the cast's frames follow.
+        try {
+            this.#options.frame({ jpeg: await page.screenshot(60, 5000), width: this.#state.viewport.width, height: this.#state.viewport.height });
+        } catch (error) {
+            this.#options.log(`browser frames: the first picture: ${String(error)}`);
+        }
+
+        if (this.#casting !== page) {
+            return;
+        }
+
         const off = page.cdp.on("Page.screencastFrame", (params) => {
             const metadata = params.metadata as { deviceWidth?: number; deviceHeight?: number } | undefined;
 
@@ -949,8 +962,6 @@ export class PiBrowser {
             void page.cdp.send("Page.stopScreencast").catch(() => {});
         };
         await page.cdp.send("Page.startScreencast", { format: "jpeg", quality: 60, maxWidth: Math.min(this.#state.viewport.width * 2, 1600), maxHeight: Math.min(this.#state.viewport.height * 2, 1720), everyNthFrame: 1 });
-        // A still page sends no new frames: one now, so the panel has a picture at once.
-        this.#options.frame({ jpeg: await page.screenshot(60), width: this.#state.viewport.width, height: this.#state.viewport.height });
     }
 
     /**

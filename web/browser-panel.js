@@ -144,11 +144,18 @@ function Capture({ field, password }) {
     />`;
 }
 
+/**
+ * The last picture of each session's browser (`place#session`): the panel opened again shows it at once, until the next
+ * frame comes. In this tab's memory only.
+ */
+const lastFrames = new Map();
+
 /** The live picture: an image updated in place (frames skip the store, which would redraw the whole app each time). */
 function Frame({ interactive, onWheel }) {
     const image = useRef(null);
     const field = useRef(null);
-    const [has, setHas] = useState(false);
+    const key = `${browserPlace()}#${store.state.conversationId}`;
+    const [has, setHas] = useState(lastFrames.has(key));
     const [password, setPassword] = useState(false);
     const state = piBrowserState();
     const viewport = state?.viewport ?? { width: 412, height: 860 };
@@ -165,8 +172,12 @@ function Frame({ interactive, onWheel }) {
     };
 
     useFrames((frame) => {
+        const src = `data:image/jpeg;base64,${frame.jpeg}`;
+
+        lastFrames.set(key, src);
+
         if (image.current) {
-            image.current.src = `data:image/jpeg;base64,${frame.jpeg}`;
+            image.current.src = src;
         }
 
         setHas(true);
@@ -191,6 +202,7 @@ function Frame({ interactive, onWheel }) {
     >
         <img
             ref=${image}
+            src=${lastFrames.get(key)}
             alt=${has ? "Pi's browser, live" : ""}
             draggable="false"
             onClick=${(event) => interactive && tap(event)}
