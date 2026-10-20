@@ -457,6 +457,38 @@ export class PiBrowser {
         });
     }
 
+    /** A control on the page as last read, by its number: what it is, and whether it takes typing. */
+    field(index: number): { label: string; role: string; fill: boolean } {
+        const { element } = this.#element(index);
+
+        return { label: element.label, role: element.role, fill: element.fill };
+    }
+
+    /**
+     * What the person typed on a sign-in or code card, into the page's fields by number (as last read): password fields
+     * too. It never goes to Pi; the page is read again afterwards, and a password field's value is never read.
+     */
+    fillFields(session: number, fields: { index: number; value: string }[]): Promise<void> {
+        return this.#run(session, "Filling in what you typed", async (page) => {
+            // By node, from the read the card was made from: filling one field may renumber the others.
+            const nodes = fields.map((field) => ({ node: this.#element(field.index).element.node, index: field.index, value: field.value }));
+
+            for (const field of nodes) {
+                const observed = await page.observe();
+                const element = elementsOf(observed).find((each) => each.node === field.node);
+
+                if (element === undefined) {
+                    throw new StalePage(`Field [${field.index}] is gone from the page: read it again and ask once more.`);
+                }
+
+                await page.fill(observed, element, field.value, { clear: true });
+            }
+
+            this.#observed = await page.observe();
+            this.#elements = elementsOf(this.#observed);
+        });
+    }
+
     /** Close Pi's page (Settings, or the panel's Close). */
     async close(): Promise<void> {
         await this.#queue;

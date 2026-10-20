@@ -16391,3 +16391,10 @@ pre.gallery-code {
     white-space: nowrap;
     color: var(--muted);
 }
+
+/* Pi's browser's sign-in and code card: what the owner types goes into the page. */
+.browser-ask-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}

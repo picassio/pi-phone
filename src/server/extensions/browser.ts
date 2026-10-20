@@ -8,14 +8,14 @@ import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { addressOf, PRESSABLE, StalePage } from "../browser/page.ts";
 import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
-import type { PocketHost } from "../host.ts";
+import type { ApprovalRequest, PocketHost } from "../host.ts";
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 /** How much of a whole page `browser_text` gives at once. */
 const TEXT_MAX = 40_000;
 
 /** In every prompt while the module is on. */
-export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll and browser_press; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code yourself, and ask the person before anything that pays, sends, books, or deletes on a site.`;
+export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll and browser_press; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code yourself: when a page asks to sign in, call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
 
 export default function createBrowser(host: PocketHost) {
     const browser = host.browser;
@@ -50,6 +50,53 @@ export default function createBrowser(host: PocketHost) {
         }
     };
     const index = Type.Integer({ minimum: 1, description: "The control's number, like 3 for [3], from the newest read of the page" });
+    /** The site a page is on, by its address (`accounts.example.com`). */
+    const siteOf = (url: string) => {
+        try {
+            return new URL(url).hostname || "the page";
+        } catch {
+            return "the page";
+        }
+    };
+    /**
+     * Ask the person on a card and wait. What they type goes into the page (`PocketApp.answerBrowserAsk`), never here;
+     * when they answer, Pi gets `done` and the page as it is now.
+     */
+    const askPerson = async (
+        api: { conversationId: unknown; taskId: unknown; callId?: string },
+        context: unknown,
+        session: number,
+        tool: string,
+        subject: string,
+        reason: string,
+        form: NonNullable<ApprovalRequest["form"]>,
+        done: string,
+    ) => {
+        const answer = await host.approvals.request(
+            {
+                id: `browser-${String(api.taskId)}-${api.callId}`,
+                conversationId: api.conversationId as never,
+                taskId: api.taskId as never,
+                ...(api.callId === undefined ? {} : { callId: api.callId }),
+                tool,
+                subject,
+                reason,
+                form,
+                createdAt: Date.now(),
+            },
+            context as never,
+        );
+
+        if (!answer.allow) {
+            return reply(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} said not now`}: nothing was filled in or done.`, true);
+        }
+
+        try {
+            return reply(`${done}\nThe page now:\n${await browser.snapshot(session)}`);
+        } catch (error) {
+            return reply(`${done} The page could not be read again: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    };
     const acceptDialog = Type.Optional(Type.Boolean({ description: "Accept a confirmation or prompt the page shows on the way (they are declined otherwise)" }));
 
     const tools = [
@@ -226,6 +273,125 @@ export default function createBrowser(host: PocketHost) {
                 } catch (error) {
                     return reply(error instanceof Error ? error.message : String(error), true);
                 }
+            },
+        }),
+        defineTool({
+            name: "browser_sign_in",
+            description:
+                "Sign in on the page with the person's own username and password: they type them on a card (or use a sign-in kept in Secrets), and they go straight into the fields you name. You never see them. " +
+                "Use this for every sign-in and never ask for a password in the chat; whenever a page asks to sign in, call it right away (the card is how you ask; they can say Not now). " +
+                "Name the fields the page has now (a sign-in that asks for the username and the password on pages of their own: call it on each). Then submit the form yourself.",
+            parameters: Type.Object({
+                username: Type.Optional(Type.Integer({ minimum: 1, description: "The number of the username or email field, if the page has one" })),
+                password: Type.Optional(Type.Integer({ minimum: 1, description: "The number of the password field, if the page has one" })),
+            }),
+            execute: async (args, api, context) => {
+                const session = Number(api.conversationId);
+                const owner = mayBrowse(api.conversationId);
+
+                if (owner !== true) {
+                    return reply(owner, true);
+                }
+
+                if (args.username === undefined && args.password === undefined) {
+                    return reply("Name the username field, the password field, or both, by their numbers.", true);
+                }
+
+                let fields: { name: "username" | "password"; index: number; label: string }[];
+
+                try {
+                    fields = [
+                        ...(args.username === undefined ? [] : [{ name: "username" as const, index: args.username, field: browser.field(args.username) }]),
+                        ...(args.password === undefined ? [] : [{ name: "password" as const, index: args.password, field: browser.field(args.password) }]),
+                    ].map((each) => {
+                        if (!each.field.fill) {
+                            throw new Error(`[${each.index}] ${each.field.label} is not a field to type into.`);
+                        }
+
+                        if (each.name === "username" && each.field.role === "password") {
+                            throw new Error(`[${each.index}] is a password field: name it as password.`);
+                        }
+
+                        return { name: each.name, index: each.index, label: each.field.label };
+                    });
+                } catch (error) {
+                    return reply(error instanceof Error ? error.message : String(error), true);
+                }
+
+                const site = siteOf(browser.state().url);
+                const secret = `LOGIN_${site.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`;
+
+                return askPerson(api, context, session, "browser_sign_in", `Sign in to ${site}`, `Pi's browser is at ${site}'s sign-in.`, {
+                    type: "browser",
+                    kind: "sign-in",
+                    site,
+                    fields,
+                    secret,
+                    saved: host.secrets.has(secret),
+                }, "The person filled in the sign-in (you do not see what). Now submit the form: click its sign-in or next button.");
+            },
+        }),
+        defineTool({
+            name: "browser_ask_code",
+            description:
+                "Ask the person for a one-time code (from a text message, an email, or an authenticator app), which goes straight into the field with this number. You never see it. Then submit it if the page does not on its own.",
+            parameters: Type.Object({
+                index,
+                prompt: Type.Optional(Type.String({ description: "What to tell the person, like \"Enter the 6-digit code texted to your phone\"" })),
+            }),
+            execute: async (args, api, context) => {
+                const session = Number(api.conversationId);
+                const owner = mayBrowse(api.conversationId);
+
+                if (owner !== true) {
+                    return reply(owner, true);
+                }
+
+                let field: { label: string; fill: boolean };
+
+                try {
+                    field = browser.field(args.index);
+                } catch (error) {
+                    return reply(error instanceof Error ? error.message : String(error), true);
+                }
+
+                if (!field.fill) {
+                    return reply(`[${args.index}] ${field.label} is not a field to type into.`, true);
+                }
+
+                const site = siteOf(browser.state().url);
+
+                return askPerson(api, context, session, "browser_ask_code", `A code for ${site}`, args.prompt ?? "Enter the one-time code the site sent you.", {
+                    type: "browser",
+                    kind: "code",
+                    site,
+                    fields: [{ name: "code", index: args.index, label: field.label }],
+                    instruction: args.prompt ?? "Enter the one-time code the site sent you.",
+                }, "The person entered the code (you do not see it). Submit it if the page did not.");
+            },
+        }),
+        defineTool({
+            name: "browser_ask_user",
+            description:
+                "Ask the person to do something on the page themselves: a CAPTCHA, approving the sign-in on their phone, or anything else you cannot do. They take over Pi's browser, and you wait until they say it is done; then you get the page as it is.",
+            parameters: Type.Object({ instruction: Type.String({ description: "What they should do, in a sentence" }) }),
+            execute: async (args, api, context) => {
+                const session = Number(api.conversationId);
+                const owner = mayBrowse(api.conversationId);
+
+                if (owner !== true) {
+                    return reply(owner, true);
+                }
+
+                const site = siteOf(browser.state().url);
+
+                return askPerson(api, context, session, "browser_ask_user", `Pi needs your hand on ${site}`, args.instruction, {
+                    type: "browser",
+                    kind: "do",
+                    site,
+                    fields: [],
+                    instruction: args.instruction,
+                }, "The person says it is done.");
             },
         }),
         defineTool({

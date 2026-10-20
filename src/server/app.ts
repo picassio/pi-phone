@@ -2329,6 +2329,65 @@ export class PocketApp {
         return this.answerApproval(id, true, user, true);
     }
 
+    /**
+     * Answer one of Pi's browser's cards (`extensions/browser.ts`): what the owner typed (or a sign-in kept in Secrets)
+     * goes into the page's fields, never into the conversation, and the call goes on; "do" cards answer done or not.
+     * A sign-in kept with Remember is saved in Secrets, asking before any use outside the browser. The owner's.
+     */
+    async answerBrowserAsk(id: string, body: { values?: unknown; remember?: unknown; useSaved?: unknown; done?: unknown }, user: User): Promise<boolean> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner answers Pi's browser: it may be signed in as them.");
+        }
+
+        const request = this.approvals.all().find((each) => each.id === id);
+
+        if (request?.form?.type !== "browser") {
+            return false;
+        }
+
+        const form = request.form;
+
+        if (form.kind === "do") {
+            return this.answerApproval(id, body.done === true, user, true);
+        }
+
+        let values: Record<string, string>;
+
+        if (body.useSaved === true) {
+            const saved = form.secret === undefined ? undefined : this.secrets.value(form.secret);
+
+            if (saved === undefined) {
+                throw new HttpError(409, `No sign-in for ${form.site} is kept in Secrets.`);
+            }
+
+            values = JSON.parse(saved) as Record<string, string>;
+        } else {
+            values = typeof body.values === "object" && body.values !== null ? (body.values as Record<string, string>) : {};
+        }
+
+        const fields = form.fields.map((field) => ({ index: field.index, value: values[field.name] }));
+
+        if (fields.some((field) => typeof field.value !== "string" || field.value === "")) {
+            throw new HttpError(400, `Fill in ${form.fields.map((field) => field.label).join(" and ")}.`);
+        }
+
+        try {
+            await this.browser.fillFields(Number(request.conversationId), fields as { index: number; value: string }[]);
+        } catch (error) {
+            throw new HttpError(409, error instanceof Error ? error.message : String(error));
+        }
+
+        if (body.remember === true && form.kind === "sign-in" && form.secret !== undefined && body.useSaved !== true) {
+            this.secrets.set(form.secret, {
+                value: JSON.stringify(Object.fromEntries(form.fields.map((field) => [field.name, values[field.name]]))),
+                description: `Sign-in for ${form.site}, kept by Pi's browser`,
+                ask: true,
+            });
+        }
+
+        return this.answerApproval(id, true, user, true);
+    }
+
     /** What was typed and picked in one of a conversation's interactive answers (`openui.ts`), or null. */
     async answerState(id: ConversationId, key: string, user: User): Promise<Record<string, unknown> | null> {
         this.requireSee(user, id);

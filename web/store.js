@@ -1076,6 +1076,8 @@ export const actions = {
     resend: (entryId, change = {}) => api(`c/${current()}/resend`, { entryId, ...change }),
     setPlan: (on) => api(`c/${current()}/plan`, { on }),
     stopCiWatch: (watch) => api(`c/${current()}/ci-watch/stop`, { repo: watch.repo, runId: watch.runId }),
+    /** What the owner typed on a Pi's browser card (or chose to use a kept sign-in, or did on the page). */
+    answerBrowserAsk: (id, body) => api(`browser/asks/${id.split("/").map(encodeURIComponent).join("/")}`, body),
     /** A value typed into `secret_request`'s card: to Settings › Secrets. An approval id may hold a slash. */
     answerSecretRequest: (id, value) =>
         api(`secrets/requests/${id.split("/").map(encodeURIComponent).join("/")}`, { value }),

@@ -151,7 +151,7 @@ export function describe(observed: Observed, elements: Element[]): string {
 
             if (element.options !== undefined) {
                 parts.push(`chosen ${quote(element.value ?? "")}, other options: ${element.options.slice(0, 12).map((option) => quote(option.label)).join(", ")}${element.options.length > 12 ? `, … (${element.options.length - 12} more)` : ""}`);
-            } else if (element.fill) {
+            } else if (element.fill && element.role !== "password") {
                 parts.push(`value ${quote(element.value ?? "")}`);
             }
 
@@ -426,6 +426,18 @@ export class BrowserPage {
     }
 
     async type(observed: Observed, element: Element, text: string, { clear = true, submit = false }: { clear?: boolean; submit?: boolean } = {}): Promise<void> {
+        if (element.role === "password") {
+            throw new Error(`[${element.index}] ${element.label} is a password field: Pi never types a password. Use browser_sign_in, and the person types it.`);
+        }
+
+        await this.fill(observed, element, text, { clear, submit });
+    }
+
+    /**
+     * Type into a field, password fields too: Pi's own typing goes through `type`, which refuses passwords; this is for
+     * what the person typed on a sign-in or code card, which goes into the page without passing through Pi.
+     */
+    async fill(observed: Observed, element: Element, text: string, { clear = true, submit = false }: { clear?: boolean; submit?: boolean } = {}): Promise<void> {
         if (!element.fill) {
             throw new Error(`[${element.index}] ${element.label} is not a field to type into.`);
         }

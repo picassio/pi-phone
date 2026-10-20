@@ -9,6 +9,7 @@ import { fromServer } from "./seen.js";
 import { Highlighted } from "./rich.js";
 import {
     actions,
+    api,
     attempt,
     canSteer,
     collab,
@@ -20,6 +21,7 @@ import {
     store,
     TRANSCRIPT_ROWS,
 } from "./store.js";
+import { setBrowserOpen } from "./browser-panel.js";
 import { openSubagent, stateOf } from "./subagents.js";
 import { prefs } from "./theme.js";
 import {
@@ -1423,6 +1425,99 @@ function SecretRequestCard({ approval }) {
 }
 
 /**
+ * Pi's browser asks the owner (`extensions/browser.ts`): to sign in, for a one-time code, or to do something on the
+ * page themselves. What they type goes into the page, never into the conversation; a sign-in can be kept in Secrets
+ * (Remember) and used from there next time. The owner's to answer; anyone who can steer may say not now.
+ */
+function BrowserAskCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [values, setValues] = useState({});
+    const [remember, setRemember] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const owner = me?.role === "owner";
+    const run = (work) => {
+        setBusy(true);
+        attempt(work).finally(() => setBusy(false));
+    };
+    const filled = form.fields.every((field) => (values[field.name] ?? "") !== "");
+    const send = (body) => run(() => actions.answerBrowserAsk(approval.id, body));
+    const title = form.kind === "sign-in" ? `Sign in to ${form.site}` : form.kind === "code" ? `A code for ${form.site}` : `Pi needs your hand on ${form.site}`;
+
+    return html`<div class="approval" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name=${form.kind === "do" ? "globe" : "key"} size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${title}</span>
+                <span class="approval-reason">${form.kind === "sign-in" ? "Pi's browser is at its sign-in. What you type goes into the page; Pi never sees it." : form.instruction}</span>
+            </div>
+        </div>
+        ${
+            !owner
+                ? html`<div class="muted small">Pi's browser is the owner's: waiting for them.</div>`
+                : form.kind === "do"
+                  ? html`<div class="muted small">Open Pi's browser, do it there (you have the page until you hand it back), then tell Pi it is done.</div>`
+                  : html`<form
+                        class="browser-ask-fields"
+                        onSubmit=${(event) => {
+                            event.preventDefault();
+
+                            if (filled) {
+                                send({ values, remember });
+                            }
+                        }}
+                    >
+                        ${form.fields.map(
+                            (field) => html`<input
+                                type=${field.name === "username" ? "text" : "password"}
+                                autocomplete=${field.name === "username" ? "username" : field.name === "password" ? "current-password" : "one-time-code"}
+                                inputmode=${field.name === "code" ? "numeric" : undefined}
+                                aria-label=${field.label}
+                                placeholder=${field.name === "username" ? `${field.label} (username or email)` : field.name === "password" ? "Password" : field.label}
+                                value=${values[field.name] ?? ""}
+                                onInput=${(event) => setValues({ ...values, [field.name]: event.currentTarget.value })}
+                            />`,
+                        )}
+                        ${
+                            form.kind === "sign-in" &&
+                            html`<label class="check small"><input type="checkbox" checked=${remember} onChange=${(event) => setRemember(event.currentTarget.checked)} /> Remember in Secrets for next time</label>`
+                        }
+                        <button type="submit" hidden></button>
+                    </form>`
+        }
+        ${
+            canSteer() &&
+            html`<div class="approval-actions">
+                <button class="button deny" disabled=${busy} onClick=${() => run(() => actions.approve(approval.id, false))}>${form.kind === "do" ? "Can't" : "Not now"}</button>
+                ${owner && form.saved && html`<button class="button" disabled=${busy} onClick=${() => send({ useSaved: true })}>Use the kept sign-in</button>`}
+                ${
+                    owner &&
+                    (form.kind === "do"
+                        ? html`<button
+                                  class="button"
+                                  onClick=${() =>
+                                      attempt(async () => {
+                                          setBrowserOpen(true);
+                                          store.set({ piBrowser: await api("browser/take-over", { on: true }) });
+                                      })}
+                              >
+                                  Open Pi's browser
+                              </button>
+                              <button class="button primary" disabled=${busy} onClick=${() => run(async () => {
+                                  if (store.state.piBrowser?.takenOver) {
+                                      store.set({ piBrowser: await api("browser/take-over", { on: false }) });
+                                  }
+
+                                  await actions.answerBrowserAsk(approval.id, { done: true });
+                              })}>Done</button>`
+                        : html`<button class="button primary" disabled=${busy || !filled} onClick=${() => send({ values, remember })}>${form.kind === "code" ? "Enter code" : "Sign in"}</button>`)
+                }
+            </div>`
+        }
+    </div>`;
+}
+
+/**
  * Pi's question before it tracks a session's work on a project board (the Projects extension's `board_mode`): yes turns
  * board mode on here, no keeps the board out of this session (its menu can turn it on later).
  */
@@ -1459,6 +1554,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "secret") {
         return html`<${SecretRequestCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "browser") {
+        return html`<${BrowserAskCard} approval=${approval} />`;
     }
 
     if (approval.form?.type === "interview") {

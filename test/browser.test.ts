@@ -97,6 +97,8 @@ const PAGES: Record<string, string> = {
         <p id="out">Nothing yet</p>
         <div style="position:relative;height:60px"><button id="hidden">Under</button><div style="position:absolute;inset:0;background:#eee"></div></div>
         <a href="/two">Next page</a>`,
+    "/login": `<!doctype html><title>Sign in</title><form onsubmit="event.preventDefault();document.getElementById('out').textContent='Hello ' + user.value + (pw.value === 'hunter2' ? ', signed in' : ', wrong password')">
+        <label>Email <input id="user" autocomplete="username"></label><label>Password <input id="pw" type="password"></label><button>Sign in</button></form><p id="out">Signed out</p>`,
     "/two": `<!doctype html><title>Two</title><p>Page two</p><article>${"A long article. ".repeat(400)}</article>`,
 };
 
@@ -183,12 +185,26 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
         stop();
         assert.ok(frames.length > 0, "a frame came");
 
+        // A sign-in: the password field is listed but never its value; Pi may not type into it; the person's values go in.
+        const login = await browser.open(1, "http://pi.test/login");
+        const user = Number(/\[(\d+)\] textbox "Email"/.exec(login)![1]);
+        const pw = Number(/\[(\d+)\] password "Password"/.exec(login)![1]);
+
+        assert.doesNotMatch(login, /password "Password" value/);
+        await assert.rejects(browser.type(1, pw, "guess", {}), /Pi never types a password/);
+        await browser.fillFields(1, [{ index: user, value: "tuan@example.com" }, { index: pw, value: "hunter2" }]);
+
+        const filled = await browser.snapshot(1);
+
+        assert.doesNotMatch(filled, /hunter2/, "the password never shows in what Pi reads");
+        assert.match(await browser.click(1, Number(/\[(\d+)\] button "Sign in"/.exec(filled)![1])), /Hello tuan@example\.com, signed in/);
+
         // Taken over: Pi waits; handed back: Pi goes on.
         browser.takeOver(true);
         await assert.rejects(browser.snapshot(1), /took over/);
         await browser.input({ type: "tap", x: 10, y: 10 });
         browser.takeOver(false);
-        assert.match(await browser.snapshot(1), /^Shop — /);
+        assert.match(await browser.snapshot(1), /^Sign in — /);
     } finally {
         await browser.close();
     }

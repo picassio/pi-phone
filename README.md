@@ -75,6 +75,10 @@ No Termux, no laptop, no cloud VM.
   pick in Settings › Pi's browser (the session's own model, or Jev, TypeSafe's decision model through OpenRouter:
   about a third of a second and $0.0002 a step), for every session or one. It types only values Pi supplies, stops with
   a reason Pi can act on (a value it needs, blocked, stuck, not visibly done), and Jev's cost counts in Spend.
+  **Signing in stays yours:** Pi never types a password or a code. `browser_sign_in` puts a card in the
+  conversation where you type the username and password (or use one kept in Secrets with Remember), and they go
+  straight into the page; `browser_ask_code` does the same for a one-time code; `browser_ask_user` hands you the page
+  for a CAPTCHA or an approval on your phone, and Pi goes on when you say Done.
 - **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for
   pages, PDFs and Office files, GitHub repositories, issues, and pull requests.
 - **Documents.** `file_to_markdown` reads PDF, Word, PowerPoint, Excel, EPUB, notebooks, and more

@@ -38,7 +38,22 @@ export interface ApprovalRequest {
      */
     form?:
         | { type: "secret"; name: string; description: string }
-        | { type: "interview"; callId: string; title: string; count: number };
+        | { type: "interview"; callId: string; title: string; count: number }
+        /**
+         * Pi's browser asks the person (`extensions/browser.ts`): to sign in (a username and a password, typed into the
+         * page's fields `fields` name), for a one-time code, or to do something on the page themselves. What they type
+         * goes into the page, never to Pi; a sign-in may be kept in Secrets as `secret` and used again from there.
+         */
+        | {
+              type: "browser";
+              kind: "sign-in" | "code" | "do";
+              site: string;
+              fields: { name: "username" | "password" | "code"; index: number; label: string }[];
+              instruction?: string;
+              /** The Secrets name a sign-in for this site is kept under, and whether one is kept there now. */
+              secret?: string;
+              saved?: boolean;
+          };
     createdAt: number;
     /** Who Pi was working for when the call asked: set by `Approvals`, not by the asker. */
     requestedBy?: string;

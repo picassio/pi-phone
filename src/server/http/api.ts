@@ -813,6 +813,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ok: true });
         }
 
+        // What the owner typed on one of Pi's browser's cards (sign-in, code) or did on the page: into the page, not to Pi.
+        if (first === "browser" && second === "asks" && parts.length > 2 && method === "POST") {
+            const body = await readJson<{ values?: unknown; remember?: unknown; useSaved?: unknown; done?: unknown }>(request);
+
+            if (!(await app.answerBrowserAsk(parts.slice(2).join("/"), body, user))) {
+                throw new HttpError(404, "That request is no longer waiting");
+            }
+
+            return json(response, 200, { ok: true });
+        }
+
         // A value typed into `secret_request`'s card. Its id may hold a slash, as an approval's may.
         if (first === "secrets" && second === "requests" && parts.length > 2 && method === "POST") {
             const body = await readJson<{ value?: unknown }>(request);
