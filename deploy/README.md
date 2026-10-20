@@ -11,9 +11,18 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
   capabilities dropped, no published ports, and memory and CPU caps.
 - **Docker:** a **controller** makes these containers. It's the only part that touches Docker, and it has no network: the
   gateway reaches it through a Unix socket with a shared secret.
-- **The owner's pages:** the People page (`/auth/people`) has invites, password and 2FA resets, and disabling or removing
-  someone (their data is kept). Everyone has an Account page (`/auth/account`) for their password, two-factor and
+- **The owner's pages:** the People page (`/auth/people`) has invites, roles, password and 2FA resets, and disabling or
+  removing someone (their data is kept). Everyone has an Account page (`/auth/account`) for their password, two-factor and
   passkeys.
+- **Custom roles** (`/auth/roles`): a role is a set of permissions from a catalogue, plus the memory and CPUs of its people's
+  pi-phones, the models they may use, and a monthly spend limit. Owner is built in. Admin, Member and Viewer are seeded,
+  and you edit, add and delete roles.
+  - **The gateway** checks its own permissions: inviting, managing people, editing roles, and the audit log.
+  - **Each pi-phone** gets its role's policy before it serves anything. Pi's browser, web access and machines are off
+    without their permissions. Secrets, the terminal, provider sign-in, settings and extensions are refused. Only the
+    role's models are offered, and its spend cap stops new messages.
+  - **A role without "a pi-phone of their own"** (Viewer) sees only the gateway's pages.
+  - **The audit log** (`/auth/audit`) records invites, joins, role changes, resets, and disabling or removing people.
 
 For one person only, with the owner token and no gateway, use `compose.single.yaml` instead (`-f compose.single.yaml`).
 

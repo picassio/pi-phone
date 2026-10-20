@@ -77,7 +77,7 @@ export const BUILT_IN_MODULES: ReadonlySet<string> = new Set(
  * Modules the app cannot work without: always on. Secrets too: bash gets their values from the app itself, and without
  * this module their redaction from other tools' results, and ask-first approvals, would stop.
  */
-const REQUIRED = new Set(["prompt.ts", "secrets.ts"]);
+const REQUIRED = new Set(["prompt.ts", "secrets.ts", "policy.ts"]);
 /** Built-in modules that stay off until the owner turns them on. Drop-ins all do. */
 const OFF_BY_DEFAULT = new Set(["guard.ts", "agent-teams.ts", "projects.ts"]);
 const TITLES: Record<string, string> = {
@@ -94,6 +94,7 @@ const TITLES: Record<string, string> = {
     "ci-watch.ts": "CI watch",
     "sessions.ts": "Other sessions",
     "secrets.ts": "Secrets",
+    "policy.ts": "Role policy",
     "interview.ts": "Interview",
     "web.ts": "Web access",
     "openui.ts": "Interactive answers",

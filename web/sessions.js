@@ -21,6 +21,7 @@ import {
     stillMoving,
     store,
     workspaceOrder,
+    roleAllows,
 } from "./store.js";
 import { finishedUnseen } from "./seen.js";
 import { isPinned, prefs, setPrefs, togglePin } from "./theme.js";
@@ -1578,6 +1579,7 @@ export function RailNav({ foldable = false, folded = false }) {
         }
         ${
             me?.role === "owner" &&
+            roleAllows("providers.signin") &&
             html`<button
                 class="rail-button"
                 data-part="rail-button"

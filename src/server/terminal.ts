@@ -179,6 +179,11 @@ export function attachTerminals(server: Server, app: PocketApp, auth: Auth): () 
             return refuse(socket, 403, "Forbidden");
         }
 
+        // A role without the terminal (PP-22, the server edition's gateway).
+        if (!app.policy.allows("terminal.use")) {
+            return refuse(socket, 403, "Forbidden");
+        }
+
         // The page's own address, as it sees it: through a TLS proxy (Caddy, the server edition) it is https and the
         // forwarded host. A page elsewhere cannot add those headers to a WebSocket.
         if (request.headers.origin !== origin(request)) {

@@ -44,7 +44,7 @@ const ICON_DIR = resolve(import.meta.dirname, "..", "..", "web");
 const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png" };
 
 /** pi-phone's routes for signing in and managing people: the gateway does these, so they never reach a container. */
-const REFUSED = [/^\/login(\/|$|\?)/, /^\/recover(\/|$|\?)/, /^\/api\/(invite|recovery-code|devices|users|sign-out-everywhere|logout|access|tailscale)(\/|$|\?)/];
+const REFUSED = [/^\/login(\/|$|\?)/, /^\/recover(\/|$|\?)/, /^\/api\/(invite|recovery-code|devices|users|sign-out-everywhere|logout|access|tailscale|policy)(\/|$|\?)/];
 
 /** How long a pi-phone found running is taken as running, before the controller is asked again. */
 const READY_MS = 60_000;
@@ -55,6 +55,8 @@ export class Gateway {
     /** People whose pi-phone the controller said is running, and when. */
     readonly #ready = new Map<string, { host: string; port: number; at: number }>();
     readonly #starting = new Map<string, Promise<{ host: string; port: number }>>();
+    /** The policy each person's pi-phone has from this gateway, as JSON, by key (PP-22). */
+    readonly #applied = new Map<string, string>();
 
     constructor(options: GatewayOptions) {
         this.#options = options;
@@ -92,6 +94,41 @@ export class Gateway {
         this.#ready.set(box.key, { ...place, at: Date.now() });
 
         return { ...place, token: box.token };
+    }
+
+    /**
+     * Send a person's pi-phone their role's policy (PP-22), unless it has it already: their permissions, models, and spend
+     * cap, which it applies at once. False when it could not be sent (still starting): nothing is forwarded until it is,
+     * so a pi-phone never serves its person without their role's limits.
+     */
+    async #policy(user: User, upstream: { host: string; port: number; token: string }): Promise<boolean> {
+        const role = this.#options.store.roleOf(user.id, user.role);
+        const policy = JSON.stringify({ permissions: role.permissions, models: role.models, spendLimit: role.spendLimit, role: role.name });
+        const key = this.#options.store.box(user.id).key;
+
+        if (this.#applied.get(key) === policy) {
+            return true;
+        }
+
+        const sent = await new Promise<boolean>((resolve) => {
+            const call = httpRequest(
+                { host: upstream.host, port: upstream.port, method: "POST", path: "/api/policy", timeout: 5000, headers: { host: `${upstream.host}:${upstream.port}`, authorization: `Bearer ${upstream.token}`, "x-pocket": "1", "content-type": "application/json", "content-length": Buffer.byteLength(policy) } },
+                (answer) => {
+                    answer.resume();
+                    resolve(answer.statusCode === 200);
+                },
+            );
+
+            call.on("error", () => resolve(false));
+            call.on("timeout", () => call.destroy());
+            call.end(policy);
+        });
+
+        if (sent) {
+            this.#applied.set(key, policy);
+        }
+
+        return sent;
     }
 
     /** Headers for a forwarded request: the browser's, without its cookies and credentials, with the container's token. */
@@ -178,6 +215,18 @@ export class Gateway {
     async #forward(request: IncomingMessage, response: ServerResponse, user: User, retried = false): Promise<void> {
         const upstream = await this.#upstream(user, retried);
 
+        // Not before it has the person's role's policy (PP-22).
+        if (!(await this.#policy(user, upstream))) {
+            if (request.method === "GET" && (request.headers.accept ?? "").includes("text/html")) {
+                response.writeHead(503, { "content-type": "text/html; charset=utf-8", "retry-after": "3", "cache-control": "no-store" });
+                response.end(STARTING);
+            } else {
+                json(response, 503, { error: "Your pi-phone is starting: try again in a moment." });
+            }
+
+            return;
+        }
+
         await new Promise<void>((done) => {
             const sent = httpRequest({ host: upstream.host, port: upstream.port, method: request.method, path: request.url, headers: this.#forwarded(request, upstream) }, (answer) => {
                 const headers = { ...answer.headers };
@@ -230,6 +279,13 @@ export class Gateway {
             }
 
             const upstream = await this.#upstream(user);
+
+            if (!(await this.#policy(user, upstream))) {
+                socket.end("HTTP/1.1 503 Service Unavailable\r\n\r\n");
+
+                return;
+            }
+
             const headers = this.#forwarded(request, upstream);
             const lines = [`${request.method} ${request.url} HTTP/1.1`, "connection: upgrade", ...Object.entries(headers).flatMap(([name, value]) => (Array.isArray(value) ? value : [value]).map((each) => `${name}: ${each}`))];
             const inner = netConnect(upstream.port, upstream.host, () => {

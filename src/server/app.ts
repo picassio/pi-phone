@@ -88,6 +88,7 @@ import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
 import { Screenshots } from "./screenshots.ts";
 import { MachineEngine } from "./browser/machine-engine.ts";
 import { BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine.ts";
+import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
 import { installImageGuard } from "./image-guard.ts";
 import { appSettings } from "./settings-registry.ts";
 import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
@@ -323,6 +324,8 @@ export class PocketApp {
     readonly supervised: boolean;
     /** Behind the server edition's gateway (`OpenOptions.gateway`). */
     readonly gateway: boolean;
+    /** The person's role's policy, from the gateway (`policy.ts`, PP-22). */
+    readonly policy: PolicyStore;
     readonly startedAt = Date.now();
     /** How other devices reach this server: the Tailscale address while it listens there (`setReach`). */
     access: AccessInfo | undefined;
@@ -441,6 +444,7 @@ export class PocketApp {
         this.sshAgent = new SshAgent(sshDir, (line) => this.log(line));
         this.sshKeys = new SshKeys(options.dataDir, this.sshAgent, sshDir, this.#home);
         this.secrets = new Secrets(options.dataDir);
+        this.policy = new PolicyStore(options.dataDir);
         this.web = new WebSearch(this.config, this.secrets, async (provider) => (await this.models.getAuth(provider))?.auth.apiKey);
         // Every tab's machines (the folder picker, Ports, Pi sessions on a machine) come with `hello`: a machine connected,
         // renamed, or removed reaches them at once, not at their next connection.
@@ -840,6 +844,7 @@ export class PocketApp {
             sessions: this.sessionControl,
             para: this.para,
             secrets: this.secrets,
+            policy: this.policy,
             web: this.web,
             envOf: (cwd) => this.places.env(cwd),
             wikiCapture: this.paraCapture,
@@ -2141,7 +2146,8 @@ export class PocketApp {
                   }))
                 : { scopedModels: [] };
 
-        return modelList(this.models, this.signInNeeded, scopedModels, (provider) => this.accountLabel(provider));
+        // A role's allow list (PP-22): only its models are offered.
+        return modelList(this.models, this.signInNeeded, scopedModels, (provider) => this.accountLabel(provider)).filter((model) => this.policy.modelAllowed(model.provider, model.id));
     }
 
     /**
@@ -2173,6 +2179,8 @@ export class PocketApp {
             server: {
                 supervised: this.supervised,
                 gateway: this.gateway,
+                // What the person's role allows (PP-22): the page leaves out what it does not.
+                policy: this.policy.get() ?? null,
                 startedAt: this.startedAt,
                 home: homedir(),
                 defaultCwd: this.defaultCwd,
@@ -3204,11 +3212,44 @@ export class PocketApp {
     }
 
     /** Turn an extension module on or off for every session, now and after restarts. */
-    async setExtensionEnabled(user: User, file: string, enabled: boolean): Promise<void> {
+    /**
+     * Take a role's policy from the server edition's gateway (PP-22): kept, and applied now. The extensions that are a
+     * permission's whole feature are turned off without it (and on again with it); the rest is checked where it is used.
+     */
+    async applyPolicy(user: User, given: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the gateway (as this pi-phone's owner) sets its policy.");
+        }
+
+        const policy = checkPolicy(given);
+
+        this.policy.set(policy);
+
+        for (const [file, permission] of Object.entries(POLICY_EXTENSIONS)) {
+            if (this.loader.list().some((each) => each.file === file)) {
+                await this.setExtensionEnabled(user, file, policy.permissions.includes(permission), { byPolicy: true });
+            }
+        }
+
+        for (const client of this.#clients) {
+            client.send("reload", {});
+        }
+    }
+
+    async setExtensionEnabled(user: User, file: string, enabled: boolean, { byPolicy = false }: { byPolicy?: boolean } = {}): Promise<void> {
         const module = this.loader.list().find((each) => each.file === file);
 
         if (module === undefined) {
             throw new HttpError(404, `There is no extension module ${file}`);
+        }
+
+        // A role's policy (PP-22): who may turn extensions on and off, and which stay off without their permission.
+        if (!byPolicy) {
+            const refusal = this.policy.refusal("extensions.manage") ?? (enabled && POLICY_EXTENSIONS[file] !== undefined ? this.policy.refusal(POLICY_EXTENSIONS[file]!) : undefined);
+
+            if (refusal !== undefined) {
+                throw new HttpError(403, refusal);
+            }
         }
 
         if (module.required && !enabled) {

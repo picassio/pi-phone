@@ -163,6 +163,32 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         const [first, second, third] = parts;
+
+        // A role's policy from the server edition's gateway (PP-22): the features it leaves out are refused here.
+        const refusedByRole = app.policy.routeRefusal(first, method);
+
+        if (refusedByRole !== undefined) {
+            throw new HttpError(403, refusedByRole);
+        }
+
+        // The gateway sets this pi-phone's policy with its owner token; through the gateway, browsers cannot reach this.
+        if (first === "policy" && second === undefined) {
+            requireOwner(user);
+
+            if (method === "GET") {
+                return json(response, 200, { policy: app.policy.get() ?? null });
+            }
+
+            if (method === "POST") {
+                try {
+                    await app.applyPolicy(user, await readJson(request));
+                } catch (error) {
+                    throw error instanceof HttpError ? error : new HttpError(400, error instanceof Error ? error.message : String(error));
+                }
+
+                return json(response, 200, { policy: app.policy.get() });
+            }
+        }
         const route: ApiRequest = { app, request, response, url, user };
 
         // Each tab's connection knows its device, so signing that device out closes it.

@@ -17,6 +17,8 @@ after(() => cleanUp());
 
 /** What the stand-in pi-phone was asked: by path, its headers. */
 const asked: { path: string; headers: IncomingHttpHeaders }[] = [];
+/** The policies the gateway sent, by the pi-phone token they went with (PP-22). */
+const policies: Record<string, { permissions: string[]; models: string[]; spendLimit: number | null; role: string }> = {};
 const controllerCalls: string[] = [];
 /** The caps each person's pi-phone was last started with, by key. */
 const capsOf: Record<string, { memoryMb: number; cpus: number }> = {};
@@ -39,6 +41,19 @@ const controller: ControllerClient = {
 
 before(async () => {
     upstream = createServer((request, response) => {
+        if (request.url === "/api/policy" && request.method === "POST") {
+            const chunks: Buffer[] = [];
+
+            request.on("data", (chunk: Buffer) => chunks.push(chunk));
+            request.on("end", () => {
+                policies[String(request.headers.authorization)] = JSON.parse(Buffer.concat(chunks).toString());
+                response.writeHead(200, { "content-type": "application/json" });
+                response.end("{}");
+            });
+
+            return;
+        }
+
         asked.push({ path: request.url ?? "/", headers: request.headers });
         response.writeHead(200, { "content-type": "text/plain", "set-cookie": "pocket_auth=leak; Path=/" });
         response.end(`pi-phone for ${request.headers.authorization}`);
@@ -253,6 +268,9 @@ test("custom roles (PP-22): the owner's catalogue, a role's caps and permissions
     assert.equal(kim.role, "contractor");
     assert.equal((await worker.go("/")).status, 200);
     assert.deepEqual(capsOf[store.boxOf(kim.id)!.key], { memoryMb: 1536, cpus: 0.5 }, "the role's caps");
+    // Kim's pi-phone got Kim's role's policy before anything else (PP-22), and Kim can't send one.
+    assert.deepEqual(policies[`Bearer ${store.boxOf(kim.id)!.token}`], { permissions: ["pi.use", "web.search", "people.manage", "people.invite"], models: ["anthropic/claude-haiku-5-5"], spendLimit: 20, role: "Contractor" });
+    assert.equal((await worker.go("/api/policy", { permissions: ["browser.use"], models: [], spendLimit: null, role: "x" })).status, 403);
 
     // Kim's role manages people (not better-auth's admin): Kim resets a member's password, but not an owner's, and
     // invites neither an owner nor changes roles.
@@ -282,6 +300,7 @@ test("custom roles (PP-22): the owner's catalogue, a role's caps and permissions
     assert.equal((await owner.go("/auth/gw/roles/contractor", { name: "Contractor", permissions: ["pi.use"], memoryMb: 3072, cpus: 1 })).status, 200);
     await worker.go("/api/sessions");
     assert.deepEqual(capsOf[store.boxOf(kim.id)!.key], { memoryMb: 3072, cpus: 1 });
+    assert.deepEqual(policies[`Bearer ${store.boxOf(kim.id)!.token}`]!.permissions, ["pi.use"], "the changed role's policy was sent again");
     assert.equal((await worker.go(`/auth/gw/people/${han.id}/reset-password`, { password: "x".repeat(12) })).status, 403, "the role no longer manages people");
 
     // The audit log: who did what.

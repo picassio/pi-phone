@@ -258,7 +258,7 @@ export class Spend {
     #reached(
         id: ConversationId,
         userId: string,
-    ): { budget: number; person?: User; team?: true } | undefined {
+    ): { budget: number; person?: User; team?: true; monthly?: true } | undefined {
         const app = this.#app;
         const root = app.rootOf(id);
         const budget = app.sessionMeta(root)?.budget;
@@ -282,6 +282,13 @@ export class Spend {
             return { budget: limit, person };
         }
 
+        // The owner of a pi-phone behind the server edition's gateway: their role's monthly cap (PP-22).
+        const month = person?.role === "owner" ? app.policy.month(this.personSpent(userId)) : undefined;
+
+        if (month !== undefined && month.spent >= month.cap) {
+            return { budget: month.cap, monthly: true };
+        }
+
         return undefined;
     }
 
@@ -291,6 +298,10 @@ export class Spend {
 
         if (reached === undefined) {
             return;
+        }
+
+        if (reached.monthly) {
+            throw new HttpError(409, `Your role's ${dollars(reached.budget)} monthly spend limit is reached: your team's owner can raise it.`);
         }
 
         const whose =
@@ -317,7 +328,9 @@ export class Spend {
             return undefined;
         }
 
-        return reached.person !== undefined
+        return reached.monthly
+            ? `the role's ${dollars(reached.budget)} monthly spend limit is reached`
+            : reached.person !== undefined
             ? `${reached.person.name} reached their ${dollars(reached.budget)} spend limit`
             : reached.team
               ? `the session that started this one reached its ${dollars(reached.budget)} spend limit`

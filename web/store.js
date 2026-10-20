@@ -455,6 +455,14 @@ export async function attempt(action) {
     }
 }
 
+/**
+ * Whether the person's role allows a permission (PP-22): behind the server edition's gateway, the role's policy says;
+ * everywhere else (the phone), everything is allowed. The menu, the rail and the launcher leave out what it does not.
+ */
+export function roleAllows(permission, state = store.state) {
+    return !state.server?.policy || state.server.policy.permissions.includes(permission);
+}
+
 /** End this browser's sign-in, and go to the sign-in page. */
 export function signOut() {
     return attempt(async () => {

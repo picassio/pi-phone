@@ -26,6 +26,7 @@ import {
     setUnread,
     signOut,
     store,
+    roleAllows,
 } from "../store.js";
 import { isPinned, lookLabel, togglePin } from "../theme.js";
 import { currentTrust, trustAvailable } from "../trust.js";
@@ -323,6 +324,7 @@ function trustHint() {
 /** The menu; `places` is false when it opens from the places sheet, which just showed the tiles. */
 export function MenuSheet({ places = true }) {
     const { view, me, server } = store.state;
+    const allowed = roleAllows;
     const conversation = view.conversation;
     const steer = canSteer();
     const session = conversation?.kind === "session";
@@ -394,6 +396,7 @@ export function MenuSheet({ places = true }) {
             ${
                 conversation &&
                 me?.role === "owner" &&
+                allowed("terminal.use") &&
                 item(
                     "Terminal",
                     () => openSheet({ type: "terminal", place: view.agent?.cwd ?? conversation.cwd }),
@@ -495,16 +498,16 @@ export function MenuSheet({ places = true }) {
             }
             ${item("Running now", () => openSheet({ type: "running" }), "everything Pi is doing")}
             ${item("Spend", () => openSheet({ type: "spend" }), me?.role === "owner" ? "by person and session, limits" : "yours")}
-            ${me?.role === "owner" && item("Providers", () => openSheet({ type: "providers" }))}
-            ${me?.role === "owner" && item("GitHub", () => openSheet({ type: "github" }), "for Pi's git and gh")}
+            ${me?.role === "owner" && allowed("providers.signin") && item("Providers", () => openSheet({ type: "providers" }))}
+            ${me?.role === "owner" && allowed("providers.signin") && item("GitHub", () => openSheet({ type: "github" }), "for Pi's git and gh")}
             ${me?.role === "owner" && !server?.gateway && item("Access", () => openSheet({ type: "access" }), "people on your Tailscale network")}
-            ${me?.role === "owner" && item("Machines", () => openSheet({ type: "machines" }), "run sessions on other computers")}
-            ${me?.role === "owner" && item("SSH keys", () => openSheet({ type: "ssh-keys" }), "for machines")}
-            ${me?.role === "owner" && webAvailable() && item("Web access", () => openSheet({ type: "web-access" }), "search provider for Pi")}
-            ${me?.role === "owner" && item("Pi's browser", () => openSheet({ type: "browser" }), "how browser_run decides each step")}
-            ${me?.role === "owner" && item("Secrets", () => openSheet({ type: "secrets" }), "keys Pi uses without seeing")}
+            ${me?.role === "owner" && allowed("machines.use") && item("Machines", () => openSheet({ type: "machines" }), "run sessions on other computers")}
+            ${me?.role === "owner" && allowed("machines.use") && item("SSH keys", () => openSheet({ type: "ssh-keys" }), "for machines")}
+            ${me?.role === "owner" && allowed("web.search") && webAvailable() && item("Web access", () => openSheet({ type: "web-access" }), "search provider for Pi")}
+            ${me?.role === "owner" && allowed("browser.use") && item("Pi's browser", () => openSheet({ type: "browser" }), "how browser_run decides each step")}
+            ${me?.role === "owner" && allowed("secrets.use") && item("Secrets", () => openSheet({ type: "secrets" }), "keys Pi uses without seeing")}
             ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
-            ${me?.role === "owner" && item("This phone", () => openSheet({ type: "phone" }), "notifications, screen off, backup")}
+            ${me?.role === "owner" && allowed("settings.change") && item("This phone", () => openSheet({ type: "phone" }), "notifications, screen off, backup")}
             ${
                 // The Android shell's bridge (android/.../MainActivity.java): only inside the app.
                 me?.role === "owner" &&
@@ -515,7 +518,7 @@ export function MenuSheet({ places = true }) {
                 })
             }
             ${modelRefreshAvailable() && item("Refresh models", refreshModels, store.state.modelRefresh.loading ? "refreshing…" : "models.json and providers")}
-            ${item("Extensions", () => openSheet({ type: "extensions" }), extensionsHint())}
+            ${allowed("extensions.manage") && item("Extensions", () => openSheet({ type: "extensions" }), extensionsHint())}
             ${
                 me?.role === "owner" &&
                 server?.supervised &&

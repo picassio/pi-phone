@@ -430,6 +430,21 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   - **The controller** (`controller.ts`) holds the Docker socket alone, has no network, and serves a Unix socket with a
     shared secret. Each person gets `pp-user-<key>` on `pp-net-<key>` (with only the gateway attached) and `pp-data-<key>`,
     with CapDrop ALL, no-new-privileges, no published ports, a PID limit and memory/CPU caps.
+- **Custom roles** (PP-22):
+  - **The gateway** keeps roles in its own tables (`pp_role`, `pp_user_role`), with `roles.ts` holding the catalogue and the
+    seeded roles. better-auth only ever sees owner/member, and people actions go through its internalAdapter, since its
+    admin API wants its own admin. Every gateway route checks a permission, and `pp_audit` logs the changes.
+  - **Each person's pi-phone** gets its role's policy (`policy.ts`) on `POST /api/policy`, sent by the gateway before it
+    forwards anything and again when the policy changes; browsers can't reach that route.
+  - **How a pi-phone applies it:**
+    - **Extensions:** browser.ts, web.ts and machines.ts are turned off without their permissions (byPolicy), and
+      `setExtensionEnabled` refuses turning them on.
+    - **Tools:** the required `extensions/policy.ts` refuses the rest (secrets, settings, machine tools) and tells Pi what the
+      role leaves out.
+    - **Routes:** api.ts refuses the routes in `ROUTES`, and terminal.ts the terminal.
+    - **Models:** modelList, configure and submit hold to the allow list.
+    - **Spend:** the monthly cap counts from what the person had spent when the month began.
+    - **The page:** `server.policy` lets the menu, rail and launcher leave items out (`roleAllows`).
 - **Effective HTML** (`third_party/effective-html/`; owner's decision of 2026-10-18): plannotator/effective-html's 7
   skills (MIT, at commit `975b047`) for HTML artifacts: `html` (router), `design-artifact`, `html-wireframe`,
   `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every

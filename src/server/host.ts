@@ -21,6 +21,7 @@ import type { SessionControl } from "./session-control.ts";
 import type { Para } from "./para.ts";
 import type { ParaCapture } from "./para-capture.ts";
 import type { Secrets } from "./secrets.ts";
+import type { PolicyStore } from "./policy.ts";
 import type { WebSearch } from "./web/access.ts";
 
 export interface ApprovalRequest {
@@ -293,6 +294,8 @@ export interface PocketHost {
     readonly para: Para;
     /** The owner's secrets (`secrets.ts`): what Pi may use where, and values for commands, never for the model. */
     readonly secrets: Secrets;
+    /** A role's policy from the server edition's gateway (`policy.ts`, PP-22): everything allowed without one. */
+    readonly policy: PolicyStore;
     /** Web search's provider and keys (`web/access.ts`), as Settings › Web access has them. */
     readonly web: WebSearch;
     /** Where commands run for a session in `cwd`, its output not redacted: for `secret_save` to read a value. */

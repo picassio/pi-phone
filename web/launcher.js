@@ -24,6 +24,7 @@ import {
     signOut,
     store,
     workspaceOrder,
+    roleAllows,
 } from "./store.js";
 import {
     BASE_LOOK,
@@ -253,19 +254,22 @@ function actionItems() {
             icon: "pulse",
             run: () => openSheet({ type: "running" }),
         },
-        me?.role === "owner" && {
+        me?.role === "owner" &&
+            roleAllows("providers.signin") && {
             label: "Providers",
             detail: "sign in to model providers",
             icon: "key",
             run: () => openSheet({ type: "providers" }),
         },
-        me?.role === "owner" && {
+        me?.role === "owner" &&
+            roleAllows("providers.signin") && {
             label: "GitHub",
             detail: "sign in for Pi's git and gh",
             icon: "key",
             run: () => openSheet({ type: "github" }),
         },
-        me?.role === "owner" && {
+        me?.role === "owner" &&
+            roleAllows("terminal.use") && {
             label: "Terminal",
             detail: conversation ? "a shell in this session's folder" : "a shell on this phone",
             icon: "terminal",
@@ -275,13 +279,15 @@ function actionItems() {
                     place: conversation ? (view.agent?.cwd ?? conversation.cwd) : store.state.server?.defaultCwd,
                 }),
         },
-        me?.role === "owner" && {
+        me?.role === "owner" &&
+            roleAllows("machines.use") && {
             label: "Machines",
             detail: "run sessions on other computers over ssh",
             icon: "monitor",
             run: () => openSheet({ type: "machines" }),
         },
-        me?.role === "owner" && {
+        me?.role === "owner" &&
+            roleAllows("machines.use") && {
             label: "SSH keys",
             detail: "keys the app connects to machines with",
             icon: "key",
@@ -303,13 +309,15 @@ function actionItems() {
             run: () => openSheet({ type: "access" }),
         },
         me?.role === "owner" &&
+            roleAllows("web.search") &&
             webAvailable() && {
             label: "Web access",
             detail: "the search provider Pi uses",
             icon: "globe",
             run: () => openSheet({ type: "web-access" }),
         },
-        me?.role === "owner" && {
+        me?.role === "owner" &&
+            roleAllows("secrets.use") && {
             label: "Secrets",
             detail: "API keys and tokens Pi uses without seeing them",
             icon: "key",
@@ -330,7 +338,7 @@ function actionItems() {
             icon: "reload",
             run: refreshModels,
         },
-        { label: "Extensions", icon: "shield", run: () => openSheet({ type: "extensions" }) },
+        roleAllows("extensions.manage") && { label: "Extensions", icon: "shield", run: () => openSheet({ type: "extensions" }) },
         { label: "Spend", icon: "pulse", run: () => openSheet({ type: "spend" }) },
         collab()
             ? {

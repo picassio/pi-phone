@@ -785,6 +785,11 @@ export class Commands {
             throw new HttpError(409, "Pick a model for this conversation first.");
         }
 
+        // A role's allow list (PP-22): a session that picked a model before it came is held to it too.
+        if (!app.policy.modelAllowed(model.provider, model.id)) {
+            throw new HttpError(403, `${app.policy.get()?.role ?? "Your role"} does not include ${model.provider}/${model.id}: pick one of its models for this session.`);
+        }
+
         app.spend.check(user, id);
 
         // On a machine, the agent's tools are there: the files go there first, and the message names their paths there.
@@ -1230,6 +1235,11 @@ export class Commands {
         const asked = request.model as { provider?: unknown; modelId?: unknown } | undefined;
 
         checkModel(asked);
+
+        // A role's allow list (PP-22): no other model, however it is asked for.
+        if (asked !== undefined && !app.policy.modelAllowed(String(asked.provider), String(asked.modelId))) {
+            throw new HttpError(403, `${app.policy.get()?.role ?? "Your role"} does not include ${String(asked.provider)}/${String(asked.modelId)}: pick one of its models.`);
+        }
 
         if (
             optionalText(request.thinkingLevel, "thinkingLevel") !== undefined &&
