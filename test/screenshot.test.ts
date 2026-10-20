@@ -38,7 +38,7 @@ const route: FauxResponseStep = (request) => {
         return fauxAssistantMessage([fauxToolCall("screenshot", { path: "notes.txt" })], { stopReason: "toolUse" });
     }
 
-    return fauxAssistantMessage([fauxText(role === "toolResult" ? `saw: ${text.slice(0, 600)}` : "ok")]);
+    return fauxAssistantMessage([fauxText(role === "toolResult" ? `saw: ${text.slice(0, 1500)}` : "ok")]);
 };
 let app: App;
 
@@ -63,7 +63,16 @@ function phone(screenshots: Screenshots, seen: { url: string; widths: number[]; 
 
             for (const request of requests) {
                 seen.push({ url: request.url, widths: request.widths, fullPage: request.fullPage });
-                screenshots.answer(request.id, { shots: request.widths.map((width) => ({ width, height: 900, parts: [JPEG.toString("base64")] })) });
+                // The page measured itself as the renderer runs `request.check` (layout-check.ts): one issue at the phone's width.
+                assert.match(request.check, /getBoundingClientRect/);
+                screenshots.answer(request.id, {
+                    shots: request.widths.map((width) => ({
+                        width,
+                        height: 900,
+                        parts: [JPEG.toString("base64")],
+                        check: JSON.stringify({ width, height: 900, checked: 40, issues: width < 600 ? [{ kind: "spills", what: "pre.code", box: [20, 664], limit: [20, 350] }] : [], more: 0 }),
+                    })),
+                });
             }
 
             at = seq;
@@ -131,6 +140,8 @@ test("Pi's screenshot: an artifact and a file, at the widths asked, as images it
 
         assert.match(artifact, /artifact demo, as the phone renders it: 390×900, 1280×900/);
         assert.equal(lastImages, 2, "both pictures reach the model as images");
+        assert.match(artifact, /Layout check at 390 px \(40 elements\): 1 out of place\.\\n- pre\.code: its content is wider than its box \(664 px in 350\)/);
+        assert.match(artifact, /Layout check at 1280 px \(40 elements\): nothing spills/);
         assert.equal(seen[0]!.url, `http://127.0.0.1:8799/a/${String(id)}/demo/latest`);
         assert.deepEqual(seen[0]!.widths, [390, 1280]);
 

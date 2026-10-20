@@ -9,6 +9,8 @@
  */
 
 /** What the service renders: an address on the app's server, or any http(s) page. */
+import { layoutCheck, type LayoutReport, parseLayout } from "./layout-check.ts";
+
 export type RenderRequest = {
     seq: number;
     id: string;
@@ -21,10 +23,12 @@ export type RenderRequest = {
     maxHeight: number;
     /** Wait after the page loads, for scripts, fonts, and pictures from the network. */
     settleMs: number;
+    /** A script the page runs just before it is drawn (`layout-check.ts`): its JSON text comes back with the shot. */
+    check: string;
 };
 
 /** A picture of the page at one width: `width` × `height` CSS pixels, as JPEGs from the top, each at most 2000 tall. */
-export type Shot = { width: number; height: number; parts: Buffer[] };
+export type Shot = { width: number; height: number; parts: Buffer[]; layout?: LayoutReport };
 
 /** How long a poll waits for a request before it answers with none. */
 export const RENDER_POLL_MS = 50_000;
@@ -55,7 +59,7 @@ export class Screenshots {
             return Promise.reject(new Error("No phone is rendering: screenshots need the pi-phone app's service, which polls the server on the phone itself."));
         }
 
-        const request: RenderRequest = { seq: ++this.#seq, id: crypto.randomUUID(), url, widths, fullPage, maxHeight, settleMs };
+        const request: RenderRequest = { seq: ++this.#seq, id: crypto.randomUUID(), url, widths, fullPage, maxHeight, settleMs, check: layoutCheck() };
 
         this.#requests.push(request);
 
@@ -125,13 +129,15 @@ export class Screenshots {
 
         const shots = Array.isArray(body.shots) ? body.shots : [];
         const parsed = shots.map((shot: unknown) => {
-            const each = shot as { width?: unknown; height?: unknown; parts?: unknown };
+            const each = shot as { width?: unknown; height?: unknown; parts?: unknown; check?: unknown };
 
             if (typeof each.width !== "number" || typeof each.height !== "number" || !Array.isArray(each.parts) || each.parts.length === 0 || !each.parts.every((part) => typeof part === "string")) {
                 throw new Error("A shot is { width, height, parts: [jpeg] }.");
             }
 
-            return { width: each.width, height: each.height, parts: (each.parts as string[]).map((part) => Buffer.from(part, "base64")) };
+            const layout = parseLayout(each.check);
+
+            return { width: each.width, height: each.height, parts: (each.parts as string[]).map((part) => Buffer.from(part, "base64")), ...(layout === undefined ? {} : { layout }) };
         });
 
         if (parsed.length === 0) {

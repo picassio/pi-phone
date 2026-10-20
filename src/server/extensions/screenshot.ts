@@ -7,6 +7,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
+import { describeLayout } from "../layout-check.ts";
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 
@@ -19,10 +20,11 @@ const DESCRIPTION =
     "See a page as it shows: the phone renders it off screen and gives you a picture at each width (default a phone's 390 px and a desktop's 1280 px, whole page up to 4000 px tall). " +
     "Name one of: artifact (an artifact of this session, by id, as the person opens it), path (a file: .html, .htm, .svg, or .docx/.xlsx/.pptx as OfficeCLI renders it), or url (an http or https page). " +
     "Use it after making or changing an artifact or a page, to check layout, overflow, clipped or overlapping text, and broken states, then fix what you see and look again. " +
+    "Each width comes with a measured layout check (what spills out of its box or its parent, and whether the page is wider than the screen, with sizes): trust its numbers over the picture, and when they disagree, find out why. " +
     "Scripts run and the network works; give a page a moment to load what it fetches (settle).";
 
 /** In every prompt while the module is on. */
-export const SEEING = `Seeing your work: after you make or change an artifact, an HTML page, or an Office file, look at it with screenshot (a phone's width and a desktop's) and fix what you see before you call it done.`;
+export const SEEING = `Seeing your work: after you make or change an artifact, an HTML page, or an Office file, look at it with screenshot (a phone's width and a desktop's) and fix what you see before you call it done. Check app changes in the live app (http://127.0.0.1:8787/s/<id>, or a sheet by /?sheet=...), not only a test page. Go by the layout check's numbers more than the picture; when the picture, the numbers, or a test page disagree, find out why before you call it right, never explain it away.`;
 
 export default function createScreenshot(host: PocketHost) {
     const screenshot = defineTool({
@@ -103,7 +105,13 @@ export default function createScreenshot(host: PocketHost) {
                         type: "text" as const,
                         text: `${what}, as the phone renders it: ${shots.map((shot) => `${shot.width}×${shot.height}${shot.parts.length > 1 ? ` in ${shot.parts.length} pictures, top to bottom` : ""}`).join(", ")} (CSS pixels${shots.some((shot) => shot.height >= 4000) ? "; cut at 4000 px tall" : ""}).`,
                     },
-                    ...shots.flatMap((shot) => shot.parts.map((part) => ({ type: "image" as const, data: part.toString("base64"), mimeType: "image/jpeg" }))),
+                    ...shots.flatMap((shot) => [
+                        ...shot.parts.map((part) => ({ type: "image" as const, data: part.toString("base64"), mimeType: "image/jpeg" })),
+                        {
+                            type: "text" as const,
+                            text: shot.layout === undefined ? `Layout check at ${shot.width} px: not measured (an older app).` : describeLayout(shot.layout),
+                        },
+                    ]),
                 ],
             };
         },

@@ -4,6 +4,8 @@ import android.app.Presentation;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
@@ -19,6 +21,7 @@ import android.view.ViewGroup;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
+import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
@@ -131,7 +134,7 @@ final class Renderer {
             JSONArray shots = new JSONArray();
             for (int index = 0; index < widths.length(); index++) {
                 shots.put(shot(request.getString("url"), widths.getInt(index), request.getBoolean("fullPage"),
-                        request.getInt("maxHeight"), request.getLong("settleMs")));
+                        request.getInt("maxHeight"), request.getLong("settleMs"), request.optString("check", "")));
             }
             reply.put("shots", shots);
         } catch (Exception e) {
@@ -141,13 +144,13 @@ final class Renderer {
     }
 
     /** One picture at `width` CSS pixels, on the main thread, waited for here. */
-    private JSONObject shot(String url, int width, boolean fullPage, int maxHeight, long settleMs) throws Exception {
+    private JSONObject shot(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check) throws Exception {
         CountDownLatch done = new CountDownLatch(1);
         Object[] result = new Object[1];
         WebView[] made = new WebView[1];
         main.post(() -> {
             try {
-                made[0] = start(url, width, fullPage, maxHeight, settleMs, (value) -> {
+                made[0] = start(url, width, fullPage, maxHeight, settleMs, check, (value) -> {
                     result[0] = value;
                     done.countDown();
                 });
@@ -173,7 +176,7 @@ final class Renderer {
     }
 
     /** Load the page in a WebView laid out at the width; once it finished and settled, draw it (main thread). */
-    private WebView start(String url, int width, boolean fullPage, int maxHeight, long settleMs, Done done) {
+    private WebView start(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check, Done done) {
         float density = context.getResources().getDisplayMetrics().density;
         int viewport = width < 600 ? 844 : 800;
         ViewGroup into = host();
@@ -210,11 +213,21 @@ final class Renderer {
                                 layout(page, widthPx, heightPx);
                                 page.invalidate();
                                 main.postDelayed(() -> {
-                                    try {
-                                        done.accept(draw(page, width, height, density, !MainActivity.inFront));
-                                    } catch (Exception e) {
-                                        done.accept(e);
-                                    }
+                                    // The page measures itself first (layout-check.ts): Pi gets numbers with the picture.
+                                    ValueCallback<String> drawn = (measured) -> {
+                                        try {
+                                            JSONObject shot = draw(page, width, height, density, !MainActivity.inFront);
+                                            if (measured != null && !measured.equals("null")) {
+                                                // evaluateJavascript answers with the value as JSON: here, a JSON string.
+                                                shot.put("check", new JSONArray("[" + measured + "]").getString(0));
+                                            }
+                                            done.accept(shot);
+                                        } catch (Exception e) {
+                                            done.accept(e);
+                                        }
+                                    };
+                                    if (check.isEmpty()) drawn.onReceiveValue(null);
+                                    else page.evaluateJavascript(check, drawn);
                                 }, 400);
                             } catch (Exception e) {
                                 done.accept(e);
@@ -311,8 +324,24 @@ final class Renderer {
         try {
             Canvas canvas = new Canvas(bitmap);
             canvas.drawColor(Color.WHITE);
-            canvas.scale(1f / density, 1f / density);
-            view.draw(canvas);
+            // Drawn at the device's own scale, a band at a time, then shrunk to CSS pixels: a WebView drawn into a canvas
+            // scaled by 1/density kept its text at full size while its boxes shrank (code ran out of its blocks).
+            int widthPx = Math.round(width * density);
+            int band = 400;
+            Paint smooth = new Paint(Paint.FILTER_BITMAP_FLAG);
+            for (int top = 0; top < height; top += band) {
+                int rows = Math.min(band, height - top);
+                Bitmap tile = Bitmap.createBitmap(widthPx, Math.round(rows * density), Bitmap.Config.ARGB_8888);
+                try {
+                    Canvas into = new Canvas(tile);
+                    into.drawColor(Color.WHITE);
+                    into.translate(0, -Math.round(top * density));
+                    view.draw(into);
+                    canvas.drawBitmap(tile, null, new RectF(0, top, width, top + rows), smooth);
+                } finally {
+                    tile.recycle();
+                }
+            }
             if (offScreen && allWhite(bitmap)) {
                 throw new IOException("The page came out all white while pi-phone was not on screen (in the background, or "
                         + "with the screen off), where Android may not draw it. Ask the person to open pi-phone, then try "
