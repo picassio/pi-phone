@@ -559,7 +559,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "sshKeys.name",
             area: "machines",
             title: "An SSH key's name",
-            help: "Target: the key's id (settings lists the keys under the ssh-keys.delete action).",
+            help: "Target: the key's id (settings lists the keys under Targets).",
             owner: true,
             target: "ssh-key",
             read: async (target) => (await app.sshKeys.list()).find((key) => key.id === target)?.name ?? `(no key ${target ?? ""})`,

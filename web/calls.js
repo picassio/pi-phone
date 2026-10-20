@@ -75,6 +75,21 @@ export function describeCall(call) {
 
             return { icon: "?", label: args.async === true ? "Interview, answered later" : "Interview", subject: title };
         }
+        // The app's settings (extensions/settings.ts), devices, and board settings: what they read or change.
+        case "settings":
+            return { icon: "⚙", label: "Reads settings", subject: args.id ? `${args.id}${args.target ? ` (${args.target})` : ""}` : (args.area ?? "all"), mono: Boolean(args.id) };
+        case "setting_change":
+            return { icon: "⚙", label: "Changes", subject: `${args.id ?? ""}${args.target ? ` (${args.target})` : ""} → ${short(args.value ?? "", 60)}`, mono: true };
+        case "app_action":
+            return { icon: "⚙", label: "Action", subject: `${args.id ?? ""}${args.args && Object.keys(args.args).length > 0 ? ` ${Object.values(args.args).join(", ")}` : ""}`, mono: true };
+        case "devices":
+            return { icon: "⚙", label: "Devices", subject: "signed in" };
+        case "device_sign_out":
+            return { icon: "⚙", label: "Signs out", subject: `device ${String(args.id ?? "").slice(0, 8)}`, mono: true };
+        case "sign_out_everywhere":
+            return { icon: "⚙", label: "Signs out", subject: "every device" };
+        case "board_settings":
+            return { icon: "▦", label: "Board settings", subject: [args.closer && `closer ${args.closer}`, args.rules && `rules ${args.rules}`].filter(Boolean).join(", ") || "reads them" };
         case "screenshot": {
             const what = args.artifact ? `artifact ${args.artifact}` : String(args.path ?? args.url ?? "").replace(/^https?:\/\//, "").replace(/^.*\//, (m) => (args.path ? "" : m));
 
