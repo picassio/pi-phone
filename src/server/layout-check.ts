@@ -79,8 +79,12 @@ export function describeLayout(report: LayoutReport): string {
     ].join("\n");
 }
 
-/** A report the renderer sent, checked: undefined when it is not one. */
-export function parseLayout(text: unknown): LayoutReport | undefined {
+/**
+ * A report the renderer sent for a picture `width` CSS pixels wide, checked: undefined when it is not one. A page whose
+ * content is wider than the screen stretches the WebView's layout (innerWidth 520 in a 390 px WebView): the report is
+ * then put at the width asked for, with the page's own width as an issue.
+ */
+export function parseLayout(text: unknown, width: number): LayoutReport | undefined {
     if (typeof text !== "string") {
         return undefined;
     }
@@ -88,7 +92,15 @@ export function parseLayout(text: unknown): LayoutReport | undefined {
     try {
         const value = JSON.parse(text) as LayoutReport;
 
-        return typeof value.width === "number" && Array.isArray(value.issues) ? value : undefined;
+        if (typeof value.width !== "number" || !Array.isArray(value.issues)) {
+            return undefined;
+        }
+
+        if (value.width > width + 1 && !value.issues.some((issue) => issue.kind === "page-wider")) {
+            return { ...value, width, issues: [...value.issues, { kind: "page-wider", what: "the page", box: [0, value.width], limit: [0, width] }] };
+        }
+
+        return value;
     } catch {
         return undefined;
     }

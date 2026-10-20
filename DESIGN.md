@@ -400,8 +400,10 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
 - **Screenshots** (`src/server/screenshots.ts`, `extensions/screenshot.ts`, `android/.../Renderer.java`; owner's decision of
   2026-10-18): Pi sees what it made. `screenshot({ artifact | path | url, widths = [390, 1280], fullPage, settle })`
   asks the app's service, which long-polls `GET /api/phone/renders` (beside `/api/phone/events`), to draw the page in an
-  off-screen WebView of the app (measured and laid out at width × density, `enableSlowWholeDocumentDraw` set before
-  the first WebView, drawn into a CSS-pixel bitmap, at most 4000 px tall), signed in with the app's cookies and the owner
+  off-screen WebView of the app (on a private virtual display of its own at density 1, laid out at the page's size, at most
+  4000 px tall; the picture is the frame the GPU composed, since `view.draw` into a canvas misplaced composited layers,
+  PP-10). Before the frame, the page runs `layoutCheck()` (`layout-check.ts`): what spills out of its box or its parent and
+  a page wider than the screen, with sizes, printed under each picture, signed in with the app's cookies and the owner
   token on its own pages; it posts JPEGs to `POST /api/phone/renders/<id>` and Pi gets them as images. Artifacts render
   at `/a/<conversation>/<id>/latest`, HTML and SVG files at `/a/file/<conversation>?path=` (artifact sandbox), Office files
   at `/a/office/`. Without the service polling (tests, a server not on the phone) a render fails at once, saying so.

@@ -8,7 +8,7 @@ import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
 import { ChromeEngine } from "../src/server/browser/pi-browser.ts";
 import { BrowserPage } from "../src/server/browser/page.ts";
-import { describeLayout, layoutCheck, type LayoutReport } from "../src/server/layout-check.ts";
+import { describeLayout, layoutCheck, type LayoutReport, parseLayout } from "../src/server/layout-check.ts";
 
 after(() => cleanUp());
 
@@ -41,6 +41,16 @@ before(async () => {
 });
 
 after(() => server?.close());
+
+test("a page laid out wider than the picture is reported as wider than the screen, at the width asked for", () => {
+    const report = parseLayout(JSON.stringify({ width: 520, height: 844, checked: 6, issues: [], more: 0 }), 390);
+
+    assert.equal(report?.width, 390);
+    assert.deepEqual(report?.issues, [{ kind: "page-wider", what: "the page", box: [0, 520], limit: [0, 390] }]);
+    assert.match(describeLayout(report!), /- the page: is wider than the screen \(520 px in 390\)/);
+    assert.equal(parseLayout("not json", 390), undefined);
+    assert.equal(parseLayout(JSON.stringify({ width: 390, height: 844, checked: 6, issues: [], more: 0 }), 390)?.issues.length, 0);
+});
 
 test("the layout check reports what is out of place, with sizes, and nothing on a page in place", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
     const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);

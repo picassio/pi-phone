@@ -93,7 +93,6 @@ public final class PiService extends Service {
             runner.start();
             notifier = new Thread(this::notifyLoop, "pi-notify");
             notifier.start();
-            Renderer.prepare();
             Renderer render = new Renderer(this, () -> {
                 try {
                     return ownerToken(this);

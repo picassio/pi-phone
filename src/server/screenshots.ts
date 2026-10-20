@@ -135,7 +135,7 @@ export class Screenshots {
                 throw new Error("A shot is { width, height, parts: [jpeg] }.");
             }
 
-            const layout = parseLayout(each.check);
+            const layout = parseLayout(each.check, each.width);
 
             return { width: each.width, height: each.height, parts: (each.parts as string[]).map((part) => Buffer.from(part, "base64")), ...(layout === undefined ? {} : { layout }) };
         });

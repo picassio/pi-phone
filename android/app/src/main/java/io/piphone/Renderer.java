@@ -4,8 +4,7 @@ import android.app.Presentation;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.RectF;
+import android.graphics.Rect;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
@@ -15,6 +14,7 @@ import android.media.ImageReader;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -46,12 +46,12 @@ import java.util.function.Supplier;
  * Screenshots for Pi (src/server/screenshots.ts, DESIGN.md section 4): long-polls the server for pages to render
  * (`GET /api/phone/renders`), draws each in an off-screen WebView of the app at the widths asked, signed in as the app's
  * own WebView is (the same cookies, and the owner token on the app's own pages), and posts JPEGs back
- * (`POST /api/phone/renders/<id>`). The WebView is never shown: it is measured and laid out at the width, and drawn
- * whole (`enableSlowWholeDocumentDraw`, set before the app's first WebView) into a bitmap at CSS-pixel scale.
+ * (`POST /api/phone/renders/<id>`).
  *
- * The WebViews live in a window of their own: a Presentation on a small private virtual display the service owns. A
- * WebView in no window drew only while the app's activity was on screen: with it stopped (the app in the background,
- * or the screen off) every picture came out white, without an error.
+ * Each page gets a display of its own: a private virtual display of density 1 (a pixel is a CSS pixel), as wide as
+ * asked and as tall as the picture may be, with a Presentation window on it. The WebView is laid out at the page's size
+ * there and the picture is the frame the GPU composed, as on a screen. Drawing the WebView into a canvas instead
+ * (`view.draw`) put its composited layers in the wrong place: a code block's text ran out of its box (PP-10).
  */
 final class Renderer {
 
@@ -64,17 +64,6 @@ final class Renderer {
     private final Supplier<String> token;
     private final BooleanSupplier serving;
     private final Handler main = new Handler(Looper.getMainLooper());
-    /** The window the page WebViews are in, made on first use (main thread). */
-    private ViewGroup host;
-    /** Kept as long as the window: the display and the surface it draws into, whose frames are dropped. */
-    private VirtualDisplay display;
-    private ImageReader frames;
-    private Presentation window;
-
-    /** Before any WebView of the process: drawing then covers the whole page, not only what would be on screen. */
-    static void prepare() {
-        WebView.enableSlowWholeDocumentDraw();
-    }
 
     Renderer(Context context, Supplier<String> token, BooleanSupplier serving) {
         this.context = context;
@@ -147,7 +136,7 @@ final class Renderer {
     private JSONObject shot(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check) throws Exception {
         CountDownLatch done = new CountDownLatch(1);
         Object[] result = new Object[1];
-        WebView[] made = new WebView[1];
+        Stage[] made = new Stage[1];
         main.post(() -> {
             try {
                 made[0] = start(url, width, fullPage, maxHeight, settleMs, check, (value) -> {
@@ -161,10 +150,7 @@ final class Renderer {
         });
         boolean finished = done.await(SHOT_MS, TimeUnit.MILLISECONDS);
         main.post(() -> {
-            if (made[0] != null) {
-                if (host != null) host.removeView(made[0]);
-                made[0].destroy();
-            }
+            if (made[0] != null) made[0].release();
         });
         if (!finished) throw new IOException("the page did not finish loading within " + (SHOT_MS / 1000) + " seconds");
         if (result[0] instanceof Exception) throw (Exception) result[0];
@@ -175,13 +161,63 @@ final class Renderer {
         void accept(Object value);
     }
 
-    /** Load the page in a WebView laid out at the width; once it finished and settled, draw it (main thread). */
-    private WebView start(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check, Done done) {
-        float density = context.getResources().getDisplayMetrics().density;
+    /**
+     * One page's own display: a private virtual display of density 1, `width` × `height` pixels, whose frames go to an
+     * ImageReader and the latest is kept; a Presentation window on it holds the WebView. Private and the app's own, it
+     * needs no permission. Made, used and released on the main thread.
+     */
+    private final class Stage {
+        final ImageReader reader;
+        final VirtualDisplay display;
+        final Presentation window;
+        final Pages pages;
+        final WebView view;
+        Image latest;
+        int frames;
+        Runnable onFrame;
+
+        Stage(int width, int height) {
+            reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3);
+            reader.setOnImageAvailableListener((source) -> {
+                Image image = source.acquireLatestImage();
+                if (image == null) return;
+                if (latest != null) latest.close();
+                latest = image;
+                frames++;
+                if (onFrame != null) {
+                    Runnable next = onFrame;
+                    onFrame = null;
+                    next.run();
+                }
+            }, main);
+            display = context.getSystemService(DisplayManager.class)
+                    .createVirtualDisplay("pi-phone-screenshot", width, height, DisplayMetrics.DENSITY_DEFAULT, reader.getSurface(), 0);
+            if (display == null) {
+                reader.close();
+                throw new IllegalStateException("Android gave no display for screenshots");
+            }
+            window = new Presentation(context, display.getDisplay());
+            pages = new Pages(window.getContext());
+            window.setContentView(pages);
+            window.show();
+            view = new WebView(pages.getContext());
+        }
+
+        void release() {
+            pages.removeView(view);
+            view.destroy();
+            window.dismiss();
+            display.release();
+            if (latest != null) latest.close();
+            reader.close();
+        }
+    }
+
+    /** Load the page in a WebView laid out at the width; once it finished and settled, take its frame (main thread). */
+    private Stage start(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check, Done done) {
         int viewport = width < 600 ? 844 : 800;
-        ViewGroup into = host();
-        WebView view = new WebView(into.getContext());
-        // No layer of its own: draw() into our canvas renders it in software, without a page-sized buffer.
+        Stage stage = new Stage(width, fullPage ? Math.max(viewport, maxHeight) : viewport);
+        WebView view = stage.view;
         view.setBackgroundColor(Color.WHITE);
         WebSettings settings = view.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -189,8 +225,8 @@ final class Renderer {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
-        into.addView(view, new ViewGroup.LayoutParams(Math.round(width * density), Math.round(viewport * density)));
-        layout(view, Math.round(width * density), Math.round(viewport * density));
+        stage.pages.addView(view, new ViewGroup.LayoutParams(width, viewport));
+        layout(view, width, viewport);
         boolean[] settled = {false};
         view.setWebViewClient(new WebViewClient() {
             @Override
@@ -201,38 +237,38 @@ final class Renderer {
                     try {
                         int content = Math.max(viewport, page.getContentHeight());
                         int height = fullPage ? Math.min(content, maxHeight) : viewport;
-                        int widthPx = Math.round(width * density);
-                        int heightPx = Math.round(height * density);
-                        // Off screen, a WebView draws what it has only after its layout changed: a page that fits the
-                        // first layout comes out blank. So always change it once, a pixel taller, then to the size,
-                        // and give it frames for each.
-                        layout(page, widthPx, heightPx + 1);
+                        layout(page, width, height);
                         page.invalidate();
                         main.postDelayed(() -> {
-                            try {
-                                layout(page, widthPx, heightPx);
+                            // The page measures itself first (layout-check.ts): Pi gets numbers with the picture.
+                            ValueCallback<String> measured = (report) -> {
+                                int mark = stage.frames;
+                                Runnable take = () -> {
+                                    try {
+                                        JSONObject shot = capture(stage.latest, width, height, !MainActivity.inFront);
+                                        if (report != null && !report.equals("null")) {
+                                            // evaluateJavascript answers with the value as JSON: here, a JSON string.
+                                            shot.put("check", new JSONArray("[" + report + "]").getString(0));
+                                        }
+                                        done.accept(shot);
+                                    } catch (Exception e) {
+                                        done.accept(e);
+                                    }
+                                };
+                                // A frame composed after the check, so the picture shows what was measured.
+                                stage.onFrame = take;
                                 page.invalidate();
                                 main.postDelayed(() -> {
-                                    // The page measures itself first (layout-check.ts): Pi gets numbers with the picture.
-                                    ValueCallback<String> drawn = (measured) -> {
-                                        try {
-                                            JSONObject shot = draw(page, width, height, density, !MainActivity.inFront);
-                                            if (measured != null && !measured.equals("null")) {
-                                                // evaluateJavascript answers with the value as JSON: here, a JSON string.
-                                                shot.put("check", new JSONArray("[" + measured + "]").getString(0));
-                                            }
-                                            done.accept(shot);
-                                        } catch (Exception e) {
-                                            done.accept(e);
-                                        }
-                                    };
-                                    if (check.isEmpty()) drawn.onReceiveValue(null);
-                                    else page.evaluateJavascript(check, drawn);
-                                }, 400);
-                            } catch (Exception e) {
-                                done.accept(e);
-                            }
-                        }, 200);
+                                    if (stage.onFrame != take) return;
+                                    stage.onFrame = null;
+                                    if (stage.latest != null) take.run();
+                                    else done.accept(new IOException("the page was not drawn (no frame came from its display"
+                                            + (mark == 0 ? " at all" : "") + ")"));
+                                }, 3000);
+                            };
+                            if (check.isEmpty()) measured.onReceiveValue(null);
+                            else page.evaluateJavascript(check, measured);
+                        }, 600);
                     } catch (Exception e) {
                         done.accept(e);
                     }
@@ -250,30 +286,7 @@ final class Renderer {
         Map<String, String> headers = new HashMap<>();
         if (url.startsWith(BASE + "/")) headers.put("Authorization", "Bearer " + token.get());
         view.loadUrl(url, headers);
-        return view;
-    }
-
-    /**
-     * The window for the page WebViews: a Presentation on a private virtual display of the screen's density. Private
-     * and the app's own, it needs no permission; its frames go to a small surface and are dropped at once.
-     */
-    private ViewGroup host() {
-        if (host != null) return host;
-        int dpi = context.getResources().getDisplayMetrics().densityDpi;
-        frames = ImageReader.newInstance(64, 64, PixelFormat.RGBA_8888, 2);
-        frames.setOnImageAvailableListener((reader) -> {
-            Image frame = reader.acquireLatestImage();
-            if (frame != null) frame.close();
-        }, main);
-        display = context.getSystemService(DisplayManager.class)
-                .createVirtualDisplay("pi-phone-screenshots", 64, 64, dpi, frames.getSurface(), 0);
-        if (display == null) throw new IllegalStateException("Android gave no display for screenshots");
-        window = new Presentation(context, display.getDisplay());
-        ViewGroup pages = new Pages(window.getContext());
-        window.setContentView(pages);
-        window.show();
-        host = pages;
-        return host;
+        return stage;
     }
 
     /** Lays each page WebView out at its own size, however small the window: what is not on it is drawn anyway. */
@@ -316,32 +329,22 @@ final class Renderer {
     private static final int PART = 2000;
 
     /**
-     * The page as JPEGs at CSS-pixel scale, `width` × `height` in parts from the top, each at most PART tall. All white with the app off screen is an error, not a
-     * picture: Android may have stopped drawing, and a blank picture would pass for a blank page.
+     * The frame's top `width` × `height` pixels (CSS pixels: the display has density 1) as JPEGs, in parts from the top,
+     * each at most PART tall. All white with the app off screen is an error, not a picture: Android may have stopped
+     * drawing, and a blank picture would pass for a blank page.
      */
-    private static JSONObject draw(WebView view, int width, int height, float density, boolean offScreen) throws Exception {
-        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+    private static JSONObject capture(Image frame, int width, int height, boolean offScreen) throws Exception {
+        if (frame == null) throw new IOException("the page was not drawn (no frame came from its display)");
+        Image.Plane plane = frame.getPlanes()[0];
+        int stride = plane.getRowStride() / plane.getPixelStride();
+        Bitmap whole = Bitmap.createBitmap(stride, frame.getHeight(), Bitmap.Config.ARGB_8888);
+        Bitmap bitmap = null;
         try {
+            whole.copyPixelsFromBuffer(plane.getBuffer().rewind());
+            bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(bitmap);
             canvas.drawColor(Color.WHITE);
-            // Drawn at the device's own scale, a band at a time, then shrunk to CSS pixels: a WebView drawn into a canvas
-            // scaled by 1/density kept its text at full size while its boxes shrank (code ran out of its blocks).
-            int widthPx = Math.round(width * density);
-            int band = 400;
-            Paint smooth = new Paint(Paint.FILTER_BITMAP_FLAG);
-            for (int top = 0; top < height; top += band) {
-                int rows = Math.min(band, height - top);
-                Bitmap tile = Bitmap.createBitmap(widthPx, Math.round(rows * density), Bitmap.Config.ARGB_8888);
-                try {
-                    Canvas into = new Canvas(tile);
-                    into.drawColor(Color.WHITE);
-                    into.translate(0, -Math.round(top * density));
-                    view.draw(into);
-                    canvas.drawBitmap(tile, null, new RectF(0, top, width, top + rows), smooth);
-                } finally {
-                    tile.recycle();
-                }
-            }
+            canvas.drawBitmap(whole, new Rect(0, 0, width, height), new Rect(0, 0, width, height), null);
             if (offScreen && allWhite(bitmap)) {
                 throw new IOException("The page came out all white while pi-phone was not on screen (in the background, or "
                         + "with the screen off), where Android may not draw it. Ask the person to open pi-phone, then try "
@@ -360,7 +363,8 @@ final class Renderer {
                     .put("height", height)
                     .put("parts", parts);
         } finally {
-            bitmap.recycle();
+            whole.recycle();
+            if (bitmap != null) bitmap.recycle();
         }
     }
 

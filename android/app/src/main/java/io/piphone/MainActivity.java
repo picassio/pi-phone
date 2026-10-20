@@ -193,8 +193,6 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Screenshots (Renderer.java) draw whole pages: set before the process's first WebView.
-        Renderer.prepare();
         web = new WebView(this);
         web.setBackgroundColor(0xff1a1b26);
         WebSettings settings = web.getSettings();
