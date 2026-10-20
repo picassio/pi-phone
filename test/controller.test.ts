@@ -54,6 +54,11 @@ before(async () => {
             }
 
             if (route === "POST /networks/pp-net-abc123/disconnect") {
+                // As Docker does: a 500 for a container that is not on the network.
+                if (!exists.attached) {
+                    return reply(500, { message: "container is not connected to network pp-net-abc123" });
+                }
+
                 exists.attached = false;
 
                 return reply(200);
@@ -162,4 +167,11 @@ test("a person's pi-phone: its own network, volume, and a container with fixed o
     assert.equal(exists.volume, true, "their data stays");
     await controller.remove("abc123", true);
     assert.equal(exists.volume, false);
+
+    // A gateway made again is on none of the networks until its next ensure: removing still works.
+    await controller.ensure("abc123", token, { memoryMb: 1024, cpus: 1 });
+    exists.attached = false;
+    await controller.remove("abc123", false);
+    assert.equal(exists.network, false);
+    assert.equal(exists.container, false);
 });

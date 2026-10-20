@@ -212,9 +212,19 @@ export class Controller {
         const { container, network, volume } = names(id);
 
         await this.#expect("DELETE", `/containers/${container}?force=true`, undefined, [204, 404]);
-        // Docker keeps a network with anyone still on it: the gateway leaves it first.
-        await this.#expect("POST", `/networks/${network}/disconnect`, { Container: this.#options.gateway, Force: true }, [200, 404]);
-        await this.#expect("DELETE", `/networks/${network}`, undefined, [204, 404]);
+        // Docker keeps a network with anyone still on it: the gateway leaves it first, when it is on it. (A gateway made
+        // again is not, until its next ensure; Docker answers a disconnect from a network it is not on with a 500.)
+        const found = await this.#docker("GET", `/networks/${network}`);
+
+        if (found.status === 200) {
+            const on = Object.values((found.body as { Containers?: Record<string, { Name?: string }> }).Containers ?? {}).some((each) => each.Name === this.#options.gateway);
+
+            if (on) {
+                await this.#expect("POST", `/networks/${network}/disconnect`, { Container: this.#options.gateway, Force: true }, [200]);
+            }
+
+            await this.#expect("DELETE", `/networks/${network}`, undefined, [204, 404]);
+        }
 
         if (purge) {
             await this.#expect("DELETE", `/volumes/${volume}`, undefined, [204, 404]);
