@@ -16258,15 +16258,16 @@ pre.gallery-code {
     align-items: center;
     justify-content: center;
     padding: 12px;
-    overflow: auto;
+    overflow: hidden;
     background: var(--card);
+    /* The page's box is sized from both the width and the height there is, so it keeps the page's proportions. */
+    container-type: size;
 }
 
 .pb-frame {
     position: relative;
-    max-width: 100%;
-    max-height: 100%;
-    width: min(100%, 460px);
+    flex: none;
+    width: min(100cqw, 100cqh * var(--ratio, 0.48), 460px);
     border-radius: 10px;
     overflow: hidden;
     background: #fff;

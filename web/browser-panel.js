@@ -86,7 +86,7 @@ function Frame({ interactive, onTap, onWheel }) {
         };
     };
 
-    return html`<div class=${`pb-frame ${interactive ? "live" : ""}`} style=${`aspect-ratio:${viewport.width}/${viewport.height}`}>
+    return html`<div class=${`pb-frame ${interactive ? "live" : ""}`} style=${`aspect-ratio:${viewport.width}/${viewport.height};--ratio:${viewport.width / viewport.height}`}>
         <img
             ref=${image}
             alt=${has ? "Pi's browser, live" : ""}
