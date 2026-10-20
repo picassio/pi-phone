@@ -217,6 +217,7 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "link a stranger": ["task_link_session", { task: "PP-2", session: 99999 }],
     "share it with Zed": ["project_share", { project: "PP", people: ["Zed"] }],
     "delete PP-2": ["task_delete", { task: "PP-2" }],
+    "stop the board": ["board_mode", { project: "PP", reason: "Done with it", off: true }],
     "make a board": ["project_create", { key: "ab", name: "Agent board", reason: "Track the agent work" }],
     "make PP again": ["project_create", { key: "PP", name: "Again" }],
 };
@@ -312,7 +313,7 @@ test("Pi asks once before using a board; its tools refuse until the person says 
     assert.match(await turn(id, "approve it"), /You worked on PP-1 in this session, so you cannot approve it/);
 });
 
-test("a no is kept: Pi does not ask again, and works without the board", async () => {
+test("a no is kept until the person asks: Pi works without the board, may ask again on a card, and turns it off on one", async () => {
     const id = await newSession(app);
     const { submissionId } = await app.commands.submit(id, owner(app), { text: "ask for the board", requestId: ownRequest(owner(app).id, crypto.randomUUID()) });
 
@@ -325,9 +326,29 @@ test("a no is kept: Pi does not ask again, and works without the board", async (
     await app.harness.waitForIdle(context);
     assert.match((await modelTexts(app, id)).at(-1)!, /said no: work without the board/);
 
-    assert.match(await turn(id, "ask for the board"), /said no to the board in this session: do not ask again/);
     assert.match(await turn(id, "add a task"), /turned board mode off in this session/);
-    assert.match(prompt, /said no to a board in this session/);
+    assert.match(prompt, /said no to a board in this session.*ask again with board_mode only when they ask for a board/);
+
+    // Asked again (the person asked for a board), it is a card again.
+    const again = await app.commands.submit(id, owner(app), { text: "ask for the board", requestId: ownRequest(owner(app).id, crypto.randomUUID()) });
+
+    await until(() => app.approvals.forConversation(id).some((each) => each.tool === "board_mode"), "the second card");
+    await app.answerApproval(app.approvals.forConversation(id).find((each) => each.tool === "board_mode")!.id, true, owner(app));
+    await (await app.harness.submission(again.submissionId, context))!.wait(context);
+    await app.harness.waitForIdle(context);
+    assert.match((await modelTexts(app, id)).at(-1)!, /Board mode is on, with PP/);
+
+    // Off, on a card too.
+    const off = await app.commands.submit(id, owner(app), { text: "stop the board", requestId: ownRequest(owner(app).id, crypto.randomUUID()) });
+
+    await until(() => app.approvals.forConversation(id).some((each) => each.tool === "board_mode"), "the off card");
+    const offCard = app.approvals.forConversation(id).find((each) => each.tool === "board_mode")!;
+
+    assert.equal(offCard.subject, "Stop tracking this session on PP · pi-phone");
+    await app.answerApproval(offCard.id, true, owner(app));
+    await (await app.harness.submission(off.submissionId, context))!.wait(context);
+    await app.harness.waitForIdle(context);
+    assert.match((await modelTexts(app, id)).at(-1)!, /Board mode is off here/);
 
     // The session's switch turns it on after all.
     const on = await call(app.config.ownerToken, "PUT", `board-mode/${String(id)}`, { on: true });

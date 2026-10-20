@@ -453,21 +453,46 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     const tools = [
         tool(
             "board_mode",
-            "Ask the person once whether to track this session's work on a project board (an inline card they answer). Needed before any other board tool here. Name an existing project's key, or a new key with a name to create it.",
+            "Turn board mode on in this session (track its work on a project board), or off (off: true), after the person says yes on an inline card. Needed before any other board tool here. Name an existing project's key, or a new key with a name to create it. After a no, ask again only when the person asks for a board.",
             Type.Object({
                 project: Type.String({ description: "The project's key (PP); a new one is made when the person agrees" }),
                 name: Type.Optional(Type.String({ description: "A new project's name" })),
                 reason: Type.String({ description: "What you would track, in a sentence: shown on the card" }),
+                off: Type.Optional(Type.Boolean({ description: "Turn board mode off here instead" })),
             }),
             async (args, conversationId, api, context) => {
                 const mode = projects.boardMode(conversationId);
 
-                if (mode?.on === true) {
-                    return `Board mode is already on here${mode.project === null ? "" : `, with ${mode.project.key}`}.`;
+                if (args.off === true) {
+                    if (mode?.on !== true) {
+                        return "Board mode is already off here.";
+                    }
+
+                    const off = await host.approvals.request(
+                        {
+                            id: `board-mode-${conversationId}-${String(api.callId)}`,
+                            conversationId: Number(conversationId) as never,
+                            taskId: api.taskId as never,
+                            ...(api.callId === undefined ? {} : { callId: api.callId }),
+                            tool: "board_mode",
+                            subject: `Stop tracking this session on ${mode.project === null ? "the board" : `${mode.project.key} · ${mode.project.name}`}`,
+                            reason: args.reason,
+                            createdAt: Date.now(),
+                        },
+                        context,
+                    );
+
+                    if (!off.allow) {
+                        return `${off.by} said no: board mode stays on.`;
+                    }
+
+                    projects.setBoardMode({ kind: "person", person: piOf(conversationId).person }, conversationId, false, mode.project?.key ?? null);
+
+                    return "Board mode is off here: work without the board.";
                 }
 
-                if (mode !== undefined) {
-                    throw new HttpError(409, "The person said no to the board in this session: do not ask again. They can turn it on from the session menu.");
+                if (mode?.on === true) {
+                    return `Board mode is already on here${mode.project === null ? "" : `, with ${mode.project.key}`}.`;
                 }
 
                 const actor = piOf(conversationId);
@@ -499,7 +524,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 if (!answer.allow) {
                     projects.setBoardMode(person, conversationId, false, existing === undefined ? null : key);
 
-                    return `${answer.by === "superseded" ? "The question was replaced" : `${answer.by} said no`}: work without the board in this session, and do not ask again.`;
+                    return `${answer.by === "superseded" ? "The question was replaced" : `${answer.by} said no`}: work without the board in this session; ask again only if they ask for one.`;
                 }
 
                 if (existing === undefined) {
@@ -1048,7 +1073,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 }
 
                 if (mode !== undefined) {
-                    return "Projects: the person said no to a board in this session. Work without it and do not ask again; they can turn it on from the session menu.";
+                    return "Projects: the person said no to a board in this session. Work without it; ask again with board_mode only when they ask for a board (they can also turn it on from the session menu).";
                 }
 
                 return "Projects: the person keeps project boards (project_list). When work here has several parts worth tracking, or they ask you to track or remember something, ask once with board_mode before using any board tool. Do not ask for one-off questions or small changes.";
