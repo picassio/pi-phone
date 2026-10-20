@@ -410,7 +410,7 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
   OfficeCLI's pi-phone notes point to it.
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
-  Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` picks the platform (`phone` on Android, else `server`). On a
+  Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from
   `chrome-renderer.ts` (a headless Chrome that takes the render requests the phone's service would, and signs in only to
   the app's own address), OfficeCLI is the Linux build, and there is no Tailscale serving. Its tools are fetched by

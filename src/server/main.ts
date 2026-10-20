@@ -7,7 +7,8 @@
  *
  * `--platform`: `phone` (on Android: Pi's browser is the app's WebView, screenshots come from the app's service, Tailscale
  * serving) or `server` (anywhere else, the server edition, PP-20: Pi's browser and screenshots use a headless Chrome from
- * native/<os-arch>/, OfficeCLI from there too, no Tailscale serving). Default: `phone` on Android, else `server`.
+ * native/<os-arch>/, OfficeCLI from there too, no Tailscale serving). Default `phone`: the server edition is asked for
+ * (`--platform server`, or `PI_PHONE_PLATFORM=server` as its Docker image sets).
  */
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { createServer } from "node:http";
@@ -39,7 +40,7 @@ function parseArgs(argv: string[]) {
         cwd: process.cwd(),
         data: dataDir(),
         rotateToken: false,
-        platform: (process.env.PI_PHONE_PLATFORM ?? (process.platform === "android" ? "phone" : "server")) as "phone" | "server",
+        platform: (process.env.PI_PHONE_PLATFORM ?? "phone") as "phone" | "server",
     };
 
     for (let index = 0; index < argv.length; index++) {
