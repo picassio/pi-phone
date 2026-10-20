@@ -22,6 +22,10 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
+import androidx.webkit.ProfileStore;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -49,13 +53,17 @@ import java.util.function.Supplier;
  * `about:blank#<marker>` it first loads.
  *
  * Each WebView lives in a Presentation on a private virtual display the size of the page, so its compositor draws every
- * frame (DevTools' screencast and screenshots come from there) with the app in the background or the screen off. It never
+ * frame (DevTools' screencast and screenshots come from there) with the app in the background or the screen off. Every
+ * tab is in the WebView profile PROFILE: its cookies, storage, and sign-ins are its own, apart from the app's (whose
+ * sign-in to this server a page must never ride on), and they stay across restarts. It never
  * loads this device or its local network: the app's own server is there, and a page could act as the owner.
  */
 final class PiBrowser {
 
     private static final String TAG = "pi-browser";
     private static final String BASE = "http://127.0.0.1:" + PiService.PORT;
+    /** The WebView profile Pi's tabs use. */
+    static final String PROFILE = "pi-browser";
 
     private final Context context;
     private final Supplier<String> token;
@@ -172,6 +180,9 @@ final class PiBrowser {
     /** Make a tab: a WebView of its own, on a display of its own (main thread). */
     private void open(String marker, int width, int height) {
         if (tabs.containsKey(marker)) return;
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            throw new IllegalStateException("Pi's browser needs a newer Android System WebView (110 or later): update it in the Play Store");
+        }
         Tab tab = new Tab();
         float density = context.getResources().getDisplayMetrics().density;
         int dpi = context.getResources().getDisplayMetrics().densityDpi;
@@ -194,6 +205,9 @@ final class PiBrowser {
         window.show();
 
         WebView view = new WebView(window.getContext());
+        // Before anything else on the view: the profile is set once, for its life.
+        ProfileStore.getInstance().getOrCreateProfile(PROFILE);
+        WebViewCompat.setProfile(view, PROFILE);
         view.setBackgroundColor(Color.WHITE);
         WebSettings settings = view.getSettings();
         settings.setJavaScriptEnabled(true);

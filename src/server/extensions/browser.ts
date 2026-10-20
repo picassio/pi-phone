@@ -507,7 +507,7 @@ export default function createBrowser(host: PocketHost) {
         }),
         defineTool({
             name: "browser_close",
-            description: "Close Pi's browser (its page and what it was signed in to for now). The next browser_open starts it again.",
+            description: "Close Pi's browser and every tab; its sign-ins stay for next time. The next browser_open starts it again.",
             parameters: Type.Object({}),
             execute: async (_args, api, context) => {
                 const owner = mayBrowse(api.conversationId);

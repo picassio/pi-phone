@@ -73,7 +73,7 @@ No Termux, no laptop, no cloud VM.
   Each click is checked first: the element as read, still in view, nothing over it. You watch it live in the Browser panel (beside the conversation on wide screens, where
   it opens by itself when Pi starts browsing; on a phone, a small live preview above the message box opens it), and can
   **Take over** (your taps and typing go to the page) and **Hand back**. It never opens this phone or its local network,
-  and only works for what the owner asks.
+  keeps its cookies and sign-ins in a WebView profile of its own (apart from the app's), and only works for what the owner asks.
   **`browser_run`** carries out a whole goal on its own, a step at a time: each step is decided by the run model you
   pick in Settings › Pi's browser (the session's own model, or Jev, TypeSafe's decision model through OpenRouter:
   about a second and $0.00003 a step), for every session or one. It types only values Pi supplies, stops with
