@@ -121,7 +121,9 @@ final class PiBrowser {
                 try {
                     if (op.equals("open")) {
                         open(request.getString("marker"), request.getInt("width"), request.getInt("height"));
-                        reply.put("pid", Process.myPid()).put("marker", marker);
+                        // A page kept from before (the server restarted, the app did not) has moved on from its marker:
+                        // its address now finds it too.
+                        reply.put("pid", Process.myPid()).put("marker", marker).put("url", page.getUrl() == null ? "" : page.getUrl());
                     } else if (op.equals("close")) {
                         close();
                     } else {

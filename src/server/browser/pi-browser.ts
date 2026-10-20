@@ -67,13 +67,14 @@ export class PhoneEngine implements BrowserEngine {
         const socket = `\0webview_devtools_remote_${pid}`;
         const until = Date.now() + 10_000;
 
-        // The WebView's page shows in the DevTools list once it loaded `about:blank#<marker>`; a page kept from before
-        // keeps the marker it was opened with, so the service answers with that one.
+        // The WebView's page shows in the DevTools list once it loaded `about:blank#<marker>`. A page kept from before (the
+        // server restarted, the app did not) answers with its first marker and the address it is at now.
         const wanted = typeof answer.marker === "string" ? answer.marker : marker;
 
         while (Date.now() < until) {
             const targets = (await getJson({ socketPath: socket, path: "/json/list" })) as { id: string; url: string; webSocketDebuggerUrl?: string }[];
-            const target = targets.find((each) => each.url.includes(wanted)) ?? targets.find((each) => each.id === answer.target);
+            const url = typeof answer.url === "string" && answer.url !== "" ? answer.url : undefined;
+            const target = targets.find((each) => each.url.includes(wanted) || (url !== undefined && each.url === url));
 
             if (target !== undefined) {
                 return Cdp.connect({ socket, path: `/devtools/page/${target.id}` });
