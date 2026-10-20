@@ -25,6 +25,7 @@ import {
     TRANSCRIPT_ROWS,
 } from "./store.js";
 import { setBrowserOpen } from "./browser-panel.js";
+import { BrowserRunCard } from "./browser-run-card.js";
 import { openSubagent, stateOf } from "./subagents.js";
 import { prefs } from "./theme.js";
 import {
@@ -1022,6 +1023,10 @@ function ToolStep({
                 </button>`
             }
         </div>
+        ${
+            call.name === "browser_run" &&
+            html`<${BrowserRunCard} args=${args} status=${status} resultText=${resultText ?? slot?.output} conversationId=${conversationId} />`
+        }
         ${
             decision &&
             html`<div

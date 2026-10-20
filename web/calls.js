@@ -75,6 +75,51 @@ export function describeCall(call) {
 
             return { icon: "?", label: args.async === true ? "Interview, answered later" : "Interview", subject: title };
         }
+        // Pi's browser (extensions/browser.ts): what it did, and to what.
+        case "browser_open":
+            return { icon: "◍", label: "Opens", subject: String(args.url ?? "").replace(/^https?:\/\//, ""), mono: true };
+        case "browser_new_tab":
+            return { icon: "◍", label: "New tab", subject: String(args.url ?? "blank").replace(/^https?:\/\//, ""), mono: true };
+        case "browser_snapshot":
+            return { icon: "◍", label: "Reads", subject: "the page" };
+        case "browser_text":
+            return { icon: "◍", label: "Reads", subject: "the whole page" };
+        case "browser_screenshot":
+            return { icon: "◍", label: "Looks at", subject: "the page" };
+        case "browser_click":
+            return { icon: "◍", label: "Clicks", subject: `[${args.index ?? ""}]` };
+        case "browser_hover":
+            return { icon: "◍", label: "Points at", subject: `[${args.index ?? ""}]` };
+        case "browser_type":
+            return { icon: "◍", label: "Types", subject: `“${short(args.text ?? "", 60)}” into [${args.index ?? ""}]` };
+        case "browser_select":
+            return { icon: "◍", label: "Chooses", subject: `“${args.option ?? ""}” in [${args.index ?? ""}]` };
+        case "browser_scroll":
+            return { icon: "◍", label: "Scrolls", subject: args.direction ?? "down" };
+        case "browser_press":
+            return { icon: "◍", label: "Presses", subject: args.key ?? "" };
+        case "browser_back":
+            return { icon: "◍", label: "Goes back", subject: "" };
+        case "browser_forward":
+            return { icon: "◍", label: "Goes forward", subject: "" };
+        case "browser_wait":
+            return { icon: "◍", label: "Waits", subject: args.text ? `for “${args.text}”` : `${args.seconds ?? 1} s` };
+        case "browser_upload":
+            return { icon: "◍", label: "Uploads", subject: (args.paths ?? []).join(", "), mono: true };
+        case "browser_save_pdf":
+            return { icon: "◍", label: "Saves PDF", subject: args.path ?? "", mono: true };
+        case "browser_tabs":
+            return { icon: "◍", label: "Tabs", subject: args.close ? `closes ${args.close}` : args.switch_to ? `to ${args.switch_to}` : "lists them" };
+        case "browser_close":
+            return { icon: "◍", label: "Closes", subject: "Pi's browser" };
+        case "browser_run":
+            return { icon: "◍", label: "Browser run", subject: short(args.goal ?? "", 100) };
+        case "browser_sign_in":
+            return { icon: "◍", label: "Asks you", subject: "to sign in" };
+        case "browser_ask_code":
+            return { icon: "◍", label: "Asks you", subject: "for a code" };
+        case "browser_ask_user":
+            return { icon: "◍", label: "Asks you", subject: short(args.instruction ?? "", 100) };
         case "web_search": {
             const queries = [...(args.query ? [args.query] : []), ...(args.queries ?? [])];
 

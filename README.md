@@ -77,7 +77,8 @@ No Termux, no laptop, no cloud VM.
   **`browser_run`** carries out a whole goal on its own, a step at a time: each step is decided by the run model you
   pick in Settings › Pi's browser (the session's own model, or Jev, TypeSafe's decision model through OpenRouter:
   about a second and $0.00003 a step), for every session or one. It types only values Pi supplies, stops with
-  a reason Pi can act on (a value it needs, blocked, stuck, not visibly done), and Jev's cost counts in Spend.
+  a reason Pi can act on (a value it needs, blocked, stuck, not visibly done), and Jev's cost counts in Spend. A live card in the
+  conversation shows its goal, each step as it happens, the time and cost, and Watch.
   **Signing in stays yours:** Pi never types a password or a code. `browser_sign_in` puts a card in the
   conversation where you type the username and password (or use one kept in Secrets with Remember), and they go
   straight into the page; `browser_ask_code` does the same for a one-time code; `browser_ask_user` hands you the page

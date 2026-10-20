@@ -519,7 +519,7 @@ export function report(result: RunResult, decider: string, page: string): string
     const head =
         result.status === "done"
             ? `Done in ${result.steps.length} ${result.steps.length === 1 ? "step" : "steps"}`
-            : `Stopped (${result.reason}) after ${result.steps.length} ${result.steps.length === 1 ? "step" : "steps"}${result.detail ? `: ${result.detail}` : ""}`;
+            : `Stopped (${result.reason}) after ${result.steps.length} ${result.steps.length === 1 ? "step" : "steps"}${result.detail ? `: ${result.detail.replace(/\.+$/, "")}` : ""}`;
     const lines = result.steps.map((step) => `${step.step}. ${step.did}${step.ok === false ? " (it did not seem to work)" : ""}`);
 
     return [

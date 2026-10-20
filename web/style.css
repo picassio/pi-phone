@@ -16457,3 +16457,100 @@ pre.gallery-code {
     background: var(--raised);
     color: var(--text);
 }
+
+/* A browser_run's live card on the timeline (browser-run-card.js): how it goes, its goal, its steps, Watch. */
+.pr-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 2px 14px 8px calc(var(--timeline-x) + var(--step-mark-size) / 2 + var(--step-gap));
+    padding: 10px 12px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+    background: var(--card);
+    font-size: 13px;
+}
+
+.pr-card[data-state="done"] {
+    border-color: color-mix(in srgb, var(--ok) 35%, var(--hair));
+}
+
+.pr-card[data-state="stopped"] {
+    border-color: var(--warn-line);
+}
+
+.pr-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.pr-mark {
+    display: inline-flex;
+    flex: none;
+    color: var(--muted);
+}
+
+.pr-card[data-state="done"] .pr-mark {
+    color: var(--ok);
+}
+
+.pr-card[data-state="stopped"] .pr-mark {
+    color: var(--warn);
+}
+
+.pr-title {
+    flex: none;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.pr-meta {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--faint);
+}
+
+.pr-goal {
+    margin: 0;
+    color: var(--muted);
+}
+
+.pr-steps {
+    margin: 0;
+    padding-left: 22px;
+    color: var(--text);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.pr-now {
+    color: var(--accent);
+    font-size: 12.5px;
+}
+
+.pr-detail {
+    color: var(--warn);
+    font-size: 12.5px;
+}
+
+@media (max-width: 480px) {
+    .pr-head {
+        flex-wrap: wrap;
+    }
+
+    .pr-title {
+        flex: 1;
+    }
+
+    .pr-meta {
+        order: 3;
+        flex-basis: 100%;
+        white-space: normal;
+    }
+}
