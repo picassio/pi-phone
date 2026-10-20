@@ -1,15 +1,20 @@
 # pi-phone server edition behind Caddy (HTTPS). See deploy/README.md.
 #
-#   cd deploy && PI_HOST=devbox.example.ts.net docker compose up -d
+#   cd deploy && PI_HOST=devbox.example.ts.net docker compose up -d --build
+#
+# The image is built here, on this machine, from the repository (the owner's decision, 2026-10-20: not in CI).
+# DEBIAN_MIRROR picks a nearer Debian mirror for the build (http://debian.xtdv.net/debian in Vietnam).
 #
 # PI_HOST is the name people open. PI_TLS picks Caddy's certificate: `auto` (Let's Encrypt for a public name, or
 # Tailscale's for a *.ts.net name, with the tailscaled socket mounted below) or `internal` (Caddy's own CA, which each
 # device must trust).
 services:
   pi-phone:
-    image: ghcr.io/picassio/pi-phone-server:${PI_PHONE_TAG:-latest}
+    image: pi-phone-server:local
     build:
       context: ..
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-http://deb.debian.org/debian}
     restart: unless-stopped
     volumes:
       - pi-phone-data:/data

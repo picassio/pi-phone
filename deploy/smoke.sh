@@ -1,8 +1,8 @@
 #!/bin/sh
-# Smoke test of a server edition image (CI runs it on each build; deploy/README.md): a fresh container serves the app,
+# Smoke test of a server edition image, after a local build (deploy/README.md): a fresh container serves the app,
 # carries its tools, and Pi's browser and the screenshot renderer work in it (deploy/smoke.ts).
 #
-#   deploy/smoke.sh pi-phone-server:dev
+#   deploy/smoke.sh pi-phone-server:local
 set -eu
 image="$1"
 name="pi-phone-smoke-$$"

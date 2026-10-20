@@ -110,39 +110,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # The server edition (PP-20, deploy/README.md): its image, built and smoke-tested on every build, and published to
-  # GHCR from master as build-<n> and latest, only once the tests passed.
-  server-image:
-    needs: [check]
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    permissions:
-      contents: read
-      packages: write
-    env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/pi-phone-server
-    steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-buildx-action@v3
-      - name: Build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          load: true
-          tags: pi-phone-server:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Smoke test
-        run: deploy/smoke.sh pi-phone-server:ci
-      - name: Publish
-        if: github.ref == 'refs/heads/master'
-        run: |
-          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          for tag in "build-${{ github.run_number }}" latest; do
-            docker tag pi-phone-server:ci "$IMAGE:$tag"
-            docker push "$IMAGE:$tag"
-          done
-
   # Phones update from the latest release (android/.../Updater.java): only a build whose tests passed becomes one.
   release:
     # A run by hand (workflow_dispatch) releases too: how changes to Markdown alone, which ship in the runtime, reach the app.

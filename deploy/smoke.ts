@@ -1,4 +1,4 @@
-// The server edition image's smoke test (deploy/smoke.sh runs it inside a fresh container, as CI does): Pi's browser opens
+// The server edition image's smoke test (deploy/smoke.sh runs it inside a fresh container): Pi's browser opens
 // a site and switches to desktop, and the screenshot renderer pictures the app's own page, signed in, at phone and
 // desktop widths with a clean layout check. Exits non-zero when any of it fails.
 import { readFileSync } from "node:fs";

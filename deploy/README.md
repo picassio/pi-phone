@@ -19,7 +19,7 @@ What changes from the phone:
 
 You need Docker with Compose on a Linux machine (x64 or arm64), and a name for it that your devices trust over HTTPS.
 
-1. Get `deploy/compose.yaml` and `deploy/Caddyfile` (a clone of this repository, or just those two files).
+1. Clone this repository on the machine: the image is built there (`docker compose ... --build`).
 2. Pick the name and the certificate:
    - **A public name** (`pi.example.com`, pointing at the machine, with ports 80 and 443 open): `PI_HOST=pi.example.com`.
      Caddy gets a Let's Encrypt certificate by itself.
@@ -32,8 +32,10 @@ You need Docker with Compose on a Linux machine (x64 or arm64), and a name for i
 
    ```bash
    cd deploy
-   PI_HOST=devbox.your-tailnet.ts.net docker compose up -d
+   PI_HOST=devbox.your-tailnet.ts.net docker compose up -d --build
    ```
+
+   Add `DEBIAN_MIRROR=http://debian.xtdv.net/debian` (or another mirror near you) when deb.debian.org is slow from there.
 
 4. Find your sign-in link (the owner's: keep it private) and open it once per browser:
 
@@ -48,19 +50,14 @@ Then use it as the README's "Use it" says. Pi can change settings for you on a c
 
 ## Update, back up, restart
 
-- **Update:** `docker compose pull && docker compose up -d`. Sessions resume where they stopped. `PI_PHONE_TAG=build-<n>`
-  pins a release.
+- **Update:** `git pull` in the clone, then `docker compose up -d --build` (with the same `PI_HOST`). Sessions resume where
+  they stopped.
 - **Back up:** ⋯ › This phone › Back up, as on the phone. Or copy the `pi-phone-data` volume while it is stopped.
 - **Restart:** the app's own restart (Pi's `app_action server.restart`, after your OK) exits the server; Docker starts it
   again (`restart: unless-stopped`).
 
-## Build it yourself
+## Smoke test
 
-```bash
-docker build -t pi-phone-server .                                                  # from the repository
-docker build --build-arg DEBIAN_MIRROR=http://debian.xtdv.net/debian -t pi-phone-server .  # with a nearer Debian mirror
-deploy/smoke.sh pi-phone-server                                                    # the smoke test CI runs
-```
-
-CI builds and smoke-tests the image on every build, and publishes `ghcr.io/picassio/pi-phone-server:build-<n>` and
-`:latest` from master once the tests passed.
+After a build, `deploy/smoke.sh pi-phone-server:local` checks the image in a fresh container: it serves, carries its
+tools, and Pi's browser and screenshots work in it. CI doesn't build the image; it runs the server's tests, Chrome's
+included.
