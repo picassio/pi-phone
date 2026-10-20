@@ -1,14 +1,14 @@
 /**
- * Pi's browser: one page Pi reads and acts on (`page.ts`), that people watch live (the Browser panel's frames) and can
- * take over. The page comes from an engine: on the phone, a WebView of the app's own that its service makes for Pi
+ * Pi's browser: the tabs Pi reads and acts on (`page.ts`), that people watch live (the Browser panel's frames) and can
+ * take over. Tabs come from an engine: on the phone, WebViews of the app's own that its service makes for Pi
  * (`PiBrowser.java`), reached over the WebView's DevTools socket; elsewhere (tests, a computer), a headless Chrome.
- * Pi's actions run one at a time; frames flow only while someone watches.
+ * Pi's actions run one at a time, on the tab in front; frames flow only while someone watches.
  */
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { PhoneRequests } from "../phone-requests.ts";
 import { Cdp } from "./cdp.ts";
 import { BrowserPage, type Element, type Observed, describe, elementsOf, StalePage } from "./page.ts";
@@ -16,85 +16,187 @@ import { type Decider, type RunResult, runGoal } from "./run.ts";
 
 /** The page's size in CSS pixels: a phone's, as the WebView is a phone's browser. */
 export const VIEWPORT = { width: 412, height: 860, mobile: true };
+/** Tabs open at once, at most (each is a WebView on the phone). */
+export const MAX_TABS = 6;
 
-/** Where Pi's page comes from. */
+/** Where Pi's tabs come from. */
 export interface BrowserEngine {
-    /** What it is, for messages ("the phone's WebView"). */
+    /** What it is, for messages ("the phone's browser"). */
     readonly label: string;
-    /** Make (or find again) Pi's page and connect to it. */
-    open(): Promise<Cdp>;
-    /** Remove Pi's page. */
+    /** Whether pages open tabs of their own (a link to a new window): Chrome's do; the phone's WebView opens them in place. */
+    readonly popups: boolean;
+    /** Pi's tabs there now (kept from before the server restarted, or opened by pages), by id, oldest first. */
+    tabs(): Promise<string[]>;
+    /** Make a new tab: its id. */
+    newTab(): Promise<string>;
+    /** Connect to a tab. */
+    connect(id: string): Promise<Cdp>;
+    closeTab(id: string): Promise<void>;
+    /** Close every tab (and the browser). */
     close(): Promise<void>;
+    /** The tab's page as a PDF, as printing it would make. */
+    pdf(id: string, page: BrowserPage): Promise<Buffer>;
+    /** Put a file where the browser can read it, for an upload: its path there. */
+    stage(name: string, bytes: Uint8Array): Promise<string>;
 }
 
-const getJson = (options: http.RequestOptions): Promise<unknown> =>
+const request = (options: http.RequestOptions): Promise<string> =>
     new Promise((resolve, reject) => {
-        const request = http.request({ method: "GET", headers: { host: "localhost" }, timeout: 5000, ...options }, (response) => {
+        const sent = http.request({ method: "GET", headers: { host: "localhost" }, timeout: 5000, ...options }, (response) => {
             let body = "";
 
             response.on("data", (chunk: Buffer) => (body += chunk.toString()));
-            response.on("end", () => {
-                try {
-                    resolve(JSON.parse(body));
-                } catch {
-                    reject(new Error(`The browser answered ${options.path} with no JSON.`));
-                }
-            });
+            response.on("end", () => resolve(body));
         });
 
-        request.on("error", reject);
-        request.on("timeout", () => request.destroy(new Error("The browser did not answer in time.")));
-        request.end();
+        sent.on("error", reject);
+        sent.on("timeout", () => sent.destroy(new Error("The browser did not answer in time.")));
+        sent.end();
     });
 
-/** On the phone: the app's service makes a WebView for Pi; its DevTools socket is the app's (`\0webview_devtools_remote_<pid>`). */
+const getJson = async (options: http.RequestOptions): Promise<unknown> => {
+    const body = await request(options);
+
+    try {
+        return JSON.parse(body);
+    } catch {
+        throw new Error(`The browser answered ${options.path} with no JSON.`);
+    }
+};
+
+/** Files for uploads, in this device's temporary folder (the phone's WebView and a local Chrome read them there). */
+const UPLOADS = join(tmpdir(), "pi-browser-uploads");
+
+/** Write a file for an upload, and remove ones a day old (the page reads a file when it sends it, not when it is chosen). */
+export function stageLocally(name: string, bytes: Uint8Array): string {
+    mkdirSync(UPLOADS, { recursive: true });
+
+    for (const each of readdirSync(UPLOADS)) {
+        const path = join(UPLOADS, each);
+
+        if (Date.now() - statSync(path).mtimeMs > 86_400_000) {
+            rmSync(path, { recursive: true, force: true });
+        }
+    }
+
+    const folder = join(UPLOADS, crypto.randomUUID());
+    const path = join(folder, basename(name));
+
+    mkdirSync(folder);
+    writeFileSync(path, bytes);
+
+    return path;
+}
+
+/**
+ * On the phone: the app's service makes a WebView per tab; their DevTools socket is the app's
+ * (`\0webview_devtools_remote_<pid>`). A tab's id is the marker its WebView first loaded (`about:blank#<marker>`).
+ */
 export class PhoneEngine implements BrowserEngine {
     readonly label = "the phone's browser";
+    readonly popups = false;
     readonly #requests: PhoneRequests;
+    #pid = 0;
+    /** Each tab's address as the phone last said (a tab kept from before has moved on from its marker). */
+    readonly #urls = new Map<string, string>();
+    /** The DevTools target each connected tab is, so two tabs at one address are told apart. */
+    readonly #targets = new Map<string, string>();
 
     constructor(requests: PhoneRequests) {
         this.#requests = requests;
     }
 
-    async open(): Promise<Cdp> {
-        const marker = `pi-browser-${crypto.randomUUID()}`;
-        const answer = await this.#requests.request({ op: "open", marker, width: VIEWPORT.width, height: VIEWPORT.height });
+    #socket(answer: Record<string, unknown>): string {
         const pid = Number(answer.pid);
 
         if (!Number.isInteger(pid) || pid <= 0) {
             throw new Error("The phone did not say which process its browser is in.");
         }
 
-        const socket = `\0webview_devtools_remote_${pid}`;
+        this.#pid = pid;
+
+        return `\0webview_devtools_remote_${pid}`;
+    }
+
+    async tabs(): Promise<string[]> {
+        const answer = await this.#requests.request({ op: "tabs" });
+        const tabs = (answer.tabs ?? []) as { marker: string; url: string }[];
+
+        this.#socket(answer);
+
+        for (const tab of tabs) {
+            this.#urls.set(tab.marker, tab.url);
+        }
+
+        return tabs.map((tab) => tab.marker);
+    }
+
+    async newTab(): Promise<string> {
+        const marker = `pi-browser-${crypto.randomUUID()}`;
+
+        this.#socket(await this.#requests.request({ op: "open", marker, width: VIEWPORT.width, height: VIEWPORT.height }));
+        this.#urls.set(marker, `about:blank#${marker}`);
+
+        return marker;
+    }
+
+    async connect(id: string): Promise<Cdp> {
+        const socket = `\0webview_devtools_remote_${this.#pid}`;
         const until = Date.now() + 10_000;
 
-        // The WebView's page shows in the DevTools list once it loaded `about:blank#<marker>`. A page kept from before (the
-        // server restarted, the app did not) answers with its first marker and the address it is at now.
-        const wanted = typeof answer.marker === "string" ? answer.marker : marker;
-
+        // A new tab shows in the DevTools list once it loaded `about:blank#<marker>`; one kept from before, at its address.
         while (Date.now() < until) {
-            const targets = (await getJson({ socketPath: socket, path: "/json/list" })) as { id: string; url: string; webSocketDebuggerUrl?: string }[];
-            const url = typeof answer.url === "string" && answer.url !== "" ? answer.url : undefined;
-            const target = targets.find((each) => each.url.includes(wanted) || (url !== undefined && each.url === url));
+            const targets = (await getJson({ socketPath: socket, path: "/json/list" })) as { id: string; url: string }[];
+            const taken = new Set([...this.#targets].filter(([tab]) => tab !== id).map(([, target]) => target));
+            const url = this.#urls.get(id);
+            const target = targets.find((each) => !taken.has(each.id) && (each.url.includes(id) || (url !== undefined && url !== "" && each.url === url)));
 
             if (target !== undefined) {
+                this.#targets.set(id, target.id);
+
                 return Cdp.connect({ socket, path: `/devtools/page/${target.id}` });
             }
 
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
 
-        throw new Error("The phone made its browser, but its page did not show up to connect to.");
+        throw new Error("The phone made the tab, but its page did not show up to connect to.");
+    }
+
+    async closeTab(id: string): Promise<void> {
+        this.#targets.delete(id);
+        this.#urls.delete(id);
+        await this.#requests.request({ op: "close", marker: id });
     }
 
     async close(): Promise<void> {
+        this.#targets.clear();
+        this.#urls.clear();
         await this.#requests.request({ op: "close" }).catch(() => {});
+    }
+
+    /** The WebView prints it (Android's print to PDF, without the dialog): DevTools there has no printToPDF. */
+    async pdf(id: string): Promise<Buffer> {
+        const path = join(tmpdir(), `pi-browser-${crypto.randomUUID()}.pdf`);
+
+        try {
+            await this.#requests.request({ op: "pdf", marker: id, path }, 90_000);
+
+            return readFileSync(path);
+        } finally {
+            rmSync(path, { force: true });
+        }
+    }
+
+    async stage(name: string, bytes: Uint8Array): Promise<string> {
+        return stageLocally(name, bytes);
     }
 }
 
 /** A headless Chrome of its own (tests, a computer): launched on first use, with a profile that goes with it. */
 export class ChromeEngine implements BrowserEngine {
     readonly label = "Chrome";
+    readonly popups = true;
     readonly #binary: string;
     readonly #flags: string[];
     #child: ChildProcess | undefined;
@@ -107,39 +209,74 @@ export class ChromeEngine implements BrowserEngine {
         this.#flags = flags;
     }
 
-    async open(): Promise<Cdp> {
-        if (this.#child === undefined || this.#child.exitCode !== null) {
-            this.#profile = mkdtempSync(join(tmpdir(), "pi-browser-"));
-            this.#child = spawn(
-                this.#binary,
-                ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${this.#profile}`, "--no-first-run", "--no-default-browser-check", "--disable-gpu", ...this.#flags, "about:blank"],
-                { stdio: "ignore" },
-            );
+    async #start(): Promise<number> {
+        if (this.#child !== undefined && this.#child.exitCode === null && this.#port !== undefined) {
+            return this.#port;
+        }
 
-            const until = Date.now() + 15_000;
+        this.#profile = mkdtempSync(join(tmpdir(), "pi-browser-"));
+        this.#port = undefined;
+        this.#child = spawn(
+            this.#binary,
+            ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${this.#profile}`, "--no-first-run", "--no-default-browser-check", "--disable-gpu", ...this.#flags, "about:blank"],
+            { stdio: "ignore" },
+        );
 
-            while (Date.now() < until && this.#port === undefined) {
-                try {
-                    this.#port = Number(readFileSync(join(this.#profile, "DevToolsActivePort"), "utf8").split("\n")[0]);
-                } catch {
-                    await new Promise((resolve) => setTimeout(resolve, 100));
-                }
-            }
+        // A cold start on a busy computer (CI) can take a while.
+        const until = Date.now() + 45_000;
 
-            if (this.#port === undefined) {
-                throw new Error(`Chrome (${this.#binary}) did not start.`);
+        while (Date.now() < until && this.#port === undefined) {
+            try {
+                this.#port = Number(readFileSync(join(this.#profile, "DevToolsActivePort"), "utf8").split("\n")[0]);
+            } catch {
+                await new Promise((resolve) => setTimeout(resolve, 100));
             }
         }
 
-        const targets = (await getJson({ host: "127.0.0.1", port: this.#port, path: "/json/list", headers: { host: `127.0.0.1:${this.#port}` } })) as { id: string; type: string }[];
-        const page = targets.find((each) => each.type === "page");
-
-        if (page === undefined) {
-            throw new Error("Chrome has no page to drive.");
+        if (this.#port === undefined) {
+            throw new Error(`Chrome (${this.#binary}) did not start.`);
         }
 
+        return this.#port;
+    }
+
+    async #list(): Promise<{ id: string; type: string }[]> {
+        const port = await this.#start();
+
+        return (await getJson({ host: "127.0.0.1", port, path: "/json/list", headers: { host: `127.0.0.1:${port}` } })) as { id: string; type: string }[];
+    }
+
+    async tabs(): Promise<string[]> {
+        // Chrome lists the newest first.
+        return (await this.#list())
+            .filter((each) => each.type === "page")
+            .map((each) => each.id)
+            .reverse();
+    }
+
+    async newTab(): Promise<string> {
+        const port = await this.#start();
+        const made = (await getJson({ method: "PUT", host: "127.0.0.1", port, path: "/json/new?about:blank", headers: { host: `127.0.0.1:${port}` } })) as { id: string };
+
+        return made.id;
+    }
+
+    async connect(id: string): Promise<Cdp> {
         // Its own address, not the one Chrome writes in the list (built from the request's Host header).
-        return Cdp.connect({ url: `ws://127.0.0.1:${this.#port}/devtools/page/${page.id}` });
+        return Cdp.connect({ url: `ws://127.0.0.1:${await this.#start()}/devtools/page/${id}` });
+    }
+
+    async closeTab(id: string): Promise<void> {
+        const port = await this.#start();
+
+        await request({ host: "127.0.0.1", port, path: `/json/close/${id}`, headers: { host: `127.0.0.1:${port}` } });
+
+        // Chrome closes it a moment later: until then it is still listed, and would be taken for a tab a page opened.
+        const until = Date.now() + 5000;
+
+        while (Date.now() < until && (await this.#list()).some((each) => each.id === id)) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
     }
 
     async close(): Promise<void> {
@@ -161,13 +298,26 @@ export class ChromeEngine implements BrowserEngine {
             this.#profile = undefined;
         }
     }
+
+    async pdf(_id: string, page: BrowserPage): Promise<Buffer> {
+        const printed = await page.cdp.send<{ data: string }>("Page.printToPDF", { printBackground: true });
+
+        return Buffer.from(printed.data, "base64");
+    }
+
+    async stage(name: string, bytes: Uint8Array): Promise<string> {
+        return stageLocally(name, bytes);
+    }
 }
 
-/** What the Browser panel shows: whether Pi's browser is open, where, what Pi does, and who has it. */
+/** What the Browser panel shows: whether Pi's browser is open, its tabs, what Pi does, and who has it. */
 export type BrowserState = {
     open: boolean;
     url: string;
     title: string;
+    /** Every tab, oldest first, and which is in front (0-based). */
+    tabs: { url: string; title: string }[];
+    tab: number;
     /** What Pi is doing now ("Clicking [3] Search"), or null. */
     doing: string | null;
     /** The session that used it last. */
@@ -189,17 +339,20 @@ export type PiBrowserOptions = {
     log(line: string): void;
 };
 
+/** A tab Pi has: its page, and what it read there last (for the next action's numbers). */
+type Tab = { id: string; page: BrowserPage; observed: Observed | undefined; elements: Element[]; url: string; title: string };
+
 export class PiBrowser {
     readonly #options: PiBrowserOptions;
-    #page: BrowserPage | undefined;
-    #opening: Promise<BrowserPage> | undefined;
+    #tabs: Tab[] = [];
+    /** The tab in front: Pi acts there, and people watch it. */
+    #tab: Tab | undefined;
+    #opening: Promise<Tab> | undefined;
     /** Pi's actions, one after another. */
     #queue: Promise<unknown> = Promise.resolve();
-    #observed: Observed | undefined;
-    #elements: Element[] = [];
-    #state: BrowserState = { open: false, url: "", title: "", doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height } };
+    #state: BrowserState = { open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height } };
     #watchers = 0;
-    #casting = false;
+    #casting: BrowserPage | undefined;
     #stopFrames: (() => void) | undefined;
 
     constructor(options: PiBrowserOptions) {
@@ -211,45 +364,90 @@ export class PiBrowser {
     }
 
     #set(patch: Partial<BrowserState>): void {
-        this.#state = { ...this.#state, ...patch };
+        const front = this.#tab;
+
+        this.#state = {
+            ...this.#state,
+            ...patch,
+            open: this.#tabs.length > 0,
+            tabs: this.#tabs.map((tab) => ({ url: tab.url, title: tab.title })),
+            tab: front === undefined ? 0 : Math.max(0, this.#tabs.indexOf(front)),
+            url: front?.url ?? "",
+            title: front?.title ?? "",
+        };
         this.#options.changed(this.#state);
     }
 
-    /** The page, opened on first use; a closed connection opens it again. */
-    async #ensure(): Promise<BrowserPage> {
-        if (this.#page !== undefined && !this.#page.cdp.closed) {
-            return this.#page;
+    /** Connect to a tab the engine has, and keep it. */
+    async #attach(id: string): Promise<Tab> {
+        const cdp = await this.#options.engine.connect(id);
+        const page = new BrowserPage(cdp);
+        const tab: Tab = { id, page, observed: undefined, elements: [], url: "", title: "" };
+
+        await page.init(VIEWPORT);
+        cdp.onClose = () => {
+            if (!this.#tabs.includes(tab)) {
+                return;
+            }
+
+            this.#tabs = this.#tabs.filter((each) => each !== tab);
+
+            if (this.#tab === tab) {
+                this.#front(this.#tabs.at(-1));
+            }
+
+            this.#set({ ...(this.#tabs.length === 0 ? { doing: null } : {}) });
+        };
+        cdp.on("Page.frameNavigated", (params) => {
+            const frame = params.frame as { parentId?: string; url?: string } | undefined;
+
+            if (frame !== undefined && frame.parentId === undefined) {
+                tab.url = frame.url ?? "";
+                this.#set({});
+            }
+        });
+        tab.url = await page.evaluate<string>("location.href").catch(() => "");
+        tab.title = await page.evaluate<string>("document.title").catch(() => "");
+        this.#tabs.push(tab);
+
+        return tab;
+    }
+
+    /** Bring a tab to the front: frames for those watching follow it. */
+    #front(tab: Tab | undefined): void {
+        if (this.#tab === tab) {
+            return;
+        }
+
+        this.#stopFrames?.();
+        this.#tab = tab;
+
+        // Pictures for those watching are extra: their failure never fails Pi's work.
+        if (tab !== undefined && this.#watchers > 0) {
+            void this.#startFrames().catch((error: unknown) => this.#options.log(`browser frames: ${String(error)}`));
+        }
+    }
+
+    /** The tab in front, opened on first use: the tabs the engine kept (a server restart), or a new one. */
+    async #ensure(): Promise<Tab> {
+        if (this.#tab !== undefined && !this.#tab.page.cdp.closed) {
+            return this.#tab;
         }
 
         this.#opening ??= (async () => {
-            const cdp = await this.#options.engine.open();
-            const page = new BrowserPage(cdp);
+            const engine = this.#options.engine;
+            const kept = await engine.tabs();
 
-            await page.init(VIEWPORT);
-            cdp.onClose = () => {
-                if (this.#page === page) {
-                    this.#page = undefined;
-                    this.#casting = false;
-                    this.#observed = undefined;
-                    this.#set({ open: false, doing: null });
+            for (const id of kept.length === 0 ? [await engine.newTab()] : kept) {
+                if (!this.#tabs.some((tab) => tab.id === id)) {
+                    await this.#attach(id);
                 }
-            };
-            cdp.on("Page.frameNavigated", (params) => {
-                const frame = params.frame as { parentId?: string; url?: string } | undefined;
-
-                if (frame !== undefined && frame.parentId === undefined) {
-                    this.#set({ url: frame.url ?? "" });
-                }
-            });
-            this.#page = page;
-            this.#set({ open: true });
-
-            // Pictures for those watching are extra: their failure never fails Pi's work.
-            if (this.#watchers > 0) {
-                void this.#startFrames().catch((error: unknown) => this.#options.log(`browser frames: ${String(error)}`));
             }
 
-            return page;
+            this.#front(this.#tabs.at(-1));
+            this.#set({});
+
+            return this.#tab!;
         })().finally(() => {
             this.#opening = undefined;
         });
@@ -257,8 +455,26 @@ export class PiBrowser {
         return this.#opening;
     }
 
-    /** Run one of Pi's actions after the ones before, with what it is doing shown in the panel. */
-    #run<T>(session: number, doing: string, work: (page: BrowserPage) => Promise<T>): Promise<T> {
+    /**
+     * Tabs a page opened (a link to a new window, in Chrome): kept, and the newest brought to the front, as a person's
+     * browser shows it. Answers what to tell Pi.
+     */
+    async #adoptPopups(): Promise<string> {
+        if (!this.#options.engine.popups || this.#tabs.length === 0) {
+            return "";
+        }
+
+        const fresh = (await this.#options.engine.tabs()).filter((id) => !this.#tabs.some((tab) => tab.id === id));
+
+        for (const id of fresh) {
+            this.#front(await this.#attach(id));
+        }
+
+        return fresh.length === 0 ? "" : `The page opened ${fresh.length === 1 ? "a new tab" : `${fresh.length} new tabs`}; now on tab ${this.#tabs.length} of ${this.#tabs.length}.\n`;
+    }
+
+    /** Run one of Pi's actions after the ones before, on the tab in front, with what it is doing shown in the panel. */
+    #run<T>(session: number, doing: string, work: (tab: Tab) => Promise<T>): Promise<T> {
         const next = this.#queue.then(async () => {
             if (this.#state.takenOver) {
                 throw new Error("The person took over Pi's browser: wait until they hand it back (or ask them to).");
@@ -278,57 +494,63 @@ export class PiBrowser {
         return next;
     }
 
-    /** Read the page, keep what was read (for the next action's numbers), and describe it for Pi. */
-    async #read(page: BrowserPage): Promise<string> {
+    /** Read the tab in front (after taking in tabs the page opened), keep what was read, and describe it for Pi. */
+    async #read(): Promise<string> {
+        const opened = await this.#adoptPopups();
+        const tab = this.#tab ?? (await this.#ensure());
+        const page = tab.page;
         const observed = await page.observe();
 
-        this.#observed = observed;
-        this.#elements = elementsOf(observed);
-        this.#set({ url: observed.url, title: observed.title });
+        tab.observed = observed;
+        tab.elements = elementsOf(observed);
+        tab.url = observed.url;
+        tab.title = observed.title;
+        this.#set({});
 
         const dialog = page.dialog;
 
         page.dialog = undefined;
 
-        return `${dialog === undefined ? "" : `The page showed a dialog (${dialog}); it was ${page.acceptDialogs ? "accepted" : "declined"}.\n`}${describe(observed, this.#elements)}`;
+        return `${opened}${this.#tabs.length > 1 ? `Tab ${this.#tabs.indexOf(tab) + 1} of ${this.#tabs.length}. ` : ""}${dialog === undefined ? "" : `The page showed a dialog (${dialog}); it was ${page.acceptDialogs ? "accepted" : "declined"}.\n`}${describe(observed, tab.elements)}`;
     }
 
     #element(index: number): { observed: Observed; element: Element } {
-        const observed = this.#observed;
-        const element = this.#elements.find((each) => each.index === index);
+        const observed = this.#tab?.observed;
+        const elements = this.#tab?.elements ?? [];
+        const element = elements.find((each) => each.index === index);
 
         if (observed === undefined) {
             throw new Error("Read the page first (browser_snapshot or browser_open).");
         }
 
         if (element === undefined) {
-            throw new Error(`There is no [${index}] on the page as last read (it has ${this.#elements.length}).`);
+            throw new Error(`There is no [${index}] on the page as last read (it has ${elements.length}).`);
         }
 
         return { observed, element };
     }
 
     open(session: number, url: string): Promise<string> {
-        return this.#run(session, `Opening ${url}`, async (page) => {
-            await page.navigate(url);
+        return this.#run(session, `Opening ${url}`, async (tab) => {
+            await tab.page.navigate(url);
 
-            return this.#read(page);
+            return this.#read();
         });
     }
 
     snapshot(session: number): Promise<string> {
-        return this.#run(session, "Reading the page", (page) => this.#read(page));
+        return this.#run(session, "Reading the page", () => this.#read());
     }
 
     /** What Pi is doing to [index], named as the page last read it. */
     #doing(verb: string, index: number): string {
-        const element = this.#elements.find((each) => each.index === index);
+        const element = this.#tab?.elements.find((each) => each.index === index);
 
         return `${verb} [${index}]${element === undefined ? "" : ` ${element.label}`}`;
     }
 
     click(session: number, index: number, acceptDialog = false): Promise<string> {
-        return this.#run(session, this.#doing("Clicking", index), async (page) => {
+        return this.#run(session, this.#doing("Clicking", index), async ({ page }) => {
             const { observed, element } = this.#element(index);
 
             page.acceptDialogs = acceptDialog;
@@ -336,48 +558,74 @@ export class PiBrowser {
             try {
                 await page.click(observed, element);
 
-                return this.#read(page);
+                return await this.#read();
             } finally {
                 page.acceptDialogs = false;
             }
         });
     }
 
+    hover(session: number, index: number): Promise<string> {
+        return this.#run(session, this.#doing("Pointing at", index), async ({ page }) => {
+            const { observed, element } = this.#element(index);
+
+            await page.hover(observed, element);
+
+            return this.#read();
+        });
+    }
+
     type(session: number, index: number, text: string, options: { clear?: boolean; submit?: boolean }): Promise<string> {
-        return this.#run(session, this.#doing("Typing into", index), async (page) => {
+        return this.#run(session, this.#doing("Typing into", index), async ({ page }) => {
             const { observed, element } = this.#element(index);
 
             await page.type(observed, element, text, options);
 
-            return this.#read(page);
+            return this.#read();
         });
     }
 
     select(session: number, index: number, option: string): Promise<string> {
-        return this.#run(session, this.#doing(`Choosing ${JSON.stringify(option)} in`, index), async (page) => {
+        return this.#run(session, this.#doing(`Choosing ${JSON.stringify(option)} in`, index), async ({ page }) => {
             const { observed, element } = this.#element(index);
             const chosen = await page.select(observed, element, option);
 
-            return `Chose ${JSON.stringify(chosen)}.\n${await this.#read(page)}`;
+            return `Chose ${JSON.stringify(chosen)}.\n${await this.#read()}`;
+        });
+    }
+
+    /** Files (name and bytes, from wherever the session works) into a file field or the button that opens one. */
+    upload(session: number, index: number, files: { name: string; bytes: Uint8Array }[]): Promise<string> {
+        return this.#run(session, this.#doing(`Uploading ${files.map((file) => file.name).join(", ")} with`, index), async ({ page }) => {
+            const { observed, element } = this.#element(index);
+            const paths: string[] = [];
+
+            for (const file of files) {
+                paths.push(await this.#options.engine.stage(file.name, file.bytes));
+            }
+
+            await page.upload(observed, element, paths);
+
+            return `Chose ${files.map((file) => file.name).join(", ")}.\n${await this.#read()}`;
         });
     }
 
     scroll(session: number, direction: "up" | "down", screens: number): Promise<string> {
-        return this.#run(session, `Scrolling ${direction}`, async (page) => {
+        return this.#run(session, `Scrolling ${direction}`, async ({ page }) => {
             await page.scroll(direction, screens);
 
-            return this.#read(page);
+            return this.#read();
         });
     }
 
     press(session: number, key: string, acceptDialog = false): Promise<string> {
-        return this.#run(session, `Pressing ${key}`, async (page) => {
+        return this.#run(session, `Pressing ${key}`, async ({ page }) => {
             page.acceptDialogs = acceptDialog;
 
             try {
                 await page.press(key);
 
-                return this.#read(page);
+                return await this.#read();
             } finally {
                 page.acceptDialogs = false;
             }
@@ -385,28 +633,111 @@ export class PiBrowser {
     }
 
     history(session: number, step: -1 | 1): Promise<string> {
-        return this.#run(session, step < 0 ? "Going back" : "Going forward", async (page) => {
+        return this.#run(session, step < 0 ? "Going back" : "Going forward", async ({ page }) => {
             if (!(await page.history(step))) {
-                return `There is no page to go ${step < 0 ? "back" : "forward"} to.\n${await this.#read(page)}`;
+                return `There is no page to go ${step < 0 ? "back" : "forward"} to.\n${await this.#read()}`;
             }
 
-            return this.#read(page);
+            return this.#read();
         });
     }
 
     text(session: number, max: number): Promise<{ title: string; url: string; text: string; cut: boolean }> {
-        return this.#run(session, "Reading the whole page", (page) => page.text(max));
+        return this.#run(session, "Reading the whole page", ({ page }) => page.text(max));
     }
 
     screenshot(session: number): Promise<string> {
-        return this.#run(session, "Looking at the page", (page) => page.screenshot());
+        return this.#run(session, "Looking at the page", ({ page }) => page.screenshot());
+    }
+
+    /** The page in front as a PDF. */
+    pdf(session: number): Promise<{ pdf: Buffer; title: string; url: string }> {
+        return this.#run(session, "Saving the page as a PDF", async (tab) => ({ pdf: await this.#options.engine.pdf(tab.id, tab.page), title: tab.title, url: tab.url }));
     }
 
     wait(session: number, wait: { text?: string; seconds?: number }): Promise<string> {
-        return this.#run(session, wait.text ? `Waiting for ${JSON.stringify(wait.text)}` : "Waiting", async (page) => {
+        return this.#run(session, wait.text ? `Waiting for ${JSON.stringify(wait.text)}` : "Waiting", async ({ page }) => {
             const showed = await page.wait(wait);
 
-            return `${showed ? "" : `${JSON.stringify(wait.text)} did not show within 30 seconds.\n`}${await this.#read(page)}`;
+            return `${showed ? "" : `${JSON.stringify(wait.text)} did not show within 30 seconds.\n`}${await this.#read()}`;
+        });
+    }
+
+    // ─── Tabs ─────────────────────────────────────────────────────────────────
+
+    /** The tabs, numbered from 1, and which is in front. */
+    #tabList(): string {
+        return this.#tabs.map((tab, index) => `${tab === this.#tab ? "→" : " "} ${index + 1}. ${tab.title || "(no title)"} — ${tab.url}`).join("\n");
+    }
+
+    tabs(session: number): Promise<string> {
+        return this.#run(session, "Listing the tabs", async () => `Tabs (→ in front):\n${this.#tabList()}`);
+    }
+
+    /** Open a new tab in front (at an address, or blank). */
+    newTab(session: number, url: string | undefined): Promise<string> {
+        return this.#run(session, url === undefined ? "Opening a new tab" : `Opening ${url} in a new tab`, async () => {
+            if (this.#tabs.length >= MAX_TABS) {
+                throw new Error(`Pi's browser has ${MAX_TABS} tabs open, the most it keeps: close one first (browser_tabs with close).`);
+            }
+
+            const tab = await this.#attach(await this.#options.engine.newTab());
+
+            this.#front(tab);
+            this.#set({});
+
+            if (url !== undefined) {
+                await tab.page.navigate(url);
+            }
+
+            return this.#read();
+        });
+    }
+
+    /** Bring tab `number` (from 1) to the front. */
+    switchTab(session: number, number: number): Promise<string> {
+        return this.#run(session, `Switching to tab ${number}`, async () => {
+            const tab = this.#tabs[number - 1];
+
+            if (tab === undefined) {
+                throw new Error(`There is no tab ${number}: Pi's browser has ${this.#tabs.length}.\n${this.#tabList()}`);
+            }
+
+            this.#front(tab);
+            this.#set({});
+
+            return this.#read();
+        });
+    }
+
+    /** Close tab `number` (from 1); the one before it comes to the front. The last tab closes the browser. */
+    closeTab(session: number, number: number): Promise<string> {
+        return this.#run(session, `Closing tab ${number}`, async () => {
+            const tab = this.#tabs[number - 1];
+
+            if (tab === undefined) {
+                throw new Error(`There is no tab ${number}: Pi's browser has ${this.#tabs.length}.\n${this.#tabList()}`);
+            }
+
+            if (this.#tabs.length === 1) {
+                await this.#closeAll();
+
+                return "That was the last tab: Pi's browser is closed.";
+            }
+
+            const at = this.#tabs.indexOf(tab);
+
+            this.#tabs = this.#tabs.filter((each) => each !== tab);
+
+            if (this.#tab === tab) {
+                this.#front(this.#tabs[Math.max(0, at - 1)]);
+            }
+
+            tab.page.cdp.close();
+            await this.#options.engine.closeTab(tab.id);
+            this.#set({});
+
+            return `Closed tab ${number}.\n${await this.#read()}`;
         });
     }
 
@@ -415,7 +746,8 @@ export class PiBrowser {
      * as it is after.
      */
     run(session: number, options: { goal: string; values: Record<string, string>; maxSteps: number; decider: Decider }): Promise<{ result: RunResult; page: string }> {
-        return this.#run(session, `Running: ${options.goal.slice(0, 80)}`, async (page) => {
+        return this.#run(session, `Running: ${options.goal.slice(0, 80)}`, async (tab) => {
+            const page = tab.page;
             const element = (observed: Observed, node: number): Element => {
                 const found = elementsOf(observed).find((each) => each.node === node);
 
@@ -449,11 +781,13 @@ export class PiBrowser {
                 },
             );
 
-            this.#observed = result.observed;
-            this.#elements = elementsOf(result.observed);
-            this.#set({ url: result.observed.url, title: result.observed.title });
+            tab.observed = result.observed;
+            tab.elements = elementsOf(result.observed);
+            tab.url = result.observed.url;
+            tab.title = result.observed.title;
+            this.#set({});
 
-            return { result, page: describe(result.observed, this.#elements) };
+            return { result, page: describe(result.observed, tab.elements) };
         });
     }
 
@@ -469,7 +803,8 @@ export class PiBrowser {
      * too. It never goes to Pi; the page is read again afterwards, and a password field's value is never read.
      */
     fillFields(session: number, fields: { index: number; value: string }[]): Promise<void> {
-        return this.#run(session, "Filling in what you typed", async (page) => {
+        return this.#run(session, "Filling in what you typed", async (tab) => {
+            const page = tab.page;
             // By node, from the read the card was made from: filling one field may renumber the others.
             const nodes = fields.map((field) => ({ node: this.#element(field.index).element.node, index: field.index, value: field.value }));
 
@@ -484,20 +819,28 @@ export class PiBrowser {
                 await page.fill(observed, element, field.value, { clear: true });
             }
 
-            this.#observed = await page.observe();
-            this.#elements = elementsOf(this.#observed);
+            tab.observed = await page.observe();
+            tab.elements = elementsOf(tab.observed);
         });
     }
 
-    /** Close Pi's page (Settings, or the panel's Close). */
+    async #closeAll(): Promise<void> {
+        this.#stopFrames?.();
+
+        for (const tab of this.#tabs) {
+            tab.page.cdp.close();
+        }
+
+        this.#tabs = [];
+        this.#tab = undefined;
+        await this.#options.engine.close();
+        this.#set({ doing: null, takenOver: false });
+    }
+
+    /** Close Pi's browser, every tab (Settings, or the panel's Close). */
     async close(): Promise<void> {
         await this.#queue;
-        this.#stopFrames?.();
-        this.#page?.cdp.close();
-        this.#page = undefined;
-        this.#observed = undefined;
-        await this.#options.engine.close();
-        this.#set({ open: false, doing: null, url: "", title: "", takenOver: false });
+        await this.#closeAll();
     }
 
     // ─── Watching and taking over ─────────────────────────────────────────────
@@ -506,7 +849,7 @@ export class PiBrowser {
     watch(): () => void {
         this.#watchers += 1;
 
-        if (this.#page !== undefined && !this.#page.cdp.closed) {
+        if (this.#tab !== undefined && !this.#tab.page.cdp.closed) {
             void this.#startFrames().catch((error: unknown) => this.#options.log(`browser frames: ${String(error)}`));
         }
 
@@ -527,13 +870,14 @@ export class PiBrowser {
     }
 
     async #startFrames(): Promise<void> {
-        const page = this.#page;
+        const page = this.#tab?.page;
 
-        if (page === undefined || this.#casting) {
+        if (page === undefined || this.#casting === page) {
             return;
         }
 
-        this.#casting = true;
+        this.#stopFrames?.();
+        this.#casting = page;
 
         const off = page.cdp.on("Page.screencastFrame", (params) => {
             const metadata = params.metadata as { deviceWidth?: number; deviceHeight?: number } | undefined;
@@ -544,7 +888,7 @@ export class PiBrowser {
 
         this.#stopFrames = () => {
             off();
-            this.#casting = false;
+            this.#casting = undefined;
             this.#stopFrames = undefined;
             void page.cdp.send("Page.stopScreencast").catch(() => {});
         };
@@ -564,7 +908,7 @@ export class PiBrowser {
             throw new Error("Take over Pi's browser first.");
         }
 
-        const page = await this.#ensure();
+        const page = (await this.#ensure()).page;
 
         if (event.type === "tap") {
             for (const type of ["mousePressed", "mouseReleased"]) {
@@ -585,6 +929,20 @@ export class PiBrowser {
             throw new Error("Take over Pi's browser first.");
         }
 
-        await (await this.#ensure()).navigate(url);
+        await (await this.#ensure()).page.navigate(url);
+    }
+
+    /** Bring tab `number` (from 1) to the front for the person (the panel's tab strip). */
+    async showTab(number: number): Promise<void> {
+        await this.#ensure();
+
+        const tab = this.#tabs[number - 1];
+
+        if (tab === undefined) {
+            throw new Error(`There is no tab ${number}.`);
+        }
+
+        this.#front(tab);
+        this.#set({});
     }
 }

@@ -31,11 +31,11 @@ test("an address as typed: a page opens as it is, a bare name gets https, words 
 });
 
 test("in plan mode Pi may open and read pages, but not click, type, choose, or press keys", () => {
-    for (const tool of ["browser_open", "browser_snapshot", "browser_text", "browser_screenshot", "browser_scroll", "browser_back", "browser_wait"]) {
+    for (const tool of ["browser_open", "browser_snapshot", "browser_text", "browser_screenshot", "browser_scroll", "browser_back", "browser_wait", "browser_hover", "browser_tabs", "browser_new_tab"]) {
         assert.equal(blockedInPlanMode(tool, {}), undefined, tool);
     }
 
-    for (const tool of ["browser_click", "browser_type", "browser_select", "browser_press", "browser_close"]) {
+    for (const tool of ["browser_click", "browser_type", "browser_select", "browser_press", "browser_close", "browser_upload", "browser_save_pdf"]) {
         assert.match(blockedInPlanMode(tool, {}) ?? "", /Plan mode is on/, tool);
     }
 });
@@ -106,6 +106,15 @@ const PAGES: Record<string, string> = {
             <div id="web" style="cursor:pointer;padding:8px"><span>Browser</span> <span>Continue</span></div>
         </div>
         <script>web.addEventListener('click', () => { out.textContent = 'Continued in the browser'; web.parentElement.remove(); });</script>`,
+    "/tools": `<!doctype html><title>Tools</title><p id="out">Ready</p>
+        <svg style="display:none"><symbol id="icon-search"><circle r="4"/></symbol></svg>
+        <a href="/two" id="icon"><svg width="24" height="24"><use href="#icon-search"></use></svg></a>
+        <a href="/u/tuan" style="display:inline-block;width:24px;height:24px;background:#ccc"></a>
+        <button onmouseenter="out.textContent='Menu open'">Menu</button>
+        <label>Attachment <input type="file" onchange="out.textContent='Got ' + this.files[0].name + ' ' + this.files[0].size"></label>
+        <button onclick="document.getElementById('pics').click()">Upload photos</button>
+        <input type="file" id="pics" multiple style="display:none" onchange="out.textContent='Photos ' + [...this.files].map(f => f.name).join(',')">
+        <a href="/two" target="_blank">Open in a new tab</a>`,
     "/two": `<!doctype html><title>Two</title><p>Page two</p><article>${"A long article. ".repeat(400)}</article>`,
 };
 
@@ -219,6 +228,65 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
         await browser.input({ type: "tap", x: 10, y: 10 });
         browser.takeOver(false);
         assert.match(await browser.snapshot(1), /^Sign in — /);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("with Chrome: icons get names, hover, uploads to a field and through its button, a PDF, and tabs (new, switch, close, one a link opened)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    const states: BrowserState[] = [];
+    const browser = new PiBrowser({
+        engine: new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]),
+        changed: (state) => states.push(state),
+        frame: () => {},
+        log: () => {},
+    });
+    const number = (page: string, pattern: RegExp) => Number(pattern.exec(page)?.[1] ?? assert.fail(`${pattern} not in:\n${page}`));
+
+    try {
+        const page = await browser.open(1, "http://pi.test/tools");
+
+        // Icons with no text: named by their sprite, or where they go.
+        assert.match(page, /link "search"/);
+        assert.match(page, /link "to \/u\/tuan"/);
+        assert.match(page, /file "Attachment"/);
+
+        assert.match(await browser.hover(1, number(page, /\[(\d+)\] button "Menu"/)), /Menu open/);
+
+        const one = await browser.upload(1, number(page, /\[(\d+)\] file "Attachment"/), [{ name: "notes.txt", bytes: new TextEncoder().encode("hello") }]);
+
+        assert.match(one, /Got notes\.txt 5/);
+
+        const photos = await browser.upload(1, number(one, /\[(\d+)\] button "Upload photos"/), [
+            { name: "a.png", bytes: new Uint8Array([1]) },
+            { name: "b.png", bytes: new Uint8Array([2]) },
+        ]);
+
+        assert.match(photos, /Photos a\.png,b\.png/);
+        await assert.rejects(browser.upload(1, number(photos, /\[(\d+)\] button "Menu"/), [{ name: "x.txt", bytes: new Uint8Array([1]) }]), /did not ask for a file/);
+
+        const { pdf } = await browser.pdf(1);
+
+        assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
+
+        // A link to a new window opens a tab, brought to the front, as a person's browser does.
+        const opened = await browser.click(1, number(await browser.snapshot(1), /\[(\d+)\] link "Open in a new tab"/));
+
+        assert.match(opened, /opened a new tab; now on tab 2 of 2/);
+        assert.match(opened, /Two — /);
+
+        const third = await browser.newTab(1, "http://pi.test/");
+
+        assert.match(third, /^Tab 3 of 3\. Shop — /);
+        assert.equal(states.at(-1)?.tabs.length, 3);
+        assert.equal(states.at(-1)?.tab, 2);
+        assert.match(await browser.tabs(1), /  1\. Tools — http:\/\/pi\.test\/tools\n  2\. Two — .*\n→ 3\. Shop/);
+        assert.match(await browser.switchTab(1, 1), /^Tab 1 of 3\. Tools — /);
+        assert.match(await browser.closeTab(1, 2), /^Closed tab 2\.\nTab 1 of 2\. Tools — /);
+        await assert.rejects(browser.switchTab(1, 5), /There is no tab 5/);
+        assert.match(await browser.closeTab(1, 1), /^Closed tab 1\.\nShop — /);
+        assert.match(await browser.closeTab(1, 1), /last tab/);
+        assert.equal(states.at(-1)?.open, false);
     } finally {
         await browser.close();
     }

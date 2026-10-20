@@ -146,6 +146,36 @@ function TakeOverBar() {
     </div>`;
 }
 
+/** A tab's name in the strip: its title, or where it is. */
+const tabName = (tab) => {
+    if (tab.title) {
+        return tab.title;
+    }
+
+    try {
+        return new URL(tab.url).host || "Blank page";
+    } catch {
+        return "Blank page";
+    }
+};
+
+/** Pi's tabs, when it has more than one: the one in front marked; tapping one brings it to the front. */
+function Tabs({ state }) {
+    return html`<div class="pb-tabs" role="tablist" aria-label="Pi's tabs">
+        ${state.tabs.map(
+            (tab, index) => html`<button
+                class=${`pb-tab ${index === state.tab ? "on" : ""}`}
+                role="tab"
+                aria-selected=${index === state.tab}
+                title=${tab.url}
+                onClick=${() => index !== state.tab && attempt(async () => store.set({ piBrowser: await api("browser/tab", { number: index + 1 }) }))}
+            >
+                ${tabName(tab)}
+            </button>`,
+        )}
+    </div>`;
+}
+
 export function BrowserPanel({ leaving = false }) {
     const state = store.state.piBrowser;
     const beside = panelsBeside();
@@ -190,6 +220,7 @@ export function BrowserPanel({ leaving = false }) {
                 </button>`
             }
         </header>
+        ${state?.open && (state.tabs?.length ?? 0) > 1 && html`<${Tabs} state=${state} />`}
         <div class=${`pb-status ${state?.doing ? "busy" : ""}`} aria-live="polite">
             ${state?.doing ? html`<span class="pb-spin" aria-hidden="true"></span>${state.doing}` : takenOver ? "You have the page: Pi waits until you hand it back." : state?.open ? "Pi is not browsing now." : ""}
         </div>

@@ -65,20 +65,24 @@ No Termux, no laptop, no cloud VM.
 
 ### Web, documents, and answers
 - **Pi's browser.** Pi opens pages in a browser of its own (a WebView of the app, driven over its DevTools socket) and
-  reads them as numbered controls and visible text; it clicks, types, chooses, scrolls, presses keys, goes back, reads a
-  whole page, or looks at it (`browser_open`, `browser_click`, …). Each click is checked first: the element as read,
-  still in view, nothing over it. You watch it live in the Browser panel (beside the conversation on wide screens, where
+  reads them as numbered controls and visible text (icons named by their tooltip, sprite, picture, or where they go;
+  things clickable only by their look, like a pop-up's buttons, too); it clicks, types, chooses, hovers, scrolls, presses
+  keys, goes back, reads a whole page, or looks at it (`browser_open`, `browser_click`, …). It uploads files from where
+  the session works (`browser_upload`, to a file field or its Upload button), saves a page as a PDF there
+  (`browser_save_pdf`), and keeps up to six tabs (`browser_new_tab`, `browser_tabs`; the panel shows them as a strip).
+  Each click is checked first: the element as read, still in view, nothing over it. You watch it live in the Browser panel (beside the conversation on wide screens, where
   it opens by itself when Pi starts browsing; on a phone, a small live preview above the message box opens it), and can
   **Take over** (your taps and typing go to the page) and **Hand back**. It never opens this phone or its local network,
   and only works for what the owner asks.
   **`browser_run`** carries out a whole goal on its own, a step at a time: each step is decided by the run model you
   pick in Settings › Pi's browser (the session's own model, or Jev, TypeSafe's decision model through OpenRouter:
-  about a third of a second and $0.0002 a step), for every session or one. It types only values Pi supplies, stops with
+  about a second and $0.00003 a step), for every session or one. It types only values Pi supplies, stops with
   a reason Pi can act on (a value it needs, blocked, stuck, not visibly done), and Jev's cost counts in Spend.
   **Signing in stays yours:** Pi never types a password or a code. `browser_sign_in` puts a card in the
   conversation where you type the username and password (or use one kept in Secrets with Remember), and they go
   straight into the page; `browser_ask_code` does the same for a one-time code; `browser_ask_user` hands you the page
-  for a CAPTCHA or an approval on your phone, and Pi goes on when you say Done.
+  for a CAPTCHA or an approval on your phone, and Pi goes on when you say Done. Passkeys are not possible there
+  (Android allows them only in allowlisted browsers): Pi takes the site's other way, or asks you.
 - **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for
   pages, PDFs and Office files, GitHub repositories, issues, and pull requests.
 - **Documents.** `file_to_markdown` reads PDF, Word, PowerPoint, Excel, EPUB, notebooks, and more

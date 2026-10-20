@@ -6,7 +6,9 @@
  */
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
+import { basename } from "node:path";
 import { addressOf, PRESSABLE, StalePage } from "../browser/page.ts";
+import { MAX_TABS } from "../browser/pi-browser.ts";
 import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
 
@@ -15,7 +17,7 @@ const reply = (text: string, isError = false) => ({ output: [{ type: "text" as c
 const TEXT_MAX = 40_000;
 
 /** In every prompt while the module is on. */
-export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll and browser_press; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code yourself: when a page asks to sign in, call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
+export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code yourself: when a page asks to sign in, call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
 
 export default function createBrowser(host: PocketHost) {
     const browser = host.browser;
@@ -146,6 +148,94 @@ export default function createBrowser(host: PocketHost) {
             description: "Choose an option, by its text or value, in the drop-down list with this number.",
             parameters: Type.Object({ index, option: Type.String() }),
             execute: async (args, api) => act(api.conversationId, (session) => browser.select(session, args.index, args.option)),
+        }),
+        defineTool({
+            name: "browser_hover",
+            description: "Move the pointer over the control with this number without clicking (menus and tooltips that open on hover).",
+            parameters: Type.Object({ index }),
+            execute: async (args, api) => act(api.conversationId, (session) => browser.hover(session, args.index)),
+        }),
+        defineTool({
+            name: "browser_upload",
+            description:
+                "Give files from where this session works to a file field, or to the button that opens one (a styled Upload button): the page gets them as if the person chose them. Then submit the form if it needs it.",
+            parameters: Type.Object({
+                index,
+                paths: Type.Array(Type.String(), { minItems: 1, maxItems: 10, description: "The files, absolute or relative to this session's folder" }),
+            }),
+            execute: async (args, api, context) =>
+                act(api.conversationId, async (session) => {
+                    const env = host.envOf((await api.agent(context)).cwd ?? "");
+                    const files: { name: string; bytes: Uint8Array }[] = [];
+
+                    for (const path of args.paths) {
+                        const absolute = await env.absolutePath(path, context);
+                        const bytes = absolute.ok ? await env.readBinaryFile(absolute.value, context) : absolute;
+
+                        if (!absolute.ok || !bytes.ok) {
+                            throw new Error(`Could not read ${path}: ${bytes.ok ? "" : bytes.error.message}`);
+                        }
+
+                        files.push({ name: basename(absolute.value), bytes: bytes.value });
+                    }
+
+                    return browser.upload(session, args.index, files);
+                }),
+        }),
+        defineTool({
+            name: "browser_save_pdf",
+            description: "Save the page in Pi's browser as a PDF (as printing it would), to a file where this session works.",
+            parameters: Type.Object({ path: Type.String({ description: "Where to save it, ending in .pdf: absolute or relative to this session's folder" }) }),
+            execute: async (args, api, context) =>
+                act(api.conversationId, async (session) => {
+                    if (!args.path.toLowerCase().endsWith(".pdf")) {
+                        throw new Error("Give a path ending in .pdf.");
+                    }
+
+                    const env = host.envOf((await api.agent(context)).cwd ?? "");
+                    const absolute = await env.absolutePath(args.path, context);
+
+                    if (!absolute.ok) {
+                        throw new Error(`Cannot save to ${args.path}: ${absolute.error.message}`);
+                    }
+
+                    const { pdf, title, url } = await browser.pdf(session);
+                    const written = await env.writeFile(absolute.value, pdf, context);
+
+                    if (!written.ok) {
+                        throw new Error(`Could not save ${absolute.value}: ${written.error.message}`);
+                    }
+
+                    return `Saved ${title || url} as ${absolute.value} (${Math.max(1, Math.round(pdf.length / 1024))} KB).`;
+                }),
+        }),
+        defineTool({
+            name: "browser_new_tab",
+            description: `Open a new tab in Pi's browser, in front (at an address, or blank), keeping the others. At most ${MAX_TABS} tabs.`,
+            parameters: Type.Object({ url: Type.Optional(Type.String({ description: "An address like example.com, or words to search for" })) }),
+            execute: async (args, api) => {
+                let url: string | undefined;
+
+                try {
+                    url = args.url === undefined || args.url.trim() === "" ? undefined : addressOf(args.url);
+                } catch (error) {
+                    return reply(error instanceof Error ? error.message : String(error), true);
+                }
+
+                return act(api.conversationId, (session) => browser.newTab(session, url));
+            },
+        }),
+        defineTool({
+            name: "browser_tabs",
+            description: "List Pi's browser tabs (numbered from 1, the one in front marked), or bring one to the front (switch_to), or close one (close). Switching answers with that tab's page.",
+            parameters: Type.Object({
+                switch_to: Type.Optional(Type.Integer({ minimum: 1, description: "The tab to bring to the front" })),
+                close: Type.Optional(Type.Integer({ minimum: 1, description: "The tab to close" })),
+            }),
+            execute: async (args, api) =>
+                act(api.conversationId, (session) =>
+                    args.close !== undefined ? browser.closeTab(session, args.close) : args.switch_to !== undefined ? browser.switchTab(session, args.switch_to) : browser.tabs(session),
+                ),
         }),
         defineTool({
             name: "browser_scroll",

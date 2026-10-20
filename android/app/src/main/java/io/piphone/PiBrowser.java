@@ -12,6 +12,7 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
+import android.print.PiPdf;
 import android.util.Log;
 import android.view.ViewGroup;
 import android.webkit.WebResourceRequest;
@@ -26,12 +27,15 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
@@ -39,11 +43,12 @@ import java.util.function.Supplier;
 
 /**
  * Pi's browser on the phone (src/server/browser/pi-browser.ts): long-polls the server for what to do
- * (`GET /api/phone/browser`), makes or removes a WebView that only Pi uses, and answers (`POST /api/phone/browser/<id>`).
- * The server drives the page itself over the WebView's DevTools socket (the APK is debuggable, so Android opens one per
- * process: `\0webview_devtools_remote_<pid>`), finding it by the `about:blank#<marker>` it first loads.
+ * (`GET /api/phone/browser`), makes or removes Pi's tabs (a WebView each, that only Pi uses), prints one to a PDF, and
+ * answers (`POST /api/phone/browser/<id>`). The server drives the pages itself over the WebViews' DevTools socket (the APK
+ * is debuggable, so Android opens one per process: `\0webview_devtools_remote_<pid>`), finding each by the
+ * `about:blank#<marker>` it first loads.
  *
- * The WebView lives in a Presentation on a private virtual display the size of the page, so its compositor draws every
+ * Each WebView lives in a Presentation on a private virtual display the size of the page, so its compositor draws every
  * frame (DevTools' screencast and screenshots come from there) with the app in the background or the screen off. It never
  * loads this device or its local network: the app's own server is there, and a page could act as the owner.
  */
@@ -56,11 +61,16 @@ final class PiBrowser {
     private final Supplier<String> token;
     private final BooleanSupplier serving;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private WebView page;
-    private String marker;
-    private VirtualDisplay display;
-    private ImageReader frames;
-    private Presentation window;
+    /** A tab: its WebView, and the display and window it draws on. */
+    private static final class Tab {
+        WebView page;
+        VirtualDisplay display;
+        ImageReader frames;
+        Presentation window;
+    }
+
+    /** Pi's tabs by marker, oldest first (main thread). */
+    private final Map<String, Tab> tabs = new LinkedHashMap<>();
 
     PiBrowser(Context context, Supplier<String> token, BooleanSupplier serving) {
         this.context = context;
@@ -119,13 +129,30 @@ final class PiBrowser {
             Exception[] failed = new Exception[1];
             main.post(() -> {
                 try {
-                    if (op.equals("open")) {
+                    reply.put("pid", Process.myPid());
+                    if (op.equals("tabs")) {
+                        // Tabs kept from before (the server restarted, the app did not) have moved on from their markers:
+                        // their addresses find them too.
+                        JSONArray list = new JSONArray();
+                        for (Map.Entry<String, Tab> tab : tabs.entrySet()) {
+                            String url = tab.getValue().page.getUrl();
+                            list.put(new JSONObject().put("marker", tab.getKey()).put("url", url == null ? "" : url));
+                        }
+                        reply.put("tabs", list);
+                    } else if (op.equals("open")) {
                         open(request.getString("marker"), request.getInt("width"), request.getInt("height"));
-                        // A page kept from before (the server restarted, the app did not) has moved on from its marker:
-                        // its address now finds it too.
-                        reply.put("pid", Process.myPid()).put("marker", marker).put("url", page.getUrl() == null ? "" : page.getUrl());
                     } else if (op.equals("close")) {
-                        close();
+                        if (request.has("marker")) close(request.getString("marker"));
+                        else for (String marker : tabs.keySet().toArray(new String[0])) close(marker);
+                    } else if (op.equals("pdf")) {
+                        Tab tab = tabs.get(request.getString("marker"));
+                        if (tab == null) throw new IllegalArgumentException("there is no such tab");
+                        // Printing finishes later, on this thread: the answer waits for it.
+                        PiPdf.write(tab.page.createPrintDocumentAdapter("page"), new File(request.getString("path")), (error) -> {
+                            if (error != null) failed[0] = new IOException("printing failed: " + error);
+                            done.countDown();
+                        });
+                        return;
                     } else {
                         throw new IllegalArgumentException("unknown request " + op);
                     }
@@ -134,7 +161,7 @@ final class PiBrowser {
                 }
                 done.countDown();
             });
-            if (!done.await(20, TimeUnit.SECONDS)) throw new IOException("the browser did not answer in time");
+            if (!done.await(80, TimeUnit.SECONDS)) throw new IOException("the browser did not answer in time");
             if (failed[0] != null) throw failed[0];
         } catch (Exception e) {
             reply.put("error", e.getMessage() == null ? e.toString() : e.getMessage());
@@ -142,22 +169,26 @@ final class PiBrowser {
         post(id, reply);
     }
 
-    /** Make Pi's WebView, if there is none (main thread). A page already open stays, with the marker it was made with. */
-    private void open(String wanted, int width, int height) {
-        if (page != null) return;
+    /** Make a tab: a WebView of its own, on a display of its own (main thread). */
+    private void open(String marker, int width, int height) {
+        if (tabs.containsKey(marker)) return;
+        Tab tab = new Tab();
         float density = context.getResources().getDisplayMetrics().density;
         int dpi = context.getResources().getDisplayMetrics().densityDpi;
         int widthPx = Math.round(width * density);
         int heightPx = Math.round(height * density);
-        frames = ImageReader.newInstance(widthPx, heightPx, PixelFormat.RGBA_8888, 2);
+        ImageReader frames = ImageReader.newInstance(widthPx, heightPx, PixelFormat.RGBA_8888, 2);
         frames.setOnImageAvailableListener((reader) -> {
             Image frame = reader.acquireLatestImage();
             if (frame != null) frame.close();
         }, main);
-        display = context.getSystemService(DisplayManager.class)
+        VirtualDisplay display = context.getSystemService(DisplayManager.class)
                 .createVirtualDisplay("pi-phone-browser", widthPx, heightPx, dpi, frames.getSurface(), 0);
-        if (display == null) throw new IllegalStateException("Android gave no display for Pi's browser");
-        window = new Presentation(context, display.getDisplay());
+        if (display == null) {
+            frames.close();
+            throw new IllegalStateException("Android gave no display for Pi's browser");
+        }
+        Presentation window = new Presentation(context, display.getDisplay());
         FrameLayout box = new FrameLayout(window.getContext());
         window.setContentView(box);
         window.show();
@@ -187,9 +218,12 @@ final class PiBrowser {
             }
         });
         box.addView(view, new ViewGroup.LayoutParams(widthPx, heightPx));
-        page = view;
-        marker = wanted;
-        view.loadUrl("about:blank#" + wanted);
+        tab.page = view;
+        tab.display = display;
+        tab.frames = frames;
+        tab.window = window;
+        tabs.put(marker, tab);
+        view.loadUrl("about:blank#" + marker);
     }
 
     /** This device or its local network, by the address written: the app's server, the owner's machines. */
@@ -210,25 +244,14 @@ final class PiBrowser {
                 || (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31) || (octets[0] == 100 && octets[1] >= 64 && octets[1] <= 127);
     }
 
-    /** Remove Pi's WebView and its window (main thread). */
-    private void close() {
-        if (page != null) {
-            page.destroy();
-            page = null;
-        }
-        marker = null;
-        if (window != null) {
-            window.dismiss();
-            window = null;
-        }
-        if (display != null) {
-            display.release();
-            display = null;
-        }
-        if (frames != null) {
-            frames.close();
-            frames = null;
-        }
+    /** Remove a tab: its WebView, window and display (main thread). */
+    private void close(String marker) {
+        Tab tab = tabs.remove(marker);
+        if (tab == null) return;
+        tab.page.destroy();
+        tab.window.dismiss();
+        tab.display.release();
+        tab.frames.close();
     }
 
     private void post(String id, JSONObject reply) throws IOException {

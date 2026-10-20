@@ -11,7 +11,7 @@
   };
   for (const [id,e] of cache.nodes) if (!e.isConnected) cache.nodes.delete(id);
   const safe = e => !['password','file','hidden'].includes(e.type);
-  const listed = e => safe(e) || e.type === 'password';
+  const listed = e => safe(e) || e.type === 'password' || e.type === 'file';
   const visible = e => !e.closest('[aria-hidden="true"],[inert]') &&
     e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true});
   const name = (e,seen=new Set()) => {
@@ -25,6 +25,33 @@
       (e.tagName==='INPUT' ? '' : [...e.childNodes].map(n=>n.nodeType===3 ? n.textContent :
         n.nodeType===1 && n.getAttribute('aria-hidden')!=='true' ? name(n,seen) : '').join(' ').trim()) ||
       e.getAttribute('title') || e.getAttribute('placeholder') || '';
+  };
+  // A control with no name (an icon): a name from what it shows or where it goes, so Pi can tell icons apart: a title
+  // or tooltip inside it, an SVG's title or sprite name, a picture's file name, where a link goes, or an icon class.
+  const plain = s => (s=(s||'').replace(/\.[a-z0-9]{2,4}$/i,'').replace(/^.*[#/]/,'').replace(/[-_.]+/g,' ')
+    .replace(/\b(icons?|ico|svg|img|sprite|fa|mdi|bi)\b/gi,' ').replace(/\s+/g,' ').trim(),
+    /^[a-z][a-z0-9 ]{1,40}$/i.test(s) && !/[0-9a-f]{6}|\d{3}/i.test(s) ? s : '');
+  const hint = e => {
+    const inner=e.querySelector('[title],[data-tooltip],[data-title]');
+    const titled=e.getAttribute('data-tooltip') || e.getAttribute('data-title') ||
+      (inner && (inner.getAttribute('title') || inner.getAttribute('data-tooltip') || inner.getAttribute('data-title')));
+    if (titled && titled.trim()) return titled;
+    const svg=e.querySelector('svg title')?.textContent?.trim();
+    if (svg) return svg;
+    const use=e.querySelector('use'), sprite=plain(use?.getAttribute('href') || use?.getAttribute('xlink:href'));
+    if (sprite) return sprite;
+    const img=e.tagName==='IMG' ? e : e.querySelector('img'), src=(img?.getAttribute('src')||'').split('?')[0];
+    if (src && !src.startsWith('data:') && plain(src)) return 'image '+plain(src);
+    const href=e.getAttribute('href');
+    if (href && !/^(javascript:|#$)/i.test(href)) {
+      try {
+        const u=new URL(href,location.href);
+        return 'to '+(u.host===location.host ? (u.pathname+u.search).slice(0,80) : (u.host+u.pathname).slice(0,80));
+      } catch {}
+    }
+    for (const n of [e,...e.querySelectorAll('[class]')].slice(0,4))
+      for (const c of n.classList) if (/icon|btn|button|close|menu|search|share|like|vote|back|next|prev|play|more/i.test(c) && plain(c)) return plain(c);
+    return '';
   };
   const roles=['button','link','checkbox','radio','switch','tab','menuitem','menuitemradio',
     'option','gridcell','combobox','textbox','searchbox','spinbutton'];
@@ -44,6 +71,7 @@
       if (e.type==='number') return 'spinbutton';
       if (['text','email','url','tel',''].includes(e.type)) return 'textbox';
       if (e.type==='password') return 'password';
+      if (e.type==='file') return 'file';
     }
     return null;
   };
@@ -64,7 +92,7 @@
     const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2, rname=role(e);
     if (!rname || r.width<=0 || r.height<=0 || x<0 || y<0 || x>=innerWidth || y>=innerHeight) continue;
     if (rname==='gridcell' && e.querySelector('button,[role="button"]')) continue;
-    const base={node:identity(e),role:rname,label:(name(e)||rname).replace(/\s+/g,' ').trim().slice(0,200),
+    const base={node:identity(e),role:rname,label:(name(e)||hint(e)||rname).replace(/\s+/g,' ').trim().slice(0,200),
       rect:{x:r.x,y:r.y,w:r.width,h:r.height}};
     for (const key of ['checked','selected','expanded']) {
       const value=e.getAttribute('aria-'+key);
@@ -79,7 +107,7 @@
       const editable=!e.readOnly && e.getAttribute('aria-readonly')!=='true' &&
         (['textbox','searchbox','spinbutton','password'].includes(rname) ||
           (rname==='combobox' && ['INPUT','TEXTAREA'].includes(e.tagName)));
-      const value=e.type==='password' ? '' : 'value' in e ? String(e.value) :
+      const value=e.type==='password' ? '' : e.type==='file' ? [...e.files].map(f=>f.name).join(', ') : 'value' in e ? String(e.value) :
         e.isContentEditable || rname==='combobox' ? e.innerText.trim() : '';
       actions.push({...base,kind:editable?'fill':'click',value:value.slice(0,200)});
       if (editable) actions.push({...base,kind:'click',value:value.slice(0,200)});
@@ -101,7 +129,7 @@
     if (!clickable || !visible(e)) continue;
     const parent=e.parentElement;
     if (parent && parent!==document.body && getComputedStyle(parent).cursor==='pointer' && !e.hasAttribute('onclick')) continue;
-    const label=(name(e)||'').replace(/\s+/g,' ').trim().slice(0,200);
+    const label=(name(e)||hint(e)).replace(/\s+/g,' ').trim().slice(0,200);
     if (!label) continue;
     const x=r.x+r.width/2, y=r.y+r.height/2;
     if (x<0 || y<0 || x>=innerWidth || y>=innerHeight) continue;

@@ -425,6 +425,79 @@ export class BrowserPage {
         await this.#followNavigation(before);
     }
 
+    /** Move the pointer over the element (menus and tooltips that open on hover), without clicking. */
+    async hover(observed: Observed, element: Element): Promise<void> {
+        if (!(await this.#fresh(observed, element.node))) {
+            throw new StalePage("The page changed since it was read: read it again.");
+        }
+
+        const point = await this.#point(element, false);
+
+        await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+        this.#afterInput = { node: element.node, kind: "click" } as RawAction;
+    }
+
+    /**
+     * Give files (paths the browser can read) to a file field, or to the button that opens one (a styled "Upload" that
+     * hides its field): the button is clicked with the file chooser caught, and the files go to the field it opened.
+     */
+    async upload(observed: Observed, element: Element, paths: string[]): Promise<void> {
+        if (!(await this.#fresh(observed, element.node))) {
+            throw new StalePage("The page changed since it was read: read it again.");
+        }
+
+        if (element.role === "file") {
+            await this.#point(element, false);
+
+            const field = await this.cdp.send<{ result: { objectId?: string } }>("Runtime.evaluate", { expression: `window.__piBrowser?.nodes.get(${element.node})` });
+            const multiple = await this.evaluate<boolean>(`!!window.__piBrowser?.nodes.get(${element.node})?.multiple`);
+
+            if (field.result.objectId === undefined) {
+                throw new StalePage(`[${element.index}] ${element.label} is gone: read the page again.`);
+            }
+
+            if (paths.length > 1 && !multiple) {
+                throw new Error(`[${element.index}] ${element.label} takes one file.`);
+            }
+
+            await this.cdp.send("DOM.setFileInputFiles", { files: paths, objectId: field.result.objectId });
+        } else {
+            const point = await this.#point(element, false);
+            let off = () => {};
+            const opened = new Promise<{ backendNodeId: number; mode: string } | undefined>((resolve) => {
+                const timer = setTimeout(() => resolve(undefined), 3000);
+
+                off = this.cdp.on("Page.fileChooserOpened", (params) => {
+                    clearTimeout(timer);
+                    resolve(params as { backendNodeId: number; mode: string });
+                });
+            });
+            let chooser: { backendNodeId: number; mode: string } | undefined;
+
+            await this.cdp.send("Page.setInterceptFileChooserDialog", { enabled: true });
+
+            try {
+                await this.#click(point);
+                chooser = await opened;
+            } finally {
+                off();
+                await this.cdp.send("Page.setInterceptFileChooserDialog", { enabled: false }).catch(() => {});
+            }
+
+            if (chooser === undefined) {
+                throw new Error(`Clicking [${element.index}] ${element.label} did not ask for a file: name the page's upload button or its file field.`);
+            }
+
+            if (paths.length > 1 && chooser.mode !== "selectMultiple") {
+                throw new Error(`[${element.index}] ${element.label} takes one file.`);
+            }
+
+            await this.cdp.send("DOM.setFileInputFiles", { files: paths, backendNodeId: chooser.backendNodeId });
+        }
+
+        this.#afterInput = { node: element.node, kind: "click" } as RawAction;
+    }
+
     async type(observed: Observed, element: Element, text: string, { clear = true, submit = false }: { clear?: boolean; submit?: boolean } = {}): Promise<void> {
         if (element.role === "password") {
             throw new Error(`[${element.index}] ${element.label} is a password field: Pi never types a password. Use browser_sign_in, and the person types it.`);

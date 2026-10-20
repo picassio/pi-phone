@@ -596,6 +596,18 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, app.browser.state());
             }
 
+            if (second === "tab" && method === "POST") {
+                const body = await readJson<{ number?: unknown }>(request);
+
+                try {
+                    await app.browser.showTab(Number(body.number));
+                } catch (error) {
+                    throw new HttpError(409, error instanceof Error ? error.message : String(error));
+                }
+
+                return json(response, 200, app.browser.state());
+            }
+
             if (second === "close" && method === "POST") {
                 await app.browser.close();
 

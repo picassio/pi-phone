@@ -16427,3 +16427,33 @@ pre.gallery-code {
 .pu-note {
     color: var(--warn);
 }
+
+/* Pi's tabs, when it has more than one: a row that scrolls sideways, the one in front raised. */
+.pb-tabs {
+    display: flex;
+    flex: none;
+    gap: 4px;
+    padding: 6px 10px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--hair);
+    scrollbar-width: none;
+}
+
+.pb-tab {
+    flex: none;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 0;
+    border-radius: var(--r-seg);
+    padding: 4px 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+    background: none;
+}
+
+.pb-tab.on {
+    background: var(--raised);
+    color: var(--text);
+}
