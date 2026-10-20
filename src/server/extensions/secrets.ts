@@ -48,6 +48,26 @@ function redactJson(value: JsonValue, redact: (text: string) => string): JsonVal
     return value;
 }
 
+/**
+ * The secrets a browser call types by name (PP-32), and a line saying so for an approval card; undefined for any other
+ * call, or one that names none.
+ */
+export function browserSecretNames(tool: string, args: Record<string, unknown>): { names: string[]; subject: string } | undefined {
+    if (tool === "browser_type" && typeof args.secret === "string") {
+        return { names: [args.secret], subject: `Type [secret ${args.secret}] into [${String(args.index)}]` };
+    }
+
+    if (tool === "browser_run" && typeof args.values === "object" && args.values !== null) {
+        const names = Object.values(args.values as Record<string, unknown>).flatMap((value) =>
+            typeof value === "object" && value !== null && typeof (value as { secret?: unknown }).secret === "string" ? [(value as { secret: string }).secret] : [],
+        );
+
+        return names.length === 0 ? undefined : { names, subject: `Browser run "${String(args.goal ?? "").slice(0, 80)}" types ${names.map((name) => `[secret ${name}]`).join(", ")}` };
+    }
+
+    return undefined;
+}
+
 export default function createSecrets(host: PocketHost) {
     const { secrets } = host;
     // The app's own stores of keys: its ssh folder (keys, its agent's socket), the database (private SSH keys), and the
@@ -225,18 +245,21 @@ export default function createSecrets(host: PocketHost) {
                         return { block: guarded };
                     }
 
-                    // machine_run runs a command as bash does, on a machine: the same rules for the secrets it names.
-                    if (call.name !== "bash" && call.name !== "machine_run") {
+                    // machine_run runs a command as bash does, on a machine: the same rules for the secrets it names. Pi's browser
+                    // types a secret by name (browser_type's secret, browser_run's { secret } values; PP-32): the same rules too.
+                    const browserSecrets = browserSecretNames(call.name, call.arguments as Record<string, unknown>);
+
+                    if (call.name !== "bash" && call.name !== "machine_run" && browserSecrets === undefined) {
                         return undefined;
                     }
 
-                    const command = (call.arguments as { command?: unknown }).command;
+                    const command = browserSecrets === undefined ? (call.arguments as { command?: unknown }).command : browserSecrets.subject;
 
                     if (typeof command !== "string") {
                         return undefined;
                     }
 
-                    const named = namesIn(command).filter((name) => secrets.get(name) !== undefined);
+                    const named = (browserSecrets?.names ?? namesIn(command)).filter((name) => secrets.get(name) !== undefined);
 
                     if (named.length === 0) {
                         return undefined;
@@ -260,7 +283,7 @@ export default function createSecrets(host: PocketHost) {
                                 conversationId: api.conversationId,
                                 taskId: api.taskId,
                                 callId: call.id,
-                                tool: "bash",
+                                tool: call.name,
                                 subject: command,
                                 reason: `Uses ${asking.map((name) => `$${name}`).join(", ")}`,
                                 createdAt: Date.now(),

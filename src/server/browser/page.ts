@@ -620,7 +620,7 @@ export class BrowserPage {
 
     async type(observed: Observed, element: Element, text: string, { clear = true, submit = false }: { clear?: boolean; submit?: boolean } = {}): Promise<void> {
         if (element.role === "password") {
-            throw new Error(`[${element.index}] ${element.label} is a password field: Pi never types a password. Use browser_sign_in, and the person types it.`);
+            throw new Error(`[${element.index}] ${element.label} is a password field: type a saved secret into it (browser_type with secret: NAME), or ask the person with browser_sign_in.`);
         }
 
         await this.fill(observed, element, text, { clear, submit });

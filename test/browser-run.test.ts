@@ -109,6 +109,13 @@ test("each step asks one set of questions: the operations the page offers, a tar
     assert.deepEqual(Object.keys((questions.value_for_field as { criteria: object }).criteria), ["query", "none"]);
     assert.ok(questions.prev_ok && questions.goal_achieved);
     assert.equal(buildQuestions(space, "x", {}, false).value_for_field, undefined, "no values: no value question");
+
+    // A value that is one of the owner's secrets (PP-32): the run model is told its name, never its value.
+    const hidden = JSON.stringify(buildQuestions(space, "Sign in", { user: "tuan", password: "s3cret-value-123" }, false, ["password"]));
+
+    assert.ok(!hidden.includes("s3cret-value-123"), "the secret's value is not in the questions");
+    assert.match(hidden, /password: a secret \(its value is never shown\)/);
+    assert.match(hidden, /user: tuan/);
     assert.equal(buildQuestions(space, "x", {}, false).prev_ok, undefined, "the first step has no previous step");
 });
 

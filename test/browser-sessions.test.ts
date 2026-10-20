@@ -181,3 +181,23 @@ test("a session's size is kept and read back after a restart, Phone is the defau
     assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), {}, "Phone is not written down");
     assert.deepEqual(kept, []);
 });
+
+test("a saved secret is typed into a password field by name; plain text into one is refused (PP-32)", real, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+    const browser = new PiBrowser({ engine: new SessionEngine(engine, "machine:test", 11, new TabOwners(undefined)), place: "machine:test", session: 11, changed: () => {}, frame: () => {}, log: () => {} });
+
+    try {
+        const page = await browser.open(11, "http://pi.test/login");
+        const password = Number(/\[(\d+)\] password "Password"/.exec(page)?.[1] ?? assert.fail(page));
+
+        await assert.rejects(browser.type(11, password, "plain text", {}), /password field: type a saved secret/);
+
+        const after = await browser.typeSecret(11, password, "LOGIN_PASSWORD", "s3cret-value-123", {});
+
+        assert.ok(!after.includes("s3cret-value-123"), "the page as read back does not hold the value");
+        assert.equal(await (await engine.connect((await engine.tabs())[0]!)).send<{ result: { value: string } }>("Runtime.evaluate", { expression: "document.getElementById('pass').value", returnByValue: true }).then((answer) => answer.result.value), "s3cret-value-123", "the page got it");
+    } finally {
+        await browser.close();
+        await engine.close();
+    }
+});

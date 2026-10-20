@@ -17,7 +17,7 @@ const reply = (text: string, isError = false) => ({ output: [{ type: "text" as c
 const TEXT_MAX = 40_000;
 
 /** In every prompt while the module is on. */
-export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code yourself: when a page asks to sign in, call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
+export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code as text. When a page asks to sign in and the sign-in is saved as secrets you may use (secrets_list), type them by name: browser_type with secret: "NAME" (a password field too), or browser_run values {"password": {"secret": "NAME"}}; their values go into the page, never to you. Otherwise call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
 
 export default function createBrowser(host: PocketHost) {
     /** The session's own browser at the place it works in: the phone's, or its machine's Chrome (its own tabs there). */
@@ -145,15 +145,39 @@ export default function createBrowser(host: PocketHost) {
         }),
         defineTool({
             name: "browser_type",
-            description: "Type text into the field with this number. Replaces what is there unless clear is false. Never a password or a one-time code.",
+            description:
+                "Type into the field with this number: text, or one of the owner's saved secrets by name (secret: \"NAME\", for a password field too), whose value goes into the page and never to you. Replaces what is there unless clear is false. " +
+                "Never type a password or a one-time code as text: a saved secret, or browser_sign_in / browser_ask_code for the person.",
             parameters: Type.Object({
                 index,
-                text: Type.String(),
+                text: Type.Optional(Type.String()),
+                secret: Type.Optional(Type.String({ description: "A saved secret's name (secrets_list), typed instead of text" })),
                 submit: Type.Optional(Type.Boolean({ description: "Press Enter afterwards (submits search boxes and forms)" })),
                 clear: Type.Optional(Type.Boolean({ description: "Clear the field first (default true)" })),
             }),
-            execute: async (args, api, context) =>
-                act(api, context, (browser, session) => browser.type(session, args.index, args.text, { clear: args.clear ?? true, submit: args.submit ?? false })),
+            execute: async (args, api, context) => {
+                const options = { clear: args.clear ?? true, submit: args.submit ?? false };
+
+                if ((args.text === undefined) === (args.secret === undefined)) {
+                    return reply("Give text, or a saved secret's name (secret), not both.", true);
+                }
+
+                if (args.secret === undefined) {
+                    return act(api, context, (browser, session) => browser.type(session, args.index, args.text!, options));
+                }
+
+                // The secrets module checked the folder and asked a person when the secret says so (`extensions/secrets.ts`).
+                const name = args.secret;
+                const value = host.secrets.value(name);
+
+                if (value === undefined) {
+                    return reply(`There is no secret ${name}: secrets_list says which you may use.`, true);
+                }
+
+                host.secrets.used([name]);
+
+                return act(api, context, (browser, session) => browser.typeSecret(session, args.index, name, value, options));
+            },
         }),
         defineTool({
             name: "browser_select",
@@ -341,7 +365,11 @@ export default function createBrowser(host: PocketHost) {
                 "Answers how it ended (done, or why it stopped: needs_value, blocked, stuck_loop, unverified_done, budget, decision_error), its steps, time and cost, and the page as it is.",
             parameters: Type.Object({
                 goal: Type.String({ description: "One concrete goal, with everything it requires (\"Search one-way flights Zurich to London on 3 November, and stop when results show\")" }),
-                values: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Texts it may type, by name" })),
+                values: Type.Optional(
+                    Type.Record(Type.String(), Type.Union([Type.String(), Type.Object({ secret: Type.String({ description: "A saved secret's name: typed into the page (a password field too), never shown to you or the run model" }) })]), {
+                        description: "Texts it may type, by name: a text, or { secret: NAME } for one of the owner's saved secrets",
+                    }),
+                ),
                 url: Type.Optional(Type.String({ description: "An address to open first; without it, the run starts on the page open now" })),
                 max_steps: Type.Optional(Type.Integer({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
             }),
@@ -375,7 +403,28 @@ export default function createBrowser(host: PocketHost) {
                         await browser.open(session, addressOf(args.url));
                     }
 
-                    const { result, page } = await browser.run(session, { goal: args.goal, values: args.values ?? {}, maxSteps: args.max_steps ?? 25, decider });
+                    // Secrets by name (PP-32): their values for the page only; the run model is told their names.
+                    const values: Record<string, string> = {};
+                    const secrets: string[] = [];
+
+                    for (const [name, given] of Object.entries(args.values ?? {})) {
+                        if (typeof given === "string") {
+                            values[name] = given;
+                            continue;
+                        }
+
+                        const value = host.secrets.value(given.secret);
+
+                        if (value === undefined) {
+                            return reply(`There is no secret ${given.secret}: secrets_list says which you may use.`, true);
+                        }
+
+                        values[name] = value;
+                        secrets.push(name);
+                        host.secrets.used([given.secret]);
+                    }
+
+                    const { result, page } = await browser.run(session, { goal: args.goal, values, secrets, maxSteps: args.max_steps ?? 25, decider });
 
                     if (model !== "session" && result.decisions > 0) {
                         await host.chargeSession(api.conversationId as never, `openrouter/${model}`, { ...result.tokens, cost: result.cost });

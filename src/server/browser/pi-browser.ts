@@ -651,6 +651,21 @@ export class PiBrowser {
         });
     }
 
+    /**
+     * Type one of the owner's secrets into field `index`, password fields too (PP-32). Its value comes from the app, not
+     * from Pi; what Pi is told is the page read again, and a password field's value is never read. `name` is for the
+     * panel ("Typing [secret NAME] into [3]").
+     */
+    typeSecret(session: number, index: number, name: string, value: string, options: { clear?: boolean; submit?: boolean }): Promise<string> {
+        return this.#run(session, `Typing [secret ${name}] into [${index}]`, async ({ page }) => {
+            const { observed, element } = this.#element(index);
+
+            await page.fill(observed, element, value, options);
+
+            return this.#read();
+        });
+    }
+
     select(session: number, index: number, option: string): Promise<string> {
         return this.#run(session, this.#doing(`Choosing ${JSON.stringify(option)} in`, index), async ({ page }) => {
             const { observed, element } = this.#element(index);
@@ -811,7 +826,7 @@ export class PiBrowser {
      * Carry out a goal, a decision a step by the run model (`run.ts`), as one of Pi's actions: what it did, and the page
      * as it is after.
      */
-    run(session: number, options: { goal: string; values: Record<string, string>; maxSteps: number; decider: Decider }): Promise<{ result: RunResult; page: string }> {
+    run(session: number, options: { goal: string; values: Record<string, string>; secrets?: readonly string[]; maxSteps: number; decider: Decider }): Promise<{ result: RunResult; page: string }> {
         return this.#run(session, `Running: ${options.goal.slice(0, 80)}`, async (tab) => {
             const page = tab.page;
             const element = (observed: Observed, node: number): Element => {
@@ -827,7 +842,8 @@ export class PiBrowser {
                 {
                     observe: () => page.observe(),
                     click: (observed, node) => page.click(observed, element(observed, node)),
-                    type: (observed, node, text) => page.type(observed, element(observed, node), text, { clear: true }),
+                    // A secret may go into a password field (`fill`); anything else goes through `type`, which refuses them.
+                    type: (observed, node, text, secret) => (secret ? page.fill(observed, element(observed, node), text, { clear: true }) : page.type(observed, element(observed, node), text, { clear: true })),
                     select: async (observed, node, option) => {
                         await page.select(observed, element(observed, node), option);
                     },
@@ -841,6 +857,7 @@ export class PiBrowser {
                 {
                     goal: options.goal,
                     values: options.values,
+                    ...(options.secrets === undefined ? {} : { secrets: options.secrets }),
                     maxSteps: options.maxSteps,
                     timeMs: 180_000,
                     progress: (what) => this.#set({ doing: what }),

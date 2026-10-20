@@ -101,7 +101,10 @@ No Termux, no laptop, no cloud VM.
   about a second and $0.00003 a step), for every session or one. It types only values Pi supplies, stops with
   a reason Pi can act on (a value it needs, blocked, stuck, not visibly done), and Jev's cost counts in Spend. A live card in the
   conversation shows its goal, each step as it happens, the time and cost, and Watch.
-  **Signing in stays yours:** Pi never types a password or a code. `browser_sign_in` puts a card in the
+  **Passwords from Secrets:** a sign-in you saved in Secrets (and allowed in that folder), Pi types by name
+  (`browser_type` with `secret`, or `browser_run` values `{ secret }`): the value goes into the page, never to Pi or the run
+  model, and an "ask first" secret still asks you on a card. **Otherwise signing in stays yours:** Pi never types a password
+  or a code as text. `browser_sign_in` puts a card in the
   conversation where you type the username and password (or use one kept in Secrets with Remember), and they go
   straight into the page; `browser_ask_code` does the same for a one-time code; `browser_ask_user` hands you the page
   for a CAPTCHA or an approval on your phone, and Pi goes on when you say Done. Passkeys are not possible there

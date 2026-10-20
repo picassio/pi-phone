@@ -215,7 +215,7 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
         const pw = Number(/\[(\d+)\] password "Password"/.exec(login)![1]);
 
         assert.doesNotMatch(login, /password "Password" value/);
-        await assert.rejects(browser.type(1, pw, "guess", {}), /Pi never types a password/);
+        await assert.rejects(browser.type(1, pw, "guess", {}), /password field: type a saved secret/);
         await browser.fillFields(1, [{ index: user, value: "tuan@example.com" }, { index: pw, value: "hunter2" }]);
 
         const filled = await browser.snapshot(1);

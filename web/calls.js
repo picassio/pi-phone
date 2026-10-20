@@ -111,7 +111,8 @@ export function describeCall(call) {
         case "browser_hover":
             return { icon: "◍", label: "Points at", subject: `[${args.index ?? ""}]` };
         case "browser_type":
-            return { icon: "◍", label: "Types", subject: `“${short(args.text ?? "", 60)}” into [${args.index ?? ""}]` };
+            // A saved secret by its name only (PP-32): its value never reaches the call.
+            return { icon: "◍", label: "Types", subject: args.secret ? `[secret ${args.secret}] into [${args.index ?? ""}]` : `“${short(args.text ?? "", 60)}” into [${args.index ?? ""}]` };
         case "browser_select":
             return { icon: "◍", label: "Chooses", subject: `“${args.option ?? ""}” in [${args.index ?? ""}]` };
         case "browser_scroll":

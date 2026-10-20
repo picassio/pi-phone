@@ -278,7 +278,8 @@ const describeTarget = (key: string, target: Target, value?: string) =>
     `[${key}] ${target.label}${target.option !== undefined ? ` → ${target.option}` : ""}${value ? ` (now ${JSON.stringify(value)})` : ""}`;
 
 /** Every question this step asks, in one request. */
-export function buildQuestions(space: ReturnType<typeof actionSpace>, goal: string, values: Record<string, string>, hasHistory: boolean): Record<string, Question> {
+/** `secrets`: the values that are the owner's secrets (PP-32): the decider gets their names, never their values. */
+export function buildQuestions(space: ReturnType<typeof actionSpace>, goal: string, values: Record<string, string>, hasHistory: boolean, secrets: readonly string[] = []): Record<string, Question> {
     const rules = (extra: Record<string, unknown>) => text({ goal, ...extra });
     const operations: Record<string, string> = {};
 
@@ -321,7 +322,9 @@ export function buildQuestions(space: ReturnType<typeof actionSpace>, goal: stri
         questions.value_for_field = {
             type: "choice",
             criteria: {
-                ...Object.fromEntries(Object.entries(values).map(([name, value]) => [name, `${name}: ${value.length > 120 ? `${value.slice(0, 119)}…` : value}`])),
+                ...Object.fromEntries(
+                    Object.entries(values).map(([name, value]) => [name, secrets.includes(name) ? `${name}: a secret (its value is never shown)` : `${name}: ${value.length > 120 ? `${value.slice(0, 119)}…` : value}`]),
+                ),
                 [NONE_VALUE]: "No supplied value belongs in this field.",
             },
             instructions: rules({ rules: VALUE_FOR_FIELD, fields: fields.map(([key, target]) => describeTarget(key, target, valueOf(target))) }),
@@ -343,7 +346,8 @@ export function buildQuestions(space: ReturnType<typeof actionSpace>, goal: stri
 export interface RunPage {
     observe(): Promise<Observed>;
     click(observed: Observed, node: number): Promise<void>;
-    type(observed: Observed, node: number, text: string): Promise<void>;
+    /** `secret`: the text is one of the owner's secrets, which may go into a password field too. */
+    type(observed: Observed, node: number, text: string, secret: boolean): Promise<void>;
     select(observed: Observed, node: number, option: string): Promise<void>;
     scroll(direction: "up" | "down"): Promise<void>;
     wait(): Promise<void>;
@@ -369,6 +373,8 @@ export type RunResult = {
 export type RunOptions = {
     goal: string;
     values: Record<string, string>;
+    /** Which of the values are the owner's secrets: named to the decider, never shown, typed only into the page. */
+    secrets?: readonly string[];
     maxSteps: number;
     /** At most this long, in ms. */
     timeMs: number;
@@ -409,7 +415,7 @@ export async function runGoal(page: RunPage, decider: Decider, options: RunOptio
         }
 
         const space = actionSpace(observed);
-        const questions = buildQuestions(space, options.goal, options.values, history.length > 0);
+        const questions = buildQuestions(space, options.goal, options.values, history.length > 0, options.secrets ?? []);
         const state: DecisionState = {
             page: { url: observed.url, title: observed.title, text: observed.text },
             elements: space.elements,
@@ -472,10 +478,13 @@ export async function runGoal(page: RunPage, decider: Decider, options: RunOptio
                         return finish("stopped", "needs_value", `[${target.index}] ${target.label} needs a value none of the supplied ones fits: supply it in values and run again.`);
                     }
 
-                    typed = options.values[name];
+                    const secret = (options.secrets ?? []).includes(name);
+
+                    // What the decider sees of it later (the history): a secret by its name only.
+                    typed = secret ? `[secret ${name}]` : options.values[name];
                     did = `typed ${name} into [${target.index}] ${target.label}`;
                     options.progress(`Typing ${name} into [${target.index}] ${target.label}`);
-                    await page.type(observed, target.node, typed!);
+                    await page.type(observed, target.node, options.values[name]!, secret);
                 }
             } else if (operation === "SCROLL_DOWN" || operation === "SCROLL_UP") {
                 did = operation === "SCROLL_DOWN" ? "scrolled down" : "scrolled up";

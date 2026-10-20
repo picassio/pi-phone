@@ -10,6 +10,7 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { namesIn, Secrets } from "../src/server/secrets.ts";
+import { browserSecretNames } from "../src/server/extensions/secrets.ts";
 
 const VALUE = "s3cr3t-value-0123456789";
 const notes = join(work, "secret-notes.txt");
@@ -18,6 +19,8 @@ let told = "";
 const calls: Record<string, [string, Record<string, unknown>]> = {
     "use the token": ["bash", { command: 'printf \'%s\' "$TEST_TOKEN" | wc -c; echo "token is $TEST_TOKEN"; echo "$TEST_TOKEN" | base64' }],
     "use the other one": ["bash", { command: 'echo "$ELSEWHERE_TOKEN"' }],
+    // Pi's browser typing a secret by name (PP-32): the same folder rule, before the browser is touched.
+    "type the other one": ["browser_type", { index: 2, secret: "ELSEWHERE_TOKEN" }],
     "read the notes": ["read", { path: notes }],
     "ask for a key": ["secret_request", { name: "NEW_KEY", description: "The test service's key" }],
     "save a key": ["secret_save", { name: "MADE_KEY", command: "printf 'generated-%s-%s' abcdefgh 123", description: "made by a command" }],
@@ -143,6 +146,7 @@ test("a secret is refused outside its folders, and other tools' results are reda
     const id = await newSession(app);
 
     assert.match(await turn(id, "use the other one"), /may not be used in this folder/);
+    assert.match(await turn(id, "type the other one"), /\$ELSEWHERE_TOKEN may not be used in this folder/);
 
     mkdirSync(work, { recursive: true });
     writeFileSync(notes, `the key: ${VALUE}\n`);
@@ -191,4 +195,12 @@ test("secret_save keeps a command's output as a secret without showing it", asyn
     assert.ok(!(await modelTexts(app, id)).join("\n").includes("generated-abcdefgh-123"));
     assert.deepEqual(app.secrets.environment(["MADE_KEY"], work), { MADE_KEY: "generated-abcdefgh-123" });
     assert.match(readFileSync(join(root, "data", "secrets.json"), "utf8"), /generated-abcdefgh-123/, "in the store's file");
+});
+
+test("Pi's browser names the secrets it types, for the folder and ask-first rules (PP-32)", async () => {
+    assert.deepEqual(browserSecretNames("browser_type", { index: 3, secret: "LOGIN" }), { names: ["LOGIN"], subject: "Type [secret LOGIN] into [3]" });
+    assert.equal(browserSecretNames("browser_type", { index: 3, text: "hello" }), undefined);
+    assert.deepEqual(browserSecretNames("browser_run", { goal: "Sign in", values: { user: "tuan", password: { secret: "LOGIN" } } })?.names, ["LOGIN"]);
+    assert.equal(browserSecretNames("browser_run", { goal: "Search", values: { q: "lamp" } }), undefined);
+    assert.equal(browserSecretNames("bash", { command: "echo $LOGIN" }), undefined);
 });
