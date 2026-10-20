@@ -7,10 +7,11 @@ import { cleanUp, root } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
-import { SessionEngine, TabOwners } from "../src/server/browser/session-engine.ts";
+import { BrowserSizes, SessionEngine, TabOwners } from "../src/server/browser/session-engine.ts";
 
 after(() => cleanUp());
 
@@ -84,7 +85,8 @@ test("two sessions at one place: their own tabs, one profile, owners kept across
 
 test("Desktop lays pages out at 1280 as a desktop Chrome without touch, Phone at 412; a tap on a password field says so; idle counts", real, async () => {
     const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
-    const browser = new PiBrowser({ engine: new SessionEngine(engine, "machine:test", 7, new TabOwners(undefined)), place: "machine:test", session: 7, changed: () => {}, frame: () => {}, log: () => {} });
+    const picked: string[] = [];
+    const browser = new PiBrowser({ engine: new SessionEngine(engine, "machine:test", 7, new TabOwners(undefined)), place: "machine:test", session: 7, sized: (size) => picked.push(size), changed: () => {}, frame: () => {}, log: () => {} });
 
     try {
         assert.match(await browser.open(7, "http://pi.test/ua"), /phone 412 touch 5/);
@@ -98,6 +100,7 @@ test("Desktop lays pages out at 1280 as a desktop Chrome without touch, Phone at
         // A tab opened after keeps the size.
         assert.match(await browser.newTab(7, "http://pi.test/ua"), /desktop 1280 touch 0/);
         assert.match(await browser.resize(7, "phone"), /phone 412 touch 5/);
+        assert.deepEqual(picked, ["desktop", "phone"], "each size picked is kept");
 
         // A person's taps say where the focus went: a text field, then a password field, then nothing.
         await browser.open(7, "http://pi.test/login");
@@ -150,4 +153,31 @@ test("where a tab keeps its size (the phone's WebView), a new size opens each ta
         await browser.close();
         await engine.close();
     }
+});
+
+test("a session's size is kept and read back after a restart, Phone is the default, and an archived session's is dropped", () => {
+    const file = join(root, "browser-sizes.json");
+    const sizes = new BrowserSizes(file);
+
+    assert.equal(sizes.of("phone#5"), "phone");
+    sizes.set("phone#5", "desktop");
+    sizes.set("machine:m1#6", "desktop");
+
+    const again = new BrowserSizes(file);
+
+    assert.equal(again.of("phone#5"), "desktop");
+    assert.equal(again.of("machine:m1#6"), "desktop");
+
+    // A browser made with the kept size starts at it, and keeps a new one where it is told.
+    const kept: string[] = [];
+    const browser = new PiBrowser({ engine: new ChromeEngine("chrome"), session: 5, size: again.of("phone#5"), sized: (size) => kept.push(size), changed: () => {}, frame: () => {}, log: () => {} });
+
+    assert.equal(browser.state().size, "desktop");
+    assert.deepEqual(browser.state().viewport, { width: 1280, height: 800 });
+
+    again.set("phone#5", undefined);
+    again.set("machine:m1#6", "phone");
+    assert.equal(new BrowserSizes(file).of("phone#5"), "phone");
+    assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), {}, "Phone is not written down");
+    assert.deepEqual(kept, []);
 });

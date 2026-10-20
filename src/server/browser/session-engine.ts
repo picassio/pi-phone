@@ -9,7 +9,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import type { Cdp } from "./cdp.ts";
 import type { BrowserPage } from "./page.ts";
-import type { BrowserEngine } from "./pi-browser.ts";
+import type { BrowserEngine, BrowserSize } from "./pi-browser.ts";
 
 /** Which session owns each tab, by place and tab id, kept in a JSON file. */
 export class TabOwners {
@@ -65,6 +65,54 @@ export class TabOwners {
     #save(): void {
         if (this.#file !== undefined) {
             writeFileSync(this.#file, JSON.stringify(this.#owners));
+        }
+    }
+}
+
+/** The size each session's browser lays pages out at (PP-18), by `<place>#<session>`, kept in a JSON file. */
+export class BrowserSizes {
+    readonly #file: string | undefined;
+    #sizes: Record<string, BrowserSize>;
+
+    /** `file`: where to keep them, or undefined to keep them in memory only (tests). */
+    constructor(file: string | undefined) {
+        this.#file = file;
+        this.#sizes = {};
+
+        if (file !== undefined) {
+            try {
+                const kept = JSON.parse(readFileSync(file, "utf8")) as unknown;
+
+                if (kept !== null && typeof kept === "object") {
+                    this.#sizes = Object.fromEntries(Object.entries(kept).filter(([, size]) => size === "phone" || size === "desktop")) as Record<string, BrowserSize>;
+                }
+            } catch {
+                // None kept yet.
+            }
+        }
+    }
+
+    /** A session's size at a place: Phone unless it picked Desktop. */
+    of(key: string): BrowserSize {
+        return this.#sizes[key] ?? "phone";
+    }
+
+    /** Keep a size (Phone, the default, is not written down), or forget a session's (`undefined`). */
+    set(key: string, size: BrowserSize | undefined): void {
+        const sizes = { ...this.#sizes };
+
+        if (size === undefined || size === "phone") {
+            delete sizes[key];
+        } else {
+            sizes[key] = size;
+        }
+
+        if (JSON.stringify(sizes) !== JSON.stringify(this.#sizes)) {
+            this.#sizes = sizes;
+
+            if (this.#file !== undefined) {
+                writeFileSync(this.#file, JSON.stringify(sizes));
+            }
         }
     }
 }

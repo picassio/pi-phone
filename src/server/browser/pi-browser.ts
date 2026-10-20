@@ -372,6 +372,9 @@ export type PiBrowserOptions = {
     where?: string;
     /** The session whose browser this is (PP-13): each session has its own tabs at a place. */
     session?: number;
+    /** The size it starts at (PP-18: the one the session picked before), and where a new one is kept. */
+    size?: BrowserSize;
+    sized?(size: BrowserSize): void;
     /** The state changed: tabs that show the panel get it. */
     changed(state: BrowserState): void;
     /** A frame for those watching. */
@@ -399,7 +402,9 @@ export class PiBrowser {
 
     constructor(options: PiBrowserOptions) {
         this.#options = options;
-        this.#state = { ...this.#state, place: options.place ?? "phone", where: options.where ?? "the phone", session: options.session ?? null };
+        const size = options.size ?? "phone";
+
+        this.#state = { ...this.#state, place: options.place ?? "phone", where: options.where ?? "the phone", session: options.session ?? null, size, viewport: { width: SIZES[size].width, height: SIZES[size].height } };
     }
 
     /** Which browser this is: `phone`, or `machine:<id>`. */
@@ -956,6 +961,7 @@ export class PiBrowser {
         const resized = this.#queue.then(async () => {
             this.#usedAt = Date.now();
             this.#set({ size, viewport: { width: SIZES[size].width, height: SIZES[size].height } });
+            this.#options.sized?.(size);
 
             for (const tab of [...this.#tabs]) {
                 if (this.#options.engine.reopensToResize) {

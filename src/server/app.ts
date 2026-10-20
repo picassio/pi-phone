@@ -87,7 +87,7 @@ import { Machines } from "./machines.ts";
 import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
 import { Screenshots } from "./screenshots.ts";
 import { MachineEngine } from "./browser/machine-engine.ts";
-import { SessionEngine, TabOwners } from "./browser/session-engine.ts";
+import { BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine.ts";
 import { installImageGuard } from "./image-guard.ts";
 import { appSettings } from "./settings-registry.ts";
 import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
@@ -305,6 +305,8 @@ export class PocketApp {
     readonly #browsers = new Map<string, PiBrowser>();
     /** Which session owns each tab of each place's engine. */
     readonly #tabOwners: TabOwners;
+    /** The size each session's browser lays pages out at (PP-18). */
+    readonly #browserSizes: BrowserSizes;
     /** The sweep that closes idle sessions' tabs, and those of sessions archived or deleted. */
     #browserSweep: NodeJS.Timeout | undefined;
     /** Approvals the phone was told of already. */
@@ -457,6 +459,7 @@ export class PocketApp {
         this.forwards = new Forwards(this.machines);
         this.#phoneEngine = options.browserEngine ?? new PhoneEngine(this.browserRequests);
         this.#tabOwners = new TabOwners(join(options.dataDir, "browser-tabs.json"));
+        this.#browserSizes = new BrowserSizes(join(options.dataDir, "browser-sizes.json"));
         this.para = new Para({
             home: this.#home,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
@@ -943,6 +946,10 @@ export class PocketApp {
         for (const [key, browser] of this.#browsers) {
             const session = this.#sessions[key.slice(key.lastIndexOf("#") + 1)];
             const gone = session === undefined || session.archived === true;
+
+            if (gone) {
+                this.#browserSizes.set(key, undefined);
+            }
 
             if (!browser.hasTabs || (!gone && browser.idleFor(now) < BROWSER_IDLE_MS)) {
                 continue;
@@ -1946,6 +1953,8 @@ export class PocketApp {
             place,
             where,
             session,
+            size: this.#browserSizes.of(`${place}#${session}`),
+            sized: (size) => this.#browserSizes.set(`${place}#${session}`, size),
             // Only the owner sees Pi's browser: it may be signed in to the owner's accounts.
             changed: (state) => {
                 for (const client of this.#clients) {
