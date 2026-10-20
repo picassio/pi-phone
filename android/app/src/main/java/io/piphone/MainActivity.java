@@ -31,6 +31,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -257,6 +258,7 @@ public final class MainActivity extends Activity {
                     String url = BASE + "/login?token=" + Uri.encode(PiService.ownerToken(this))
                             + (session < 0 ? "" : "&next=" + Uri.encode("/s/" + session));
                     loaded = true;
+                    statusShown = false;
                     runOnUiThread(() -> web.loadUrl(url));
                     if (!checked) {
                         checked = true;
@@ -364,26 +366,87 @@ public final class MainActivity extends Activity {
     }
 
     /** The web app's colors (web/style.css, the pocket theme): this page shows before the server and its fonts are up. */
-    private static final String STATUS_STYLE = "body{margin:0;padding:24px;background:#1a1b26;color:#a9b1d6;"
-            + "font:15px/1.5 system-ui,sans-serif}h3{color:#c0caf5;font-weight:600;margin:0 0 12px}"
-            + "p{margin:0;color:#a9b1d6}pre{white-space:pre-wrap;font:12px/1.45 monospace;background:#13141c;"
-            + "color:#c0caf5;border-radius:8px;padding:12px;margin-top:16px}";
+    /**
+     * The app's own screen before the server answers (unpacking, updating, starting, downloading an update) and when
+     * something failed: the logo, the app's name, a spinner, what is happening and a note, a progress bar for a download,
+     * and the log for a failure. It loads once; `show()` then changes it in place, so the spinner keeps turning.
+     */
+    private static final String STATUS_PAGE = "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
+            + "<style>"
+            + "html,body{margin:0;height:100%;background:#141414;color:#a9b1d6;font:15px/1.5 system-ui,-apple-system,Roboto,sans-serif}"
+            + "main{min-height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;"
+            + "padding:32px 28px;text-align:center}"
+            + ".logo{width:72px;height:72px}"
+            + ".name{margin:18px 0 28px;color:#e8eaf2;font-size:22px;font-weight:600;letter-spacing:-.01em}"
+            + ".spin{width:22px;height:22px;border-radius:50%;border:2.5px solid rgba(169,177,214,.18);border-top-color:#a9b1d6;"
+            + "animation:spin .9s linear infinite;margin-bottom:22px}"
+            + "@keyframes spin{to{transform:rotate(360deg)}}"
+            + ".title{color:#d4d8e8;font-size:16px;font-weight:500}"
+            + ".note{margin-top:6px;color:#7b8199;font-size:13.5px;max-width:30em}"
+            + ".bar{width:min(280px,80%);height:4px;margin:20px 0 8px;border-radius:2px;background:rgba(169,177,214,.15);overflow:hidden}"
+            + ".bar i{display:block;height:100%;width:0;border-radius:2px;background:#7aa2f7;transition:width .4s ease}"
+            + ".amount{color:#7b8199;font-size:12.5px;font-variant-numeric:tabular-nums}"
+            + "pre{align-self:stretch;text-align:left;white-space:pre-wrap;font:12px/1.45 monospace;background:#0d0d10;color:#c0caf5;"
+            + "border-radius:10px;padding:12px;margin:22px 0 0;max-height:55vh;overflow:auto}"
+            + "body.failed main{justify-content:flex-start;padding-top:56px}body.failed .title{color:#f7768e}"
+            + "[hidden]{display:none!important}"
+            + "</style></head><body><main>"
+            + "<svg class='logo' viewBox='150 150 500 500' aria-hidden='true'>"
+            + "<path fill='#F09082' d='M165.29 165.29H517.36V400H400V282.65H165.29Z'/>"
+            + "<path fill='#4D9ABF' d='M165.29 282.65H282.65V400H400V517.36H282.65V634.72H165.29Z'/>"
+            + "<path fill='#F1BE58' d='M517.36 400H634.72V634.72H517.36Z'/></svg>"
+            + "<div class='name'>pi-phone</div>"
+            + "<div class='spin' id='spin'></div>"
+            + "<div class='title' id='title'></div><div class='note' id='note'></div>"
+            + "<div class='bar' id='bar' hidden><i id='fill'></i></div><div class='amount' id='amount'></div>"
+            + "<pre id='log' hidden></pre>"
+            + "</main><script>"
+            + "function show(s){title.textContent=s.title||'';note.textContent=s.note||'';note.hidden=!s.note;"
+            + "spin.hidden=!!s.failed;bar.hidden=s.fraction==null;if(s.fraction!=null)fill.style.width=Math.round(s.fraction*100)+'%';"
+            + "amount.textContent=s.amount||'';log.hidden=!s.log;log.textContent=s.log||'';document.body.classList.toggle('failed',!!s.failed)}"
+            + "</script>";
 
-    /** Progress: a title and an optional note. */
+    /** Whether the status screen is what the WebView shows now (the app's page replaces it once the server answers). */
+    private volatile boolean statusShown = false;
+
+    /** Show the status screen as `state` says: loaded the first time, changed in place after. */
+    private void show(JSONObject state) {
+        runOnUiThread(() -> {
+            if (statusShown) {
+                web.evaluateJavascript("typeof show==='function'&&show(" + state + ")", null);
+            } else {
+                statusShown = true;
+                web.loadDataWithBaseURL(null, STATUS_PAGE + "<script>show(" + state + ")</script></body></html>", "text/html", "utf-8", null);
+            }
+        });
+    }
+
+    /** Progress: what is happening, and an optional note. */
     private void status(String title, String note) {
-        page(title, note == null ? "" : "<p>" + Html.escapeHtml(note) + "</p>");
+        try {
+            show(new JSONObject().put("title", title).put("note", note == null ? "" : note));
+        } catch (JSONException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
 
-    /** A failure: a title and what the log says. */
+    /** A download: what it is, how far, as a bar and in megabytes. */
+    private void downloading(String title, String note, long done, long total) {
+        try {
+            show(new JSONObject().put("title", title).put("note", note).put("fraction", total > 0 ? Math.min(1.0, (double) done / total) : 0)
+                    .put("amount", megabytes(done, total)));
+        } catch (JSONException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    /** A failure: what failed, and what the log says. */
     private void failure(String title, String log) {
-        page(title, "<pre>" + Html.escapeHtml(log) + "</pre>");
-    }
-
-    private void page(String title, String body) {
-        String html = "<html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
-                + "<style>" + STATUS_STYLE + "</style></head><body>"
-                + "<h3>" + Html.escapeHtml(title) + "</h3>" + body + "</body></html>";
-        runOnUiThread(() -> web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null));
+        try {
+            show(new JSONObject().put("title", title).put("log", log).put("failed", true));
+        } catch (JSONException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
 
     // ─── Updates ────────────────────────────────────────────────────────────
@@ -426,7 +489,7 @@ public final class MainActivity extends Activity {
 
     private void updateRuntime(Updater.Plan plan) {
         loaded = false;
-        status("Downloading the update…", null);
+        downloading("Downloading the update", "", 0, 0);
         new Thread(() -> {
             try {
                 File into = new File(getFilesDir(), "updates");
@@ -453,23 +516,25 @@ public final class MainActivity extends Activity {
                     .show();
             return;
         }
-        AlertDialog progress = new AlertDialog.Builder(this)
-                .setTitle("Downloading the app update")
-                .setMessage("Starting…")
-                .setCancelable(false)
-                .show();
+        // The status screen, with a bar, while the APK downloads; then Android's installer, over the app again.
+        loaded = false;
+        String version = "Version " + plan.shortVersion();
+        downloading("Downloading the app update", version, 0, 0);
         new Thread(() -> {
             try {
                 File apk = Updater.download(plan.manifest.getJSONObject("apk"), new File(getCacheDir(), "updates"),
-                        (name, done, total) -> runOnUiThread(() -> progress.setMessage(megabytes(done, total))));
-                runOnUiThread(progress::dismiss);
+                        (name, done, total) -> {
+                            long now = System.currentTimeMillis();
+                            if (now - lastProgress < 250 && done < total) return;
+                            lastProgress = now;
+                            downloading("Downloading the app update", version, done, total);
+                        });
+                status("Installing the update", "Android asks you to confirm. Your sessions and sign-ins stay.");
                 Updater.installApk(this, apk);
             } catch (Exception e) {
-                runOnUiThread(() -> {
-                    progress.dismiss();
-                    alert("The update failed", e.toString());
-                });
+                alert("The update failed", e.toString());
             }
+            waitForServer();
         }, "pi-update").start();
     }
 
@@ -479,7 +544,7 @@ public final class MainActivity extends Activity {
         long now = System.currentTimeMillis();
         if (now - lastProgress < 500 && done < total) return;
         lastProgress = now;
-        status("Downloading the update…", name + ": " + megabytes(done, total));
+        downloading("Downloading the update", name, done, total);
     }
 
     private static String megabytes(long done, long total) {
