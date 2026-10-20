@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
-import { addressOf, describe, elementsOf, type Observed } from "../src/server/browser/page.ts";
+import { addressOf, describe, elementsOf, isLocalAddress, type Observed } from "../src/server/browser/page.ts";
 import { blockedInPlanMode } from "../src/server/extensions/plan.ts";
 import { type BrowserFrame, type BrowserState, ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
 
@@ -20,6 +20,14 @@ test("an address as typed: a page opens as it is, a bare name gets https, words 
     assert.throws(() => addressOf("file:///etc/passwd"), /http and https pages only/);
     assert.throws(() => addressOf("javascript:alert(1)"), /http and https pages only/);
     assert.throws(() => addressOf("  "), /Give an address/);
+
+    for (const local of ["http://localhost:8787/", "http://127.0.0.1:8787/s/1", "http://192.168.1.50/", "http://10.0.0.2/", "http://172.20.1.1/", "http://100.119.9.4/", "http://[::1]:8787/", "http://0.0.0.0/"]) {
+        assert.equal(isLocalAddress(local), true, local);
+    }
+
+    for (const remote of ["https://example.com/", "https://172.32.0.1/", "https://100.128.0.1/", "https://8.8.8.8/"]) {
+        assert.equal(isLocalAddress(remote), false, remote);
+    }
 });
 
 test("in plan mode Pi may open and read pages, but not click, type, choose, or press keys", () => {

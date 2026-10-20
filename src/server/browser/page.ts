@@ -10,7 +10,7 @@ import type { Cdp } from "./cdp.ts";
 
 const SNAPSHOT = readFileSync(new URL("./snapshot.js", import.meta.url), "utf8");
 
-/** Addresses Pi's browser never loads: the app itself, this device, and the local network (a page could act as you). */
+/** Addresses Pi's browser never loads (Fetch patterns): the app itself, this device, and the local network (a page could act as you). */
 export const BLOCKED_URLS = [
     "*://127.*",
     "*://localhost*",
@@ -23,6 +23,31 @@ export const BLOCKED_URLS = [
     // Tailscale's addresses (100.64.0.0/10), where the owner's machines and this app's other address are.
     ...Array.from({ length: 64 }, (_each, index) => `*://100.${64 + index}.*`),
 ];
+
+/** This device or its local network, by the address written (as PiBrowser.java's check): never opened. */
+export function isLocalAddress(url: string): boolean {
+    let host: string;
+
+    try {
+        host = new URL(url).hostname.toLowerCase();
+    } catch {
+        return false;
+    }
+
+    if (host === "localhost" || host.endsWith(".localhost") || host === "[::1]" || host === "0.0.0.0") {
+        return true;
+    }
+
+    const octets = host.split(".").map(Number);
+
+    if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet))) {
+        return false;
+    }
+
+    const [a, b] = octets as [number, number, number, number];
+
+    return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 100 && b >= 64 && b <= 127);
+}
 
 type RawAction = {
     node: number;
@@ -203,8 +228,12 @@ export class BrowserPage {
     /** Turn on what reading and acting need, block the local addresses, and dismiss dialogs (accepted only when asked). */
     async init(viewport: { width: number; height: number; mobile: boolean }): Promise<void> {
         await this.cdp.send("Page.enable");
-        await this.cdp.send("Network.enable");
-        await this.cdp.send("Network.setBlockedURLs", { urls: BLOCKED_URLS });
+        // Requests to the local addresses pause (only those) and fail: navigations, frames, scripts, fetches alike.
+        // (Network.setBlockedURLs no longer blocks in Chrome 155.)
+        this.cdp.on("Fetch.requestPaused", (params) => {
+            void this.cdp.send("Fetch.failRequest", { requestId: params.requestId, errorReason: "BlockedByClient" }).catch(() => {});
+        });
+        await this.cdp.send("Fetch.enable", { patterns: BLOCKED_URLS.map((urlPattern) => ({ urlPattern })) });
         await this.cdp.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 0, mobile: viewport.mobile });
         await this.cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
         this.#mainFrame = ((await this.cdp.send<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree")).frameTree.frame.id);
@@ -244,6 +273,10 @@ export class BrowserPage {
 
     /** Open an address, and wait for it to load (15 seconds at most; a slow page is read as it is). */
     async navigate(url: string): Promise<void> {
+        if (isLocalAddress(url)) {
+            throw new Error(`Pi's browser does not open ${url}: it is this device or its local network.`);
+        }
+
         const answer = await this.cdp.send<{ errorText?: string }>("Page.navigate", { url });
 
         if (answer.errorText !== undefined && answer.errorText !== "") {
