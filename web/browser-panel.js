@@ -172,9 +172,12 @@ function Frame({ interactive, onWheel }) {
         setHas(true);
     });
 
-    /** A pointer on the picture, in the page's CSS pixels. */
+    /**
+     * A pointer on the picture, in the page's CSS pixels: against the frame, which has the page's shape. (On the phone a
+     * desktop-sized page is drawn shrunk at the top of a phone-shaped view: the picture runs below, cut off.)
+     */
     const at = (event) => {
-        const box = image.current.getBoundingClientRect();
+        const box = image.current.parentElement.getBoundingClientRect();
 
         return {
             x: Math.round(((event.clientX - box.left) / box.width) * viewport.width),

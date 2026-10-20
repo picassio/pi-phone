@@ -16254,8 +16254,7 @@ pre.gallery-code {
 .pb-frame img {
     display: block;
     width: 100%;
-    height: 100%;
-    object-fit: fill;
+    height: auto;
     user-select: none;
     -webkit-user-drag: none;
 }

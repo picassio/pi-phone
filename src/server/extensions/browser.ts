@@ -314,7 +314,7 @@ export default function createBrowser(host: PocketHost) {
 
                     return {
                         output: [
-                            { type: "text" as const, text: `${state.title || "(no title)"} — ${state.url}, as Pi's browser shows it (${state.viewport.width}×${state.viewport.height} CSS pixels).` },
+                            { type: "text" as const, text: `${state.title || "(no title)"} — ${state.url}, as Pi's browser shows it (${state.viewport.width}×${state.viewport.height} CSS pixels${browser.shrunk ? ", drawn shrunk to fit the phone's view: the page is the top part of the picture, the rest is empty" : ""}).` },
                             { type: "image" as const, data: jpeg, mimeType: "image/jpeg" },
                         ],
                     };

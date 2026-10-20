@@ -240,7 +240,7 @@ export class BrowserPage {
      * Turn on what reading and acting need, block the local addresses (unless `local`: a machine's Chrome may open that
      * machine's dev servers), and dismiss dialogs (accepted only when asked).
      */
-    async init(viewport: { width: number; height: number; mobile: boolean }, { local = false, phone = false }: { local?: boolean; phone?: boolean } = {}): Promise<void> {
+    async init(viewport: { width: number; height: number; mobile: boolean }, { local = false, phone = false, fit }: { local?: boolean; phone?: boolean; fit?: number } = {}): Promise<void> {
         await this.cdp.send("Page.enable");
         this.#blockLocal = !local;
 
@@ -260,7 +260,9 @@ export class BrowserPage {
         }
 
         this.#ownAgent = await this.evaluate<string>("navigator.userAgent").catch(() => "");
-        await this.cdp.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: phone ? 2 : 0, mobile: viewport.mobile });
+        this.#ownRatio = await this.evaluate<number>("devicePixelRatio").catch(() => 1);
+        this.#fit = fit;
+        await this.#metrics(viewport, phone);
 
         if (!viewport.mobile) {
             await this.#actAsDesktop();
@@ -318,13 +320,32 @@ export class BrowserPage {
 
     /** The browser's own user agent, before any override: the phone's WebView's, to go back to it from Desktop. */
     #ownAgent = "";
+    /** Its own pixels per CSS pixel, and the width its view really is (the phone's WebView), if it cannot change. */
+    #ownRatio = 1;
+    #fit: number | undefined;
+
+    /**
+     * Lay the page out at `viewport`. A view that cannot grow (`fit`: the phone's WebView, 412 wide) gets a wider page
+     * drawn shrunk to its width, its pixels fewer per CSS pixel: pictures of the view then hold the whole page, at the top.
+     */
+    async #metrics(viewport: { width: number; height: number; mobile: boolean }, phone: boolean): Promise<void> {
+        const shrink = this.#fit !== undefined && viewport.width > this.#fit ? (this.#ownRatio * this.#fit) / viewport.width : undefined;
+
+        await this.cdp.send("Emulation.setDeviceMetricsOverride", {
+            width: viewport.width,
+            height: viewport.height,
+            deviceScaleFactor: shrink ?? (phone ? 2 : 0),
+            mobile: viewport.mobile,
+        });
+    }
 
     /**
      * Lay the page out at another size (PP-15): a phone's (`mobile`, touch, a phone's user agent) or a desktop's (no touch,
      * a desktop Chrome's user agent). An open page loads again, so its site serves the page for that size.
      */
-    async resize(viewport: { width: number; height: number; mobile: boolean }, { phone = false }: { phone?: boolean } = {}): Promise<void> {
-        await this.cdp.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: phone ? 2 : 0, mobile: viewport.mobile });
+    async resize(viewport: { width: number; height: number; mobile: boolean }, { phone = false, fit }: { phone?: boolean; fit?: number } = {}): Promise<void> {
+        this.#fit = fit;
+        await this.#metrics(viewport, phone);
 
         if (!viewport.mobile) {
             await this.#actAsDesktop();

@@ -99,6 +99,10 @@ export class SessionEngine implements BrowserEngine {
         return this.#engine.actAsPhone;
     }
 
+    get viewWidth(): number | undefined {
+        return this.#engine.viewWidth;
+    }
+
     /** This session's tabs, oldest first: its own, and any nobody owns (taken now). */
     async tabs(): Promise<string[]> {
         const all = await this.#engine.tabs();

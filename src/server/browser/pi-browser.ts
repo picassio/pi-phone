@@ -44,6 +44,12 @@ export interface BrowserEngine {
     readonly local: boolean;
     /** Whether its pages present themselves as a phone's (a desktop Chrome does; the phone's WebView is one). */
     readonly actAsPhone: boolean;
+    /**
+     * The width its view really is, in CSS pixels, when that cannot change (the phone's WebView, laid out at the phone's
+     * width): a wider page is drawn shrunk to fit it, since pictures of it are of that view. Undefined where the view
+     * takes any size (Chrome).
+     */
+    readonly viewWidth: number | undefined;
     /** Pi's tabs there now (kept from before the server restarted, or opened by pages), by id, oldest first. */
     tabs(): Promise<string[]>;
     /** Make a new tab: its id. */
@@ -116,6 +122,7 @@ export class PhoneEngine implements BrowserEngine {
     readonly popups = false;
     readonly local = false;
     readonly actAsPhone = false;
+    readonly viewWidth = VIEWPORT.width;
     readonly #requests: PhoneRequests;
     #pid = 0;
     /** Each tab's address as the phone last said (a tab kept from before has moved on from its marker). */
@@ -220,6 +227,7 @@ export class ChromeEngine implements BrowserEngine {
     readonly popups = true;
     readonly local = false;
     readonly actAsPhone = true;
+    readonly viewWidth = undefined;
     readonly #binary: string;
     readonly #flags: string[];
     #child: ChildProcess | undefined;
@@ -425,7 +433,7 @@ export class PiBrowser {
         const page = new BrowserPage(cdp);
         const tab: Tab = { id, page, observed: undefined, elements: [], url: "", title: "" };
 
-        await page.init(SIZES[this.#state.size], { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone });
+        await page.init(SIZES[this.#state.size], { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone, fit: this.#options.engine.viewWidth });
         cdp.onClose = () => {
             if (!this.#tabs.includes(tab)) {
                 return;
@@ -952,7 +960,7 @@ export class PiBrowser {
 
             for (const tab of this.#tabs) {
                 tab.observed = undefined;
-                await tab.page.resize(SIZES[size], { phone: this.#options.engine.actAsPhone });
+                await tab.page.resize(SIZES[size], { phone: this.#options.engine.actAsPhone, fit: this.#options.engine.viewWidth });
             }
 
             // Frames for those watching come again at the new size.
@@ -985,6 +993,13 @@ export class PiBrowser {
         }
 
         return Math.max(0, now - this.#usedAt);
+    }
+
+    /** Whether its pages are drawn shrunk at the top of a narrower view (Desktop in the phone's WebView). */
+    get shrunk(): boolean {
+        const width = this.#options.engine.viewWidth;
+
+        return width !== undefined && SIZES[this.#state.size].width > width;
     }
 
     /** Whether it has tabs open. */
