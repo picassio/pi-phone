@@ -2,7 +2,7 @@
  * pi-phone's own settings: `phone.json` in the data folder, re-read when its mtime changes, so a change applies to the
  * next model request without a restart. Unknown keys are an error; missing keys take the defaults below.
  */
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface PhoneSettings {
@@ -98,5 +98,17 @@ export class PhoneSettingsFile {
         }
 
         return this.#value;
+    }
+
+    /** Change the Claude Code billing patch's settings (Pi's `setting_change`; the file is the app's, not the person's). */
+    update(claudeCodeBilling: Partial<PhoneSettings["claudeCodeBilling"]>): PhoneSettings {
+        const next: PhoneSettings = { claudeCodeBilling: { ...this.current().claudeCodeBilling, ...claudeCodeBilling } };
+        const text = `${JSON.stringify(next, null, 4)}\n`;
+
+        parsePhoneSettings(text);
+        writeFileSync(`${this.path}.new`, text);
+        renameSync(`${this.path}.new`, this.path);
+
+        return this.current();
     }
 }

@@ -357,6 +357,152 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 return app.setThemeDefault(user, { look, colors: colors ?? look });
             },
         },
+        // ─── People and access ───
+        {
+            id: "people.role",
+            area: "people",
+            title: "What an invited person may do",
+            help: "guest (can steer the sessions shared with them) or viewer (only reads). Target: the person's name.",
+            owner: true,
+            target: "person",
+            read: (target) => person(target).role,
+            choices: () => ["guest", "viewer"],
+            apply: (user, value, target) => app.setAccess(user, person(target).id, { role: value.trim() }),
+        },
+        {
+            id: "people.sessions",
+            area: "people",
+            title: "Sessions an invited person may open",
+            help: "all, or session numbers, comma-separated. Target: the person's name.",
+            owner: true,
+            target: "person",
+            read: (target) => person(target).sessions?.join(", ") ?? "all",
+            apply: (user, value, target) =>
+                app.setAccess(user, person(target).id, {
+                    sessions: /^all$/i.test(value.trim())
+                        ? null
+                        : value
+                              .split(",")
+                              .map((each) => each.trim().replace(/^#/, ""))
+                              .filter(Boolean),
+                }),
+        },
+        {
+            id: "access.tailscale",
+            area: "people",
+            title: "Serve other devices over Tailscale",
+            help: "on or off: your laptop's browser and invited people reach the app through your tailnet.",
+            owner: true,
+            read: () => (app.config.tailscale ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: async (_user, value) => {
+                if (app.tailnet === undefined) {
+                    throw new HttpError(503, "This server is not serving the network.");
+                }
+
+                app.config.tailscale = onOff(value);
+                await app.tailnet.set(app.config.tailscale);
+            },
+        },
+        // ─── Phone ───
+        {
+            id: "phone.claudeCodeBilling",
+            area: "phone",
+            title: "Bill Anthropic sign-ins as Claude Code",
+            help: "on or off: requests on an Anthropic subscription sign-in are sent as Claude Code's.",
+            owner: true,
+            read: () => (app.phoneSettings.current().claudeCodeBilling.enabled ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (_user, value) => {
+                app.phoneSettings.update({ enabled: onOff(value) });
+            },
+        },
+        {
+            id: "phone.claudeCodeVersion",
+            area: "phone",
+            title: "Claude Code version the billing patch sends",
+            help: "A version like 2.1.280.",
+            owner: true,
+            read: () => app.phoneSettings.current().claudeCodeBilling.version,
+            apply: (_user, value) => {
+                if (!/^\d+\.\d+\.\d+$/.test(value.trim())) {
+                    throw new HttpError(400, "A version is three numbers, like 2.1.280.");
+                }
+
+                app.phoneSettings.update({ version: value.trim() });
+            },
+        },
+        // ─── One session ───
+        {
+            id: "sessions.model",
+            area: "sessions",
+            title: "A session's model",
+            help: '"provider/modelId level" (level optional). Target: the session\'s number.',
+            owner: false,
+            target: "session",
+            read: async (target) => {
+                const state = await app.agentState(session(target));
+
+                return state?.model === undefined ? "(not set)" : `${state.model.provider}/${state.model.modelId} ${state.thinkingLevel ?? "off"}`;
+            },
+            apply: (user, value, target) => {
+                const [spec = "", level] = value.trim().split(/\s+/);
+                const slash = spec.indexOf("/");
+
+                if (slash <= 0) {
+                    throw new HttpError(400, 'Give the model as provider/modelId, like "anthropic/claude-opus-5-5 high".');
+                }
+
+                return app.commands.configure(session(target), user, {
+                    model: { provider: spec.slice(0, slash), modelId: spec.slice(slash + 1) },
+                    ...(level === undefined ? {} : { thinkingLevel: level }),
+                });
+            },
+        },
+        {
+            id: "sessions.instructions",
+            area: "sessions",
+            title: "A session's instructions for Pi",
+            help: "Text Pi reads in that session's every prompt, or none. Target: the session's number.",
+            owner: false,
+            target: "session",
+            read: async (target) => (await app.agentState(session(target)))?.instructions ?? "none",
+            apply: (user, value, target) => app.commands.setInstructions(session(target), user, NONE.test(value.trim()) ? "" : value),
+        },
+        {
+            id: "sessions.trust",
+            area: "sessions",
+            title: "Whether Pi trusts a session's project (its own skills)",
+            help: "trust, trust-parent (the folder above too), or distrust. Target: the session's number.",
+            owner: true,
+            target: "session",
+            read: () => "(see the session's trust card)",
+            choices: () => ["trust", "trust-parent", "distrust"],
+            apply: (user, value, target) => {
+                const choice = value.trim();
+
+                if (choice !== "trust" && choice !== "trust-parent" && choice !== "distrust") {
+                    throw new HttpError(400, "trust, trust-parent, or distrust.");
+                }
+
+                app.setProjectTrust(session(target), user, choice);
+            },
+        },
+        {
+            id: "sessions.ownSendLimit",
+            area: "sessions",
+            title: "One session's limit on messages to other sessions, an hour",
+            help: "A whole number from 1 to 10000, none, or inherit (every session's). Target: the session's number.",
+            owner: true,
+            target: "session",
+            read: (target) => {
+                const own = app.sessionMeta(session(target))?.sendLimit;
+
+                return own === undefined ? "inherit" : String(own ?? "none");
+            },
+            apply: (user, value, target) =>
+                app.setSendLimit(session(target), user, /^inherit$/i.test(value.trim()) ? "inherit" : count(value, "The limit")),
+        },
         // ─── Secrets: their settings (a value is typed by the person: secret_request) ───
         {
             id: "secrets.ask",
@@ -567,6 +713,36 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 await app.sshKeys.remove(args.id ?? "");
 
                 return `Deleted the key ${args.id}.`;
+            },
+        },
+        {
+            id: "folders.star",
+            area: "folders",
+            title: "Star or unstar a favorite folder",
+            help: "Favorites show first in the folder picker.",
+            owner: false,
+            args: { path: "The folder (a phone path, or machine:<id>:<path>)", starred: "on or off" },
+            describe: (args) => `${onOff(args.starred ?? "") ? "Star" : "Unstar"} the folder ${args.path ?? ""}`,
+            run: async (user, args) => {
+                await app.folderFavorites.set(user, { path: args.path, starred: onOff(args.starred ?? "") });
+
+                return `${onOff(args.starred ?? "") ? "Starred" : "Unstarred"} ${args.path}.`;
+            },
+        },
+        {
+            id: "people.remove",
+            area: "people",
+            title: "Remove an invited person",
+            help: "Their sign-ins and devices go; their sessions stay.",
+            owner: true,
+            args: { person: "Their name" },
+            describe: (args) => `Remove ${args.person ?? ""} and sign out their devices`,
+            run: async (user, args) => {
+                const found = person(args.person);
+
+                app.removeUser(user, found.id);
+
+                return `Removed ${found.name}.`;
             },
         },
         {

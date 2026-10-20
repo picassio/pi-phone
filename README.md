@@ -132,7 +132,8 @@ No Termux, no laptop, no cloud VM.
   one-off action (`app_action`), each after you approve the usual card showing the value now and the new one, through the
   same code as the app's screens: models, approvals, Pi's browser, web search, the wiki, spend limits, themes, extensions,
   secrets (their flags; deleting one), machines (names, tools, ports, removing), SSH keys, provider accounts, GitHub
-  sign-out, a backup, a restart.
+  sign-out, a backup, a restart, invited people (role, sessions, removing), Tailscale, the Claude Code billing patch, favorite
+  folders, and one session's model, instructions, trust, and limits.
 - **Devices.** Each sign-in is a device of its own, so People lists every signed-in device (open now or not, where it
   was last seen) and signs any one out; invited people see and sign out their own. **Sign out every device** signs out
   all your others at once. A **recovery code** (break glass), made in People in the phone's app only and kept off the phone, signs a

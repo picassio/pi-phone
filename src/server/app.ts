@@ -288,6 +288,8 @@ export class PocketApp {
     readonly browserRequests = new PhoneRequests("Pi's browser");
     /** Pi's browser on the phone (`browser/pi-browser.ts`): the pages Pi uses, that the owner watches and can take over. */
     readonly browser: PiBrowser;
+    /** pi-phone's own settings (`phone.json`): the Claude Code billing patch. */
+    readonly phoneSettings: PhoneSettingsFile;
     /** Start the server again (the HTTP layer's, under the pi-phone app): Pi's server.restart action. */
     restart: (() => void) | undefined;
     /** Pi's browsers on machines, by machine id: a Chrome there for sessions working there, made on first use. */
@@ -423,6 +425,8 @@ export class PocketApp {
         this.places = new Places(this.machines);
         this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
         const phoneSettings = new PhoneSettingsFile(options.dataDir);
+
+        this.phoneSettings = phoneSettings;
 
         this.usageLimits = new UsageLimits({
             models: () => this.models,

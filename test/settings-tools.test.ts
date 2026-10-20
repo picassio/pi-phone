@@ -3,7 +3,7 @@
 // a yes; a no leaves it; a setting of one session needs its target; a guest is refused owner settings before any card;
 // app_action asks too.
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, scriptedModel, until, work } from "./helpers.ts";
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
@@ -21,6 +21,9 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "list secrets": ["settings", { area: "secrets" }],
     "ask for it": ["setting_change", { id: "secrets.ask", value: "on", target: "TEST_KEY", reason: "Make every use wait for you" }],
     "drop it": ["app_action", { id: "secrets.delete", args: { name: "TEST_KEY" }, reason: "Not needed any more" }],
+    "make Vic a viewer": ["setting_change", { id: "people.role", value: "viewer", target: "Vic", reason: "Only to read" }],
+    "billing off": ["setting_change", { id: "phone.claudeCodeBilling", value: "off", reason: "Testing plain OAuth" }],
+    "set instructions": ["setting_change", { id: "sessions.instructions", value: "Answer in Vietnamese.", target: "__SESSION__", reason: "The owner asked" }],
     "back up": ["app_action", { id: "backup.make", args: { folder: "__WORK__" }, reason: "Before the upgrade" }],
 };
 const route: FauxResponseStep = (request) => {
@@ -152,4 +155,27 @@ test("actions and targeted settings: a secret's flag by name, deleting it, and a
 
     assert.match(backup.said, /Saved the backup as /);
     assert.ok(readdirSync(work).some((name) => name.endsWith(".tar.gz") && existsSync(`${work}/${name}`)), "the backup is in the folder");
+});
+
+test("people, phone, and one session's settings, each through the app's own method", async () => {
+    const id = await newSession(app);
+
+    sessionTarget = String(id);
+    app.config.addUser("Vic", "guest");
+
+    const role = await turn(id, "make Vic a viewer", true);
+
+    assert.equal(role.card?.subject, "Change What an invited person may do (person Vic): guest → viewer");
+    assert.equal(app.config.users.find((user) => user.name === "Vic")?.role, "viewer");
+
+    const billing = await turn(id, "billing off", true);
+
+    assert.equal(billing.card?.subject, "Change Bill Anthropic sign-ins as Claude Code: on → off");
+    assert.equal(app.phoneSettings.current().claudeCodeBilling.enabled, false);
+    assert.match(readFileSync(app.phoneSettings.path, "utf8"), /"enabled": false/);
+
+    const instructions = await turn(id, "set instructions", true);
+
+    assert.match(instructions.said, /Changed sessions\.instructions \(\d+\): none → Answer in Vietnamese\./);
+    assert.equal((await app.agentState(id as never))?.instructions, "Answer in Vietnamese.");
 });
