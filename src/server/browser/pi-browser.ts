@@ -141,12 +141,21 @@ export class ChromeEngine implements BrowserEngine {
     }
 
     async close(): Promise<void> {
-        this.#child?.kill();
+        const child = this.#child;
+
         this.#child = undefined;
         this.#port = undefined;
 
+        // Chrome writes to its profile until it has gone: wait for it (5 s at most), then remove the profile.
+        if (child !== undefined && child.exitCode === null) {
+            const gone = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+
+            child.kill();
+            await Promise.race([gone, new Promise((resolve) => setTimeout(resolve, 5000))]);
+        }
+
         if (this.#profile !== undefined) {
-            rmSync(this.#profile, { recursive: true, force: true });
+            rmSync(this.#profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
             this.#profile = undefined;
         }
     }
