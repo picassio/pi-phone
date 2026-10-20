@@ -191,6 +191,10 @@ export class BrowserPage {
     #afterInput: RawAction | undefined;
     /** The last dialog the page opened (alert, confirm, prompt), dismissed: told to Pi with the next read. */
     dialog: string | undefined;
+    /** The main frame's id, and whether it is loading a document now; how many loads it started. */
+    #mainFrame = "";
+    #loading = false;
+    #loads = 0;
 
     constructor(cdp: Cdp) {
         this.cdp = cdp;
@@ -203,6 +207,18 @@ export class BrowserPage {
         await this.cdp.send("Network.setBlockedURLs", { urls: BLOCKED_URLS });
         await this.cdp.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 0, mobile: viewport.mobile });
         await this.cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
+        this.#mainFrame = ((await this.cdp.send<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree")).frameTree.frame.id);
+        this.cdp.on("Page.frameStartedLoading", (params) => {
+            if (params.frameId === this.#mainFrame) {
+                this.#loading = true;
+                this.#loads += 1;
+            }
+        });
+        this.cdp.on("Page.frameStoppedLoading", (params) => {
+            if (params.frameId === this.#mainFrame) {
+                this.#loading = false;
+            }
+        });
         this.cdp.on("Page.javascriptDialogOpening", (params) => {
             this.dialog = `${String(params.type)}: ${String(params.message ?? "").slice(0, 300)}`;
             void this.cdp.send("Page.handleJavaScriptDialog", { accept: this.acceptDialogs }).catch(() => {});
@@ -340,13 +356,40 @@ export class BrowserPage {
         }
     }
 
+    /**
+     * After input that may navigate (a link, a submit, Enter): if the main frame starts loading within a moment, wait
+     * for it to finish (15 seconds at most), so the next read is of the new page, not the old one.
+     */
+    async #followNavigation(before: number): Promise<void> {
+        const until = Date.now() + 300;
+
+        while (Date.now() < until && this.#loads === before) {
+            await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+
+        if (this.#loads === before) {
+            return;
+        }
+
+        const done = Date.now() + 15_000;
+
+        while (Date.now() < done && this.#loading) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+
+        await this.settle(Math.max(0, done - Date.now()));
+    }
+
     async click(observed: Observed, element: Element): Promise<void> {
         if (!(await this.#fresh(observed, element.node))) {
             throw new StalePage("The page changed since it was read: read it again.");
         }
 
+        const before = this.#loads;
+
         await this.#click(await this.#point(element, false));
         this.#afterInput = { node: element.node, kind: "click" } as RawAction;
+        await this.#followNavigation(before);
     }
 
     async type(observed: Observed, element: Element, text: string, { clear = true, submit = false }: { clear?: boolean; submit?: boolean } = {}): Promise<void> {
@@ -430,10 +473,11 @@ export class BrowserPage {
             throw new Error(`Pi's browser presses ${PRESSABLE.join(", ")}; for text, type it.`);
         }
 
+        const before = this.#loads;
+
         await this.cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key, code: known.code, windowsVirtualKeyCode: known.keyCode, ...(known.text === undefined ? {} : { text: known.text }) });
         await this.cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key, code: known.code, windowsVirtualKeyCode: known.keyCode });
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        await this.settle(5000);
+        await this.#followNavigation(before);
     }
 
     /** Back or forward in this tab's history; false when there is nothing that way. */
@@ -445,9 +489,10 @@ export class BrowserPage {
             return false;
         }
 
+        const before = this.#loads;
+
         await this.cdp.send("Page.navigateToHistoryEntry", { entryId: entry.id });
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        await this.settle(15_000);
+        await this.#followNavigation(before);
 
         return true;
     }

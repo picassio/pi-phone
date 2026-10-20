@@ -113,7 +113,7 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
     const frames: BrowserFrame[] = [];
     // A name that is not a local address, mapped to the test server: 127.0.0.1 itself is refused, as it should be.
     const browser = new PiBrowser({
-        engine: new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`]),
+        engine: new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]),
         changed: (state) => states.push(state),
         frame: (frame) => frames.push(frame),
         log: () => {},

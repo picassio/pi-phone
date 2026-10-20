@@ -129,14 +129,15 @@ export class ChromeEngine implements BrowserEngine {
             }
         }
 
-        const targets = (await getJson({ host: "127.0.0.1", port: this.#port, path: "/json/list" })) as { type: string; webSocketDebuggerUrl: string }[];
+        const targets = (await getJson({ host: "127.0.0.1", port: this.#port, path: "/json/list", headers: { host: `127.0.0.1:${this.#port}` } })) as { id: string; type: string }[];
         const page = targets.find((each) => each.type === "page");
 
         if (page === undefined) {
             throw new Error("Chrome has no page to drive.");
         }
 
-        return Cdp.connect({ url: page.webSocketDebuggerUrl });
+        // Its own address, not the one Chrome writes in the list (built from the request's Host header).
+        return Cdp.connect({ url: `ws://127.0.0.1:${this.#port}/devtools/page/${page.id}` });
     }
 
     async close(): Promise<void> {
