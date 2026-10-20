@@ -10,52 +10,72 @@ export const JEV_DEFAULT = "typesafe/jev-1.13";
 /** A run model as a person reads it. */
 export const runModelText = (model) => (model === "session" ? "the session's own model" : `Jev (${model})`);
 
-/** A run model's editor: the session's model, or a Jev model by its OpenRouter id, with a test. */
-function RunModelField({ value, onSave, allowInherit = false }) {
+/** A setting's row, as the Appearance sheet draws them: what it is on the left, its control on the right. */
+function Row({ title, detail, children }) {
+    return html`<div class="setting-row">
+        <div class="setting-text">
+            <span>${title}</span>
+            ${detail && html`<span>${detail}</span>`}
+        </div>
+        ${children}
+    </div>`;
+}
+
+/**
+ * A run model's rows: a segmented choice that saves when tapped (the session's model, or the default for a session's
+ * own), and for Jev a row with its OpenRouter id, a test, and Save.
+ */
+function RunModelRows({ title, detail, value, onSave, inherit = false }) {
     const kind = value === null ? "inherit" : value === "session" ? "session" : "jev";
     const [choice, setChoice] = useState(kind);
     const [model, setModel] = useState(kind === "jev" ? value : JEV_DEFAULT);
     const [test, setTest] = useState(null);
-    const next = choice === "inherit" ? "inherit" : choice === "session" ? "session" : model.trim();
-    const changed = next !== (value ?? "inherit");
+    const choices = [...(inherit ? [["inherit", "Default"]] : []), ["session", "Session model"], ["jev", "Jev"]];
+    const pick = (next) => {
+        setChoice(next);
+        setTest(null);
 
-    return html`<div class="field">
-        ${
-            allowInherit &&
-            html`<label class="check"><input type="radio" name=${`rm-${allowInherit}`} checked=${choice === "inherit"} onChange=${() => setChoice("inherit")} /> The default for every session</label>`
+        if (next !== "jev" && next !== kind) {
+            onSave(next);
         }
-        <label class="check"><input type="radio" name=${`rm-${allowInherit}`} checked=${choice === "session"} onChange=${() => setChoice("session")} /> The session's own model</label>
-        <label class="check"><input type="radio" name=${`rm-${allowInherit}`} checked=${choice === "jev"} onChange=${() => setChoice("jev")} /> Jev, through OpenRouter</label>
+    };
+
+    return html`<${Row} title=${title} detail=${detail}>
+            <div class="segmented">
+                ${choices.map(
+                    ([key, label]) => html`<button class=${choice === key ? "on" : ""} aria-pressed=${choice === key} onClick=${() => pick(key)}>${label}</button>`,
+                )}
+            </div>
+        <//>
         ${
             choice === "jev" &&
-            html`<input class="mono" value=${model} aria-label="Jev model's OpenRouter id" placeholder=${JEV_DEFAULT} onInput=${(event) => setModel(event.currentTarget.value)} />
-                <p class="muted small">
-                    TypeSafe's decision model: about a third of a second and $0.0002 a step. It needs your OpenRouter sign-in, with TypeSafe allowed in
-                    OpenRouter's settings (privacy, allowed providers).
-                </p>`
-        }
-        ${test && html`<p class=${`small ${test.error ? "wiki-problem" : "muted"}`}>${test.error ?? `It answered ${test.choice} in ${test.ms} ms, for $${test.cost.toFixed(6)}.`}</p>`}
-        <div class="sheet-actions">
-            ${
-                choice === "jev" &&
-                html`<button
-                    class="button small"
-                    onClick=${async () => {
-                        setTest(null);
+            html`<div class="setting-row pb-jev">
+                <div class="field">
+                    <span class="label">Jev model (OpenRouter id)</span>
+                    <input class="mono" value=${model} placeholder=${JEV_DEFAULT} onInput=${(event) => setModel(event.currentTarget.value)} />
+                    <span class="muted small">About a second and $0.00003 a step. Needs your OpenRouter sign-in, with TypeSafe allowed in OpenRouter's settings (privacy, allowed providers).</span>
+                    ${test && html`<span class=${`small ${test.error ? "wiki-problem" : "muted"}`}>${test.error ?? `It answered ${test.choice} in ${test.ms} ms, for $${test.cost.toFixed(6)}.`}</span>`}
+                    <div class="sheet-actions">
+                        <button
+                            class="button small"
+                            disabled=${model.trim() === ""}
+                            onClick=${async () => {
+                                setTest(null);
 
-                        try {
-                            setTest(await api("browser/run-model/test", { model: model.trim() }));
-                        } catch (error) {
-                            setTest({ error: error.message });
-                        }
-                    }}
-                >
-                    Test
-                </button>`
-            }
-            <button class="button small primary" disabled=${!changed || next === ""} onClick=${() => onSave(next)}>Save</button>
-        </div>
-    </div>`;
+                                try {
+                                    setTest(await api("browser/run-model/test", { model: model.trim() }));
+                                } catch (error) {
+                                    setTest({ error: error.message });
+                                }
+                            }}
+                        >
+                            Test
+                        </button>
+                        <button class="button small primary" disabled=${model.trim() === "" || model.trim() === value} onClick=${() => onSave(model.trim())}>Save</button>
+                    </div>
+                </div>
+            </div>`
+        }`;
 }
 
 export function BrowserSheet() {
@@ -74,29 +94,33 @@ export function BrowserSheet() {
 
     return html`<${Sheet} title="Pi's browser" onClose=${closeSheet}>
         <p class="muted small">
-            browser_run carries out a goal in Pi's browser on its own, a step at a time. Each step is decided by the run model: the session's own model (no
-            other model, slower), or Jev, a small decision model made for this.
+            browser_run carries out a goal in Pi's browser on its own, deciding each step with the run model: the session's own model, or Jev, a small,
+            fast decision model.
         </p>
+        <div class="label">Run model</div>
         ${
             global === null
                 ? html`<${Loader} label="Reading the setting" />`
-                : html`<div class="group">
-                      <div class="group-title">Every session</div>
-                      <${RunModelField} key=${global} value=${global} onSave=${(model) => attempt(async () => setGlobal((await api("browser/run-model", { model }, { method: "PUT" })).model))} />
+                : html`<div class="sheet-list">
+                      <${RunModelRows}
+                          key=${global}
+                          title="Every session"
+                          detail=${`Now ${runModelText(global)}`}
+                          value=${global}
+                          onSave=${(model) => attempt(async () => setGlobal((await api("browser/run-model", { model }, { method: "PUT" })).model))}
+                      />
+                      ${
+                          own !== undefined &&
+                          html`<${RunModelRows}
+                              key=${String(own)}
+                              title="This session"
+                              detail=${`Now ${runModelText(own ?? global)}${own === null ? ", the default" : ""}`}
+                              value=${own}
+                              inherit=${true}
+                              onSave=${(model) => attempt(async () => setOwn((await api(`c/${id}/browser-run-model`, { model })).own))}
+                          />`
+                      }
                   </div>`
-        }
-        ${
-            own !== undefined &&
-            html`<div class="group">
-                <div class="group-title">This session</div>
-                <${RunModelField}
-                    key=${String(own)}
-                    value=${own}
-                    allowInherit="session"
-                    onSave=${(model) => attempt(async () => setOwn((await api(`c/${id}/browser-run-model`, { model })).own))}
-                />
-                <p class="muted small">Now: ${runModelText(own ?? global ?? "session")}.</p>
-            </div>`
         }
     <//>`;
 }

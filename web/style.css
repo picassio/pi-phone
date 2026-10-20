@@ -16398,3 +16398,8 @@ pre.gallery-code {
     flex-direction: column;
     gap: 8px;
 }
+
+/* Pi's browser sheet: a Jev model's id, Test and Save, under the run model's choice. */
+.setting-row.pb-jev .field {
+    flex: 1;
+}
