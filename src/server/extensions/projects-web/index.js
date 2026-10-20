@@ -2068,6 +2068,46 @@ export default function projects(pocket) {
         </div>`;
     }
 
+    /**
+     * Choosing a session's project among many: a search box, then the projects (the chosen one first, then the most
+     * recently changed), in a list that scrolls on its own.
+     */
+    function ProjectPicker({ list, chosen, onPick, onBack }) {
+        const [query, setQuery] = useState("");
+        const wanted = query.trim().toLowerCase();
+        const shown = list
+            .filter((project) => wanted === "" || project.key.toLowerCase().includes(wanted) || project.name.toLowerCase().includes(wanted))
+            .sort((a, b) => Number(b.key === chosen) - Number(a.key === chosen) || (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+
+        return html`<div class="pj-board-sheet">
+            <div class="pj-picker-head">
+                <button class="icon-button" aria-label="Back" onClick=${onBack}><${Icon} name="back" size=${18} /></button>
+                <input
+                    class="pj-picker-search"
+                    type="search"
+                    value=${query}
+                    placeholder=${`Search ${list.length} projects`}
+                    aria-label="Search projects"
+                    autofocus
+                    onInput=${(event) => setQuery(event.currentTarget.value)}
+                    onKeyDown=${(event) => event.key === "Enter" && shown[0] && onPick(shown[0].key)}
+                />
+            </div>
+            ${
+                shown.length === 0
+                    ? html`<p class="muted small">No project matches “${query}”.</p>`
+                    : html`<div class="sheet-list pj-picker-list" role="radiogroup" aria-label="Project">
+                          ${shown.map(
+                              (project) => html`<button class="list-item pj-pick" role="radio" aria-checked=${project.key === chosen} onClick=${() => onPick(project.key)}>
+                                  <span><b class="pj-pick-key">${project.key}</b> ${project.name}</span>
+                                  ${project.key === chosen && html`<${Icon} name="check" size=${16} />`}
+                              </button>`,
+                          )}
+                      </div>`
+            }
+        </div>`;
+    }
+
     /** A choice of a few, as the app's settings draw them (`.segmented`). */
     function Segmented({ value, options, onChange }) {
         return html`<div class="segmented">
@@ -2083,6 +2123,7 @@ export default function projects(pocket) {
         const conversation = pocket.conversationId();
         const [mode, setMode] = useState(null);
         const [list, setList] = useState([]);
+        const [picking, setPicking] = useState(false);
 
         useEffect(() => {
             if (conversation === null) {
@@ -2103,6 +2144,21 @@ export default function projects(pocket) {
 
         const set = (body) => pocket.api(`board-mode/${conversation}`, body, { method: "PUT" }).then(setMode, failed);
         const current = list.find((project) => project.key === mode.project);
+
+        if (picking) {
+            return html`<${ProjectPicker}
+                list=${list}
+                chosen=${mode.project}
+                onPick=${(key) => {
+                    setPicking(false);
+
+                    if (key !== mode.project || !mode.on) {
+                        void set({ on: true, project: key });
+                    }
+                }}
+                onBack=${() => setPicking(false)}
+            />`;
+        }
 
         return html`<div class="pj-board-sheet">
             <div class="sheet-list">
@@ -2131,18 +2187,11 @@ export default function projects(pocket) {
             ${
                 list.length === 0
                     ? html`<p class="muted small">No projects yet: make one on the Projects page.</p>`
-                    : html`<div class="sheet-list" role="radiogroup" aria-label="Project">
-                          ${list.map(
-                              (project) => html`<button
-                                  class="list-item pj-pick"
-                                  role="radio"
-                                  aria-checked=${project.key === mode.project}
-                                  onClick=${() => (project.key !== mode.project || !mode.on) && set({ on: true, project: project.key })}
-                              >
-                                  <span><b class="pj-pick-key">${project.key}</b> ${project.name}</span>
-                                  ${project.key === mode.project && html`<${Icon} name="check" size=${16} />`}
-                              </button>`,
-                          )}
+                    : html`<div class="sheet-list">
+                          <button class="list-item pj-pick" onClick=${() => setPicking(true)}>
+                              <span>${current ? html`<b class="pj-pick-key">${current.key}</b> ${current.name}` : html`<span class="muted">Choose a project</span>`}</span>
+                              <span class="pj-pick-more">${list.length > 1 && html`<span class="muted small">${list.length} projects</span>`}<${Icon} name="chevron" size=${16} /></span>
+                          </button>
                       </div>`
             }
             ${

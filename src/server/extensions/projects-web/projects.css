@@ -2765,3 +2765,27 @@ i.live {
         flex-basis: 100%;
     }
 }
+
+.pj-pick-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+}
+
+/* The project picker: a search box, then a list that scrolls by itself. */
+.pj-picker-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pj-picker-search {
+    flex: 1;
+    min-width: 0;
+}
+
+.pj-picker-list {
+    max-height: min(55vh, 460px);
+    overflow-y: auto;
+}
