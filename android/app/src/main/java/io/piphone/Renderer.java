@@ -299,8 +299,11 @@ final class Renderer {
         view.layout(0, 0, widthPx, heightPx);
     }
 
+    /** The tallest part of a picture: models take no image over 2000 pixels a side once a conversation holds many. */
+    private static final int PART = 2000;
+
     /**
-     * The page as a JPEG at CSS-pixel scale: `width` × `height`. All white with the app off screen is an error, not a
+     * The page as JPEGs at CSS-pixel scale, `width` × `height` in parts from the top, each at most PART tall. All white with the app off screen is an error, not a
      * picture: Android may have stopped drawing, and a blank picture would pass for a blank page.
      */
     private static JSONObject draw(WebView view, int width, int height, float density, boolean offScreen) throws Exception {
@@ -315,12 +318,18 @@ final class Renderer {
                         + "with the screen off), where Android may not draw it. Ask the person to open pi-phone, then try "
                         + "again: if it is still white, the page is.");
             }
-            ByteArrayOutputStream jpeg = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 82, jpeg);
+            JSONArray parts = new JSONArray();
+            for (int top = 0; top < height; top += PART) {
+                Bitmap part = top == 0 && height <= PART ? bitmap : Bitmap.createBitmap(bitmap, 0, top, width, Math.min(PART, height - top));
+                ByteArrayOutputStream jpeg = new ByteArrayOutputStream();
+                part.compress(Bitmap.CompressFormat.JPEG, 82, jpeg);
+                if (part != bitmap) part.recycle();
+                parts.put(Base64.encodeToString(jpeg.toByteArray(), Base64.NO_WRAP));
+            }
             return new JSONObject()
                     .put("width", width)
                     .put("height", height)
-                    .put("jpeg", Base64.encodeToString(jpeg.toByteArray(), Base64.NO_WRAP));
+                    .put("parts", parts);
         } finally {
             bitmap.recycle();
         }

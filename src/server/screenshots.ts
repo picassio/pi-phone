@@ -23,7 +23,8 @@ export type RenderRequest = {
     settleMs: number;
 };
 
-export type Shot = { width: number; height: number; jpeg: Buffer };
+/** A picture of the page at one width: `width` × `height` CSS pixels, as JPEGs from the top, each at most 2000 tall. */
+export type Shot = { width: number; height: number; parts: Buffer[] };
 
 /** How long a poll waits for a request before it answers with none. */
 export const RENDER_POLL_MS = 50_000;
@@ -124,13 +125,13 @@ export class Screenshots {
 
         const shots = Array.isArray(body.shots) ? body.shots : [];
         const parsed = shots.map((shot: unknown) => {
-            const each = shot as { width?: unknown; height?: unknown; jpeg?: unknown };
+            const each = shot as { width?: unknown; height?: unknown; parts?: unknown };
 
-            if (typeof each.width !== "number" || typeof each.height !== "number" || typeof each.jpeg !== "string") {
-                throw new Error("A shot is { width, height, jpeg }.");
+            if (typeof each.width !== "number" || typeof each.height !== "number" || !Array.isArray(each.parts) || each.parts.length === 0 || !each.parts.every((part) => typeof part === "string")) {
+                throw new Error("A shot is { width, height, parts: [jpeg] }.");
             }
 
-            return { width: each.width, height: each.height, jpeg: Buffer.from(each.jpeg, "base64") };
+            return { width: each.width, height: each.height, parts: (each.parts as string[]).map((part) => Buffer.from(part, "base64")) };
         });
 
         if (parsed.length === 0) {

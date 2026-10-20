@@ -63,7 +63,7 @@ function phone(screenshots: Screenshots, seen: { url: string; widths: number[]; 
 
             for (const request of requests) {
                 seen.push({ url: request.url, widths: request.widths, fullPage: request.fullPage });
-                screenshots.answer(request.id, { shots: request.widths.map((width) => ({ width, height: 900, jpeg: JPEG.toString("base64") })) });
+                screenshots.answer(request.id, { shots: request.widths.map((width) => ({ width, height: 900, parts: [JPEG.toString("base64")] })) });
             }
 
             at = seq;
@@ -91,7 +91,7 @@ test("the service takes requests from its poll and answers with pictures; a fail
     try {
         const shots = await screenshots.render("https://example.com/a", { widths: [390, 1280] });
 
-        assert.deepEqual(shots.map((shot) => [shot.width, shot.height, shot.jpeg.length > 0]), [[390, 900, true], [1280, 900, true]]);
+        assert.deepEqual(shots.map((shot) => [shot.width, shot.height, shot.parts.length]), [[390, 900, 1], [1280, 900, 1]]);
         assert.deepEqual(seen, [{ url: "https://example.com/a", widths: [390, 1280], fullPage: true }]);
     } finally {
         await stop();

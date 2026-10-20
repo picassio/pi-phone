@@ -101,9 +101,9 @@ export default function createScreenshot(host: PocketHost) {
                 output: [
                     {
                         type: "text" as const,
-                        text: `${what}, as the phone renders it: ${shots.map((shot) => `${shot.width}×${shot.height}`).join(", ")} (CSS pixels${shots.some((shot) => shot.height >= 4000) ? "; cut at 4000 px tall" : ""}).`,
+                        text: `${what}, as the phone renders it: ${shots.map((shot) => `${shot.width}×${shot.height}${shot.parts.length > 1 ? ` in ${shot.parts.length} pictures, top to bottom` : ""}`).join(", ")} (CSS pixels${shots.some((shot) => shot.height >= 4000) ? "; cut at 4000 px tall" : ""}).`,
                     },
-                    ...shots.map((shot) => ({ type: "image" as const, data: shot.jpeg.toString("base64"), mimeType: "image/jpeg" })),
+                    ...shots.flatMap((shot) => shot.parts.map((part) => ({ type: "image" as const, data: part.toString("base64"), mimeType: "image/jpeg" }))),
                 ],
             };
         },

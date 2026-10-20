@@ -87,6 +87,7 @@ import { Machines } from "./machines.ts";
 import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
 import { Screenshots } from "./screenshots.ts";
 import { MachineEngine } from "./browser/machine-engine.ts";
+import { installImageGuard } from "./image-guard.ts";
 import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
 import { PhoneRequests } from "./phone-requests.ts";
 import { askSessionModel, chargeSession } from "./side-model.ts";
@@ -574,6 +575,9 @@ export class PocketApp {
         // that names a secret (`$NPM_TOKEN`) with its value in the environment, where the session may use it: the command
         // keeps the name, so the value is in no transcript (`secrets.ts`).
         const images = await createNodePhotonImages();
+
+        // No image over 2000 px a side reaches a model: one would fail every request after it (`image-guard.ts`).
+        installImageGuard(this.models, images, (line) => this.#log(line));
 
         registry.install(
             defineExtension({
