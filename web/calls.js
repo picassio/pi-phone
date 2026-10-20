@@ -75,6 +75,11 @@ export function describeCall(call) {
 
             return { icon: "?", label: args.async === true ? "Interview, answered later" : "Interview", subject: title };
         }
+        case "screenshot": {
+            const what = args.artifact ? `artifact ${args.artifact}` : String(args.path ?? args.url ?? "").replace(/^https?:\/\//, "").replace(/^.*\//, (m) => (args.path ? "" : m));
+
+            return { icon: "▣", label: "Looks at", subject: `${what}${args.widths ? ` at ${args.widths.join(", ")} px` : ""}`, mono: true };
+        }
         // Pi's browser (extensions/browser.ts): what it did, and to what.
         case "browser_open":
             return { icon: "◍", label: "Opens", subject: String(args.url ?? "").replace(/^https?:\/\//, ""), mono: true };
