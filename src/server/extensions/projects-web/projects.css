@@ -2730,3 +2730,7 @@ i.live {
         padding-left: 0;
     }
 }
+
+.pj-mode-row .segmented {
+    flex: none;
+}

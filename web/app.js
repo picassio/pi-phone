@@ -15,7 +15,7 @@ import {
     toggleFiles,
 } from "./files-panel.js";
 import { BrowserButton, BrowserPanel, BrowserPreview, BrowserWatcher, browserShown } from "./browser-panel.js";
-import { ExtensionPage, openPageWhenReady } from "./extension-ui.js";
+import { ExtensionPage, openPageWhenReady, openSheetWhenReady } from "./extension-ui.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
 import { Splash } from "./home.js";
 import { UsageMeter } from "./usage.js";
@@ -850,6 +850,14 @@ const linkedSheet = new URLSearchParams(location.search).get("sheet");
 if (linkedSheet !== null && LINKED_SHEETS.has(linkedSheet)) {
     replaceAddress(location.pathname);
     openSheet({ type: linkedSheet });
+}
+
+// An extension's sheet by link, `/?sheet=projects:board-mode` (module:sheet): opened once its module has loaded.
+const linkedExtensionSheet = /^([A-Za-z0-9_-]+):([A-Za-z0-9][A-Za-z0-9_.:-]{0,63})$/.exec(linkedSheet ?? "");
+
+if (linkedExtensionSheet !== null) {
+    replaceAddress(location.pathname);
+    openSheetWhenReady(linkedExtensionSheet[1], linkedExtensionSheet[2]);
 }
 
 // An extension's page by link, `/?page=projects:projects` (module:page): a notification's, or Pi's screenshots. The page

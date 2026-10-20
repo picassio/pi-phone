@@ -53,7 +53,9 @@ No Termux, no laptop, no cloud VM.
   diff size, open the working session, run it), quiet property rows, the checklist with its progress, relations, the
   sessions that led or worked on it, comments (or all activity, a run in one line), and a comment box at the foot. A
   merge is kept on the run (who, when, the commit), so a merged branch is not offered again.
-  The session menu's "Board for this session" turns board mode on or off. `#task:PP-3` links open a task anywhere.
+  The session menu's "Board for this session" turns board mode on or off, and sets who moves tasks to Done there (you on the
+  board, or Pi once you approve in chat) and its board rules (the project's, Full, or Light; each project has Full or
+  Light too; `board_settings` and `project_update` for Pi). `#task:PP-3` links open a task anywhere.
   **An agent team per project:** its main session leads (plans, asks before a task runs, reviews, never writes code);
   a task given to Pi runs in a task session of its own, in a git worktree on `task/PP-12`, at the place (the phone or a
   machine) with room, as many at once as each place allows. Its end is reported to the main session; you see the

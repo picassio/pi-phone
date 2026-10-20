@@ -278,17 +278,37 @@ onSafeModeEnd(() => follow(store.state));
 
 // ─── Loading ─────────────────────────────────────────────────────────────────
 
-/** A page a link asked for (`/?page=module:id`), opened once its module is ready: before, the module list would close it. */
+/**
+ * A page or sheet a link asked for (`/?page=module:id`, `/?sheet=module:id`), opened once its module is ready: before,
+ * the module list would close it.
+ */
 let linked = null;
 
 /** Open an extension's page as soon as its module has loaded (now, if it has). */
 export function openPageWhenReady(module, id) {
+    whenReady(module, id, "page");
+}
+
+/** Open an extension's sheet as soon as its module has loaded (now, if it has). */
+export function openSheetWhenReady(module, id) {
+    whenReady(module, id, "sheet");
+}
+
+function whenReady(module, id, kind) {
     const record = modules.get(module);
 
     if (record?.status === "ready" && !record.dead && !record.gone) {
-        openPage(module, id);
+        openLinked(module, id, kind);
     } else {
-        linked = { module, id };
+        linked = { module, id, kind };
+    }
+}
+
+function openLinked(module, id, kind) {
+    if (kind === "sheet") {
+        openExtensionSheet(module, id);
+    } else {
+        openPage(module, id);
     }
 }
 
@@ -455,10 +475,10 @@ async function load(entry) {
         record.status = "ready";
 
         if (linked?.module === record.module) {
-            const { id } = linked;
+            const { id, kind } = linked;
 
             linked = null;
-            openPage(record.module, id);
+            openLinked(record.module, id, kind);
         }
     } catch (error) {
         if (!record.gone && !record.dead) {

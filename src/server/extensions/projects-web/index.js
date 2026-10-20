@@ -1971,6 +1971,13 @@ export default function projects(pocket) {
                     </div>
                     <${Switch} on=${project.autoRuns} label="Run tasks given to Pi by themselves" onChange=${() => save({ autoRuns: !project.autoRuns })} />
                 </div>
+                <div class="pj-team-row">
+                    <div class="pj-grow">
+                        <div>Board rules</div>
+                        <div class="muted small">${project.rules === "light" ? "Light: Pi tracks its work as tasks and keeps them current." : "Full: also blocked tasks, review for risky work, and how to comment."}</div>
+                    </div>
+                    <${Segmented} value=${project.rules ?? "full"} options=${[["full", "Full"], ["light", "Light"]]} onChange=${(rules) => save({ rules })} />
+                </div>
                 <div class="pj-team-sub muted small">Where tasks run: each in a git worktree of the repository there, at most so many at once. A run goes to the place with the most room; when all are full, it waits.</div>
                 ${places.map(
                     (place, index) => html`<div class="pj-team-row">
@@ -2061,7 +2068,14 @@ export default function projects(pocket) {
         </div>`;
     }
 
-    /** The session menu's "Board for this session": board mode here, and its project. */
+    /** A choice of a few, as the app's settings draw them (`.segmented`). */
+    function Segmented({ value, options, onChange }) {
+        return html`<div class="segmented">
+            ${options.map(([key, label]) => html`<button class=${value === key ? "on" : ""} aria-pressed=${value === key} onClick=${() => value !== key && onChange(key)}>${label}</button>`)}
+        </div>`;
+    }
+
+    /** The session menu's "Board for this session": board mode here, its project, who closes tasks, and its rules. */
     function BoardModeSheet({ close }) {
         const conversation = pocket.conversationId();
         const [mode, setMode] = useState(null);
@@ -2104,6 +2118,23 @@ export default function projects(pocket) {
                 </select></label
             >
             ${list.length === 0 && html`<p class="muted small">No projects yet: make one on the Projects page.</p>`}
+            ${
+                mode.decided &&
+                html`<div class="pj-mode-row">
+                        <div>
+                            <div>Who moves tasks to Done</div>
+                            <div class="muted small">${mode.closer === "pi" ? "Pi, once you say in chat that a task is good." : "You, on the board: Pi stops at Review."}</div>
+                        </div>
+                        <${Segmented} value=${mode.closer} options=${[["person", "You"], ["pi", "Pi"]]} onChange=${(closer) => set({ closer })} />
+                    </div>
+                    <div class="pj-mode-row">
+                        <div>
+                            <div>Board rules here</div>
+                            <div class="muted small">${mode.rules === null ? `The project's: ${mode.projectRules === "light" ? "light" : "full"}.` : mode.rules === "light" ? "Light: track work as tasks, keep them current." : "Full: agent-board's task protocol."}</div>
+                        </div>
+                        <${Segmented} value=${mode.rules ?? "project"} options=${[["project", "Project's"], ["full", "Full"], ["light", "Light"]]} onChange=${(rules) => set({ rules: rules === "project" ? null : rules })} />
+                    </div>`
+            }
             <button class="button" onClick=${close}>Done</button>
         </div>`;
     }

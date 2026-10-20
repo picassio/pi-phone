@@ -14,6 +14,7 @@ import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi
 import { createHandler } from "../src/server/http.ts";
 import { type Actor, type Person, Projects } from "../src/server/projects.ts";
 import { ownRequest } from "../src/server/requests.ts";
+import { boardRules } from "../src/server/extensions/projects.ts";
 
 const OWNER: Person = { id: "u-owner", name: "Owner", role: "owner" };
 const TUAN: Person = { id: "u-tuan", name: "Tuan", role: "guest" };
@@ -174,6 +175,34 @@ test("projects survive a restart, and a session's board mode is kept", () => {
     again.close();
 });
 
+test("a session's board settings: who closes tasks and its rules, kept; the project's rules; and the prompt's rules follow", () => {
+    const dir = mkdtempSync(join(root, "projects-"));
+    const first = new Projects(dir, people);
+
+    first.create(as(OWNER), { key: "PP", name: "pi-phone" });
+    assert.throws(() => first.setBoardSettings(as(OWNER), "c-1", { closer: "pi" }), /Turn board mode on/);
+    first.setBoardMode(as(OWNER), "c-1", true, "PP");
+    assert.deepEqual([first.boardMode("c-1")?.closer, first.boardMode("c-1")?.rules], ["person", null], "a person closes, the project's rules");
+    first.setBoardSettings(as(OWNER), "c-1", { closer: "pi", rules: "light" });
+    assert.throws(() => first.update(as(OWNER), "PP", { rules: "none" as never }), /full or light/);
+    first.update(as(OWNER), "PP", { rules: "light" });
+    first.setBoardMode(as(OWNER), "c-1", true, "PP");
+    first.close();
+
+    const again = new Projects(dir, people);
+    const mode = again.boardMode("c-1")!;
+
+    assert.deepEqual([mode.closer, mode.rules, mode.project?.rules], ["pi", "light", "light"], "kept across a restart and a board-mode change");
+    again.close();
+
+    const light = boardRules("light", "pi");
+
+    assert.match(light, /when they say it is good, move it to done yourself/);
+    assert.doesNotMatch(light, /blocked_reason|operator_review, so only|task_comment/);
+    assert.match(boardRules("full", "person"), /Never move a task you worked on to done/);
+    assert.match(boardRules("full", "person"), /blocked_reason/);
+});
+
 // ---- The extension, in a running app ------------------------------------------------------------------------------
 
 const calls: Record<string, [string, Record<string, unknown>]> = {
@@ -301,7 +330,7 @@ test("a no is kept: Pi does not ask again, and works without the board", async (
     // The session's switch turns it on after all.
     const on = await call(app.config.ownerToken, "PUT", `board-mode/${String(id)}`, { on: true });
 
-    assert.deepEqual(await on.json(), { on: true, decided: true, project: "PP" });
+    assert.deepEqual(await on.json(), { on: true, decided: true, project: "PP", closer: "person", rules: null, projectRules: "full" });
     assert.match(await turn(id, "add a task"), /Made PP-2/);
 });
 
@@ -309,7 +338,7 @@ test("Pi sets a project up with its tools: its folder and places, its main sessi
     const id = await newSession(app);
 
     await call(app.config.ownerToken, "PUT", `board-mode/${String(id)}`, { on: true, project: "PP" });
-    assert.match(await turn(id, "give it a folder"), /PP · pi-phone: folder .*; tasks given to Pi run after the person says yes; places: .* \(3 at once\)/);
+    assert.match(await turn(id, "give it a folder"), /PP · pi-phone: full board rules; folder .*; tasks given to Pi run after the person says yes; places: .* \(3 at once\)/);
     assert.match(await turn(id, "start the team"), /Started PP's main session, #\d+/);
     assert.match(await turn(id, "link this session"), new RegExp(`Linked session #${String(id)} to PP-2`));
     assert.match(await turn(id, "link a stranger"), /no session #99999/);

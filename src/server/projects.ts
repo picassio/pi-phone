@@ -119,6 +119,16 @@ export interface RunMerge {
     stat: string;
 }
 
+/** The board rules in Pi's prompt: `full` (agent-board's task protocol) or `light` (track the work, keep it current). */
+export const BOARD_RULE_LEVELS = ["full", "light"] as const;
+export type BoardRules = (typeof BOARD_RULE_LEVELS)[number];
+/** Who moves a task Pi worked on to Done, in a session with board mode: a person on the board, or Pi once they approve in chat. */
+export const CLOSERS = ["person", "pi"] as const;
+export type Closer = (typeof CLOSERS)[number];
+
+/** A session's board mode: on or off, its project, who closes tasks, and its own rules (null: its project's). */
+export type BoardMode = { on: boolean; project: Project | null; closer: Closer; rules: BoardRules | null };
+
 export interface Project {
     id: string;
     key: string;
@@ -132,6 +142,8 @@ export interface Project {
     labels: string[];
     /** Whether a task assigned to Pi starts by itself; off, the main session asks first. */
     autoRuns: boolean;
+    /** How much of the board's rules Pi gets in its prompt: all of them, or only to track work and keep it current. */
+    rules: BoardRules;
     mainSession: string | null;
     createdAt: number;
     updatedAt: number;
@@ -321,6 +333,17 @@ export class Projects {
         if (!runColumns.includes("merged")) {
             this.#db.exec("ALTER TABLE pocket_task_runs ADD COLUMN merged TEXT");
         }
+
+        if (!columns.includes("rules")) {
+            this.#db.exec("ALTER TABLE pocket_projects ADD COLUMN rules TEXT NOT NULL DEFAULT 'full'");
+        }
+
+        const boardColumns = (this.#db.prepare("PRAGMA table_info(pocket_board_sessions)").all() as Row[]).map((row) => String(row.name));
+
+        if (!boardColumns.includes("closer")) {
+            this.#db.exec("ALTER TABLE pocket_board_sessions ADD COLUMN closer TEXT NOT NULL DEFAULT 'person'");
+            this.#db.exec("ALTER TABLE pocket_board_sessions ADD COLUMN rules TEXT");
+        }
     }
 
     /** Call `listener` with a project's id whenever it or its tasks change; returns how to stop. */
@@ -396,9 +419,14 @@ export class Projects {
             autoRuns?: boolean;
             mainSession?: string | null;
             places?: ProjectPlace[];
+            rules?: BoardRules;
         },
     ): Project {
         const project = this.#edit(actor, key);
+
+        if (patch.rules !== undefined && !(BOARD_RULE_LEVELS as readonly string[]).includes(patch.rules)) {
+            throw bad(`A project's board rules are ${BOARD_RULE_LEVELS.join(" or ")}.`);
+        }
         const name = patch.name === undefined ? project.name : String(patch.name).trim();
 
         if (name === "" || name.length > 80) {
@@ -407,7 +435,7 @@ export class Projects {
 
         this.#db
             .prepare(
-                "UPDATE pocket_projects SET name = ?, folder = ?, labels = ?, auto_runs = ?, main_session = ?, places = ?, updated_at = ? WHERE id = ?",
+                "UPDATE pocket_projects SET name = ?, folder = ?, labels = ?, auto_runs = ?, main_session = ?, places = ?, rules = ?, updated_at = ? WHERE id = ?",
             )
             .run(
                 name,
@@ -416,6 +444,7 @@ export class Projects {
                 (patch.autoRuns ?? project.autoRuns) ? 1 : 0,
                 patch.mainSession === undefined ? project.mainSession : patch.mainSession,
                 JSON.stringify(patch.places === undefined ? project.places : placesOf(patch.places)),
+                patch.rules ?? project.rules,
                 this.#now(),
                 project.id,
             );
@@ -1034,7 +1063,7 @@ export class Projects {
     // ---- Board mode ----------------------------------------------------------------------------------------------
 
     /** Whether a session may use the board, and its project: undefined when nobody has decided there. */
-    boardMode(conversationId: string): { on: boolean; project: Project | null } | undefined {
+    boardMode(conversationId: string): BoardMode | undefined {
         const row = this.#db.prepare("SELECT * FROM pocket_board_sessions WHERE conversation_id = ?").get(conversationId) as Row | undefined;
 
         if (row === undefined) {
@@ -1044,7 +1073,41 @@ export class Projects {
         return {
             on: Number(row.on_board) === 1,
             project: row.project_id === null ? null : (this.#projectById(String(row.project_id)) ?? null),
+            closer: row.closer === "pi" ? "pi" : "person",
+            rules: row.rules === "full" || row.rules === "light" ? row.rules : null,
         };
+    }
+
+    /**
+     * A person sets how board mode works in a session: who moves tasks to Done (a person, or Pi once they approve in
+     * chat), and the board rules there (`null`: its project's). Board mode must have been decided there.
+     */
+    setBoardSettings(actor: Actor, conversationId: string, settings: { closer?: Closer; rules?: BoardRules | null }): BoardMode {
+        this.#requireEdit(actor.person);
+
+        if (settings.closer !== undefined && !(CLOSERS as readonly string[]).includes(settings.closer)) {
+            throw bad(`Who closes tasks is ${CLOSERS.join(" or ")}.`);
+        }
+
+        if (settings.rules !== undefined && settings.rules !== null && !(BOARD_RULE_LEVELS as readonly string[]).includes(settings.rules)) {
+            throw bad(`Board rules are ${BOARD_RULE_LEVELS.join(" or ")}, or null for the project's.`);
+        }
+
+        const mode = this.boardMode(conversationId);
+
+        if (mode === undefined) {
+            throw bad("Turn board mode on in this session first.");
+        }
+
+        this.#db
+            .prepare("UPDATE pocket_board_sessions SET closer = ?, rules = ? WHERE conversation_id = ?")
+            .run(settings.closer ?? mode.closer, settings.rules === undefined ? mode.rules : settings.rules, conversationId);
+
+        if (mode.project !== null) {
+            this.#changed(mode.project.id);
+        }
+
+        return this.boardMode(conversationId)!;
     }
 
     /** A person turns board mode on or off for a session (a yes to Pi's question, or the session's switch). */
@@ -1299,6 +1362,7 @@ export class Projects {
             labels: JSON.parse(String(row.labels)) as string[],
             places: JSON.parse(String(row.places ?? "[]")) as ProjectPlace[],
             autoRuns: Number(row.auto_runs) === 1,
+            rules: row.rules === "light" ? "light" : "full",
             mainSession: row.main_session === null ? null : String(row.main_session),
             createdAt: Number(row.created_at),
             updatedAt: Number(row.updated_at),

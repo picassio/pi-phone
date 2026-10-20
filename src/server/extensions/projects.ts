@@ -12,7 +12,11 @@ import { HttpError } from "../errors.ts";
 import { LEAD_RULES, Team, taskRules } from "../project-runs.ts";
 import {
     type Actor,
+    BOARD_RULE_LEVELS,
+    type BoardRules,
     type BoardTask,
+    CLOSERS,
+    type Closer,
     LINK_KINDS,
     type LinkKind,
     type Person,
@@ -30,13 +34,32 @@ const reply = (text: string, isError = false) => ({
     ...(isError ? { isError: true } : {}),
 });
 
-/** How Pi works with a board once the person said yes (agent-board's task protocol, for these tools). */
-const BOARD_RULES = `- Track this work as tasks: task_create (type epic, story, task, bug or subtask: an epic holds stories, tasks and bugs; a story holds tasks, bugs and subtasks; a task or bug holds subtasks). Create tasks first, link what blocks what, and only then assign them.
-- Keep tasks current with task_update as you work: in_progress when you start, testing while you verify, review when it is done. Never move a task you worked on to done: the main session or a person approves it.
-- Need an answer, an approval, or something you cannot do? Set the task blocked with blocked_reason, and say what you need. Never use review to ask a question.
-- Destructive or risky work (migrations, infrastructure, security, secrets, production config, first deploys): set operator_review, so only a person moves it to done. A bug is done only after you verified its fix (fix_verified).
-- Comment (task_comment) with results, questions, blockers, and decisions only: no acknowledgements or restated plans.
-- Giving a task to pi does not start it: task_run does, after the person says yes (unless the project runs tasks by itself).`;
+/**
+ * How Pi works with a board once the person said yes (agent-board's task protocol, for these tools): `full`, or
+ * `light` (track the work and keep it current, nothing more). `closer`: who moves a task Pi worked on to Done, a person
+ * on the board, or Pi itself once the person approves in chat (a session's setting).
+ */
+export function boardRules(level: BoardRules, closer: Closer): string {
+    const track =
+        "- Track this work as tasks: task_create (type epic, story, task, bug or subtask: an epic holds stories, tasks and bugs; a story holds tasks, bugs and subtasks; a task or bug holds subtasks). Create tasks first, link what blocks what, and only then assign them.";
+    const done =
+        closer === "pi"
+            ? "When a task is done, move it to review and tell the person in this chat what changed and how you checked it; when they say it is good, move it to done yourself (task_update). A task with operator_review still waits for a person to move it."
+            : "Never move a task you worked on to done: the main session or a person approves it.";
+
+    if (level === "light") {
+        return [track, `- Keep tasks current with task_update as you work: in_progress when you start, review when it is done. ${done}`].join("\n");
+    }
+
+    return [
+        track,
+        `- Keep tasks current with task_update as you work: in_progress when you start, testing while you verify, review when it is done. ${done}`,
+        "- Need an answer, an approval, or something you cannot do? Set the task blocked with blocked_reason, and say what you need. Never use review to ask a question.",
+        "- Destructive or risky work (migrations, infrastructure, security, secrets, production config, first deploys): set operator_review, so only a person moves it to done. A bug is done only after you verified its fix (fix_verified).",
+        "- Comment (task_comment) with results, questions, blockers, and decisions only: no acknowledgements or restated plans.",
+        "- Giving a task to pi does not start it: task_run does, after the person says yes (unless the project runs tasks by itself).",
+    ].join("\n");
+}
 
 const PROJECT = Type.Optional(Type.String({ description: "The project's key (PP); default: this session's project" }));
 const REF = Type.String({ description: "The task, like PP-12" });
@@ -300,7 +323,14 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     const modeOf = (id: string) => {
         const mode = projects.boardMode(id);
 
-        return { on: mode?.on ?? false, decided: mode !== undefined, project: mode?.project?.key ?? null };
+        return {
+            on: mode?.on ?? false,
+            decided: mode !== undefined,
+            project: mode?.project?.key ?? null,
+            closer: mode?.closer ?? "person",
+            rules: mode?.rules ?? null,
+            projectRules: mode?.project?.rules ?? "full",
+        };
     };
 
     route("GET", "board-mode/:conversation", (request) => modeOf(session(request)), view);
@@ -309,7 +339,17 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         "board-mode/:conversation",
         (request, actor) => {
             const id = session(request);
-            const { on, project } = request.body;
+            const { on, project, closer, rules } = request.body;
+
+            // Who closes tasks and the rules here, on their own; or board mode on or off, and its project.
+            if (on === undefined && (closer !== undefined || rules !== undefined)) {
+                projects.setBoardSettings(actor, id, {
+                    ...(closer === undefined ? {} : { closer: closer as Closer }),
+                    ...(rules === undefined ? {} : { rules: rules as BoardRules | null }),
+                });
+
+                return modeOf(id);
+            }
 
             if (typeof on !== "boolean" || (project !== null && project !== undefined && typeof project !== "string")) {
                 throw new HttpError(400, "Send on (true or false), and the project's key.");
@@ -472,6 +512,51 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             },
         ),
         tool(
+            "board_settings",
+            "How board mode works in this session, set by the person on a card: who moves tasks you worked on to Done (person: a person on the board; pi: you, once the person approves in this chat), and the board rules here (full, light, or project for the project's).",
+            Type.Object({
+                closer: Type.Optional(Type.Union(CLOSERS.map((closer) => Type.Literal(closer)))),
+                rules: Type.Optional(Type.Union([...BOARD_RULE_LEVELS, "project"].map((level) => Type.Literal(level)))),
+            }),
+            async (args, conversationId, api, context) => {
+                const { actor } = onBoard(conversationId);
+                const mode = projects.boardMode(conversationId)!;
+
+                if (args.closer === undefined && args.rules === undefined) {
+                    return `Here: ${mode.closer === "pi" ? "you move tasks to done once the person approves in chat" : "a person moves tasks to done"}; ${mode.rules ?? `the project's (${mode.project?.rules ?? "full"})`} board rules.`;
+                }
+
+                const said = [
+                    args.closer === undefined ? "" : args.closer === "pi" ? "Pi moves tasks to Done once you approve in chat" : "only a person moves tasks to Done",
+                    args.rules === undefined ? "" : args.rules === "project" ? "the project's board rules" : `${args.rules} board rules`,
+                ].filter(Boolean);
+                const answer = await host.approvals.request(
+                    {
+                        id: `board-settings-${conversationId}-${String(api.callId)}`,
+                        conversationId: Number(conversationId) as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "board_settings",
+                        subject: `In this session: ${said.join("; ")}`,
+                        reason: "Board mode settings for this session; the session menu changes them too.",
+                        createdAt: Date.now(),
+                    },
+                    context,
+                );
+
+                if (!answer.allow) {
+                    return `${answer.by} said no: the settings stay.`;
+                }
+
+                projects.setBoardSettings({ kind: "person", person: actor.person }, conversationId, {
+                    ...(args.closer === undefined ? {} : { closer: args.closer }),
+                    ...(args.rules === undefined ? {} : { rules: args.rules === "project" ? null : args.rules }),
+                });
+
+                return `Set: ${said.join("; ")}.`;
+            },
+        ),
+        tool(
             "project_list",
             "The project boards the person you work for can see, with how many tasks are in each state, and this session's board mode.",
             Type.Object({}),
@@ -517,18 +602,20 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         ),
         tool(
             "project_update",
-            "Change a project: its name, folder, whether tasks given to Pi run by themselves, and where its tasks run (places: each the repository's folder there, here or machine:<id>:<path>, with how many run at once).",
+            "Change a project: its name, folder, its board rules (full or light), whether tasks given to Pi run by themselves, and where its tasks run (places: each the repository's folder there, here or machine:<id>:<path>, with how many run at once).",
             Type.Object({
                 project: PROJECT,
                 name: Type.Optional(Type.String()),
                 folder: Type.Optional(Type.String()),
                 auto_runs: Type.Optional(Type.Boolean({ description: "Tasks given to Pi start by themselves; off, the main session asks the person first" })),
                 places: Type.Optional(Type.Array(Type.Object({ folder: Type.String(), cap: Type.Number({ description: "1 to 8 at once" }) }))),
+                rules: Type.Optional(Type.Union(BOARD_RULE_LEVELS.map((level) => Type.Literal(level)), { description: "The board rules in Pi's prompt: full, or light (track work, keep it current)" })),
             }),
             (args, conversationId) => {
                 const { actor, project } = onBoard(conversationId);
                 const key = projectOf(args.project, project);
                 const saved = projects.update(actor, key, {
+                    ...(args.rules === undefined ? {} : { rules: args.rules }),
                     ...(args.name === undefined ? {} : { name: args.name }),
                     ...(args.folder === undefined ? {} : { folder: args.folder || null }),
                     ...(args.auto_runs === undefined ? {} : { autoRuns: args.auto_runs }),
@@ -537,7 +624,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
 
                 team.regroup(saved).catch((error: unknown) => host.notice("warning", `Projects: ${String(error)}`));
 
-                return `${saved.key} · ${saved.name}: folder ${saved.folder ?? "none"}; tasks given to Pi ${saved.autoRuns ? "run by themselves" : "run after the person says yes"}; places: ${projects.placesOf(saved).map((place) => `${place.folder} (${place.cap} at once)`).join(", ") || "none"}.`;
+                return `${saved.key} · ${saved.name}: ${saved.rules} board rules; folder ${saved.folder ?? "none"}; tasks given to Pi ${saved.autoRuns ? "run by themselves" : "run after the person says yes"}; places: ${projects.placesOf(saved).map((place) => `${place.folder} (${place.cap} at once)`).join(", ") || "none"}.`;
             },
         ),
         tool(
@@ -909,20 +996,20 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 const led = projects.projectLedBy(id);
 
                 if (led !== undefined) {
-                    return `You are the main session of project ${led.key} · ${led.name}${led.autoRuns ? " (it runs tasks given to Pi by itself)" : ""}.\n${LEAD_RULES}\n${BOARD_RULES}`;
+                    return `You are the main session of project ${led.key} · ${led.name}${led.autoRuns ? " (it runs tasks given to Pi by itself)" : ""}.\n${LEAD_RULES}\n${boardRules(led.rules, "person")}`;
                 }
 
                 const run = projects.runOfSession(id);
                 const found = run === undefined ? undefined : projects.taskById(run.taskId);
 
                 if (run !== undefined && found !== undefined) {
-                    return `${taskRules(found.task, run)}\n${BOARD_RULES}`;
+                    return `${taskRules(found.task, run)}\n${boardRules(found.project.rules, "person")}`;
                 }
 
                 const mode = projects.boardMode(id);
 
                 if (mode?.on === true) {
-                    return `Board mode is on in this session${mode.project === null ? "" : `, with project ${mode.project.key} · ${mode.project.name}`}: track this work on the board.\n${BOARD_RULES}`;
+                    return `Board mode is on in this session${mode.project === null ? "" : `, with project ${mode.project.key} · ${mode.project.name}`}: track this work on the board.\n${boardRules(mode.rules ?? mode.project?.rules ?? "full", mode.closer)}`;
                 }
 
                 if (mode !== undefined) {
