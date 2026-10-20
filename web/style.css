@@ -16403,3 +16403,27 @@ pre.gallery-code {
 .setting-row.pb-jev .field {
     flex: 1;
 }
+
+/* The update the Android app found (sheets/update.js): the version, then what updating does. */
+.pu-version {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.pu-name {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.pu-tag {
+    padding: 1px 7px;
+    border-radius: var(--r-seg);
+    background: var(--card);
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.pu-note {
+    color: var(--warn);
+}

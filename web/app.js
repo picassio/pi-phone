@@ -58,6 +58,7 @@ import {
 import { prefs, setPrefs, startTheme } from "./theme.js";
 import { Transcript } from "./transcript.js";
 import { installAndroidSpeech } from "./android-speech.js";
+import { installAppUpdates } from "./sheets/update.js";
 import { toggleDictation } from "./voice.js";
 import {
     APPLE,
@@ -764,6 +765,8 @@ addEventListener("blur", altUp);
 startTheme();
 // Inside the Android app, dictation listens with Android's recognizer (`android-speech.js`).
 installAndroidSpeech();
+// Updates the Android app finds are offered in the app's own sheet (`sheets/update.js`).
+installAppUpdates();
 // Where the session list is not beside the conversation, a conversation opened straight away gets it under it, so back
 // goes to the list rather than out of the app.
 startHistory({ home: !wide() });

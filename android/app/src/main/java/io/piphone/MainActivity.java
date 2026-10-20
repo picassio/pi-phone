@@ -98,6 +98,38 @@ public final class MainActivity extends Activity {
             runOnUiThread(() -> MainActivity.this.checkForUpdates(true));
         }
 
+        /** The update found and not yet taken or put off, as `sheets/update.js` shows it; "" for none. */
+        @JavascriptInterface
+        public String pendingUpdate() {
+            Updater.Plan plan = offered;
+            return plan == null ? "" : offerJson(plan);
+        }
+
+        /** Update now (or Install): the offer the sheet showed. */
+        @JavascriptInterface
+        public void applyUpdate() {
+            runOnUiThread(() -> {
+                Updater.Plan plan = offered;
+                offered = null;
+                if (plan == null) return;
+                if (plan.kind == Updater.Kind.RUNTIME) updateRuntime(plan);
+                else updateApk(plan);
+            });
+        }
+
+        /** Later. */
+        @JavascriptInterface
+        public void dismissUpdate() {
+            offered = null;
+        }
+
+        /** Android's "Allow from this source" for pi-phone, which installing an app update needs. */
+        @JavascriptInterface
+        public void openInstallSettings() {
+            runOnUiThread(() -> startActivity(new Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName()))));
+        }
+
         /** Save a file the server sends (`url`, on its own address) to Downloads, with this page's sign-in. */
         @JavascriptInterface
         public void download(String url, String name) {
@@ -468,23 +500,25 @@ public final class MainActivity extends Activity {
             if (asked) Toast.makeText(this, "pi is up to date.", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (plan.kind == Updater.Kind.RUNTIME) {
-            new AlertDialog.Builder(this)
-                    .setTitle("Update available")
-                    .setMessage("A new version of pi (" + plan.shortVersion() + ") is ready. Updating restarts the"
-                            + " server for a few seconds; a run in progress continues after it.")
-                    .setPositiveButton("Update now", (dialog, which) -> updateRuntime(plan))
-                    .setNegativeButton("Later", null)
-                    .show();
-            return;
+        // Offered in the web app's own sheet (web/sheets/update.js): handed over now, and kept for a page that starts
+        // later (it asks with pendingUpdate()).
+        offered = plan;
+        web.evaluateJavascript("globalThis.__piPhoneUpdate && globalThis.__piPhoneUpdate(" + offerJson(plan) + ")", null);
+    }
+
+    /** The update found and not yet taken or put off. */
+    private volatile Updater.Plan offered;
+
+    private String offerJson(Updater.Plan plan) {
+        try {
+            return new JSONObject()
+                    .put("kind", plan.kind == Updater.Kind.RUNTIME ? "runtime" : "apk")
+                    .put("version", plan.shortVersion())
+                    .put("canInstall", getPackageManager().canRequestPackageInstalls())
+                    .toString();
+        } catch (JSONException impossible) {
+            throw new IllegalStateException(impossible);
         }
-        new AlertDialog.Builder(this)
-                .setTitle("App update available")
-                .setMessage("A new version of the pi app (" + plan.shortVersion() + ") needs installing. Your sessions"
-                        + " and sign-ins stay.")
-                .setPositiveButton("Install", (dialog, which) -> updateApk(plan))
-                .setNegativeButton("Later", null)
-                .show();
     }
 
     private void updateRuntime(Updater.Plan plan) {
