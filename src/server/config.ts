@@ -120,6 +120,11 @@ interface PocketConfig {
      * self-hosted ones. Absent provider: web search is off until the owner picks one.
      */
     web?: { provider?: string; endpoints?: Record<string, string> };
+    /**
+     * The run model `browser_run` decides each step with (`browser/run.ts`): "session" (each session's own model) or a
+     * Jev model's OpenRouter id ("typesafe/jev-1.13"). Absent: "session"; Jev runs only once the owner picks it.
+     */
+    browserRunModel?: string;
     /** Also listen on the phone's Tailscale address, for people on the owner's tailnet (`tailnet.ts`). Absent: off. */
     tailscale?: boolean;
 }
@@ -313,6 +318,21 @@ export class ConfigStore {
             ...(web.provider === undefined ? {} : { provider: web.provider }),
             ...(Object.keys(web.endpoints).length === 0 ? {} : { endpoints: web.endpoints }),
         };
+        this.save();
+    }
+
+    /** The owner's run model for `browser_run` (Settings › Browser): "session", or a Jev model's OpenRouter id. */
+    get browserRunModel(): string {
+        return this.#config.browserRunModel ?? "session";
+    }
+
+    set browserRunModel(model: string) {
+        if (model === "session") {
+            delete this.#config.browserRunModel;
+        } else {
+            this.#config.browserRunModel = model;
+        }
+
         this.save();
     }
 

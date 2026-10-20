@@ -71,6 +71,10 @@ No Termux, no laptop, no cloud VM.
   it opens by itself when Pi starts browsing; on a phone, a small live preview above the message box opens it), and can
   **Take over** (your taps and typing go to the page) and **Hand back**. It never opens this phone or its local network,
   and only works for what the owner asks.
+  **`browser_run`** carries out a whole goal on its own, a step at a time: each step is decided by the run model you
+  pick in Settings › Pi's browser (the session's own model, or Jev, TypeSafe's decision model through OpenRouter:
+  about a third of a second and $0.0002 a step), for every session or one. It types only values Pi supplies, stops with
+  a reason Pi can act on (a value it needs, blocked, stuck, not visibly done), and Jev's cost counts in Spend.
 - **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for
   pages, PDFs and Office files, GitHub repositories, issues, and pull requests.
 - **Documents.** `file_to_markdown` reads PDF, Word, PowerPoint, Excel, EPUB, notebooks, and more

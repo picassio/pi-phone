@@ -50,6 +50,17 @@ export async function conversationRoutes(
         });
     }
 
+    // The run model for this session's browser_run: its own ("session" or a Jev model), or "inherit" the owner's.
+    if (third === "browser-run-model" && method === "GET") {
+        return json(response, 200, { own: app.sessionMeta(id)?.browserRunModel ?? null, global: app.config.browserRunModel });
+    }
+
+    if (third === "browser-run-model" && method === "POST") {
+        await app.setBrowserRunModel(user, (await readJson<{ model?: unknown }>(request)).model, id);
+
+        return json(response, 200, { own: app.sessionMeta(id)?.browserRunModel ?? null, global: app.config.browserRunModel });
+    }
+
     if (third === "send-limit" && method === "POST") {
         const body = await readJson<{ limit?: unknown }>(request);
 

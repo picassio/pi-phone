@@ -7,6 +7,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { addressOf, PRESSABLE, StalePage } from "../browser/page.ts";
+import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
 import type { PocketHost } from "../host.ts";
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
@@ -14,7 +15,7 @@ const reply = (text: string, isError = false) => ({ output: [{ type: "text" as c
 const TEXT_MAX = 40_000;
 
 /** In every prompt while the module is on. */
-export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll and browser_press; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code yourself, and ask the person before anything that pays, sends, books, or deletes on a site.`;
+export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll and browser_press; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code yourself, and ask the person before anything that pays, sends, books, or deletes on a site.`;
 
 export default function createBrowser(host: PocketHost) {
     const browser = host.browser;
@@ -174,6 +175,58 @@ export default function createBrowser(host: PocketHost) {
             }),
             execute: async (args, api) =>
                 act(api.conversationId, (session) => browser.wait(session, { ...(args.text === undefined ? {} : { text: args.text }), ...(args.seconds === undefined ? {} : { seconds: args.seconds }) })),
+        }),
+        defineTool({
+            name: "browser_run",
+            description:
+                "Carry out one concrete goal in Pi's browser on its own, a step at a time, each step decided by the run model the owner picked (Settings › Browser: this session's model, or Jev). " +
+                "Give every text it may type in values (a name for each: {\"from\": \"Zurich\"}); it never types anything else. Optionally a url to open first. " +
+                "Answers how it ended (done, or why it stopped: needs_value, blocked, stuck_loop, unverified_done, budget, decision_error), its steps, time and cost, and the page as it is.",
+            parameters: Type.Object({
+                goal: Type.String({ description: "One concrete goal, with everything it requires (\"Search one-way flights Zurich to London on 3 November, and stop when results show\")" }),
+                values: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Texts it may type, by name" })),
+                url: Type.Optional(Type.String({ description: "An address to open first; without it, the run starts on the page open now" })),
+                max_steps: Type.Optional(Type.Integer({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
+            }),
+            execute: async (args, api) => {
+                const session = Number(api.conversationId);
+                const owner = mayBrowse(api.conversationId);
+
+                if (owner !== true) {
+                    return reply(owner, true);
+                }
+
+                const model = host.browserRunModel(api.conversationId as never);
+                let decider: Decider;
+
+                if (model === "session") {
+                    decider = new SessionDecider((prompt) => host.askSessionModel(api.conversationId as never, prompt, 600));
+                } else {
+                    const key = await host.apiKey("openrouter");
+
+                    if (key === undefined) {
+                        return reply(`The run model is ${model}, through OpenRouter, which is not signed in: sign in to OpenRouter in Settings › Providers, or pick this session's model in Settings › Browser.`, true);
+                    }
+
+                    decider = new JevDecider(key, model);
+                }
+
+                try {
+                    if (args.url !== undefined && args.url.trim() !== "") {
+                        await browser.open(session, addressOf(args.url));
+                    }
+
+                    const { result, page } = await browser.run(session, { goal: args.goal, values: args.values ?? {}, maxSteps: args.max_steps ?? 25, decider });
+
+                    if (model !== "session" && result.decisions > 0) {
+                        await host.chargeSession(api.conversationId as never, `openrouter/${model}`, { ...result.tokens, cost: result.cost });
+                    }
+
+                    return reply(report(result, decider.label, page), result.status !== "done");
+                } catch (error) {
+                    return reply(error instanceof Error ? error.message : String(error), true);
+                }
+            },
         }),
         defineTool({
             name: "browser_close",

@@ -179,6 +179,14 @@ export interface PocketHost {
     render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number }): Promise<Shot[]>;
     /** Pi's browser (`browser/pi-browser.ts`): the page Pi reads and acts on, which the owner watches. */
     readonly browser: PiBrowser;
+    /** The run model for a session's `browser_run`: "session", or a Jev model's OpenRouter id (the session's own, else the owner's). */
+    browserRunModel(conversationId: ConversationId): string;
+    /** A provider's API key from the app's sign-ins (OpenRouter's, for Jev), or undefined when it is not signed in. */
+    apiKey(provider: string): Promise<string | undefined>;
+    /** Ask a session's own model a prompt alone (no history, no tools): its reply's text; it counts as the session's spend. */
+    askSessionModel(conversationId: ConversationId, prompt: string, maxTokens: number): Promise<string>;
+    /** Count a request made for a session elsewhere (Jev's decisions) in its Spend, under `key`. */
+    chargeSession(conversationId: ConversationId, key: string, usage: { input: number; output: number; cost: number }): Promise<void>;
     /** The skills of tools pi-phone installed on the session's machine, formatted for the prompt; undefined for none. */
     machineSkills(cwd: string): string | undefined;
     /**

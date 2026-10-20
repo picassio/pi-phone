@@ -37,6 +37,7 @@ import { createEventStreams } from "./events.ts";
 import { extensionRoute } from "./extension-routes.ts";
 import { type ApiRequest, conversationId, type HttpOptions, json, readJson, readBody } from "./io.ts";
 import { addressOf as browserAddress } from "../browser/page.ts";
+import { JevDecider, testDecision } from "../browser/run.ts";
 
 /** Pictures from the phone's renderer, as base64 JSON: a few full-page shots. */
 const MAX_RENDER_BODY = 30 * 1024 * 1024;
@@ -599,6 +600,36 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 await app.browser.close();
 
                 return json(response, 200, app.browser.state());
+            }
+
+            // The run model `browser_run` decides with (Settings › Browser), and a test of a Jev model: one decision.
+            if (second === "run-model" && third === undefined && method === "GET") {
+                return json(response, 200, { model: app.config.browserRunModel });
+            }
+
+            if (second === "run-model" && third === undefined && method === "PUT") {
+                await app.setBrowserRunModel(user, (await readJson<{ model?: unknown }>(request)).model);
+
+                return json(response, 200, { model: app.config.browserRunModel });
+            }
+
+            if (second === "run-model" && third === "test" && method === "POST") {
+                const model = String((await readJson<{ model?: unknown }>(request)).model ?? "");
+                const key = (await app.models.getAuth("openrouter"))?.auth.apiKey;
+
+                if (key === undefined) {
+                    throw new HttpError(409, "OpenRouter is not signed in: sign in to it in Settings › Providers.");
+                }
+
+                const started = Date.now();
+
+                try {
+                    const answer = await testDecision(new JevDecider(key, model));
+
+                    return json(response, 200, { ms: Date.now() - started, ...answer });
+                } catch (error) {
+                    throw new HttpError(409, error instanceof Error ? error.message : String(error));
+                }
             }
         }
 

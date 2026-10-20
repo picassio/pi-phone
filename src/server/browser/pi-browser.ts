@@ -11,7 +11,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PhoneRequests } from "../phone-requests.ts";
 import { Cdp } from "./cdp.ts";
-import { BrowserPage, type Element, type Observed, describe, elementsOf } from "./page.ts";
+import { BrowserPage, type Element, type Observed, describe, elementsOf, StalePage } from "./page.ts";
+import { type Decider, type RunResult, runGoal } from "./run.ts";
 
 /** The page's size in CSS pixels: a phone's, as the WebView is a phone's browser. */
 export const VIEWPORT = { width: 412, height: 860, mobile: true };
@@ -406,6 +407,53 @@ export class PiBrowser {
             const showed = await page.wait(wait);
 
             return `${showed ? "" : `${JSON.stringify(wait.text)} did not show within 30 seconds.\n`}${await this.#read(page)}`;
+        });
+    }
+
+    /**
+     * Carry out a goal, a decision a step by the run model (`run.ts`), as one of Pi's actions: what it did, and the page
+     * as it is after.
+     */
+    run(session: number, options: { goal: string; values: Record<string, string>; maxSteps: number; decider: Decider }): Promise<{ result: RunResult; page: string }> {
+        return this.#run(session, `Running: ${options.goal.slice(0, 80)}`, async (page) => {
+            const element = (observed: Observed, node: number): Element => {
+                const found = elementsOf(observed).find((each) => each.node === node);
+
+                if (found === undefined) {
+                    throw new StalePage("The control is gone from the page.");
+                }
+
+                return found;
+            };
+            const result = await runGoal(
+                {
+                    observe: () => page.observe(),
+                    click: (observed, node) => page.click(observed, element(observed, node)),
+                    type: (observed, node, text) => page.type(observed, element(observed, node), text, { clear: true }),
+                    select: async (observed, node, option) => {
+                        await page.select(observed, element(observed, node), option);
+                    },
+                    scroll: (direction) => page.scroll(direction, 0.85),
+                    wait: async () => {
+                        await page.wait({ seconds: 1 });
+                    },
+                    stale: (error) => error instanceof StalePage,
+                },
+                options.decider,
+                {
+                    goal: options.goal,
+                    values: options.values,
+                    maxSteps: options.maxSteps,
+                    timeMs: 180_000,
+                    progress: (what) => this.#set({ doing: what }),
+                },
+            );
+
+            this.#observed = result.observed;
+            this.#elements = elementsOf(result.observed);
+            this.#set({ url: result.observed.url, title: result.observed.title });
+
+            return { result, page: describe(result.observed, this.#elements) };
         });
     }
 

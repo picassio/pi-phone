@@ -88,6 +88,7 @@ import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
 import { Screenshots } from "./screenshots.ts";
 import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
 import { PhoneRequests } from "./phone-requests.ts";
+import { askSessionModel, chargeSession } from "./side-model.ts";
 import { OfficeCli, type OfficeCliOptions } from "./officecli.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
@@ -665,6 +666,10 @@ export class PocketApp {
             serverBase: () => (this.serverPort === undefined ? undefined : `http://127.0.0.1:${this.serverPort}`),
             render: (url, options) => this.screenshots.render(url, options),
             browser: this.browser,
+            browserRunModel: (id) => this.sessionMeta(this.rootOf(id))?.browserRunModel ?? this.config.browserRunModel,
+            apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
+            askSessionModel: async (id, prompt, maxTokens) => (await askSessionModel(this, id, prompt, { maxTokens })).text,
+            chargeSession: (id, key, usage) => chargeSession(this, id, key, usage),
             machineSkills: (cwd) => {
                 const machine = this.places.machineOf(cwd);
 
@@ -3018,6 +3023,37 @@ export class PocketApp {
 
         this.config.wikiCaptureMinutes = minutes;
         await this.#refreshClients();
+    }
+
+    /** The run model for `browser_run` (Settings › Browser), for every session, or one session's own ("inherit": none). */
+    async setBrowserRunModel(user: User, model: unknown, id?: ConversationId): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (!(model === "session" || (id !== undefined && model === "inherit") || (typeof model === "string" && /^typesafe\/[a-z0-9][a-z0-9.\-]*$/i.test(model)))) {
+            throw new HttpError(400, "The run model is \"session\" (the session's own model) or a Jev model's OpenRouter id, like typesafe/jev-1.13.");
+        }
+
+        if (id === undefined) {
+            this.config.browserRunModel = model as string;
+
+            return;
+        }
+
+        await this.harness.commit(async (tx) => {
+            const meta = (await tx.doc(SessionsDoc)).items[String(id)];
+
+            if (meta === undefined) {
+                throw new HttpError(404, "There is no such session.");
+            }
+
+            if (model === "inherit") {
+                delete meta.browserRunModel;
+            } else {
+                meta.browserRunModel = model as string;
+            }
+        }, context);
     }
 
     /** One session's own limit: a number, null for none, or "inherit" for the owner's setting. */

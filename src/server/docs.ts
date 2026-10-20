@@ -40,6 +40,8 @@ export type SessionMeta = {
      * a number, or null for no limit. Absent: the owner's setting for all sessions.
      */
     sendLimit?: number | null;
+    /** The run model for this session's `browser_run`: "session" or a Jev model's OpenRouter id. Absent: the owner's. */
+    browserRunModel?: string;
     /** The "Wiki capture" session (`para-capture.ts`): captures of the others run there. */
     wikiCapture?: boolean;
     /** Where the session went in Pi on a machine, and how far the two agree (`pi-handoff.ts`). */

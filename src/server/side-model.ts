@@ -16,6 +16,26 @@ const context = BACKGROUND_CONTEXT;
 const REASONING = /^\s*<(think|thinking|reasoning)>[\s\S]*?(<\/\1>|$)/i;
 const REASONING_END = /^[\s\S]*?<\/(think|thinking|reasoning)>[^\S\n]*(\n|$)/i;
 
+/**
+ * Put a request made for a session elsewhere (a browser run's decisions by Jev, through OpenRouter) on its ledger, under
+ * `key` ("openrouter/typesafe/jev-1.13"): it counts in the session's Spend like Pi's own requests.
+ */
+export async function chargeSession(app: PocketApp, id: ConversationId, key: string, usage: { input: number; output: number; cost: number }): Promise<void> {
+    await app.harness.commit(async (tx) => {
+        const ledger = await tx.doc(UsageDoc, id);
+
+        ledger.models[key] ??= { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+        addUsage(ledger.models[key] as Usage, {
+            input: usage.input,
+            output: usage.output,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: usage.input + usage.output,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: usage.cost },
+        } as Usage);
+    }, context);
+}
+
 /** Add one response's usage to the session's ledger, as Pi Durable does for its own. */
 function addUsage(total: Usage, usage: Usage): void {
     total.input += usage.input;

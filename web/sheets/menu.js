@@ -494,6 +494,7 @@ export function MenuSheet({ places = true }) {
             ${me?.role === "owner" && item("Machines", () => openSheet({ type: "machines" }), "run sessions on other computers")}
             ${me?.role === "owner" && item("SSH keys", () => openSheet({ type: "ssh-keys" }), "for machines")}
             ${me?.role === "owner" && webAvailable() && item("Web access", () => openSheet({ type: "web-access" }), "search provider for Pi")}
+            ${me?.role === "owner" && item("Pi's browser", () => openSheet({ type: "browser" }), "how browser_run decides each step")}
             ${me?.role === "owner" && item("Secrets", () => openSheet({ type: "secrets" }), "keys Pi uses without seeing")}
             ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
             ${me?.role === "owner" && item("This phone", () => openSheet({ type: "phone" }), "notifications, screen off, backup")}
