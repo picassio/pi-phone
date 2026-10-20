@@ -85,6 +85,29 @@
       if (editable) actions.push({...base,kind:'click',value:value.slice(0,200)});
     }
   }
+  // Things clickable by their look or script only (a div with a pointer cursor or a click handler, as pop-ups and app
+  // banners often are): the outermost such element in view, with a name, not inside or around a control listed above.
+  // As browser-use reads pages, which looks at the cursor too.
+  const listedNodes=new Set(actions.map(a=>cache.nodes.get(a.node)));
+  let looked=0;
+  for (const e of document.body.querySelectorAll('div,span,li,p,img,svg,label,section,article,[onclick],[tabindex]')) {
+    if (++looked>4000 || actions.length>=300) break;
+    if (listedNodes.has(e) || e.closest(selector) || e.querySelector(selector)) continue;
+    const r=e.getBoundingClientRect();
+    if (r.width<8 || r.height<8 || r.bottom<=0 || r.right<=0 || r.top>=innerHeight || r.left>=innerWidth) continue;
+    if (r.width*r.height>innerWidth*innerHeight*0.5) continue;
+    const tab=e.getAttribute('tabindex');
+    const clickable=e.hasAttribute('onclick') || (tab!==null && tab!=='-1') || getComputedStyle(e).cursor==='pointer';
+    if (!clickable || !visible(e)) continue;
+    const parent=e.parentElement;
+    if (parent && parent!==document.body && getComputedStyle(parent).cursor==='pointer' && !e.hasAttribute('onclick')) continue;
+    const label=(name(e)||'').replace(/\s+/g,' ').trim().slice(0,200);
+    if (!label) continue;
+    const x=r.x+r.width/2, y=r.y+r.height/2;
+    if (x<0 || y<0 || x>=innerWidth || y>=innerHeight) continue;
+    listedNodes.add(e);
+    actions.push({node:identity(e),role:'clickable',label,rect:{x:r.x,y:r.y,w:r.width,h:r.height},kind:'click',value:''});
+  }
   const words=[], walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
   const range=document.createRange(); let node,length=0;
   while ((node=walker.nextNode()) && length<6000) {

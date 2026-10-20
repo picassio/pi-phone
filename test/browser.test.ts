@@ -99,6 +99,13 @@ const PAGES: Record<string, string> = {
         <a href="/two">Next page</a>`,
     "/login": `<!doctype html><title>Sign in</title><form onsubmit="event.preventDefault();document.getElementById('out').textContent='Hello ' + user.value + (pw.value === 'hunter2' ? ', signed in' : ', wrong password')">
         <label>Email <input id="user" autocomplete="username"></label><label>Password <input id="pw" type="password"></label><button>Sign in</button></form><p id="out">Signed out</p>`,
+    "/sheet": `<!doctype html><title>Sheet</title><p id="out">Feed</p>
+        <div style="position:fixed;left:0;right:0;bottom:0;padding:16px;background:#222;color:#fff">
+            <div>Open in...</div>
+            <div id="app" style="cursor:pointer;padding:8px" onclick="out.textContent='Opened the app'"><span>App</span> <span>Open</span></div>
+            <div id="web" style="cursor:pointer;padding:8px"><span>Browser</span> <span>Continue</span></div>
+        </div>
+        <script>web.addEventListener('click', () => { out.textContent = 'Continued in the browser'; web.parentElement.remove(); });</script>`,
     "/two": `<!doctype html><title>Two</title><p>Page two</p><article>${"A long article. ".repeat(400)}</article>`,
 };
 
@@ -184,6 +191,13 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
 
         stop();
         assert.ok(frames.length > 0, "a frame came");
+
+        // Things clickable only by their look or script (a sheet's plain divs) are listed, and clicking one works.
+        const sheet = await browser.open(1, "http://pi.test/sheet");
+
+        assert.match(sheet, /clickable "App Open"/);
+        assert.doesNotMatch(sheet, /clickable "Open in\.\.\."/, "plain text with no pointer is not a control");
+        assert.match(await browser.click(1, Number(/\[(\d+)\] clickable "Browser Continue"/.exec(sheet)![1])), /Continued in the browser/);
 
         // A sign-in: the password field is listed but never its value; Pi may not type into it; the person's values go in.
         const login = await browser.open(1, "http://pi.test/login");
