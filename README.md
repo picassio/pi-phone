@@ -8,6 +8,17 @@ No Termux, no laptop, no cloud VM.
 > **Status:** a personal project, built and tested on a Galaxy Z Fold 8 (Android 17). Sideload only (it targets
 > Android SDK 28, see [DESIGN.md](DESIGN.md)). Expect rough edges.
 
+<p align="center">
+  <img src="docs/images/phone-sessions.png" width="250" alt="The session list on a phone">
+  <img src="docs/images/phone-session.png" width="250" alt="A session: Pi ran commands, wrote a file, and answered with code and a table">
+  <img src="docs/images/phone-approval.png" width="250" alt="Pi asks before changing a setting: an approval card with Deny and Allow">
+</p>
+<p align="center">
+  <img src="docs/images/desktop-session.png" width="760" alt="On a wide screen: the session list beside a reply with a Mermaid diagram and a table">
+</p>
+
+<sub>Made with a demo app and a scripted model (`scripts/readme-shots.ts`): no real sessions, accounts, or projects.</sub>
+
 ## What it does
 
 ### The agent
@@ -65,6 +76,8 @@ No Termux, no laptop, no cloud VM.
   Pi has a tool for every action (`project_create`, `project_update`, `project_share`, `project_team`, `task_create`,
   `task_update`, `task_comment`, `task_run`, `task_diff`, `task_link_session`, …); making a board (from any session),
   deleting, and merging ask you on a card.
+
+  <img src="docs/images/desktop-board.png" width="760" alt="A project board: Inbox, Planning, Assigned, and In progress columns with epics, stories, tasks, and a bug">
 
 ### Web, documents, and answers
 - **Pi's browser.** Pi opens pages in a browser of its own (a WebView of the app, driven over its DevTools socket) and
@@ -209,6 +222,8 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 What stays yours: typing secrets and passwords, signing in to providers and GitHub, the recovery code, accepting a
 machine's host key, restoring a backup, and turning on plan mode. Pi says so and tells you where to do it.
 
+<p align="center"><img src="docs/images/phone-menu.png" width="250" alt="The session menu's App group: Appearance, Default model, Providers, GitHub, Machines, Web access, Pi's browser, …"></p>
+
 ## How it is built
 
 ```
@@ -216,7 +231,8 @@ android/   Android shell (Java): WebView, foreground service running node, runti
 src/server pi-pocket's server, cut down, plus pi-phone's parts (machines, places, SSH keys, secrets, web access,
            documents, interview, wiki, screenshots, CI watch, GitHub login, Claude Code billing patch)
 web/       pi-pocket's web app (Preact + htm, no build step)
-scripts/   Termux rootfs and runtime packaging, OfficeCLI, versions, release notes, web import check
+scripts/   Termux rootfs and runtime packaging, OfficeCLI, versions, release notes, web import check, the README's
+           pictures (readme-shots.ts: a demo app shot in Chrome, run on a computer)
 test/      node:test
 ```
 
