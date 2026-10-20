@@ -2734,3 +2734,34 @@ i.live {
 .pj-mode-row .segmented {
     flex: none;
 }
+
+/* "Board for this session": the app's settings rows, and a row per project to pick. */
+.pj-board-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pj-board-sheet .sheet-list {
+    margin-bottom: 4px;
+}
+
+.pj-pick-key {
+    font-weight: 600;
+    margin-right: 4px;
+}
+
+.pj-pick[aria-checked="true"] {
+    color: var(--accent);
+}
+
+@media (max-width: 480px) {
+    .pj-board-sheet .setting-row:has(.segmented) {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .pj-board-sheet .setting-row:has(.segmented) .setting-text {
+        flex-basis: 100%;
+    }
+}

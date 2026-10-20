@@ -2075,7 +2075,10 @@ export default function projects(pocket) {
         </div>`;
     }
 
-    /** The session menu's "Board for this session": board mode here, its project, who closes tasks, and its rules. */
+    /**
+     * The session menu's "Board for this session", laid out as the app's settings: board mode on or off; the project, a
+     * row each (picking one turns the board on); and, while on, who moves tasks to Done and the board rules here.
+     */
     function BoardModeSheet({ close }) {
         const conversation = pocket.conversationId();
         const [mode, setMode] = useState(null);
@@ -2099,43 +2102,78 @@ export default function projects(pocket) {
         }
 
         const set = (body) => pocket.api(`board-mode/${conversation}`, body, { method: "PUT" }).then(setMode, failed);
+        const current = list.find((project) => project.key === mode.project);
 
-        return html`<div class="pj-form">
-            <div class="pj-mode-row">
-                <div>
-                    <div>Track this session's work on a board</div>
-                    <div class="muted small">
-                        ${mode.on ? "Pi keeps its tasks current there." : mode.decided ? "Off: Pi works without the board and does not ask again." : "Off: Pi asks once when the work has several parts."}
+        return html`<div class="pj-board-sheet">
+            <div class="sheet-list">
+                <div class="setting-row">
+                    <div class="setting-text">
+                        <span>Track this session on a board</span>
+                        <span>
+                            ${
+                                mode.on
+                                    ? `Pi keeps its tasks current on ${current ? `${current.key} · ${current.name}` : "the board"}.`
+                                    : mode.decided
+                                      ? "Off: Pi works without a board and won't ask again."
+                                      : "Off: Pi asks once when the work has several parts."
+                            }
+                        </span>
                     </div>
+                    <${Switch}
+                        on=${mode.on}
+                        label="Board mode"
+                        disabled=${!mode.on && list.length === 0}
+                        onChange=${() => set({ on: !mode.on, project: mode.project ?? list[0]?.key ?? null })}
+                    />
                 </div>
-                <${Switch} on=${mode.on} label="Board mode" disabled=${!mode.on && list.length === 0 && mode.project === null} onChange=${() => set({ on: !mode.on, project: mode.project ?? list[0]?.key ?? null })} />
             </div>
-            <label class="field"
-                ><span class="label">Project</span
-                ><select value=${mode.project ?? ""} onChange=${(event) => set({ on: mode.on, project: event.currentTarget.value || null })}>
-                    <option value="">None</option>
-                    ${list.map((project) => html`<option value=${project.key}>${project.key} · ${project.name}</option>`)}
-                </select></label
-            >
-            ${list.length === 0 && html`<p class="muted small">No projects yet: make one on the Projects page.</p>`}
+            <div class="label">Project</div>
             ${
-                mode.decided &&
-                html`<div class="pj-mode-row">
-                        <div>
-                            <div>Who moves tasks to Done</div>
-                            <div class="muted small">${mode.closer === "pi" ? "Pi, once you say in chat that a task is good." : "You, on the board: Pi stops at Review."}</div>
+                list.length === 0
+                    ? html`<p class="muted small">No projects yet: make one on the Projects page.</p>`
+                    : html`<div class="sheet-list" role="radiogroup" aria-label="Project">
+                          ${list.map(
+                              (project) => html`<button
+                                  class="list-item pj-pick"
+                                  role="radio"
+                                  aria-checked=${project.key === mode.project}
+                                  onClick=${() => (project.key !== mode.project || !mode.on) && set({ on: true, project: project.key })}
+                              >
+                                  <span><b class="pj-pick-key">${project.key}</b> ${project.name}</span>
+                                  ${project.key === mode.project && html`<${Icon} name="check" size=${16} />`}
+                              </button>`,
+                          )}
+                      </div>`
+            }
+            ${
+                mode.on &&
+                html`<div class="label">How Pi works the board here</div>
+                    <div class="sheet-list">
+                        <div class="setting-row">
+                            <div class="setting-text">
+                                <span>Moves tasks to Done</span>
+                                <span>${mode.closer === "pi" ? "Pi, once you say in chat that a task is good." : "You, on the board: Pi stops at Review."}</span>
+                            </div>
+                            <${Segmented} value=${mode.closer} options=${[["person", "You"], ["pi", "Pi"]]} onChange=${(closer) => set({ closer })} />
                         </div>
-                        <${Segmented} value=${mode.closer} options=${[["person", "You"], ["pi", "Pi"]]} onChange=${(closer) => set({ closer })} />
-                    </div>
-                    <div class="pj-mode-row">
-                        <div>
-                            <div>Board rules here</div>
-                            <div class="muted small">${mode.rules === null ? `The project's: ${mode.projectRules === "light" ? "light" : "full"}.` : mode.rules === "light" ? "Light: track work as tasks, keep them current." : "Full: agent-board's task protocol."}</div>
+                        <div class="setting-row">
+                            <div class="setting-text">
+                                <span>Board rules</span>
+                                <span>
+                                    ${
+                                        mode.rules === null
+                                            ? `The project's: ${mode.projectRules === "light" ? "light" : "full"}.`
+                                            : mode.rules === "light"
+                                              ? "Light: track work as tasks, keep them current."
+                                              : "Full: also blocked tasks, review for risky work, how to comment."
+                                    }
+                                </span>
+                            </div>
+                            <${Segmented} value=${mode.rules ?? "project"} options=${[["project", "Project"], ["full", "Full"], ["light", "Light"]]} onChange=${(rules) => set({ rules: rules === "project" ? null : rules })} />
                         </div>
-                        <${Segmented} value=${mode.rules ?? "project"} options=${[["project", "Project's"], ["full", "Full"], ["light", "Light"]]} onChange=${(rules) => set({ rules: rules === "project" ? null : rules })} />
                     </div>`
             }
-            <button class="button" onClick=${close}>Done</button>
+            <div class="sheet-actions"><button class="button" onClick=${close}>Done</button></div>
         </div>`;
     }
 
