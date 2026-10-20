@@ -213,6 +213,9 @@ test("a session's board settings: who closes tasks and its rules, kept; the proj
     assert.doesNotMatch(light, /blocked_reason|operator_review, so only|task_comment/);
     assert.match(boardRules("full", "person"), /Never move a task you worked on to done/);
     assert.match(boardRules("light", "verified"), /Verify every task yourself.*not by eye.*move it to done yourself/s);
+    for (const level of ["light", "full"] as const) {
+        assert.match(boardRules(level, "person"), /## For you.*numbered steps.*## Then Pi does/s, level);
+    }
     assert.match(boardRules("full", "person"), /blocked_reason/);
 });
 
