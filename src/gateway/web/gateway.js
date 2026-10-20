@@ -53,11 +53,11 @@ const authApi = (path, body, method) => call(`/auth/api/${path}`, body, method);
 const gw = (path, body, method) => call(`/auth/gw/${path}`, body, method);
 
 function page(title, lede, ...content) {
+    // Leaving out what is not there (a passkey button where the browser can't make one): replaceChildren would write "null".
     app.replaceChildren(
-        h("div", { class: "brand" }, h("img", { src: "/auth/static/icon.svg", alt: "" }), h("b", {}, "pi-phone")),
-        h("h1", {}, title),
-        lede ? h("p", { class: "muted" }, lede) : null,
-        ...content,
+        ...[h("div", { class: "brand" }, h("img", { src: "/auth/static/icon.svg", alt: "" }), h("b", {}, "pi-phone")), h("h1", {}, title), lede ? h("p", { class: "muted" }, lede) : null, ...content].filter(
+            (each) => each !== null && each !== undefined && each !== false,
+        ),
     );
     document.title = `${title} · pi-phone`;
 }
@@ -139,14 +139,23 @@ function signIn() {
     );
 }
 
-function twoFactorStep() {
+/** The digits of a code as typed (an app may show "123 456"). */
+const digits = (code) => String(code).replace(/\D+/g, "");
+
+function twoFactorStep(backup = false) {
     page(
-        "Two-factor code",
-        "The 6-digit code from your authenticator app.",
-        form([field("Code", "code", "text", { inputmode: "numeric", autocomplete: "one-time-code", pattern: "[0-9]{6}" })], "Verify", async ({ code }) => {
-            await authApi("two-factor/verify-totp", { code, trustDevice: false });
-            location.href = next();
-        }),
+        backup ? "Backup code" : "Two-factor code",
+        backup ? "One of the backup codes you saved when you turned two-factor on. Each works once." : "The 6-digit code your authenticator app shows for pi-phone.",
+        backup
+            ? form([field("Backup code", "code", "text", { autocomplete: "off" })], "Verify", async ({ code }) => {
+                  await authApi("two-factor/verify-backup-code", { code: String(code).trim() });
+                  location.href = next();
+              })
+            : form([field("Code", "code", "text", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Verify", async ({ code }) => {
+                  await authApi("two-factor/verify-totp", { code: digits(code), trustDevice: false });
+                  location.href = next();
+              }),
+        h("button", { type: "button", onclick: () => twoFactorStep(!backup) }, backup ? "Use my authenticator app instead" : "Use a backup code instead"),
     );
 }
 
@@ -235,16 +244,35 @@ function renderTwoFactor(box, me) {
         form([field("Password", "password", "password", { autocomplete: "current-password" })], "Turn on", async ({ password }) => {
             const { totpURI, backupCodes } = await authApi("two-factor/enable", { password });
             const qr = await gw("qr", { text: totpURI });
+            const key = new URL(totpURI).searchParams.get("secret") ?? "";
+            const copy = (text, button) => async () => {
+                await navigator.clipboard.writeText(text);
+                button.textContent = "Copied";
+            };
+            const copyKey = h("button", { type: "button" }, "Copy setup key");
+            const copyCodes = h("button", { type: "button" }, "Copy backup codes");
 
+            copyKey.addEventListener("click", copy(key, copyKey));
+            copyCodes.addEventListener("click", copy(backupCodes.join("\n"), copyCodes));
             box.replaceChildren(
-                h("p", {}, "Scan this with your authenticator app, then type its code to finish."),
+                h("p", {}, h("b", {}, "1. Add pi-phone to your authenticator app"), " (1Password, Google Authenticator, Authy…):"),
+                h(
+                    "div",
+                    { class: "row" },
+                    h("a", { class: "button primary", href: totpURI }, "Open in authenticator app"),
+                    copyKey,
+                ),
+                h("p", { class: "muted" }, "Or type the setup key into the app's one-time password field: ", h("span", { class: "code" }, key.replace(/(.{4})/g, "$1 ").trim())),
+                h("p", { class: "muted" }, "Or scan this from another device:"),
                 h("img", { class: "qr", src: qr.svg, alt: "QR code for your authenticator app" }),
-                h("p", { class: "muted" }, "Backup codes, each usable once (keep them safe):"),
-                h("p", { class: "code" }, backupCodes.join("  ")),
-                form([field("Code", "code", "text", { inputmode: "numeric", autocomplete: "one-time-code", pattern: "[0-9]{6}" })], "Finish", async ({ code }) => {
-                    await authApi("two-factor/verify-totp", { code });
+                h("p", {}, h("b", {}, "2. Type the 6-digit code the app now shows for pi-phone"), " (not a backup code):"),
+                form([field("Code from the app", "code", "text", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Finish", async ({ code }) => {
+                    await authApi("two-factor/verify-totp", { code: digits(code) });
                     renderTwoFactor(box, { ...me, twoFactor: true });
                 }),
+                h("p", {}, h("b", {}, "3. Save the backup codes"), ": spares for signing in if you lose your app, each usable once. Not for step 2."),
+                h("p", { class: "code" }, backupCodes.join("  ")),
+                copyCodes,
             );
         }),
     );
