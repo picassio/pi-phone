@@ -18,6 +18,8 @@ after(() => cleanUp());
 /** What the stand-in pi-phone was asked: by path, its headers. */
 const asked: { path: string; headers: IncomingHttpHeaders }[] = [];
 const controllerCalls: string[] = [];
+/** The caps each person's pi-phone was last started with, by key. */
+const capsOf: Record<string, { memoryMb: number; cpus: number }> = {};
 let upstream: Server;
 let upstreamPort = 0;
 let gateway: Server;
@@ -25,8 +27,9 @@ let origin = "";
 let store: GatewayStore;
 
 const controller: ControllerClient = {
-    ensure: async (key) => {
+    ensure: async (key, _token, caps) => {
         controllerCalls.push(`ensure ${key}`);
+        capsOf[key] = caps;
 
         return { host: "127.0.0.1", port: upstreamPort };
     },
@@ -52,7 +55,7 @@ before(async () => {
 
     const auth = await makeAuth({ db, secret: store.authSecret(), origin });
 
-    const handler = new Gateway({ auth, store, controller, origin, caps: { memoryMb: 1024, cpus: 1 }, log: () => {} });
+    const handler = new Gateway({ auth, store, controller, origin, log: (line) => console.error(line) });
 
     gateway.on("request", (request, response) => void handler.handle(request, response));
     gateway.on("upgrade", (request, socket, head) => void handler.upgrade(request, socket, head));
@@ -169,7 +172,7 @@ test("the owner's setup, sign-in, forwarding to your own pi-phone, invites, TOTP
     const invite = (await owner.go("/auth/gw/invites", { role: "member", minutes: 1440 })).data as { code: string; url: string };
 
     assert.match(invite.url, new RegExp(`^${origin}/auth/invite/`));
-    assert.equal((await browser().go(`/auth/gw/invite/${invite.code}`)).data.role, "member");
+    assert.equal((await browser().go(`/auth/gw/invite/${invite.code}`)).data.role, "Member", "the role by its name");
 
     const member = browser();
 
@@ -216,6 +219,77 @@ test("the owner's setup, sign-in, forwarding to your own pi-phone, invites, TOTP
     assert.ok(controllerCalls.includes(`stop ${hanBox.key}`));
     assert.equal((await again.go("/")).status, 303, "a disabled person is out");
     assert.equal((await owner.go(`/auth/gw/people/${me.id}/disable`, {})).status, 400, "not yourself");
+});
+
+test("custom roles (PP-22): the owner's catalogue, a role's caps and permissions, no pi-phone for a viewer, the last owner kept, and the audit log", async () => {
+    const owner = browser();
+
+    assert.equal((await owner.go("/auth/api/sign-in/email", { email: "tuan@example.com", password: "a long password 1" })).status, 200);
+
+    const listed = (await owner.go("/auth/gw/roles")).data as { roles: { id: string; builtin: boolean; memoryMb: number }[]; catalogue: { group: string }[] };
+
+    assert.deepEqual(listed.roles.map((role) => role.id), ["owner", "admin", "member", "viewer"], "the owner's, then the seeded ones");
+    assert.equal(listed.roles[0]!.builtin, true);
+    assert.deepEqual(listed.catalogue.map((group) => group.group), ["People", "Their own pi-phone", "Sharing"]);
+
+    // A role of the owner's own: checked, then used for an invite; its caps reach the controller.
+    const bad = await owner.go("/auth/gw/roles", { name: "Bad", permissions: ["no.such"], memoryMb: 1024, cpus: 1 });
+
+    assert.equal(bad.status, 400);
+    assert.match(String(bad.data.error), /No such permission: no\.such/);
+
+    const contractor = (await owner.go("/auth/gw/roles", { name: "Contractor", permissions: ["pi.use", "web.search", "people.manage", "people.invite"], memoryMb: 1536, cpus: 0.5, models: ["anthropic/claude-haiku-5-5"], spendLimit: 20 })).data as { id: string };
+
+    assert.equal(contractor.id, "contractor");
+
+    const invite = (await owner.go("/auth/gw/invites", { role: "contractor", minutes: 60 })).data as { code: string };
+    const worker = browser();
+
+    assert.equal((await worker.go(`/auth/gw/invite/${invite.code}`, { name: "Kim", email: "kim@example.com", password: "kims long password" })).status, 200);
+    await worker.go("/auth/api/sign-in/email", { email: "kim@example.com", password: "kims long password" });
+
+    const kim = (await worker.go("/auth/gw/state")).data.me as { id: string; role: string; permissions: string[] };
+
+    assert.equal(kim.role, "contractor");
+    assert.equal((await worker.go("/")).status, 200);
+    assert.deepEqual(capsOf[store.boxOf(kim.id)!.key], { memoryMb: 1536, cpus: 0.5 }, "the role's caps");
+
+    // Kim's role manages people (not better-auth's admin): Kim resets a member's password, but not an owner's, and
+    // invites neither an owner nor changes roles.
+    const people = (await worker.go("/auth/gw/people")).data.people as { id: string; email: string; role: string }[];
+    const han = people.find((each) => each.email === "han@example.com")!;
+    const tuan = people.find((each) => each.email === "tuan@example.com")!;
+
+    assert.equal((await worker.go(`/auth/gw/people/${han.id}/reset-password`, { password: "a brand new one 4" })).status, 200);
+    assert.equal((await worker.go(`/auth/gw/people/${tuan.id}/reset-password`, { password: "a brand new one 5" })).status, 403, "not an owner's");
+    assert.equal((await worker.go("/auth/gw/invites", { role: "owner", minutes: 60 })).status, 403, "only an owner invites an owner");
+    assert.equal((await worker.go("/auth/gw/roles", { name: "Mine", permissions: [], memoryMb: 512, cpus: 1 })).status, 403, "roles.manage is not theirs");
+    assert.equal((await worker.go("/auth/gw/audit")).status, 403);
+
+    // A viewer has no pi-phone of their own. (Han was disabled by the test before: enabled again first.)
+    assert.equal((await owner.go(`/auth/gw/people/${han.id}/enable`, {})).status, 200);
+    assert.equal((await owner.go(`/auth/gw/people/${han.id}/role`, { role: "viewer" })).status, 200);
+
+    const viewer = browser();
+
+    await viewer.go("/auth/api/sign-in/email", { email: "han@example.com", password: "a brand new one 4" });
+    assert.equal((await viewer.go("/api/me")).status, 403);
+    assert.equal(((await viewer.go("/auth/gw/state")).data.me as { role: string }).role, "viewer");
+
+    // A role someone has is not deleted; the last owner is not demoted; changing a role's caps applies on the next start.
+    assert.equal((await owner.go("/auth/gw/roles/viewer/delete", {})).status, 409);
+    assert.equal((await owner.go(`/auth/gw/people/${tuan.id}/role`, { role: "member" })).status, 400, "not on your own account");
+    assert.equal((await owner.go("/auth/gw/roles/contractor", { name: "Contractor", permissions: ["pi.use"], memoryMb: 3072, cpus: 1 })).status, 200);
+    await worker.go("/api/sessions");
+    assert.deepEqual(capsOf[store.boxOf(kim.id)!.key], { memoryMb: 3072, cpus: 1 });
+    assert.equal((await worker.go(`/auth/gw/people/${han.id}/reset-password`, { password: "x".repeat(12) })).status, 403, "the role no longer manages people");
+
+    // The audit log: who did what.
+    const log = (await owner.go("/auth/gw/audit")).data.entries as { action: string; actor: string }[];
+
+    for (const action of ["role created", "invite made", "joined", "reset-password", "role given", "role changed"]) {
+        assert.ok(log.some((entry) => entry.action === action), action);
+    }
 });
 
 test("a WebSocket opens only from the gateway's own page, signed in", async () => {

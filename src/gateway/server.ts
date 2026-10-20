@@ -16,7 +16,8 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import QRCode from "qrcode";
 import type { GatewayAuth } from "./auth.ts";
-import { type GatewayStore, INVITE_MINUTES, ROLES, type Role } from "./store.ts";
+import { CATALOGUE, checkRole, OWNER_ROLE, type Permission } from "./roles.ts";
+import { type GatewayStore, INVITE_MINUTES } from "./store.ts";
 
 /** What the gateway asks the controller (`src/controller/`): a person's pi-phone, by key. */
 export interface ControllerClient {
@@ -31,8 +32,6 @@ export type GatewayOptions = {
     controller: ControllerClient;
     /** The address people open: `https://…`. */
     origin: string;
-    /** The memory and CPU each person's pi-phone gets (phase 2 takes them from roles). */
-    caps: { memoryMb: number; cpus: number };
     log: (line: string) => void;
 };
 
@@ -81,7 +80,10 @@ export class Gateway {
         let starting = this.#starting.get(box.key);
 
         if (starting === undefined) {
-            starting = this.#options.controller.ensure(box.key, box.token, this.#options.caps).finally(() => this.#starting.delete(box.key));
+            // The memory and CPU of the person's role (PP-22); a changed role is applied on the next start.
+            const role = this.#options.store.roleOf(user.id, user.role);
+
+            starting = this.#options.controller.ensure(box.key, box.token, { memoryMb: role.memoryMb, cpus: role.cpus }).finally(() => this.#starting.delete(box.key));
             this.#starting.set(box.key, starting);
         }
 
@@ -143,6 +145,18 @@ export class Gateway {
                 return json(response, 401, { error: "Sign in first: /auth/sign-in" });
             }
 
+            // A role without a pi-phone of its own (Viewer): only the gateway's pages, and what others share with them.
+            if (!this.#options.store.can(user.id, user.role, "pi.use")) {
+                if (request.method === "GET" && (request.headers.accept ?? "").includes("text/html")) {
+                    response.writeHead(403, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+                    response.end(NO_PI);
+
+                    return;
+                }
+
+                return json(response, 403, { error: "Your role has no pi-phone of its own." });
+            }
+
             if (REFUSED.some((pattern) => pattern.test(request.url ?? "/"))) {
                 if (request.method === "GET" && (path === "/login" || path === "/recover")) {
                     return redirect(response, "/auth/account");
@@ -202,7 +216,7 @@ export class Gateway {
         try {
             const user = await this.#user(request);
 
-            if (user === undefined || REFUSED.some((pattern) => pattern.test(request.url ?? "/"))) {
+            if (user === undefined || REFUSED.some((pattern) => pattern.test(request.url ?? "/")) || !this.#options.store.can(user.id, user.role, "pi.use")) {
                 socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
 
                 return;
@@ -255,18 +269,23 @@ export class Gateway {
         createReadStream(path).pipe(response);
     }
 
-    /** The gateway's own routes, for its page. */
+    /** The gateway's own routes, for its page. Each checks a permission of the person's role (PP-22). */
     async #gatewayRoute(request: IncomingMessage, response: ServerResponse, route: string): Promise<void> {
         const { auth, store } = this.#options;
         const method = request.method ?? "GET";
         const user = await this.#user(request);
-        const owner = user?.role === "owner";
+        const role = user === undefined ? undefined : store.roleOf(user.id, user.role);
+        const can = (permission: Permission) => role?.permissions.includes(permission) === true;
+        const isOwner = role?.id === OWNER_ROLE.id;
 
-        // What the page needs: whether the owner is still to be set up, and who is signed in.
+        // What the page needs: whether the owner is still to be set up, and who is signed in, with their role.
         if (route === "state" && method === "GET") {
             return json(response, 200, {
                 setup: store.userCount() === 0,
-                me: user === undefined ? null : { id: user.id, name: user.name, email: user.email, role: user.role ?? "member", twoFactor: user.twoFactorEnabled === true },
+                me:
+                    user === undefined || role === undefined
+                        ? null
+                        : { id: user.id, name: user.name, email: user.email, role: role.id, roleName: role.name, permissions: role.permissions, twoFactor: user.twoFactorEnabled === true },
             });
         }
 
@@ -282,41 +301,46 @@ export class Gateway {
                 return json(response, 403, { error: "That is not the setup token in the gateway's log." });
             }
 
-            await auth.api.createUser({ body: { name: String(body.name ?? "Owner"), email: String(body.email ?? ""), password: String(body.password ?? ""), role: "owner" } });
+            const made = (await auth.api.createUser({ body: { name: String(body.name ?? "Owner"), email: String(body.email ?? ""), password: String(body.password ?? ""), role: "owner" } })) as { user: { id: string } };
+
+            store.audit(made.user.id, "setup", made.user.id);
 
             return json(response, 200, { ok: true });
         }
 
-        // An invite as its link shows it, and spending it for a new account.
+        // An invite as its link shows it, and spending it for a new account with its role.
         const invite = /^invite\/([A-Za-z0-9_-]{10,64})$/.exec(route);
 
         if (invite !== null) {
             const live = store.liveInvite(invite[1]!);
 
             if (method === "GET") {
-                return json(response, live === undefined ? 404 : 200, live === undefined ? { error: "This invite is used, expired, or never was." } : { role: live.role, expiresAt: live.expiresAt });
+                return json(response, live === undefined ? 404 : 200, live === undefined ? { error: "This invite is used, expired, or never was." } : { role: store.role(live.role)?.name ?? live.role, expiresAt: live.expiresAt });
             }
 
             if (method === "POST") {
                 const body = await readBody(request);
 
-                if (live === undefined) {
+                if (live === undefined || store.role(live.role) === undefined) {
                     return json(response, 404, { error: "This invite is used, expired, or never was." });
                 }
 
-                const made = (await auth.api.createUser({ body: { name: String(body.name ?? ""), email: String(body.email ?? ""), password: String(body.password ?? ""), role: live.role } })) as { user: { id: string } };
+                const made = (await auth.api.createUser({ body: { name: String(body.name ?? ""), email: String(body.email ?? ""), password: String(body.password ?? ""), role: live.role === OWNER_ROLE.id ? "owner" : "member" } })) as { user: { id: string } };
 
                 if (!store.useInvite(live.code, made.user.id)) {
-                    await auth.api.removeUser({ body: { userId: made.user.id } });
+                    await (await auth.$context).internalAdapter.deleteUser(made.user.id);
 
                     return json(response, 409, { error: "Someone used this invite a moment ago." });
                 }
+
+                store.setRoleOf(made.user.id, live.role);
+                store.audit(made.user.id, "joined", made.user.id, { role: live.role, invitedBy: live.createdBy });
 
                 return json(response, 200, { ok: true });
             }
         }
 
-        if (user === undefined) {
+        if (user === undefined || role === undefined) {
             return json(response, 401, { error: "Sign in first." });
         }
 
@@ -331,17 +355,121 @@ export class Gateway {
             return json(response, 200, { svg: `data:image/svg+xml;base64,${Buffer.from(await QRCode.toString(text, { type: "svg", margin: 1 })).toString("base64")}` });
         }
 
-        if (!owner) {
-            return json(response, 403, { error: "Only the owner manages people and invites." });
+        // Roles: who may see them (to invite or assign), and who may change them.
+        if (route === "roles" && method === "GET") {
+            if (!can("people.invite") && !can("people.manage") && !can("roles.manage")) {
+                return json(response, 403, { error: "Your role does not see roles." });
+            }
+
+            // Everyone by the role they have now (someone never given one has Member's).
+            const counts: Record<string, number> = {};
+
+            for (const each of store.users()) {
+                const id = store.roleOf(each.id, each.role).id;
+
+                counts[id] = (counts[id] ?? 0) + 1;
+            }
+
+            return json(response, 200, { roles: store.roles(), counts, catalogue: CATALOGUE });
+        }
+
+        if (route === "roles" && method === "POST") {
+            if (!can("roles.manage")) {
+                return json(response, 403, { error: "Your role does not change roles." });
+            }
+
+            const body = await readBody(request);
+            const base = String(body.name ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "role";
+            let id = base;
+
+            for (let n = 2; store.role(id) !== undefined; n += 1) {
+                id = `${base}-${n}`;
+            }
+
+            let made;
+
+            try {
+                made = checkRole(body, id);
+            } catch (error) {
+                return json(response, 400, { error: error instanceof Error ? error.message : String(error) });
+            }
+
+            store.saveRole(made);
+            store.audit(user.id, "role created", id, { role: made });
+
+            return json(response, 200, made);
+        }
+
+        const roleRoute = /^roles\/([a-z0-9-]{1,48})(\/delete)?$/.exec(route);
+
+        if (roleRoute !== null && method === "POST") {
+            const [, id, remove] = roleRoute as unknown as [string, string, string | undefined];
+
+            if (!can("roles.manage")) {
+                return json(response, 403, { error: "Your role does not change roles." });
+            }
+
+            if (id === OWNER_ROLE.id || store.role(id) === undefined) {
+                return json(response, id === OWNER_ROLE.id ? 400 : 404, { error: id === OWNER_ROLE.id ? "The owner's role is built in." : "No such role." });
+            }
+
+            if (remove !== undefined) {
+                // Anyone with it now, given it or by default (Member), keeps it from going.
+                if (store.users().some((each) => store.roleOf(each.id, each.role).id === id) || !store.deleteRole(id)) {
+                    return json(response, 409, { error: "People still have this role: give them another first." });
+                }
+
+                store.audit(user.id, "role deleted", id);
+
+                return json(response, 200, { ok: true });
+            }
+
+            let changed;
+
+            try {
+                changed = checkRole(await readBody(request), id);
+            } catch (error) {
+                return json(response, 400, { error: error instanceof Error ? error.message : String(error) });
+            }
+
+            store.saveRole(changed);
+            store.audit(user.id, "role changed", id, { role: changed });
+            this.#recap(id);
+
+            return json(response, 200, changed);
+        }
+
+        if (route === "audit" && method === "GET") {
+            if (!can("audit.view")) {
+                return json(response, 403, { error: "Your role does not see the audit log." });
+            }
+
+            return json(response, 200, { entries: store.auditLog() });
         }
 
         if (route === "invites" && method === "GET") {
-            return json(response, 200, { invites: store.invites(), minutes: INVITE_MINUTES, roles: ROLES });
+            if (!can("people.invite")) {
+                return json(response, 403, { error: "Your role does not invite people." });
+            }
+
+            return json(response, 200, { invites: store.invites(), minutes: INVITE_MINUTES });
         }
 
         if (route === "invites" && method === "POST") {
             const body = await readBody(request);
-            const made = store.createInvite(String(body.role ?? "member") as Role, user.id, Number(body.minutes ?? 24 * 60));
+            const roleId = String(body.role ?? "member");
+
+            if (!can("people.invite")) {
+                return json(response, 403, { error: "Your role does not invite people." });
+            }
+
+            if (roleId === OWNER_ROLE.id && !isOwner) {
+                return json(response, 403, { error: "Only an owner invites an owner." });
+            }
+
+            const made = store.createInvite(roleId, user.id, Number(body.minutes ?? 24 * 60));
+
+            store.audit(user.id, "invite made", made.code.slice(0, 6), { role: roleId, expiresAt: made.expiresAt });
 
             return json(response, 200, { ...made, url: `${this.#options.origin}/auth/invite/${made.code}` });
         }
@@ -349,39 +477,99 @@ export class Gateway {
         const cancel = /^invites\/([A-Za-z0-9_-]{10,64})\/cancel$/.exec(route);
 
         if (cancel !== null && method === "POST") {
+            if (!can("people.invite")) {
+                return json(response, 403, { error: "Your role does not invite people." });
+            }
+
             store.cancelInvite(cancel[1]!);
+            store.audit(user.id, "invite cancelled", cancel[1]!.slice(0, 6));
 
             return json(response, 200, { ok: true });
         }
 
         if (route === "people" && method === "GET") {
-            const listed = (await auth.api.listUsers({ query: { limit: 200 }, headers: fromNodeHeaders(request.headers) })) as { users: User[] };
+            if (!can("people.manage") && !can("people.invite")) {
+                return json(response, 403, { error: "Your role does not see people." });
+            }
 
             return json(response, 200, {
-                people: listed.users.map((each) => ({ id: each.id, name: each.name, email: each.email, role: each.role ?? "member", banned: each.banned === true, twoFactor: each.twoFactorEnabled === true, box: store.boxOf(each.id)?.key ?? null })),
+                people: store.users().map((each) => {
+                    const theirs = store.roleOf(each.id, each.role);
+
+                    return { id: each.id, name: each.name, email: each.email, role: theirs.id, roleName: theirs.name, banned: each.banned === true, twoFactor: each.twoFactorEnabled === true, box: store.boxOf(each.id)?.key ?? null };
+                }),
             });
         }
 
-        const act = /^people\/([A-Za-z0-9_-]{6,64})\/(reset-password|reset-two-factor|disable|enable|remove)$/.exec(route);
+        const act = /^people\/([A-Za-z0-9_-]{6,64})\/(reset-password|reset-two-factor|disable|enable|remove|role)$/.exec(route);
 
         if (act !== null && method === "POST") {
             const [, id, action] = act as unknown as [string, string, string];
-            const headers = fromNodeHeaders(request.headers);
+            const body = await readBody(request);
+
+            if (!can("people.manage")) {
+                return json(response, 403, { error: "Your role does not manage people." });
+            }
+
+            const target = store.users().find((each) => each.id === id);
+
+            if (target === undefined) {
+                return json(response, 404, { error: "No such person." });
+            }
+
+            const targetRole = store.roleOf(target.id, target.role);
 
             if (id === user.id && action !== "reset-password") {
                 return json(response, 400, { error: "Not on your own account." });
             }
 
-            if (action === "reset-password") {
-                const body = await readBody(request);
+            if (targetRole.id === OWNER_ROLE.id && !isOwner) {
+                return json(response, 403, { error: "Only an owner acts on an owner." });
+            }
 
-                await auth.api.setUserPassword({ body: { userId: id, newPassword: String(body.password ?? "") }, headers });
-                await auth.api.revokeUserSessions({ body: { userId: id }, headers });
+            if (action === "role") {
+                const roleId = String(body.role ?? "");
+
+                if (store.role(roleId) === undefined) {
+                    return json(response, 400, { error: `There is no role ${roleId}.` });
+                }
+
+                if (roleId === OWNER_ROLE.id && !isOwner) {
+                    return json(response, 403, { error: "Only an owner makes an owner." });
+                }
+
+                // Never no owner: the last one keeps the role.
+                if (targetRole.id === OWNER_ROLE.id && roleId !== OWNER_ROLE.id && this.#owners() <= 1) {
+                    return json(response, 409, { error: "This is the only owner: make someone else owner first." });
+                }
+
+                store.setAuthRole(id, roleId === OWNER_ROLE.id ? "owner" : "member");
+                store.setRoleOf(id, roleId);
+                store.audit(user.id, "role given", id, { from: targetRole.id, to: roleId });
+                this.#forgetReady(id);
+
+                return json(response, 200, { ok: true });
+            }
+
+            // better-auth's own adapter, its hashing and sessions: the gateway's roles decided who may (its admin API wants an
+            // admin of its own, which a person with a custom role is not).
+            const ctx = await auth.$context;
+
+            if (action === "reset-password") {
+                const password = String(body.password ?? "");
+
+                if (password.length < 10 || password.length > 256) {
+                    return json(response, 400, { error: "A password is 10 to 256 characters." });
+                }
+
+                await ctx.internalAdapter.updatePassword(id, await ctx.password.hash(password));
+                await ctx.internalAdapter.deleteUserSessions(id);
             } else if (action === "reset-two-factor") {
                 store.resetTwoFactor(id);
-                await auth.api.revokeUserSessions({ body: { userId: id }, headers });
+                await ctx.internalAdapter.deleteUserSessions(id);
             } else if (action === "disable") {
-                await auth.api.banUser({ body: { userId: id, banReason: "disabled by the owner" }, headers });
+                await ctx.internalAdapter.updateUser(id, { banned: true, banReason: "disabled" });
+                await ctx.internalAdapter.deleteUserSessions(id);
                 const box = store.boxOf(id);
 
                 if (box !== undefined) {
@@ -389,8 +577,12 @@ export class Gateway {
                     await this.#options.controller.stop(box.key);
                 }
             } else if (action === "enable") {
-                await auth.api.unbanUser({ body: { userId: id }, headers });
+                await ctx.internalAdapter.updateUser(id, { banned: false, banReason: null, banExpires: null });
             } else {
+                if (targetRole.id === OWNER_ROLE.id && this.#owners() <= 1) {
+                    return json(response, 409, { error: "This is the only owner." });
+                }
+
                 const box = store.boxOf(id);
 
                 if (box !== undefined) {
@@ -399,13 +591,38 @@ export class Gateway {
                     await this.#options.controller.remove(box.key, false);
                 }
 
-                await auth.api.removeUser({ body: { userId: id }, headers });
+                store.forgetAuthExtras(id);
+                await ctx.internalAdapter.deleteUser(id);
+                store.forgetRoleOf(id);
             }
+
+            store.audit(user.id, action, id);
 
             return json(response, 200, { ok: true });
         }
 
         return json(response, 404, { error: "No such route." });
+    }
+
+    /** How many owners there are. */
+    #owners(): number {
+        return this.#options.store.ownerCount();
+    }
+
+    /** A person's pi-phone is asked for again on their next request (their role, and so its caps, changed). */
+    #forgetReady(userId: string): void {
+        const box = this.#options.store.boxOf(userId);
+
+        if (box !== undefined) {
+            this.#ready.delete(box.key);
+        }
+    }
+
+    /** Everyone with role `roleId` gets its caps on their next request. */
+    #recap(roleId: string): void {
+        for (const [userId] of this.#options.store.peopleWithRole(roleId)) {
+            this.#forgetReady(userId);
+        }
     }
 }
 
@@ -437,5 +654,7 @@ async function readBody(request: IncomingMessage): Promise<Record<string, unknow
 
     return text === "" ? {} : (JSON.parse(text) as Record<string, unknown>);
 }
+
+const NO_PI = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>pi-phone</title><body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#1a1b26;color:#c0caf5;font:16px system-ui;text-align:center;padding:24px"><div><p>Your role has no pi-phone of its own: you see what others share with you.</p><p><a style="color:#7aa2f7" href="/auth/account">Your account</a></p></div></body>`;
 
 const STARTING = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="refresh" content="3"><title>Starting…</title><body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#1a1b26;color:#c0caf5;font:16px system-ui">Starting your pi-phone…</body>`;

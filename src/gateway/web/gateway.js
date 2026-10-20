@@ -205,8 +205,9 @@ async function account(me) {
 
     page(
         me.name,
-        `${me.email} · ${me.role}`,
-        h("div", { class: "row" }, h("a", { class: "button primary", href: "/" }, "Open my pi-phone"), me.role === "owner" ? h("a", { class: "button", href: "/auth/people", onclick: (event) => (event.preventDefault(), go("/auth/people")) }, "People") : null, h("button", { onclick: async () => (await authApi("sign-out", {}), go("/auth/sign-in")) }, "Sign out")),
+        `${me.email} · ${me.roleName ?? me.role}`,
+        nav(me),
+        h("div", { class: "row" }, h("button", { onclick: async () => (await authApi("sign-out", {}), go("/auth/sign-in")) }, "Sign out")),
         h("h2", {}, "Two-factor sign-in"),
         twoFactor,
         h("h2", {}, "Passkeys"),
@@ -319,48 +320,68 @@ async function renderPasskeys(box) {
     );
 }
 
-// ─── People (the owner) ───
+// ─── People (the owner, or a role with people.invite / people.manage) ───
+
+const has = (me, permission) => (me.permissions ?? []).includes(permission);
+const nav = (me) =>
+    h(
+        "div",
+        { class: "row" },
+        h("a", { class: "button primary", href: "/" }, "Open my pi-phone"),
+        h("a", { class: "button", href: "/auth/account", onclick: (event) => (event.preventDefault(), go("/auth/account")) }, "My account"),
+        has(me, "people.invite") || has(me, "people.manage") ? h("a", { class: "button", href: "/auth/people", onclick: (event) => (event.preventDefault(), go("/auth/people")) }, "People") : null,
+        has(me, "roles.manage") ? h("a", { class: "button", href: "/auth/roles", onclick: (event) => (event.preventDefault(), go("/auth/roles")) }, "Roles") : null,
+        has(me, "audit.view") ? h("a", { class: "button", href: "/auth/audit", onclick: (event) => (event.preventDefault(), go("/auth/audit")) }, "Audit log") : null,
+    );
 
 async function people(me) {
     const listBox = h("div", { class: "list" });
     const invitesBox = h("div", { class: "list" });
+    const { roles } = await gw("roles");
+    const offered = roles.filter((role) => role.id !== "owner" || me.role === "owner");
 
     page(
         "People",
-        "Everyone with an account here. Each has their own pi-phone.",
-        h("div", { class: "row" }, h("a", { class: "button", href: "/auth/account", onclick: (event) => (event.preventDefault(), go("/auth/account")) }, "My account"), h("a", { class: "button", href: "/" }, "Open my pi-phone")),
-        h("h2", {}, "Invite someone"),
-        h(
-            "div",
-            { class: "card" },
-            form(
-                [
-                    h("label", {}, "Role", h("select", { name: "role" }, h("option", { value: "member" }, "Member"), h("option", { value: "owner" }, "Owner"))),
-                    h("label", {}, "Lasts", h("select", { name: "minutes" }, h("option", { value: "60" }, "1 hour"), h("option", { value: "1440", selected: true }, "1 day"), h("option", { value: "10080" }, "7 days"))),
-                ],
-                "Make an invite link",
-                async ({ role, minutes }) => {
-                    const made = await gw("invites", { role, minutes: Number(minutes) });
+        "Everyone with an account here. Each has their own pi-phone, by their role.",
+        nav(me),
+        has(me, "people.invite") ? h("h2", {}, "Invite someone") : null,
+        has(me, "people.invite")
+            ? h(
+                  "div",
+                  { class: "card" },
+                  form(
+                      [
+                          h("label", {}, "Role", h("select", { name: "role" }, offered.map((role) => h("option", { value: role.id, selected: role.id === "member" }, role.name)))),
+                          h("label", {}, "Lasts", h("select", { name: "minutes" }, h("option", { value: "60" }, "1 hour"), h("option", { value: "1440", selected: true }, "1 day"), h("option", { value: "10080" }, "7 days"))),
+                      ],
+                      "Make an invite link",
+                      async ({ role, minutes }) => {
+                          const made = await gw("invites", { role, minutes: Number(minutes) });
 
-                    await navigator.clipboard?.writeText(made.url).catch(() => {});
-                    void renderInvites(invitesBox);
-                    alert(`Invite link (copied):\n${made.url}`);
-                },
-            ),
-        ),
-        h("h2", {}, "Invites"),
-        invitesBox,
+                          await navigator.clipboard?.writeText(made.url).catch(() => {});
+                          void renderInvites(invitesBox);
+                          alert(`Invite link (copied):\n${made.url}`);
+                      },
+                  ),
+              )
+            : null,
+        has(me, "people.invite") ? h("h2", {}, "Invites") : null,
+        has(me, "people.invite") ? invitesBox : null,
         h("h2", {}, "Accounts"),
         listBox,
     );
 
-    void renderInvites(invitesBox);
-    void renderPeople(listBox, me);
+    if (has(me, "people.invite")) {
+        void renderInvites(invitesBox, roles);
+    }
+
+    void renderPeople(listBox, me, roles);
 }
 
-async function renderInvites(box) {
+async function renderInvites(box, roles = []) {
     const { invites } = await gw("invites");
     const now = Date.now();
+    const nameOf = (id) => roles.find((role) => role.id === id)?.name ?? id;
 
     box.replaceChildren(
         ...(invites.length === 0
@@ -369,38 +390,168 @@ async function renderInvites(box) {
                   h(
                       "div",
                       { class: "card spread" },
-                      h("span", {}, h("span", { class: "tag" }, each.role), " ", each.usedBy ? "used" : each.expiresAt < now ? "expired" : `until ${new Date(each.expiresAt).toLocaleString()}`),
-                      !each.usedBy && each.expiresAt > now ? h("button", { onclick: async () => (await gw(`invites/${each.code}/cancel`, {}), renderInvites(box)) }, "Cancel") : null,
+                      h("span", {}, h("span", { class: "tag" }, nameOf(each.role)), " ", each.usedBy ? "used" : each.expiresAt < now ? "expired" : `until ${new Date(each.expiresAt).toLocaleString()}`),
+                      !each.usedBy && each.expiresAt > now ? h("button", { onclick: async () => (await gw(`invites/${each.code}/cancel`, {}), renderInvites(box, roles)) }, "Cancel") : null,
                   ),
               )),
     );
 }
 
-async function renderPeople(box, me) {
+async function renderPeople(box, me, roles) {
     const { people } = await gw("people");
     const act = async (person, action, body = {}) => {
-        await gw(`people/${person.id}/${action}`, body);
-        void renderPeople(box, me);
+        try {
+            await gw(`people/${person.id}/${action}`, body);
+        } catch (failed) {
+            alert(failed.message);
+        }
+
+        void renderPeople(box, me, roles);
     };
+    const manage = has(me, "people.manage");
 
     box.replaceChildren(
-        ...people.map((person) =>
-            h(
+        ...people.map((person) => {
+            const mayAct = manage && person.id !== me.id && (person.role !== "owner" || me.role === "owner");
+            const roleSelect = h(
+                "select",
+                { "aria-label": `${person.name}'s role`, onchange: (event) => act(person, "role", { role: event.target.value }) },
+                roles.filter((role) => role.id !== "owner" || me.role === "owner" || person.role === "owner").map((role) => h("option", { value: role.id, selected: role.id === person.role }, role.name)),
+            );
+
+            return h(
                 "div",
                 { class: "card person" },
-                h("b", {}, person.name, " ", h("span", { class: "tag" }, person.role), person.banned ? h("span", { class: "tag" }, "disabled") : null, person.twoFactor ? h("span", { class: "tag" }, "2FA") : null),
+                h("b", {}, person.name, " ", mayAct ? null : h("span", { class: "tag" }, person.roleName), person.banned ? h("span", { class: "tag" }, "disabled") : null, person.twoFactor ? h("span", { class: "tag" }, "2FA") : null),
                 h("span", { class: "muted" }, person.email),
-                person.id === me.id
-                    ? null
-                    : h(
+                mayAct
+                    ? h(
                           "div",
                           { class: "row" },
+                          roleSelect,
                           h("button", { onclick: () => { const password = prompt(`New password for ${person.name} (10 or more):`); if (password) void act(person, "reset-password", { password }); } }, "Reset password"),
                           person.twoFactor ? h("button", { onclick: () => confirm(`Remove ${person.name}'s two-factor? They set it up again.`) && act(person, "reset-two-factor") }, "Reset 2FA") : null,
                           person.banned ? h("button", { onclick: () => act(person, "enable") }, "Enable") : h("button", { onclick: () => confirm(`Disable ${person.name}? Their pi-phone stops.`) && act(person, "disable") }, "Disable"),
                           h("button", { class: "danger", onclick: () => confirm(`Remove ${person.name}'s account? Their data is kept.`) && act(person, "remove") }, "Remove"),
+                      )
+                    : null,
+            );
+        }),
+    );
+}
+
+// ─── Roles (roles.manage) ───
+
+async function rolesPage(me) {
+    const { roles, counts, catalogue } = await gw("roles");
+    const editor = (role) => {
+        const fields = [
+            field("Name", "name", "text", { value: role?.name ?? "", maxlength: 40 }),
+            ...catalogue.map((group) =>
+                h(
+                    "fieldset",
+                    { class: "card" },
+                    h("legend", {}, group.group),
+                    ...Object.entries(group.permissions).map(([key, label]) =>
+                        h("label", { class: "check" }, h("input", { type: "checkbox", name: `p:${key}`, checked: role?.permissions.includes(key) ?? false }), h("span", {}, label, " ", h("span", { class: "muted" }, key))),
+                    ),
+                ),
+            ),
+            h("div", { class: "row" }, field("Memory (MB)", "memoryMb", "number", { value: role?.memoryMb ?? 2048, min: 256, max: 16384, step: 256 }), field("CPUs", "cpus", "number", { value: role?.cpus ?? 1, min: 0.25, max: 8, step: 0.25 })),
+            h("label", {}, "Models they may use: one provider/model per line, none for any", h("textarea", { name: "models", rows: 3 }, (role?.models ?? []).join("\n"))),
+            h("label", {}, "Spend limit, dollars a month: empty for none", h("input", { name: "spendLimit", type: "number", min: 0, step: "any", value: role?.spendLimit ?? "" })),
+        ];
+        const body = (values) => ({
+            name: values.name,
+            permissions: Object.keys(values).filter((key) => key.startsWith("p:")).map((key) => key.slice(2)),
+            memoryMb: Number(values.memoryMb),
+            cpus: Number(values.cpus),
+            models: String(values.models ?? "").split("\n"),
+            spendLimit: values.spendLimit === "" ? null : Number(values.spendLimit),
+        });
+
+        return form(fields, role ? "Save" : "Add the role", async (values) => {
+            await gw(role ? `roles/${role.id}` : "roles", body(values));
+            void rolesPage(me);
+        });
+    };
+
+    page(
+        "Roles",
+        "What each role's people may do, and their pi-phone's memory, CPUs, models and spend. Changes reach a pi-phone when it next starts.",
+        nav(me),
+        ...roles.map((role) =>
+            h(
+                "details",
+                { class: "card" },
+                h("summary", {}, role.name, " ", h("span", { class: "tag" }, `${counts[role.id] ?? 0} ${(counts[role.id] ?? 0) === 1 ? "person" : "people"}`), role.builtin ? h("span", { class: "tag" }, "built in") : null),
+                role.builtin
+                    ? h("p", { class: "muted" }, "The owner's role has every permission, and isn't editable.")
+                    : h(
+                          "div",
+                          {},
+                          editor(role),
+                          h(
+                              "button",
+                              {
+                                  class: "danger",
+                                  onclick: async () => {
+                                      if (!confirm(`Delete the role ${role.name}?`)) {
+                                          return;
+                                      }
+
+                                      try {
+                                          await gw(`roles/${role.id}/delete`, {});
+                                          void rolesPage(me);
+                                      } catch (failed) {
+                                          alert(failed.message);
+                                      }
+                                  },
+                              },
+                              "Delete the role",
+                          ),
                       ),
             ),
+        ),
+        h("h2", {}, "New role"),
+        h("div", { class: "card" }, editor(undefined)),
+    );
+}
+
+// ─── The audit log (audit.view) ───
+
+async function auditPage(me) {
+    const { entries } = await gw("audit");
+    let names = {};
+
+    try {
+        names = Object.fromEntries((await gw("people")).people.map((person) => [person.id, person.name]));
+    } catch {
+        // Without people.manage or people.invite: ids as they are.
+    }
+
+    const who = (id) => names[id] ?? id;
+
+    page(
+        "Audit log",
+        "Who changed what: invites, roles, people.",
+        nav(me),
+        h(
+            "div",
+            { class: "list" },
+            entries.length === 0
+                ? h("p", { class: "muted" }, "Nothing yet.")
+                : entries.map((entry) =>
+                      h(
+                          "div",
+                          { class: "card" },
+                          h("b", {}, entry.action),
+                          " ",
+                          entry.target ? h("span", {}, "· ", who(entry.target)) : null,
+                          h("div", { class: "muted" }, `${new Date(entry.at).toLocaleString()} · by ${who(entry.actor)}`),
+                          entry.details?.role?.name ? h("div", { class: "muted" }, `role: ${entry.details.role.name}`) : entry.details?.to ? h("div", { class: "muted" }, `${entry.details.from} → ${entry.details.to}`) : null,
+                      ),
+                  ),
         ),
     );
 }
@@ -431,8 +582,16 @@ async function route() {
         return signIn();
     }
 
-    if (path === "/auth/people" && state.me.role === "owner") {
+    if (path === "/auth/people" && (has(state.me, "people.invite") || has(state.me, "people.manage"))) {
         return people(state.me);
+    }
+
+    if (path === "/auth/roles" && has(state.me, "roles.manage")) {
+        return rolesPage(state.me);
+    }
+
+    if (path === "/auth/audit" && has(state.me, "audit.view")) {
+        return auditPage(state.me);
     }
 
     if (path === "/auth/sign-in" && next() !== "/") {

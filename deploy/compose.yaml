@@ -27,8 +27,6 @@ services:
       PP_GATEWAY_DATA: /data
       PP_CONTROLLER_SOCKET: /run/pi-phone/controller.sock
       PP_CONTROLLER_SECRET_FILE: /run/pi-phone/secret
-      PP_PERSON_MEMORY_MB: ${PP_PERSON_MEMORY_MB:-2048}
-      PP_PERSON_CPUS: ${PP_PERSON_CPUS:-1}
       TZ: ${TZ:-UTC}
     volumes:
       - gateway-data:/data

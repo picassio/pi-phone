@@ -6,11 +6,9 @@
  */
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import { OWNER_ROLE, type Permission, type Role, SEEDED } from "./roles.ts";
 
-export type Role = "owner" | "member";
-export const ROLES: readonly Role[] = ["owner", "member"];
-
-export type Invite = { code: string; role: Role; createdBy: string; createdAt: number; expiresAt: number; usedBy: string | null; usedAt: number | null };
+export type Invite = { code: string; role: string; createdBy: string; createdAt: number; expiresAt: number; usedBy: string | null; usedAt: number | null };
 export type PersonBox = { userId: string; key: string; token: string; createdAt: number };
 
 /** How long an invite lasts, in minutes: the choices. */
@@ -34,7 +32,134 @@ export class GatewayStore {
             CREATE TABLE IF NOT EXISTS pp_person (
                 user_id TEXT PRIMARY KEY, key TEXT NOT NULL UNIQUE, token TEXT NOT NULL, created_at INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS pp_role (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS pp_user_role (user_id TEXT PRIMARY KEY, role_id TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS pp_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
+                target TEXT, details TEXT
+            );
         `);
+
+        // The roles a new gateway starts with, once (PP-22): from then on they are the owner's to change.
+        if (this.#setting("roles_seeded") === undefined) {
+            for (const role of SEEDED) {
+                this.saveRole(role);
+            }
+
+            this.#set("roles_seeded", "1");
+        }
+    }
+
+    // ─── Roles (PP-22) ───
+
+    /** Every role, the owner's first. */
+    roles(): Role[] {
+        const rows = this.#db.prepare("SELECT body FROM pp_role ORDER BY id").all() as { body: string }[];
+
+        return [OWNER_ROLE, ...rows.map((row) => JSON.parse(row.body) as Role)];
+    }
+
+    role(id: string): Role | undefined {
+        return this.roles().find((role) => role.id === id);
+    }
+
+    saveRole(role: Role): void {
+        if (role.id === OWNER_ROLE.id) {
+            throw new Error("The owner's role is built in.");
+        }
+
+        this.#db.prepare("INSERT INTO pp_role (id, body) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body").run(role.id, JSON.stringify({ ...role, builtin: false }));
+    }
+
+    /** Delete a role nobody has; false when someone still does. */
+    deleteRole(id: string): boolean {
+        if (id === OWNER_ROLE.id) {
+            throw new Error("The owner's role is built in.");
+        }
+
+        const used = this.#db.prepare("SELECT COUNT(*) AS n FROM pp_user_role WHERE role_id = ?").get(id) as { n: number };
+
+        if (used.n > 0) {
+            return false;
+        }
+
+        this.#db.prepare("DELETE FROM pp_role WHERE id = ?").run(id);
+
+        return true;
+    }
+
+    /** A person's role: the owner's when better-auth has them as owner, else the one given them (Member by default). */
+    roleOf(userId: string, authRole: string | null | undefined): Role {
+        if (authRole === "owner") {
+            return OWNER_ROLE;
+        }
+
+        const row = this.#db.prepare("SELECT role_id FROM pp_user_role WHERE user_id = ?").get(userId) as { role_id: string } | undefined;
+
+        return this.role(row?.role_id ?? "member") ?? this.role("member") ?? { ...SEEDED[1]! };
+    }
+
+    setRoleOf(userId: string, roleId: string): void {
+        if (roleId === OWNER_ROLE.id) {
+            this.#db.prepare("DELETE FROM pp_user_role WHERE user_id = ?").run(userId);
+
+            return;
+        }
+
+        this.#db.prepare("INSERT INTO pp_user_role (user_id, role_id) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET role_id = excluded.role_id").run(userId, roleId);
+    }
+
+    /**
+     * better-auth's own role for a person: `owner` or `member` (its admin plugin needs one it knows; all authorization is
+     * the gateway's roles). Written here, as the person acting may hold a custom role better-auth knows nothing of.
+     */
+    setAuthRole(userId: string, role: "owner" | "member"): void {
+        this.#db.prepare('UPDATE "user" SET "role" = ? WHERE "id" = ?').run(role, userId);
+    }
+
+    /**
+     * Every account, as better-auth keeps them (its `user` table): read here, since its admin API wants an admin of its
+     * own, and who may see people is the gateway's roles' to say.
+     */
+    users(): { id: string; name: string; email: string; role: string | null; banned: boolean; twoFactorEnabled: boolean }[] {
+        const rows = this.#db.prepare('SELECT "id", "name", "email", "role", "banned", "twoFactorEnabled" FROM "user" ORDER BY "createdAt"').all() as Record<string, unknown>[];
+
+        return rows.map((row) => ({ id: String(row.id), name: String(row.name), email: String(row.email), role: row.role === null ? null : String(row.role), banned: Number(row.banned ?? 0) === 1, twoFactorEnabled: Number(row.twoFactorEnabled ?? 0) === 1 }));
+    }
+
+    ownerCount(): number {
+        return Number((this.#db.prepare(`SELECT COUNT(*) AS n FROM "user" WHERE "role" = 'owner' AND COALESCE("banned", 0) = 0`).get() as { n: number }).n);
+    }
+
+    /** The people given role `roleId` (by id). */
+    peopleWithRole(roleId: string): [string][] {
+        return (this.#db.prepare("SELECT user_id FROM pp_user_role WHERE role_id = ?").all(roleId) as { user_id: string }[]).map((row) => [row.user_id]);
+    }
+
+    /** A removed person's two-factor and passkeys (better-auth's plugins' tables; its own deleteUser leaves them). */
+    forgetAuthExtras(userId: string): void {
+        this.#db.prepare('DELETE FROM "twoFactor" WHERE "userId" = ?').run(userId);
+        this.#db.prepare('DELETE FROM "passkey" WHERE "userId" = ?').run(userId);
+    }
+
+    forgetRoleOf(userId: string): void {
+        this.#db.prepare("DELETE FROM pp_user_role WHERE user_id = ?").run(userId);
+    }
+
+    can(userId: string, authRole: string | null | undefined, permission: Permission): boolean {
+        return this.roleOf(userId, authRole).permissions.includes(permission);
+    }
+
+    // ─── The audit log (PP-22) ───
+
+    audit(actor: string, action: string, target?: string, details?: Record<string, unknown>): void {
+        this.#db.prepare("INSERT INTO pp_audit (at, actor, action, target, details) VALUES (?, ?, ?, ?, ?)").run(this.#now(), actor, action, target ?? null, details === undefined ? null : JSON.stringify(details));
+    }
+
+    auditLog(limit = 200): { at: number; actor: string; action: string; target: string | null; details: Record<string, unknown> | null }[] {
+        const rows = this.#db.prepare("SELECT at, actor, action, target, details FROM pp_audit ORDER BY id DESC LIMIT ?").all(limit) as { at: number; actor: string; action: string; target: string | null; details: string | null }[];
+
+        return rows.map((row) => ({ ...row, details: row.details === null ? null : (JSON.parse(row.details) as Record<string, unknown>) }));
     }
 
     #setting(name: string): string | undefined {
@@ -84,9 +209,9 @@ export class GatewayStore {
         return timingSafeEqual(left, right);
     }
 
-    createInvite(role: Role, createdBy: string, minutes: number): Invite {
-        if (!ROLES.includes(role)) {
-            throw new Error(`An invite's role is one of ${ROLES.join(", ")}.`);
+    createInvite(role: string, createdBy: string, minutes: number): Invite {
+        if (this.role(role) === undefined) {
+            throw new Error(`There is no role ${role}.`);
         }
 
         if (!(INVITE_MINUTES as readonly number[]).includes(minutes)) {
@@ -107,7 +232,7 @@ export class GatewayStore {
             ? undefined
             : {
                   code: String(row.code),
-                  role: row.role as Role,
+                  role: String(row.role),
                   createdBy: String(row.created_by),
                   createdAt: Number(row.created_at),
                   expiresAt: Number(row.expires_at),

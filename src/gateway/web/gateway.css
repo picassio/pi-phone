@@ -185,3 +185,52 @@ code,
     text-align: center;
     margin: 6px 0;
 }
+
+fieldset {
+    margin: 0;
+    display: grid;
+    gap: 6px;
+}
+
+legend {
+    padding: 0 6px;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+label.check {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    color: var(--text);
+}
+
+label.check input {
+    width: auto;
+    min-height: auto;
+    margin-top: 4px;
+}
+
+textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    background: var(--card-2);
+    color: var(--text);
+    font: 0.9rem ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+details > summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+details[open] > summary {
+    margin-bottom: 10px;
+}
+
+.row > label {
+    flex: 1;
+    min-width: 120px;
+}

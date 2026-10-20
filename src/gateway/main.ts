@@ -43,7 +43,6 @@ const gateway = new Gateway({
     store,
     controller: new SocketController(env("PP_CONTROLLER_SOCKET"), readFileSync(env("PP_CONTROLLER_SECRET_FILE"), "utf8").trim()),
     origin,
-    caps: { memoryMb: Number(process.env.PP_PERSON_MEMORY_MB ?? 2048), cpus: Number(process.env.PP_PERSON_CPUS ?? 1) },
     log: (line) => console.error(line),
 });
 const server = createServer((request, response) => void gateway.handle(request, response));
