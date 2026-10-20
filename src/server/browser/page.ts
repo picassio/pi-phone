@@ -199,6 +199,11 @@ export function addressOf(input: string): string {
         return new URL(typed).href;
     }
 
+    // A dev server as typed (localhost:3000, 10.0.0.5:8080/app): plain http, as they serve.
+    if (/^(localhost|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\])(:\d+)?(\/\S*)?$/i.test(typed)) {
+        return new URL(`http://${typed}`).href;
+    }
+
     if (/^[a-z][a-z0-9+.-]*:/i.test(typed) && !/^[^\s/]+\.[^\s/]+:\d/.test(typed)) {
         throw new Error("Pi's browser opens http and https pages only.");
     }
@@ -225,15 +230,26 @@ export class BrowserPage {
         this.cdp = cdp;
     }
 
-    /** Turn on what reading and acting need, block the local addresses, and dismiss dialogs (accepted only when asked). */
-    async init(viewport: { width: number; height: number; mobile: boolean }): Promise<void> {
+    /** Whether local addresses are refused: on the phone, where the app's own server is; not on a machine's own Chrome. */
+    #blockLocal = true;
+
+    /**
+     * Turn on what reading and acting need, block the local addresses (unless `local`: a machine's Chrome may open that
+     * machine's dev servers), and dismiss dialogs (accepted only when asked).
+     */
+    async init(viewport: { width: number; height: number; mobile: boolean }, { local = false }: { local?: boolean } = {}): Promise<void> {
         await this.cdp.send("Page.enable");
-        // Requests to the local addresses pause (only those) and fail: navigations, frames, scripts, fetches alike.
-        // (Network.setBlockedURLs no longer blocks in Chrome 155.)
-        this.cdp.on("Fetch.requestPaused", (params) => {
-            void this.cdp.send("Fetch.failRequest", { requestId: params.requestId, errorReason: "BlockedByClient" }).catch(() => {});
-        });
-        await this.cdp.send("Fetch.enable", { patterns: BLOCKED_URLS.map((urlPattern) => ({ urlPattern })) });
+        this.#blockLocal = !local;
+
+        if (!local) {
+            // Requests to the local addresses pause (only those) and fail: navigations, frames, scripts, fetches alike.
+            // (Network.setBlockedURLs no longer blocks in Chrome 155.)
+            this.cdp.on("Fetch.requestPaused", (params) => {
+                void this.cdp.send("Fetch.failRequest", { requestId: params.requestId, errorReason: "BlockedByClient" }).catch(() => {});
+            });
+            await this.cdp.send("Fetch.enable", { patterns: BLOCKED_URLS.map((urlPattern) => ({ urlPattern })) });
+        }
+
         await this.cdp.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 0, mobile: viewport.mobile });
         await this.cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
         this.#mainFrame = ((await this.cdp.send<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree")).frameTree.frame.id);
@@ -273,7 +289,7 @@ export class BrowserPage {
 
     /** Open an address, and wait for it to load (15 seconds at most; a slow page is read as it is). */
     async navigate(url: string): Promise<void> {
-        if (isLocalAddress(url)) {
+        if (this.#blockLocal && isLocalAddress(url)) {
             throw new Error(`Pi's browser does not open ${url}: it is this device or its local network.`);
         }
 

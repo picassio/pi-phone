@@ -86,6 +86,7 @@ import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
 import { Screenshots } from "./screenshots.ts";
+import { MachineEngine } from "./browser/machine-engine.ts";
 import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
 import { PhoneRequests } from "./phone-requests.ts";
 import { askSessionModel, chargeSession } from "./side-model.ts";
@@ -283,8 +284,10 @@ export class PocketApp {
     readonly screenshots = new Screenshots();
     /** What the app's service does for Pi's browser: make and remove its WebView (`PiBrowser.java`). */
     readonly browserRequests = new PhoneRequests("Pi's browser");
-    /** Pi's browser (`browser/pi-browser.ts`): one page Pi uses, that the owner watches and can take over. */
+    /** Pi's browser on the phone (`browser/pi-browser.ts`): the pages Pi uses, that the owner watches and can take over. */
     readonly browser: PiBrowser;
+    /** Pi's browsers on machines, by machine id: a Chrome there for sessions working there, made on first use. */
+    readonly #machineBrowsers = new Map<string, PiBrowser>();
     /** Approvals the phone was told of already. */
     readonly #toldApprovals = new Set<string>();
     readonly dataDir: string;
@@ -431,25 +434,7 @@ export class PocketApp {
         this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools));
         this.officecli.install();
         this.forwards = new Forwards(this.machines);
-        this.browser = new PiBrowser({
-            engine: options.browserEngine ?? new PhoneEngine(this.browserRequests),
-            // Only the owner sees Pi's browser: it may be signed in to the owner's accounts.
-            changed: (state) => {
-                for (const client of this.#clients) {
-                    if (client.user.role === "owner") {
-                        client.send("browser", state);
-                    }
-                }
-            },
-            frame: (frame) => {
-                for (const client of this.#clients) {
-                    if (client.browserWatch !== undefined) {
-                        client.send("browser-frame", frame);
-                    }
-                }
-            },
-            log: (line) => this.#log(line),
-        });
+        this.browser = this.#makeBrowser(options.browserEngine ?? new PhoneEngine(this.browserRequests), "phone", "the phone");
         this.para = new Para({
             home: this.#home,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
@@ -665,7 +650,7 @@ export class PocketApp {
             },
             serverBase: () => (this.serverPort === undefined ? undefined : `http://127.0.0.1:${this.serverPort}`),
             render: (url, options) => this.screenshots.render(url, options),
-            browser: this.browser,
+            browserFor: (cwd) => this.browserFor(cwd),
             browserRunModel: (id) => this.sessionMeta(this.rootOf(id))?.browserRunModel ?? this.config.browserRunModel,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
             askSessionModel: async (id, prompt, maxTokens) => (await askSessionModel(this, id, prompt, { maxTokens })).text,
@@ -1437,7 +1422,7 @@ export class PocketApp {
             return;
         }
 
-        client.browserWatch?.();
+        client.browserWatch?.stop();
         client.browserWatch = undefined;
 
         for (const id of client.peeks ?? []) {
@@ -1874,21 +1859,129 @@ export class PocketApp {
         }
     }
 
-    /** A tab opened or closed the Browser panel: while open, it gets Pi's browser's frames (`browser-frame`). The owner's. */
-    setBrowserWatch(user: User, connection: string, on: boolean): void {
+    /**
+     * A tab opened or closed the Browser panel of one browser (`phone` or `machine:<id>`): while open, it gets that
+     * browser's frames (`browser-frame`). The owner's.
+     */
+    setBrowserWatch(user: User, connection: string, place: string, on: boolean): void {
+        const browser = on ? this.browserAt(place) : undefined;
+
         for (const client of this.#clients) {
             if (client.user.id !== user.id || client.connection !== connection) {
                 continue;
             }
 
-            if (on && client.browserWatch === undefined) {
-                client.browserWatch = this.browser.watch();
-                client.send("browser", this.browser.state());
-            } else if (!on && client.browserWatch !== undefined) {
-                client.browserWatch();
+            if (client.browserWatch !== undefined && (!on || client.browserWatch.place !== place)) {
+                client.browserWatch.stop();
                 client.browserWatch = undefined;
             }
+
+            if (browser !== undefined && client.browserWatch === undefined) {
+                client.browserWatch = { place, stop: browser.watch() };
+                client.send("browser", browser.state());
+            }
         }
+    }
+
+    /** A browser of Pi's, whose state and frames go to the owner's tabs (frames only to tabs that watch it). */
+    #makeBrowser(engine: BrowserEngine, place: string, where: string): PiBrowser {
+        return new PiBrowser({
+            engine,
+            place,
+            where,
+            // Only the owner sees Pi's browser: it may be signed in to the owner's accounts.
+            changed: (state) => {
+                for (const client of this.#clients) {
+                    if (client.user.role === "owner") {
+                        client.send("browser", state);
+                    }
+                }
+            },
+            frame: (frame) => {
+                for (const client of this.#clients) {
+                    if (client.browserWatch?.place === place) {
+                        client.send("browser-frame", { ...frame, place });
+                    }
+                }
+            },
+            log: (line) => this.#log(line),
+        });
+    }
+
+    /** Pi's browser for a session working in `cwd`: on its machine for a session on one, else the phone's. */
+    browserFor(cwd: string): PiBrowser {
+        const machine = /^machine:([^:]+):/.exec(cwd)?.[1];
+
+        return machine === undefined ? this.browser : this.browserAt(`machine:${machine}`);
+    }
+
+    /** One of Pi's browsers by place: `phone`, or `machine:<id>` (a Chrome there, made on first use). */
+    browserAt(place: string): PiBrowser {
+        if (place === "phone") {
+            return this.browser;
+        }
+
+        const id = /^machine:(.+)$/.exec(place)?.[1];
+
+        if (id === undefined) {
+            throw new HttpError(400, `No browser at ${place}.`);
+        }
+
+        const known = this.#machineBrowsers.get(id);
+
+        if (known !== undefined) {
+            return known;
+        }
+
+        const machine = this.machines.ready(id);
+        const remote = machine.remote!;
+        const env = this.places.env(`machine:${id}:${remote.home}`);
+        const browser = this.#makeBrowser(
+            new MachineEngine({
+                name: machine.name,
+                home: remote.home,
+                run: async (script, timeout) => {
+                    let out = "";
+                    // On Windows the daemon runs a command line with Git Bash; `sh` may not be on Windows' own PATH.
+                    const result = await env.exec(remote.platform === "windows" ? script : ["sh", "-c", script], { cwd: remote.home, timeout, onOutput: (chunk) => (out += chunk) }, context);
+
+                    if (!result.ok) {
+                        throw new Error(`${machine.name}: ${result.error.message}`);
+                    }
+
+                    return { code: result.value.exitCode, out };
+                },
+                writeFile: async (path, bytes) => {
+                    const folder = path.slice(0, path.lastIndexOf("/"));
+                    const made = await env.exec(remote.platform === "windows" ? `mkdir -p '${folder}'` : ["mkdir", "-p", folder], { cwd: remote.home, timeout: 30 }, context);
+                    const written = made.ok ? await env.writeFile(path, bytes, context) : made;
+
+                    if (!written.ok) {
+                        throw new Error(`Could not copy the file to ${machine.name}: ${written.error.message}`);
+                    }
+                },
+                forward: async (port) => {
+                    const forward = await this.forwards.open(id, port);
+
+                    return {
+                        port: forward.localPort,
+                        close: () => {
+                            try {
+                                this.forwards.close(forward.id);
+                            } catch {
+                                // Closed already (its ssh ended).
+                            }
+                        },
+                    };
+                },
+            }),
+            `machine:${id}`,
+            machine.name,
+        );
+
+        this.#machineBrowsers.set(id, browser);
+
+        return browser;
     }
 
     /** Send a tab's board its subagents, unless they are what it last got. */
@@ -2372,7 +2465,7 @@ export class PocketApp {
         }
 
         try {
-            await this.browser.fillFields(Number(request.conversationId), fields as { index: number; value: string }[]);
+            await this.browserAt(form.place ?? "phone").fillFields(Number(request.conversationId), fields as { index: number; value: string }[]);
         } catch (error) {
             throw new HttpError(409, error instanceof Error ? error.message : String(error));
         }

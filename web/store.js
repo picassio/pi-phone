@@ -124,7 +124,8 @@ export const store = {
         filesOpen: sessionStorage.getItem("pocket.files") === "1",
         /** Pi's browser panel shows (`browser-panel.js`), and what the server last said of Pi's browser. */
         browserOpen: sessionStorage.getItem("pocket.piBrowser") === "1" && sessionStorage.getItem("pocket.files") !== "1",
-        piBrowser: null,
+        // Pi's browsers by place (`phone`, `machine:<id>`): what each shows and does. The panel shows the session's own.
+        piBrowsers: {},
         /** The Files tile's tab: `files` or `changes`. */
         filesTab: sessionStorage.getItem("pocket.filesTab") === "changes" ? "changes" : "files",
         /** The last file asked to open in the Files tile: `{ path, line, n }`, `n` telling requests apart. */
@@ -612,7 +613,7 @@ const handlers = {
     memory: () => store.set((state) => ({ memoryRev: (state.memoryRev ?? 0) + 1 })),
     missing: (data) => store.set({ missing: data.message }),
     // Pi's browser: what it shows and does (the owner's tabs), and frames of its page (the tabs that watch it).
-    browser: (data) => store.set({ piBrowser: data }),
+    browser: (data) => setPiBrowser(data),
     "browser-frame": (data) => {
         for (const listener of browserFrameListeners) {
             listener(data);
@@ -1242,6 +1243,27 @@ PEOPLE_DOCK.addEventListener("change", () => {
         store.set({});
     }
 });
+
+/** Which of Pi's browsers the session shown uses: `phone`, or `machine:<id>` for a session working on a machine. */
+export function browserPlace(state = store.state) {
+    const cwd = state.view?.agent?.cwd ?? state.view?.conversation?.cwd ?? "";
+    const machine = /^machine:([^:]+):/.exec(cwd)?.[1];
+
+    return machine === undefined ? "phone" : `machine:${machine}`;
+}
+
+/** The state of the browser the session shown uses, or null before it is known. */
+export const piBrowserState = (state = store.state) => state.piBrowsers?.[browserPlace(state)] ?? null;
+
+/** Keep a browser's state, as the server sent it (each names its place). */
+export function setPiBrowser(data) {
+    if (data && typeof data === "object") {
+        store.set((state) => ({ piBrowsers: { ...state.piBrowsers, [data.place ?? "phone"]: data } }));
+    }
+}
+
+/** The panel's request to the browser the session shown uses. */
+export const browserApi = (path, body) => api(`${path}?place=${encodeURIComponent(browserPlace())}`, body);
 
 export function openSheet(sheet) {
     store.set((state) => ({ ...sheetChange(sheet, state), drawer: false }));

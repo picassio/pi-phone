@@ -25,6 +25,8 @@ export interface BrowserEngine {
     readonly label: string;
     /** Whether pages open tabs of their own (a link to a new window): Chrome's do; the phone's WebView opens them in place. */
     readonly popups: boolean;
+    /** Whether it may open local addresses: a machine's own Chrome may (its dev servers); the phone's WebView never. */
+    readonly local: boolean;
     /** Pi's tabs there now (kept from before the server restarted, or opened by pages), by id, oldest first. */
     tabs(): Promise<string[]>;
     /** Make a new tab: its id. */
@@ -95,6 +97,7 @@ export function stageLocally(name: string, bytes: Uint8Array): string {
 export class PhoneEngine implements BrowserEngine {
     readonly label = "the phone's browser";
     readonly popups = false;
+    readonly local = false;
     readonly #requests: PhoneRequests;
     #pid = 0;
     /** Each tab's address as the phone last said (a tab kept from before has moved on from its marker). */
@@ -197,6 +200,7 @@ export class PhoneEngine implements BrowserEngine {
 export class ChromeEngine implements BrowserEngine {
     readonly label = "Chrome";
     readonly popups = true;
+    readonly local = false;
     readonly #binary: string;
     readonly #flags: string[];
     #child: ChildProcess | undefined;
@@ -312,6 +316,9 @@ export class ChromeEngine implements BrowserEngine {
 
 /** What the Browser panel shows: whether Pi's browser is open, its tabs, what Pi does, and who has it. */
 export type BrowserState = {
+    /** Which browser: `phone`, or `machine:<id>` for a machine's Chrome; and where that is, in words. */
+    place: string;
+    where: string;
     open: boolean;
     url: string;
     title: string;
@@ -332,6 +339,9 @@ export type BrowserFrame = { jpeg: string; width: number; height: number };
 
 export type PiBrowserOptions = {
     engine: BrowserEngine;
+    /** Which browser this is (`phone`, or `machine:<id>`), and where, in words ("the phone", a machine's name). */
+    place?: string;
+    where?: string;
     /** The state changed: tabs that show the panel get it. */
     changed(state: BrowserState): void;
     /** A frame for those watching. */
@@ -350,13 +360,19 @@ export class PiBrowser {
     #opening: Promise<Tab> | undefined;
     /** Pi's actions, one after another. */
     #queue: Promise<unknown> = Promise.resolve();
-    #state: BrowserState = { open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height } };
+    #state: BrowserState = { place: "phone", where: "the phone", open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height } };
     #watchers = 0;
     #casting: BrowserPage | undefined;
     #stopFrames: (() => void) | undefined;
 
     constructor(options: PiBrowserOptions) {
         this.#options = options;
+        this.#state = { ...this.#state, place: options.place ?? "phone", where: options.where ?? "the phone" };
+    }
+
+    /** Which browser this is: `phone`, or `machine:<id>`. */
+    get place(): string {
+        return this.#state.place;
     }
 
     state(): BrowserState {
@@ -384,7 +400,7 @@ export class PiBrowser {
         const page = new BrowserPage(cdp);
         const tab: Tab = { id, page, observed: undefined, elements: [], url: "", title: "" };
 
-        await page.init(VIEWPORT);
+        await page.init(VIEWPORT, { local: this.#options.engine.local });
         cdp.onClose = () => {
             if (!this.#tabs.includes(tab)) {
                 return;

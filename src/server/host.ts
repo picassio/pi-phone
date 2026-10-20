@@ -53,6 +53,8 @@ export interface ApprovalRequest {
               /** The Secrets name a sign-in for this site is kept under, and whether one is kept there now. */
               secret?: string;
               saved?: boolean;
+              /** Which browser the page is in: `phone`, or `machine:<id>` (absent: the phone's). */
+              place?: string;
           };
     createdAt: number;
     /** Who Pi was working for when the call asked: set by `Approvals`, not by the asker. */
@@ -192,8 +194,11 @@ export interface PocketHost {
     serverBase(): string | undefined;
     /** Pictures of a page, rendered by the app's service on the phone (`screenshots.ts`). */
     render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number }): Promise<Shot[]>;
-    /** Pi's browser (`browser/pi-browser.ts`): the page Pi reads and acts on, which the owner watches. */
-    readonly browser: PiBrowser;
+    /**
+     * Pi's browser for a session working in `cwd` (`browser/pi-browser.ts`): the phone's, or for a session on a machine,
+     * a Chrome on that machine (`browser/machine-engine.ts`). The pages Pi reads and acts on, which the owner watches.
+     */
+    browserFor(cwd: string): PiBrowser;
     /** The run model for a session's `browser_run`: "session", or a Jev model's OpenRouter id (the session's own, else the owner's). */
     browserRunModel(conversationId: ConversationId): string;
     /** A provider's API key from the app's sign-ins (OpenRouter's, for Jev), or undefined when it is not signed in. */

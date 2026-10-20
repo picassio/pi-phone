@@ -11,6 +11,7 @@ import {
     actions,
     api,
     attempt,
+    browserApi,
     canSteer,
     collab,
     discuss,
@@ -18,6 +19,8 @@ import {
     navigate,
     notify,
     openSheet,
+    piBrowserState,
+    setPiBrowser,
     store,
     TRANSCRIPT_ROWS,
 } from "./store.js";
@@ -1498,14 +1501,14 @@ function BrowserAskCard({ approval }) {
                                   onClick=${() =>
                                       attempt(async () => {
                                           setBrowserOpen(true);
-                                          store.set({ piBrowser: await api("browser/take-over", { on: true }) });
+                                          setPiBrowser(await browserApi("browser/take-over", { on: true }));
                                       })}
                               >
                                   Open Pi's browser
                               </button>
                               <button class="button primary" disabled=${busy} onClick=${() => run(async () => {
-                                  if (store.state.piBrowser?.takenOver) {
-                                      store.set({ piBrowser: await api("browser/take-over", { on: false }) });
+                                  if (piBrowserState()?.takenOver) {
+                                      setPiBrowser(await browserApi("browser/take-over", { on: false }));
                                   }
 
                                   await actions.answerBrowserAsk(approval.id, { done: true });

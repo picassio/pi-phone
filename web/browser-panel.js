@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
-import { api, attempt, closePeople, onBrowserFrame, panelsBeside, store } from "./store.js";
+import { api, attempt, browserApi, browserPlace, closePeople, onBrowserFrame, panelsBeside, piBrowserState, setPiBrowser, store } from "./store.js";
 import { html, Icon } from "./ui.js";
 
 const OPEN_KEY = "pocket.piBrowser";
@@ -42,31 +42,30 @@ export function browserShown(state = store.state) {
 /** Frames of Pi's page while the component shows: the server sends them to this tab only while it watches. */
 function useFrames(onFrame) {
     const streamId = store.state.streamId;
+    const place = browserPlace();
 
     useEffect(() => {
         if (streamId === undefined) {
             return undefined;
         }
 
-        const off = onBrowserFrame(onFrame);
+        const off = onBrowserFrame((frame) => (frame.place ?? "phone") === place && onFrame(frame));
+        const watch = (on) => api(`browser/watch?place=${encodeURIComponent(place)}`, { connection: streamId, on });
 
-        void api("browser/watch", { connection: streamId, on: true }).then(
-            (state) => store.set({ piBrowser: state }),
-            () => {},
-        );
+        void watch(true).then(setPiBrowser, () => {});
 
         return () => {
             off();
-            void api("browser/watch", { connection: streamId, on: false }).catch(() => {});
+            void watch(false).catch(() => {});
         };
-    }, [streamId]);
+    }, [streamId, place]);
 }
 
 /** The live picture: an image updated in place (frames skip the store, which would redraw the whole app each time). */
 function Frame({ interactive, onTap, onWheel }) {
     const image = useRef(null);
     const [has, setHas] = useState(false);
-    const viewport = store.state.piBrowser?.viewport ?? { width: 412, height: 860 };
+    const viewport = piBrowserState()?.viewport ?? { width: 412, height: 860 };
 
     useFrames((frame) => {
         if (image.current) {
@@ -103,7 +102,7 @@ function Frame({ interactive, onTap, onWheel }) {
     </div>`;
 }
 
-const send = (body) => attempt(() => api("browser/input", body));
+const send = (body) => attempt(() => browserApi("browser/input", body));
 
 /** Typing, keys, and an address, while the person has the page. */
 function TakeOverBar() {
@@ -118,7 +117,7 @@ function TakeOverBar() {
 
                 if (address.trim() !== "") {
                     void attempt(async () => {
-                        store.set({ piBrowser: await api("browser/open", { url: address }) });
+                        setPiBrowser(await browserApi("browser/open", { url: address }));
                         setAddress("");
                     });
                 }
@@ -168,7 +167,7 @@ function Tabs({ state }) {
                 role="tab"
                 aria-selected=${index === state.tab}
                 title=${tab.url}
-                onClick=${() => index !== state.tab && attempt(async () => store.set({ piBrowser: await api("browser/tab", { number: index + 1 }) }))}
+                onClick=${() => index !== state.tab && attempt(async () => setPiBrowser(await browserApi("browser/tab", { number: index + 1 })))}
             >
                 ${tabName(tab)}
             </button>`,
@@ -177,7 +176,7 @@ function Tabs({ state }) {
 }
 
 export function BrowserPanel({ leaving = false }) {
-    const state = store.state.piBrowser;
+    const state = piBrowserState();
     const beside = panelsBeside();
     const takenOver = state?.takenOver === true;
 
@@ -201,14 +200,14 @@ export function BrowserPanel({ leaving = false }) {
                 </button>`
             }
             <div class="pb-title">
-                <b>Pi's browser</b>
+                <b>Pi's browser${state?.place && state.place !== "phone" ? ` on ${state.where}` : ""}</b>
                 <span class="pb-url" title=${state?.url ?? ""}>${state?.open ? state.title || state.url || "Blank page" : "Closed"}</span>
             </div>
             ${
                 state?.open &&
                 html`<button
                     class=${`button small ${takenOver ? "primary" : ""}`}
-                    onClick=${() => attempt(async () => store.set({ piBrowser: await api("browser/take-over", { on: !takenOver }) }))}
+                    onClick=${() => attempt(async () => setPiBrowser(await browserApi("browser/take-over", { on: !takenOver })))}
                 >
                     ${takenOver ? "Hand back" : "Take over"}
                 </button>`
@@ -242,7 +241,7 @@ export function BrowserPanel({ leaving = false }) {
         ${
             state?.open &&
             html`<footer class="pb-foot">
-                <button class="link small" onClick=${() => attempt(async () => store.set({ piBrowser: await api("browser/close", {}) }))}>Close Pi's browser</button>
+                <button class="link small" onClick=${() => attempt(async () => setPiBrowser(await browserApi("browser/close", {})))}>Close Pi's browser</button>
             </footer>`
         }
     </section>`;
@@ -250,7 +249,7 @@ export function BrowserPanel({ leaving = false }) {
 
 /** The top bar's way to the panel, while Pi's browser is open. */
 export function BrowserButton() {
-    const state = store.state.piBrowser;
+    const state = piBrowserState();
 
     if (!browserAvailable() || !state?.open) {
         return null;
@@ -271,7 +270,8 @@ export function BrowserButton() {
 
 /** On a phone, while Pi browses in this session: a small live preview above the message box; a tap opens the panel. */
 export function BrowserPreview() {
-    const { piBrowser: state, conversationId } = store.state;
+    const { conversationId } = store.state;
+    const state = piBrowserState();
     const image = useRef(null);
 
     if (!browserAvailable() || panelsBeside() || browserShown() || !state?.doing || state.session !== conversationId) {
@@ -300,18 +300,17 @@ function PreviewImage({ image }) {
  * session shown (not within a minute of it being closed).
  */
 export function BrowserWatcher() {
-    const { piBrowser: state, conversationId, me } = store.state;
+    const { conversationId, me } = store.state;
+    const state = piBrowserState();
+    const place = browserPlace();
     const owner = me?.role === "owner";
     const doing = state?.doing ?? null;
 
     useEffect(() => {
         if (owner) {
-            void api("browser").then(
-                (answer) => store.set({ piBrowser: answer }),
-                () => {},
-            );
+            void browserApi("browser").then(setPiBrowser, () => {});
         }
-    }, [owner]);
+    }, [owner, place]);
 
     useEffect(() => {
         if (owner && doing !== null && state?.session === conversationId && panelsBeside() && !browserShown() && Date.now() - closedAt > QUIET_MS) {

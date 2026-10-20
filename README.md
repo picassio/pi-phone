@@ -108,8 +108,12 @@ No Termux, no laptop, no cloud VM.
   the conversation and your logins stay on the phone. The Files panel, viewer, Changes, and the terminal follow the
   session there. Linux, macOS, Termux, and **Windows** (through its OpenSSH Server and Git Bash; the app gives you a
   PowerShell script that sets it up).
-- **Machine tools.** OfficeCLI, ripgrep, and fd installed on a machine from the app (Windows included), checked by
-  their SHA-256.
+- **Machine tools.** OfficeCLI, ripgrep, fd, and Chrome (headless, for Pi's browser where a machine has no Chrome)
+  installed on a machine from the app (Windows included), checked by their SHA-256.
+- **Pi's browser on a machine.** A session on a machine browses in a headless Chrome there (its own Chrome, Chromium or
+  Edge, else the machine tool), watched in the same panel ("Pi's browser on <machine>"). It opens the machine's own
+  addresses, so Pi can try the web app you run there (`localhost:3000`), and uploads and PDFs use the machine's files.
+  Its sign-ins stay in `~/.pi/mobile/browser` there.
 - **From any session.** `machine_run` and `machine_copy` run a command or copy a file on a machine, and `pi-ssh`
   gives bash ssh, rsync, scp, and tunnels with the app's keys, which nothing can read out.
 - **Ports** of a machine (a dev server there) open in the phone's browser.

@@ -535,24 +535,28 @@ export function createApi(options: HttpOptions, auth: Auth) {
         if (first === "browser") {
             requireOwner(user);
 
+            // Which browser: the phone's, or a machine's (`machine:<id>`), as the panel shows the one of its session's place.
+            const place = url.searchParams.get("place") ?? "phone";
+            const browser = () => app.browserAt(place);
+
             if (second === undefined && method === "GET") {
-                return json(response, 200, app.browser.state());
+                return json(response, 200, browser().state());
             }
 
             if (second === "watch" && method === "POST") {
                 const body = await readJson<{ connection?: unknown; on?: unknown }>(request);
 
-                app.setBrowserWatch(user, String(body.connection ?? ""), body.on === true);
+                app.setBrowserWatch(user, String(body.connection ?? ""), place, body.on === true);
 
-                return json(response, 200, app.browser.state());
+                return json(response, 200, browser().state());
             }
 
             if (second === "take-over" && method === "POST") {
                 const body = await readJson<{ on?: unknown }>(request);
 
-                app.browser.takeOver(body.on === true);
+                browser().takeOver(body.on === true);
 
-                return json(response, 200, app.browser.state());
+                return json(response, 200, browser().state());
             }
 
             if (second === "input" && method === "POST") {
@@ -567,13 +571,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
                 try {
                     if (body.type === "tap") {
-                        await app.browser.input({ type: "tap", x: number(body.x, "x"), y: number(body.y, "y") });
+                        await browser().input({ type: "tap", x: number(body.x, "x"), y: number(body.y, "y") });
                     } else if (body.type === "scroll") {
-                        await app.browser.input({ type: "scroll", x: number(body.x, "x"), y: number(body.y, "y"), dy: number(body.dy, "dy") });
+                        await browser().input({ type: "scroll", x: number(body.x, "x"), y: number(body.y, "y"), dy: number(body.dy, "dy") });
                     } else if (body.type === "text" && typeof body.text === "string") {
-                        await app.browser.input({ type: "text", text: body.text });
+                        await browser().input({ type: "text", text: body.text });
                     } else if (body.type === "key" && typeof body.key === "string") {
-                        await app.browser.input({ type: "key", key: body.key });
+                        await browser().input({ type: "key", key: body.key });
                     } else {
                         throw new HttpError(400, "Send a tap, a scroll, text, or a key.");
                     }
@@ -588,30 +592,30 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 const body = await readJson<{ url?: unknown }>(request);
 
                 try {
-                    await app.browser.navigateFor(browserAddress(String(body.url ?? "")));
+                    await browser().navigateFor(browserAddress(String(body.url ?? "")));
                 } catch (error) {
                     throw new HttpError(409, error instanceof Error ? error.message : String(error));
                 }
 
-                return json(response, 200, app.browser.state());
+                return json(response, 200, browser().state());
             }
 
             if (second === "tab" && method === "POST") {
                 const body = await readJson<{ number?: unknown }>(request);
 
                 try {
-                    await app.browser.showTab(Number(body.number));
+                    await browser().showTab(Number(body.number));
                 } catch (error) {
                     throw new HttpError(409, error instanceof Error ? error.message : String(error));
                 }
 
-                return json(response, 200, app.browser.state());
+                return json(response, 200, browser().state());
             }
 
             if (second === "close" && method === "POST") {
-                await app.browser.close();
+                await browser().close();
 
-                return json(response, 200, app.browser.state());
+                return json(response, 200, browser().state());
             }
 
             // The run model `browser_run` decides with (Settings › Browser), and a test of a Jev model: one decision.

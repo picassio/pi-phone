@@ -8,7 +8,7 @@ import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { basename } from "node:path";
 import { addressOf, PRESSABLE, StalePage } from "../browser/page.ts";
-import { MAX_TABS } from "../browser/pi-browser.ts";
+import { MAX_TABS, type PiBrowser } from "../browser/pi-browser.ts";
 import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
 
@@ -20,7 +20,8 @@ const TEXT_MAX = 40_000;
 export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code yourself: when a page asks to sign in, call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
 
 export default function createBrowser(host: PocketHost) {
-    const browser = host.browser;
+    /** The browser of the place a session works in: the phone's, or its machine's Chrome. */
+    const browserOf = async (api: { agent(context: never): Promise<{ cwd?: string }> }, context: unknown): Promise<PiBrowser> => host.browserFor((await api.agent(context as never)).cwd ?? "");
     /** Pi's browser is the owner's (it may be signed in to their accounts): only for work the owner asked for. */
     const mayBrowse = (conversationId: unknown): true | string => {
         const requester = host.requesterOf(Number(conversationId) as never);
@@ -29,18 +30,26 @@ export default function createBrowser(host: PocketHost) {
         return person?.role === "owner" ? true : "Pi's browser is the owner's: it works only for what the owner asks.";
     };
     /** Run a browser action for a session: its answer, or the error in words (a stale page reads the page again). */
-    const act = async (conversationId: unknown, work: (session: number) => Promise<string>) => {
-        const session = Number(conversationId);
-        const owner = mayBrowse(conversationId);
+    const act = async (
+        api: { conversationId: unknown; agent(context: never): Promise<{ cwd?: string }> },
+        context: unknown,
+        work: (browser: PiBrowser, session: number) => Promise<string>,
+    ) => {
+        const session = Number(api.conversationId);
+        const owner = mayBrowse(api.conversationId);
 
         if (owner !== true) {
             return reply(owner, true);
         }
 
+        let browser: PiBrowser | undefined;
+
         try {
-            return reply(await work(session));
+            browser = await browserOf(api, context);
+
+            return reply(await work(browser, session));
         } catch (error) {
-            if (error instanceof StalePage) {
+            if (error instanceof StalePage && browser !== undefined) {
                 try {
                     return reply(`${error.message}\nThe page now:\n${await browser.snapshot(session)}`, true);
                 } catch {
@@ -65,7 +74,7 @@ export default function createBrowser(host: PocketHost) {
      * when they answer, Pi gets `done` and the page as it is now.
      */
     const askPerson = async (
-        api: { conversationId: unknown; taskId: unknown; callId?: string },
+        api: { conversationId: unknown; taskId: unknown; callId?: string; agent(context: never): Promise<{ cwd?: string }> },
         context: unknown,
         session: number,
         tool: string,
@@ -74,6 +83,7 @@ export default function createBrowser(host: PocketHost) {
         form: NonNullable<ApprovalRequest["form"]>,
         done: string,
     ) => {
+        const browser = await browserOf(api, context);
         const answer = await host.approvals.request(
             {
                 id: `browser-${String(api.taskId)}-${api.callId}`,
@@ -83,7 +93,8 @@ export default function createBrowser(host: PocketHost) {
                 tool,
                 subject,
                 reason,
-                form,
+                // Which browser the page is in, for filling it with what the person types.
+                form: form.type === "browser" ? { ...form, place: browser.place } : form,
                 createdAt: Date.now(),
             },
             context as never,
@@ -106,7 +117,7 @@ export default function createBrowser(host: PocketHost) {
             name: "browser_open",
             description: "Open a web address (or search for words) in Pi's browser, which the person can watch. Answers with the page as numbered controls and its visible text.",
             parameters: Type.Object({ url: Type.String({ description: "An address like example.com, or words to search for" }) }),
-            execute: async (args, api) => {
+            execute: async (args, api, context) => {
                 let url: string;
 
                 try {
@@ -115,7 +126,7 @@ export default function createBrowser(host: PocketHost) {
                     return reply(error instanceof Error ? error.message : String(error), true);
                 }
 
-                return act(api.conversationId, (session) => browser.open(session, url));
+                return act(api, context, (browser, session) => browser.open(session, url));
             },
         }),
         defineTool({
@@ -123,13 +134,13 @@ export default function createBrowser(host: PocketHost) {
             description: "Read the page in Pi's browser again: its title, address, scroll position, numbered controls, and visible text.",
             parameters: Type.Object({}),
             replay: "safe",
-            execute: async (_args, api) => act(api.conversationId, (session) => browser.snapshot(session)),
+            execute: async (_args, api, context) => act(api, context, (browser, session) => browser.snapshot(session)),
         }),
         defineTool({
             name: "browser_click",
             description: "Click the control with this number from the newest read of the page.",
             parameters: Type.Object({ index, accept_dialog: acceptDialog }),
-            execute: async (args, api) => act(api.conversationId, (session) => browser.click(session, args.index, args.accept_dialog ?? false)),
+            execute: async (args, api, context) => act(api, context, (browser, session) => browser.click(session, args.index, args.accept_dialog ?? false)),
         }),
         defineTool({
             name: "browser_type",
@@ -140,20 +151,20 @@ export default function createBrowser(host: PocketHost) {
                 submit: Type.Optional(Type.Boolean({ description: "Press Enter afterwards (submits search boxes and forms)" })),
                 clear: Type.Optional(Type.Boolean({ description: "Clear the field first (default true)" })),
             }),
-            execute: async (args, api) =>
-                act(api.conversationId, (session) => browser.type(session, args.index, args.text, { clear: args.clear ?? true, submit: args.submit ?? false })),
+            execute: async (args, api, context) =>
+                act(api, context, (browser, session) => browser.type(session, args.index, args.text, { clear: args.clear ?? true, submit: args.submit ?? false })),
         }),
         defineTool({
             name: "browser_select",
             description: "Choose an option, by its text or value, in the drop-down list with this number.",
             parameters: Type.Object({ index, option: Type.String() }),
-            execute: async (args, api) => act(api.conversationId, (session) => browser.select(session, args.index, args.option)),
+            execute: async (args, api, context) => act(api, context, (browser, session) => browser.select(session, args.index, args.option)),
         }),
         defineTool({
             name: "browser_hover",
             description: "Move the pointer over the control with this number without clicking (menus and tooltips that open on hover).",
             parameters: Type.Object({ index }),
-            execute: async (args, api) => act(api.conversationId, (session) => browser.hover(session, args.index)),
+            execute: async (args, api, context) => act(api, context, (browser, session) => browser.hover(session, args.index)),
         }),
         defineTool({
             name: "browser_upload",
@@ -164,7 +175,7 @@ export default function createBrowser(host: PocketHost) {
                 paths: Type.Array(Type.String(), { minItems: 1, maxItems: 10, description: "The files, absolute or relative to this session's folder" }),
             }),
             execute: async (args, api, context) =>
-                act(api.conversationId, async (session) => {
+                act(api, context, async (browser, session) => {
                     const env = host.envOf((await api.agent(context)).cwd ?? "");
                     const files: { name: string; bytes: Uint8Array }[] = [];
 
@@ -187,7 +198,7 @@ export default function createBrowser(host: PocketHost) {
             description: "Save the page in Pi's browser as a PDF (as printing it would), to a file where this session works.",
             parameters: Type.Object({ path: Type.String({ description: "Where to save it, ending in .pdf: absolute or relative to this session's folder" }) }),
             execute: async (args, api, context) =>
-                act(api.conversationId, async (session) => {
+                act(api, context, async (browser, session) => {
                     if (!args.path.toLowerCase().endsWith(".pdf")) {
                         throw new Error("Give a path ending in .pdf.");
                     }
@@ -213,7 +224,7 @@ export default function createBrowser(host: PocketHost) {
             name: "browser_new_tab",
             description: `Open a new tab in Pi's browser, in front (at an address, or blank), keeping the others. At most ${MAX_TABS} tabs.`,
             parameters: Type.Object({ url: Type.Optional(Type.String({ description: "An address like example.com, or words to search for" })) }),
-            execute: async (args, api) => {
+            execute: async (args, api, context) => {
                 let url: string | undefined;
 
                 try {
@@ -222,7 +233,7 @@ export default function createBrowser(host: PocketHost) {
                     return reply(error instanceof Error ? error.message : String(error), true);
                 }
 
-                return act(api.conversationId, (session) => browser.newTab(session, url));
+                return act(api, context, (browser, session) => browser.newTab(session, url));
             },
         }),
         defineTool({
@@ -232,8 +243,8 @@ export default function createBrowser(host: PocketHost) {
                 switch_to: Type.Optional(Type.Integer({ minimum: 1, description: "The tab to bring to the front" })),
                 close: Type.Optional(Type.Integer({ minimum: 1, description: "The tab to close" })),
             }),
-            execute: async (args, api) =>
-                act(api.conversationId, (session) =>
+            execute: async (args, api, context) =>
+                act(api, context, (browser, session) =>
                     args.close !== undefined ? browser.closeTab(session, args.close) : args.switch_to !== undefined ? browser.switchTab(session, args.switch_to) : browser.tabs(session),
                 ),
         }),
@@ -244,33 +255,33 @@ export default function createBrowser(host: PocketHost) {
                 direction: Type.Union([Type.Literal("up"), Type.Literal("down")]),
                 screens: Type.Optional(Type.Number({ minimum: 0.25, maximum: 10, description: "How many screens (default 1)" })),
             }),
-            execute: async (args, api) => act(api.conversationId, (session) => browser.scroll(session, args.direction, args.screens ?? 1)),
+            execute: async (args, api, context) => act(api, context, (browser, session) => browser.scroll(session, args.direction, args.screens ?? 1)),
         }),
         defineTool({
             name: "browser_press",
             description: `Press a key on the focused control: ${PRESSABLE.join(", ")}. For text, use browser_type.`,
             parameters: Type.Object({ key: Type.String(), accept_dialog: acceptDialog }),
-            execute: async (args, api) => act(api.conversationId, (session) => browser.press(session, args.key, args.accept_dialog ?? false)),
+            execute: async (args, api, context) => act(api, context, (browser, session) => browser.press(session, args.key, args.accept_dialog ?? false)),
         }),
         defineTool({
             name: "browser_back",
             description: "Go back a page in Pi's browser.",
             parameters: Type.Object({}),
-            execute: async (_args, api) => act(api.conversationId, (session) => browser.history(session, -1)),
+            execute: async (_args, api, context) => act(api, context, (browser, session) => browser.history(session, -1)),
         }),
         defineTool({
             name: "browser_forward",
             description: "Go forward a page in Pi's browser.",
             parameters: Type.Object({}),
-            execute: async (_args, api) => act(api.conversationId, (session) => browser.history(session, 1)),
+            execute: async (_args, api, context) => act(api, context, (browser, session) => browser.history(session, 1)),
         }),
         defineTool({
             name: "browser_text",
             description: "Read all the text on the current page at once (an article, docs, a list, a table), without scrolling through it.",
             parameters: Type.Object({}),
             replay: "safe",
-            execute: async (_args, api) =>
-                act(api.conversationId, async (session) => {
+            execute: async (_args, api, context) =>
+                act(api, context, async (browser, session) => {
                     const page = await browser.text(session, TEXT_MAX);
 
                     return `${page.title} — ${page.url}\n\n${page.text}${page.cut ? `\n\n(cut at ${TEXT_MAX} characters)` : ""}`;
@@ -281,12 +292,14 @@ export default function createBrowser(host: PocketHost) {
             description: "See what is in view in Pi's browser as a picture (for models that take images).",
             parameters: Type.Object({}),
             replay: "safe",
-            execute: async (_args, api) => {
+            execute: async (_args, api, context) => {
                 const owner = mayBrowse(api.conversationId);
 
                 if (owner !== true) {
                     return reply(owner, true);
                 }
+
+                const browser = await browserOf(api, context);
 
                 try {
                     const jpeg = await browser.screenshot(Number(api.conversationId));
@@ -310,8 +323,8 @@ export default function createBrowser(host: PocketHost) {
                 text: Type.Optional(Type.String({ description: "Text to wait for, like a result's title or \"Saved\"" })),
                 seconds: Type.Optional(Type.Number({ minimum: 0, maximum: 10 })),
             }),
-            execute: async (args, api) =>
-                act(api.conversationId, (session) => browser.wait(session, { ...(args.text === undefined ? {} : { text: args.text }), ...(args.seconds === undefined ? {} : { seconds: args.seconds }) })),
+            execute: async (args, api, context) =>
+                act(api, context, (browser, session) => browser.wait(session, { ...(args.text === undefined ? {} : { text: args.text }), ...(args.seconds === undefined ? {} : { seconds: args.seconds }) })),
         }),
         defineTool({
             name: "browser_run",
@@ -325,13 +338,15 @@ export default function createBrowser(host: PocketHost) {
                 url: Type.Optional(Type.String({ description: "An address to open first; without it, the run starts on the page open now" })),
                 max_steps: Type.Optional(Type.Integer({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
             }),
-            execute: async (args, api) => {
+            execute: async (args, api, context) => {
                 const session = Number(api.conversationId);
                 const owner = mayBrowse(api.conversationId);
 
                 if (owner !== true) {
                     return reply(owner, true);
                 }
+
+                const browser = await browserOf(api, context);
 
                 const model = host.browserRunModel(api.conversationId as never);
                 let decider: Decider;
@@ -382,6 +397,8 @@ export default function createBrowser(host: PocketHost) {
                 if (owner !== true) {
                     return reply(owner, true);
                 }
+
+                const browser = await browserOf(api, context);
 
                 if (args.username === undefined && args.password === undefined) {
                     return reply("Name the username field, the password field, or both, by their numbers.", true);
@@ -437,6 +454,8 @@ export default function createBrowser(host: PocketHost) {
                     return reply(owner, true);
                 }
 
+                const browser = await browserOf(api, context);
+
                 let field: { label: string; fill: boolean };
 
                 try {
@@ -473,6 +492,8 @@ export default function createBrowser(host: PocketHost) {
                     return reply(owner, true);
                 }
 
+                const browser = await browserOf(api, context);
+
                 const site = siteOf(browser.state().url);
 
                 return askPerson(api, context, session, "browser_ask_user", `Pi needs your hand on ${site}`, args.instruction, {
@@ -488,12 +509,14 @@ export default function createBrowser(host: PocketHost) {
             name: "browser_close",
             description: "Close Pi's browser (its page and what it was signed in to for now). The next browser_open starts it again.",
             parameters: Type.Object({}),
-            execute: async (_args, api) => {
+            execute: async (_args, api, context) => {
                 const owner = mayBrowse(api.conversationId);
 
                 if (owner !== true) {
                     return reply(owner, true);
                 }
+
+                const browser = await browserOf(api, context);
 
                 await browser.close();
 

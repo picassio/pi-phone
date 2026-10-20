@@ -145,8 +145,8 @@ export interface Client {
     board?: boolean;
     /** The number of the last board request taken, so one that arrives late does not undo a newer one. */
     boardSeq?: number;
-    /** This tab shows the Browser panel: it gets Pi's browser's frames while it does; calling it stops (`setBrowserWatch`). */
-    browserWatch?: () => void;
+    /** This tab shows the Browser panel: it gets that browser's frames (`phone` or `machine:<id>`) while it does (`setBrowserWatch`). */
+    browserWatch?: { place: string; stop(): void };
     /** The JSON of the subagents this tab's board last got, so an unchanged list is not sent again. */
     boardSent?: string;
     /**

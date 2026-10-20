@@ -40,16 +40,44 @@ export type ToolSpec = {
     size: string;
     /** Offered only when the machine has no command of this name of its own. */
     onlyIfMissing?: boolean;
+    /** Other commands that count as the machine's own (Chrome's other names). */
+    alsoOwn?: string[];
     /** Set for the program (the wrapper exports them). */
     env?: Record<string, string>;
     /** Skills that go with it, from the phone's copy (`third_party/`): relative to APP_ROOT, or absolute (tests). */
     skills?: string;
+    /** The whole archive (a .zip) is unpacked into its folder, and `member` is the program in it (Chrome's many files). */
+    whole?: boolean;
     assets: Partial<Record<Target, Asset>>;
 };
 
 const OFFICECLI = "https://github.com/iOfficeAI/OfficeCLI/releases/download/v1.0.157";
 const RG = "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0";
 const FD = "https://github.com/sharkdp/fd/releases/download/v10.5.0";
+const CHROME = "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.84";
+
+/**
+ * Pi's browser on a machine (`browser/machine-engine.ts`) for a machine without its own Chrome: Chrome for Testing's
+ * headless shell. Not on Windows, where Chrome or Edge is there already.
+ */
+export const CHROME_TOOL: ToolSpec = {
+    id: "chrome",
+    name: "Chrome (headless)",
+    command: "chrome-headless-shell",
+    version: "155.0.8059.84",
+    description: "Pi's browser for sessions on this machine, when it has no Chrome of its own",
+    size: "about 285 MB",
+    onlyIfMissing: true,
+    alsoOwn: ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"],
+    whole: true,
+    // Chrome for Testing publishes no sums: these are of the files as downloaded on 2026-10-20.
+    assets: {
+        "linux-x64": { url: `${CHROME}/linux64/chrome-headless-shell-linux64.zip`, sha256: "a5d71b91aa996fef00517cd212b2dfb816b43055edefbe727e6fd562d4ae1f9c", member: "chrome-headless-shell-linux64/chrome-headless-shell" },
+        "linux-arm64": { url: `${CHROME}/linux-arm64/chrome-headless-shell-linux-arm64.zip`, sha256: "0c83c2520b513835c712590781adbdbcab4c14ca04d4809be5055ff2c8937a51", member: "chrome-headless-shell-linux-arm64/chrome-headless-shell" },
+        "darwin-arm64": { url: `${CHROME}/mac-arm64/chrome-headless-shell-mac-arm64.zip`, sha256: "7f111980bcb41e908d0fa3e969a625e7777ff683c1fc43fd7759d05ec3ffe52b", member: "chrome-headless-shell-mac-arm64/chrome-headless-shell" },
+        "darwin-x64": { url: `${CHROME}/mac-x64/chrome-headless-shell-mac-x64.zip`, sha256: "3c5bf34eb8daa874e8b50edf900eab618b74c1b9596e596340278eeba4ff1ae1", member: "chrome-headless-shell-mac-x64/chrome-headless-shell" },
+    },
+};
 
 /** The tools, as the list shows them. Versions and sums are pinned: OfficeCLI's and rg's from their releases' own sums. */
 export const TOOLS: readonly ToolSpec[] = [
@@ -114,6 +142,7 @@ export const TOOLS: readonly ToolSpec[] = [
             "windows-arm64": { url: `${FD}/fd-v10.5.0-aarch64-pc-windows-msvc.zip`, sha256: "a2bcddcfd259b05357a77bbc6cd671fdb30f63fd266a0e748305890a8c5ceaa6", member: "fd-v10.5.0-aarch64-pc-windows-msvc/fd.exe" },
         },
     },
+    CHROME_TOOL,
 ];
 
 /** One tool on one machine, as the list shows it. */
@@ -156,7 +185,7 @@ function statusScript(catalog: readonly ToolSpec[]): string {
         ...catalog.map(
             (tool) =>
                 `if [ -f "$T/bin/${tool.command}" ]; then echo "${tool.id} installed $(sed -n 's/^# pi-phone-tool [^ ]* //p' "$T/bin/${tool.command}" | head -n 1)"; ` +
-                `else own=$(PATH=$(printf %s "$PATH" | tr ':' '\\n' | grep -v "/${TOOLS_BIN}$" | paste -sd: -) command -v ${tool.command} 2>/dev/null || true); ` +
+                `else own=$(PATH=$(printf %s "$PATH" | tr ':' '\\n' | grep -v "/${TOOLS_BIN}$" | paste -sd: -); for c in ${[tool.command, ...(tool.alsoOwn ?? [])].join(" ")}; do command -v $c 2>/dev/null && break; done | head -n 1); ` +
                 `if [ -n "$own" ]; then echo "${tool.id} own $own"; else echo "${tool.id} none"; fi; fi`,
         ),
     ].join("\n");
@@ -201,12 +230,24 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
         `fetch ${q(asset.url)} "$tmp/download"`,
         `got=$(sum "$tmp/download")`,
         `if [ "$got" != ${q(asset.sha256)} ]; then echo "The download's sha256 is $got, not ${asset.sha256}: nothing was installed." >&2; exit 4; fi`,
-        ...(asset.member === undefined
+        ...(tool.whole === true && asset.member !== undefined
+            ? [
+                  // Unzip keeps the programs' modes; Python's zipfile does not, so they are set after.
+                  `rm -rf ${dir}/files && mkdir -p ${dir}/files`,
+                  `if command -v unzip >/dev/null 2>&1; then unzip -q "$tmp/download" -d ${dir}/files;`,
+                  `elif command -v python3 >/dev/null 2>&1; then python3 -m zipfile -e "$tmp/download" ${dir}/files && chmod -R u+x ${dir}/files;`,
+                  'else echo "This machine has neither unzip nor python3 to unpack the download with." >&2; exit 3; fi',
+                  `ln -sf "files/${asset.member}" ${dir}/${file}`,
+                  // A program that needs libraries the machine lacks says which, rather than failing when first run.
+                  `if command -v ldd >/dev/null 2>&1 && ldd ${dir}/${file} 2>/dev/null | grep -q "not found"; then`,
+                  `  echo "It needs libraries this machine lacks: $(ldd ${dir}/${file} | grep "not found" | awk '{print $1}' | tr '\\n' ' ')- install them (Ubuntu: sudo apt install libnss3 libatk-bridge2.0-0 libgbm1 libasound2t64, or the packages that have them), then install it again." >&2; exit 7; fi`,
+              ]
+            : asset.member === undefined
             ? [`cp "$tmp/download" ${dir}/${file}`]
             : asset.url.endsWith(".zip")
               ? [`unzip -p "$tmp/download" ${q(asset.member)} > ${dir}/${file}`]
               : [`tar -xzf "$tmp/download" -C "$tmp"`, `cp "$tmp/${asset.member}" ${dir}/${file}`]),
-        `chmod 755 ${dir}/${file}`,
+        ...(tool.whole === true ? [] : [`chmod 755 ${dir}/${file}`]),
         // The wrapper, as written (a quoted heredoc expands nothing).
         `cat > "$T/bin/${tool.command}.new" <<'PI_PHONE_TOOL_END'`,
         wrapper.trimEnd(),
