@@ -22,11 +22,17 @@
 
 /* Where (Mine, Team, a board): a drop-down beside the search, at most a third of the row on a phone. */
 .pd-place {
-    flex: 0 1 auto;
-    width: auto;
-    max-width: 45%;
+    flex: 0 1 46%;
     min-width: 0;
-    text-overflow: ellipsis;
+}
+
+/* The dropdown as tall as the search beside it: one line, its detail only in the list. */
+.pd-place .choice {
+    height: 100%;
+}
+
+.pd-place .choice-detail {
+    display: none;
 }
 
 .pd-actions {
@@ -253,4 +259,9 @@
 
 .pd-version .pd-row {
     border-bottom: 0;
+}
+
+/* Its list may be wider than the button, so board names show whole. */
+.pd-place .choice-menu {
+    min-width: min(300px, calc(100vw - 32px));
 }

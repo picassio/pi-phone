@@ -19,7 +19,7 @@ import { leaveSafeMode, onSafeModeEnd, safeMode } from "./safe-mode.js";
 import { api, closeSheet, insertIntoComposer, notify, onExtensionEvent, openSheet, store } from "./store.js";
 import { setCallSummary } from "./turns.js";
 import { pickFolder } from "./sheets/folder.js";
-import { html, Icon, iconPath, Loader, Markdown, railState, Sheet, Spinner, Switch } from "./ui.js";
+import { Choice, html, Icon, iconPath, Loader, Markdown, railState, Sheet, Spinner, Switch } from "./ui.js";
 
 /**
  * The version of `pocket`. It goes up only when something extensions use changes in a way that breaks them; additions
@@ -766,6 +766,8 @@ function pocketFor(record) {
         Loader,
         Markdown,
         Switch,
+        /** The app's own dropdown (`{ value, options: [{ value, label, detail? }], onChange, label }`), not the system's. */
+        Choice,
         /** Who uses this tab. */
         me: () => {
             tick(record);

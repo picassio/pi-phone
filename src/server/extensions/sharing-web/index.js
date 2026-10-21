@@ -3,7 +3,7 @@
 // secrets for their messages), and adds teammates; "Shared with me" lists what others share with you, each opening at
 // its /space/ address in their pi-phone.
 export default function sharing(pocket) {
-    const { html, useState, useEffect, Loader, Switch } = pocket;
+    const { html, useState, useEffect, Loader, Switch, Choice } = pocket;
 
     pocket.style("sharing.css");
 
@@ -97,13 +97,16 @@ export default function sharing(pocket) {
                     ? html`<p class="muted">${people.length === 0 ? "Nobody else is on this server yet." : "Shared with everyone on this server."}</p>`
                     : html`<section class="sh-add">
                           <h4 class="sh-h">Add a teammate</h4>
-                          <label class="field"
-                              ><span class="label">Teammate</span
-                              ><select key=${others.map((person) => person.id).join()} value=${adding.teammate} onChange=${(event) => setAdding({ ...adding, teammate: event.currentTarget.value })}>
-                                  <option value="">Choose a teammate</option>
-                                  ${others.map((person) => html`<option value=${person.id}>${person.name}</option>`)}
-                              </select></label
-                          >
+                          <div class="field">
+                              <span class="label">Teammate</span>
+                              <${Choice}
+                                  label="Teammate"
+                                  placeholder="Choose a teammate"
+                                  value=${adding.teammate}
+                                  options=${others.map((person) => ({ value: person.id, label: person.name }))}
+                                  onChange=${(teammate) => setAdding({ ...adding, teammate })}
+                              />
+                          </div>
                           <div class="sh-levels" role="radiogroup" aria-label="What they may do">
                               ${LEVELS.map(
                                   ([value, label]) =>

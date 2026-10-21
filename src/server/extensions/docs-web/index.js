@@ -47,7 +47,7 @@ function ago(ms) {
 }
 
 export default function documents(pocket) {
-    const { html, useState, useEffect, useRef, Markdown, Loader } = pocket;
+    const { html, useState, useEffect, useRef, Markdown, Loader, Choice } = pocket;
 
     pocket.style("docs.css");
 
@@ -258,9 +258,18 @@ export default function documents(pocket) {
                     }
                 }}
             >
-                <select class="pd-place" aria-label="Where" value=${current.id} onChange=${(event) => choose(event.currentTarget.value)}>
-                    ${scopes.map((scope) => html`<option value=${scope.id}>${scope.name}</option>`)}
-                </select>
+                <div class="pd-place">
+                    <${Choice}
+                        label="Where"
+                        value=${current.id}
+                        options=${scopes.map((scope) => ({
+                            value: scope.id,
+                            label: scope.name,
+                            detail: scope.id === "mine" ? "Only you" : scope.id === "team" ? "Everyone on this server" : "A board's documents",
+                        }))}
+                        onChange=${choose}
+                    />
+                </div>
                 <input type="search" placeholder="Search everywhere" aria-label="Search all your documents" value=${query} onInput=${(event) => setQuery(event.currentTarget.value)} />
             </form>
             ${
@@ -300,14 +309,16 @@ export default function documents(pocket) {
 
         return html`<details class="pd-image-model">
             <summary>Image search: ${state.model ?? "by name only"}</summary>
-            <label class="field">
+            <div class="field">
             <span class="label">Describe images with</span>
-            <select value=${state.model ?? ""} onChange=${(event) => choose(event.currentTarget.value)}>
-                <option value="">No model (images are found by name only)</option>
-                ${state.models.map((model) => html`<option value=${model}>${model}</option>`)}
-            </select>
+            <${Choice}
+                label="Describe images with"
+                value=${state.model ?? ""}
+                options=${[{ value: "", label: "No model", detail: "Images are found by name only" }, ...state.models.map((model) => ({ value: model, label: model }))]}
+                onChange=${choose}
+            />
             <span class="pd-meta">So search finds pictures by what they show${state.team ? " (yours; the team's are set on the server)" : ""}. Each image is sent to this model once; its cost shows in Spend.</span>
-            </label>
+            </div>
         </details>`;
     }
 
@@ -451,13 +462,10 @@ export default function documents(pocket) {
 
         return html`<div class="pd-editor">
             <label class="field"><span class="label">Title</span><input value=${title} maxlength="120" onInput=${(event) => setTitle(event.currentTarget.value)} /></label>
-            <label class="field"
-                ><span class="label">Folder</span
-                ><select value=${folder} onChange=${(event) => setFolder(event.currentTarget.value)}>
-                    <option value="">(the top)</option>
-                    ${folders.map((each) => html`<option value=${each.id}>${named(each.id)}</option>`)}
-                </select></label
-            >
+            <div class="field">
+                <span class="label">Folder</span>
+                <${Choice} label="Folder" value=${folder} options=${[{ value: "", label: "(the top)" }, ...folders.map((each) => ({ value: each.id, label: named(each.id) }))]} onChange=${setFolder} />
+            </div>
             ${
                 preview
                     ? html`<${DocMarkdown} scope=${scope} text=${body} />`

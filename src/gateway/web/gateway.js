@@ -73,6 +73,82 @@ function page(title, lede, ...content) {
     tabs?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
+/**
+ * A dropdown in pi-phone's own style, not the system's picker (PP-62): a field-like button with the chosen option and a
+ * list under it. A hidden input named `name` holds the value, so a form's FormData has it. `onChange` runs on a new pick.
+ * Arrow keys move, Enter picks, Escape or a tap elsewhere closes.
+ */
+function choice({ name, label, options, value, onChange, small = false }) {
+    let chosen = value;
+    let active = 0;
+    const input = h("input", { type: "hidden", name, value });
+    const text = h("span", { class: "choice-text" });
+    const list = h("div", { class: "choice-menu", role: "listbox", "aria-label": label, hidden: true });
+    const button = h("button", { type: "button", class: "choice", "aria-haspopup": "listbox", "aria-expanded": "false", "aria-label": label }, text, h("span", { class: "choice-caret", "aria-hidden": "true" }));
+    const wrap = h("span", { class: `choice-wrap${small ? " small" : ""}` }, input, button, list);
+    const rows = () => [...list.children];
+    const mark = () => rows().forEach((row, index) => row.classList.toggle("on", index === active));
+    const away = (event) => !wrap.contains(event.target) && close();
+    const close = () => {
+        list.hidden = true;
+        button.setAttribute("aria-expanded", "false");
+        document.removeEventListener("pointerdown", away, true);
+    };
+    const open = () => {
+        active = Math.max(0, options.findIndex((option) => option.value === chosen));
+        mark();
+        list.hidden = false;
+        button.setAttribute("aria-expanded", "true");
+        document.addEventListener("pointerdown", away, true);
+        rows()[active]?.scrollIntoView({ block: "nearest" });
+    };
+    const pick = (option) => {
+        close();
+        button.focus();
+
+        if (option.value === chosen) {
+            return;
+        }
+
+        chosen = option.value;
+        input.value = option.value;
+        show();
+        onChange?.(option.value);
+    };
+    const show = () => {
+        text.textContent = options.find((option) => option.value === chosen)?.label ?? "";
+        rows().forEach((row, index) => row.setAttribute("aria-selected", String(options[index].value === chosen)));
+    };
+
+    list.append(...options.map((option, index) => h("button", { type: "button", class: "choice-row", role: "option", onclick: () => pick(option), onmousemove: () => ((active = index), mark()) }, option.label)));
+    button.addEventListener("click", () => (list.hidden ? open() : close()));
+    button.addEventListener("keydown", (event) => {
+        if (list.hidden) {
+            if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+                event.preventDefault();
+                open();
+            }
+
+            return;
+        }
+
+        if (event.key === "Escape" || event.key === "Tab") {
+            close();
+        } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            active = Math.min(options.length - 1, Math.max(0, active + (event.key === "ArrowDown" ? 1 : -1)));
+            mark();
+            rows()[active]?.scrollIntoView({ block: "nearest" });
+        } else if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            pick(options[active]);
+        }
+    });
+    show();
+
+    return wrap;
+}
+
 /** A form whose submit runs `action`; its error shows under it. */
 function form(fields, submit, action) {
     const error = h("p", { class: "error", role: "alert" });
@@ -371,8 +447,22 @@ async function people(me) {
                           h(
                               "div",
                               { class: "pair" },
-                              h("label", {}, "Role", h("select", { name: "role" }, offered.map((role) => h("option", { value: role.id, selected: role.id === "member" }, role.name)))),
-                              h("label", {}, "Lasts", h("select", { name: "minutes" }, h("option", { value: "60" }, "1 hour"), h("option", { value: "1440", selected: true }, "1 day"), h("option", { value: "10080" }, "7 days"))),
+                              h("div", { class: "field" }, h("span", {}, "Role"), choice({ name: "role", label: "Role", value: offered.some((role) => role.id === "member") ? "member" : offered[0]?.id, options: offered.map((role) => ({ value: role.id, label: role.name })) })),
+                              h(
+                                  "div",
+                                  { class: "field" },
+                                  h("span", {}, "Lasts"),
+                                  choice({
+                                      name: "minutes",
+                                      label: "Lasts",
+                                      value: "1440",
+                                      options: [
+                                          { value: "60", label: "1 hour" },
+                                          { value: "1440", label: "1 day" },
+                                          { value: "10080", label: "7 days" },
+                                      ],
+                                  }),
+                              ),
                           ),
                       ],
                       "Make an invite link",
@@ -440,11 +530,14 @@ async function renderPeople(box, me, roles) {
     box.replaceChildren(
         ...people.map((person) => {
             const mayAct = manage && person.id !== me.id && (person.role !== "owner" || me.role === "owner");
-            const roleSelect = h(
-                "select",
-                { "aria-label": `${person.name}'s role`, onchange: (event) => act(person, "role", { role: event.target.value }) },
-                roles.filter((role) => role.id !== "owner" || me.role === "owner" || person.role === "owner").map((role) => h("option", { value: role.id, selected: role.id === person.role }, role.name)),
-            );
+            const roleSelect = choice({
+                name: "role",
+                label: `${person.name}'s role`,
+                small: true,
+                value: person.role,
+                options: roles.filter((role) => role.id !== "owner" || me.role === "owner" || person.role === "owner").map((role) => ({ value: role.id, label: role.name })),
+                onChange: (role) => act(person, "role", { role }),
+            });
 
             // Who (name, chips, email), their role and Always on, then what can be done: small buttons in one row.
             return h(
@@ -460,7 +553,7 @@ async function renderPeople(box, me, roles) {
                     ? h(
                           "div",
                           { class: "person-set" },
-                          mayAct ? h("label", { class: "inline" }, "Role", roleSelect) : null,
+                          mayAct ? h("span", { class: "inline" }, "Role", roleSelect) : null,
                           has(me, "server.manage") && !person.banned
                               ? h(
                                     "label",
