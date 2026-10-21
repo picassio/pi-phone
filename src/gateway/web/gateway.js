@@ -53,13 +53,24 @@ const authApi = (path, body, method) => call(`/auth/api/${path}`, body, method);
 const gw = (path, body, method) => call(`/auth/gw/${path}`, body, method);
 
 function page(title, lede, ...content) {
+    // A signed-in page starts with its tabs (`nav`): they go under the top bar, which then leads to your pi-phone.
+    const tabs = content[0] instanceof Node && content[0].classList?.contains("tabs") ? content.shift() : null;
+    const top = h(
+        "header",
+        { class: "top" },
+        h("a", { class: "brand", href: "/auth/account", onclick: (event) => (event.preventDefault(), go("/auth/account")) }, h("img", { src: "/auth/static/icon.svg", alt: "" }), h("b", {}, "pi-phone")),
+        tabs === null ? null : h("a", { class: "button primary small", href: "/" }, "Open my pi-phone"),
+    );
+
+    // Signed out (sign in, set up, an invite): one narrow card in the middle of the screen (PP-62).
+    app.classList.toggle("solo", tabs === null);
     // Leaving out what is not there (a passkey button where the browser can't make one): replaceChildren would write "null".
     app.replaceChildren(
-        ...[h("div", { class: "brand" }, h("img", { src: "/auth/static/icon.svg", alt: "" }), h("b", {}, "pi-phone")), h("h1", {}, title), lede ? h("p", { class: "muted" }, lede) : null, ...content].filter(
-            (each) => each !== null && each !== undefined && each !== false,
-        ),
+        ...[top, tabs, h("h1", {}, title), lede ? h("p", { class: "lede muted" }, lede) : null, ...content].filter((each) => each !== null && each !== undefined && each !== false),
     );
     document.title = `${title} · pi-phone`;
+    // On a phone the tabs scroll sideways: the one you are on comes into view.
+    tabs?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
 /** A form whose submit runs `action`; its error shows under it. */
@@ -204,10 +215,9 @@ async function account(me) {
     const passkeys = h("div", { class: "card" });
 
     page(
-        me.name,
-        `${me.email} · ${me.roleName ?? me.role}`,
+        "Account",
+        `${me.name} · ${me.email} · ${me.roleName ?? me.role}`,
         nav(me),
-        h("div", { class: "row" }, h("button", { onclick: async () => (await authApi("sign-out", {}), go("/auth/sign-in")) }, "Sign out")),
         h("h2", {}, "Two-factor sign-in"),
         twoFactor,
         h("h2", {}, "Passkeys"),
@@ -221,6 +231,7 @@ async function account(me) {
                 alert("Password changed; your other devices are signed out.");
             }),
         ),
+        h("div", { class: "signout" }, h("button", { onclick: async () => (await authApi("sign-out", {}), go("/auth/sign-in")) }, "Sign out")),
     );
 
     renderTwoFactor(twoFactor, me);
@@ -323,18 +334,22 @@ async function renderPasskeys(box) {
 // ─── People (the owner, or a role with people.invite / people.manage) ───
 
 const has = (me, permission) => (me.permissions ?? []).includes(permission);
-const nav = (me) =>
-    h(
-        "div",
-        { class: "row" },
-        h("a", { class: "button primary", href: "/" }, "Open my pi-phone"),
-        h("a", { class: "button", href: "/auth/account", onclick: (event) => (event.preventDefault(), go("/auth/account")) }, "My account"),
-        has(me, "pi.use") ? h("a", { class: "button", href: "/auth/shared", onclick: (event) => (event.preventDefault(), go("/auth/shared")) }, "Shared with me") : null,
-        has(me, "people.invite") || has(me, "people.manage") ? h("a", { class: "button", href: "/auth/people", onclick: (event) => (event.preventDefault(), go("/auth/people")) }, "People") : null,
-        has(me, "roles.manage") ? h("a", { class: "button", href: "/auth/roles", onclick: (event) => (event.preventDefault(), go("/auth/roles")) }, "Roles") : null,
-        has(me, "audit.view") ? h("a", { class: "button", href: "/auth/audit", onclick: (event) => (event.preventDefault(), go("/auth/audit")) }, "Audit log") : null,
-        has(me, "server.manage") ? h("a", { class: "button", href: "/auth/server", onclick: (event) => (event.preventDefault(), go("/auth/server")) }, "Server") : null,
+/** The gateway's pages, as tabs (one row, scrolled sideways on a phone), the one shown marked. */
+const nav = (me) => {
+    const tab = (path, label) =>
+        h("a", { class: "tab", href: path, "aria-current": location.pathname === path ? "page" : null, onclick: (event) => (event.preventDefault(), go(path)) }, label);
+
+    return h(
+        "nav",
+        { class: "tabs", "aria-label": "Pages" },
+        tab("/auth/account", "Account"),
+        has(me, "pi.use") ? tab("/auth/shared", "Shared with me") : null,
+        has(me, "people.invite") || has(me, "people.manage") ? tab("/auth/people", "People") : null,
+        has(me, "roles.manage") ? tab("/auth/roles", "Roles") : null,
+        has(me, "audit.view") ? tab("/auth/audit", "Audit log") : null,
+        has(me, "server.manage") ? tab("/auth/server", "Server") : null,
     );
+};
 
 async function people(me) {
     const listBox = h("div", { class: "list" });
@@ -353,15 +368,19 @@ async function people(me) {
                   { class: "card" },
                   form(
                       [
-                          h("label", {}, "Role", h("select", { name: "role" }, offered.map((role) => h("option", { value: role.id, selected: role.id === "member" }, role.name)))),
-                          h("label", {}, "Lasts", h("select", { name: "minutes" }, h("option", { value: "60" }, "1 hour"), h("option", { value: "1440", selected: true }, "1 day"), h("option", { value: "10080" }, "7 days"))),
+                          h(
+                              "div",
+                              { class: "pair" },
+                              h("label", {}, "Role", h("select", { name: "role" }, offered.map((role) => h("option", { value: role.id, selected: role.id === "member" }, role.name)))),
+                              h("label", {}, "Lasts", h("select", { name: "minutes" }, h("option", { value: "60" }, "1 hour"), h("option", { value: "1440", selected: true }, "1 day"), h("option", { value: "10080" }, "7 days"))),
+                          ),
                       ],
                       "Make an invite link",
                       async ({ role, minutes }) => {
                           const made = await gw("invites", { role, minutes: Number(minutes) });
 
                           await navigator.clipboard?.writeText(made.url).catch(() => {});
-                          void renderInvites(invitesBox);
+                          void renderInvites(invitesBox, roles);
                           alert(`Invite link (copied):\n${made.url}`);
                       },
                   ),
@@ -385,17 +404,23 @@ async function renderInvites(box, roles = []) {
     const now = Date.now();
     const nameOf = (id) => roles.find((role) => role.id === id)?.name ?? id;
 
+    // Only invites still open; used and expired ones are a count.
+    const open = invites.filter((each) => !each.usedBy && each.expiresAt > now);
+    const done = invites.length - open.length;
+
     box.replaceChildren(
-        ...(invites.length === 0
-            ? [h("p", { class: "muted" }, "None.")]
-            : invites.map((each) =>
+        ...(open.length === 0
+            ? [h("p", { class: "muted" }, done > 0 ? `No open invites · ${done} used or expired.` : "No open invites.")]
+            : open.map((each) =>
                   h(
                       "div",
                       { class: "card spread" },
-                      h("span", {}, h("span", { class: "tag" }, nameOf(each.role)), " ", each.usedBy ? "used" : each.expiresAt < now ? "expired" : `until ${new Date(each.expiresAt).toLocaleString()}`),
-                      !each.usedBy && each.expiresAt > now ? h("button", { onclick: async () => (await gw(`invites/${each.code}/cancel`, {}), renderInvites(box, roles)) }, "Cancel") : null,
+                      h("span", {}, h("span", { class: "tag" }, nameOf(each.role)), " ", h("span", { class: "muted" }, `until ${new Date(each.expiresAt).toLocaleString()}`)),
+                      h("button", { class: "small", onclick: async () => (await gw(`invites/${each.code}/cancel`, {}), renderInvites(box, roles)) }, "Cancel"),
                   ),
               )),
+        // replaceChildren writes null as text: only what is there.
+        ...(open.length > 0 && done > 0 ? [h("p", { class: "muted small" }, `${done} used or expired.`)] : []),
     );
 }
 
@@ -421,33 +446,42 @@ async function renderPeople(box, me, roles) {
                 roles.filter((role) => role.id !== "owner" || me.role === "owner" || person.role === "owner").map((role) => h("option", { value: role.id, selected: role.id === person.role }, role.name)),
             );
 
+            // Who (name, chips, email), their role and Always on, then what can be done: small buttons in one row.
             return h(
                 "div",
                 { class: "card person" },
-                h("b", {}, person.name, " ", mayAct ? null : h("span", { class: "tag" }, person.roleName), person.banned ? h("span", { class: "tag" }, "disabled") : null, person.twoFactor ? h("span", { class: "tag" }, "2FA") : null),
-                h("span", { class: "muted" }, person.email),
-                has(me, "server.manage") && !person.banned
-                    ? h(
-                          "label",
-                          { class: "check", title: "Never stopped when idle; started by itself, so scheduled messages run without a visit" },
-                          h("input", { type: "checkbox", checked: person.alwaysOn, onchange: (event) => act(person, "always-on", { on: event.target.checked }) }),
-                          " Always on",
-                      )
-                    : null,
-                has(me, "server.manage") && person.box && (person.role !== "owner" || me.role === "owner")
-                    ? h("a", { class: "button", href: `/auth/gw/people/${person.id}/export`, download: "", title: "Their pi-phone's data (sessions, settings, files) as a .tar.gz" }, "Download data")
-                    : null,
-                mayAct
+                h(
+                    "div",
+                    { class: "person-head" },
+                    h("div", {}, h("b", {}, person.name), h("div", { class: "muted small" }, person.email)),
+                    h("div", { class: "chips" }, mayAct ? null : h("span", { class: "tag" }, person.roleName), person.banned ? h("span", { class: "tag bad" }, "disabled") : null, person.twoFactor ? h("span", { class: "tag" }, "2FA") : null),
+                ),
+                mayAct || (has(me, "server.manage") && !person.banned)
                     ? h(
                           "div",
-                          { class: "row" },
-                          roleSelect,
-                          h("button", { onclick: () => { const password = prompt(`New password for ${person.name} (10 or more):`); if (password) void act(person, "reset-password", { password }); } }, "Reset password"),
-                          person.twoFactor ? h("button", { onclick: () => confirm(`Remove ${person.name}'s two-factor? They set it up again.`) && act(person, "reset-two-factor") }, "Reset 2FA") : null,
-                          person.banned ? h("button", { onclick: () => act(person, "enable") }, "Enable") : h("button", { onclick: () => confirm(`Disable ${person.name}? Their pi-phone stops.`) && act(person, "disable") }, "Disable"),
-                          h("button", { class: "danger", onclick: () => confirm(`Remove ${person.name}'s account? Their data is kept.`) && act(person, "remove") }, "Remove"),
+                          { class: "person-set" },
+                          mayAct ? h("label", { class: "inline" }, "Role", roleSelect) : null,
+                          has(me, "server.manage") && !person.banned
+                              ? h(
+                                    "label",
+                                    { class: "check", title: "Never stopped when idle; started by itself, so scheduled messages run without a visit" },
+                                    h("input", { type: "checkbox", checked: person.alwaysOn, onchange: (event) => act(person, "always-on", { on: event.target.checked }) }),
+                                    " Always on",
+                                )
+                              : null,
                       )
                     : null,
+                h(
+                    "div",
+                    { class: "row actions" },
+                    has(me, "server.manage") && person.box && (person.role !== "owner" || me.role === "owner")
+                        ? h("a", { class: "button small", href: `/auth/gw/people/${person.id}/export`, download: "", title: "Their pi-phone's data (sessions, settings, files) as a .tar.gz" }, "Download data")
+                        : null,
+                    mayAct ? h("button", { class: "small", onclick: () => { const password = prompt(`New password for ${person.name} (10 or more):`); if (password) void act(person, "reset-password", { password }); } }, "Reset password") : null,
+                    mayAct && person.twoFactor ? h("button", { class: "small", onclick: () => confirm(`Remove ${person.name}'s two-factor? They set it up again.`) && act(person, "reset-two-factor") }, "Reset 2FA") : null,
+                    mayAct ? (person.banned ? h("button", { class: "small", onclick: () => act(person, "enable") }, "Enable") : h("button", { class: "small", onclick: () => confirm(`Disable ${person.name}? Their pi-phone stops.`) && act(person, "disable") }, "Disable")) : null,
+                    mayAct ? h("button", { class: "small danger", onclick: () => confirm(`Remove ${person.name}'s account? Their data is kept.`) && act(person, "remove") }, "Remove") : null,
+                ),
             );
         }),
     );
@@ -497,7 +531,7 @@ async function rolesPage(me) {
             h(
                 "details",
                 { class: "card" },
-                h("summary", {}, role.name, " ", h("span", { class: "tag" }, `${counts[role.id] ?? 0} ${(counts[role.id] ?? 0) === 1 ? "person" : "people"}`), role.builtin ? h("span", { class: "tag" }, "built in") : null),
+                h("summary", {}, h("span", { class: "grow" }, role.name), h("span", { class: "tag" }, `${counts[role.id] ?? 0} ${(counts[role.id] ?? 0) === 1 ? "person" : "people"}`), role.builtin ? h("span", { class: "tag" }, "built in") : null),
                 role.builtin
                     ? h("p", { class: "muted" }, "The owner's role has every permission, and isn't editable.")
                     : h(
@@ -507,7 +541,7 @@ async function rolesPage(me) {
                           h(
                               "button",
                               {
-                                  class: "danger",
+                                  class: "danger small delete-role",
                                   onclick: async () => {
                                       if (!confirm(`Delete the role ${role.name}?`)) {
                                           return;
@@ -526,8 +560,8 @@ async function rolesPage(me) {
                       ),
             ),
         ),
-        h("h2", {}, "New role"),
-        h("div", { class: "card" }, editor(undefined)),
+        // A new role's form only once asked for: it is long.
+        h("details", { class: "card new-role" }, h("summary", {}, h("span", { class: "grow" }, "+ New role")), editor(undefined)),
     );
 }
 
@@ -548,26 +582,35 @@ async function auditPage(me) {
 
     page(
         "Audit log",
-        "Who changed what: invites, roles, people; and sign-ins that failed or were blocked.",
+        "Who changed what: invites, roles, people, shared sessions; and sign-ins that failed or were blocked.",
         nav(me),
-        h(
-            "div",
-            { class: "list" },
-            entries.length === 0
-                ? h("p", { class: "muted" }, "Nothing yet.")
-                : entries.map((entry) =>
-                      h(
+        // One card, a row per entry (PP-62): what and to whom, then when and by whom, and the detail that matters.
+        entries.length === 0
+            ? h("p", { class: "muted" }, "Nothing yet.")
+            : h(
+                  "div",
+                  { class: "card log" },
+                  entries.map((entry) => {
+                      const when = new Date(entry.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+                      // A failed or blocked sign-in has nobody behind it yet (PP-26): when, how, and from where.
+                      const detail = entry.details?.ip
+                          ? `${entry.details.how ?? entry.details.path ?? ""} · from ${entry.details.ip}`
+                          : entry.details?.title
+                            ? entry.details.title
+                            : entry.details?.role?.name
+                              ? `role: ${entry.details.role.name}`
+                              : entry.details?.to
+                                ? `${entry.details.from} → ${entry.details.to}`
+                                : null;
+
+                      return h(
                           "div",
-                          { class: "card" },
-                          h("b", {}, entry.action),
-                          " ",
-                          entry.target ? h("span", {}, "· ", who(entry.target)) : null,
-                          // A failed or blocked sign-in has nobody behind it yet (PP-26): when, how, and from where.
-                          h("div", { class: "muted" }, `${new Date(entry.at).toLocaleString()}${entry.actor ? ` · by ${who(entry.actor)}` : ""}`),
-                          entry.details?.ip ? h("div", { class: "muted" }, `${entry.details.how ?? entry.details.path ?? ""} · from ${entry.details.ip}`) : entry.details?.role?.name ? h("div", { class: "muted" }, `role: ${entry.details.role.name}`) : entry.details?.to ? h("div", { class: "muted" }, `${entry.details.from} → ${entry.details.to}`) : null,
-                      ),
-                  ),
-        ),
+                          { class: "log-row" },
+                          h("div", {}, h("b", {}, entry.action.charAt(0).toUpperCase() + entry.action.slice(1)), entry.target ? h("span", {}, " · ", who(entry.target)) : null),
+                          h("div", { class: "muted small" }, `${when}${entry.actor ? ` · by ${who(entry.actor)}` : ""}${detail === null ? "" : ` · ${detail}`}`),
+                      );
+                  }),
+              ),
     );
 }
 
@@ -587,7 +630,7 @@ async function sharedPage(me) {
             sessions.length === 0
                 ? h("p", { class: "muted" }, "Nothing yet.")
                 : sessions.map((session) =>
-                      h("a", { class: "card", href: session.url }, h("b", {}, session.title), h("div", { class: "muted" }, `${session.level === "write" ? "You can write" : "You can watch"} · shared by ${session.by}`)),
+                      h("a", { class: "card", href: session.url }, h("div", {}, h("b", {}, session.title), h("span", { class: "muted small" }, `${session.level === "write" ? "You can write" : "You can watch"} · shared by ${session.by}`))),
                   ),
         ),
         h("h2", {}, "Boards"),
@@ -600,10 +643,7 @@ async function sharedPage(me) {
                       h(
                           "a",
                           { class: "card", href: `/#project:${board.key}` },
-                          h("b", {}, board.key),
-                          " ",
-                          board.name,
-                          h("div", { class: "muted" }, board.team ? (board.open ? "A team board, open to everyone" : "A team board") : `Shared by ${board.by}`),
+                          h("div", {}, h("div", {}, h("span", { class: "tag key" }, board.key), " ", h("b", {}, board.name)), h("span", { class: "muted small" }, board.team ? (board.open ? "A team board, open to everyone" : "A team board") : `Shared by ${board.by}`)),
                       ),
                   ),
         ),
@@ -613,57 +653,74 @@ async function sharedPage(me) {
 // ─── Server ───
 
 async function serverPage(me) {
-    const status = h("p", { class: "muted" });
+    // What runs now, in figures at the top; then each setting in its own card (PP-62).
+    const stats = h("div", { class: "stats" });
     const show = (server) => {
         const { all, running, outdated } = server.containers;
+        const stat = (value, label) => h("div", { class: "stat" }, h("b", {}, String(value)), h("span", { class: "muted small" }, label));
 
-        status.textContent = `${all} pi-phone${all === 1 ? "" : "s"}, ${running} running${outdated > 0 ? `, ${outdated} on an older image (made again from the new one when Pi is not at work there, or as they next start)` : ""}.`;
+        stats.replaceChildren(stat(all, all === 1 ? "pi-phone" : "pi-phones"), stat(running, "running"), stat(outdated, "on an older image"));
+        renewing.textContent = outdated === 0 ? "" : `${outdated === 1 ? "The one" : "Those"} on an older image ${outdated === 1 ? "is" : "are"} made again from the new one when Pi isn't at work there, or at the next start.`;
     };
+    const renewing = h("p", { class: "muted small" });
     const server = await gw("server");
     const docsLine = (docs) =>
         docs.model === null || !docs.keySet
             ? "By keyword only for now."
             : `By meaning with ${docs.model}: ${docs.indexed.embedded} of ${docs.indexed.passages} passages indexed. This month: ${docs.month.tokens.toLocaleString()} tokens${docs.month.cost > 0 ? `, ${docs.month.cost < 0.01 ? "under $0.01" : `$${docs.month.cost.toFixed(2)}`}` : ""}.`;
-    const docsStatus = h("p", { class: "muted" }, docsLine(server.docs));
+    const docsStatus = h("p", { class: "muted small" }, docsLine(server.docs));
+    const saved = h("span", { class: "ok small" });
 
     show(server);
     page(
         "Server",
         "How this server runs people's pi-phones.",
         nav(me),
+        stats,
+        renewing,
         h("h2", {}, "Idle pi-phones"),
-        h("p", { class: "muted" }, "A pi-phone stops when nobody has it open and it isn't at work (Pi writing, tools, scheduled messages). It starts again on the next visit, in a few seconds."),
-        form(
-            [field("Stop after this many minutes unused (0: never)", "idleMinutes", "number", { min: "0", max: "1440", step: "1", value: String(server.idleMinutes) })],
-            "Save",
-            async (values) => {
-                show(await gw("server", { idleMinutes: Number(values.idleMinutes) }));
-                status.textContent += " Saved.";
-            },
+        h(
+            "div",
+            { class: "card" },
+            h("p", { class: "muted" }, "A pi-phone stops when nobody has it open and it isn't at work (Pi writing, tools, scheduled messages). It starts again on the next visit, in a few seconds."),
+            form(
+                [h("div", { class: "inline-field" }, field("Stop after this many minutes unused (0: never)", "idleMinutes", "number", { min: "0", max: "1440", step: "1", value: String(server.idleMinutes) }), saved)],
+                "Save",
+                async (values) => {
+                    show(await gw("server", { idleMinutes: Number(values.idleMinutes) }));
+                    saved.textContent = "Saved.";
+                },
+            ),
         ),
-        h("h2", {}, "Now"),
-        status,
         h("h2", {}, "Search in documents"),
-        h("p", { class: "muted" }, "Team and project documents are searched by meaning too, with an OpenRouter embedding model and a key for it, used for nothing else; with an image description model, pictures in them are found by what they show. Without them, search is by keyword and pictures by name."),
-        form(
-            [
-                field("Embedding model (OpenRouter)", "docsModel", "text", { required: false, value: server.docs.model ?? "", placeholder: "openai/text-embedding-3-small" }),
-                field("Image description model (OpenRouter, reads images)", "docsVision", "text", { required: false, value: server.docs.vision ?? "", placeholder: "google/gemini-2.5-flash" }),
-                field(`OpenRouter key${server.docs.keySet ? " (one is set: type a new one to replace it)" : ""}`, "docsKey", "password", { required: false, autocomplete: "off", placeholder: server.docs.keySet ? "••••••••" : "sk-or-…" }),
-            ],
-            "Save",
-            async (values) => {
-                const body = { docsModel: values.docsModel, docsVision: values.docsVision, ...(values.docsKey === "" ? {} : { docsKey: values.docsKey }) };
-                const saved = await gw("server", body);
+        h(
+            "div",
+            { class: "card" },
+            h("p", { class: "muted" }, "Team and project documents are searched by meaning too, with an OpenRouter embedding model and a key for it, used for nothing else. With an image description model, pictures in them are found by what they show. Without them: by keyword, and pictures by name."),
+            docsStatus,
+            form(
+                [
+                    field("Embedding model (OpenRouter)", "docsModel", "text", { required: false, value: server.docs.model ?? "", placeholder: "openai/text-embedding-3-small" }),
+                    field("Image description model (OpenRouter, reads images)", "docsVision", "text", { required: false, value: server.docs.vision ?? "", placeholder: "google/gemini-2.5-flash" }),
+                    field(`OpenRouter key${server.docs.keySet ? " (one is set: type a new one to replace it)" : ""}`, "docsKey", "password", { required: false, autocomplete: "off", placeholder: server.docs.keySet ? "••••••••" : "sk-or-…" }),
+                ],
+                "Save",
+                async (values) => {
+                    const body = { docsModel: values.docsModel, docsVision: values.docsVision, ...(values.docsKey === "" ? {} : { docsKey: values.docsKey }) };
+                    const answer = await gw("server", body);
 
-                show(saved);
-                docsStatus.textContent = docsLine(saved.docs) + " Saved.";
-            },
+                    show(answer);
+                    docsStatus.textContent = docsLine(answer.docs) + " Saved.";
+                },
+            ),
         ),
-        docsStatus,
         h("h2", {}, "Backup"),
-        h("p", { class: "muted" }, "One .tar.gz with this server's accounts, roles and settings, and every person's pi-phone data. It takes a while with many people. How to restore it: deploy/README.md."),
-        h("a", { class: "button", href: "/auth/gw/backup", download: "" }, "Download a backup"),
+        h(
+            "div",
+            { class: "card" },
+            h("p", { class: "muted" }, "One .tar.gz with this server's accounts, roles and settings, shared boards and documents, and every person's pi-phone data. It takes a while with many people. How to restore it: deploy/README.md."),
+            h("a", { class: "button", href: "/auth/gw/backup", download: "" }, "Download a backup"),
+        ),
     );
 }
 

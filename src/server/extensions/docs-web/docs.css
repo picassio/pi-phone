@@ -9,40 +9,24 @@
     margin: 2px 0 8px;
 }
 
-.pd-places {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding: 2px 0 8px;
-    scrollbar-width: none;
-}
-
-.pd-places button {
-    flex: none;
-    padding: 6px 12px;
-    border: 1px solid var(--hair);
-    border-radius: 999px;
-    background: none;
-    color: var(--muted);
-    font: inherit;
-    font-size: 13.5px;
-    cursor: pointer;
-}
-
-.pd-places button.on {
-    border-color: var(--accent);
-    color: var(--text);
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
 .pd-search {
     display: flex;
+    gap: 8px;
     margin: 4px 0 8px;
 }
 
 .pd-search input {
     flex: 1;
     min-width: 0;
+}
+
+/* Where (Mine, Team, a board): a drop-down beside the search, at most a third of the row on a phone. */
+.pd-place {
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 45%;
+    min-width: 0;
+    text-overflow: ellipsis;
 }
 
 .pd-actions {
@@ -196,9 +180,22 @@
     border-radius: var(--r-card, 10px);
 }
 
+/* On a phone, who saved a page and when goes under its title rather than away (History needs it most). */
 @media (max-width: 520px) {
-    .pd-row-meta {
-        display: none;
+    .pd-page-row,
+    .pd-version .pd-row {
+        flex-wrap: wrap;
+        row-gap: 0;
+    }
+
+    .pd-page-row .pd-row-meta,
+    .pd-version .pd-row-meta {
+        flex-basis: 100%;
+        padding-left: 21px;
+    }
+
+    .pd-version .pd-row-meta {
+        padding-left: 0;
     }
 }
 
@@ -210,9 +207,50 @@
 }
 
 .pd-image-model {
-    margin-top: 16px;
+    margin-top: 18px;
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.pd-image-model summary {
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pd-image-model .field {
+    margin-top: 10px;
 }
 
 .pd-image-model .pd-meta {
     margin: 4px 0 0;
+}
+
+/* A page's actions sit under its title. */
+.pd-page-acts {
+    margin: 0 0 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--hair);
+}
+
+/* The editor's bar stays in reach under a long text. */
+.pd-editor-acts {
+    position: sticky;
+    bottom: 0;
+    margin: 0;
+    padding: 8px 0;
+    background: var(--bg);
+}
+
+.pd-history h3 {
+    margin: 2px 0 8px;
+}
+
+.pd-version {
+    border-bottom: 1px solid var(--hair);
+}
+
+.pd-version .pd-row {
+    border-bottom: 0;
 }

@@ -3,7 +3,7 @@
 // shell's (`window.PiPhoneApp`, MainActivity's bridge), only inside the app. Laid out as the Providers sheet.
 import { useState } from "preact/hooks";
 import { downloadFile } from "../download.js";
-import { api, attempt, closeSheet, notify } from "../store.js";
+import { api, attempt, closeSheet, notify, store } from "../store.js";
 import { html, Sheet } from "../ui.js";
 
 export function PhoneSheet() {
@@ -48,7 +48,10 @@ export function PhoneSheet() {
         });
     };
 
-    return html`<${Sheet} title="This phone" onClose=${closeSheet}>
+    // On the team server there is no phone: only the backup, named for what it is (PP-62).
+    const gateway = store.state.server?.gateway === true;
+
+    return html`<${Sheet} title=${gateway ? "Backup" : "This phone"} onClose=${closeSheet}>
         <div class="sheet-list">
             ${
                 app &&
@@ -85,7 +88,7 @@ export function PhoneSheet() {
                 <div>
                     <div>Backup</div>
                     <div class="muted small">
-                        Sessions, settings, machines, themes, SSH keys, and sign-ins (Claude, GitHub) in one file, for a new phone or a reinstall. Keep it private: it can sign in as you.
+                        Sessions, settings, machines, themes, SSH keys, and sign-ins (Claude, GitHub) in one file, ${gateway ? "to keep or to move" : "for a new phone or a reinstall"}. Keep it private: it can sign in as you.
                     </div>
                 </div>
                 <div class="provider-actions">

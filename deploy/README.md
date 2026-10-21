@@ -102,7 +102,7 @@ Then use it as the README's "Use it" says. Pi can change settings for you on a c
 
 - **Update:** `git pull` in the clone, then `docker compose up -d --build` (with the same `PI_HOST`). Sessions resume where
   they stopped.
-- **Back up:** ⋯ › This phone › Back up, as on the phone. Or copy the `pi-phone-data` volume while it is stopped.
+- **Back up:** ⋯ › Backup › Back up (on the phone it is ⋯ › This phone). Or copy the `pi-phone-data` volume while it is stopped.
 - **Restart:** the app's own restart (Pi's `app_action server.restart`, after your OK) exits the server; Docker starts it
   again (`restart: unless-stopped`).
 

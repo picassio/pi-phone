@@ -25,14 +25,18 @@ body {
 }
 
 main {
-    max-width: 520px;
+    max-width: 640px;
     margin: 0 auto;
-    padding: calc(28px + env(safe-area-inset-top)) 18px 48px;
+    padding: calc(14px + env(safe-area-inset-top)) 16px 48px;
 }
 
 h1 {
-    margin: 0 0 4px;
-    font-size: 1.45rem;
+    margin: 22px 0 4px;
+    font-size: 1.4rem;
+}
+
+.lede {
+    margin: 0 0 6px;
 }
 
 h2 {
@@ -44,12 +48,13 @@ h2 {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 18px;
+    color: var(--text);
+    text-decoration: none;
 }
 
 .brand img {
-    width: 36px;
-    height: 36px;
+    width: 30px;
+    height: 30px;
     border-radius: 24%;
 }
 
@@ -233,4 +238,324 @@ details[open] > summary {
 .row > label {
     flex: 1;
     min-width: 120px;
+}
+
+/* The top bar and the pages as tabs (PP-62): one row each; the tabs scroll sideways on a phone. */
+.top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+}
+
+.tabs {
+    display: flex;
+    gap: 4px;
+    margin: 12px -16px 0;
+    padding: 0 16px 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--hair);
+    /* Tabs off the edge fade out, so the strip reads as one that scrolls. */
+    mask-image: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 24px), transparent);
+}
+
+.tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.tab {
+    flex: none;
+    padding: 9px 12px 10px;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.92rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.tab[aria-current="page"] {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
+button.small,
+.button.small {
+    min-height: 32px;
+    padding: 4px 11px;
+    border-radius: 8px;
+    font-size: 0.86rem;
+}
+
+.small {
+    font-size: 0.86rem;
+}
+
+/* No empty space at the top or bottom of a card. */
+.card > :first-child {
+    margin-top: 0;
+}
+
+.card > :last-child {
+    margin-bottom: 0;
+}
+
+.tag.bad {
+    color: var(--bad);
+    border-color: color-mix(in srgb, var(--bad) 45%, var(--hair));
+}
+
+/* An account on People: who, their role and Always on, then small actions. */
+.person {
+    display: grid;
+    gap: 10px;
+}
+
+.person-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.person-head b {
+    display: block;
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.person-set {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
+}
+
+label.inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+label.inline select {
+    width: auto;
+    min-height: 34px;
+    padding: 4px 10px;
+}
+
+.actions:empty {
+    display: none;
+}
+
+.signout {
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px solid var(--hair);
+}
+
+/* A form's error line takes no room until there is one. */
+.error:empty {
+    display: none;
+}
+
+/* A role (or New role) that opens: its name, chips in normal weight, a chevron at the right. */
+details > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+    display: none;
+}
+
+details > summary::after {
+    content: "";
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-left: 4px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: rotate(-45deg);
+    transition: transform 0.15s;
+}
+
+details[open] > summary::after {
+    transform: rotate(45deg);
+}
+
+details > summary .tag {
+    font-weight: 400;
+}
+
+.grow {
+    flex: 1;
+    min-width: 0;
+}
+
+.new-role > summary {
+    color: var(--accent);
+}
+
+.delete-role {
+    margin-top: 12px;
+}
+
+fieldset label.check code,
+label.check .muted {
+    font-size: 0.8rem;
+}
+
+/* The audit log: one card, thin lines between entries. */
+.log {
+    padding: 0 16px;
+}
+
+.log-row {
+    padding: 10px 0;
+    border-top: 1px solid var(--hair);
+}
+
+.log-row:first-child {
+    border-top: 0;
+}
+
+/* The Server page's figures: three tiles in a row. */
+.stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.stat {
+    display: grid;
+    gap: 2px;
+    padding: 12px 14px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r);
+    background: var(--card);
+}
+
+.stat b {
+    font-size: 1.4rem;
+    line-height: 1.1;
+}
+
+/* A short number field with its note beside it. */
+.inline-field {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.inline-field label {
+    flex: 1 1 auto;
+}
+
+.inline-field input {
+    max-width: 120px;
+}
+
+/* A card that is a link (Shared with me): a card, not underlined text; a chevron says it opens. */
+a.card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text);
+    text-decoration: none;
+}
+
+a.card::after {
+    content: "";
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-left: auto;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: rotate(-45deg);
+}
+
+a.card:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--hair));
+}
+
+a.card .muted {
+    display: block;
+}
+
+.tag.key {
+    font: 600 0.78rem ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--accent);
+}
+
+p.small:empty {
+    display: none;
+}
+
+/* Signed out: the brand over one card, narrow, a little down from the top. */
+main.solo {
+    max-width: 420px;
+    padding-top: calc(8vh + env(safe-area-inset-top));
+}
+
+main.solo > .top {
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+main.solo > h1,
+main.solo > .lede {
+    text-align: center;
+}
+
+main.solo > form {
+    margin-top: 18px;
+    padding: 20px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r);
+    background: var(--card);
+}
+
+/* Under the card: "or", then the passkey (or the other code) as a full-width button. */
+main.solo > .or {
+    margin: 14px 0 0;
+    text-align: center;
+}
+
+main.solo > button,
+main.solo > .button {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    text-align: center;
+}
+
+/* On a wide screen a form's button is as wide as its words, at the left; a phone keeps it full width. */
+@media (min-width: 600px) {
+    main:not(.solo) form > button[type="submit"] {
+        justify-self: start;
+        min-width: 120px;
+    }
+}
+
+/* Two short fields side by side (an invite's role and how long it lasts). */
+.pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
 }

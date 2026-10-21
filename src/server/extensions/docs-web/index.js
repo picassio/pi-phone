@@ -35,6 +35,11 @@ function base64Of(file) {
     });
 }
 
+/** A moment, short: "Oct 21, 14:05". */
+function when(ms) {
+    return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 function ago(ms) {
     const minutes = Math.max(1, Math.round((Date.now() - ms) / 60_000));
 
@@ -241,12 +246,8 @@ export default function documents(pocket) {
             )}`;
         };
 
+        // Where (Mine, Team, a board) is a drop-down beside the search, not a row of chips that runs off a phone (PP-62).
         return html`<div class="pd-home">
-            <div class="pd-places" role="tablist" aria-label="Where">
-                ${scopes.map(
-                    (scope) => html`<button role="tab" aria-selected=${scope.id === current.id} class=${scope.id === current.id ? "on" : ""} onClick=${() => choose(scope.id)}>${scope.name}</button>`,
-                )}
-            </div>
             <form
                 class="pd-search"
                 onSubmit=${(event) => {
@@ -257,7 +258,10 @@ export default function documents(pocket) {
                     }
                 }}
             >
-                <input type="search" placeholder="Search all your documents" aria-label="Search all your documents" value=${query} onInput=${(event) => setQuery(event.currentTarget.value)} />
+                <select class="pd-place" aria-label="Where" value=${current.id} onChange=${(event) => choose(event.currentTarget.value)}>
+                    ${scopes.map((scope) => html`<option value=${scope.id}>${scope.name}</option>`)}
+                </select>
+                <input type="search" placeholder="Search everywhere" aria-label="Search all your documents" value=${query} onInput=${(event) => setQuery(event.currentTarget.value)} />
             </form>
             ${
                 current.write &&
@@ -294,14 +298,17 @@ export default function documents(pocket) {
 
         const choose = (model) => pocket.api("image-model", { model: model === "" ? null : model }).then((answer) => setState({ ...state, model: answer.model }), failed);
 
-        return html`<label class="field pd-image-model">
+        return html`<details class="pd-image-model">
+            <summary>Image search: ${state.model ?? "by name only"}</summary>
+            <label class="field">
             <span class="label">Describe images with</span>
             <select value=${state.model ?? ""} onChange=${(event) => choose(event.currentTarget.value)}>
                 <option value="">No model (images are found by name only)</option>
                 ${state.models.map((model) => html`<option value=${model}>${model}</option>`)}
             </select>
             <span class="pd-meta">So search finds pictures by what they show${state.team ? " (yours; the team's are set on the server)" : ""}. Each image is sent to this model once; its cost shows in Spend.</span>
-        </label>`;
+            </label>
+        </details>`;
     }
 
     function Search({ query, go }) {
@@ -363,6 +370,13 @@ export default function documents(pocket) {
             <p class="pd-crumb">${[place, ...page.path].join(" › ")}</p>
             <h2>${page.title}</h2>
             <p class="pd-meta">Last saved by ${page.updatedByName}, ${ago(page.updatedAt)} ago</p>
+            <div class="pd-actions pd-page-acts">
+                ${write && html`<button class="button small" onClick=${() => go({ kind: "edit", scope, id, folderId: page.folderId, title: page.title, body: page.body })}>Edit</button>`}
+                <button class="button small" onClick=${() => go({ kind: "history", scope, id })}>History</button>
+                <button class="button primary small" onClick=${ask}>Ask Pi</button>
+                <span class="pd-sp"></span>
+                ${write && html`<button class="link danger small" onClick=${remove}>Delete</button>`}
+            </div>
             <${DocMarkdown} scope=${scope} text=${page.body} />
             ${
                 links.length > 0 &&
@@ -371,13 +385,6 @@ export default function documents(pocket) {
                     ${links.map((link) => html`<button class="link" key=${link.id} onClick=${() => go({ kind: "page", scope, id: link.id })}>${link.title}</button>`)}
                 </div>`
             }
-            <div class="pd-actions">
-                ${write && html`<button class="button" onClick=${() => go({ kind: "edit", scope, id, folderId: page.folderId, title: page.title, body: page.body })}>Edit</button>`}
-                <button class="button" onClick=${() => go({ kind: "history", scope, id })}>History</button>
-                ${write && html`<button class="button ghost" onClick=${remove}>Delete</button>`}
-                <span class="pd-sp"></span>
-                <button class="button primary" onClick=${ask}>Ask Pi</button>
-            </div>
         </article>`;
     }
 
@@ -483,10 +490,11 @@ export default function documents(pocket) {
                     event.currentTarget.value = "";
                 }}
             />
-            <div class="pd-actions">
-                <button class="button" onClick=${() => setPreview(!preview)}>${preview ? "Edit" : "Preview"}</button>
-                <button class="button" disabled=${adding > 0} onClick=${() => picker.current?.click()}>${adding > 0 ? "Adding…" : "Image"}</button>
-                <button class="button primary" disabled=${busy || title.trim() === ""} onClick=${save}>${busy ? "Saving…" : "Save"}</button>
+            <div class="pd-actions pd-editor-acts">
+                <button class="button small" onClick=${() => setPreview(!preview)}>${preview ? "Edit" : "Preview"}</button>
+                <button class="button small" disabled=${adding > 0} onClick=${() => picker.current?.click()}>${adding > 0 ? "Adding…" : "+ Image"}</button>
+                <span class="pd-sp"></span>
+                <button class="button primary small" disabled=${busy || title.trim() === ""} onClick=${save}>${busy ? "Saving…" : "Save"}</button>
             </div>
         </div>`;
     }
@@ -512,12 +520,12 @@ export default function documents(pocket) {
                 (version, index) => html`<div class="pd-version" key=${version.id}>
                     <button class="pd-row" onClick=${() => call(scope, "version", id, version.id).then(setShown, failed)}>
                         <span class="pd-row-title">${version.title}${index === 0 ? " (now)" : ""}</span>
-                        <span class="pd-row-meta">${version.byName} · ${new Date(version.at).toLocaleString()}</span>
+                        <span class="pd-row-meta">${version.byName} · ${when(version.at)}</span>
                     </button>
                     ${write && index > 0 && html`<button class="button small" onClick=${() => restore(version)}>Bring back</button>`}
                 </div>`,
             )}
-            ${shown && html`<div class="pd-shown"><p class="pd-meta">${shown.title} · ${shown.byName}, ${new Date(shown.at).toLocaleString()}</p><${DocMarkdown} scope=${scope} text=${shown.body} /></div>`}
+            ${shown && html`<div class="pd-shown"><p class="pd-meta">${shown.title} · ${shown.byName}, ${when(shown.at)}</p><${DocMarkdown} scope=${scope} text=${shown.body} /></div>`}
         </div>`;
     }
 

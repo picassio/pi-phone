@@ -507,7 +507,7 @@ export function MenuSheet({ places = true }) {
             ${me?.role === "owner" && allowed("browser.use") && item("Pi's browser", () => openSheet({ type: "browser" }), "how browser_run decides each step")}
             ${me?.role === "owner" && allowed("secrets.use") && item("Secrets", () => openSheet({ type: "secrets" }), "keys Pi uses without seeing")}
             ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
-            ${me?.role === "owner" && allowed("settings.change") && item("This phone", () => openSheet({ type: "phone" }), "notifications, screen off, backup")}
+            ${me?.role === "owner" && allowed("settings.change") && (server?.gateway ? item("Backup", () => openSheet({ type: "phone" }), "your sessions and settings, in one file") : item("This phone", () => openSheet({ type: "phone" }), "notifications, screen off, backup"))}
             ${
                 // The Android shell's bridge (android/.../MainActivity.java): only inside the app.
                 me?.role === "owner" &&

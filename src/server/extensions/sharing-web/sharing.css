@@ -1,13 +1,28 @@
-/* Sharing sessions with teammates (PP-58): the Share sheet and Shared with me. */
+/* Sharing sessions with teammates (PP-58, laid out again in PP-62): the Share sheet and Shared with me. */
 .sh-sheet {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
 }
 
-.sh-sheet > p {
+.sh-sheet p {
     margin: 0;
     line-height: 1.5;
+}
+
+.sh-sheet section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sh-h {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
 }
 
 .sh-warn {
@@ -18,6 +33,108 @@
     color: var(--text);
 }
 
+/* Who it is shared with: a card each, its name and Stop sharing, then what they may do. */
+.sh-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sh-share {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-row);
+    background: var(--card);
+}
+
+.sh-share-head,
+.sh-share-set {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+}
+
+.sh-share-head b {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.sh-machines {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Can write or Can watch, for a new teammate: two cards that say what each means. */
+.sh-levels {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.sh-level {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-row);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sh-level span {
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.4;
+}
+
+.sh-level.on {
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+}
+
+/* The switch lines up with the fields above it. */
+.sh-switch {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.sh-switch .setting-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    font-size: 14px;
+}
+
+.sh-switch .setting-text span + span {
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.sh-go {
+    width: 100%;
+}
+
+.sh-foot {
+    padding-top: 12px;
+    border-top: 1px solid var(--hair);
+    font-size: 12.5px;
+}
+
+/* Shared with me: a row each, its name and who shared it, and Continue in mine. */
 .sh-row {
     flex-wrap: wrap;
     gap: 8px 10px;
@@ -28,18 +145,12 @@
     min-width: 0;
 }
 
-.sh-add {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.sh-actions {
-    display: flex;
-    justify-content: flex-end;
-}
-
 .sh-link {
     color: inherit;
     text-decoration: none;
+}
+
+/* On a card, the level switch needs the page's colour behind it to show as one. */
+.sh-share .segmented {
+    background: var(--bg);
 }
