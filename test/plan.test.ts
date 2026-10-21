@@ -76,6 +76,21 @@ test("in plan mode only reading tools pass", () => {
         assert.equal(blockedInPlanMode(tool, {}), undefined, tool);
     }
     assert.match(blockedInPlanMode("wiki_migrate", {}) ?? "", /Plan mode is on/);
+    // Boards and sessions, only read (PP-36), and lists of tools whose other actions change things.
+    for (const tool of ["project_list", "task_list", "task_get", "task_diff", "sessions", "session_read", "session_wait", "pi_sessions"]) {
+        assert.equal(blockedInPlanMode(tool, { task: "PP-1" }), undefined, tool);
+    }
+    for (const tool of ["approvals", "schedule", "watch_ci"]) {
+        assert.equal(blockedInPlanMode(tool, { action: "list" }), undefined, `${tool} list`);
+    }
+    assert.equal(blockedInPlanMode("board_settings", {}), undefined, "board settings, read");
+    assert.match(blockedInPlanMode("board_settings", { closer: "pi" }) ?? "", /Plan mode is on/, "board settings, changed");
+    assert.match(blockedInPlanMode("approvals", { action: "deny", id: "x" }) ?? "", /Plan mode is on/);
+    assert.match(blockedInPlanMode("schedule", { action: "add", when: "in 1h", message: "x" }) ?? "", /Plan mode is on/);
+    assert.match(blockedInPlanMode("watch_ci", { action: "start" }) ?? "", /Plan mode is on/);
+    for (const tool of ["task_update", "task_create", "task_comment", "task_run", "session_send", "session_stop", "project_share"]) {
+        assert.match(blockedInPlanMode(tool, {}) ?? "", /Plan mode is on/, tool);
+    }
     assert.match(
         blockedInPlanMode("write", { path: "a", content: "" }) ?? "",
         /^Plan mode is on: The write tool can change things/,

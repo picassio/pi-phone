@@ -67,7 +67,19 @@ const ALWAYS_ALLOWED = new Set([
     "settings",
     // Only looks: a picture of a page.
     "screenshot",
+    // Only read (PP-36; the owner, 2026-10-21: "plan mode should be able to use all readonly tools"): boards, sessions,
+    // and Pi's terminal sessions.
+    "project_list",
+    "task_list",
+    "task_get",
+    "task_diff",
+    "sessions",
+    "session_read",
+    "session_wait",
+    "pi_sessions",
 ]);
+/** Tools that only read when asked to list (their other actions change things). */
+const LISTS = new Set(["approvals", "schedule", "watch_ci"]);
 /** What the browser may do in plan mode: look at pages, not act on them. */
 const BROWSER_LOOKS = new Set([
     "navigate",
@@ -314,6 +326,15 @@ export function blockedInPlanMode(
     readOnly = false,
 ): string | undefined {
     if (ALWAYS_ALLOWED.has(tool) || readOnly) {
+        return undefined;
+    }
+
+    if (LISTS.has(tool) && args.action === "list") {
+        return undefined;
+    }
+
+    // Board mode's settings, asked with nothing to change: only read.
+    if (tool === "board_settings" && args.closer === undefined && args.rules === undefined) {
         return undefined;
     }
 
