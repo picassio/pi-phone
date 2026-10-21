@@ -603,6 +603,21 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   - **Lookups:** the store's internal ones (taskById, projectById, allProjects, sessionsOf) only show what the
     person sees.
   - **Removing an account** calls `forgetPerson`.
+- **Pi-phones on the board service** (PP-40, `remote-boards.ts`):
+  - **The switch:** behind a gateway (`host.teamServer`: `PI_PHONE_GATEWAY_URL` from the controller, plus the owner
+    token), `Boards` is `remoteBoards`, and every board call goes to the gateway.
+  - **The mirror:** each pi-phone mirrors the boards its person sees into its own store (`Projects.mirror`), so the
+    personal parts work unchanged. It follows in full on start (`sync`), after each write, and on the gateway's push
+    (`POST /api/x/projects/changed`, which the gateway refuses from browsers). A board no longer seen is
+    `unmirror`ed: its runs are stopped, and their sessions are told.
+  - **Personal fields** are kept here only (`personalOf`, `setPersonal`) and laid over answers. `update` splits them
+    off.
+  - **Sessions:** the pi-phone's own come back as plain numbers; others' stay `<key>:<n>`.
+  - **Pushes:** the gateway tells every running pi-phone about each change, so one taken off a board lets it go. A
+    task given to someone's own Pi ("pi" from them becomes `pi:<id>`) starts their pi-phone, with its policy, and
+    reaches only them.
+  - **Runs** act as this pi-phone's own person (`Team.#person`). Queueing a run also gives the task to the person's own
+    Pi on the gateway.
   - agent-board's five types and hierarchy (Epic → Story/Task/Bug; Story → Task/Bug/Sub-task; Task, Bug → Sub-task)
     and its eight states. The store keeps what must hold whatever a model does: who sees a project (the owner all;
     others the ones they own or are members of; viewers only read), the hierarchy (no circles), Done only after a

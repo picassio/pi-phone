@@ -177,7 +177,7 @@ test("a person's pi-phone: its own network, volume, and a container with fixed o
 
     assert.equal(create.path, "/containers/create?name=pp-user-abc123");
     assert.equal(create.body!.Image, "pi-phone-server:local", "the one image");
-    assert.deepEqual(create.body!.Env, [`PI_PHONE_OWNER_TOKEN=${token}`, "PI_PHONE_GATEWAY=1", "TZ=Asia/Saigon"]);
+    assert.deepEqual(create.body!.Env, [`PI_PHONE_OWNER_TOKEN=${token}`, "PI_PHONE_GATEWAY=1", "PI_PHONE_GATEWAY_URL=http://pi-phone-gateway:8081", "TZ=Asia/Saigon"]);
     assert.deepEqual(host.CapDrop, ["ALL"]);
     assert.deepEqual(host.SecurityOpt, ["no-new-privileges"]);
     assert.equal(host.Privileged, false);

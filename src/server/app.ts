@@ -275,6 +275,11 @@ export interface OpenOptions {
      * offers the gateway's account page for them.
      */
     gateway?: boolean;
+    /**
+     * The gateway's internal address (PP-40), for the services pi-phones share there (the team's boards). Given with
+     * `ownerToken`, which is how the gateway knows this pi-phone.
+     */
+    gatewayUrl?: string;
 }
 
 /** A send limit as given: a whole number of 1 to 10000 an hour, or null for none. */
@@ -324,6 +329,8 @@ export class PocketApp {
     readonly supervised: boolean;
     /** Behind the server edition's gateway (`OpenOptions.gateway`). */
     readonly gateway: boolean;
+    /** The team server's gateway, for the services pi-phones share (PP-40); undefined elsewhere. */
+    readonly #teamServer: { url: string; token: string } | undefined;
     /** The person's role's policy, from the gateway (`policy.ts`, PP-22). */
     readonly policy: PolicyStore;
     readonly startedAt = Date.now();
@@ -437,6 +444,7 @@ export class PocketApp {
         this.defaultCwd = options.defaultCwd;
         this.supervised = options.supervised;
         this.gateway = options.gateway === true;
+        this.#teamServer = options.gatewayUrl !== undefined && options.ownerToken !== undefined ? { url: options.gatewayUrl.replace(/\/+$/, ""), token: options.ownerToken } : undefined;
         this.config = new ConfigStore(options.dataDir, options.ownerToken === undefined ? {} : { ownerToken: options.ownerToken });
         // The app's own ssh (`ssh/` in the data folder): its agent holds the keys, which the database keeps.
         const sshDir = join(options.dataDir, "ssh");
@@ -845,6 +853,7 @@ export class PocketApp {
             policy: this.policy,
             web: this.web,
             envOf: (cwd) => this.places.env(cwd),
+            teamServer: this.#teamServer,
             wikiCapture: this.paraCapture,
             goals: this.goals,
             text: Object.freeze({ quoted, defang }),

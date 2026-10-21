@@ -540,6 +540,16 @@ export class Team {
     }
 
     #person(id: string): Person {
+        // On the team server a board's owner is someone's account there (or the team): its runs here are this pi-phone's
+        // own person's (PP-40).
+        if (this.#host.teamServer !== undefined) {
+            const me = this.#host.people().find((each) => each.role === "owner");
+
+            if (me !== undefined) {
+                return me;
+            }
+        }
+
         const person = this.#host.people().find((each) => each.id === id);
 
         if (person === undefined) {

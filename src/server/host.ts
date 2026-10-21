@@ -298,6 +298,11 @@ export interface PocketHost {
     readonly policy: PolicyStore;
     /** Web search's provider and keys (`web/access.ts`), as Settings › Web access has them. */
     readonly web: WebSearch;
+    /**
+     * The team server's gateway (PP-40): its internal address, and this pi-phone's token there, for the services
+     * pi-phones share (the team's boards). Undefined on the phone and a single-owner server.
+     */
+    readonly teamServer: { url: string; token: string } | undefined;
     /** Where commands run for a session in `cwd`, its output not redacted: for `secret_save` to read a value. */
     envOf(cwd: string): ExecutionEnv;
     /** Capture of idle sessions into the wiki (`para-capture.ts`). */

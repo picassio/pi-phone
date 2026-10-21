@@ -23,6 +23,7 @@ import { CATALOGUE, checkRole, OWNER_ROLE, type Permission } from "./roles.ts";
 import { type GatewayStore, INVITE_MINUTES } from "./store.ts";
 import { type TarEntry, tarStream } from "./tar.ts";
 import type { BoardService } from "./boards.ts";
+import type { Task } from "../server/projects.ts";
 import { HttpError } from "../server/errors.ts";
 
 /** What the gateway asks the controller (`src/controller/`): a person's pi-phone, by key. */
@@ -61,7 +62,7 @@ const ICON_DIR = resolve(import.meta.dirname, "..", "..", "web");
 const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png" };
 
 /** pi-phone's routes for signing in and managing people: the gateway does these, so they never reach a container. */
-const REFUSED = [/^\/login(\/|$|\?)/, /^\/recover(\/|$|\?)/, /^\/api\/(invite|recovery-code|devices|users|sign-out-everywhere|logout|access|tailscale|policy|activity)(\/|$|\?)/];
+const REFUSED = [/^\/api\/x\/projects\/changed(\/|$|\?)/, /^\/login(\/|$|\?)/, /^\/recover(\/|$|\?)/, /^\/api\/(invite|recovery-code|devices|users|sign-out-everywhere|logout|access|tailscale|policy|activity)(\/|$|\?)/];
 
 /** How long a pi-phone found running is taken as running, before the controller is asked again. */
 const READY_MS = 60_000;
@@ -90,6 +91,59 @@ export class Gateway {
         this.#authHandler = toNodeHandler(options.auth);
         this.#now = options.now ?? Date.now;
         this.#since = this.#now();
+        // A board changed: every running pi-phone hears (one taken off it too, so it lets it go), and a task given to
+        // someone's Pi starts their pi-phone on it (PP-40).
+        options.boards.onChange((projectId) => void this.#tellBoards(projectId));
+        options.boards.onAssignedToPi((task) => void this.#toTheirPi(task));
+    }
+
+    /** Tell the running pi-phones a board changed (they refresh their mirror of it); `only`: just that one. */
+    async #tellBoards(projectId: string, assigned?: Task, only?: string): Promise<void> {
+        const body = JSON.stringify({ projectId, ...(assigned === undefined ? {} : { assigned }) });
+
+        for (const [key, place] of this.#ready) {
+            const box = this.#options.store.boxByKey(key);
+
+            if (box === undefined || (only !== undefined && key !== only)) {
+                continue;
+            }
+
+            await new Promise<void>((done) => {
+                const sent = httpRequest(
+                    { host: place.host, port: place.port, method: "POST", path: "/api/x/projects/changed", timeout: 5000, headers: { host: `${place.host}:${place.port}`, authorization: `Bearer ${box.token}`, "x-pocket": "1", "content-type": "application/json", "content-length": Buffer.byteLength(body) } },
+                    (answer) => {
+                        answer.resume();
+                        done();
+                    },
+                );
+
+                sent.on("error", () => done());
+                sent.on("timeout", () => sent.destroy());
+                sent.end(body);
+            });
+        }
+    }
+
+    /** A task given to someone's own Pi: their pi-phone, started if it is not running, with their role's policy, hears. */
+    async #toTheirPi(task: Task): Promise<void> {
+        const userId = String(task.assignee).slice("pi:".length);
+        const person = this.#options.store.users().find((each) => each.id === userId);
+
+        if (person === undefined || person.banned || !this.#options.store.can(person.id, person.role, "pi.use")) {
+            return;
+        }
+
+        try {
+            const upstream = await this.#upstream(person);
+
+            for (let tries = 0; tries < 15 && !(await this.#policy(person, upstream)); tries++) {
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+
+            await this.#tellBoards(task.projectId, task, this.#options.store.box(userId).key);
+        } catch (error) {
+            this.#options.log(`gateway: ${task.ref} to ${userId}'s Pi: ${String(error)}`);
+        }
     }
 
     /** A request or WebSocket to a person's pi-phone opened (+1) or ended (-1). */
@@ -403,7 +457,8 @@ export class Gateway {
             if (path === "/internal/boards" && request.method === "POST") {
                 const body = await readBody(request);
 
-                return json(response, 200, { value: this.#options.boards.call(box, body as never) ?? null });
+                // With the pi-phone's own key, which its sessions on the boards carry (`<key>:<number>`).
+                return json(response, 200, { value: this.#options.boards.call(box, body as never) ?? null, key: box.key });
             }
 
             return json(response, 404, { error: "No such route." });

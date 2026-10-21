@@ -9,6 +9,7 @@ import { type Static, type TSchema, Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { ExtensionWeb, PocketHost, WebRequest } from "../host.ts";
 import { localBoards } from "../boards.ts";
+import { remoteBoards } from "../remote-boards.ts";
 import { HttpError } from "../errors.ts";
 import { LEAD_RULES, Team, taskRules } from "../project-runs.ts";
 import {
@@ -87,8 +88,31 @@ function line(task: BoardTask): string {
 export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     const people = (): Person[] => host.people();
     const projects = new Projects(host.dataDir, people);
-    // The shared part of the boards (`boards.ts`): the local store here.
-    const boards = localBoards(projects);
+    // The shared part of the boards (`boards.ts`): the team server's board service behind its gateway (PP-40), mirrored
+    // here; else the local store.
+    const me = () => people().find((person) => person.role === "owner");
+    const remote =
+        host.teamServer === undefined
+            ? undefined
+            : remoteBoards({
+                  url: host.teamServer.url,
+                  token: host.teamServer.token,
+                  projects,
+                  // A board no longer shared: its runs here stopped; their sessions are told to stop too.
+                  stopped: (runs, board) => {
+                      for (const run of runs.filter((each) => each.conversationId !== null)) {
+                          void host
+                              .sendToSession({
+                                  userId: me()?.id ?? "",
+                                  session: Number(run.conversationId),
+                                  message: `${board} is no longer shared with you, so this task's run is stopped: stop working on it. What you did stays on branch ${run.branch ?? "?"} at ${run.worktree ?? "?"}.`,
+                                  via: "the board",
+                              })
+                              .catch((error: unknown) => host.notice("warning", `Projects: ${board}: telling session #${run.conversationId}: ${String(error)}`));
+                      }
+                  },
+              });
+    const boards = remote ?? localBoards(projects);
     const view = { access: "view" as const };
     const steer = { access: "steer" as const };
 
@@ -104,6 +128,14 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     web.client("projects-web", view);
     // Open boards follow changes as they happen.
     boards.onChange((projectId) => web.send("changed", { projectId }));
+
+    if (remote !== undefined) {
+        // Every board this person sees, mirrored here before the team works on them.
+        void remote
+            .sync()
+            .then(() => team.pump())
+            .catch((error: unknown) => host.notice("warning", `Projects: the team's boards could not be read: ${String(error)}`));
+    }
 
     // ---- Routes: /api/x/projects/... -----------------------------------------------------------------------------
 
@@ -224,11 +256,32 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         },
         view,
     );
+    // The gateway says a board changed, or a task was given to this person's Pi (PP-40). It alone calls this (browsers are
+    // refused it there).
+    route(
+        "POST",
+        "changed",
+        async (request) => {
+            if (remote === undefined || request.user.role !== "owner") {
+                throw new HttpError(404, "No such route.");
+            }
+
+            await remote.received(request.body as never);
+
+            return { ok: true };
+        },
+        steer,
+    );
     route(
         "POST",
         "tasks/:ref/run",
         async (request, actor) => {
             const run = projects.queueRun(actor, request.params.ref!);
+
+            // On the team server, the task is given to this person's own Pi there too.
+            if (remote !== undefined) {
+                await boards.updateTask(actor, request.params.ref!, { assignee: "pi" });
+            }
 
             team.pump();
 
@@ -1043,6 +1096,11 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 }
 
                 const run = projects.queueRun({ kind: "person", person: actor.person }, ref);
+
+                // On the team server, the task is given to this person's own Pi there too.
+                if (remote !== undefined) {
+                    await boards.updateTask({ kind: "person", person: actor.person }, ref, { assignee: "pi" });
+                }
 
                 team.pump();
 

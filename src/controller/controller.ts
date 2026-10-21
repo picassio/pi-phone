@@ -240,7 +240,8 @@ export class Controller {
                 {
                     Image: this.#options.image,
                     Hostname: container,
-                    Env: [`PI_PHONE_OWNER_TOKEN=${token}`, "PI_PHONE_GATEWAY=1", `TZ=${this.#options.timezone ?? "UTC"}`],
+                    // The gateway's internal port (PP-40): the services pi-phones share, reached on the person's own network.
+                    Env: [`PI_PHONE_OWNER_TOKEN=${token}`, "PI_PHONE_GATEWAY=1", `PI_PHONE_GATEWAY_URL=http://${this.#options.gateway}:8081`, `TZ=${this.#options.timezone ?? "UTC"}`],
                     Labels: labels,
                     HostConfig: hostConfig,
                 },

@@ -618,6 +618,122 @@ export class Projects {
         }
     }
 
+    // ---- The team server's mirror (PP-40) --------------------------------------------------------------------------
+
+    /**
+     * A board's shared part as the team server's gateway has it, kept here so that what is personal (runs, places, board
+     * mode, the main session) finds its project and tasks. Only the gateway's copy is changed by rules; this one is
+     * written as it comes, and what is personal on the project (its folder, places, running Pi's tasks by itself, main
+     * session) stays as it is here.
+     */
+    mirror(board: { project: Project; tasks: Task[]; links: TaskLink[] }): void {
+        const { project } = board;
+
+        this.#transaction(() => {
+            // A board here from before with the same key is not this one.
+            this.#db.prepare("DELETE FROM pocket_projects WHERE key = ? AND id != ?").run(project.key, project.id);
+            this.#db
+                .prepare(
+                    `INSERT INTO pocket_projects (id, key, name, owner, labels, rules, open, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ON CONFLICT(id) DO UPDATE SET key = excluded.key, name = excluded.name, owner = excluded.owner, labels = excluded.labels,
+                     rules = excluded.rules, open = excluded.open, updated_at = excluded.updated_at`,
+                )
+                .run(project.id, project.key, project.name, project.owner, JSON.stringify(project.labels), project.rules, project.open ? 1 : 0, project.createdAt, project.updatedAt);
+            this.#db.prepare("DELETE FROM pocket_project_members WHERE project_id = ?").run(project.id);
+
+            for (const id of project.members) {
+                this.#db.prepare("INSERT INTO pocket_project_members (project_id, user_id, role) VALUES (?, ?, ?)").run(project.id, id, project.memberRoles[id] ?? "member");
+            }
+
+            const kept = new Set(board.tasks.map((task) => task.id));
+
+            for (const gone of this.#tasksOf(project.id).filter((task) => !kept.has(task.id))) {
+                this.#db.prepare("DELETE FROM pocket_task_links WHERE from_id = ? OR to_id = ?").run(gone.id, gone.id);
+                this.#db.prepare("DELETE FROM pocket_tasks WHERE id = ?").run(gone.id);
+            }
+
+            for (const task of board.tasks) {
+                this.#db
+                    .prepare(
+                        `INSERT OR REPLACE INTO pocket_tasks (id, project_id, number, type, title, description, state, priority, labels, assignee, start, due,
+                         parent_id, checklist, position, operator_review, fix_verified, blocked_reason, created_by, created_at, updated_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    )
+                    .run(
+                        task.id, project.id, task.number, task.type, task.title, task.description, task.state, task.priority, JSON.stringify(task.labels),
+                        task.assignee, task.start, task.due, task.parent, JSON.stringify(task.checklist), task.position, task.operatorReview ? 1 : 0,
+                        task.fixVerified ? 1 : 0, task.blockedReason, task.createdBy, task.createdAt, task.updatedAt,
+                    );
+                this.#db.prepare("DELETE FROM pocket_task_links WHERE from_id = ?").run(task.id);
+            }
+
+            for (const link of board.links) {
+                this.#db.prepare("INSERT OR IGNORE INTO pocket_task_links (from_id, to_id, kind) VALUES (?, ?, ?)").run(link.from, link.to, link.kind);
+            }
+        });
+        this.#changed(project.id);
+    }
+
+    /**
+     * A board this person no longer sees (unshared, left, deleted): gone from here. Runs of its tasks that wait or work
+     * are stopped (their worktrees and branches stay where they are), and sessions on it leave board mode. The runs
+     * stopped are returned, so their sessions can be told.
+     */
+    unmirror(projectId: string): Run[] {
+        const stopped = this.runsOf(projectId).filter((run) => (ACTIVE_RUNS as readonly string[]).includes(run.state));
+        const now = this.#now();
+
+        this.#transaction(() => {
+            for (const run of stopped) {
+                this.#db.prepare("UPDATE pocket_task_runs SET state = 'stopped', note = ?, ended_at = ? WHERE id = ?").run("Its board is no longer shared with you.", now, run.id);
+            }
+
+            for (const task of this.#tasksOf(projectId)) {
+                this.#db.prepare("DELETE FROM pocket_task_links WHERE from_id = ? OR to_id = ?").run(task.id, task.id);
+                this.#db.prepare("DELETE FROM pocket_tasks WHERE id = ?").run(task.id);
+            }
+
+            this.#db.prepare("UPDATE pocket_board_sessions SET on_board = 0, project_id = NULL WHERE project_id = ?").run(projectId);
+            this.#db.prepare("DELETE FROM pocket_project_members WHERE project_id = ?").run(projectId);
+            this.#db.prepare("DELETE FROM pocket_projects WHERE id = ?").run(projectId);
+        });
+        this.#changed(projectId);
+
+        return stopped;
+    }
+
+    /** The ids of the boards mirrored here. */
+    mirrored(): string[] {
+        return this.#allProjects().map((project) => project.id);
+    }
+
+    /** What is personal on a board here (the team server keeps none of it): its folder, places, running Pi's tasks by itself, main session. */
+    personalOf(projectId: string): Pick<Project, "folder" | "places" | "autoRuns" | "mainSession"> | undefined {
+        const project = this.#projectById(projectId);
+
+        return project === undefined ? undefined : { folder: project.folder, places: project.places, autoRuns: project.autoRuns, mainSession: project.mainSession };
+    }
+
+    /** Set what is personal on a board mirrored here. */
+    setPersonal(projectId: string, patch: { folder?: string | null; places?: ProjectPlace[]; autoRuns?: boolean; mainSession?: string | null }): void {
+        const project = this.#projectById(projectId);
+
+        if (project === undefined) {
+            throw new HttpError(404, "That board is not here.");
+        }
+
+        this.#db
+            .prepare("UPDATE pocket_projects SET folder = ?, places = ?, auto_runs = ?, main_session = ? WHERE id = ?")
+            .run(
+                patch.folder === undefined ? project.folder : folderOf(patch.folder),
+                JSON.stringify(patch.places === undefined ? project.places : placesOf(patch.places)),
+                (patch.autoRuns ?? project.autoRuns) ? 1 : 0,
+                patch.mainSession === undefined ? project.mainSession : patch.mainSession,
+                projectId,
+            );
+        this.#changed(projectId);
+    }
+
     /** Tasks of `project` assigned to someone, or to their Pi, go back to nobody, with a comment saying why. */
     #unassign(actor: Actor, project: Project, userId: string): void {
         const name = this.#people().find((person) => person.id === userId)?.name ?? "Someone";

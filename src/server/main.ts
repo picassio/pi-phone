@@ -227,6 +227,7 @@ const opened = await App.open({
     // The server edition's gateway gives each person's container its owner token (PP-21), and is the only one to use it.
     ...(process.env.PI_PHONE_OWNER_TOKEN === undefined ? {} : { ownerToken: process.env.PI_PHONE_OWNER_TOKEN }),
     gateway: process.env.PI_PHONE_GATEWAY === "1",
+    ...(process.env.PI_PHONE_GATEWAY_URL === undefined ? {} : { gatewayUrl: process.env.PI_PHONE_GATEWAY_URL }),
     ...(options.platform === "server"
         ? {
               // Its profile in the home folder: sign-ins stay across restarts.

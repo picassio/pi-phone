@@ -11,7 +11,7 @@
  * itself) is never kept here: each pi-phone keeps its own.
  */
 import { HttpError } from "../server/errors.ts";
-import { type Actor, type Closer, CLOSERS, type Person, type Project, Projects } from "../server/projects.ts";
+import { type Actor, type Closer, CLOSERS, type Person, type Project, Projects, type Task } from "../server/projects.ts";
 import type { GatewayStore, PersonBox } from "./store.ts";
 
 /** A call from a pi-phone: the store method, its arguments without the actor, and when Pi makes it, its session. */
@@ -31,6 +31,15 @@ export class BoardService {
 
     close(): void {
         this.#projects.close();
+    }
+
+    /** Call `listener` when a task is given to a person's own Pi (`pi:<person>`), to start their pi-phone on it (PP-40). */
+    onAssignedToPi(listener: (task: Task) => void): () => void {
+        return this.#projects.onAssignedToPi((task) => {
+            if (task.assignee?.startsWith("pi:") === true) {
+                listener(task);
+            }
+        });
     }
 
     /** Call `listener` with a board's id whenever it changes, to tell its members' pi-phones (PP-40). */
@@ -108,6 +117,12 @@ export class BoardService {
             return project !== undefined && store.list(actor).some((each) => each.id === project.id) ? project : undefined;
         };
         const key = String(args[0] ?? "");
+        // "pi" on the team server is the person's own Pi (their pi-phone runs it), never someone else's.
+        const ownPi = (input: unknown) => {
+            const given = (input ?? {}) as Record<string, unknown>;
+
+            return typeof given.assignee === "string" && given.assignee.trim().toLowerCase() === "pi" ? { ...given, assignee: `pi:${person.id}` } : given;
+        };
 
         switch (call.method) {
             case "list":
@@ -167,9 +182,9 @@ export class BoardService {
 
                 return audited("board deleted", key.toUpperCase(), store.remove(actor, key));
             case "createTask":
-                return store.createTask(actor, key, (args[1] ?? {}) as never);
+                return store.createTask(actor, key, ownPi(args[1]) as never);
             case "updateTask":
-                return store.updateTask(actor, key, (args[1] ?? {}) as never);
+                return store.updateTask(actor, key, ownPi(args[1]) as never);
             case "comment":
                 return store.comment(actor, key, String(args[1] ?? ""));
             case "link":
