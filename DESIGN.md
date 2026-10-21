@@ -577,6 +577,12 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   tasks people and Pi share. Tables `pocket_projects`, `pocket_project_members`, `pocket_tasks`, `pocket_task_links`,
   `pocket_task_comments`, `pocket_task_sessions`, `pocket_task_activity`, `pocket_board_sessions` in `pocket.sqlite`
   (so backups hold them). A project has a key (`PP`); tasks are numbered in it (`PP-12`).
+  - **Shared and personal parts** (PP-38, `boards.ts`):
+    - **Shared:** projects, members, tasks, links, comments, activity, and who worked on what. Everything reaches it
+      through the async `Boards` interface. Here that's `localBoards` on the same store; on the team server it will be
+      the gateway's board service (PP-39).
+    - **Personal:** places, runs, board mode and main sessions stay on `Projects` itself.
+    - **`Team`** takes both.
   - agent-board's five types and hierarchy (Epic → Story/Task/Bug; Story → Task/Bug/Sub-task; Task, Bug → Sub-task)
     and its eight states. The store keeps what must hold whatever a model does: who sees a project (the owner all;
     others the ones they own or are members of; viewers only read), the hierarchy (no circles), Done only after a

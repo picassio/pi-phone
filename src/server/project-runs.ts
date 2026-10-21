@@ -12,6 +12,7 @@ import type { PocketHost } from "./host.ts";
 import { HttpError } from "./errors.ts";
 import { parsePlace, formatPlace } from "./places.ts";
 import { type Actor, type Person, type Project, type ProjectPlace, type Run, STATE_NAMES, type Task, type Projects } from "./projects.ts";
+import type { Boards } from "./boards.ts";
 
 /** A string as one argument to a POSIX shell (Git Bash on Windows too). */
 const quote = (text: string) => `'${text.replace(/'/g, `'\\''`)}'`;
@@ -43,13 +44,16 @@ export const LONG_RUN_MS = 30 * 60_000;
 
 export class Team {
     readonly #projects: Projects;
+    /** The shared part of the boards (`boards.ts`): here, or the team server's board service. */
+    readonly #boards: Boards;
     readonly #host: PocketHost;
     readonly #stops: (() => void)[] = [];
     /** Pumps run one at a time: two at once could give one place's last room to two runs. */
     #pumping: Promise<void> = Promise.resolve();
 
-    constructor(projects: Projects, host: PocketHost) {
+    constructor(projects: Projects, boards: Boards, host: PocketHost) {
         this.#projects = projects;
+        this.#boards = boards;
         this.#host = host;
     }
 
@@ -80,12 +84,12 @@ export class Team {
         this.#stops.push(
             this.#host.onSessionEvent((event) => void this.#ended(event).catch((error: unknown) => this.#warn(error))),
             this.#host.quietSessions((session) => this.#projects.runOfSession(String(session)) !== undefined || this.#projects.projectLedBy(String(session)) !== undefined),
-            this.#projects.onAssignedToPi((task) => void this.#assigned(task).catch((error: unknown) => this.#warn(error))),
+            this.#boards.onAssignedToPi((task) => void this.#assigned(task).catch((error: unknown) => this.#warn(error))),
         );
         this.pump();
         // Sessions of teams from before groups, and any whose project was renamed while this was off.
         void (async () => {
-            for (const project of this.#projects.allProjects()) {
+            for (const project of await this.#boards.allProjects()) {
                 await this.regroup(project);
             }
         })().catch((error: unknown) => this.#warn(error));
@@ -156,7 +160,7 @@ export class Team {
 
     /** A run whose session is gone (deleted): it failed, and its main session hears. */
     async #gone(run: Run, session: number): Promise<void> {
-        const found = this.#projects.taskById(run.taskId);
+        const found = await this.#boards.taskById(run.taskId);
 
         this.#projects.setRun(run.id, { state: "failed", note: "Its session is gone.", endedAt: Date.now() });
 
@@ -173,7 +177,7 @@ export class Team {
 
     /** Report a run working past LONG_RUN_MS, once for this stretch of work. */
     async #long(run: Run, session: number, since: number | undefined, now: number): Promise<void> {
-        const found = this.#projects.taskById(run.taskId);
+        const found = await this.#boards.taskById(run.taskId);
 
         if (since === undefined || now - since < LONG_RUN_MS || this.#longFor.get(run.id) === since || found === undefined) {
             return;
@@ -207,7 +211,7 @@ export class Team {
     /** Start the main session of a project: in its folder, as `person`, leading its board. */
     async startLead(person: Person, key: string): Promise<number> {
         const actor: Actor = { kind: "person", person };
-        const project = this.#projects.project(actor, key);
+        const project = await this.#boards.project(actor, key);
 
         if (project.mainSession !== null && this.#host.sessionTitle(Number(project.mainSession)) !== undefined) {
             throw new HttpError(409, `${project.key} has a main session already: #${project.mainSession}.`);
@@ -225,7 +229,7 @@ export class Team {
             message: `You are the main session of project ${project.key} · ${project.name}. Look at its board (task_list), and say in a few lines what is open, what waits on what, and what you would run first. Then wait: reports from task sessions and tasks given to Pi come here.`,
         });
 
-        this.#projects.update(actor, key, { mainSession: String(session) });
+        await this.#boards.update(actor, key, { mainSession: String(session) });
         this.#projects.setBoardMode(actor, String(session), true, project.key);
         await this.#host.groupSession(session, this.#group(project, "lead"));
 
@@ -306,7 +310,7 @@ export class Team {
 
     async #pump(): Promise<void> {
         for (const run of this.#projects.runsIn(["queued"])) {
-            const found = this.#projects.taskById(run.taskId);
+            const found = await this.#boards.taskById(run.taskId);
 
             if (found === undefined) {
                 continue;
@@ -357,7 +361,7 @@ export class Team {
                 cwd: worktree.folder,
                 title: `${task.ref} · ${task.title}`.slice(0, 80),
                 via: `project ${project.key}`,
-                message: this.#brief(project, task, worktree),
+                message: await this.#brief(project, task, worktree),
             });
         } catch (error) {
             const note = `Its session could not start: ${error instanceof Error ? error.message : String(error)}`;
@@ -377,7 +381,7 @@ export class Team {
             startedAt: Date.now(),
         });
         this.#projects.setBoardMode({ kind: "person", person: owner }, String(session), true, project.key);
-        this.#projects.startWork(task.id, String(session));
+        await this.#boards.startWork(task.id, String(session));
         await this.#host.groupSession(session, this.#group(project, "task"));
     }
 
@@ -416,8 +420,8 @@ export class Team {
     }
 
     /** A task session's first message: the task, and how it works. */
-    #brief(project: Project, task: Task, worktree: { branch: string; base: string }): string {
-        const board = this.#projects.board({ kind: "person", person: this.#person(project.owner) }, project.key);
+    async #brief(project: Project, task: Task, worktree: { branch: string; base: string }): Promise<string> {
+        const board = await this.#boards.board({ kind: "person", person: this.#person(project.owner) }, project.key);
         const here = board.tasks.find((each) => each.id === task.id)!;
         const parent = here.parentRef === null ? undefined : board.tasks.find((each) => each.ref === here.parentRef);
 
@@ -440,7 +444,7 @@ export class Team {
             return;
         }
 
-        const found = this.#projects.taskById(run.taskId);
+        const found = await this.#boards.taskById(run.taskId);
 
         if (found === undefined) {
             return;
@@ -467,7 +471,7 @@ export class Team {
                 await this.#host.settleSession(event.session, "its run finished");
                 await this.#report(
                     project,
-                    `Done: ${task.ref} (${task.title}) is in ${STATE_NAMES[task.state]}. ${this.#summary(task, run, event.text)}\nIts work is on ${where}. Review it, then move it on.`,
+                    `Done: ${task.ref} (${task.title}) is in ${STATE_NAMES[task.state]}. ${await this.#summary(task, run, event.text)}\nIts work is on ${where}. Review it, then move it on.`,
                     from,
                 );
             } else if (task.state === "blocked") {
@@ -493,15 +497,16 @@ export class Team {
     }
 
     /** What a finished task's session said: its last comment on the task, else its last answer. */
-    #summary(task: Task, run: Run, text: string): string {
-        const comments = this.#projects.task({ kind: "person", person: this.#person(this.#projects.projectById(task.projectId)!.owner) }, task.ref).comments;
+    async #summary(task: Task, run: Run, text: string): Promise<string> {
+        const owner = (await this.#boards.projectById(task.projectId))!.owner;
+        const comments = (await this.#boards.task({ kind: "person", person: this.#person(owner) }, task.ref)).comments;
         const last = comments.findLast((comment) => comment.session === run.conversationId);
 
         return `Its summary: ${this.#host.text.quoted(last?.text ?? text, 600)}.`;
     }
 
     async #assigned(task: Task): Promise<void> {
-        const project = this.#projects.projectById(task.projectId);
+        const project = await this.#boards.projectById(task.projectId);
 
         if (project === undefined || this.#projects.activeRun(task.id) !== undefined) {
             return;

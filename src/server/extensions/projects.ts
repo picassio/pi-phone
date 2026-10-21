@@ -8,6 +8,7 @@
 import { type Static, type TSchema, Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { ExtensionWeb, PocketHost, WebRequest } from "../host.ts";
+import { localBoards } from "../boards.ts";
 import { HttpError } from "../errors.ts";
 import { LEAD_RULES, Team, taskRules } from "../project-runs.ts";
 import {
@@ -86,11 +87,13 @@ function line(task: BoardTask): string {
 export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     const people = (): Person[] => host.people();
     const projects = new Projects(host.dataDir, people);
+    // The shared part of the boards (`boards.ts`): the local store here.
+    const boards = localBoards(projects);
     const view = { access: "view" as const };
     const steer = { access: "steer" as const };
 
     // The agent team: runs in worktrees at the project's places, and reports to its main session (`project-runs.ts`).
-    const team = new Team(projects, host);
+    const team = new Team(projects, boards, host);
 
     team.start();
     web.onDispose(() => {
@@ -100,7 +103,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     // The Projects page, the task sheet, and the session menu's board switch (`projects-web/`).
     web.client("projects-web", view);
     // Open boards follow changes as they happen.
-    projects.onChange((projectId) => web.send("changed", { projectId }));
+    boards.onChange((projectId) => web.send("changed", { projectId }));
 
     // ---- Routes: /api/x/projects/... -----------------------------------------------------------------------------
 
@@ -115,7 +118,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         web.route(
             method,
             path,
-            (request) => {
+            async (request) => {
                 const convert = (error: unknown) => {
                     throw error instanceof HttpError ? web.error(error.status, error.message) : error;
                 };
@@ -133,15 +136,15 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     /** The JSON a browser sent, checked field by field by the store. */
     const body = (request: WebRequest) => request.body as never;
 
-    route("GET", "projects", (_request, actor) => ({ projects: projects.list(actor), states: STATES, types: TYPES }), view);
+    route("GET", "projects", async (_request, actor) => ({ projects: await boards.list(actor), states: STATES, types: TYPES }), view);
     // People to share a project with and assign tasks to: names only.
     route("GET", "people", () => ({ people: people().map(({ id, name, role }) => ({ id, name, role })) }), view);
-    route("POST", "projects", (request, actor) => projects.create(actor, body(request)), steer);
+    route("POST", "projects", async (request, actor) => await boards.create(actor, body(request)), steer);
     route(
         "GET",
         "projects/:key",
-        (request, actor) => {
-            const board = projects.board(actor, request.params.key!);
+        async (request, actor) => {
+            const board = await boards.board(actor, request.params.key!);
             const lead = board.project.mainSession;
             const title = lead === null ? undefined : host.sessionTitle(Number(lead));
 
@@ -153,8 +156,8 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     route(
         "PATCH",
         "projects/:key",
-        (request, actor) => {
-            const saved = projects.update(actor, request.params.key!, body(request));
+        async (request, actor) => {
+            const saved = await boards.update(actor, request.params.key!, body(request));
 
             // Its sessions' group is named after it.
             team.regroup(saved).catch((error: unknown) => host.notice("warning", `Projects: ${String(error)}`));
@@ -166,8 +169,8 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     route(
         "DELETE",
         "projects/:key",
-        (request, actor) => {
-            projects.remove(actor, request.params.key!);
+        async (request, actor) => {
+            await boards.remove(actor, request.params.key!);
 
             return {};
         },
@@ -176,24 +179,24 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     route(
         "PUT",
         "projects/:key/members",
-        (request, actor) => {
+        async (request, actor) => {
             const members = request.body.members;
 
             if (!Array.isArray(members) || members.some((member) => typeof member !== "string")) {
                 throw new HttpError(400, "Send members: a list of people's ids.");
             }
 
-            return projects.setMembers(actor, request.params.key!, members as string[]);
+            return await boards.setMembers(actor, request.params.key!, members as string[]);
         },
         steer,
     );
-    route("POST", "projects/:key/tasks", (request, actor) => projects.createTask(actor, request.params.key!, body(request)), steer);
+    route("POST", "projects/:key/tasks", async (request, actor) => await boards.createTask(actor, request.params.key!, body(request)), steer);
     // With every run of the task, and its sessions' titles and where their work is (the sheet's run card and rows).
     route(
         "GET",
         "tasks/:ref",
-        (request, actor) => {
-            const seen = projects.task(actor, request.params.ref!);
+        async (request, actor) => {
+            const seen = await boards.task(actor, request.params.ref!);
 
             return {
                 ...seen,
@@ -211,7 +214,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         "GET",
         "tasks/:ref/stat",
         async (request, actor) => {
-            const { task } = projects.task(actor, request.params.ref!);
+            const { task } = await boards.task(actor, request.params.ref!);
 
             if (task.run === null || task.run.merged !== null) {
                 throw new HttpError(409, `${task.ref} has no branch to read.`);
@@ -224,7 +227,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     route(
         "POST",
         "tasks/:ref/run",
-        (request, actor) => {
+        async (request, actor) => {
             const run = projects.queueRun(actor, request.params.ref!);
 
             team.pump();
@@ -236,7 +239,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     route(
         "DELETE",
         "tasks/:ref/run",
-        (request, actor) => {
+        async (request, actor) => {
             projects.cancelRun(actor, request.params.ref!);
 
             return {};
@@ -247,7 +250,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         "GET",
         "tasks/:ref/diff",
         async (request, actor) => {
-            const { task } = projects.task(actor, request.params.ref!);
+            const { task } = await boards.task(actor, request.params.ref!);
 
             if (task.run === null) {
                 throw new HttpError(404, `${task.ref} has not run yet.`);
@@ -261,7 +264,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         "POST",
         "tasks/:ref/merge",
         async (request, actor) => {
-            const { task } = projects.task(actor, request.params.ref!);
+            const { task } = await boards.task(actor, request.params.ref!);
 
             if (task.run === null) {
                 throw new HttpError(404, `${task.ref} has not run yet.`);
@@ -275,7 +278,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
 
             // Merged by a person: the task is done, where its rules allow (a Bug waits for its verified fix).
             try {
-                projects.updateTask(actor, task.ref, { state: "done" });
+                await boards.updateTask(actor, task.ref, { state: "done" });
             } catch {
                 // Left as it is; the sheet says why when the person moves it.
             }
@@ -284,35 +287,35 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         },
         steer,
     );
-    route("PATCH", "tasks/:ref", (request, actor) => projects.updateTask(actor, request.params.ref!, body(request)), steer);
+    route("PATCH", "tasks/:ref", async (request, actor) => await boards.updateTask(actor, request.params.ref!, body(request)), steer);
     route(
         "DELETE",
         "tasks/:ref",
-        (request, actor) => {
-            projects.removeTask(actor, request.params.ref!);
+        async (request, actor) => {
+            await boards.removeTask(actor, request.params.ref!);
 
             return {};
         },
         steer,
     );
-    route("POST", "tasks/:ref/comments", (request, actor) => projects.comment(actor, request.params.ref!, String(request.body.text ?? "")), steer);
+    route("POST", "tasks/:ref/comments", async (request, actor) => await boards.comment(actor, request.params.ref!, String(request.body.text ?? "")), steer);
     route(
         "POST",
         "tasks/:ref/links",
-        (request, actor) => {
-            projects.link(actor, request.params.ref!, String(request.body.to ?? ""), request.body.kind as LinkKind);
+        async (request, actor) => {
+            await boards.link(actor, request.params.ref!, String(request.body.to ?? ""), request.body.kind as LinkKind);
 
-            return projects.task(actor, request.params.ref!);
+            return await boards.task(actor, request.params.ref!);
         },
         steer,
     );
     route(
         "DELETE",
         "tasks/:ref/links/:kind/:to",
-        (request, actor) => {
-            projects.unlink(actor, request.params.ref!, request.params.to!, request.params.kind as LinkKind);
+        async (request, actor) => {
+            await boards.unlink(actor, request.params.ref!, request.params.to!, request.params.kind as LinkKind);
 
-            return projects.task(actor, request.params.ref!);
+            return await boards.task(actor, request.params.ref!);
         },
         steer,
     );
@@ -339,11 +342,11 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         };
     };
 
-    route("GET", "board-mode/:conversation", (request) => modeOf(session(request)), view);
+    route("GET", "board-mode/:conversation", async (request) => modeOf(session(request)), view);
     route(
         "PUT",
         "board-mode/:conversation",
-        (request, actor) => {
+        async (request, actor) => {
             const id = session(request);
             const { on, project, closer, rules } = request.body;
 
@@ -503,7 +506,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
 
                 const actor = piOf(conversationId);
                 const key = args.project.trim().toUpperCase();
-                const existing = projects.list(actor).find((project) => project.key === key);
+                const existing = (await boards.list(actor)).find((project) => project.key === key);
 
                 if (existing === undefined && (args.name ?? "").trim() === "") {
                     throw new HttpError(400, `There is no project ${key}: give a name to make it, or pick one from project_list.`);
@@ -534,7 +537,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 }
 
                 if (existing === undefined) {
-                    projects.create(person, { key, name: args.name!.trim() });
+                    await boards.create(person, { key, name: args.name!.trim() });
                 }
 
                 projects.setBoardMode(person, conversationId, true, key);
@@ -597,8 +600,8 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             "project_list",
             "The project boards the person you work for can see, with how many tasks are in each state, and this session's board mode.",
             Type.Object({}),
-            (_args, conversationId) => {
-                const list = projects.list(piOf(conversationId));
+            async (_args, conversationId) => {
+                const list = await boards.list(piOf(conversationId));
                 const mode = projects.boardMode(conversationId);
                 const said =
                     mode?.on === true
@@ -645,7 +648,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                     throw new HttpError(400, "Give the project a name, up to 80 characters.");
                 }
 
-                if (projects.list(actor).some((project) => project.key === key)) {
+                if ((await boards.list(actor)).some((project) => project.key === key)) {
                     throw new HttpError(409, `There is already a project ${key}.`);
                 }
 
@@ -667,7 +670,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                     return `${answer.by} said no: no board was made.`;
                 }
 
-                const made = projects.create({ kind: "person", person: actor.person }, { key, name, folder: args.folder ?? null });
+                const made = await boards.create({ kind: "person", person: actor.person }, { key, name, folder: args.folder ?? null });
 
                 return `Made ${made.key} · ${made.name}.`;
             },
@@ -683,10 +686,10 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 places: Type.Optional(Type.Array(Type.Object({ folder: Type.String(), cap: Type.Number({ description: "1 to 8 at once" }) }))),
                 rules: Type.Optional(Type.Union(BOARD_RULE_LEVELS.map((level) => Type.Literal(level)), { description: "The board rules in Pi's prompt: full, or light (track work, keep it current)" })),
             }),
-            (args, conversationId) => {
+            async (args, conversationId) => {
                 const { actor, project } = onBoard(conversationId);
                 const key = projectOf(args.project, project);
-                const saved = projects.update(actor, key, {
+                const saved = await boards.update(actor, key, {
                     ...(args.rules === undefined ? {} : { rules: args.rules }),
                     ...(args.name === undefined ? {} : { name: args.name }),
                     ...(args.folder === undefined ? {} : { folder: args.folder || null }),
@@ -715,7 +718,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             "task_link_session",
             "Link a session to a task, so the task lists it: this session, or another one you can see. The project's main session is linked as leading it.",
             Type.Object({ task: REF, session: Type.Optional(Type.Number({ description: "Another session's id; default: this one" })) }),
-            (args, conversationId) => {
+            async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
                 const session = args.session === undefined ? conversationId : String(args.session);
 
@@ -723,9 +726,9 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                     throw new HttpError(404, `There is no session #${session} the person you work for can see.`);
                 }
 
-                const { project } = projects.task(actor, args.task);
+                const { project } = await boards.task(actor, args.task);
 
-                projects.linkSession(actor, args.task, session, project.mainSession === session ? "main" : "linked");
+                await boards.linkSession(actor, args.task, session, project.mainSession === session ? "main" : "linked");
 
                 return `Linked session #${session} to ${args.task.toUpperCase()}.`;
             },
@@ -734,7 +737,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             "project_share",
             "Share a project with people (by name): they see its board and, unless they are viewers, change it. Replaces who it is shared with; the project's owner or the app's owner only.",
             Type.Object({ project: PROJECT, people: Type.Array(Type.String({ description: "A person's name" })) }),
-            (args, conversationId) => {
+            async (args, conversationId) => {
                 const { actor, project } = onBoard(conversationId);
                 const key = projectOf(args.project, project);
                 const everyone = people();
@@ -747,7 +750,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
 
                     return found.id;
                 });
-                const saved = projects.setMembers(actor, key, ids);
+                const saved = await boards.setMembers(actor, key, ids);
 
                 return `${saved.key} is shared with ${saved.members.map((id) => everyone.find((person) => person.id === id)?.name ?? id).join(", ") || "nobody else"}.`;
             },
@@ -758,8 +761,8 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             Type.Object({ project: Type.String({ description: "The project's key" }) }),
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
-                const project = projects.project(actor, args.project);
-                const total = Object.values(projects.list(actor).find((each) => each.id === project.id)?.counts ?? {}).reduce((sum, n) => sum + n, 0);
+                const project = await boards.project(actor, args.project);
+                const total = Object.values((await boards.list(actor)).find((each) => each.id === project.id)?.counts ?? {}).reduce((sum, n) => sum + n, 0);
                 const answer = await host.approvals.request(
                     {
                         id: `project-delete-${conversationId}-${String(api.callId)}`,
@@ -778,7 +781,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                     return `${answer.by} said no: ${project.key} stays.`;
                 }
 
-                projects.remove({ kind: "person", person: actor.person }, project.key);
+                await boards.remove({ kind: "person", person: actor.person }, project.key);
 
                 return `Deleted ${project.key}.`;
             },
@@ -789,7 +792,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             Type.Object({ task: REF }),
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
-                const { task } = projects.task(actor, args.task);
+                const { task } = await boards.task(actor, args.task);
                 const answer = await host.approvals.request(
                     {
                         id: `task-delete-${conversationId}-${String(api.callId)}`,
@@ -808,7 +811,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                     return `${answer.by} said no: ${task.ref} stays.`;
                 }
 
-                projects.removeTask({ kind: "person", person: actor.person }, task.ref);
+                await boards.removeTask({ kind: "person", person: actor.person }, task.ref);
 
                 return `Deleted ${task.ref}.`;
             },
@@ -817,7 +820,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             "task_cancel_run",
             "Withdraw a task's run that waits for a place, before it starts.",
             Type.Object({ task: REF }),
-            (args, conversationId) => {
+            async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
 
                 projects.cancelRun(actor, args.task);
@@ -831,7 +834,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             Type.Object({ task: REF }),
             async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
-                const { task } = projects.task(actor, args.task);
+                const { task } = await boards.task(actor, args.task);
 
                 if (task.run === null) {
                     throw new HttpError(404, `${task.ref} has not run yet.`);
@@ -848,7 +851,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             Type.Object({ task: REF }),
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
-                const { task } = projects.task(actor, args.task);
+                const { task } = await boards.task(actor, args.task);
 
                 if (task.run?.branch == null || task.run.state === "running" || task.run.state === "starting" || task.run.state === "queued") {
                     throw new HttpError(409, `${task.ref} has no finished run with a branch to merge.`);
@@ -876,7 +879,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 const said = await team.merge(task.run, task, person);
 
                 try {
-                    projects.updateTask(person, task.ref, { state: "done" });
+                    await boards.updateTask(person, task.ref, { state: "done" });
                 } catch {
                     // Left as it is (a Bug waits for its verified fix).
                 }
@@ -896,10 +899,10 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 text: Type.Optional(Type.String()),
                 limit: Type.Optional(Type.Number()),
             }),
-            (args, conversationId) => {
+            async (args, conversationId) => {
                 const { actor, project } = onBoard(conversationId);
                 const { project: _project, ...filter } = args;
-                const found = projects.tasks(actor, args.project ?? project ?? undefined, filter as never);
+                const found = await boards.tasks(actor, args.project ?? project ?? undefined, filter as never);
 
                 return found.length === 0 ? "No tasks match." : found.map(line).join("\n");
             },
@@ -908,9 +911,9 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             "task_get",
             "A task in full: its fields, description, checklist, links, comments, activity, and sessions.",
             Type.Object({ task: REF }),
-            (args, conversationId) => {
+            async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
-                const { task, comments, links, sessions } = projects.task(actor, args.task);
+                const { task, comments, links, sessions } = await boards.task(actor, args.task);
                 const parts = [
                     line(task),
                     task.description === "" ? "" : `\n${task.description}`,
@@ -954,18 +957,18 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 operator_review: Type.Optional(Type.Boolean({ description: "Only a person may move it to Done" })),
                 blocks: Type.Optional(Type.Array(Type.String(), { description: "Tasks that wait on this one" })),
             }),
-            (args, conversationId) => {
+            async (args, conversationId) => {
                 const { actor, project } = onBoard(conversationId);
                 const key = projectOf(args.project, project);
                 const { project: _project, blocks, operator_review, checklist, ...rest } = args;
-                const made = projects.createTask(actor, key, {
+                const made = await boards.createTask(actor, key, {
                     ...(rest as Record<string, unknown> as TaskInput),
                     ...(operator_review === undefined ? {} : { operatorReview: operator_review }),
                     ...(checklist === undefined ? {} : { checklist: checklist.map((item) => ({ text: item.text, done: item.done === true })) }),
                 });
 
                 for (const other of blocks ?? []) {
-                    projects.link(actor, made.ref, other, "blocks");
+                    await boards.link(actor, made.ref, other, "blocks");
                 }
 
                 return `Made ${made.ref}: ${made.title}.`;
@@ -993,7 +996,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 link: Type.Optional(Type.Object({ to: Type.String(), kind: LINK })),
                 unlink: Type.Optional(Type.Object({ to: Type.String(), kind: LINK })),
             }),
-            (args, conversationId) => {
+            async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
                 const patch = patchOf(args as Record<string, unknown>);
 
@@ -1001,10 +1004,10 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 if (patch.assignee === "") patch.assignee = null;
                 if (args.checklist !== undefined) patch.checklist = args.checklist.map((item) => ({ text: item.text, done: item.done === true }));
 
-                const task = projects.updateTask(actor, args.task, patch);
+                const task = await boards.updateTask(actor, args.task, patch);
 
-                if (args.link !== undefined) projects.link(actor, task.ref, args.link.to, args.link.kind);
-                if (args.unlink !== undefined) projects.unlink(actor, task.ref, args.unlink.to, args.unlink.kind);
+                if (args.link !== undefined) await boards.link(actor, task.ref, args.link.to, args.link.kind);
+                if (args.unlink !== undefined) await boards.unlink(actor, task.ref, args.unlink.to, args.unlink.kind);
 
                 return `${task.ref} is ${STATE_NAMES[task.state as TaskState]}.`;
             },
@@ -1016,7 +1019,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
                 const ref = args.task.trim().toUpperCase();
-                const { project, task } = projects.task(actor, ref);
+                const { project, task } = await boards.task(actor, ref);
 
                 if (!project.autoRuns) {
                     const answer = await host.approvals.request(
@@ -1049,10 +1052,10 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             "task_comment",
             "Comment on a task: a result, a question, a blocker, or a decision.",
             Type.Object({ task: REF, text: Type.String() }),
-            (args, conversationId) => {
+            async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
 
-                projects.comment(actor, args.task, args.text);
+                await boards.comment(actor, args.task, args.text);
 
                 return `Commented on ${args.task.toUpperCase()}.`;
             },
@@ -1063,7 +1066,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         name: "pocket-projects",
         tools,
         sections: [
-            section("projects", (input) => {
+            section("projects", async (input) => {
                 const id = String(input.conversationId);
                 const led = projects.projectLedBy(id);
 
@@ -1072,7 +1075,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 }
 
                 const run = projects.runOfSession(id);
-                const found = run === undefined ? undefined : projects.taskById(run.taskId);
+                const found = run === undefined ? undefined : await boards.taskById(run.taskId);
 
                 if (run !== undefined && found !== undefined) {
                     return `${taskRules(found.task, run)}\n${boardRules(found.project.rules, "person")}`;

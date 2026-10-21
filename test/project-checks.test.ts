@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
+import { localBoards } from "../src/server/boards.ts";
 import type { PocketHost } from "../src/server/host.ts";
 import { LONG_RUN_MS, Team, UNHEARD_AFTER_MS } from "../src/server/project-runs.ts";
 import { type Actor, type Person, Projects } from "../src/server/projects.ts";
@@ -55,7 +56,7 @@ test("a task session that ended unheard is handled after it has been idle a whil
     const projects = new Projects(mkdtempSync(join(root, "checks-")), () => [OWNER]);
     const states = new Map<number, State | undefined>([[7, { busy: false, waiting: false, failed: false }]]);
     const { host, reports, settled } = fakeHost(states);
-    const team = new Team(projects, host);
+    const team = new Team(projects, localBoards(projects), host);
     const { run } = running(projects, "CK", 7);
     const now = 1_000_000;
 
@@ -78,7 +79,7 @@ test("an end this process saw counts from when it ended; a failed one fails the 
     const now = 5_000_000;
     const states = new Map<number, State | undefined>([[8, { busy: false, waiting: false, failed: true, endedAt: now - UNHEARD_AFTER_MS }]]);
     const { host, reports } = fakeHost(states);
-    const team = new Team(projects, host);
+    const team = new Team(projects, localBoards(projects), host);
 
     running(projects, "CF", 8);
     await team.check(now);
@@ -91,7 +92,7 @@ test("a run whose session is gone fails, and a session waiting for an approval i
     const projects = new Projects(mkdtempSync(join(root, "checks-")), () => [OWNER]);
     const states = new Map<number, State | undefined>([[9, undefined], [10, { busy: false, waiting: true, failed: false }]]);
     const { host, reports } = fakeHost(states);
-    const team = new Team(projects, host);
+    const team = new Team(projects, localBoards(projects), host);
 
     running(projects, "CG", 9);
     running(projects, "CW", 10);
@@ -108,7 +109,7 @@ test("a session working past LONG_RUN_MS is reported once a stretch", async () =
     const projects = new Projects(mkdtempSync(join(root, "checks-")), () => [OWNER]);
     const states = new Map<number, State | undefined>([[11, { busy: true, busySince: 0, waiting: false, failed: false }]]);
     const { host, reports } = fakeHost(states);
-    const team = new Team(projects, host);
+    const team = new Team(projects, localBoards(projects), host);
 
     running(projects, "CL", 11);
     await team.check(LONG_RUN_MS - 1);
