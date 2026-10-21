@@ -1801,6 +1801,16 @@ export class PocketApp {
         }
     }
 
+    /**
+     * What a teammate in a shared session never does here (PP-57): write or undo files, switch branches, run shell
+     * commands. They read the files and changes, and ask the owner for the rest.
+     */
+    refuseTeammate(user: User, what: string): void {
+        if (user.team === true) {
+            throw new HttpError(403, `In a shared session you can't ${what}: that is the owner's. Ask them, or ask Pi.`);
+        }
+    }
+
     /** Viewers read, chat, and react; they never make Pi do anything. */
     requireSteer(user: User): void {
         if (user.role === "viewer") {
@@ -2506,6 +2516,11 @@ export class PocketApp {
             return "You can view this session but not steer Pi.";
         }
 
+        // In a session shared through the team server, only its owner allows calls (PP-57).
+        if (user.team === true) {
+            return "Waiting for the owner: in a shared session only they allow Pi's calls.";
+        }
+
         if (this.config.approvalRule !== "others" || user.role === "owner") {
             return undefined;
         }
@@ -3025,9 +3040,7 @@ export class PocketApp {
 
         const made = this.config.addUser(account.name, account.role, sessions);
 
-        if (budget !== undefined) {
-            this.config.updateUser(made.user.id, { budget });
-        }
+        this.config.updateUser(made.user.id, { team: true, ...(budget === undefined ? {} : { budget }) });
 
         this.#peopleChanged();
 

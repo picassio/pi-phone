@@ -19,6 +19,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { PocketHost } from "../host.ts";
 import { namesIn, SECRET_NAME } from "../secrets.ts";
+import { mayUseMachines, NOT_FOR_TEAMMATES } from "./sharing.ts";
 
 const reply = (text: string, isError = false) => ({
     output: [{ type: "text" as const, text }],
@@ -263,6 +264,11 @@ export default function createSecrets(host: PocketHost) {
 
                     if (named.length === 0) {
                         return undefined;
+                    }
+
+                    // A teammate's message in a shared session (PP-57): the owner's secrets only where the share allows.
+                    if (!mayUseMachines(host, Number(api.conversationId))) {
+                        return { block: NOT_FOR_TEAMMATES };
                     }
 
                     const cwd = await cwdOf(api as never, context);

@@ -26,6 +26,11 @@ export interface User {
     /** Conversation ids of the only sessions this person may open; absent means every session. */
     sessions?: string[];
     /**
+     * A teammate's scoped account, made by sharing sessions through the team server (PP-55): they never write files, run
+     * shell commands, or allow calls here; and Pi uses the owner's machines and secrets for them only where a share says.
+     */
+    team?: true;
+    /**
      * The Cloudflare quick tunnel host (`abc-def.trycloudflare.com`) this person's device signed in through. Its sign-in
      * cookie works only there, and each tunnel gets a new address, so they are removed once that tunnel is gone.
      */
@@ -462,7 +467,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team">>,
     ): void {
         const user = this.userById(id);
 

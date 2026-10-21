@@ -235,6 +235,7 @@ export class Shell {
     ): Promise<{ taskId: number }> {
         const app = this.#app;
 
+        app.refuseTeammate(user, "run shell commands");
         app.requireSee(user, id);
         await app.requireDriver(id, user);
         await app.conversation(id);

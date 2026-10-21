@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { createHandler } from "../src/server/http.ts";
 import { PocketApp } from "../src/server/app.ts";
+import { mayUseMachines } from "../src/server/extensions/sharing.ts";
 
 const OWNER = "o".repeat(43);
 const puts: { teammate: string; level: string; token: string; sessions: { id: string; title: string; machines: boolean }[] }[] = [];
@@ -111,4 +112,28 @@ test("share, a second session, watch, a spend limit, the scoped token, unshare",
     assert.equal((await call(OWNER, "share", { session: plan, teammate: "u-nobody", level: "write" })).status, 404);
     assert.equal((await call(OWNER, "share", { session: "99999", teammate: "u-mai", level: "write" })).status, 404);
     assert.equal((await call(OWNER, "share", { session: plan, teammate: "u-mai", level: "edit" })).status, 400);
+});
+
+test("a teammate never writes files, runs shell commands, or allows calls; Pi uses the owner's machines and secrets for them only where the share says (PP-57)", async () => {
+    const notes = await session("Shared notes");
+
+    assert.equal((await call(OWNER, "share", { session: notes, teammate: "u-lan", level: "write" })).status, 200);
+    const lan = account("Lan (team)")!;
+    const id = Number(notes) as never;
+
+    assert.equal(lan.team, true);
+    await assert.rejects(app.workspace.putFile(id, lan, "", "x.txt", Buffer.from("x")), /can't add files/);
+    await assert.rejects(app.workspace.revertChange(id, lan, "x.txt"), /can't undo files/);
+    await assert.rejects(app.workspace.switchBranch(id, lan, { name: "main" }), /can't switch branches/);
+    await assert.rejects(app.shell.start(id, lan, { command: "ls", requestId: "r1" }), /can't run shell commands/);
+    assert.match(app.cannotAllow(lan, { id: "a", conversationId: id, taskId: 1 as never, tool: "bash", subject: "ls", reason: "", createdAt: 0 }) ?? "", /only they allow/);
+
+    // Machines and secrets: by who asked last, and the share's switch.
+    const fake = (requester: string | undefined) => ({ teamServer: { url: "x", token: "y" }, dataDir: join(root, "sharing-data"), requesterOf: () => requester }) as never;
+
+    assert.equal(mayUseMachines(fake(app.config.users.find((each) => each.role === "owner")!.id), Number(notes)), true, "the owner");
+    assert.equal(mayUseMachines(fake(lan.id), Number(notes)), false, "a teammate, switch off (the default)");
+    assert.equal((await call(OWNER, "share", { session: notes, teammate: "u-lan", level: "write", machines: true })).status, 200);
+    assert.equal(mayUseMachines(fake(lan.id), Number(notes)), true, "switch on for that share");
+    assert.equal(mayUseMachines({ teamServer: undefined, requesterOf: () => lan.id } as never, Number(notes)), true, "the phone has no shares");
 });

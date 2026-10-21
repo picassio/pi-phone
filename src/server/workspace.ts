@@ -188,6 +188,7 @@ export class Workspace {
         user: User,
         request: { name?: unknown; create?: unknown; track?: unknown },
     ): Promise<{ branch: string }> {
+        this.#app.refuseTeammate(user, "switch branches");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
 
@@ -429,6 +430,7 @@ export class Workspace {
      * one asked for. Returns its path.
      */
     async makePlace(user: User, cwd: string): Promise<string> {
+        this.#app.refuseTeammate(user, "make folders");
         if (!isRemote(cwd)) {
             return this.makeFolder(user, cwd);
         }
@@ -453,6 +455,7 @@ export class Workspace {
     }
 
     makeFolder(user: User, path: string): string {
+        this.#app.refuseTeammate(user, "make folders");
         this.#app.requireSteer(user);
 
         if (user.sessions !== undefined) {
@@ -749,6 +752,7 @@ export class Workspace {
      * here or on its machine. Never written over: a name already there is refused, by name.
      */
     async putFile(id: ConversationId, user: User, dir: string, name: string, data: Buffer): Promise<{ path: string }> {
+        this.#app.refuseTeammate(user, "add files");
         this.#app.requireSee(user, id);
         this.#app.requireSteer(user);
         await this.#app.conversation(id);
@@ -798,6 +802,7 @@ export class Workspace {
      * right to drive and waits until Pi is not working; Pi is told, with its next message.
      */
     async revertChange(id: ConversationId, user: User, path: string): Promise<void> {
+        this.#app.refuseTeammate(user, "undo files");
         this.#app.requireSee(user, id);
         await this.#app.requireDriver(id, user);
 

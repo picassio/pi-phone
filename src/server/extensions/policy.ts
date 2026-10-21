@@ -6,6 +6,7 @@
 import { defineExtension, hook, section, ToolTask } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { EXTENSIONS, TOOLS } from "../policy.ts";
+import { mayUseMachines, NOT_FOR_TEAMMATES } from "./sharing.ts";
 
 export default function createPolicy(host: PocketHost) {
     return defineExtension({
@@ -27,7 +28,12 @@ export default function createPolicy(host: PocketHost) {
         ],
         hooks: [
             hook(ToolTask, {
-                beforeTool: async (call) => {
+                beforeTool: async (call, api) => {
+                    // A teammate's message in a shared session (PP-57): the owner's machines only where the share allows.
+                    if ((call.name === "machine_run" || call.name === "machine_copy" || host.sessionMachine(Number(api.conversationId)) !== undefined) && !mayUseMachines(host, Number(api.conversationId))) {
+                        return { block: NOT_FOR_TEAMMATES };
+                    }
+
                     const permission = TOOLS[call.name] ?? (call.name.startsWith("browser_") ? "browser.use" : undefined);
                     const refusal = permission === undefined ? undefined : host.policy.refusal(permission);
 
