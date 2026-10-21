@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import { DatabaseSync } from "node:sqlite";
+import { Readable } from "node:stream";
 import { after, before, test } from "node:test";
 import { makeAuth } from "../src/gateway/auth.ts";
 import { type ControllerClient, Gateway } from "../src/gateway/server.ts";
@@ -36,6 +37,7 @@ const controller: ControllerClient = {
         return { host: "127.0.0.1", port: upstreamPort };
     },
     list: async () => [],
+    export: async () => Readable.from([]),
     stop: async (key) => void controllerCalls.push(`stop ${key}`),
     remove: async (key, purge) => void controllerCalls.push(`remove ${key} ${purge}`),
 };

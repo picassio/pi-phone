@@ -1,5 +1,5 @@
 /** The gateway's side of the controller (`src/controller/main.ts`): its Unix socket, with the shared secret. */
-import { request as httpRequest } from "node:http";
+import { type IncomingMessage, request as httpRequest } from "node:http";
 import type { ControllerClient, Listed } from "./server.ts";
 
 export class SocketController implements ControllerClient {
@@ -50,6 +50,37 @@ export class SocketController implements ControllerClient {
 
     async list(): Promise<Listed[]> {
         return ((await this.#call("GET", "/people")) as { people: Listed[] }).people;
+    }
+
+    /** A person's data as a tar stream; refused with the controller's reason (no data yet, say). */
+    async export(key: string): Promise<IncomingMessage> {
+        return new Promise((resolve, reject) => {
+            const sent = httpRequest({ socketPath: this.#socket, method: "GET", path: `/people/${key}/export`, headers: { host: "controller", "x-controller-secret": this.#secret } }, (response) => {
+                if ((response.statusCode ?? 500) < 400) {
+                    resolve(response);
+
+                    return;
+                }
+
+                const chunks: Buffer[] = [];
+
+                response.on("data", (chunk: Buffer) => chunks.push(chunk));
+                response.on("end", () => {
+                    let why = String(response.statusCode);
+
+                    try {
+                        why = (JSON.parse(Buffer.concat(chunks).toString("utf8")) as { error?: string }).error ?? why;
+                    } catch {
+                        // Not JSON: the status.
+                    }
+
+                    reject(new Error(`controller: ${why}`));
+                });
+            });
+
+            sent.on("error", reject);
+            sent.end();
+        });
     }
 
     async stop(key: string): Promise<void> {

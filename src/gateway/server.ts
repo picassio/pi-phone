@@ -8,16 +8,20 @@
  * Routes: `/auth/api/*` better-auth; `/auth/gw/*` the gateway's own (state, setup, invites, people); `/auth/static/*`
  * its page's files; `/auth/*` its page (sign-in, setup, invite, account, people); anything else, the person's pi-phone.
  */
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect as netConnect } from "node:net";
-import type { Duplex } from "node:stream";
+import { type Duplex, Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { createGzip } from "node:zlib";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import QRCode from "qrcode";
 import type { GatewayAuth } from "./auth.ts";
 import { CATALOGUE, checkRole, OWNER_ROLE, type Permission } from "./roles.ts";
 import { type GatewayStore, INVITE_MINUTES } from "./store.ts";
+import { type TarEntry, tarStream } from "./tar.ts";
 
 /** What the gateway asks the controller (`src/controller/`): a person's pi-phone, by key. */
 /** A person's container as the controller lists it. */
@@ -27,6 +31,8 @@ export interface ControllerClient {
     /** `renew`: make it again from the current image even if it runs (PP-34). */
     ensure(key: string, token: string, caps: { memoryMb: number; cpus: number }, renew?: boolean): Promise<{ host: string; port: number }>;
     list(): Promise<Listed[]>;
+    /** A person's data (their /data) as a tar stream (PP-35). */
+    export(key: string): Promise<Readable>;
     stop(key: string): Promise<void>;
     remove(key: string, purge: boolean): Promise<void>;
 }
@@ -762,6 +768,51 @@ export class Gateway {
             });
         }
 
+        // The whole server as one .tar.gz (PP-35): the gateway's database (accounts, roles, settings), and every person's data.
+        if (route === "backup" && method === "GET") {
+            if (!can("server.manage")) {
+                return json(response, 403, { error: "Your role does not manage the server." });
+            }
+
+            const folder = mkdtempSync(join(tmpdir(), "pp-backup-"));
+
+            try {
+                const db = join(folder, "gateway.sqlite");
+
+                store.snapshot(db);
+
+                const entries: TarEntry[] = [{ name: "gateway.sqlite", size: statSync(db).size, file: db }];
+                const users = new Map(store.users().map((each) => [each.id, each]));
+                const people: { key: string; email: string | null; name: string | null }[] = [];
+
+                for (const box of store.boxes()) {
+                    const file = join(folder, `${box.key}.tar`);
+
+                    try {
+                        await pipeline(await this.#options.controller.export(box.key), createWriteStream(file));
+                    } catch (error) {
+                        // Someone who never opened their pi-phone has no data: nothing to keep.
+                        this.#options.log(`gateway: backup of ${box.key}: ${String(error)}`);
+                        continue;
+                    }
+
+                    entries.push({ name: `people/${box.key}.tar`, size: statSync(file).size, file });
+                    people.push({ key: box.key, email: users.get(box.userId)?.email ?? null, name: users.get(box.userId)?.name ?? null });
+                }
+
+                const manifest = Buffer.from(JSON.stringify({ createdAt: new Date().toISOString(), origin: this.#options.origin, people }, null, 2));
+
+                entries.unshift({ name: "manifest.json", size: manifest.length, data: manifest });
+                store.audit(user.id, "server backup", undefined, { people: people.length });
+                response.writeHead(200, { "content-type": "application/gzip", "content-disposition": `attachment; filename="${download("pi-phone-server")}.tar.gz"`, "cache-control": "no-store" });
+                await pipeline(Readable.from(tarStream(entries)), createGzip(), response).catch((error: unknown) => this.#options.log(`gateway: backup: ${String(error)}`));
+            } finally {
+                rmSync(folder, { recursive: true, force: true });
+            }
+
+            return;
+        }
+
         if (route === "audit" && method === "GET") {
             if (!can("audit.view")) {
                 return json(response, 403, { error: "Your role does not see the audit log." });
@@ -822,6 +873,41 @@ export class Gateway {
                     return { id: each.id, name: each.name, email: each.email, role: theirs.id, roleName: theirs.name, banned: each.banned === true, twoFactor: each.twoFactorEnabled === true, box: store.boxOf(each.id)?.key ?? null, alwaysOn: store.alwaysOn(each.id) };
                 }),
             });
+        }
+
+        // A person's data, as a .tar.gz download (PP-35): theirs to take elsewhere, or to keep.
+        const exported = /^people\/([A-Za-z0-9_-]{6,64})\/export$/.exec(route);
+
+        if (exported !== null && method === "GET") {
+            // It holds their sign-ins and secrets: the server's managers', as backups are.
+            if (!can("server.manage")) {
+                return json(response, 403, { error: "Your role does not manage the server." });
+            }
+
+            const target = store.users().find((each) => each.id === exported[1]);
+            const box = target === undefined ? undefined : store.boxOf(target.id);
+
+            if (target === undefined || box === undefined) {
+                return json(response, 404, { error: "This person has no pi-phone yet." });
+            }
+
+            if (store.roleOf(target.id, target.role).id === OWNER_ROLE.id && !isOwner) {
+                return json(response, 403, { error: "Only an owner acts on an owner." });
+            }
+
+            let archive: Readable;
+
+            try {
+                archive = await this.#options.controller.export(box.key);
+            } catch (error) {
+                return json(response, 404, { error: String(error instanceof Error ? error.message : error).replace(/^controller: /, "") });
+            }
+
+            store.audit(user.id, "exported", target.id);
+            response.writeHead(200, { "content-type": "application/gzip", "content-disposition": `attachment; filename="${download(`pi-phone-${target.email.split("@")[0]}`)}.tar.gz"`, "cache-control": "no-store" });
+            await pipeline(archive, createGzip(), response).catch((error: unknown) => this.#options.log(`gateway: export ${box.key}: ${String(error)}`));
+
+            return;
         }
 
         // Always on (PP-33): a person's pi-phone never stops when idle, and starts by itself. The server's to decide (your own too).
@@ -973,6 +1059,11 @@ export class Gateway {
             this.#forgetReady(userId);
         }
     }
+}
+
+/** A download's file name: its stem made safe, with today's date. */
+function download(stem: string): string {
+    return `${stem.replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 60)}-${new Date().toISOString().slice(0, 10)}`;
 }
 
 function json(response: ServerResponse, status: number, body: unknown): void {

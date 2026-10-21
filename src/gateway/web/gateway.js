@@ -433,6 +433,9 @@ async function renderPeople(box, me, roles) {
                           " Always on",
                       )
                     : null,
+                has(me, "server.manage") && person.box && (person.role !== "owner" || me.role === "owner")
+                    ? h("a", { class: "button", href: `/auth/gw/people/${person.id}/export`, download: "", title: "Their pi-phone's data (sessions, settings, files) as a .tar.gz" }, "Download data")
+                    : null,
                 mayAct
                     ? h(
                           "div",
@@ -593,6 +596,9 @@ async function serverPage(me) {
         ),
         h("h2", {}, "Now"),
         status,
+        h("h2", {}, "Backup"),
+        h("p", { class: "muted" }, "One .tar.gz with this server's accounts, roles and settings, and every person's pi-phone data. It takes a while with many people. How to restore it: deploy/README.md."),
+        h("a", { class: "button", href: "/auth/gw/backup", download: "" }, "Download a backup"),
     );
 }
 

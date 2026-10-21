@@ -331,6 +331,16 @@ export class GatewayStore {
         this.#db.prepare('UPDATE "user" SET "twoFactorEnabled" = 0 WHERE "id" = ?').run(userId);
     }
 
+    /** Every person's pi-phone, removed accounts' too (their data stays). */
+    boxes(): PersonBox[] {
+        return (this.#db.prepare("SELECT * FROM pp_person ORDER BY created_at").all() as Record<string, unknown>[]).map((row) => ({ userId: String(row.user_id), key: String(row.key), token: String(row.token), createdAt: Number(row.created_at) }));
+    }
+
+    /** A consistent copy of the gateway's database (accounts, roles, settings), for the server backup (PP-35). */
+    snapshot(file: string): void {
+        this.#db.prepare("VACUUM INTO ?").run(file);
+    }
+
     forgetBox(userId: string): void {
         this.#db.prepare("DELETE FROM pp_person WHERE user_id = ?").run(userId);
     }

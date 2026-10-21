@@ -6,7 +6,8 @@
  * person's volume, no published ports, and the memory and CPU caps asked for (within limits). A request outside this
  * shape is refused, whatever the gateway sends.
  */
-import { request as httpRequest } from "node:http";
+import { randomBytes } from "node:crypto";
+import { type IncomingMessage, request as httpRequest } from "node:http";
 
 /** A person's id as the gateway names them: lowercase letters and digits only, so it is safe in every Docker name. */
 export const PERSON_ID = /^[a-z0-9]{6,40}$/;
@@ -83,6 +84,16 @@ export class Controller {
 
             sent.on("error", reject);
             sent.end(payload);
+        });
+    }
+
+    /** A GET whose answer is streamed as it comes (an archive), not read whole. */
+    async #stream(path: string): Promise<IncomingMessage> {
+        return new Promise((resolve, reject) => {
+            const sent = httpRequest({ socketPath: this.#options.docker, method: "GET", path: `/v1.44${path}`, headers: { host: "docker" } }, resolve);
+
+            sent.on("error", reject);
+            sent.end();
         });
     }
 
@@ -242,6 +253,50 @@ export class Controller {
         await this.#expect("POST", `/containers/${container}/start`, undefined, [204, 304]);
 
         return { container, host: container, port: 8787, running: true };
+    }
+
+    /**
+     * A person's data (their volume's /data) as a tar stream (PP-35), from a helper container that is made with the volume
+     * read-only, never started, on no network, and removed once the stream ends. Stopped people and removed accounts
+     * (whose volume stays) have theirs too. A running pi-phone's is taken as it is at that moment.
+     */
+    async export(id: string): Promise<IncomingMessage> {
+        Controller.check(id);
+        const { volume } = names(id);
+
+        if ((await this.#docker("GET", `/volumes/${volume}`)).status === 404) {
+            throw new ControllerError(404, "This person has no data yet.");
+        }
+
+        const helper = `pp-export-${id}-${randomBytes(4).toString("hex")}`;
+        const removeHelper = () => this.#docker("DELETE", `/containers/${helper}?force=true`).catch(() => undefined);
+
+        await this.#expect(
+            "POST",
+            `/containers/create?name=${helper}`,
+            {
+                Image: this.#options.image,
+                Labels: { "io.piphone.role": "export", "io.piphone.person": id },
+                HostConfig: { Mounts: [{ Type: "volume", Source: volume, Target: "/data", ReadOnly: true }], NetworkMode: "none", CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges"] },
+            },
+            [201],
+        );
+
+        try {
+            const archive = await this.#stream(`/containers/${helper}/archive?path=${encodeURIComponent("/data")}`);
+
+            if (archive.statusCode !== 200) {
+                archive.resume();
+                throw new ControllerError(502, `Docker archive: ${archive.statusCode}`);
+            }
+
+            archive.once("close", () => void removeHelper());
+
+            return archive;
+        } catch (error) {
+            await removeHelper();
+            throw error;
+        }
     }
 
     async stop(id: string): Promise<void> {

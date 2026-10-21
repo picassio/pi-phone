@@ -7,7 +7,7 @@
  *   PP_CONTROLLER_SOCKET=/run/pi-phone/controller.sock PP_CONTROLLER_SECRET_FILE=/run/pi-phone/secret node src/controller/main.ts
  *
  * Routes (JSON): GET /people, GET /people/<id>, POST /people/<id>/ensure { token, caps: { memoryMb, cpus }, renew? }, POST /people/<id>/stop,
- * POST /people/<id>/remove { purge }.
+ * POST /people/<id>/remove { purge }, GET /people/<id>/export (a tar of their /data, streamed).
  */
 import { chmodSync, chownSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
@@ -77,13 +77,23 @@ const server = createServer((request, response) => {
                 return reply(200, { people: await controller.list() });
             }
 
-            const match = /^\/people\/([^/]+)(?:\/(ensure|stop|remove))?$/.exec(path);
+            const match = /^\/people\/([^/]+)(?:\/(ensure|stop|remove|export))?$/.exec(path);
 
             if (match === null) {
                 throw new ControllerError(404, "No such route.");
             }
 
             const [, id, action] = match as unknown as [string, string, string | undefined];
+
+            if (action === "export" && request.method === "GET") {
+                const archive = await controller.export(id);
+
+                response.writeHead(200, { "content-type": "application/x-tar" });
+                archive.pipe(response);
+                response.once("close", () => archive.destroy());
+
+                return;
+            }
 
             if (action === undefined && request.method === "GET") {
                 const person = await controller.status(id);

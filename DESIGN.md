@@ -462,6 +462,15 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     on it through `#starting`, and each must take its role's policy before the next one starts.
   - **A gateway made again** is on no person's network. Before asking a running container it hasn't reached, the sweep
     goes through `ensure` (`#doing`).
+- **Export and backup** (PP-35):
+  - **Controller:** `export` streams a person's `/data` through Docker's archive API, from a helper container
+    (`pp-export-<id>-<random>`, labelled `export`). The helper has the volume read-only and no network, is never
+    started, and is removed when the stream closes.
+  - **Gateway:** a person export is `/auth/gw/people/<id>/export`, gzipped as it streams. The server backup is
+    `/auth/gw/backup`: a `VACUUM INTO` copy of the gateway's database plus each person's tar, kept in a temp folder
+    (sizes must be known for the headers) and written by `tar.ts` (ustar).
+  - **Who:** both need `server.manage`, since they hold everyone's sign-ins and secrets. The seeded Admin doesn't get
+    it. Restore is documented, and was rehearsed on the devbox, in deploy/README.md.
 - **Effective HTML** (`third_party/effective-html/`; owner's decision of 2026-10-18): plannotator/effective-html's 7
   skills (MIT, at commit `975b047`) for HTML artifacts: `html` (router), `design-artifact`, `html-wireframe`,
   `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every

@@ -93,6 +93,39 @@ Then use it as the README's "Use it" says. Pi can change settings for you on a c
 - **Restart:** the app's own restart (Pi's `app_action server.restart`, after your OK) exits the server; Docker starts it
   again (`restart: unless-stopped`).
 
+## The team server: back up and restore
+
+The downloads hold everyone's data: their sessions, provider sign-ins and secrets. Only roles with "server settings"
+(`server.manage`) get them, which is the owner alone unless you give it to another role.
+
+- **One person:** People › **Download data** gives their pi-phone's `/data` as a `.tar.gz`. It works for stopped
+  people too. A running pi-phone's is taken as it is at that moment.
+- **The whole server:** Server › **Download a backup** gives one `.tar.gz`. Inside are `manifest.json` (who is who),
+  `gateway.sqlite` (accounts, roles, settings, each pi-phone's token) and `people/<key>.tar` for each person.
+- **Restore one person** (their key is in the manifest, or in their container's name `pp-user-<key>`):
+
+  ```sh
+  docker rm -f pp-user-<key>
+  gunzip -c pi-phone-<name>-<date>.tar.gz | docker run --rm -i --entrypoint sh --user 0 \
+    -v pp-data-<key>:/data pi-phone-server:local -c 'find /data -mindepth 1 -delete && tar xf - -C /'
+  ```
+
+  Their next visit makes their container again on the restored data.
+- **Restore the whole server**, on a host with the stack set up:
+
+  ```sh
+  mkdir restore && tar xzf pi-phone-server-<date>.tar.gz -C restore
+  docker compose -p pi-phone-team down
+  docker run --rm --entrypoint sh --user 0 -v pi-phone-team_gateway-data:/data -v "$PWD/restore":/r:ro \
+    pi-phone-server:local -c 'rm -f /data/gateway.sqlite* && cp /r/gateway.sqlite /data/ && chown 1000:1000 /data/gateway.sqlite'
+  for f in restore/people/*.tar; do
+    k=$(basename "$f" .tar); docker rm -f "pp-user-$k" 2>/dev/null
+    docker run --rm -i --entrypoint sh --user 0 -v "pp-data-$k":/data pi-phone-server:local \
+      -c 'find /data -mindepth 1 -delete && tar xf - -C /' < "$f"
+  done
+  docker compose -p pi-phone-team up -d
+  ```
+
 ## Smoke test
 
 After a build, `deploy/smoke.sh pi-phone-server:local` checks the image in a fresh container: it serves, carries its

@@ -191,8 +191,16 @@ No Termux, no laptop, no cloud VM.
 Updates come through the app afterwards; uninstalling deletes its sessions and logins.
 
 **On a Linux server instead:** the same app runs in Docker behind Caddy (HTTPS), with Pi's browser and `screenshot` on a
-headless Chrome inside it: built on the machine itself, see [deploy/README.md](deploy/README.md). It is one owner's for now; a team edition (accounts,
-roles, a container per person) is being built.
+headless Chrome inside it, built on the machine itself; see [deploy/README.md](deploy/README.md). There are two ways to run it:
+- **For one owner.**
+- **For a team** (6 to 15 people). It has:
+  - **Accounts:** by invite, with passkeys and two-factor.
+  - **A pi-phone per person**, each in its own container.
+  - **Custom roles**, which set features, models, monthly spend, memory and CPU.
+  - **An audit log.**
+  - **Idle pi-phones stop**, with **Always on** per person.
+  - **Rolling updates**, with data kept.
+  - **Downloads:** each person's data, and a whole-server backup.
 
 ## Use it
 

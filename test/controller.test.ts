@@ -104,6 +104,22 @@ before(async () => {
                 return reply(200, { Id: imageNow });
             }
 
+            // The export helper (PP-35): made, its /data archived, removed.
+            if (route === "POST /containers/create" && path.includes("name=pp-export-abc123-")) {
+                return reply(201, { Id: "e1" });
+            }
+
+            if (/^GET \/containers\/pp-export-abc123-[0-9a-f]{8}\/archive$/.test(route)) {
+                response.writeHead(200, { "content-type": "application/x-tar" });
+                response.end("TAR-OF-DATA");
+
+                return;
+            }
+
+            if (/^DELETE \/containers\/pp-export-abc123-[0-9a-f]{8}$/.test(route)) {
+                return reply(204);
+            }
+
             if (route === "POST /containers/create") {
                 exists.container = true;
                 exists.image = imageNow;
@@ -205,6 +221,31 @@ test("a person's pi-phone: its own network, volume, and a container with fixed o
     assert.deepEqual(await controller.list(), [{ id: "abc123", host: "pp-user-abc123", port: 8787, running: true, current: true }]);
     imageNow = "sha256:four";
     assert.equal((await controller.list())[0]!.current, false, "a rebuild: on an older image");
+
+    // Their data, from a helper that is never started: the volume read-only, no network; removed once read.
+    calls.length = 0;
+    const archive = await controller.export("abc123");
+    let read = "";
+
+    for await (const chunk of archive) {
+        read += String(chunk);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(read, "TAR-OF-DATA");
+    const helper = calls.find((call) => call.path.includes("name=pp-export-"))!;
+    const helperHost = helper.body!.HostConfig as Record<string, unknown>;
+
+    assert.deepEqual(helperHost.Mounts, [{ Type: "volume", Source: "pp-data-abc123", Target: "/data", ReadOnly: true }]);
+    assert.equal(helperHost.NetworkMode, "none");
+    assert.deepEqual((helper.body!.Labels as Record<string, string>)["io.piphone.role"], "export", "not a person container: the list leaves it out");
+    assert.ok(!calls.some((call) => call.path.includes("/start")), "never started");
+    assert.match(calls.map((call) => `${call.method} ${call.path.split("?")[0]}`).join(" "), /GET \/containers\/pp-export-abc123-\w+\/archive DELETE \/containers\/pp-export-abc123-\w+/);
+
+    // No volume yet: nothing to export.
+    exists.volume = false;
+    await assert.rejects(controller.export("abc123"), /no data yet/);
+    exists.volume = true;
 
     // Removed: the gateway leaves the network first (Docker keeps one in use); the volume stays unless purged.
     await controller.remove("abc123", false);

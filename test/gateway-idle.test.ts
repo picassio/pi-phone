@@ -1,11 +1,15 @@
 // Idle pi-phones stop (PP-33), with the gateway on an in-memory database, a stand-in controller, a stand-in pi-phone
 // and a clock the test moves: a pi-phone used a moment ago, one at work, and one with a page open stay up; one idle for
 // the server's minutes stops; the next visit starts it again; 0 minutes never stops; the setting is the server.manage
-// role's; browsers can't ask a pi-phone what it is doing; and an always-on pi-phone is kept running and started by itself.
+// role's; browsers can't ask a pi-phone what it is doing; an always-on pi-phone is kept running and started by itself;
+// a new image renews running ones that are not at work; and a person's data and the whole server download as .tar.gz.
 import { cleanUp } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { DatabaseSync } from "node:sqlite";
+import { Readable } from "node:stream";
+import { gunzipSync } from "node:zlib";
+import { tarStream } from "../src/gateway/tar.ts";
 import { after, before, test } from "node:test";
 import { makeAuth } from "../src/gateway/auth.ts";
 import { type ControllerClient, Gateway } from "../src/gateway/server.ts";
@@ -43,7 +47,40 @@ const controller: ControllerClient = {
         running = false;
     },
     remove: async () => undefined,
+    // A person's data as the controller streams it: a tar of their /data.
+    export: async (id) => {
+        calls.push(`export ${id}`);
+
+        return Readable.from([await personTar()]);
+    },
 };
+
+/** The stand-in's tar of a person's /data. */
+async function personTar(): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    const text = Buffer.from("a session's data");
+
+    for await (const chunk of tarStream([{ name: "data/pocket/session.txt", size: text.length, data: text }])) {
+        chunks.push(chunk);
+    }
+
+    return Buffer.concat(chunks);
+}
+
+/** A tar's files, by name. */
+function untar(archive: Buffer): Record<string, Buffer> {
+    const files: Record<string, Buffer> = {};
+
+    for (let at = 0; at + 512 <= archive.length && archive[at] !== 0; ) {
+        const name = archive.subarray(at, at + 100).toString("ascii").replace(/\0.*$/s, "");
+        const size = parseInt(archive.subarray(at + 124, at + 136).toString("ascii"), 8);
+
+        files[name] = archive.subarray(at + 512, at + 512 + size);
+        at += 512 + Math.ceil(size / 512) * 512;
+    }
+
+    return files;
+}
 
 before(async () => {
     upstream = createServer((request, response) => {
@@ -225,4 +262,25 @@ test("a gateway made again (an update) reaches people's running pi-phones before
     calls.length = 0;
     await fresh.sweep();
     assert.deepEqual(calls, [`ensure ${key}`, `renew ${key}`], "reached through the controller first, then made again");
+});
+
+test("a person's data, and the whole server, as .tar.gz downloads (PP-35)", async () => {
+    const me = store.users()[0]!;
+    const exported = await go(`/auth/gw/people/${me.id}/export`);
+
+    assert.equal(exported.status, 200);
+    assert.match(exported.headers.get("content-disposition") ?? "", /^attachment; filename="pi-phone-owner-\d{4}-\d{2}-\d{2}\.tar\.gz"$/);
+    assert.deepEqual(untar(gunzipSync(Buffer.from(await exported.arrayBuffer())))["data/pocket/session.txt"]?.toString(), "a session's data");
+    assert.equal((await go("/auth/gw/people/nobody123456/export")).status, 404);
+
+    const backup = await go("/auth/gw/backup");
+
+    assert.equal(backup.status, 200);
+    const files = untar(gunzipSync(Buffer.from(await backup.arrayBuffer())));
+
+    assert.deepEqual(Object.keys(files), ["manifest.json", "gateway.sqlite", `people/${key}.tar`]);
+    assert.equal(files["gateway.sqlite"]!.subarray(0, 15).toString(), "SQLite format 3", "a copy of the gateway's database");
+    assert.deepEqual(JSON.parse(files["manifest.json"]!.toString()).people, [{ key, email: "owner@example.test", name: "Owner" }]);
+    assert.equal(untar(files[`people/${key}.tar`]!)["data/pocket/session.txt"]?.toString(), "a session's data");
+    assert.match(JSON.stringify(store.auditLog()), /"exported".*|"server backup"/);
 });
