@@ -18,7 +18,7 @@ import type { Actor, Closer, Project, Projects, Run, Task, TaskLink } from "./pr
 /** Methods whose first argument is not an actor. */
 const ACTORLESS = new Set<SharedMethod>(["sessionsOf", "taskById", "projectById", "allProjects", "startWork"]);
 /** Methods that change a board: its mirror follows. */
-const WRITES = new Set<SharedMethod>(["create", "update", "setMembers", "leave", "moveToTeam", "setOpen", "remove", "createTask", "updateTask", "comment", "link", "unlink", "removeTask", "linkSession", "startWork"]);
+const WRITES = new Set<SharedMethod>(["recordRun", "create", "update", "setMembers", "leave", "moveToTeam", "setOpen", "remove", "createTask", "updateTask", "comment", "link", "unlink", "removeTask", "linkSession", "startWork"]);
 /** What is personal on a board, kept here only. */
 const PERSONAL = ["folder", "places", "autoRuns", "mainSession"] as const;
 
@@ -88,6 +88,11 @@ export function remoteBoards(options: RemoteBoardsOptions): RemoteBoards {
         if (value !== null && typeof value === "object") {
             const object = value as Record<string, unknown>;
             const laid = Object.fromEntries(Object.entries(object).map(([name, each]) => [name, personal(each)]));
+
+            // A task's run is this pi-phone's own: the gateway keeps none (others' show in its activity).
+            if (typeof object.id === "string" && typeof object.ref === "string" && "run" in object) {
+                return { ...laid, run: projects.lastRun(object.id) };
+            }
 
             if (typeof object.id === "string" && typeof object.key === "string" && Array.isArray(object.members)) {
                 return { ...laid, ...(projects.personalOf(object.id) ?? { folder: null, places: [], autoRuns: false, mainSession: null }) };

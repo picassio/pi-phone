@@ -130,6 +130,17 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
     boards.onChange((projectId) => web.send("changed", { projectId }));
 
     if (remote !== undefined) {
+        // Each step of a run here goes to the shared board, so the others see whose Pi works on it, and where (PP-41).
+        projects.onRunChanged((run) => {
+            const found = projects.taskById(run.taskId);
+            const person = me();
+
+            if (found !== undefined && person !== undefined) {
+                void boards
+                    .recordRun({ kind: "person", person }, found.task.ref, { state: run.state, branch: run.branch, conversationId: run.conversationId })
+                    .catch((error: unknown) => host.notice("warning", `Projects: ${found.task.ref}'s run could not be shared: ${String(error)}`));
+            }
+        });
         // Every board this person sees, mirrored here before the team works on them.
         void remote
             .sync()
@@ -230,10 +241,19 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         async (request, actor) => {
             const seen = await boards.task(actor, request.params.ref!);
 
+            // Someone else's run of it (the team server): the latest step their pi-phone shared.
+            const theirs = seen.activity.filter((event) => event.kind === "run" && typeof event.data.session === "string" && !/^\d+$/.test(event.data.session)).at(-1);
+
             return {
                 ...seen,
                 runs: projects.runsOfTask(seen.task.id),
+                elsewhere: theirs === undefined ? null : { by: String(theirs.data.by ?? theirs.actorName), state: String(theirs.data.state), branch: theirs.data.branch ?? null, at: theirs.createdAt },
                 sessions: seen.sessions.map((session) => {
+                    // Others' sessions are in their own pi-phones: named, not opened here.
+                    if (!/^\d+$/.test(session.conversationId)) {
+                        return { ...session, title: null, state: null };
+                    }
+
                     const id = Number(session.conversationId);
 
                     return { ...session, title: host.sessionTitle(id) ?? null, state: host.sessionState(id) ?? null };

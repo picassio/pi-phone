@@ -2,7 +2,8 @@
 // gateway board service on its internal port. A board Anna makes keeps its folder in her pi-phone only; shared with
 // Binh, it is mirrored into his after a sync, and changes reach the other's mirror when the gateway pushes; Pi's
 // sessions come back as plain numbers to their own pi-phone and namespaced to others; "pi" means the asker's own Pi;
-// places are each one's own; and unsharing takes the board out of Binh's pi-phone, stopping his run there.
+// places are each one's own; a run stays in its runner's pi-phone while the others see its steps and whose session it
+// is (PP-41); and unsharing takes the board out of Binh's pi-phone, stopping his run there.
 import { cleanUp, root } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
@@ -108,6 +109,20 @@ test("pi-phones share a board through the gateway, each with its own mirror, pla
     const run = binh.projects.queueRun(as, task.ref);
 
     assert.equal(run.state, "queued");
+    // His run is his pi-phone's: laid over the shared task there; Anna sees what his pi-phone shares of it (PP-41).
+    assert.equal((await binh.boards.task(as, task.ref)).task.run?.id, run.id);
+    assert.equal((await anna.boards.task(as, task.ref)).task.run, null, "not in hers");
+    await binh.boards.linkSession(as, task.ref, "5", "worker");
+    await binh.boards.recordRun(as, task.ref, { state: "running", branch: "task/WEB-1", conversationId: "5" });
+    const seen = await anna.boards.task(as, task.ref);
+    const step = seen.activity.filter((event) => event.kind === "run").at(-1)!;
+
+    assert.deepEqual([step.data.state, step.data.branch, step.data.session, step.data.by], ["running", "task/WEB-1", `${store.box(ids.Binh!).key}:5`, "Binh"]);
+    assert.deepEqual(seen.sessions.map((session) => [session.role, (session as { by?: string }).by]), [["linked", "Binh"], ["worker", "Binh"]], "his sessions (his Pi touched it from 3, ran it in 5), named");
+    assert.deepEqual((await binh.boards.task(as, task.ref)).sessions.map((session) => session.conversationId), ["3", "5"], "his own, as numbers");
+    // A run that ends before its session starts is still his, to Anna.
+    await binh.boards.recordRun(as, task.ref, { state: "failed", branch: "task/WEB-1", conversationId: null });
+    assert.equal((await anna.boards.task(as, task.ref)).activity.filter((event) => event.kind === "run").at(-1)?.data.by, "Binh");
     await anna.boards.setMembers(as, "WEB", []);
     await binh.boards.received({ projectId: made.id });
     assert.deepEqual(binh.projects.allProjects(), [], "gone from his pi-phone");

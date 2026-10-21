@@ -618,6 +618,14 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     reaches only them.
   - **Runs** act as this pi-phone's own person (`Team.#person`). Queueing a run also gives the task to the person's own
     Pi on the gateway.
+  - **Each member's own environment** (PP-41):
+    - **Places:** a member's places (their clone) are personal.
+    - **Runs** stay in the runner's pi-phone, and are laid over the shared task there (`task.run`).
+    - **Each step is shared:** `Projects.onRunChanged` leads to `recordRun`, a "run" activity of the gateway's with
+      state, branch and `session: <key>:<n>` (`<key>:0` before a session exists).
+    - **Names:** the gateway names whose pi-phone a session, comment or step is in (`by`).
+    - **The task sheet** links your own sessions, names others' ("In Binh's pi-phone"), shows others' runs in the
+      activity ("Binh's Pi ran it · on task/PP-12"), and shows a card while someone else's Pi works on it.
   - agent-board's five types and hierarchy (Epic → Story/Task/Bug; Story → Task/Bug/Sub-task; Task, Bug → Sub-task)
     and its eight states. The store keeps what must hold whatever a model does: who sees a project (the owner all;
     others the ones they own or are members of; viewers only read), the hierarchy (no circles), Done only after a

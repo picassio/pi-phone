@@ -1445,6 +1445,19 @@ export default function projects(pocket) {
         </section>`;
         const branchLine = run?.branch && html`<span><code>${run.branch}</code> → <code>${run.base}</code></span>`;
 
+        // Someone else's Pi works on it, in their own pi-phone (the team server).
+        const theirs = data.elsewhere;
+
+        if (!run && theirs && ACTIVE.has(theirs.state)) {
+            return card(
+                "var(--accent)",
+                svg(PLAY, 13),
+                `${theirs.by}'s Pi ${theirs.state === "queued" ? "is about to work on it" : "is working on it"}`,
+                html`<span>In their own pi-phone${theirs.branch ? html`, on <code>${theirs.branch}</code>` : ""}.</span>`,
+                null,
+            );
+        }
+
         if (!run) {
             return card(
                 "var(--muted)",
@@ -1772,6 +1785,14 @@ export default function projects(pocket) {
         return html`<section class="pt-sec">
             <div class="pt-sec-h">Sessions<span class="pt-n">${sessions.length}</span></div>
             ${rows.map((session) => {
+                // In someone else's pi-phone (the team server): named, not a link.
+                if (!/^\d+$/.test(session.conversationId)) {
+                    return html`<div class="pt-row pt-session">
+                        <span class="pt-sess-icon">${svg(CHAT, 14)}</span>
+                        <span class="pt-t">In ${session.by ?? "someone else"}'s pi-phone<small>${session.role === "worker" ? "Their Pi's run" : session.role === "main" ? "Leads it there" : "Mentions it"}</small></span>
+                    </div>`;
+                }
+
                 const index = runs.findIndex((run) => run.conversationId === session.conversationId);
                 const run = runs[index];
                 const busy = session.state?.busy;
@@ -1809,11 +1830,14 @@ export default function projects(pocket) {
                     return [];
                 }
 
-                const run = runs.filter((each) => !ACTIVE.has(each.state))[ended++];
+                // Someone else's run (the team server): its step and branch, from their pi-phone.
+                const mine = event.data.session === undefined || event.data.session === null || /^\d+$/.test(String(event.data.session));
+                const run = mine ? runs.filter((each) => !ACTIVE.has(each.state))[ended++] : undefined;
                 const time = run?.endedAt && run.startedAt ? ` in ${took(run.endedAt - run.startedAt)}` : "";
-                const words = { done: `ran it · finished${time}`, failed: "ran it · it failed", stopped: "ran it · it stopped", cancelled: "cancelled its run" }[event.data.state];
+                const where = event.data.branch ? ` · on ${event.data.branch}` : "";
+                const words = { done: `ran it · finished${time}${where}`, failed: `ran it · it failed${where}`, stopped: `ran it · it stopped${where}`, cancelled: "cancelled its run" }[event.data.state];
 
-                return [{ at: event.createdAt, who: event.actorName, words }];
+                return [{ at: event.createdAt, who: mine ? event.actorName : `${event.data.by ?? event.actorName}'s Pi`, words }];
             }
 
             // Ticking items is the checklist's to show, not the feed's.

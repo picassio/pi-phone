@@ -292,6 +292,7 @@ export class Projects {
     readonly #now: () => number;
     readonly #listeners = new Set<(projectId: string) => void>();
     readonly #assigned = new Set<(task: Task) => void>();
+    readonly #runListeners = new Set<(run: Run) => void>();
 
     /** `people`: everyone in the app, as config has them now. */
     constructor(dataDir: string, people: () => Person[], now: () => number = Date.now) {
@@ -390,6 +391,13 @@ export class Projects {
         this.#listeners.add(listener);
 
         return () => this.#listeners.delete(listener);
+    }
+
+    /** Call `listener` when a run is queued or moves on (starting, running, done, …); returns how to stop. */
+    onRunChanged(listener: (run: Run) => void): () => void {
+        this.#runListeners.add(listener);
+
+        return () => this.#runListeners.delete(listener);
     }
 
     /** Call `listener` when a task is given to Pi (made assigned to it, or assigned to it later), while it is open. */
@@ -537,6 +545,21 @@ export class Projects {
         this.#changed(project.id);
 
         return this.#projectById(project.id)!;
+    }
+
+    /**
+     * A run of a task in someone's own pi-phone, as the shared board shows it (the team server, PP-41): its step, its
+     * branch, and its session there. The run itself stays in that pi-phone; this is what the others see of it.
+     */
+    recordRun(actor: Actor, ref: string, info: { state: RunState; branch: string | null; conversationId: string | null }): void {
+        const { project, task } = this.#editTask(actor, ref);
+
+        if (!(RUN_STATES as readonly string[]).includes(info.state)) {
+            throw bad(`A run is ${RUN_STATES.join(", ")}.`);
+        }
+
+        this.#record(actor, task.id, project.id, "run", { state: info.state, branch: info.branch === null ? null : String(info.branch).slice(0, 200), session: info.conversationId === null ? null : String(info.conversationId) });
+        this.#changed(project.id);
     }
 
     /** Leave a board shared with you (PP-39). Its maker cannot: they delete it, or move it to the team. */
@@ -1220,7 +1243,13 @@ export class Projects {
         });
         this.#changed(project.id);
 
-        return this.#runById(id)!;
+        const queued = this.#runById(id)!;
+
+        for (const listener of this.#runListeners) {
+            listener(queued);
+        }
+
+        return queued;
     }
 
     /** A queued run withdrawn, before it starts. */
@@ -1261,7 +1290,15 @@ export class Projects {
 
         this.#changed(run.projectId);
 
-        return this.#runById(id)!;
+        const saved = this.#runById(id)!;
+
+        if (patch.state !== undefined && patch.state !== run.state) {
+            for (const listener of this.#runListeners) {
+                listener(saved);
+            }
+        }
+
+        return saved;
     }
 
     activeRun(taskId: string): Run | undefined {

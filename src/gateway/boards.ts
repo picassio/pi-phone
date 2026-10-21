@@ -124,6 +124,33 @@ export class BoardService {
             return typeof given.assignee === "string" && given.assignee.trim().toLowerCase() === "pi" ? { ...given, assignee: `pi:${person.id}` } : given;
         };
 
+        /** Sessions in someone's pi-phone (`<key>:<n>`) named with whose it is, so others see "in Binh's pi-phone". */
+        const named = <T>(value: T): T => {
+            const whose = (session: unknown) => {
+                const key = typeof session === "string" ? /^([a-z0-9]+):\d+$/.exec(session)?.[1] : undefined;
+                const box = key === undefined ? undefined : this.#store.boxByKey(key);
+
+                return box === undefined ? undefined : this.people().find((each) => each.id === box.userId)?.name;
+            };
+            const shown = value as { sessions?: { conversationId: string; by?: string }[]; comments?: { session: string | null; by?: string }[]; activity?: { data: Record<string, unknown> }[] };
+
+            for (const session of shown.sessions ?? []) {
+                session.by = whose(session.conversationId);
+            }
+
+            for (const comment of shown.comments ?? []) {
+                comment.by = whose(comment.session);
+            }
+
+            for (const event of shown.activity ?? []) {
+                if (typeof event.data.session === "string") {
+                    event.data.by = whose(event.data.session);
+                }
+            }
+
+            return value;
+        };
+
         switch (call.method) {
             case "list":
                 return store.list(actor);
@@ -134,7 +161,7 @@ export class BoardService {
             case "project":
                 return looked({ project: store.project(actor, key) }).project;
             case "task":
-                return looked(store.task(actor, key));
+                return named(looked(store.task(actor, key)));
             case "tasks":
                 return store.tasks(actor, args[0] === undefined || args[0] === null ? undefined : key, (args[1] ?? {}) as never);
             case "projectById":
@@ -147,7 +174,7 @@ export class BoardService {
             case "sessionsOf": {
                 const found = store.taskById(key);
 
-                return found !== undefined && visible(found.project.id) !== undefined ? store.sessionsOf(key) : [];
+                return found !== undefined && visible(found.project.id) !== undefined ? named({ sessions: store.sessionsOf(key) }).sessions : [];
             }
             case "create": {
                 const input = (args[0] ?? {}) as { key: string; name: string; team?: boolean };
@@ -193,6 +220,12 @@ export class BoardService {
                 return store.unlink(actor, key, String(args[1] ?? ""), args[2] as never);
             case "removeTask":
                 return store.removeTask(actor, key);
+            case "recordRun": {
+                const info = (args[1] ?? {}) as { state: never; branch: string | null; conversationId: string | null };
+
+                // Marked with the pi-phone it ran in, with or without a session yet ("0": none), so the others see whose it is.
+                return store.recordRun(actor, key, { state: info.state, branch: info.branch ?? null, conversationId: own(info.conversationId ?? "0") });
+            }
             case "linkSession":
                 return store.linkSession(actor, key, own(args[1]), args[2] as never);
             case "startWork": {

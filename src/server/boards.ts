@@ -19,6 +19,7 @@ export const SHARED = [
     "leave",
     "moveToTeam",
     "setOpen",
+    "recordRun",
     "remove",
     "createTask",
     "task",
