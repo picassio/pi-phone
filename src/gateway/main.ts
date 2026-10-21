@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { makeAuth } from "./auth.ts";
 import { BoardService } from "./boards.ts";
+import { DocService } from "./docs.ts";
 import { SocketController } from "./controller-client.ts";
 import { Gateway } from "./server.ts";
 import { GatewayStore } from "./store.ts";
@@ -44,10 +45,12 @@ mkdirSync(boardsDir, { recursive: true });
 const auth = await makeAuth({ db, secret: store.authSecret(), origin });
 
 const boards = new BoardService(store, boardsDir);
+const docs = new DocService(store, boards, boardsDir);
 const gateway = new Gateway({
     auth,
     store,
     boards,
+    docs,
     controller: new SocketController(env("PP_CONTROLLER_SOCKET"), readFileSync(env("PP_CONTROLLER_SECRET_FILE"), "utf8").trim()),
     origin,
     log: (line) => console.error(line),

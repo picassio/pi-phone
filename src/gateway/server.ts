@@ -23,6 +23,7 @@ import { CATALOGUE, checkRole, OWNER_ROLE, type Permission } from "./roles.ts";
 import { type GatewayStore, INVITE_MINUTES, type PersonBox } from "./store.ts";
 import { type TarEntry, tarStream } from "./tar.ts";
 import type { BoardService } from "./boards.ts";
+import type { DocService } from "./docs.ts";
 import type { Task } from "../server/projects.ts";
 import { HttpError } from "../server/errors.ts";
 
@@ -46,6 +47,8 @@ export type GatewayOptions = {
     controller: ControllerClient;
     /** The shared part of the team's boards (PP-39). */
     boards: BoardService;
+    /** Team and project documents (PP-46). */
+    docs: DocService;
     /** The address people open: `https://…`. */
     origin: string;
     log: (line: string) => void;
@@ -462,6 +465,12 @@ export class Gateway {
                 const answer = await this.#teamCall(box, String(asked.route ?? ""), String(asked.method ?? "GET"), asked.body);
 
                 return json(response, answer.status, answer.body);
+            }
+
+            if (path === "/internal/docs" && request.method === "POST") {
+                const body = await readBody(request);
+
+                return json(response, 200, { value: this.#options.docs.call(box, body as never) ?? null });
             }
 
             if (path === "/internal/boards" && request.method === "POST") {

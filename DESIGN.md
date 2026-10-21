@@ -645,6 +645,22 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     - **Never:** an allow list (`TEAM_ROUTES`) keeps passwords, exports, backups and setup out.
     - **Cards and guests:** every change asks this pi-phone's person on an approval card. Guests never get them.
       Plan mode allows the reads.
+  - **Documents** (PP-46): people's documents, in folders, as markdown pages, by scope.
+    - **The store** (`doc-store.ts`, `DocumentStore`):
+      - **Scopes:** `mine`, `team`, `project:<board id>`.
+      - **Folders** nest, never inside themselves. A page's title is unique in its scope, so `[[Title]]` names one
+        page.
+      - **History:** every save is a version (history, restore).
+      - **Deletes and links:** deletes are kept to restore, and backlinks come from `[[Title]]`/`[[Title|words]]`.
+      - **Search:** FTS5, with queries as quoted word prefixes.
+    - **Where they live** (`docs-access.ts`, `Docs`): a pi-phone keeps Mine (and, on the phone, its own boards'
+      documents) in `documents.sqlite`. On the team server, the team's and shared boards' documents are in the
+      gateway (`src/gateway/docs.ts`, `DocService`, `POST /internal/docs`).
+    - **Who may:** team documents are read by anyone with `pi.use`, and written with `docs.team`. A project's follow
+      the board's standing (`BoardService.standing`/`seen`).
+    - **Names:** scopes travel by outside names (`project:<KEY>`). Deletes are audited, and a deleted board takes its
+      documents (`BoardService.onRemoved`).
+    - **The extension** (`extensions/docs.ts`): routes `scopes`, `call` and `search`, for this pi-phone's person only.
   - **Each member's own environment** (PP-41):
     - **Places:** a member's places (their clone) are personal.
     - **Runs** stay in the runner's pi-phone, and are laid over the shared task there (`task.run`).

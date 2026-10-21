@@ -13,6 +13,7 @@ import { DatabaseSync } from "node:sqlite";
 import { after, before, test } from "node:test";
 import { makeAuth } from "../src/gateway/auth.ts";
 import { BoardService } from "../src/gateway/boards.ts";
+import { DocService } from "../src/gateway/docs.ts";
 import { type ControllerClient, Gateway } from "../src/gateway/server.ts";
 import { GatewayStore } from "../src/gateway/store.ts";
 
@@ -30,6 +31,7 @@ const controller: ControllerClient = {
 
 let store: GatewayStore;
 let boards: BoardService;
+let docs: DocService;
 let internal: Server;
 let address = "";
 const ids: Record<string, string> = {};
@@ -51,9 +53,12 @@ before(async () => {
     // Dao's role can't make boards.
     store.saveRole({ id: "reader", name: "Reader", permissions: ["pi.use"], memoryMb: 1024, cpus: 1, models: [], spendLimit: null, builtin: false });
     store.setRoleOf(ids.Dao!, "reader");
-    boards = new BoardService(store, mkdtempSync(join(root, "gw-boards-")));
+    const dir = mkdtempSync(join(root, "gw-boards-"));
 
-    const gateway = new Gateway({ auth, store, controller, boards, origin, log: () => undefined });
+    boards = new BoardService(store, dir);
+    docs = new DocService(store, boards, dir);
+
+    const gateway = new Gateway({ auth, store, controller, boards, docs, origin, log: () => undefined });
 
     internal = createServer((request, response) => void gateway.internal(request, response));
     await new Promise<void>((resolve) => internal.listen(0, "127.0.0.1", resolve));
@@ -162,4 +167,45 @@ test("Pi's team tools reach the gateway's own routes, with the person's rights, 
     // Server settings, by server.manage.
     assert.equal(((await team("Owner", "server", "GET")).body as { idleMinutes: number }).idleMinutes, 30);
     assert.match(String((await team("Chi", "server", "POST", { idleMinutes: 5 })).body.error), /does not manage the server/);
+});
+
+/** A documents call from someone's pi-phone (PP-46). */
+async function doc(name: string, method: string, args: unknown[], pi?: { conversationId: string }) {
+    const response = await fetch(`${address}/internal/docs`, { method: "POST", headers: { authorization: `Bearer ${store.box(ids[name]!).token}`, "content-type": "application/json" }, body: JSON.stringify({ method, args, ...(pi === undefined ? {} : { pi }) }) });
+    const body = (await response.json()) as { value?: unknown; error?: string };
+
+    return { status: response.status, value: body.value as Record<string, unknown> & Record<string, never>, error: body.error ?? "" };
+}
+
+test("team and project documents in the gateway, by each person's rights (PP-46)", async () => {
+    // Team documents: everyone with a pi-phone reads; "Edit team documents" writes (the owner has it, a member doesn't).
+    const made = await doc("Owner", "write", ["team", { title: "Onboarding", body: "Read the [[Runbook]]." }]);
+
+    assert.equal(made.status, 200);
+    assert.equal(made.value.scope, "team");
+    assert.equal((await doc("Chi", "page", ["team", made.value.id])).value.title, "Onboarding", "a member reads it");
+    assert.match((await doc("Chi", "write", ["team", { title: "Mine", body: "x" }])).error, /Editing team documents is not part of your role/);
+    assert.deepEqual(((await doc("Chi", "scopes", [])).value as unknown as { id: string; write: boolean }[]).find((each) => each.id === "team"), { id: "team", name: "Team", write: false });
+
+    // Project documents follow the board: Owner makes DOC and shares it with Chi as a viewer, then as a member.
+    await call("Owner", "create", [{ key: "DOC", name: "Docs board" }]);
+    assert.match((await doc("Chi", "tree", ["project:DOC"])).error, /no project DOC/, "not shared yet");
+    await call("Owner", "setMembers", ["DOC", [ids.Chi], { [ids.Chi!]: "viewer" }]);
+    assert.equal((await doc("Chi", "tree", ["project:DOC"])).status, 200);
+    assert.match((await doc("Chi", "write", ["project:DOC", { title: "Plan", body: "x" }])).error, /viewer on DOC/);
+    await call("Owner", "setMembers", ["DOC", [ids.Chi], { [ids.Chi!]: "member" }]);
+    const plan = await doc("Chi", "write", ["project:DOC", { title: "Plan", body: "Ship the docs." }], { conversationId: "4" });
+
+    assert.deepEqual([plan.value.scope, plan.value.updatedByName], ["project:DOC", "Pi (Chi)"]);
+
+    // Search: only the scopes asked for that the person may read.
+    const hits = (await doc("Chi", "search", [["team", "project:DOC"], "docs"])).value as unknown as { scope: string; title: string }[];
+
+    assert.ok(hits.some((hit) => hit.scope === "project:DOC" && hit.title === "Plan"));
+
+    // A delete is audited; the board deleted takes its documents.
+    assert.equal((await doc("Chi", "remove", ["project:DOC", plan.value.id])).status, 200);
+    assert.ok(store.auditLog().some((entry) => entry.action === "document deleted" && entry.actor === ids.Chi));
+    boards.call(store.box(ids.Owner!), { method: "remove", args: ["DOC"] });
+    assert.match((await doc("Owner", "tree", ["project:DOC"])).error, /no project DOC/);
 });

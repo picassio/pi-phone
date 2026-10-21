@@ -11,7 +11,7 @@
  * itself) is never kept here: each pi-phone keeps its own.
  */
 import { HttpError } from "../server/errors.ts";
-import { type Actor, type Closer, CLOSERS, type Person, type Project, Projects, type Task } from "../server/projects.ts";
+import { type Actor, type BoardRole, type Closer, CLOSERS, type Person, type Project, Projects, type Task } from "../server/projects.ts";
 import type { GatewayStore, PersonBox } from "./store.ts";
 import { ProjectWiki } from "./project-wiki.ts";
 
@@ -27,6 +27,7 @@ export class BoardService {
     /** Each board's project wiki (PP-42). */
     readonly #wiki: ProjectWiki;
     readonly #changes = new Set<(projectId: string) => void>();
+    readonly #removed = new Set<(projectId: string) => void>();
 
     constructor(store: GatewayStore, dir: string, now: () => number = Date.now) {
         this.#store = store;
@@ -44,6 +45,33 @@ export class BoardService {
         for (const listener of this.#changes) {
             listener(projectId);
         }
+    }
+
+    /** Call `listener` with a board's id when it is deleted (its documents go too, PP-46). */
+    onRemoved(listener: (projectId: string) => void): () => void {
+        this.#removed.add(listener);
+
+        return () => this.#removed.delete(listener);
+    }
+
+    /** A person's standing on a board they see, by its key; refused (404) when they don't see it. */
+    standing(userId: string, key: string): { id: string; key: string; name: string; role: BoardRole } {
+        const person = this.people().find((each) => each.id === userId);
+
+        if (person === undefined) {
+            throw new HttpError(403, "No such person here.");
+        }
+
+        const project = this.#projects.project({ kind: "person", person }, key);
+
+        return { id: project.id, key: project.key, name: project.name, role: this.#projects.roleOn(person, project) ?? "viewer" };
+    }
+
+    /** The boards a person sees, with their standing on each. */
+    seen(userId: string): { id: string; key: string; name: string; role: BoardRole }[] {
+        const person = this.people().find((each) => each.id === userId);
+
+        return person === undefined ? [] : this.#projects.list({ kind: "person", person }).map((project) => ({ id: project.id, key: project.key, name: project.name, role: this.#projects.roleOn(person, project) ?? "viewer" }));
     }
 
     /** Call `listener` when a task is given to a person's own Pi (`pi:<person>`), to start their pi-phone on it (PP-40). */
@@ -268,6 +296,10 @@ export class BoardService {
 
                     store.remove(actor, key);
                     wiki.forget(project.id);
+
+                    for (const listener of this.#removed) {
+                        listener(project.id);
+                    }
 
                     return audited("board deleted", key.toUpperCase(), undefined);
                 }

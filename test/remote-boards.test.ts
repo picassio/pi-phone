@@ -13,6 +13,7 @@ import { DatabaseSync } from "node:sqlite";
 import { after, before, test } from "node:test";
 import { makeAuth } from "../src/gateway/auth.ts";
 import { BoardService } from "../src/gateway/boards.ts";
+import { DocService } from "../src/gateway/docs.ts";
 import { type ControllerClient, Gateway } from "../src/gateway/server.ts";
 import { GatewayStore } from "../src/gateway/store.ts";
 import { type Actor, type Person, Projects, type Run, type Task } from "../src/server/projects.ts";
@@ -47,11 +48,13 @@ before(async () => {
         ids[name] = ((await auth.api.createUser({ body: { name, email: `${name.toLowerCase()}@example.test`, password: "a long enough password", role: "member" } })) as { user: { id: string } }).user.id;
     }
 
-    service = new BoardService(store, mkdtempSync(join(root, "gw-boards-")));
+    const dir = mkdtempSync(join(root, "gw-boards-"));
+
+    service = new BoardService(store, dir);
     service.onChange((projectId) => pushes.push(projectId));
     service.onAssignedToPi((task) => toPi.push(task));
 
-    const gateway = new Gateway({ auth, store, controller, boards: service, origin, log: () => undefined });
+    const gateway = new Gateway({ auth, store, controller, boards: service, docs: new DocService(store, service, dir), origin, log: () => undefined });
 
     internal = createServer((request, response) => void gateway.internal(request, response));
     await new Promise<void>((resolve) => internal.listen(0, "127.0.0.1", resolve));

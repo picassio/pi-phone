@@ -25,6 +25,13 @@ export const CATALOGUE = [
         },
     },
     {
+        group: "Documents",
+        enforced: "gateway",
+        permissions: {
+            "docs.team": "Edit team documents (everyone with a pi-phone reads them)",
+        },
+    },
+    {
         group: "Their own pi-phone",
         enforced: "container",
         permissions: {
