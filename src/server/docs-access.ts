@@ -132,7 +132,10 @@ export class Docs {
         const embedder = here.length === 0 ? undefined : await this.#options.embedder?.();
         let vector: number[] | null = null;
 
-        if (embedder !== undefined) {
+        // Vectors of another model (it was just changed) compare to nothing: by keyword until they are embedded again.
+        if (embedder !== undefined && this.#local.embeddedWith() !== embedder.model) {
+            this.#index();
+        } else if (embedder !== undefined) {
             try {
                 const embedded = await embedder.embed([query]);
 

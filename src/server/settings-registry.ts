@@ -264,8 +264,8 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
         {
             id: "wiki.embeddingModel",
             area: "wiki",
-            title: "Embedding model for wiki search",
-            help: "An OpenRouter embedding model's id, or none for keyword search only.",
+            title: "Embedding model for search",
+            help: "An OpenRouter embedding model's id, for search by meaning in the wiki and your documents, or none for keyword search only.",
             owner: true,
             read: async () => (await wiki("embeddingModel")) ?? "none",
             apply: async (_user, value) => {

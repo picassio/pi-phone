@@ -500,9 +500,9 @@ export default function wiki(pocket) {
                     <div>
                         <div>Search by meaning ${settings.embeddingModel && html`<span class="ok">✓</span>`}</div>
                         <div class="muted small">
-                            Keyword search always works. With an OpenRouter embedding model, search also finds pages by meaning.
-                            Each search waits for the model to embed the query: some answer in 0.2 s, others in over 1 s. Changing it
-                            embeds the wiki again.
+                            Keyword search always works. With an OpenRouter embedding model, search also finds pages by meaning, in
+                            the wiki and in your documents. Each search waits for the model to embed the query: some answer in 0.2 s,
+                            others in over 1 s. Changing it embeds the wiki and your documents again.
                         </div>
                         ${embedding?.error && html`<p class="wiki-problem">${embedding.error}</p>`}
                         ${embedding && !embedding.error && !embedding.signedIn && html`<p class="muted small">Sign in to OpenRouter in Settings > Providers to use one.</p>`}
@@ -510,7 +510,7 @@ export default function wiki(pocket) {
                         ${
                             embedding?.signedIn &&
                             html`<div class="field">
-                                <div class="label">Embedding model</div>
+                                <div class="label">Embedding model for search</div>
                                 <select
                                     value=${settings.embeddingModel ?? ""}
                                     disabled=${busy}

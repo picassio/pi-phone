@@ -509,6 +509,11 @@ export class DocumentStore {
         });
     }
 
+    /** The embedding model the vectors are of ("" before any): search by meaning only compares vectors of one model. */
+    embeddedWith(): string {
+        return this.#model();
+    }
+
     /** The embedding model the vectors are of ("" before any). */
     #model(): string {
         return String((this.#db.prepare("SELECT value FROM doc_meta WHERE name = 'model'").get() as Row | undefined)?.value ?? "");

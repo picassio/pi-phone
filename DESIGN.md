@@ -674,6 +674,8 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
         By meaning, only pages within 0.1 of the best match count (`NEAR`): measured on the devbox with
         text-embedding-3-small, matches scored 0.25–0.55 and the rest 0.1 or more below; a fixed floor cut short queries.
         Pages saved before passages existed are cut when the store opens.
+        Search uses meaning only when the stored vectors are of the current model (`embeddedWith`); right after a
+        change it is by keyword and starts embedding again. The setting is "Embedding model for search" (wiki and Mine).
     - **Images** (PP-49): `doc_images` rows (bytes in SQLite, so backups and `forgetScope` include them); pages show
       one as `![name](image:<id>)` (`IMAGE_REF`).
       - **Clean:** `image-meta.ts` types a file by its bytes (PNG, JPEG, WebP, GIF, 10 MB) and drops metadata:

@@ -65,7 +65,7 @@ test("Mine searched by meaning with the person's embedder: indexed after a save,
     const spent: number[] = [];
     // Stand-in vectors: "deploy" and "ship" mean the same; anything else, another thing.
     const embedder = {
-        model: "stand/in",
+        model: "stand/in" as string,
         async embed(texts: string[]) {
             return { vectors: texts.map((text) => (/deploy|ship/i.test(text) ? [1, 0] : [0, 1])), tokens: texts.length };
         },
@@ -79,6 +79,12 @@ test("Mine searched by meaning with the person's embedder: indexed after a save,
     assert.deepEqual(await docs.meaning(), { mine: true, team: null });
     assert.deepEqual((await docs.search("deploy")).map((hit) => hit.title), ["Release"], "found by meaning, not words");
     assert.ok(spent.length >= 2, "indexing and the query both counted");
+
+    // The model changed: its vectors and the old ones compare to nothing, so by keyword until all are embedded again.
+    embedder.model = "stand/in-2";
+    assert.deepEqual(await docs.search("deploy"), [], "by keyword: no page has the word");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual((await docs.search("deploy")).map((hit) => hit.title), ["Release"], "by meaning again");
     docs.close();
 });
 

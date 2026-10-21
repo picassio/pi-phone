@@ -163,7 +163,10 @@ export class DocService {
             const embedder = this.embedder();
             let vector: number[] | null = null;
 
-            if (embedder !== undefined && query.trim() !== "") {
+            // Vectors of another model (it was just changed) compare to nothing: by keyword until they are embedded again.
+            if (embedder !== undefined && this.#docs.embeddedWith() !== embedder.model) {
+                this.#index();
+            } else if (embedder !== undefined && query.trim() !== "") {
                 try {
                     const embedded = await embedder.embed([query]);
 
