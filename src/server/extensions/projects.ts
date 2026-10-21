@@ -181,7 +181,36 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
 
     route("GET", "projects", async (_request, actor) => ({ projects: await boards.list(actor), states: STATES, types: TYPES }), view);
     // People to share a project with and assign tasks to: names only.
-    route("GET", "people", () => ({ people: people().map(({ id, name, role }) => ({ id, name, role })) }), view);
+    // With who this person is on the boards, and whether they are the team server's (team boards, roles, Wiki).
+    route(
+        "GET",
+        "people",
+        async () => {
+            if (remote !== undefined) {
+                return { people: await remote.team("people"), me: await remote.team("me"), team: true };
+            }
+
+            const owner = me();
+
+            return { people: people().map(({ id, name, role }) => ({ id, name, role })), me: { id: owner?.id ?? null, name: owner?.name ?? "", managesTeam: false, seesAll: false, canCreate: true, canShare: true, canDelete: true }, team: false };
+        },
+        view,
+    );
+    // Tasks given to this person or their Pi, on every board they see (PP-43).
+    route(
+        "GET",
+        "mine",
+        async (_request, actor) => {
+            const who = remote !== undefined ? ((await remote.team("me")) as { id: string }).id : me()?.id;
+            const mine = new Set(remote !== undefined ? [who, `pi:${who}`] : [who, "pi"]);
+
+            return { tasks: (await boards.tasks(actor, undefined)).filter((task) => task.assignee !== null && mine.has(task.assignee) && task.state !== "done") };
+        },
+        view,
+    );
+    route("POST", "projects/:key/leave", async (request, actor) => ({ ok: (await boards.leave(actor, request.params.key!)) ?? true }), steer);
+    route("POST", "projects/:key/to-team", async (request, actor) => await boards.moveToTeam(actor, request.params.key!), steer);
+    route("PUT", "projects/:key/open", async (request, actor) => await boards.setOpen(actor, request.params.key!, request.body.open === true), steer);
     route("POST", "projects", async (request, actor) => await boards.create(actor, body(request)), steer);
     route(
         "GET",
@@ -229,7 +258,14 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 throw new HttpError(400, "Send members: a list of people's ids.");
             }
 
-            return await boards.setMembers(actor, request.params.key!, members as string[]);
+            // Each one's standing (lead, member, viewer), where the team server keeps it; a member by default.
+            const roles = (request.body.roles ?? {}) as Record<string, unknown>;
+
+            if (typeof roles !== "object" || Object.values(roles).some((role) => typeof role !== "string")) {
+                throw new HttpError(400, "Send roles: each member's standing, lead, member or viewer.");
+            }
+
+            return await boards.setMembers(actor, request.params.key!, members as string[], roles as never);
         },
         steer,
     );

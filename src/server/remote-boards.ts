@@ -27,6 +27,8 @@ export type RemoteBoards = Boards & {
     received(push: { projectId: string; assigned?: Task }): Promise<void>;
     /** Mirror every board this person sees, and forget the ones they no longer do. */
     sync(): Promise<void>;
+    /** The team (to share with and assign to) and who this person is there (PP-43). */
+    team(method: "people" | "me"): Promise<unknown>;
     /** A board's project wiki on the gateway (PP-42), as this person or as Pi working for them. */
     wiki(method: "wikiList" | "wikiRead" | "wikiSearch" | "wikiWrite" | "wikiEdit", args: unknown[], actor: Actor): Promise<unknown>;
 };
@@ -157,6 +159,7 @@ export function remoteBoards(options: RemoteBoardsOptions): RemoteBoards {
                 }
             }
         },
+        team: async (method: string) => call(method, []),
         wiki: async (method: string, args: unknown[], actor: Actor) =>
             call(method, args, actor.kind === "pi" ? { conversationId: actor.conversationId, closer: actor.closer } : undefined),
         sync: async () => {

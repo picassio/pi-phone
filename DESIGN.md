@@ -626,6 +626,16 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     - **Pi's tools** (team server only, in board mode): `project_wiki_search`, `project_wiki_read`,
       `project_wiki_write`, `project_wiki_edit`. Pi's prompt lists the board's pages; plan mode allows the two reads.
     - **The Wiki tab's routes:** `projects/:key/wiki`, `wiki/:slug` (GET, PUT) and `wiki-search`.
+  - **Board screens on the team server** (PP-43):
+    - **Who's who:** `GET people` answers the gateway's teammates and `me` (`people`/`me` board-service calls), and
+      `team: true`.
+    - **Sharing:** the settings sheet's `TeamSharing` gives each teammate a standing (not on it, viewer, member,
+      lead; `PUT members` with `roles`), plus "Everyone on the team can see it", Move to the team, and Leave.
+    - **Making and listing:** New project offers "A team board" to those who manage them. The picker groups boards
+      into Mine, Team and Shared with me.
+    - **Elsewhere:** a "Mine" sheet (`GET mine`: given to you or your own Pi, every board), the Wiki view, and
+      cards showing "Pi (person)". The gateway's `/auth/shared` page lists boards shared with you, each opening its
+      settings in your pi-phone (`/#project:KEY`).
   - **Each member's own environment** (PP-41):
     - **Places:** a member's places (their clone) are personal.
     - **Runs** stay in the runner's pi-phone, and are laid over the shared task there (`task.run`).

@@ -44,6 +44,8 @@ const PHONE = matchMedia("(max-width: 760px)");
 const CURRENT = "pi-phone.projects.current";
 /** The view the page shows (kept on this device), and the views. */
 const VIEW = "pi-phone.projects.view";
+/** A shared board's project wiki (the team server): a view of its own. */
+const WIKI_VIEW = ["wiki", "Wiki", "M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h10"];
 const VIEWS = [
     ["board", "Board", "M4 4h4v16H4zM10 4h4v10h-4zM16 4h4v13h-4z"],
     ["list", "List", "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"],
@@ -113,6 +115,13 @@ export default function projects(pocket) {
             return html`<span class="pj-av pi" title="Pi"><img src="/icon.svg" alt="" draggable="false" /></span>`;
         }
 
+        // A person's own Pi (the team server): Pi's mark, named for them.
+        if (assignee.startsWith("pi:")) {
+            const whose = people.find((person) => person.id === assignee.slice(3))?.name ?? "someone";
+
+            return html`<span class="pj-av pi" title=${`Pi (${whose})`}><img src="/icon.svg" alt="" draggable="false" /></span>`;
+        }
+
         const name = people.find((person) => person.id === assignee)?.name ?? "Someone";
 
         return html`<span class="pj-av" title=${name}>${initials(name)}</span>`;
@@ -122,23 +131,42 @@ export default function projects(pocket) {
 
     /** Everyone, for assignees and sharing; loaded once a page or sheet needs them. */
     let peopleCache = null;
+    /** Who this person is on the boards, and whether they are the team server's (PP-43): team boards, roles, Wiki. */
+    let teamCache = null;
+    const loadPeople = () =>
+        pocket.api("people").then((answer) => {
+            peopleCache = answer.people;
+            teamCache = { me: answer.me, team: answer.team === true };
+
+            return answer;
+        });
     const usePeople = () => {
         const [people, setPeople] = useState(peopleCache ?? []);
 
         useEffect(() => {
             if (peopleCache === null) {
-                pocket.api("people").then(
-                    (answer) => {
-                        peopleCache = answer.people;
-                        setPeople(answer.people);
-                    },
-                    () => {},
-                );
+                loadPeople().then((answer) => setPeople(answer.people), () => {});
             }
         }, []);
 
         return people;
     };
+    const useTeam = () => {
+        const [team, setTeam] = useState(teamCache ?? { me: null, team: false });
+
+        useEffect(() => {
+            if (teamCache === null) {
+                loadPeople().then(() => setTeam(teamCache), () => {});
+            }
+        }, []);
+
+        return team;
+    };
+    /** Whether `me` leads `project`: makes it, leads it, or (a team board) manages team boards; the phone's owner leads all. */
+    const leads = (team, project) =>
+        team.team
+            ? project.owner === team.me?.id || project.memberRoles?.[team.me?.id] === "lead" || (project.team && team.me?.managesTeam === true)
+            : pocket.me()?.role === "owner" || pocket.me()?.id === project.owner;
 
     // ─── The page ─────────────────────────────────────────────────────────────────
 
@@ -150,7 +178,17 @@ export default function projects(pocket) {
         const [picking, setPicking] = useState(false);
         const [view, setView] = useState(() => localStorage.getItem(VIEW) ?? "board");
         const people = usePeople();
+        const team = useTeam();
         const keyRef = useRef(key);
+        /** The boards by whose they are, on the team server: Mine, Team, Shared with me. */
+        const groups = (boards) =>
+            team.team
+                ? [
+                      ["Mine", boards.filter((each) => each.owner === team.me?.id)],
+                      ["Team", boards.filter((each) => each.team)],
+                      ["Shared with me", boards.filter((each) => !each.team && each.owner !== team.me?.id)],
+                  ]
+                : [[null, boards]];
 
         keyRef.current = key;
         pendingKey = null;
@@ -232,18 +270,21 @@ export default function projects(pocket) {
                     ${
                         picking &&
                         html`<div class="pj-menu" role="listbox">
-                            ${list.map(
-                                (each) => html`<button
-                                    role="option"
-                                    aria-selected=${each.key === key}
-                                    class=${each.key === key ? "on" : ""}
-                                    onClick=${() => {
-                                        setPicking(false);
-                                        setKey(each.key);
-                                    }}
-                                >
-                                    <span class="pj-key">${each.key}</span><span>${each.name}</span>
-                                </button>`,
+                            ${groups(list).map(
+                                ([heading, boards]) => html`${heading && boards.length > 0 && html`<div class="pj-menu-h">${heading}</div>`}
+                                ${boards.map(
+                                    (each) => html`<button
+                                        role="option"
+                                        aria-selected=${each.key === key}
+                                        class=${each.key === key ? "on" : ""}
+                                        onClick=${() => {
+                                            setPicking(false);
+                                            setKey(each.key);
+                                        }}
+                                    >
+                                        <span class="pj-key">${each.key}</span><span>${each.name}</span>
+                                    </button>`,
+                                )}`,
                             )}
                             <button
                                 class="pj-menu-new"
@@ -258,6 +299,7 @@ export default function projects(pocket) {
                     }
                 </div>
                 <span class="pj-sp"></span>
+                <button class="button small ghost" title="Tasks given to you or your Pi, on every board" onClick=${() => pocket.openSheet("mine")}>Mine</button>
                 <button class="icon-button" title="Project settings" aria-label="Project settings" onClick=${() => pocket.openSheet("project", { project: key })}>
                     ${svg("M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6", 18)}
                 </button>
@@ -288,7 +330,7 @@ export default function projects(pocket) {
                 <span class="pj-chip quiet">${total} ${total === 1 ? "task" : "tasks"} · ${counts.done ?? 0} done</span>
             </div>
             <div class="pj-views" role="tablist" aria-label="View">
-                ${VIEWS.map(
+                ${VIEWS.concat(team.team ? [WIKI_VIEW] : []).map(
                     ([id, label, path]) => html`<button
                         role="tab"
                         aria-selected=${view === id}
@@ -304,7 +346,9 @@ export default function projects(pocket) {
             ${
                 board === null
                     ? html`<${Loader} label="Opening the board" />`
-                    : view === "list"
+                    : view === "wiki" && team.team
+                      ? html`<${WikiView} project=${board.project} team=${team} />`
+                      : view === "list"
                       ? html`<${ListView} board=${board} people=${people} />`
                       : view === "timeline"
                         ? html`<${TimelineView} board=${board} people=${people} />`
@@ -1070,11 +1114,13 @@ export default function projects(pocket) {
         const [name, setName] = useState(draft?.name ?? "");
         const [folder, setFolder] = useState(draft?.folder ?? "");
         const [busy, setBusy] = useState(false);
+        const team = useTeam();
+        const [teamBoard, setTeamBoard] = useState(false);
         const submit = (event) => {
             event.preventDefault();
             setBusy(true);
             pocket
-                .api("projects", { key: key.trim().toUpperCase(), name: name.trim(), folder: folder.trim() || null })
+                .api("projects", { key: key.trim().toUpperCase(), name: name.trim(), folder: folder.trim() || null, ...(teamBoard ? { team: true } : {}) })
                 .then(
                     (made) => {
                         close();
@@ -1095,6 +1141,13 @@ export default function projects(pocket) {
                 <span class="muted small">2 to 6 letters or digits. Tasks are named after it: ${key || "PP"}-1, ${key || "PP"}-2…</span></label
             >
             <${FolderField} value=${folder} onInput=${setFolder} reopen=${(chosen) => pocket.openSheet("new-project", { draft: { key, name, folder: chosen } })} />
+            ${
+                team.me?.managesTeam &&
+                html`<label class="pj-share"
+                    ><input type="checkbox" checked=${teamBoard} onChange=${(event) => setTeamBoard(event.currentTarget.checked)} /><span>A team board</span
+                    ><span class="muted small">the team's, not yours: whoever manages team boards manages it</span></label
+                >`
+            }
             <button class="button primary" disabled=${busy || key === "" || name.trim() === ""}>Make the project</button>
         </form>`;
     }
@@ -2025,7 +2078,7 @@ export default function projects(pocket) {
         const [project, setProject] = useState(null);
         const [team, setTeam] = useState({ places: [], lead: null });
         const people = usePeople();
-        const me = pocket.me();
+        const crew = useTeam();
         const loadProject = () =>
             pocket.api(`projects/${key}`).then((answer) => {
                 setProject(answer.project);
@@ -2040,9 +2093,22 @@ export default function projects(pocket) {
             return html`<${Loader} label="Opening" />`;
         }
 
-        const manage = me?.role === "owner" || me?.id === project.owner;
+        const manage = leads(crew, project);
         const save = (body) => pocket.api(`projects/${key}`, body, { method: "PATCH" }).then(loadProject, failed);
-        const share = (members) => pocket.api(`projects/${key}/members`, { members }, { method: "PUT" }).then(setProject, failed);
+        const share = (members, roles = project.memberRoles ?? {}) =>
+            pocket.api(`projects/${key}/members`, { members, roles: Object.fromEntries(members.map((id) => [id, roles[id] ?? "member"])) }, { method: "PUT" }).then(setProject, failed);
+        /** One teammate's standing on the board (the team server): none, viewer, member or lead. */
+        const standing = (id, role) => {
+            const others = project.members.filter((each) => each !== id);
+
+            share(role === "none" ? others : [...others, id], { ...(project.memberRoles ?? {}), [id]: role });
+        };
+        const act = (path, body, method) =>
+            pocket.api(`projects/${key}/${path}`, body, method === undefined ? undefined : { method }).then((answer) => {
+                loadProject();
+
+                return answer;
+            }, failed);
 
         return html`<div class="pj-form">
             <label class="field"><span class="label">Name</span><input value=${project.name} onChange=${(event) => save({ name: event.currentTarget.value })} /></label>
@@ -2057,7 +2123,8 @@ export default function projects(pocket) {
             />
             <button class="button small" onClick=${() => save({ folder: project.folder || null })}>Save the folder</button>
             <${TeamSettings} project=${project} places=${team.places} lead=${team.lead} save=${save} close=${close} />
-            <div class="field">
+            ${crew.team && html`<${TeamSharing} project=${project} people=${people} team=${crew} manage=${manage} standing=${standing} act=${act} close=${close} />`}
+            <div class="field" hidden=${crew.team}>
                 <span class="label">Shared with</span>
                 ${people
                     .filter((person) => person.role !== "owner" && person.id !== project.owner)
@@ -2077,6 +2144,7 @@ export default function projects(pocket) {
             </div>
             ${
                 manage &&
+                (!crew.team || crew.me?.canDelete) &&
                 html`<button
                     class="button ghost pj-delete"
                     onClick=${() =>
@@ -2090,6 +2158,157 @@ export default function projects(pocket) {
                     Delete ${project.key}
                 </button>`
             }
+        </div>`;
+    }
+
+    /**
+     * Sharing on the team server (PP-43): each teammate as nobody, viewer, member or lead; a team board open to everyone;
+     * moving a board to the team; leaving one shared with you.
+     */
+    function TeamSharing({ project, people, team, manage, standing, act, close }) {
+        const others = people.filter((person) => person.id !== project.owner);
+        const mine = project.members.includes(team.me?.id) && project.owner !== team.me?.id;
+
+        return html`<div class="field">
+            <span class="label">${project.team ? "A team board: its members" : "Shared with"}</span>
+            ${others.map(
+                (person) => html`<label class="pj-share">
+                    <span class="pj-grow">${person.name}${person.id === team.me?.id ? " (you)" : ""}</span>
+                    <select
+                        aria-label=${`${person.name} on ${project.key}`}
+                        disabled=${!manage || !team.me?.canShare || person.id === team.me?.id}
+                        value=${project.members.includes(person.id) ? (project.memberRoles?.[person.id] ?? "member") : "none"}
+                        onChange=${(event) => standing(person.id, event.currentTarget.value)}
+                    >
+                        <option value="none">Not on it</option>
+                        <option value="viewer">Viewer</option>
+                        ${person.role !== "viewer" && html`<option value="member">Member</option><option value="lead">Lead</option>`}
+                    </select>
+                </label>`,
+            )}
+            ${others.length === 0 && html`<span class="muted small">Nobody else is on the team yet.</span>`}
+            ${!manage && html`<span class="muted small">Its leads choose who is on it.</span>`}
+            ${
+                project.team &&
+                manage &&
+                html`<label class="pj-share"
+                    ><input type="checkbox" checked=${project.open} onChange=${(event) => act("open", { open: event.currentTarget.checked }, "PUT")} /><span>Everyone on the team can see it</span
+                    ><span class="muted small">as viewers</span></label
+                >`
+            }
+            ${
+                !project.team &&
+                manage &&
+                team.me?.managesTeam &&
+                html`<button class="button small" onClick=${() => confirm(`Move ${project.key} to the team? It stops being yours; you stay on it as a lead.`) && act("to-team", {})}>Move to the team</button>`
+            }
+            ${
+                mine &&
+                html`<button
+                    class="button small ghost"
+                    onClick=${() =>
+                        confirm(`Leave ${project.key}? It leaves your Projects, and what was given to you or your Pi goes back to nobody.`) &&
+                        act("leave", {}).then(() => {
+                            localStorage.removeItem(CURRENT);
+                            close();
+                        })}
+                >
+                    Leave ${project.key}
+                </button>`
+            }
+        </div>`;
+    }
+
+    /** Tasks given to you or your Pi, on every board you see, not done (PP-43). */
+    function MineSheet({ close }) {
+        const [tasks, setTasks] = useState(null);
+
+        useEffect(() => {
+            pocket.api("mine").then((answer) => setTasks(answer.tasks), failed);
+        }, []);
+
+        if (tasks === null) {
+            return html`<${Loader} label="Finding your tasks" />`;
+        }
+
+        return html`<div class="pj-form">
+            ${tasks.length === 0 && html`<p class="muted">Nothing is given to you or your Pi right now.</p>`}
+            ${tasks.map(
+                (task) => html`<button
+                    class="pt-row"
+                    onClick=${() => {
+                        close();
+                        pocket.openSheet("task", { task: task.ref });
+                    }}
+                >
+                    <span class="pj-key">${task.ref}</span>
+                    <span class="pt-t">${task.title}<small>${STATE[task.state]?.label ?? task.state}${task.assignee?.startsWith("pi") ? " · your Pi" : ""}</small></span>
+                </button>`,
+            )}
+        </div>`;
+    }
+
+    /** A shared board's project wiki (PP-42, the team server): its pages, a search, a page, and writing one. */
+    function WikiView({ project, team }) {
+        const [pages, setPages] = useState(null);
+        const [open, setOpen] = useState(null);
+        const [query, setQuery] = useState("");
+        const [hits, setHits] = useState(null);
+        const [draft, setDraft] = useState(null);
+        const writer = project.owner === team.me?.id || ["lead", "member"].includes(project.memberRoles?.[team.me?.id]) || (project.team && team.me?.managesTeam);
+        const load = () => pocket.api(`projects/${project.key}/wiki`).then((answer) => setPages(answer.pages), failed);
+        const show = (slug) => pocket.api(`projects/${project.key}/wiki/${slug}`).then((page) => (setOpen(page), setDraft(null)), failed);
+
+        useEffect(() => {
+            load();
+
+            return pocket.on("changed", load);
+        }, [project.key]);
+
+        const search = (event) => {
+            event.preventDefault();
+            query.trim() === "" ? setHits(null) : pocket.api(`projects/${project.key}/wiki-search?q=${encodeURIComponent(query)}`).then((answer) => setHits(answer.hits), failed);
+        };
+        const save = (event) => {
+            event.preventDefault();
+            const slug = draft.slug || draft.title.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+            pocket.api(`projects/${project.key}/wiki/${slug}`, { title: draft.title, body: draft.body }, { method: "PUT" }).then((page) => (setOpen(page), setDraft(null), load()), failed);
+        };
+
+        if (pages === null) {
+            return html`<${Loader} label="Opening the wiki" />`;
+        }
+
+        return html`<div class="pj-wiki">
+            <aside class="pj-wiki-list">
+                <form onSubmit=${search}><input type="search" placeholder="Search the wiki" value=${query} onInput=${(event) => setQuery(event.currentTarget.value)} /></form>
+                ${(hits ?? pages).map(
+                    (page) => html`<button class=${`pt-row ${open?.slug === page.slug ? "on" : ""}`} onClick=${() => show(page.slug)}>
+                        <span class="pt-t">${page.title}<small>${page.snippet ?? `${page.updatedByName} · ${ago(page.updatedAt)}`}</small></span>
+                    </button>`,
+                )}
+                ${pages.length === 0 && html`<p class="muted small">No pages yet. Pi writes what it learns about ${project.key} here, in board mode; so can you.</p>`}
+                ${writer && html`<button class="button small" onClick=${() => setDraft({ slug: "", title: "", body: "" })}>+ Page</button>`}
+            </aside>
+            <section class="pj-wiki-page">
+                ${
+                    draft !== null
+                        ? html`<form class="pj-form" onSubmit=${save}>
+                              <label class="field"><span class="label">Title</span><input value=${draft.title} required maxlength="120" onInput=${(event) => setDraft({ ...draft, title: event.currentTarget.value })} /></label>
+                              <label class="field"><span class="label">Page (markdown)</span><textarea rows="16" value=${draft.body} onInput=${(event) => setDraft({ ...draft, body: event.currentTarget.value })}></textarea></label>
+                              <div class="pj-row"><button class="button primary small">Save</button><button type="button" class="button small ghost" onClick=${() => setDraft(null)}>Cancel</button></div>
+                          </form>`
+                        : open === null
+                          ? html`<p class="muted">Pick a page.</p>`
+                          : html`<article>
+                                <h3>${open.title}</h3>
+                                <p class="muted small">${open.slug} · last written by ${open.updatedByName}, ${ago(open.updatedAt)} ago</p>
+                                <${Markdown} text=${open.body} />
+                                ${writer && html`<button class="button small" onClick=${() => setDraft({ slug: open.slug, title: open.title, body: open.body })}>Edit</button>`}
+                            </article>`
+                }
+            </section>
         </div>`;
     }
 
@@ -2266,6 +2485,7 @@ export default function projects(pocket) {
     pocket.sheet({ id: "new-project", title: "New project", component: NewProjectSheet });
     pocket.sheet({ id: "project", title: "Project settings", component: ProjectSheet });
     pocket.sheet({ id: "move", title: "Move to", component: MoveSheet });
+    pocket.sheet({ id: "mine", title: "Given to you", component: MineSheet });
     pocket.sheet({ id: "board-mode", title: "Board for this session", component: BoardModeSheet });
     pocket.rail({ id: "projects", title: "Projects", iconPath: BOARD, page: "projects" });
     pocket.launcher({

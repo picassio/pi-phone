@@ -78,6 +78,13 @@ test("pi-phones share boards through the gateway, as their own person or their P
     assert.equal((await call("Binh", "list", [], undefined, "x".repeat(32))).status, 401);
     assert.equal((await fetch(`${address}/internal/boards`, { method: "POST" })).status, 401);
 
+    // The team to share with (names only), and who each pi-phone's person is there (PP-43).
+    const team = (await call("Binh", "people", [])).value as unknown as { id: string; name: string; role: string }[];
+
+    assert.deepEqual(team.map((person) => person.name).sort(), ["Binh", "Chi", "Dao", "Owner"]);
+    assert.deepEqual((await call("Binh", "me", [])).value, { id: ids.Binh, name: "Binh", managesTeam: false, seesAll: false, canCreate: true, canShare: true, canDelete: false });
+    assert.equal(((await call("Owner", "me", [])).value as { managesTeam: boolean }).managesTeam, true, "the owner manages team boards");
+
     // Binh makes a board; its folder stays his own, never kept here.
     const made = await call("Binh", "create", [{ key: "web", name: "Website", folder: "/data/home/web" }]);
 

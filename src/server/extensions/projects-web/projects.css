@@ -2795,3 +2795,59 @@ i.live {
     max-height: min(55vh, 460px);
     overflow-y: auto;
 }
+
+/* The team server (PP-43): headings in the board picker (Mine, Team, Shared with me), and a board's Wiki view. */
+.pj-menu-h {
+    padding: 8px 12px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--faint);
+}
+
+/* Like the other views: the rest of the page, scrolling within itself. */
+.pj-wiki {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: grid;
+    grid-template-columns: minmax(200px, 280px) 1fr;
+    align-items: start;
+    gap: 16px;
+    padding: 8px 0 24px;
+    border-top: 1px solid var(--hair);
+}
+
+.pj-wiki-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.pj-wiki-list input[type="search"] {
+    width: 100%;
+    margin-bottom: 6px;
+}
+
+.pj-wiki-page {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.pj-wiki-page textarea {
+    width: 100%;
+    font-family: var(--mono, ui-monospace, monospace);
+}
+
+@media (max-width: 760px) {
+    .pj-wiki {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* A form field left out (the phone's sharing list, on the team server): its display rule would override [hidden]. */
+.pj-form > [hidden] {
+    display: none;
+}

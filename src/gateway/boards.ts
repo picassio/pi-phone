@@ -178,6 +178,14 @@ export class BoardService {
         const by = { id: person.id, name: call.pi === undefined ? person.name : `Pi (${person.name})` };
 
         switch (call.method) {
+            // Who is on the team, to share boards with and give tasks to (names only), and who this person is (PP-43).
+            case "people":
+                return this.people().map(({ id, name, role }) => ({ id, name, role }));
+            case "me": {
+                const role = this.#store.roleOf(person.id, this.#store.users().find((user) => user.id === person.id)?.role).permissions as readonly string[];
+
+                return { id: person.id, name: person.name, managesTeam: person.managesTeam === true, seesAll: person.seesAll === true, canCreate: role.includes("projects.create"), canShare: role.includes("projects.share"), canDelete: role.includes("projects.delete") };
+            }
             case "wikiList":
                 return wiki.list(looked({ project: store.project(actor, key) }).project.id);
             case "wikiRead":

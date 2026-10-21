@@ -329,6 +329,7 @@ const nav = (me) =>
         { class: "row" },
         h("a", { class: "button primary", href: "/" }, "Open my pi-phone"),
         h("a", { class: "button", href: "/auth/account", onclick: (event) => (event.preventDefault(), go("/auth/account")) }, "My account"),
+        has(me, "pi.use") ? h("a", { class: "button", href: "/auth/shared", onclick: (event) => (event.preventDefault(), go("/auth/shared")) }, "Shared with me") : null,
         has(me, "people.invite") || has(me, "people.manage") ? h("a", { class: "button", href: "/auth/people", onclick: (event) => (event.preventDefault(), go("/auth/people")) }, "People") : null,
         has(me, "roles.manage") ? h("a", { class: "button", href: "/auth/roles", onclick: (event) => (event.preventDefault(), go("/auth/roles")) }, "Roles") : null,
         has(me, "audit.view") ? h("a", { class: "button", href: "/auth/audit", onclick: (event) => (event.preventDefault(), go("/auth/audit")) }, "Audit log") : null,
@@ -568,6 +569,34 @@ async function auditPage(me) {
     );
 }
 
+// ─── Shared with me ───
+
+async function sharedPage(me) {
+    const { boards } = await gw("shared");
+
+    page(
+        "Shared with me",
+        "Boards others shared with you, and the team's boards you're on. Each opens in your own pi-phone, where your Pi works on it in your own copy of the code.",
+        nav(me),
+        h(
+            "div",
+            { class: "list" },
+            boards.length === 0
+                ? h("p", { class: "muted" }, "Nothing yet.")
+                : boards.map((board) =>
+                      h(
+                          "a",
+                          { class: "card", href: `/#project:${board.key}` },
+                          h("b", {}, board.key),
+                          " ",
+                          board.name,
+                          h("div", { class: "muted" }, board.team ? (board.open ? "A team board, open to everyone" : "A team board") : `Shared by ${board.by}`),
+                      ),
+                  ),
+        ),
+    );
+}
+
 // ─── Server ───
 
 async function serverPage(me) {
@@ -638,6 +667,10 @@ async function route() {
 
     if (path === "/auth/audit" && has(state.me, "audit.view")) {
         return auditPage(state.me);
+    }
+
+    if (path === "/auth/shared" && has(state.me, "pi.use")) {
+        return sharedPage(state.me);
     }
 
     if (path === "/auth/server" && has(state.me, "server.manage")) {

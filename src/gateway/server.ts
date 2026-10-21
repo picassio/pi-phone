@@ -834,6 +834,18 @@ export class Gateway {
             return json(response, 200, changed);
         }
 
+        // Boards others shared with this person, and team boards they are on or can see (PP-43).
+        if (route === "shared" && method === "GET") {
+            const names = new Map(store.users().map((each) => [each.id, each.name]));
+            const seen = this.#options.boards.call(store.box(user.id), { method: "list", args: [] }) as { key: string; name: string; owner: string; team: boolean; open: boolean }[];
+
+            return json(response, 200, {
+                boards: seen
+                    .filter((board) => board.owner !== user.id)
+                    .map((board) => ({ key: board.key, name: board.name, team: board.team, open: board.open, by: board.team ? null : (names.get(board.owner) ?? "Someone") })),
+            });
+        }
+
         // The server's settings (PP-33): when idle pi-phones stop; and how many there are, running and on an old image.
         if (route === "server") {
             if (!can("server.manage")) {
