@@ -543,7 +543,8 @@ async function auditPage(me) {
         // Without people.manage or people.invite: ids as they are.
     }
 
-    const who = (id) => names[id] ?? id;
+    // Pi's changes, made in a person's pi-phone with their rights (PP-45): "Pi for" them.
+    const who = (id) => (id?.startsWith("pi:") ? `Pi for ${names[id.slice(3)] ?? id.slice(3)}` : (names[id] ?? id));
 
     page(
         "Audit log",

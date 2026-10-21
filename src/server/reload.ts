@@ -61,6 +61,7 @@ const ORDER = [
     "web.ts",
     "openui.ts",
     "machines.ts",
+    "team.ts",
     "para.ts",
     "projects.ts",
     "memory.ts",
@@ -95,6 +96,7 @@ const TITLES: Record<string, string> = {
     "sessions.ts": "Other sessions",
     "secrets.ts": "Secrets",
     "policy.ts": "Role policy",
+    "team.ts": "Team",
     "interview.ts": "Interview",
     "web.ts": "Web access",
     "openui.ts": "Interactive answers",
@@ -185,6 +187,14 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "project_wiki_read",
     "project_wiki_write",
     "project_wiki_edit",
+    "team_people",
+    "team_invite",
+    "team_person",
+    "team_roles",
+    "team_role_save",
+    "team_role_delete",
+    "team_audit",
+    "team_server",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */

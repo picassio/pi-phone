@@ -20,7 +20,7 @@ import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import QRCode from "qrcode";
 import type { GatewayAuth } from "./auth.ts";
 import { CATALOGUE, checkRole, OWNER_ROLE, type Permission } from "./roles.ts";
-import { type GatewayStore, INVITE_MINUTES } from "./store.ts";
+import { type GatewayStore, INVITE_MINUTES, type PersonBox } from "./store.ts";
 import { type TarEntry, tarStream } from "./tar.ts";
 import type { BoardService } from "./boards.ts";
 import type { Task } from "../server/projects.ts";
@@ -455,6 +455,15 @@ export class Gateway {
                 return json(response, 401, { error: "Not a pi-phone of this server." });
             }
 
+            // The gateway's own routes for people, roles, invites, the audit log and server settings, as this pi-phone's person,
+            // for Pi's team tools (PP-45): their rights, checked as on the page; never passwords, exports or backups.
+            if (path === "/internal/team" && request.method === "POST") {
+                const asked = (await readBody(request)) as { route?: unknown; method?: unknown; body?: unknown };
+                const answer = await this.#teamCall(box, String(asked.route ?? ""), String(asked.method ?? "GET"), asked.body);
+
+                return json(response, answer.status, answer.body);
+            }
+
             if (path === "/internal/boards" && request.method === "POST") {
                 const body = await readBody(request);
 
@@ -472,6 +481,53 @@ export class Gateway {
 
             return json(response, 500, { error: "The gateway could not answer." });
         }
+    }
+
+    /** The routes Pi's team tools may use (PP-45), by method. Passwords, exports and backups are never Pi's. */
+    static readonly TEAM_ROUTES: readonly [string, RegExp][] = [
+        ["GET", /^people$/],
+        ["POST", /^people\/[A-Za-z0-9_-]{6,64}\/(role|reset-two-factor|disable|enable|remove|always-on)$/],
+        ["GET", /^invites$/],
+        ["POST", /^invites$/],
+        ["POST", /^invites\/[A-Za-z0-9_-]{10,64}\/cancel$/],
+        ["GET", /^roles$/],
+        ["POST", /^roles$/],
+        ["POST", /^roles\/[a-z0-9-]{1,48}(\/delete)?$/],
+        ["GET", /^audit$/],
+        ["GET", /^server$/],
+        ["POST", /^server$/],
+    ];
+
+    /** One of the gateway's own routes, as `box`'s person, for Pi: what the page would get, by their rights. */
+    async #teamCall(box: PersonBox, route: string, method: string, body: unknown): Promise<{ status: number; body: unknown }> {
+        if (!Gateway.TEAM_ROUTES.some(([allowed, pattern]) => allowed === method && pattern.test(route))) {
+            return { status: 403, body: { error: `Pi does not do ${method} ${route}: some things (passwords, exports, backups) are only people's, on the gateway's pages.` } };
+        }
+
+        const person = this.#options.store.users().find((each) => each.id === box.userId);
+
+        if (person === undefined || person.banned) {
+            return { status: 403, body: { error: "This pi-phone's person can't act on the team." } };
+        }
+
+        const request = Object.assign(Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]), { method, url: `/auth/gw/${route}`, headers: { "content-type": "application/json" } }) as unknown as IncomingMessage;
+        const answer: { status: number; text: string } = { status: 500, text: "" };
+        const response: { headersSent: boolean; writeHead(status: number): unknown; end(text?: string): void } = {
+            headersSent: false,
+            writeHead(status: number) {
+                answer.status = status;
+                response.headersSent = true;
+
+                return response;
+            },
+            end(text?: string) {
+                answer.text = text ?? "";
+            },
+        };
+
+        await this.#gatewayRoute(request, response as unknown as ServerResponse, route, { user: person, pi: true });
+
+        return { status: answer.status, body: answer.text === "" ? {} : (JSON.parse(answer.text) as unknown) };
     }
 
     /** One HTTP request. */
@@ -666,10 +722,12 @@ export class Gateway {
     }
 
     /** The gateway's own routes, for its page. Each checks a permission of the person's role (PP-22). */
-    async #gatewayRoute(request: IncomingMessage, response: ServerResponse, route: string): Promise<void> {
+    async #gatewayRoute(request: IncomingMessage, response: ServerResponse, route: string, as?: { user: User; pi: true }): Promise<void> {
         const { auth, store } = this.#options;
         const method = request.method ?? "GET";
-        const user = await this.#user(request);
+        // Pi in a person's pi-phone acts as them (PP-45): their rights; the audit log says it was Pi.
+        const user = as?.user ?? (await this.#user(request));
+        const actor = as === undefined ? (user?.id ?? "") : `pi:${as.user.id}`;
         const role = user === undefined ? undefined : store.roleOf(user.id, user.role);
         const can = (permission: Permission) => role?.permissions.includes(permission) === true;
         const isOwner = role?.id === OWNER_ROLE.id;
@@ -791,7 +849,7 @@ export class Gateway {
             }
 
             store.saveRole(made);
-            store.audit(user.id, "role created", id, { role: made });
+            store.audit(actor, "role created", id, { role: made });
 
             return json(response, 200, made);
         }
@@ -815,7 +873,7 @@ export class Gateway {
                     return json(response, 409, { error: "People still have this role: give them another first." });
                 }
 
-                store.audit(user.id, "role deleted", id);
+                store.audit(actor, "role deleted", id);
 
                 return json(response, 200, { ok: true });
             }
@@ -829,7 +887,7 @@ export class Gateway {
             }
 
             store.saveRole(changed);
-            store.audit(user.id, "role changed", id, { role: changed });
+            store.audit(actor, "role changed", id, { role: changed });
             this.#recap(id);
 
             return json(response, 200, changed);
@@ -861,7 +919,7 @@ export class Gateway {
                 }
 
                 store.setIdleMinutes(minutes);
-                store.audit(user.id, "server settings", undefined, { idleMinutes: minutes });
+                store.audit(actor, "server settings", undefined, { idleMinutes: minutes });
             }
 
             const listed = await this.#options.controller.list();
@@ -907,7 +965,7 @@ export class Gateway {
                 const manifest = Buffer.from(JSON.stringify({ createdAt: new Date().toISOString(), origin: this.#options.origin, people }, null, 2));
 
                 entries.unshift({ name: "manifest.json", size: manifest.length, data: manifest });
-                store.audit(user.id, "server backup", undefined, { people: people.length });
+                store.audit(actor, "server backup", undefined, { people: people.length });
                 response.writeHead(200, { "content-type": "application/gzip", "content-disposition": `attachment; filename="${download("pi-phone-server")}.tar.gz"`, "cache-control": "no-store" });
                 await pipeline(Readable.from(tarStream(entries)), createGzip(), response).catch((error: unknown) => this.#options.log(`gateway: backup: ${String(error)}`));
             } finally {
@@ -947,7 +1005,7 @@ export class Gateway {
 
             const made = store.createInvite(roleId, user.id, Number(body.minutes ?? 24 * 60));
 
-            store.audit(user.id, "invite made", made.code.slice(0, 6), { role: roleId, expiresAt: made.expiresAt });
+            store.audit(actor, "invite made", made.code.slice(0, 6), { role: roleId, expiresAt: made.expiresAt });
 
             return json(response, 200, { ...made, url: `${this.#options.origin}/auth/invite/${made.code}` });
         }
@@ -960,7 +1018,7 @@ export class Gateway {
             }
 
             store.cancelInvite(cancel[1]!);
-            store.audit(user.id, "invite cancelled", cancel[1]!.slice(0, 6));
+            store.audit(actor, "invite cancelled", cancel[1]!.slice(0, 6));
 
             return json(response, 200, { ok: true });
         }
@@ -1007,7 +1065,7 @@ export class Gateway {
                 return json(response, 404, { error: String(error instanceof Error ? error.message : error).replace(/^controller: /, "") });
             }
 
-            store.audit(user.id, "exported", target.id);
+            store.audit(actor, "exported", target.id);
             response.writeHead(200, { "content-type": "application/gzip", "content-disposition": `attachment; filename="${download(`pi-phone-${target.email.split("@")[0]}`)}.tar.gz"`, "cache-control": "no-store" });
             await pipeline(archive, createGzip(), response).catch((error: unknown) => this.#options.log(`gateway: export ${box.key}: ${String(error)}`));
 
@@ -1031,7 +1089,7 @@ export class Gateway {
             const on = (await readBody(request)).on === true;
 
             store.setAlwaysOn(id, on);
-            store.audit(user.id, on ? "always on" : "not always on", id);
+            store.audit(actor, on ? "always on" : "not always on", id);
 
             if (on) {
                 await this.#keepUp(id, true);
@@ -1084,7 +1142,7 @@ export class Gateway {
 
                 store.setAuthRole(id, roleId === OWNER_ROLE.id ? "owner" : "member");
                 store.setRoleOf(id, roleId);
-                store.audit(user.id, "role given", id, { from: targetRole.id, to: roleId });
+                store.audit(actor, "role given", id, { from: targetRole.id, to: roleId });
                 this.#forgetReady(id);
 
                 return json(response, 200, { ok: true });
@@ -1137,7 +1195,7 @@ export class Gateway {
                 store.forgetRoleOf(id);
             }
 
-            store.audit(user.id, action, id);
+            store.audit(actor, action, id);
 
             return json(response, 200, { ok: true });
         }

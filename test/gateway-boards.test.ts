@@ -3,7 +3,7 @@
 // role's permissions decide making, sharing and deleting boards; what is personal (folder, places, main session,
 // running Pi's tasks by itself) is never kept centrally; Pi's sessions are kept as `<pi-phone>:<number>`; the store's
 // internal lookups only show what the person may see; projects.view_all looks are logged; and an account that is gone
-// hands its boards to the team.
+// hands its boards to the team. And Pi's team tools (PP-45) reach the gateway's own routes as the person, marked as Pi's.
 import { cleanUp, root } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
@@ -126,4 +126,40 @@ test("pi-phones share boards through the gateway, as their own person or their P
 
     assert.deepEqual([kept.owner, kept.team], ["team", true]);
     assert.deepEqual(boards.membersOf(String(kept.id)).sort(), [ids.Chi, ids.Owner].sort(), "those who hear of its changes");
+});
+
+/** A team call from someone's pi-phone (PP-45): the gateway's own route, as that person, for Pi's tools. */
+async function team(name: string, route: string, method: string, body?: unknown) {
+    const response = await fetch(`${address}/internal/team`, { method: "POST", headers: { authorization: `Bearer ${store.box(ids[name]!).token}`, "content-type": "application/json" }, body: JSON.stringify({ route, method, ...(body === undefined ? {} : { body }) }) });
+
+    return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+}
+
+test("Pi's team tools reach the gateway's own routes, with the person's rights, marked as Pi's; never passwords, exports or backups", async () => {
+    // The owner's Pi lists people and makes an invite; the audit log says it was Pi, for the owner.
+    assert.equal((await team("Owner", "people", "GET")).status, 200);
+    const invite = await team("Owner", "invites", "POST", { role: "member", minutes: 60 });
+
+    assert.equal(invite.status, 200);
+    assert.match(String(invite.body.url), /\/auth\/invite\//);
+    assert.ok(store.auditLog().some((entry) => entry.action === "invite made" && entry.actor === `pi:${ids.Owner}`), "Pi for the owner");
+
+    // A member's Pi has a member's rights.
+    assert.match(String((await team("Chi", "people", "GET")).body.error), /does not see people/);
+    assert.match(String((await team("Chi", "roles", "POST", { name: "Mine", permissions: [], memoryMb: 512, cpus: 1 })).body.error), /does not change roles/);
+
+    // The owner's Pi gives Chi a role; never sets a password, downloads people's data or backs up the server.
+    assert.equal((await team("Owner", `people/${ids.Chi}/role`, "POST", { role: "reader" })).status, 200);
+    assert.ok(store.auditLog().some((entry) => entry.action === "role given" && entry.actor === `pi:${ids.Owner}`));
+
+    for (const [route, method] of [[`people/${ids.Chi}/reset-password`, "POST"], [`people/${ids.Chi}/export`, "GET"], ["backup", "GET"], ["setup", "POST"]] as const) {
+        const refused = await team("Owner", route, method, { password: "a new long password" });
+
+        assert.equal(refused.status, 403, route);
+        assert.match(String(refused.body.error), /only people's/);
+    }
+
+    // Server settings, by server.manage.
+    assert.equal(((await team("Owner", "server", "GET")).body as { idleMinutes: number }).idleMinutes, 30);
+    assert.match(String((await team("Chi", "server", "POST", { idleMinutes: 5 })).body.error), /does not manage the server/);
 });

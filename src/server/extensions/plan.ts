@@ -80,6 +80,10 @@ const ALWAYS_ALLOWED = new Set([
     // A shared board's project wiki (PP-42), read.
     "project_wiki_search",
     "project_wiki_read",
+    // The team server's people, roles and audit log (PP-45), read.
+    "team_people",
+    "team_roles",
+    "team_audit",
 ]);
 /** Tools that only read when asked to list (their other actions change things). */
 const LISTS = new Set(["approvals", "schedule", "watch_ci"]);
@@ -333,6 +337,11 @@ export function blockedInPlanMode(
     }
 
     if (LISTS.has(tool) && args.action === "list") {
+        return undefined;
+    }
+
+    // The team server's settings, asked with nothing to change: only read.
+    if (tool === "team_server" && args.idleMinutes === undefined) {
         return undefined;
     }
 

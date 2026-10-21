@@ -636,6 +636,15 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     - **Elsewhere:** a "Mine" sheet (`GET mine`: given to you or your own Pi, every board), the Wiki view, and
       cards showing "Pi (person)". The gateway's `/auth/shared` page lists boards shared with you, each opening its
       settings in your pi-phone (`/#project:KEY`).
+  - **Pi's team tools** (PP-45, `extensions/team.ts`, team server only): `team_people`, `team_invite`, `team_person`
+    (role, reset two-factor, disable, enable, remove, always on), `team_roles`, `team_role_save`, `team_role_delete`,
+    `team_audit`, `team_server` (idle minutes).
+    - **How they reach the gateway:** `POST /internal/team { route, method, body }`, which runs the gateway's own
+      `#gatewayRoute` as the pi-phone's person (`#teamCall`), so their role decides exactly as on the pages. Audits
+      name the actor `pi:<id>`, shown as "Pi for X".
+    - **Never:** an allow list (`TEAM_ROUTES`) keeps passwords, exports, backups and setup out.
+    - **Cards and guests:** every change asks this pi-phone's person on an approval card. Guests never get them.
+      Plan mode allows the reads.
   - **Each member's own environment** (PP-41):
     - **Places:** a member's places (their clone) are personal.
     - **Runs** stay in the runner's pi-phone, and are laid over the shared task there (`task.run`).
