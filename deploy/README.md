@@ -29,6 +29,10 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
   - Their next visit starts it again in a few seconds. Calls waiting for approval don't keep it up; they wait across the stop.
   - **Always on** (a switch per person on the People page): their pi-phone is never stopped when idle, and starts by
     itself if it was stopped, so scheduled messages run without a visit.
+- **Updates roll out by themselves:** after `docker compose ... up -d --build` makes a new image, people's running
+  pi-phones are made again from it one at a time, each when Pi isn't at work there. Stopped ones are made again when they
+  next start. Their data (the volume) is kept, and an open page reconnects in a few seconds. The Server page shows how
+  many are still on an older image.
 
 For one person only, with the owner token and no gateway, use `compose.single.yaml` instead (`-f compose.single.yaml`).
 

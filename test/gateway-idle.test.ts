@@ -16,6 +16,8 @@ after(() => cleanUp());
 let clock = Date.now();
 let busy = false;
 let running = false;
+/** Whether the container is of the image people run now (PP-34). */
+let current = true;
 let upstream: Server;
 let upstreamPort = 0;
 let server: Server;
@@ -27,14 +29,15 @@ const calls: string[] = [];
 const PASSWORD = "a long enough password";
 
 const controller: ControllerClient = {
-    ensure: async (id) => {
-        calls.push(`ensure ${id}`);
+    ensure: async (id, _token, _caps, renew) => {
+        calls.push(renew === true ? `renew ${id}` : `ensure ${id}`);
         key = id;
         running = true;
+        current = current || renew === true;
 
         return { host: "127.0.0.1", port: upstreamPort };
     },
-    list: async () => (key === "" ? [] : [{ id: key, host: "127.0.0.1", port: upstreamPort, running, current: true }]),
+    list: async () => (key === "" ? [] : [{ id: key, host: "127.0.0.1", port: upstreamPort, running, current }]),
     stop: async (id) => {
         calls.push(`stop ${id}`);
         running = false;
@@ -186,4 +189,40 @@ test("always on: never stopped when idle, and started by itself", async () => {
     await gateway.sweep();
     assert.equal(running, false, "not always on: stopped when idle");
     assert.match(JSON.stringify(store.auditLog()), /"always on"/);
+});
+
+test("a new image: running pi-phones are made again from it when not at work", async () => {
+    assert.equal((await go("/auth/gw/server", { idleMinutes: 0 })).status, 200);
+    assert.equal((await go("/api/sessions")).status, 200);
+    current = false;
+    calls.length = 0;
+
+    // At work: waits.
+    busy = true;
+    await gateway.sweep();
+    assert.deepEqual(calls, [], "busy: not now");
+    assert.equal(((await (await go("/auth/gw/server")).json()) as { containers: { outdated: number } }).containers.outdated, 1);
+
+    // Not at work: made again from the new image, and given its role's policy again.
+    busy = false;
+    await gateway.sweep();
+    assert.deepEqual(calls, [`renew ${key}`]);
+    assert.equal(current, true);
+
+    // Once is enough.
+    await gateway.sweep();
+    assert.deepEqual(calls, [`renew ${key}`]);
+    assert.equal((await go("/api/sessions")).status, 200);
+});
+
+test("a gateway made again (an update) reaches people's running pi-phones before asking them, so it can stop and renew them", async () => {
+    const db = new DatabaseSync(":memory:");
+    const fresh = new Gateway({ auth: await makeAuth({ db, secret: store.authSecret(), origin }), store, controller, origin, log: () => undefined, now: () => clock });
+
+    running = true;
+    current = false;
+    busy = false;
+    calls.length = 0;
+    await fresh.sweep();
+    assert.deepEqual(calls, [`ensure ${key}`, `renew ${key}`], "reached through the controller first, then made again");
 });

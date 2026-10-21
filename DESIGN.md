@@ -454,6 +454,14 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   - **A visit during a stop** waits for the stop, then starts the container again.
   - **Always on** (`pp_always_on`): never stopped, and `#keepUp` starts the container if the list shows it stopped,
     then sends the role's policy, trying for 30 s while it boots.
+- **Rolling updates** (PP-34):
+  - **Controller:** the list marks each container `current` when its image id is the people image's. `ensure` makes
+    again a container of an older image, keeping its volume: when it's stopped, or with `renew` while it runs (stopped
+    gracefully first).
+  - **Gateway:** after the idle stops, the sweep renews running, non-busy, outdated containers one at a time. Visits wait
+    on it through `#starting`, and each must take its role's policy before the next one starts.
+  - **A gateway made again** is on no person's network. Before asking a running container it hasn't reached, the sweep
+    goes through `ensure` (`#doing`).
 - **Effective HTML** (`third_party/effective-html/`; owner's decision of 2026-10-18): plannotator/effective-html's 7
   skills (MIT, at commit `975b047`) for HTML artifacts: `html` (router), `design-artifact`, `html-wireframe`,
   `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every

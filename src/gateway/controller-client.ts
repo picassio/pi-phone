@@ -44,8 +44,8 @@ export class SocketController implements ControllerClient {
         });
     }
 
-    async ensure(key: string, token: string, caps: { memoryMb: number; cpus: number }): Promise<{ host: string; port: number }> {
-        return (await this.#call("POST", `/people/${key}/ensure`, { token, caps })) as { host: string; port: number };
+    async ensure(key: string, token: string, caps: { memoryMb: number; cpus: number }, renew = false): Promise<{ host: string; port: number }> {
+        return (await this.#call("POST", `/people/${key}/ensure`, { token, caps, renew })) as { host: string; port: number };
     }
 
     async list(): Promise<Listed[]> {

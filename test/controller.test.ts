@@ -15,7 +15,9 @@ after(() => cleanUp());
 type Call = { method: string; path: string; body: Record<string, unknown> | undefined };
 
 const calls: Call[] = [];
-const exists = { network: false, volume: false, container: false, attached: false };
+const exists = { network: false, volume: false, container: false, attached: false, running: false, image: "" };
+/** The id of the image people run now (a rebuild changes it). */
+let imageNow = "sha256:one";
 const socket = join(root, "docker.sock");
 let docker: Server;
 
@@ -85,11 +87,27 @@ before(async () => {
             }
 
             if (route === "GET /containers/pp-user-abc123/json") {
-                return exists.container ? reply(200, { State: { Running: true } }) : reply(404, { message: "no such container" });
+                return exists.container ? reply(200, { State: { Running: exists.running }, Image: exists.image }) : reply(404, { message: "no such container" });
+            }
+
+            if (route === "GET /containers/json") {
+                // Only person containers are asked for; one whose label is not a person's id is left out.
+                assert.match(decodeURIComponent(path), /"label":\["io.piphone.role=person"\]/);
+
+                return reply(200, [
+                    { Labels: { "io.piphone.person": "abc123" }, State: exists.running ? "running" : "exited", ImageID: exists.image },
+                    { Labels: { "io.piphone.person": "../etc" }, State: "running", ImageID: imageNow },
+                ]);
+            }
+
+            if (route === "GET /images/pi-phone-server%3Alocal/json") {
+                return reply(200, { Id: imageNow });
             }
 
             if (route === "POST /containers/create") {
                 exists.container = true;
+                exists.image = imageNow;
+                exists.running = false;
 
                 return reply(201, { Id: "c1" });
             }
@@ -99,10 +117,14 @@ before(async () => {
             }
 
             if (route === "POST /containers/pp-user-abc123/start") {
+                exists.running = true;
+
                 return reply(204);
             }
 
             if (route === "POST /containers/pp-user-abc123/stop") {
+                exists.running = false;
+
                 return reply(204);
             }
 
@@ -156,9 +178,33 @@ test("a person's pi-phone: its own network, volume, and a container with fixed o
     await controller.ensure("abc123", token, { memoryMb: 4096, cpus: 2 });
     assert.deepEqual(
         calls.map((call) => `${call.method} ${call.path}`),
-        ["GET /networks/pp-net-abc123", "GET /networks/pp-net-abc123", "GET /volumes/pp-data-abc123", "GET /containers/pp-user-abc123/json", "POST /containers/pp-user-abc123/update", "POST /containers/pp-user-abc123/start"],
+        ["GET /networks/pp-net-abc123", "GET /networks/pp-net-abc123", "GET /volumes/pp-data-abc123", "GET /containers/pp-user-abc123/json", "GET /images/pi-phone-server%3Alocal/json", "POST /containers/pp-user-abc123/update", "POST /containers/pp-user-abc123/start"],
     );
-    assert.equal(calls[4]!.body!.Memory, 4096 * 1024 * 1024);
+    assert.equal(calls[5]!.body!.Memory, 4096 * 1024 * 1024);
+
+    // A new image (PP-34). Running, it is left as it is, unless renewed: then stopped, made again, started, data kept.
+    const steps = () => calls.filter((call) => call.method !== "GET").map((call) => `${call.method} ${call.path.split("?")[0]}`);
+
+    imageNow = "sha256:two";
+    calls.length = 0;
+    await controller.ensure("abc123", token, { memoryMb: 4096, cpus: 2 });
+    assert.deepEqual(steps(), ["POST /containers/pp-user-abc123/update", "POST /containers/pp-user-abc123/start"], "running, not renewed: left");
+    calls.length = 0;
+    await controller.ensure("abc123", token, { memoryMb: 4096, cpus: 2 }, true);
+    assert.deepEqual(steps(), ["POST /containers/pp-user-abc123/stop", "DELETE /containers/pp-user-abc123", "POST /containers/create", "POST /containers/pp-user-abc123/start"]);
+    assert.equal(exists.image, "sha256:two");
+    assert.equal(exists.volume, true, "their data stays");
+
+    // Stopped on an older image: made again as it starts.
+    imageNow = "sha256:three";
+    await controller.stop("abc123");
+    calls.length = 0;
+    await controller.ensure("abc123", token, { memoryMb: 4096, cpus: 2 });
+    assert.deepEqual(steps(), ["DELETE /containers/pp-user-abc123", "POST /containers/create", "POST /containers/pp-user-abc123/start"]);
+    assert.equal(exists.image, "sha256:three");
+    assert.deepEqual(await controller.list(), [{ id: "abc123", host: "pp-user-abc123", port: 8787, running: true, current: true }]);
+    imageNow = "sha256:four";
+    assert.equal((await controller.list())[0]!.current, false, "a rebuild: on an older image");
 
     // Removed: the gateway leaves the network first (Docker keeps one in use); the volume stays unless purged.
     await controller.remove("abc123", false);

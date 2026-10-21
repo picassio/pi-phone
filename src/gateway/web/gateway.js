@@ -572,7 +572,7 @@ async function serverPage(me) {
     const show = (server) => {
         const { all, running, outdated } = server.containers;
 
-        status.textContent = `${all} pi-phone${all === 1 ? "" : "s"}, ${running} running${outdated > 0 ? `, ${outdated} on an older image` : ""}.`;
+        status.textContent = `${all} pi-phone${all === 1 ? "" : "s"}, ${running} running${outdated > 0 ? `, ${outdated} on an older image (made again from the new one when Pi is not at work there, or as they next start)` : ""}.`;
     };
     const server = await gw("server");
 

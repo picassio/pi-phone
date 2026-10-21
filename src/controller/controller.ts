@@ -161,9 +161,11 @@ export class Controller {
 
     /**
      * Make (first time) and start a person's pi-phone, with the owner token the gateway made for them and the caps of
-     * their role. A container that exists keeps its volume; one whose caps changed has them updated.
+     * their role. A container that exists keeps its volume; one whose caps changed has them updated. One of an older
+     * image (PP-34) is made again from the image people run now, keeping its volume: when it is stopped, or, with
+     * `renew`, running too (stopped first, as `stop` does).
      */
-    async ensure(id: string, token: string, caps: Caps): Promise<Person> {
+    async ensure(id: string, token: string, caps: Caps, renew = false): Promise<Person> {
         Controller.check(id);
         Controller.caps(caps);
 
@@ -203,8 +205,24 @@ export class Controller {
             PortBindings: {},
         };
         const existing = await this.#docker("GET", `/containers/${container}/json`);
+        let make = existing.status === 404;
 
-        if (existing.status === 404) {
+        if (existing.status === 200) {
+            const found = existing.body as { Image?: string; State?: { Running?: boolean } };
+            const image = await this.#imageId();
+            const running = found.State?.Running === true;
+
+            if (image !== undefined && found.Image !== image && (renew || !running)) {
+                if (running) {
+                    await this.#expect("POST", `/containers/${container}/stop?t=20`, undefined, [204, 304]);
+                }
+
+                await this.#expect("DELETE", `/containers/${container}?force=true`, undefined, [204, 404]);
+                make = true;
+            }
+        }
+
+        if (make) {
             await this.#expect(
                 "POST",
                 `/containers/create?name=${container}`,

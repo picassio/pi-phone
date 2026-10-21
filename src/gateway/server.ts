@@ -24,7 +24,8 @@ import { type GatewayStore, INVITE_MINUTES } from "./store.ts";
 export type Listed = { id: string; host: string; port: number; running: boolean; current: boolean };
 
 export interface ControllerClient {
-    ensure(key: string, token: string, caps: { memoryMb: number; cpus: number }): Promise<{ host: string; port: number }>;
+    /** `renew`: make it again from the current image even if it runs (PP-34). */
+    ensure(key: string, token: string, caps: { memoryMb: number; cpus: number }, renew?: boolean): Promise<{ host: string; port: number }>;
     list(): Promise<Listed[]>;
     stop(key: string): Promise<void>;
     remove(key: string, purge: boolean): Promise<void>;
@@ -123,6 +124,32 @@ export class Gateway {
     }
 
     /**
+     * What a running pi-phone is doing, as the sweep asks. One this gateway has not reached yet goes through the controller
+     * first: a gateway made again (an update, a restart) is on none of the people's networks until then.
+     */
+    async #doing(userId: string, place: { host: string; port: number }, token: string): Promise<{ busy: boolean; why?: string } | undefined> {
+        const key = this.#options.store.box(userId).key;
+
+        if (!this.#ready.has(key)) {
+            const person = this.#options.store.users().find((each) => each.id === userId);
+
+            if (person === undefined) {
+                return undefined;
+            }
+
+            try {
+                await this.#upstream(person);
+            } catch (error) {
+                this.#options.log(`gateway: reaching ${key}: ${String(error)}`);
+
+                return undefined;
+            }
+        }
+
+        return this.#activity(place, token);
+    }
+
+    /**
      * One look at everyone's pi-phone (every minute, `sweeping`): a running one stops when nothing is open to it, it was
      * not used for the server's idle minutes, and it says it is not at work (PP-33). One that does not answer is left.
      */
@@ -145,11 +172,9 @@ export class Gateway {
                 await this.#keepUp(userId, box === undefined || !listed.some((each) => each.id === box.key && each.running));
             }
 
-            if (minutes === 0) {
-                return;
-            }
+            const stopped = new Set<string>();
 
-            for (const each of listed) {
+            for (const each of minutes === 0 ? [] : listed) {
                 const box = this.#options.store.boxByKey(each.id);
 
                 if (!each.running || box === undefined || kept.has(box.userId) || (this.#open.get(each.id) ?? 0) > 0 || this.#stopping.has(each.id) || this.#starting.has(each.id)) {
@@ -160,13 +185,32 @@ export class Gateway {
                     continue;
                 }
 
-                const doing = await this.#activity(each, box.token);
+                const doing = await this.#doing(box.userId, each, box.token);
 
                 if (doing === undefined || doing.busy) {
                     continue;
                 }
 
                 await this.#stop(each.id, `idle for ${minutes} min`);
+                stopped.add(each.id);
+            }
+
+            // A new image (PP-34): running pi-phones of an older one are made again from it, one at a time, each answering
+            // before the next; one at work waits for a later sweep. Stopped ones are made again as they next start.
+            for (const each of listed) {
+                const box = this.#options.store.boxByKey(each.id);
+
+                if (!each.running || each.current || box === undefined || stopped.has(each.id) || this.#stopping.has(each.id) || this.#starting.has(each.id)) {
+                    continue;
+                }
+
+                const doing = await this.#doing(box.userId, each, box.token);
+
+                if (doing === undefined || doing.busy) {
+                    continue;
+                }
+
+                await this.#renew(box.userId);
             }
         } catch (error) {
             this.#options.log(`gateway: sweep: ${String(error)}`);
@@ -195,6 +239,40 @@ export class Gateway {
             }
         } catch (error) {
             this.#options.log(`gateway: keeping ${userId}'s pi-phone up: ${String(error)}`);
+        }
+    }
+
+    /**
+     * Make a person's pi-phone again from the current image (PP-34), keeping their data. A visit meanwhile waits for it.
+     * Done once it has their role's policy again, so the next one waits for this one to answer (a minute at most).
+     */
+    async #renew(userId: string): Promise<void> {
+        const person = this.#options.store.users().find((each) => each.id === userId);
+
+        if (person === undefined) {
+            return;
+        }
+
+        const box = this.#options.store.box(userId);
+        const role = this.#options.store.roleOf(person.id, person.role);
+        const renewing = this.#options.controller.ensure(box.key, box.token, { memoryMb: role.memoryMb, cpus: role.cpus }, true).finally(() => this.#starting.delete(box.key));
+
+        this.#ready.delete(box.key);
+        this.#applied.delete(box.key);
+        this.#starting.set(box.key, renewing);
+
+        try {
+            const place = await renewing;
+
+            this.#ready.set(box.key, { ...place, at: Date.now() });
+
+            for (let tries = 0; tries < 30 && !(await this.#policy(person, { ...place, token: box.token })); tries++) {
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+
+            this.#options.log(`gateway: ${box.key} on the new image`);
+        } catch (error) {
+            this.#options.log(`gateway: ${box.key} to the new image: ${String(error)}`);
         }
     }
 
