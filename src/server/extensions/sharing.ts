@@ -211,7 +211,8 @@ export class Sharing {
 
             const role = level === "write" ? "guest" : "viewer";
             const budget = level === "write" ? (state.budgets[teammate] ?? null) : null;
-            const label = `${name} (team${level === "watch" ? ", watching" : ""})`;
+            // Their own name, on what they write (both levels: the role tells them apart).
+            const label = name;
 
             if (account !== undefined && this.#host.teammates.exists(account.userId)) {
                 this.#host.teammates.save({ id: account.userId, name: label, role, sessions: ids, budget });

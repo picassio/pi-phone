@@ -326,7 +326,7 @@ export class Collab {
             const author =
                 entry.kind === "assistant"
                     ? "Pi"
-                    : (app.config.userById(authorId ?? "")?.name ?? entry.from ?? "Someone");
+                    : (app.config.userById(authorId ?? "")?.name ?? app.config.former[authorId ?? ""] ?? entry.from ?? "Someone");
 
             pin = {
                 id: `e${entryId}`,

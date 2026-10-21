@@ -95,7 +95,12 @@ const session = async (title: string) => {
 
     return String(id);
 };
-const account = (name: string) => app.config.users.find((each) => each.name === name);
+/** A teammate's scoped account by its old-style label: "Mai (team)" is the writer, "Mai (team, watching)" the watcher. */
+const account = (label: string) => {
+    const [, name, watching] = /^(.*) \(team(, watching)?\)$/.exec(label)!;
+
+    return app.config.users.find((each) => each.name === name && each.team === true && each.role === (watching ? "viewer" : "guest"));
+};
 
 test("share, a second session, watch, a spend limit, the scoped token, unshare", async () => {
     const plan = await session("Release plan");
@@ -105,7 +110,7 @@ test("share, a second session, watch, a spend limit, the scoped token, unshare",
     assert.equal((await call(OWNER, "share", { session: plan, teammate: "u-mai", level: "write", budget: 5 })).status, 200);
     const writer = account("Mai (team)");
 
-    assert.deepEqual([writer?.role, writer?.sessions, writer?.budget], ["guest", [plan], 5]);
+    assert.deepEqual([writer?.name, writer?.role, writer?.sessions, writer?.budget], ["Mai", "guest", [plan], 5], "their own name");
     assert.deepEqual([puts.at(-1)?.teammate, puts.at(-1)?.level, puts.at(-1)?.sessions.map((each) => each.id)], ["u-mai", "write", [plan]]);
     const token = puts.at(-1)!.token;
 
@@ -123,6 +128,7 @@ test("share, a second session, watch, a spend limit, the scoped token, unshare",
     // Unshared: the writer had only that one, so it goes, and the gateway hears an empty list with the same token.
     assert.equal((await call(OWNER, "unshare", { session: plan, teammate: "u-mai" })).status, 200);
     assert.equal(account("Mai (team)"), undefined);
+    assert.equal(app.config.former[writer!.id], "Mai", "their name stays for what they wrote");
     const last = puts.findLast((each) => each.level === "write");
 
     assert.deepEqual([last?.token, last?.sessions], [token, []]);

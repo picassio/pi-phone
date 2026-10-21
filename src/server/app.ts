@@ -2217,6 +2217,8 @@ export class PocketApp {
                 ...(user.sessions === undefined ? {} : { sessions: user.sessions.map(Number) }),
             },
             users: this.people(user),
+            // Removed people's names, for what they wrote.
+            former: this.config.former,
             models: await this.modelList(),
             // The plan limits known now (`usage-limits.ts`), without asking: the top bar's meter has them at once.
             usage: this.usageLimits.known(),

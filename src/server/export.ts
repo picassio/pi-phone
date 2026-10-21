@@ -178,7 +178,8 @@ export function transcriptMarkdown(input: ExportInput): string {
         } else if (entry.kind === "note") {
             sections.push(`_${entry.name} ${entry.text}._`);
         } else if (entry.kind === "fromPi") {
-            sections.push(`---\n\n_Continued from Pi in the terminal (${entry.file})._`);
+            // A teammate's shared session, continued here (PP-59), is a Pi session file named shared-…
+            sections.push(String(entry.file).startsWith("shared-") ? "---\n\n_Continued from a session shared with you._" : `---\n\n_Continued from Pi in the terminal (${entry.file})._`);
         } else if (entry.kind === "command") {
             sections.push(
                 `**${entry.name}** ran \`/${entry.command}\` (not shown to Pi):\n\n${fence(entry.output)}`,

@@ -775,7 +775,7 @@ export function peekLines(
                 lines.push({ kind: "event", text: "Context cleared" });
                 break;
             case "fromPi":
-                lines.push({ kind: "event", text: "Continued from Pi in the terminal" });
+                lines.push({ kind: "event", text: String((entry as { file?: unknown }).file ?? "").startsWith("shared-") ? "Continued from a session shared with you" : "Continued from Pi in the terminal" });
                 break;
             default:
                 break;

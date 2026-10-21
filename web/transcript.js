@@ -151,7 +151,7 @@ function authorName(entryId, view, users) {
     if (userId) {
         const user = users.find((each) => each.id === userId);
 
-        return user ? user.name : "Someone";
+        return user ? user.name : (store.state.former?.[userId] ?? "Someone");
     }
 
     return undefined;
@@ -1748,6 +1748,11 @@ function Divider({ entry }) {
 
     // A session continued from Pi in the terminal: what is above is Pi's, from that session's file.
     if (entry.kind === "fromPi") {
+        // A teammate's shared session continued here (Continue in mine, PP-59): its file is named shared-…
+        if (String(entry.file ?? "").startsWith("shared-")) {
+            return html`<div class="divider"><span>Continued from a session shared with you</span></div>`;
+        }
+
         return html`<div class="divider">
             <span>Continued from Pi in the terminal</span>
             <div class="muted small mono">${entry.file}</div>

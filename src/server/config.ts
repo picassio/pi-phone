@@ -89,6 +89,11 @@ interface PocketConfig {
     /** Printed in the login URL at every start. Keep this file private. */
     ownerToken: string;
     users: User[];
+    /**
+     * The names of people removed from here, by id: what they wrote keeps its author's name (a teammate unshared from a
+     * session, a guest removed). At most the last 1000.
+     */
+    former?: Record<string, string>;
     /** Invites not yet used: kept here so one that lasts a day or a week outlives a restart. */
     invites?: StoredInvite[];
     /** Signed-in devices, each with its own token (`StoredDevice`). */
@@ -216,6 +221,11 @@ export class ConfigStore {
 
     get users(): readonly User[] {
         return this.#config.users;
+    }
+
+    /** The names of people removed from here, by id. */
+    get former(): Readonly<Record<string, string>> {
+        return this.#config.former ?? {};
     }
 
     get lastModel(): ModelChoice | undefined {
@@ -503,6 +513,16 @@ export class ConfigStore {
 
     /** Remove someone (never the owner), the invites they made, which could no longer be used, and their devices. */
     removeUser(id: string): void {
+        const leaving = this.userById(id);
+
+        // Their name stays for what they wrote.
+        if (leaving !== undefined && leaving.role !== "owner") {
+            const former = { ...this.#config.former, [id]: leaving.name };
+            const ids = Object.keys(former);
+
+            this.#config.former = Object.fromEntries(ids.slice(Math.max(0, ids.length - 1000)).map((each) => [each, former[each]!]));
+        }
+
         this.#config.users = this.#config.users.filter(
             (user) => user.id !== id || user.role === "owner",
         );

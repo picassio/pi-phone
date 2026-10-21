@@ -166,7 +166,7 @@ export class Transcripts {
         for (const [entryId, userId] of Object.entries(
             (await this.#app.harness.snapshot(AuthorsDoc, id, context))?.entries ?? {},
         )) {
-            authors[Number(entryId)] = this.#app.config.userById(userId)?.name ?? "Someone";
+            authors[Number(entryId)] = this.#app.config.userById(userId)?.name ?? this.#app.config.former[userId] ?? "Someone";
         }
 
         const agent = await this.#app.agentState(id);

@@ -70,6 +70,8 @@ export const store = {
     state: {
         me: undefined, // undefined: unknown, null: signed out
         users: [],
+        // Removed people's names, by id: what they wrote keeps its author's name.
+        former: {},
         models: [],
         // Subscription accounts' plan limits, by provider id (src/server/usage-limits.ts): from `hello`, `usage` events, and
         // `loadUsage`.
@@ -590,6 +592,7 @@ const handlers = {
         store.set({
             me: data.user,
             users: data.users,
+            former: data.former ?? {},
             folderFavorites: data.folderFavorites ?? [],
             models: data.models,
             ...(Array.isArray(data.usage) ? { usage: usageMap(data.usage) } : {}),
@@ -1031,6 +1034,7 @@ export async function start() {
         store.set({
             me: hello.user,
             users: hello.users,
+            former: hello.former ?? {},
             models: hello.models,
             guard: hello.guard,
             server: hello.server,
