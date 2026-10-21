@@ -137,7 +137,11 @@ No Termux, no laptop, no cloud VM.
   - **Search by meaning:** pages are found by what they say, not only their words, merged with keyword matches.
     Yours use the wiki's embedding model with your OpenRouter sign-in; the team's use a model and an OpenRouter key
     the owner sets on the gateway's Server page. Its cost shows in Spend (or on the Server page).
-  - **Pi** searches, reads, writes, edits and moves documents for you, and deletes or restores them on a card.
+  - **Images:** add PNG, JPEG, WebP or GIF (10 MB at most) with the editor's **Image** button or by pasting. Location,
+    camera and other metadata are removed (a photo keeps its orientation). A vision model you choose on the Documents
+    page describes each image once, so search finds pages by what their pictures show; on the team server the owner
+    sets the team's on the Server page.
+  - **Pi** searches, reads, writes, edits and moves documents for you, adds images from files, and deletes or restores them on a card.
 
 ### Other machines
 - **Work on other machines.** Add an SSH key and a machine (Settings › SSH keys, Machines). A session on a machine

@@ -273,6 +273,16 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             },
         },
         {
+            id: "docs.imageModel",
+            area: "documents",
+            title: "Model that describes images in documents",
+            help: "provider/modelId of a signed-in model that reads images, or none: images are then found by their names only.",
+            owner: true,
+            read: () => app.config.docsImageModel ?? "none",
+            choices: () => app.imageModels(),
+            apply: (user, value) => app.setDocsImageModel(user, NONE.test(value.trim()) ? null : value.trim()),
+        },
+        {
             id: "wiki.contextTokens",
             area: "wiki",
             title: "Wiki context in each prompt, in tokens",

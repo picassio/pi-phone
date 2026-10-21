@@ -10,14 +10,14 @@
  */
 import { join } from "node:path";
 import { HttpError } from "./errors.ts";
-import { type Author, type DocHit, DocumentStore, indexer } from "./doc-store.ts";
+import { type Author, DESCRIBE_IMAGE, describer, type DocHit, DocumentStore, indexer } from "./doc-store.ts";
 import type { Embedder } from "./embeddings.ts";
 import type { Projects } from "./projects.ts";
 
 export type DocScope = { id: string; name: string; write: boolean };
 
-const READS = new Set(["tree", "page", "byTitle", "deleted", "history", "version", "backlinks"]);
-const WRITES = new Set(["write", "edit", "move", "remove", "restore", "makeFolder", "changeFolder", "removeFolder"]);
+const READS = new Set(["tree", "page", "byTitle", "deleted", "history", "version", "backlinks", "image"]);
+const WRITES = new Set(["write", "edit", "move", "remove", "restore", "makeFolder", "changeFolder", "removeFolder", "addImage"]);
 
 export type DocsOptions = {
     dataDir: string;
@@ -32,6 +32,8 @@ export type DocsOptions = {
     embedder?: () => Promise<Embedder | undefined>;
     /** What embedding cost, for Spend. */
     spent?: (usage: { model: string; tokens: number; cost?: number }) => void;
+    /** Describing images here (PP-49): the model the person chose, or undefined (images found by name only). */
+    vision?: () => Promise<{ model: string; describe(mime: string, data: string, prompt: string): Promise<string> } | undefined>;
     log?: (line: string) => void;
 };
 
@@ -40,12 +42,32 @@ export class Docs {
     readonly #options: DocsOptions;
     /** Embed what is pending here (after a save, and once at the start). */
     readonly #index: () => void;
+    /** Describe images waiting for it, then embed. */
+    readonly #describe: () => void;
 
     constructor(options: DocsOptions) {
         this.#options = options;
         this.#local = new DocumentStore(join(options.dataDir, "documents.sqlite"));
         this.#index = indexer(this.#local, options.embedder ?? (async () => undefined), options.spent ?? (() => {}), options.log ?? (() => {}));
         this.#index();
+        const vision = options.vision;
+
+        this.#describe = describer(
+            this.#local,
+            async () => {
+                const chosen = await vision?.();
+
+                return chosen === undefined ? undefined : { model: chosen.model, describe: (mime, data) => chosen.describe(mime, data, DESCRIBE_IMAGE) };
+            },
+            this.#index,
+            options.log ?? (() => {}),
+        );
+        this.#describe();
+    }
+
+    /** Describe images again (the model changed). */
+    describeImages(): void {
+        this.#describe();
     }
 
     /** Whether search here, and at the team server, is by meaning too (else by keyword only). */
@@ -88,11 +110,15 @@ export class Docs {
         const by: Author = pi ? { id: me.id, name: `Pi (${me.name})` } : me;
         const docs = this.#local as unknown as Record<string, (...given: unknown[]) => unknown>;
         // Writes take who writes last, where the store wants one.
-        const withBy = ["write", "edit", "restore"].includes(method) ? [...args, by] : args;
+        const withBy = ["write", "edit", "restore", "addImage"].includes(method) ? [...args, by] : args;
         const value = docs[method]!.call(this.#local, local, ...withBy);
 
         if (WRITES.has(method)) {
             this.#index();
+        }
+
+        if (method === "addImage") {
+            this.#describe();
         }
 
         return renamed(value, local, scope);

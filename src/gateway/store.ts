@@ -318,12 +318,12 @@ export class GatewayStore {
      * Search by meaning in team and project documents (PP-49): the server's OpenRouter key and embedding model, set by the
      * owner on the Server page; used for nothing else. The key is never given back, only whether there is one.
      */
-    docsSearch(): { key: string | null; model: string | null } {
-        return { key: this.#setting("docs_key") ?? null, model: this.#setting("docs_model") ?? null };
+    docsSearch(): { key: string | null; model: string | null; vision: string | null } {
+        return { key: this.#setting("docs_key") ?? null, model: this.#setting("docs_model") ?? null, vision: this.#setting("docs_vision") ?? null };
     }
 
-    setDocsSearch(change: { key?: string | null; model?: string | null }): void {
-        for (const [name, value] of [["docs_key", change.key], ["docs_model", change.model]] as const) {
+    setDocsSearch(change: { key?: string | null; model?: string | null; vision?: string | null }): void {
+        for (const [name, value] of [["docs_key", change.key], ["docs_model", change.model], ["docs_vision", change.vision]] as const) {
             if (value === null) {
                 this.#db.prepare("DELETE FROM pp_setting WHERE name = ?").run(name);
             } else if (value !== undefined) {

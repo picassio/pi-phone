@@ -232,3 +232,27 @@ test("search in documents: Pi may set the model, never the key; the key is never
     assert.ok(store.auditLog().some((entry) => entry.details?.docsKey === "set"));
     store.setDocsSearch({ key: null, model: null });
 });
+
+test("images in team documents: over the old 64 KB body, metadata gone, by the writer's rights; the vision model on the Server page (PP-49)", async () => {
+    // A 200 KB JPEG-shaped file with a location in its Exif.
+    const exif = Buffer.concat([Buffer.from("Exif\0\0MM\0*\0\0\0\x08\0\0", "latin1"), Buffer.from("GPS Hanoi 21.02N", "latin1")]);
+    const app1 = Buffer.concat([Buffer.from([0xff, 0xe1, (exif.length + 2) >> 8, (exif.length + 2) & 255]), exif]);
+    const scan = Buffer.concat([Buffer.from([0xff, 0xda, 0, 2]), Buffer.alloc(200_000, 7), Buffer.from([0xff, 0xd9])]);
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8]), app1, scan]);
+    const added = await doc("Owner", "addImage", ["team", { name: "map", data: jpeg.toString("base64") }]);
+
+    assert.equal(added.status, 200, added.error);
+    assert.deepEqual([added.value.scope, added.value.mime], ["team", "image/jpeg"]);
+    const back = await doc("Chi", "image", ["team", added.value.id]);
+
+    assert.equal(back.status, 200, "a member reads it");
+    assert.ok(!Buffer.from(String(back.value.data), "base64").includes("Hanoi"), "location gone");
+    assert.match((await doc("Chi", "addImage", ["team", { name: "x", data: jpeg.toString("base64") }])).error, /Editing team documents is not part of your role/);
+
+    // The image description model: Pi may set it (no key here, so nothing is sent anywhere).
+    const saved = (await team("Owner", "server", "POST", { docsVision: "google/gemini-2.5-flash" })).body as { docs: { vision: string | null } };
+
+    assert.equal(saved.docs.vision, "google/gemini-2.5-flash");
+    assert.match(String((await team("Owner", "server", "POST", { docsVision: "not a model" })).body.error), /image description model is an OpenRouter model/);
+    store.setDocsSearch({ key: null, model: null, vision: null });
+});

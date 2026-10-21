@@ -201,3 +201,18 @@
         display: none;
     }
 }
+
+/* Images in pages (PP-49): as wide as the page at most, kept in proportion. */
+.pd-body img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+}
+
+.pd-image-model {
+    margin-top: 16px;
+}
+
+.pd-image-model .pd-meta {
+    margin: 4px 0 0;
+}

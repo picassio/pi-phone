@@ -11,6 +11,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { cosine, type Embedder, passages } from "./embeddings.ts";
+import { cleanImage } from "./image-meta.ts";
 import { HttpError } from "./errors.ts";
 
 export type Author = { id: string; name: string };
@@ -19,6 +20,11 @@ export type DocPageInfo = { id: string; folderId: string | null; title: string; 
 export type DocPage = DocPageInfo & { scope: string; body: string; updatedBy: string; createdAt: number; path: string[] };
 export type DocVersion = { id: string; title: string; byName: string; at: number };
 export type DocHit = { scope: string; pageId: string; title: string; path: string[]; snippet: string };
+/** An image in a place's documents (PP-49): pages show it as `![name](image:<id>)`; its description is searched with them. */
+export type DocImage = { id: string; scope: string; name: string; mime: string; size: number; description: string | null; byName: string; createdAt: number; markdown: string };
+
+/** How a page shows an image. */
+export const IMAGE_REF = /!\[([^\]\n]*)\]\(image:([A-Za-z0-9_-]{6,64})\)/g;
 
 const MAX_NAME = 120;
 const MAX_BODY = 500_000;
@@ -54,6 +60,11 @@ export class DocumentStore {
             ) STRICT;
             CREATE INDEX IF NOT EXISTS doc_chunks_scope ON doc_chunks (scope);
             CREATE TABLE IF NOT EXISTS doc_meta (name TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
+            CREATE TABLE IF NOT EXISTS doc_images (
+                id TEXT PRIMARY KEY, scope TEXT NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, bytes BLOB NOT NULL, size INTEGER NOT NULL,
+                description TEXT, described_with TEXT, by TEXT NOT NULL, by_name TEXT NOT NULL, created_at INTEGER NOT NULL
+            ) STRICT;
+            CREATE INDEX IF NOT EXISTS doc_images_scope ON doc_images (scope);
         `);
         // Pages saved before search by meaning (or never cut into passages): cut now, to embed with the rest.
         this.#transaction(() => {
@@ -349,6 +360,82 @@ export class DocumentStore {
             this.#db.prepare("DELETE FROM doc_folders WHERE scope = ?").run(scope);
             this.#db.prepare("DELETE FROM doc_search WHERE scope = ?").run(scope);
             this.#db.prepare("DELETE FROM doc_chunks WHERE scope = ?").run(scope);
+            this.#db.prepare("DELETE FROM doc_images WHERE scope = ?").run(scope);
+        });
+    }
+
+    // ---- Images (PP-49) -------------------------------------------------------------------------------------------
+
+    /**
+     * Add an image (base64, PNG, JPEG, WebP or GIF, 10 MB at most), without its metadata (location, camera, comments). It
+     * waits for a description (`pendingImages`); a page shows it with its `markdown`.
+     */
+    addImage(scope: string, input: { name: string; data: string }, by: Author): DocImage {
+        check(scope);
+        const { mime, bytes } = cleanImage(new Uint8Array(Buffer.from(String(input.data ?? ""), "base64")));
+        const name = String(input.name ?? "").replace(/[\]\[\n\r]/g, " ").trim().slice(0, 120) || "image";
+        const id = randomUUID().replace(/-/g, "").slice(0, 16);
+
+        this.#db.prepare("INSERT INTO doc_images (id, scope, name, mime, bytes, size, by, by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, scope, name, mime, bytes, bytes.length, by.id, by.name, this.#now());
+
+        return this.#imageInfo(scope, id);
+    }
+
+    /** An image, with its bytes (base64). */
+    image(scope: string, id: string): DocImage & { data: string } {
+        const info = this.#imageInfo(scope, id);
+        const row = this.#db.prepare("SELECT bytes FROM doc_images WHERE id = ?").get(id) as Row;
+
+        return { ...info, data: Buffer.from(row.bytes as Uint8Array).toString("base64") };
+    }
+
+    /** Images still to describe with `model`: never described, or a description with another model that failed. */
+    pendingImages(model: string, limit = 4): { id: string; scope: string; mime: string; data: string }[] {
+        return (this.#db.prepare("SELECT id, scope, mime, bytes FROM doc_images WHERE description IS NULL OR (description = '' AND described_with IS NOT ?) ORDER BY created_at LIMIT ?").all(model, limit) as Row[]).map((row) => ({
+            id: String(row.id),
+            scope: String(row.scope),
+            mime: String(row.mime),
+            data: Buffer.from(row.bytes as Uint8Array).toString("base64"),
+        }));
+    }
+
+    /** What an image shows, from `model` ("" when it could not say): the pages that show it are searched with it. */
+    setDescription(id: string, model: string, description: string): void {
+        const row = this.#db.prepare("SELECT scope FROM doc_images WHERE id = ?").get(id) as Row | undefined;
+
+        if (row === undefined) {
+            return;
+        }
+
+        this.#transaction(() => {
+            this.#db.prepare("UPDATE doc_images SET description = ?, described_with = ? WHERE id = ?").run(description.trim().slice(0, 4000), model, id);
+
+            for (const page of this.#db.prepare("SELECT id, scope, title, body FROM doc_pages WHERE scope = ? AND deleted_at IS NULL AND body LIKE ?").all(String(row.scope), `%(image:${id})%`) as Row[]) {
+                this.#index(String(page.scope), String(page.id), String(page.title), String(page.body));
+            }
+        });
+    }
+
+    #imageInfo(scope: string, id: string): DocImage {
+        check(scope);
+        const row = this.#db.prepare("SELECT id, scope, name, mime, size, description, by_name, created_at FROM doc_images WHERE id = ? AND scope = ?").get(String(id), scope) as Row | undefined;
+
+        if (row === undefined) {
+            throw new HttpError(404, "No such image here.");
+        }
+
+        const name = String(row.name);
+
+        return { id: String(row.id), scope: String(row.scope), name, mime: String(row.mime), size: Number(row.size), description: row.description === null ? null : String(row.description), byName: String(row.by_name), createdAt: Number(row.created_at), markdown: `![${name}](image:${String(row.id)})` };
+    }
+
+    /** A page's text as search reads it: each image it shows, with what the image shows. */
+    #searchable(scope: string, body: string): string {
+        return body.replace(IMAGE_REF, (whole, alt: string, id: string) => {
+            const row = this.#db.prepare("SELECT description FROM doc_images WHERE id = ? AND scope = ?").get(id, scope) as Row | undefined;
+            const description = row?.description === null || row?.description === undefined ? "" : String(row.description);
+
+            return description === "" ? whole : `[Image: ${alt}. ${description}]`;
         });
     }
 
@@ -400,7 +487,9 @@ export class DocumentStore {
         return { ...infoOf(row), scope: String(row.scope), body: String(row.body), updatedBy: String(row.updated_by), createdAt: Number(row.created_at), path };
     }
 
-    #index(scope: string, id: string, title: string, body: string): void {
+    #index(scope: string, id: string, title: string, raw: string): void {
+        const body = this.#searchable(scope, raw);
+
         this.#db.prepare("DELETE FROM doc_search WHERE page_id = ?").run(id);
         this.#db.prepare("INSERT INTO doc_search (page_id, scope, title, body) VALUES (?, ?, ?, ?)").run(id, scope, title, body);
         this.#chunk(scope, id, title, body);
@@ -596,3 +685,63 @@ export function indexer(store: DocumentStore, embedder: () => Promise<Embedder |
 
     return () => void run();
 }
+
+/**
+ * Describe images waiting for it (PP-49), with a vision model, a few at a time, until none wait: the description goes
+ * into search with the pages that show the image. One run at a time per store, as `indexer`. After it, `then` (embed).
+ */
+export function describer(
+    store: DocumentStore,
+    vision: () => Promise<{ model: string; describe(mime: string, data: string): Promise<string> } | undefined>,
+    then: () => void,
+    log: (line: string) => void,
+): () => void {
+    let running = false;
+    let again = false;
+    const run = async () => {
+        if (running) {
+            again = true;
+
+            return;
+        }
+
+        running = true;
+
+        try {
+            do {
+                again = false;
+                const with_ = await vision();
+
+                if (with_ === undefined) {
+                    return;
+                }
+
+                for (let batch = store.pendingImages(with_.model); batch.length > 0; batch = store.pendingImages(with_.model)) {
+                    for (const image of batch) {
+                        let text = "";
+
+                        try {
+                            text = await with_.describe(image.mime, image.data);
+                        } catch (error) {
+                            log(`documents: describing an image with ${with_.model} failed: ${error instanceof Error ? error.message : String(error)}`);
+                        }
+
+                        store.setDescription(image.id, with_.model, text);
+                    }
+
+                    then();
+                }
+            } while (again);
+        } catch (error) {
+            log(`documents: describing images stopped: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            running = false;
+        }
+    };
+
+    return () => void run();
+}
+
+/** What a vision model is asked of an image in documents. */
+export const DESCRIBE_IMAGE =
+    "Describe this image for search, in two to four plain sentences: what kind of image it is (photo, screenshot, diagram, chart, drawing, scan…), what it shows, and any text, labels or names in it. No preamble.";

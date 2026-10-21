@@ -19,6 +19,22 @@ function linkPages(markdown) {
         .join("");
 }
 
+/** How a page shows an image: `![name](image:<id>)` (`doc-store.ts` IMAGE_REF). */
+const IMAGE_REF = /!\[([^\]\n]*)\]\(image:([A-Za-z0-9_-]{6,64})\)/g;
+/** Images kept for this tab, by place and id: a data URL, or null for one that could not load. */
+const images = new Map();
+
+/** A file (an image) as base64, without the data URL's start. */
+function base64Of(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ""));
+        reader.onerror = () => reject(reader.error ?? new Error("Could not read the file."));
+        reader.readAsDataURL(file);
+    });
+}
+
 function ago(ms) {
     const minutes = Math.max(1, Math.round((Date.now() - ms) / 60_000));
 
@@ -26,12 +42,51 @@ function ago(ms) {
 }
 
 export default function documents(pocket) {
-    const { html, useState, useEffect, Markdown, Loader } = pocket;
+    const { html, useState, useEffect, useRef, Markdown, Loader } = pocket;
 
     pocket.style("docs.css");
 
     const failed = (error) => pocket.notify("error", error.message);
     const call = (scope, method, ...args) => pocket.api("call", { scope, method, args }).then((answer) => answer.value);
+    const imageOf = (scope, id) => {
+        const key = `${scope}|${id}`;
+
+        if (!images.has(key)) {
+            images.set(
+                key,
+                call(scope, "image", id).then(
+                    (image) => `data:${image.mime};base64,${image.data}`,
+                    () => null,
+                ),
+            );
+        }
+
+        return images.get(key);
+    };
+    /** A page's markdown with its images loaded (each shows as its name until it has). */
+    const useImages = (scope, text) => {
+        const [urls, setUrls] = useState({});
+
+        useEffect(() => {
+            let live = true;
+
+            for (const id of new Set([...text.matchAll(IMAGE_REF)].map((match) => match[2]))) {
+                imageOf(scope, id).then((url) => live && setUrls((was) => (was[id] === url ? was : { ...was, [id]: url })));
+            }
+
+            return () => {
+                live = false;
+            };
+        }, [scope, text]);
+
+        return text.replace(IMAGE_REF, (_whole, alt, id) =>
+            urls[id] ? `![${alt}](${urls[id]})` : urls[id] === null ? `*[${alt || "image"}: could not load]*` : `*[${alt || "image"}…]*`,
+        );
+    };
+    /** Markdown of a page in `scope`, with its [[links]] and its images. */
+    function DocMarkdown({ scope, text }) {
+        return html`<${Markdown} text=${linkPages(useImages(scope, text))} class="pd-body" />`;
+    }
     const svg = (path, size = 14) =>
         html`<svg width=${size} height=${size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d=${path} /></svg>`;
 
@@ -221,7 +276,32 @@ export default function documents(pocket) {
                       ? html`<p class="pd-meta">No documents here yet.</p>`
                       : html`<div class="pd-tree">${rows(null, 0)}</div>`
             }
+            ${!current.id.startsWith("team") && (current.id === "mine" || !scopes.some((scope) => scope.id === "team")) && html`<${ImageModel} />`}
         </div>`;
+    }
+
+    /** The model that describes images here (Mine, and the phone's boards'), so they are found by what they show. */
+    function ImageModel() {
+        const [state, setState] = useState(null);
+
+        useEffect(() => {
+            pocket.api("image-model").then(setState, () => setState(null));
+        }, []);
+
+        if (state === null) {
+            return null;
+        }
+
+        const choose = (model) => pocket.api("image-model", { model: model === "" ? null : model }).then((answer) => setState({ ...state, model: answer.model }), failed);
+
+        return html`<label class="field pd-image-model">
+            <span class="label">Describe images with</span>
+            <select value=${state.model ?? ""} onChange=${(event) => choose(event.currentTarget.value)}>
+                <option value="">No model (images are found by name only)</option>
+                ${state.models.map((model) => html`<option value=${model}>${model}</option>`)}
+            </select>
+            <span class="pd-meta">So search finds pictures by what they show${state.team ? " (yours; the team's are set on the server)" : ""}. Each image is sent to this model once; its cost shows in Spend.</span>
+        </label>`;
     }
 
     function Search({ query, go }) {
@@ -283,7 +363,7 @@ export default function documents(pocket) {
             <p class="pd-crumb">${[place, ...page.path].join(" › ")}</p>
             <h2>${page.title}</h2>
             <p class="pd-meta">Last saved by ${page.updatedByName}, ${ago(page.updatedAt)} ago</p>
-            <${Markdown} text=${linkPages(page.body)} class="pd-body" />
+            <${DocMarkdown} scope=${scope} text=${page.body} />
             ${
                 links.length > 0 &&
                 html`<div class="pd-backlinks">
@@ -309,7 +389,39 @@ export default function documents(pocket) {
         const [preview, setPreview] = useState(false);
         const [busy, setBusy] = useState(false);
         const [problem, setProblem] = useState(null);
+        const [adding, setAdding] = useState(0);
+        const text = useRef(null);
+        const picker = useRef(null);
         const folders = tree?.folders ?? [];
+        /** Upload images (picked or pasted) and put each where the cursor is. */
+        const addImages = async (files) => {
+            const chosen = [...files].filter((file) => file.type.startsWith("image/"));
+
+            if (chosen.length === 0) {
+                return;
+            }
+
+            setProblem(null);
+            setAdding((count) => count + chosen.length);
+
+            for (const file of chosen) {
+                try {
+                    if (file.size > 10 * 1024 * 1024) {
+                        throw new Error(`${file.name}: an image may be 10 MB at most.`);
+                    }
+
+                    const image = await call(scope, "addImage", { name: file.name.replace(/\.[^.]+$/, "") || "image", data: await base64Of(file) });
+                    const area = text.current;
+                    const at = area ? area.selectionEnd : body.length;
+
+                    setBody((was) => `${was.slice(0, at)}${at > 0 && was[at - 1] !== "\n" ? "\n" : ""}${image.markdown}\n${was.slice(at)}`);
+                } catch (error) {
+                    setProblem(error.message);
+                } finally {
+                    setAdding((count) => count - 1);
+                }
+            }
+        };
         const named = (folderOf) => {
             const path = [];
 
@@ -341,12 +453,39 @@ export default function documents(pocket) {
             >
             ${
                 preview
-                    ? html`<${Markdown} text=${linkPages(body)} class="pd-body" />`
-                    : html`<textarea class="pd-text mono" aria-label="Page (markdown)" placeholder="Markdown. [[Another page]] links to a page here; [[team:Page]] or [[PP:Page]] to one elsewhere." value=${body} onInput=${(event) => setBody(event.currentTarget.value)}></textarea>`
+                    ? html`<${DocMarkdown} scope=${scope} text=${body} />`
+                    : html`<textarea
+                          ref=${text}
+                          class="pd-text mono"
+                          aria-label="Page (markdown)"
+                          placeholder="Markdown. [[Another page]] links to a page here; [[team:Page]] or [[PP:Page]] to one elsewhere. Paste an image to add it."
+                          value=${body}
+                          onInput=${(event) => setBody(event.currentTarget.value)}
+                          onPaste=${(event) => {
+                              const files = [...(event.clipboardData?.files ?? [])].filter((file) => file.type.startsWith("image/"));
+
+                              if (files.length > 0) {
+                                  event.preventDefault();
+                                  addImages(files);
+                              }
+                          }}
+                      ></textarea>`
             }
             ${problem && html`<p class="pd-problem">${problem}</p>`}
+            <input
+                ref=${picker}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                multiple
+                hidden
+                onChange=${(event) => {
+                    addImages(event.currentTarget.files ?? []);
+                    event.currentTarget.value = "";
+                }}
+            />
             <div class="pd-actions">
                 <button class="button" onClick=${() => setPreview(!preview)}>${preview ? "Edit" : "Preview"}</button>
+                <button class="button" disabled=${adding > 0} onClick=${() => picker.current?.click()}>${adding > 0 ? "Adding…" : "Image"}</button>
                 <button class="button primary" disabled=${busy || title.trim() === ""} onClick=${save}>${busy ? "Saving…" : "Save"}</button>
             </div>
         </div>`;
@@ -378,7 +517,7 @@ export default function documents(pocket) {
                     ${write && index > 0 && html`<button class="button small" onClick=${() => restore(version)}>Bring back</button>`}
                 </div>`,
             )}
-            ${shown && html`<div class="pd-shown"><p class="pd-meta">${shown.title} · ${shown.byName}, ${new Date(shown.at).toLocaleString()}</p><${Markdown} text=${linkPages(shown.body)} class="pd-body" /></div>`}
+            ${shown && html`<div class="pd-shown"><p class="pd-meta">${shown.title} · ${shown.byName}, ${new Date(shown.at).toLocaleString()}</p><${DocMarkdown} scope=${scope} text=${shown.body} /></div>`}
         </div>`;
     }
 

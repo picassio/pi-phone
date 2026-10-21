@@ -80,8 +80,9 @@ export async function readBody(request: IncomingMessage, limit: number): Promise
  * A request's JSON body, which every route takes as an object (an empty body is an empty one). Anything else, such as
  * null or a list, is refused here: a route reading its fields would fail with a server error.
  */
-export async function readJson<T>(request: IncomingMessage): Promise<T> {
-    const body = await readBody(request, MAX_JSON);
+/** A JSON body: 1 MB at most, unless the route allows more (an extension route's `maxBytes`). */
+export async function readJson<T>(request: IncomingMessage, limit = MAX_JSON): Promise<T> {
+    const body = await readBody(request, limit);
 
     if (body.length === 0) {
         return {} as T;

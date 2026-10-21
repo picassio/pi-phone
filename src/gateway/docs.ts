@@ -11,15 +11,15 @@
  */
 import { join } from "node:path";
 import { HttpError } from "../server/errors.ts";
-import { type Author, DocumentStore, indexer } from "../server/doc-store.ts";
-import { type Embedder, openRouterEmbedder } from "../server/embeddings.ts";
+import { type Author, DESCRIBE_IMAGE, describer, DocumentStore, indexer } from "../server/doc-store.ts";
+import { type Embedder, openRouterEmbedder, openRouterVision } from "../server/embeddings.ts";
 import type { BoardService } from "./boards.ts";
 import type { GatewayStore, PersonBox } from "./store.ts";
 
 export type DocCall = { method: string; args: unknown[]; pi?: { conversationId: string } };
 
-const READS = new Set(["tree", "page", "byTitle", "deleted", "history", "version", "backlinks"]);
-const WRITES = new Set(["write", "edit", "move", "remove", "restore", "makeFolder", "changeFolder", "removeFolder"]);
+const READS = new Set(["tree", "page", "byTitle", "deleted", "history", "version", "backlinks", "image"]);
+const WRITES = new Set(["write", "edit", "move", "remove", "restore", "makeFolder", "changeFolder", "removeFolder", "addImage"]);
 
 export class DocService {
     readonly #store: GatewayStore;
@@ -27,6 +27,8 @@ export class DocService {
     readonly #docs: DocumentStore;
     /** Embed what is pending, with the server's key (PP-49). */
     readonly #index: () => void;
+    /** Describe images waiting for it, with the server's key and vision model (PP-49). */
+    readonly #describe: () => void;
     readonly #now: () => number;
 
     constructor(store: GatewayStore, boards: BoardService, dir: string, now: () => number = Date.now, log: (line: string) => void = () => {}) {
@@ -36,6 +38,32 @@ export class DocService {
         this.#docs = new DocumentStore(join(dir, "documents.sqlite"), now);
         this.#index = indexer(this.#docs, async () => this.embedder(), (usage) => this.#spent(usage), log);
         this.#index();
+        this.#describe = describer(
+            this.#docs,
+            async () => {
+                const { key, vision } = this.#store.docsSearch();
+
+                if (key === null || vision === null) {
+                    return undefined;
+                }
+
+                const client = openRouterVision(key, vision);
+
+                return {
+                    model: vision,
+                    describe: async (mime, data) => {
+                        const said = await client.describe(mime, data, DESCRIBE_IMAGE);
+
+                        this.#spent(said);
+
+                        return said.text;
+                    },
+                };
+            },
+            this.#index,
+            log,
+        );
+        this.#describe();
         // A board deleted: its documents go with it.
         boards.onRemoved((projectId) => this.#docs.forgetScope(`project:${projectId}`));
     }
@@ -52,15 +80,16 @@ export class DocService {
     }
 
     /** Search by meaning's state, for the Server page: the model, whether there is a key, this month's spend, how much is indexed. */
-    searchState(): { model: string | null; keySet: boolean; month: { tokens: number; cost: number }; indexed: { passages: number; embedded: number } } {
-        const { key, model } = this.#store.docsSearch();
+    searchState(): { model: string | null; vision: string | null; keySet: boolean; month: { tokens: number; cost: number }; indexed: { passages: number; embedded: number } } {
+        const { key, model, vision } = this.#store.docsSearch();
 
-        return { model, keySet: key !== null, month: this.#store.docsSpend(new Date(this.#now()).toISOString().slice(0, 7)), indexed: this.#docs.indexed() };
+        return { model, vision, keySet: key !== null, month: this.#store.docsSpend(new Date(this.#now()).toISOString().slice(0, 7)), indexed: this.#docs.indexed() };
     }
 
     /** The search settings changed: index again with them. */
     reindex(): void {
         this.#index();
+        this.#describe();
     }
 
     #spent(usage: { tokens: number; cost?: number }): void {
@@ -193,6 +222,10 @@ export class DocService {
             case "restore":
                 value = docs.restore(where.inside, String(rest[0]), String(rest[1]), by);
                 audit("document restored", (value as { title: string }).title);
+                break;
+            case "addImage":
+                value = docs.addImage(where.inside, rest[0] as never, by);
+                this.#describe();
                 break;
             case "makeFolder":
                 value = docs.makeFolder(where.inside, (rest[0] ?? null) as string | null, String(rest[1] ?? ""));

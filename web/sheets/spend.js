@@ -109,11 +109,11 @@ export function SpendSheet() {
         ${
             data?.wiki &&
             html`<div class="group">
-                <div class="group-title">Wiki search</div>
+                <div class="group-title">Wiki and documents</div>
                 <div class="sheet-list">
                     <div class="spend-row">
                         <span class="grow">
-                            Embeddings for search by meaning
+                            Search by meaning and image descriptions
                             <small class="muted spend-sub">${data.wiki.requests} ${data.wiki.requests === 1 ? "request" : "requests"} · ${data.wiki.tokens.toLocaleString()} tokens · since ${new Date(data.wiki.since).toLocaleDateString()}</small>
                         </span>
                         <span class="mono">${data.wiki.cost > 0 && data.wiki.cost < 0.01 ? `${data.wiki.cost.toFixed(4)}` : money(data.wiki.cost)}</span>

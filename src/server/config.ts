@@ -125,6 +125,8 @@ interface PocketConfig {
      * Jev model's OpenRouter id ("typesafe/jev-1.13"). Absent: "session"; Jev runs only once the owner picks it.
      */
     browserRunModel?: string;
+    /** The model that describes images in documents (PP-49), provider/modelId; none when unset. */
+    docsImageModel?: string;
     /** Also listen on the phone's Tailscale address, for people on the owner's tailnet (`tailnet.ts`). Absent: off. */
     tailscale?: boolean;
 }
@@ -341,6 +343,20 @@ export class ConfigStore {
     }
 
     /** The owner's run model for `browser_run` (Settings › Browser): "session", or a Jev model's OpenRouter id. */
+    get docsImageModel(): string | null {
+        return this.#config.docsImageModel ?? null;
+    }
+
+    set docsImageModel(model: string | null) {
+        if (model === null) {
+            delete this.#config.docsImageModel;
+        } else {
+            this.#config.docsImageModel = model;
+        }
+
+        this.save();
+    }
+
     get browserRunModel(): string {
         return this.#config.browserRunModel ?? "session";
     }

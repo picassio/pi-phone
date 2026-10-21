@@ -81,3 +81,30 @@ test("Mine searched by meaning with the person's embedder: indexed after a save,
     assert.ok(spent.length >= 2, "indexing and the query both counted");
     docs.close();
 });
+
+test("images in Mine described by the person's chosen model, and the page found by what they show (PP-49)", async () => {
+    const dir = mkdtempSync(join(root, "docs-images-"));
+    const asked: string[] = [];
+    let model: string | undefined;
+    const docs = new Docs({
+        dataDir: dir,
+        me: () => ME,
+        teamServer: undefined,
+        vision: async () => (model === undefined ? undefined : { model, describe: async (mime, _data, prompt) => (asked.push(`${mime}: ${prompt.slice(0, 20)}`), "A whiteboard sketch of the release train.") }),
+    });
+    const gif = Buffer.from("GIF89a\x01\x00\x01\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x44\x01\x00\x3b", "latin1");
+    const image = (await docs.call("mine", "addImage", [{ name: "sketch", data: gif.toString("base64") }], true)) as { markdown: string; byName: string };
+
+    assert.equal(image.byName, "Pi (Owner)");
+    await docs.call("mine", "write", [{ title: "Retro", body: `Notes.\n\n${image.markdown}` }]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.deepEqual(asked, [], "no model chosen: nothing sent");
+    assert.deepEqual(await docs.search("whiteboard"), []);
+
+    model = "anthropic/claude-sonnet-4-5";
+    docs.describeImages();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(asked, ["image/gif: Describe this image "]);
+    assert.deepEqual((await docs.search("whiteboard")).map((hit) => hit.title), ["Retro"]);
+    docs.close();
+});

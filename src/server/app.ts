@@ -736,6 +736,12 @@ export class PocketApp {
             home: this.#home,
             resolveModel: (spec) => resolveModel(this.models, spec, this.signInNeeded),
             subagentModels: () => this.config.subagentModels,
+            docsImages: {
+                model: () => this.config.docsImageModel,
+                models: () => this.imageModels(),
+                choose: (model) => this.setDocsImageModel(this.#person(this.config.users.find((user) => user.role === "owner")!.id), model),
+                describe: (mime, data, prompt) => this.describeImage(mime, data, prompt),
+            },
             modelProblem: (ref, fresh) => this.providers.problem(ref, fresh),
             requesterOf: (conversationId) => this.attribution.requesterOf(conversationId),
             ready: () => this.#ready,
@@ -3329,6 +3335,73 @@ export class PocketApp {
 
         this.config.wikiCaptureMinutes = minutes;
         await this.#refreshClients();
+    }
+
+    /**
+     * The model that describes images in documents (PP-49): one of the person's signed-in models that reads images, or
+     * none. Nobody's model is used for it unless chosen here.
+     */
+    async setDocsImageModel(user: User, model: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (model === null) {
+            this.config.docsImageModel = null;
+
+            return;
+        }
+
+        const ref = (() => {
+            try {
+                return resolveModel(this.models, String(model), this.signInNeeded);
+            } catch (error) {
+                throw new HttpError(400, error instanceof Error ? error.message : String(error));
+            }
+        })();
+
+        if (!this.models.getModel(ref.provider, ref.modelId)?.input.includes("image")) {
+            throw new HttpError(400, `${ref.provider}/${ref.modelId} does not read images.`);
+        }
+
+        this.config.docsImageModel = `${ref.provider}/${ref.modelId}`;
+    }
+
+    /** The signed-in models that read images, for the Documents page's choice (provider/modelId). */
+    imageModels(): string[] {
+        return modelList(this.models, this.signInNeeded)
+            .filter((model) => model.signIn !== true && this.models.getModel(model.provider, model.id)?.input.includes("image"))
+            .map((model) => `${model.provider}/${model.id}`);
+    }
+
+    /** Describe an image with the chosen model (none chosen: undefined); its cost counts in Spend with the wiki's search. */
+    async describeImage(mime: string, data: string, prompt: string): Promise<{ model: string; text: string } | undefined> {
+        const chosen = this.config.docsImageModel;
+
+        if (chosen === null) {
+            return undefined;
+        }
+
+        const ref = resolveModel(this.models, chosen, this.signInNeeded);
+        const model = this.models.getModel(ref.provider, ref.modelId);
+
+        if (model === undefined) {
+            throw new Error(`${chosen} is not available.`);
+        }
+
+        const reply = await this.models.completeSimple(
+            model,
+            { messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image", data, mimeType: mime }], timestamp: Date.now() }] },
+            { maxTokens: 400, cacheRetention: "none" },
+        );
+
+        this.spend.wikiUsed({ model: chosen, tokens: reply.usage.totalTokens, cost: reply.usage.cost.total });
+
+        if (reply.stopReason === "error" || reply.stopReason === "aborted") {
+            throw new Error(reply.errorMessage ?? reply.stopReason);
+        }
+
+        return { model: chosen, text: reply.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("").trim() };
     }
 
     /** The run model for `browser_run` (Settings › Browser), for every session, or one session's own ("inherit": none). */

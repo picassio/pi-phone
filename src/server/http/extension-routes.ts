@@ -52,7 +52,7 @@ export async function extensionRoute(
     const body =
         method === "GET" || method === "DELETE"
             ? {}
-            : await readJson<Record<string, unknown>>(request);
+            : await readJson<Record<string, unknown>>(request, route.maxBytes);
     const stopped = new AbortController();
 
     // The browser went away before the answer: the handler may stop.

@@ -160,6 +160,8 @@ interface Route {
     segments: string[];
     access: WebAccess;
     handle: WebHandler;
+    /** The largest JSON body it takes. */
+    maxBytes: number;
 }
 
 interface Client {
@@ -271,7 +273,7 @@ export class ExtensionWebs {
             module: part.module,
             route: (method, path, handle, options) => {
                 open("route");
-                part.routes.push(checkRoute(part, method, path, handle, options?.access));
+                part.routes.push(checkRoute(part, method, path, handle, options?.access, options?.maxBytes));
             },
             client: (entry, options) => {
                 open("client");
@@ -905,7 +907,12 @@ function checkRoute(
     path: unknown,
     handle: unknown,
     access: unknown = "owner",
+    maxBytes: unknown = 1_000_000,
 ): Route {
+    if (typeof maxBytes !== "number" || !Number.isInteger(maxBytes) || maxBytes < 1 || maxBytes > 16 * 1024 * 1024) {
+        throw new Error(`web.route: maxBytes is a whole number of bytes up to 16 MB, not ${String(maxBytes)}`);
+    }
+
     const verb = typeof method === "string" ? method.toUpperCase() : "";
 
     if (!METHODS.has(verb)) {
@@ -965,6 +972,7 @@ function checkRoute(
         path: segments.join("/"),
         segments,
         access: access as WebAccess,
+        maxBytes,
         handle: handle as WebHandler,
     };
 }

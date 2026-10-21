@@ -108,3 +108,30 @@ export function passages(title: string, path: string[], body: string, max = 3200
 
     return out.map((text) => `${head}${text.trim()}`);
 }
+
+/** A vision model on OpenRouter describing an image (PP-49): its words, and what it cost. */
+export function openRouterVision(key: string, model: string, send: typeof fetch = fetch) {
+    return {
+        model,
+        async describe(mime: string, data: string, prompt: string): Promise<{ text: string; tokens: number; cost?: number }> {
+            const response = await send("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+                body: JSON.stringify({
+                    model,
+                    max_tokens: 400,
+                    messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:${mime};base64,${data}` } }] }],
+                }),
+                signal: AbortSignal.timeout(120_000),
+            });
+            const body = (await response.json().catch(() => ({}))) as { choices?: { message?: { content?: string } }[]; usage?: { total_tokens?: number; cost?: number }; error?: { message?: string } };
+            const text = body.choices?.[0]?.message?.content;
+
+            if (!response.ok || typeof text !== "string") {
+                throw new Error(`OpenRouter: ${body.error?.message ?? response.status}`);
+            }
+
+            return { text: text.trim(), tokens: body.usage?.total_tokens ?? 0, ...(body.usage?.cost === undefined ? {} : { cost: body.usage.cost }) };
+        },
+    };
+}

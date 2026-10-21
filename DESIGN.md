@@ -674,6 +674,20 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
         By meaning, only pages within 0.1 of the best match count (`NEAR`): measured on the devbox with
         text-embedding-3-small, matches scored 0.25–0.55 and the rest 0.1 or more below; a fixed floor cut short queries.
         Pages saved before passages existed are cut when the store opens.
+    - **Images** (PP-49): `doc_images` rows (bytes in SQLite, so backups and `forgetScope` include them); pages show
+      one as `![name](image:<id>)` (`IMAGE_REF`).
+      - **Clean:** `image-meta.ts` types a file by its bytes (PNG, JPEG, WebP, GIF, 10 MB) and drops metadata:
+        PNG text/time/eXIf chunks; JPEG APPn but JFIF, ICC and Adobe, and comments, with a minimal Exif carrying only
+        the orientation; WebP EXIF/XMP chunks (VP8X flags cleared); GIF comments and app blocks but looping ones.
+      - **Described:** `describer` sends each image once to a vision model (`DESCRIBE_IMAGE`); a failure stores ""
+        and waits for another model. The description replaces the image's markdown in what FTS and the passages
+        read (`#searchable`), so the page is found by it; the pages that show it are indexed again.
+      - **Models:** Mine uses `docs.imageModel` (config `docsImageModel`, a signed-in model that reads images,
+        through `app.describeImage` and `completeSimple`; cost in Spend's "Wiki and documents"). The gateway uses
+        `docs_vision` with the server key (OpenRouter chat completions), set on the Server page or by `team_server`.
+      - **Sizes:** extension routes take `maxBytes` (up to 16 MB; docs' `call` takes 16 MB), and the gateway's
+        `/internal/docs` reads up to 16 MB (64 KB elsewhere). The web shows images as data URLs, cached per tab.
+      - **Pi:** `doc_image` reads a file where the session works (`host.envOf`) and answers the markdown to put in a page.
         A failed query embedding falls back to keyword search, with a log line.
       - **Mine:** the wiki's embedding model plus the person's OpenRouter key; cost through `Para.chargeEmbedding`.
       - **Team and projects:** the gateway's own model and key (`pp_setting` docs_model/docs_key), set on the

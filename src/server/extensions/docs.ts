@@ -34,6 +34,12 @@ export default function createDocs(host: PocketHost, web: ExtensionWeb) {
             return model === null || key === undefined ? undefined : openRouterEmbedder(key, model);
         },
         spent: (usage) => void host.para.chargeEmbedding(usage).catch(() => {}),
+        // Images described by the model the person chose for it (PP-49), if any.
+        vision: async () => {
+            const model = host.docsImages.model();
+
+            return model === null ? undefined : { model, describe: async (mime, data, prompt) => (await host.docsImages.describe(mime, data, prompt))?.text ?? "" };
+        },
         log: (line) => host.notice("warning", line),
     });
 
@@ -59,9 +65,27 @@ export default function createDocs(host: PocketHost, web: ExtensionWeb) {
     };
 
     web.route("GET", "scopes", (request) => (mine(request), answer(async () => ({ scopes: await docs.scopes() }))));
-    web.route("POST", "call", (request) =>
+    web.route(
+        "POST",
+        "call",
+        (request) =>
+            (mine(request),
+            answer(async () => ({ value: (await docs.call(String(request.body.scope ?? ""), String(request.body.method ?? ""), Array.isArray(request.body.args) ? request.body.args : [])) ?? null }))),
+        // An image (10 MB) in base64.
+        { maxBytes: 16 * 1024 * 1024 },
+    );
+    // The model that describes images in Mine (and the phone's boards'): the person's choice among models that read images.
+    web.route("GET", "image-model", (request) => (mine(request), { model: host.docsImages.model(), models: host.docsImages.models(), team: host.teamServer !== undefined }));
+    web.route("POST", "image-model", (request) =>
         (mine(request),
-        answer(async () => ({ value: (await docs.call(String(request.body.scope ?? ""), String(request.body.method ?? ""), Array.isArray(request.body.args) ? request.body.args : [])) ?? null }))),
+        answer(async () => {
+            const model = request.body.model;
+
+            await host.docsImages.choose(model === null || model === "" ? null : String(model));
+            docs.describeImages();
+
+            return { model: host.docsImages.model() };
+        })),
     );
     web.route("GET", "meaning", (request) => (mine(request), answer(async () => docs.meaning())));
     web.route("GET", "search", (request) =>
@@ -137,7 +161,7 @@ export default function createDocs(host: PocketHost, web: ExtensionWeb) {
             throw new HttpError(403, `${answer.by} said no: nothing was done.`);
         }
     };
-    const tool = <P extends Parameters<typeof defineTool>[0]["parameters"]>(name: string, description: string, parameters: P, run: (args: never, api: { conversationId: unknown; taskId: unknown; callId?: string }, context: unknown) => Promise<string>) =>
+    const tool = <P extends Parameters<typeof defineTool>[0]["parameters"]>(name: string, description: string, parameters: P, run: (args: never, api: { conversationId: unknown; taskId: unknown; callId?: string; agent(context: unknown): Promise<{ cwd?: string }> }, context: unknown) => Promise<string>) =>
         defineTool({
             name,
             description,
@@ -246,6 +270,26 @@ export default function createDocs(host: PocketHost, web: ExtensionWeb) {
                 await docs.call(scope, "restore", [page.id, version], true);
 
                 return `${page.title} is back.`;
+            },
+        ),
+        tool(
+            "doc_image",
+            "Add an image file (PNG, JPEG, WebP or GIF, 10 MB at most) to a place's documents, without its location and camera data. Answers the markdown that shows it: put that in a page with doc_edit or doc_write. It is described for search when the place has an image model.",
+            Type.Object({ path: Type.String({ description: "The image file, absolute or relative to this session's folder" }), name: Type.Optional(Type.String({ description: "What to call it; default: the file's name" })), place: PLACE }),
+            async (args: { path: string; name?: string; place?: string }, api, context) => {
+                const scope = placeOf(args.place, api.conversationId);
+                const env = host.envOf((await api.agent(context)).cwd ?? "");
+                const absolute = await env.absolutePath(args.path, context as never);
+                const bytes = absolute.ok ? await env.readBinaryFile(absolute.value, context as never) : absolute;
+
+                if (!absolute.ok || !bytes.ok) {
+                    throw new HttpError(404, `Could not read ${args.path}: ${bytes.ok ? "" : bytes.error.message}`);
+                }
+
+                const name = args.name ?? args.path.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, "");
+                const image = (await docs.call(scope, "addImage", [{ name, data: Buffer.from(bytes.value).toString("base64") }], true)) as { name: string; mime: string; size: number; markdown: string };
+
+                return `Added ${image.name} to ${where(scope)} (${image.mime}, ${Math.ceil(image.size / 1024)} KB, location and camera data removed). Show it in a page with: ${image.markdown}`;
             },
         ),
     ];

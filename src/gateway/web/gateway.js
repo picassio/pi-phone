@@ -632,15 +632,16 @@ async function serverPage(me) {
         h("h2", {}, "Now"),
         status,
         h("h2", {}, "Search in documents"),
-        h("p", { class: "muted" }, "Team and project documents are searched by meaning too, with an OpenRouter embedding model and a key for it, used for nothing else. Without them, search is by keyword."),
+        h("p", { class: "muted" }, "Team and project documents are searched by meaning too, with an OpenRouter embedding model and a key for it, used for nothing else; with an image description model, pictures in them are found by what they show. Without them, search is by keyword and pictures by name."),
         form(
             [
                 field("Embedding model (OpenRouter)", "docsModel", "text", { required: false, value: server.docs.model ?? "", placeholder: "openai/text-embedding-3-small" }),
+                field("Image description model (OpenRouter, reads images)", "docsVision", "text", { required: false, value: server.docs.vision ?? "", placeholder: "google/gemini-2.5-flash" }),
                 field(`OpenRouter key${server.docs.keySet ? " (one is set: type a new one to replace it)" : ""}`, "docsKey", "password", { required: false, autocomplete: "off", placeholder: server.docs.keySet ? "••••••••" : "sk-or-…" }),
             ],
             "Save",
             async (values) => {
-                const body = { docsModel: values.docsModel, ...(values.docsKey === "" ? {} : { docsKey: values.docsKey }) };
+                const body = { docsModel: values.docsModel, docsVision: values.docsVision, ...(values.docsKey === "" ? {} : { docsKey: values.docsKey }) };
                 const saved = await gw("server", body);
 
                 show(saved);

@@ -8,7 +8,7 @@ import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { after, test } from "node:test";
-import { DocumentStore, indexer } from "../src/server/doc-store.ts";
+import { describer, DocumentStore, indexer } from "../src/server/doc-store.ts";
 import { type Embedder, passages } from "../src/server/embeddings.ts";
 
 after(() => cleanUp());
@@ -118,4 +118,56 @@ test("documents are found by meaning, merged with keywords; only what changed is
     embedder = undefined;
     run();
     assert.equal(docs.hybrid(["team"], "invoice", null, 5)[0]?.title, "Money");
+});
+
+test("images: added without metadata, described, and their pages found by what they show (PP-49)", async () => {
+    const docs = new DocumentStore(join(mkdtempSync(join(root, "docimages-")), "documents.sqlite"));
+    // A PNG with a tEXt chunk carrying a location.
+    const chunk = (type: string, data: string) => {
+        const length = Buffer.alloc(4);
+
+        length.writeUInt32BE(data.length);
+
+        return Buffer.concat([length, Buffer.from(type + data, "latin1"), Buffer.alloc(4)]);
+    };
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", "x".repeat(13)), chunk("tEXt", "GPS\0Bangkok 13.75N"), chunk("IDAT", "px"), chunk("IEND", "")]);
+    const image = docs.addImage("team", { name: "network [v2]", data: png.toString("base64") }, ME);
+
+    assert.equal(image.mime, "image/png");
+    assert.equal(image.name, "network  v2", "no brackets that would break its markdown");
+    assert.equal(image.markdown, `![network  v2](image:${image.id})`);
+    assert.ok(!Buffer.from(docs.image("team", image.id).data, "base64").includes("Bangkok"), "location gone");
+    assert.throws(() => docs.image("project:x", image.id), /No such image here/, "only in its own place");
+    assert.throws(() => docs.addImage("team", { name: "x", data: Buffer.from("<svg/>").toString("base64") }, ME), /Only PNG, JPEG, WebP and GIF/);
+
+    docs.write("team", { title: "Architecture", body: `How it fits together:\n\n${image.markdown}` }, ME);
+    assert.deepEqual(docs.search(["team"], "router"), [], "not yet described");
+
+    // Described by a stand-in vision model: its words go into search with the page.
+    const seen: string[] = [];
+    let indexed = 0;
+    const run = describer(docs, async () => ({ model: "v1", describe: async (mime) => (seen.push(mime), "A network diagram: a router, two switches and a firewall.") }), () => indexed++, () => {});
+
+    run();
+    for (let i = 0; i < 20 && docs.pendingImages("v1").length > 0; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    assert.deepEqual(seen, ["image/png"]);
+    assert.ok(indexed >= 1, "then embedded");
+    assert.equal(docs.image("team", image.id).description, "A network diagram: a router, two switches and a firewall.");
+    assert.equal(docs.search(["team"], "router")[0]?.title, "Architecture");
+    assert.equal(docs.pendingImages("v1").length, 0);
+
+    // A failed description waits for another model, not this one again.
+    const second = docs.addImage("team", { name: "b", data: png.toString("base64") }, ME);
+
+    docs.setDescription(second.id, "v1", "");
+    assert.equal(docs.pendingImages("v1").length, 0);
+    assert.equal(docs.pendingImages("v2").length, 1);
+
+    // A deleted board: its images go too.
+    docs.forgetScope("team");
+    assert.throws(() => docs.image("team", image.id), /No such image here/);
+    docs.close();
 });

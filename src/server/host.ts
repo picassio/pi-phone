@@ -221,6 +221,13 @@ export interface PocketHost {
      * Empty, the default: none.
      */
     subagentModels(): readonly string[];
+    /** Images in documents (PP-49): the model the person chose to describe them (provider/modelId) or null, the ones they may choose, and a description. */
+    readonly docsImages: {
+        model(): string | null;
+        models(): string[];
+        choose(model: string | null): Promise<void>;
+        describe(mime: string, data: string, prompt: string): Promise<{ model: string; text: string } | undefined>;
+    };
     /**
      * Why Pi may not use a model now, in words for Pi to pass on (not known here, its provider not signed in, or its
      * sign-in expired), or undefined when it may. `fresh` asks the provider's sign-in again first.
@@ -370,7 +377,8 @@ export interface ExtensionWeb {
         method: WebMethod,
         path: string,
         handle: WebHandler,
-        options?: { access?: WebAccess },
+        /** `maxBytes`: the largest JSON body it takes, up to 16 MB (1 MB unless said). */
+        options?: { access?: WebAccess; maxBytes?: number },
     ): void;
     /**
      * The browser module that adds to the app: a `.js` file beside this module, or a folder with an `index.js` and the

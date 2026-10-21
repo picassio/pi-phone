@@ -1,6 +1,7 @@
 // Pi's document tools in a running app (PP-48), on the phone: Pi writes a page into a folder it makes, reads it back,
 // edits it, lists and searches its documents, and lists its versions; its saves are named "Pi (person)".
-import { type App, cleanUp, newSession, openApp, root, say, scriptedModel } from "./helpers.ts";
+import { type App, cleanUp, newSession, openApp, root, say, scriptedModel, work } from "./helpers.ts";
+import { writeFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -16,6 +17,7 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "list them": ["doc_list", {}],
     "search them": ["doc_search", { query: "boards" }],
     "its history": ["doc_history", { page: "Release notes" }],
+    "add the picture": ["doc_image", { path: "shot.png" }],
 };
 
 const route: FauxResponseStep = (ctx) => {
@@ -44,13 +46,17 @@ after(async () => {
 });
 
 test("Pi writes, reads, edits, lists and searches documents, named as Pi", async () => {
+    // A PNG in the session's folder, with a location in a text chunk.
+    const chunk = (type: string, data: string) => Buffer.concat([Buffer.from([0, 0, 0, data.length]), Buffer.from(type + data, "latin1"), Buffer.alloc(4)]);
+
+    writeFileSync(join(work, "shot.png"), Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", "x".repeat(13)), chunk("tEXt", "GPS\0Hue"), chunk("IDAT", "px"), chunk("IEND", "")]));
     const id = await newSession(app);
 
     for (const ask of Object.keys(calls)) {
         await say(app, id, ask);
     }
 
-    const [wrote, read, edited, listed, found, history] = results;
+    const [wrote, read, edited, listed, found, history, image] = results;
 
     assert.match(wrote!, /Saved Release notes \(Mine › Notes › 2026\)/);
     assert.match(read!, /# Release notes \(Mine › Notes › 2026; last saved by Pi \(/);
@@ -59,4 +65,5 @@ test("Pi writes, reads, edits, lists and searches documents, named as Pi", async
     assert.match(listed!, /Notes\/[\s\S]*2026\/[\s\S]*- Release notes \(by Pi \(/);
     assert.match(found!, /Release notes \(Mine › Notes › 2026\): .*\*\*boards\*\*/);
     assert.equal(history!.match(/Pi \(/g)?.length, 2, "two versions, both Pi's");
+    assert.match(image!, /Added shot to Mine \(image\/png, 1 KB, location and camera data removed\)\. Show it in a page with: !\[shot\]\(image:[A-Za-z0-9]{16}\)/);
 });

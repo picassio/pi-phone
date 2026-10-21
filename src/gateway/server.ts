@@ -468,7 +468,8 @@ export class Gateway {
             }
 
             if (path === "/internal/docs" && request.method === "POST") {
-                const body = await readBody(request);
+                // A 10 MB image is 13.4 MB in base64.
+                const body = await readBody(request, 16 * 1024 * 1024);
 
                 return json(response, 200, { value: (await this.#options.docs.call(box, body as never)) ?? null });
             }
@@ -940,16 +941,23 @@ export class Gateway {
                 }
 
                 // Search by meaning in team and project documents (PP-49): an OpenRouter embedding model and the key.
-                if (body.docsModel !== undefined || body.docsKey !== undefined) {
-                    const model = body.docsModel === undefined ? undefined : body.docsModel === null || String(body.docsModel).trim() === "" ? null : String(body.docsModel).trim();
-                    const key = body.docsKey === undefined ? undefined : body.docsKey === null || String(body.docsKey).trim() === "" ? null : String(body.docsKey).trim();
+                if (body.docsModel !== undefined || body.docsKey !== undefined || body.docsVision !== undefined) {
+                    // A field left out stays; empty (or null) clears it.
+                    const given = (value: unknown) => (value === undefined ? undefined : value === null || String(value).trim() === "" ? null : String(value).trim());
+                    const model = given(body.docsModel);
+                    const key = given(body.docsKey);
+                    const vision = given(body.docsVision);
 
-                    if (model !== undefined && model !== null && !/^[\w.-]+\/[\w.:-]+$/.test(model)) {
-                        return json(response, 400, { error: "The embedding model is an OpenRouter model's id, like openai/text-embedding-3-small." });
+                    for (const [id, what, example] of [[model, "embedding", "openai/text-embedding-3-small"], [vision, "image description", "google/gemini-2.5-flash"]] as const) {
+                        if (typeof id === "string" && !/^[\w.-]+\/[\w.:-]+$/.test(id)) {
+                            return json(response, 400, { error: `The ${what} model is an OpenRouter model's id, like ${example}.` });
+                        }
                     }
 
-                    store.setDocsSearch({ ...(model === undefined ? {} : { model }), ...(key === undefined ? {} : { key }) });
-                    store.audit(actor, "server settings", undefined, { docsModel: store.docsSearch().model, docsKey: store.docsSearch().key === null ? "none" : "set" });
+                    store.setDocsSearch({ ...(model === undefined ? {} : { model }), ...(key === undefined ? {} : { key }), ...(vision === undefined ? {} : { vision }) });
+                    const now = store.docsSearch();
+
+                    store.audit(actor, "server settings", undefined, { docsModel: now.model, docsVision: now.vision, docsKey: now.key === null ? "none" : "set" });
                     this.#options.docs.reindex();
                 }
             }
@@ -1273,14 +1281,15 @@ function redirect(response: ServerResponse, to: string): void {
     response.end();
 }
 
-async function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+/** A JSON body, 64 KB at most unless a route allows more (documents with images: 16 MB). */
+async function readBody(request: IncomingMessage, limit = 64 * 1024): Promise<Record<string, unknown>> {
     const chunks: Buffer[] = [];
     let size = 0;
 
     for await (const chunk of request) {
         size += (chunk as Buffer).length;
 
-        if (size > 64 * 1024) {
+        if (size > limit) {
             throw new Error("Too large.");
         }
 
