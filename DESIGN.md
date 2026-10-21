@@ -661,6 +661,11 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     - **Names:** scopes travel by outside names (`project:<KEY>`). Deletes are audited, and a deleted board takes its
       documents (`BoardService.onRemoved`).
     - **The extension** (`extensions/docs.ts`): routes `scopes`, `call` and `search`, for this pi-phone's person only.
+    - **Pi's tools** (PP-48): `doc_search`, `doc_list`, `doc_read`, `doc_history`, `doc_write` (with a folder path,
+      made if missing), `doc_edit`, `doc_move`, plus `doc_delete` and `doc_restore` on a card.
+      - **Place:** mine, team, or a board's key; the default is the session's board, else mine.
+      - **Who:** only this pi-phone's person; Pi's saves are "Pi (person)".
+      - **Plan mode** allows the reads. A prompt section keeps documents apart from the wikis.
   - **Each member's own environment** (PP-41):
     - **Places:** a member's places (their clone) are personal.
     - **Runs** stay in the runner's pi-phone, and are laid over the shared task there (`task.run`).

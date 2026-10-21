@@ -197,6 +197,15 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "team_role_delete",
     "team_audit",
     "team_server",
+    "doc_search",
+    "doc_list",
+    "doc_read",
+    "doc_history",
+    "doc_write",
+    "doc_edit",
+    "doc_move",
+    "doc_delete",
+    "doc_restore",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */

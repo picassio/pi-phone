@@ -84,6 +84,11 @@ const ALWAYS_ALLOWED = new Set([
     "team_people",
     "team_roles",
     "team_audit",
+    // People's documents (PP-48), read.
+    "doc_search",
+    "doc_list",
+    "doc_read",
+    "doc_history",
 ]);
 /** Tools that only read when asked to list (their other actions change things). */
 const LISTS = new Set(["approvals", "schedule", "watch_ci"]);
