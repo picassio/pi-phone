@@ -8,6 +8,8 @@
  * A session on a machine runs every command there, so it is shared only with "Pi may use my machines and secrets for
  * their messages" on for that share. Only on the team server, and only for this pi-phone's own person.
  */
+import { Type } from "@earendil-works/pi-ai";
+import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionWeb, PocketHost, WebRequest } from "../host.ts";
@@ -286,4 +288,104 @@ export default function createSharing(host: PocketHost, web: ExtensionWeb) {
     // For the gateway, with this pi-phone's own token: a shared session for a teammate's Continue in my space.
     web.route("GET", "export/:id", (request) => (mine(request), answer(async () => sharing.exportShared(request.params.id!))));
     web.route("POST", "continue", (request) => (mine(request), answer(async () => sharing.continueShared(String(request.body.url ?? "")))));
+
+    // Pi's tools (PP-60): as this pi-phone's person, never for a teammate working in a shared session; sharing asks on
+    // the approval card, unsharing (which only takes access away) doesn't.
+    const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
+    const ownersOnly = (conversationId: unknown) => {
+        const id = host.requesterOf(Number(conversationId) as never);
+
+        if (id === undefined || host.person(id).role !== "owner") {
+            throw new HttpError(403, "Sharing is this pi-phone's person's: not for a teammate's message.");
+        }
+    };
+    const tool = <P extends Parameters<typeof defineTool>[0]["parameters"]>(name: string, description: string, parameters: P, run: (args: never, api: { conversationId: unknown; taskId: unknown; callId?: string }, context: unknown) => Promise<string>) =>
+        defineTool({
+            name,
+            description,
+            parameters,
+            execute: async (args, api, context) => {
+                try {
+                    ownersOnly(api.conversationId);
+
+                    return reply(await run(args as never, api as never, context));
+                } catch (error) {
+                    return reply(error instanceof Error ? error.message : String(error), true);
+                }
+            },
+        });
+    const teammate = async (given: string) => {
+        const people = await sharing.teammates();
+        const found = people.find((person) => person.id === given) ?? people.filter((person) => person.name.toLowerCase() === given.trim().toLowerCase()).at(0);
+
+        if (found === undefined) {
+            throw new HttpError(404, `No teammate "${given}" on this server: ${people.map((person) => person.name).join(", ") || "nobody else yet"}.`);
+        }
+
+        return found;
+    };
+    const titled = (session: number) => `#${session}${host.sessionTitle(session) === undefined ? "" : ` (${host.sessionTitle(session)})`}`;
+
+    return defineExtension({
+        name: "pocket-sharing",
+        tools: [
+            tool("sessions_shared", "Sessions shared through the team server: which of yours are shared with whom (Can write or Can watch, and whether Pi may use your machines and secrets for their messages), and which teammates share with you.", Type.Object({}), async () => {
+                const state = sharingState(host).load();
+                const names = new Map(state.accounts.map((each) => [each.teammate, each.name]));
+                const yours = Object.entries(state.sessions).map(([id, shares]) => `- ${titled(Number(id))}: ${Object.entries(shares).map(([who, share]) => `${names.get(who) ?? who} ${share.level === "write" ? "can write" : "can watch"}${share.machines ? ", may use your machines and secrets" : ""}`).join("; ")}`);
+                const theirs = ((await sharing.mine()) as { sharer: string; level: string; sessions: { title: string; url: string }[] }[]).flatMap((space) => space.sessions.map((session) => `- ${session.title}, by ${space.sharer} (you can ${space.level}): ${session.url}`));
+
+                return [`Yours, shared:`, ...(yours.length === 0 ? ["(none)"] : yours), "", "Shared with you:", ...(theirs.length === 0 ? ["(none)"] : theirs)].join("\n");
+            }),
+            tool(
+                "session_share",
+                "Share one of your sessions with a teammate on the team server (asks the person first): they open it in their browser, and either write (send messages and steer Pi, on your providers and money; they read files and changes, never the terminal, and only you allow calls) or watch. A session on a machine needs machines on.",
+                Type.Object({
+                    session: Type.Number({ description: "The session's number" }),
+                    teammate: Type.String({ description: "The teammate's name (or id)" }),
+                    level: Type.Union([Type.Literal("write"), Type.Literal("watch")]),
+                    machines: Type.Optional(Type.Boolean({ description: "Pi may use your machines and secrets for their messages (default off)" })),
+                    budget: Type.Optional(Type.Number({ description: "Their spend limit, dollars a month, for what they write" })),
+                    reason: Type.String(),
+                }),
+                async (args: { session: number; teammate: string; level: Level; machines?: boolean; budget?: number; reason: string }, api, context) => {
+                    const person = await teammate(args.teammate);
+                    const answer = await host.approvals.request(
+                        {
+                            id: `session_share-${String(api.conversationId)}-${String(api.callId)}`,
+                            conversationId: Number(api.conversationId) as never,
+                            taskId: api.taskId as never,
+                            ...(api.callId === undefined ? {} : { callId: api.callId }),
+                            tool: "session_share",
+                            subject: `Share session ${titled(args.session)} with ${person.name}: ${args.level === "write" ? "can write, on your providers and money" : "can watch"}${args.machines === true ? ", and Pi may use your machines and secrets for their messages" : ""}${args.budget === undefined ? "" : `, up to $${args.budget} a month`}`,
+                            reason: args.reason,
+                            createdAt: Date.now(),
+                        },
+                        context as never,
+                    );
+
+                    if (!answer.allow) {
+                        throw new HttpError(403, `${answer.by} said no: nothing was shared.`);
+                    }
+
+                    await sharing.share(String(args.session), person.id, args.level, args.machines === true, args.budget, true);
+
+                    return `Shared ${titled(args.session)} with ${person.name} (${args.level === "write" ? "can write" : "can watch"}). They find it under Shared with me.`;
+                },
+            ),
+            tool("session_unshare", "Stop sharing one of your sessions with a teammate: their pages of it end at once.", Type.Object({ session: Type.Number(), teammate: Type.String({ description: "The teammate's name (or id)" }) }), async (args: { session: number; teammate: string }) => {
+                const state = sharingState(host).load();
+                const given = args.teammate.trim().toLowerCase();
+                const who = Object.keys(state.sessions[String(args.session)] ?? {}).find((id) => id === args.teammate || state.accounts.find((each) => each.teammate === id)?.name.toLowerCase() === given);
+
+                if (who === undefined) {
+                    throw new HttpError(404, `Session ${titled(args.session)} is not shared with ${args.teammate}.`);
+                }
+
+                await sharing.unshare(String(args.session), who, true);
+
+                return `${titled(args.session)} is no longer shared with ${args.teammate}.`;
+            }),
+        ],
+    });
 }

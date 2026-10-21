@@ -209,6 +209,9 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "doc_delete",
     "doc_restore",
     "doc_image",
+    "sessions_shared",
+    "session_share",
+    "session_unshare",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */

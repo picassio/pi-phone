@@ -89,6 +89,8 @@ const ALWAYS_ALLOWED = new Set([
     "doc_list",
     "doc_read",
     "doc_history",
+    // Shared sessions (PP-60), read.
+    "sessions_shared",
 ]);
 /** Tools that only read when asked to list (their other actions change things). */
 const LISTS = new Set(["approvals", "schedule", "watch_ci"]);

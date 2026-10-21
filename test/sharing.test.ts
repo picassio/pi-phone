@@ -2,7 +2,10 @@
 // (Can write: a guest, Can watch: a viewer), limited to the sessions shared that way, and sends the gateway that list
 // with the account's token; a second session joins the same account; a spend limit goes on the writer; the token signs
 // in as that account only; unsharing takes the session away and the account with its last one; only the owner shares.
-import { cleanUp, home, modelTexts, newSession, root, say, scriptedModel, work } from "./helpers.ts";
+import { cleanUp, context, home, modelTexts, newSession, owner, root, say, scriptedModel, until, work } from "./helpers.ts";
+import type { FauxResponseStep } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { ownRequest } from "../src/server/requests.ts";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
@@ -12,6 +15,23 @@ import { PocketApp } from "../src/server/app.ts";
 import { mayUseMachines } from "../src/server/extensions/sharing.ts";
 
 const OWNER = "o".repeat(43);
+/** Pi's tool calls by what the message says (PP-60), and what the tools answered. */
+const calls: Record<string, [string, Record<string, unknown>]> = {};
+const results: string[] = [];
+const route: FauxResponseStep = (ctx) => {
+    const last = (ctx as { messages: { role: string; content: unknown }[] }).messages.at(-1)!;
+
+    if (last.role === "toolResult") {
+        results.push(JSON.stringify(last.content));
+
+        return fauxAssistantMessage([fauxText("done")]);
+    }
+
+    const text = JSON.stringify(last.content);
+    const found = Object.entries(calls).find(([ask]) => text.includes(ask));
+
+    return found === undefined ? fauxAssistantMessage([fauxText(`heard: ${text}`)]) : fauxAssistantMessage([fauxToolCall(found[1][0], found[1][1] as never)], { stopReason: "toolUse" });
+};
 const puts: { teammate: string; level: string; token: string; sessions: { id: string; title: string; machines: boolean }[] }[] = [];
 let gateway: Server;
 let server: Server;
@@ -35,7 +55,7 @@ before(async () => {
         });
     });
     await new Promise<void>((resolve) => gateway.listen(0, "127.0.0.1", resolve));
-    const model = scriptedModel();
+    const model = scriptedModel(route);
 
     app = await PocketApp.open({
         dataDir: join(root, "sharing-data"),
@@ -160,4 +180,40 @@ test("Continue in my space (PP-59): a shared session as a Pi session file, conti
 
     assert.notEqual(Number(copy), Number(id));
     assert.match(JSON.stringify(await modelTexts(app as never, copy)), /remember the number 4242/);
+});
+
+test("Pi's sharing tools (PP-60): list, share on the card, unshare without one", async () => {
+    const id = await newSession(app as never);
+    const me = owner(app as never);
+    const turn = async (text: string) => {
+        const { submissionId } = await app.commands.submit(id, me, { text, requestId: ownRequest(me.id, crypto.randomUUID()) });
+
+        return submissionId;
+    };
+
+    calls["share it with mai"] = ["session_share", { session: Number(id), teammate: "mai", level: "watch", reason: "to show her the plan" }];
+    calls["who is it shared with"] = ["sessions_shared", {}];
+    calls["stop sharing with mai"] = ["session_unshare", { session: Number(id), teammate: "Mai" }];
+
+    // Sharing waits for the owner's card.
+    const sharing = await turn("share it with mai");
+
+    await until(() => app.approvals.forConversation(id).length > 0, "the card");
+    const card = app.approvals.forConversation(id)[0]!;
+
+    assert.equal(card.tool, "session_share");
+    assert.match(card.subject, /with Mai: can watch/);
+    await app.answerApproval(card.id, true, me);
+    await (await app.harness.submission(sharing, context))!.wait(context);
+    await app.harness.waitForIdle(context);
+    assert.match(results.at(-1)!, /Shared #\d+ .*with Mai \(can watch\)/);
+    assert.deepEqual(account("Mai (team, watching)")?.sessions?.includes(String(id)), true);
+
+    await say(app as never, id, "who is it shared with");
+    assert.match(results.at(-1)!, new RegExp(`#${id}.*Mai can watch`));
+
+    // Unsharing: no card.
+    await say(app as never, id, "stop sharing with mai");
+    assert.match(results.at(-1)!, /no longer shared with Mai/);
+    assert.equal(app.approvals.forConversation(id).length, 0);
 });
