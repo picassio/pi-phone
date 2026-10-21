@@ -228,7 +228,8 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
   session the picker opens in that session's folder, and the launcher's **New session here** starts one there at once.
   The model menu under the message box picks the model and how hard it thinks.
 - **Talk to Pi** by typing or with the microphone (dictation). Attach files and photos with the paperclip. **Plan**
-  makes Pi read and plan first, changing nothing until you approve.
+  makes Pi read and plan first, changing nothing until you approve. While Pi works, a message can **Steer** (read between steps),
+  **Queue** (after the run), or **Interrupt** (stop the run now, its tool call too, then send).
 - **Approve or deny** the cards Pi puts in the conversation: risky commands, settings changes, sign-ins, questions.
 - **The session menu** (⋯ in the session's top bar) has the session's own things: rename, folder, terminal, context,
   instructions, schedules, board. Below them, under **App**, are the app's settings, listed in the next part.

@@ -82,8 +82,11 @@ export type Attachment = { path: string; name: string; mime: string; size: numbe
 export interface SubmitRequest {
     text: string;
     attachments?: Attachment[];
-    /** `steer` joins the running work after its current tool round; anything else queues a follow-up while busy. */
-    mode?: "steer" | "followUp";
+    /**
+     * `steer` joins the running work after its current tool round; `interrupt` stops the run at once (as Stop does) and
+     * sends the message to the idle conversation; anything else queues a follow-up while busy.
+     */
+    mode?: "steer" | "followUp" | "interrupt";
     /** Client-generated, so a retried POST does not submit twice. */
     requestId: string;
     /** Send the files the message mentions with `@` along with it, so Pi need not read them first. */
@@ -839,6 +842,21 @@ export class Commands {
                 : requestFor(user.id, clientKey(request.requestId));
         // A failed subagent's failure as the person writes to it: what their message comes to settles it.
         const failure = await this.#failureOf(id);
+        // Interrupt: stop the run now, rather than waiting for its tool round or turn to end. Like Stop, this withdraws
+        // what waits in the queue. Only a person's own message interrupts, never one sent for them (`via`).
+        // A retried request finds its first submission: it must not stop the run that the first one started.
+        if (
+            request.mode === "interrupt" &&
+            via === undefined &&
+            app.isBusy(id) &&
+            (await app.harness.commit((tx) => tx.submissionByRequest(id, requestId), context)) ===
+                undefined
+        ) {
+            await this.#discardReports(id);
+            await conversation.abort(context);
+            await app.collab.activity(id, user, "interrupted the run");
+        }
+
         const submission = await conversation.submit(
             {
                 type: "input",

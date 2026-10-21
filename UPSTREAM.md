@@ -15,3 +15,5 @@ is skipped on purpose.
 
 - Fixes (PP-64): b24d44c (`!` output without escape codes), 24f488f, 32b28cd, 3acdbce (a held session row), 29a1953 (New
   session here; the picker opens in the session's folder), 6856e07 (a message sent again takes the session's model).
+- Interrupt (PP-65): 1923035, c40be26, ead0b3d, 9b68685, and the composer part of 2af63f9 (Queue stays chosen; not its
+  slots). Model names (cab7322, fc705ad) are PiP's only: nothing to take.

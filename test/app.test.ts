@@ -4,6 +4,7 @@ import {
     cleanUp,
     fakeTab,
     lastText,
+    modelTexts,
     openApp,
     owner as ownerOf,
     root,
@@ -610,6 +611,59 @@ test("a tab gets the queue when it changes, not with each update of a turn, and 
         app.detach(tab.client);
         app.detach(late.client);
     }
+});
+
+test("interrupt stops a streaming run and withdraws the queue, then Pi answers the new message", async () => {
+    const { BACKGROUND_CONTEXT: context } = await import("@earendil-works/chord/context");
+    const id = await newSession();
+    const started = Date.now();
+
+    await app.commands.submit(id, owner(), { text: "stream a long answer", requestId: "i-1" });
+    await until(() => app.isBusy(id), "the run to start");
+    await app.commands.submit(id, owner(), { text: "queued one", requestId: "i-2" });
+    const { submissionId } = await app.commands.submit(id, owner(), {
+        text: "never mind",
+        mode: "interrupt",
+        requestId: "i-3",
+    });
+
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    const texts = (await modelTexts(app, id)).join("\n");
+
+    assert.match(texts, /echo: never mind/);
+    assert.doesNotMatch(texts, /queued one/);
+    assert.ok(Date.now() - started < 4000, "it did not wait for the long answer");
+});
+
+test("an interrupt sent again with the same request id does not stop the run that it started", async () => {
+    const { BACKGROUND_CONTEXT: context } = await import("@earendil-works/chord/context");
+    const id = await newSession();
+
+    await app.commands.submit(id, owner(), { text: "stream a long answer", requestId: "r-1" });
+    await until(() => app.isBusy(id), "the first run");
+    const request = {
+        text: "stream a long answer again",
+        mode: "interrupt" as const,
+        requestId: "r-2",
+    };
+    const first = await app.commands.submit(id, owner(), request);
+
+    await until(
+        async () => (await modelTexts(app, id)).some((text) => text.includes("long answer again")),
+        "the second run",
+    );
+    await until(() => app.isBusy(id), "the second run to stream");
+    // A proxy or a client sends the same POST again, after a network drop.
+    const again = await app.commands.submit(id, owner(), request);
+
+    assert.equal(again.submissionId, first.submissionId);
+    await (await app.harness.submission(first.submissionId, context))!.wait(context);
+    const entries = await app.transcripts.allEntries(id, false);
+    const last = entries.findLast((entry) => entry.kind === "assistant") as
+        { stopReason?: string } | undefined;
+
+    // The second run answers in full: the retry did not abort it.
+    assert.equal(last?.stopReason, "stop");
 });
 
 test("requests with the wrong types are refused, and nothing odd is stored", async () => {
