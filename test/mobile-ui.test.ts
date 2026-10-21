@@ -365,7 +365,8 @@ test(
 
         assert.ok(drawn.kept, "the first block stays as it was drawn");
         assert.match(drawn.text, /Second, longer/, "the last block grows");
-        assert.match(drawn.image ?? "", /^\/api\//, "an image path points at the server");
+        // Relative in pi-phone, so it resolves under a shared space's <base> too (PP-54).
+        assert.match(drawn.image ?? "", /^api\/c\/\d+\/file\?path=/, "an image path points at the server");
         assert.equal(drawn.quiet, 0, "a new view leaves the session list alone");
         assert.ok(drawn.listed > 0, "a new session list draws it");
     },
