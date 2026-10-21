@@ -1680,16 +1680,13 @@ export class Commands {
                 await app.conversation(id)
             ).entries({ maxEntryId: (entryId - 1) as unknown as EntryId }, 1, undefined, context)
         ).items[0];
-        const agent: AgentChange =
-            asked === undefined
-                ? {}
-                : {
-                      model: ref,
-                      thinkingLevel: clampThinkingLevel(
-                          model,
-                          (source?.thinkingLevel ?? "off") as ModelThinkingLevel,
-                      ),
-                  };
+        const agent: AgentChange = {
+            model: ref,
+            thinkingLevel: clampThinkingLevel(
+                model,
+                (source?.thinkingLevel ?? "off") as ModelThinkingLevel,
+            ),
+        };
         const label = edit !== undefined ? "edit" : asked !== undefined ? model.name : "retry";
         const forked = await this.#branch(id, user, {
             at: previous?.id as unknown as number | undefined,

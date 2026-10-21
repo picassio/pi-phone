@@ -4739,6 +4739,13 @@ pre.diff .del {
     user-select: none;
 }
 
+/* A finger held on a row: nothing selects, the sheet that press opens rising under the finger included. */
+:root.holding,
+:root.holding * {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
 /* What to do with the selected sessions: docked under the list. */
 .select-bar {
     container-type: inline-size;

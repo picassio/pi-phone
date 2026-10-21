@@ -224,8 +224,9 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
 ## Use it
 
 ### Every day
-- **Start a session:** **+ New** in the session list, then pick a folder on the phone or on a machine. The model menu
-  under the message box picks the model and how hard it thinks.
+- **Start a session:** **+ New** in the session list, then pick a folder on the phone or on a machine; inside a
+  session the picker opens in that session's folder, and the launcher's **New session here** starts one there at once.
+  The model menu under the message box picks the model and how hard it thinks.
 - **Talk to Pi** by typing or with the microphone (dictation). Attach files and photos with the paperclip. **Plan**
   makes Pi read and plan first, changing nothing until you approve.
 - **Approve or deny** the cards Pi puts in the conversation: risky commands, settings changes, sign-ins, questions.

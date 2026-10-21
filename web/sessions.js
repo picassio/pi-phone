@@ -908,7 +908,9 @@ export function SessionList({ compact = false }) {
     /**
      * A finger (or a pen) held on a row opens its actions in a sheet, as hovering shows them to a mouse: touch screens
      * have no hover. The row shows the press while it is held; moving (a scroll, a drag) lets it go. The click the lift
-     * may then make, on the row or on the scrim that rose under it, does nothing.
+     * may then make, on the row or on the scrim that rose under it, does nothing. While the finger is held nothing on
+     * the page can be selected: the sheet rises under the finger, and Android's own long press would otherwise select
+     * the word there and raise its Copy bar over the sheet.
      */
     const press = (event, id) => {
         const session = sessions.find((each) => each.id === id);
@@ -921,6 +923,7 @@ export function SessionList({ compact = false }) {
         const { pointerId, clientX: x, clientY: y } = event;
         let fired = false;
         let after = 0;
+        const root = document.documentElement;
         const shows = setTimeout(() => setPressing(id), PRESS_SHOWS_MS);
 
         const open = setTimeout(() => {
@@ -962,17 +965,24 @@ export function SessionList({ compact = false }) {
             after = setTimeout(stop, 400);
         };
 
-        // A finger's click only: Enter on the sheet's item is a click too.
+        // A finger's mouse events only: its mousedown can close the scrim before the click, and Enter on a sheet's
+        // item is a click too. Keep the guard through mousedown so the click cannot act on an item under the lift.
         const eat = (each) => {
             if (fired && each.detail > 0) {
                 each.preventDefault();
                 each.stopPropagation();
-                stop();
+
+                if (each.type === "click") {
+                    stop();
+                }
             }
         };
 
-        // Android's own long press: no menu, no text selection.
+        // Android's own long press: no menu, and no text selection. The row's own text cannot be selected already,
+        // but the sheet this press opens, rising under the finger, could be: Android would select the word under it
+        // and raise its Copy bar over the sheet. So, while the finger is held, the page selects nothing.
         const quiet = (each) => each.preventDefault();
+        const hold = (each) => each.preventDefault();
 
         const stop = () => {
             unpress.current = null;
@@ -980,21 +990,27 @@ export function SessionList({ compact = false }) {
             clearTimeout(open);
             clearTimeout(after);
             setPressing((now) => (now === id ? null : now));
+            root.classList.remove("holding");
             removeEventListener("pointermove", move, true);
             removeEventListener("pointerup", lift, true);
             removeEventListener("pointercancel", lift, true);
             removeEventListener("pointerdown", stop, true);
+            removeEventListener("mousedown", eat, true);
             removeEventListener("click", eat, true);
             removeEventListener("contextmenu", quiet, true);
+            removeEventListener("selectstart", hold, true);
         };
 
         unpress.current?.();
         unpress.current = stop;
+        root.classList.add("holding");
         addEventListener("pointermove", move, true);
         addEventListener("pointerup", lift, true);
         addEventListener("pointercancel", lift, true);
+        addEventListener("mousedown", eat, true);
         addEventListener("click", eat, true);
         addEventListener("contextmenu", quiet, true);
+        addEventListener("selectstart", hold, true);
     };
 
     /**

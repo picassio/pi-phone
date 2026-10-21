@@ -103,6 +103,8 @@ function actionItems() {
     const session = conversation?.kind === "session";
     const steer = canSteer();
     const canStart = steer && !scoped();
+    // The folder a session starts in "here": the one the open session works in. Issue #96, reported by @poncardasm.
+    const here = view.agent?.cwd ?? conversation?.cwd ?? null;
     // As the folder picker names them: folders of one name get their parent's too.
     const favoriteNames = recentLabels(folderFavorites, server?.home);
     const wide = matchMedia("(min-width: 960px)").matches;
@@ -113,6 +115,19 @@ function actionItems() {
             keys: "Alt N",
             run: () => openSheet({ type: "cwd", mode: "new" }),
         },
+        canStart &&
+            here !== null && {
+                label: "New session here",
+                detail: shortPath(here, server?.home),
+                keywords: "in this folder",
+                icon: "plus",
+                run: () =>
+                    attempt(async () => {
+                        const created = await actions.createSession(here);
+
+                        navigate(created.id);
+                    }),
+            },
         piSessionsAvailable() && {
             label: "Continue a Pi session",
             detail: "from Pi on this phone, or a session file",
@@ -594,6 +609,7 @@ export function Launcher({ leaving, returnTo }) {
         prefix,
         sessions,
         view.conversation,
+        view.agent?.cwd,
         view.plan?.on,
         view.branch,
         conversationId,
