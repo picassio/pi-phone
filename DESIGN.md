@@ -445,6 +445,20 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     - **Caddy** adds `X-Frame-Options: SAMEORIGIN` only where the app sent none (`?`; a plain `header` replaced the
       gateway's DENY, seen live) and a `Permissions-Policy` (camera,
       microphone, geolocation for self only).
+  - **Sharing sessions** (PP-53; wiki `projects/pi-phone-shared-sessions`):
+    - **Base path** (`web/base.js`): the app's URLs are relative to `<base href>`, which `serveApp` writes from
+      `x-pocket-base` only when it matches `/space/<key>/<write|watch>/` (the gateway sets it and strips a client's).
+      Routes stay `/s/<id>` inside the app; `at()` and `routeOf()` convert at the address bar. Import-map addresses
+      start with `./`; `import()` and `new URL()` use `document.baseURI`.
+    - **Scoped accounts** (`extensions/sharing.ts`, `shares.json`): one per teammate per level, writer `guest` and
+      watcher `viewer`, with `User.team`; today's guest and viewer rules apply. The sharer's pi-phone sends the
+      gateway each teammate's whole list with the account's token (`/internal/shares` put), which `pp_space` keeps.
+    - **Gateway** `#space`: 404 unless shared; forwards with the scoped token and the base; terminal refused.
+    - **Teammates' limits:** `refuseTeammate` (files, branches, undo, shell), `cannotAllow`, and `mayUseMachines`
+      in the policy and secrets hooks.
+    - **Continue in mine:** `PiHandoff.sessionFile` → gateway `copy` (checks the share; the sharer's own token on
+      `/api/x/sharing/export/<id>`) → `piSessions.import` + `continuePiSession` in the teammate's pi-phone.
+    - **Tools:** `sessions_shared`, `session_share` (card), `session_unshare`.
 - **Custom roles** (PP-22):
   - **The gateway** keeps roles in its own tables (`pp_role`, `pp_user_role`), with `roles.ts` holding the catalogue and the
     seeded roles. better-auth only ever sees owner/member, and people actions go through its internalAdapter, since its

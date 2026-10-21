@@ -214,6 +214,10 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
   - **Idle pi-phones stop**, with **Always on** per person.
   - **Rolling updates**, with data kept.
   - **Downloads:** each person's data, and a whole-server backup.
+  - **Sharing sessions** (⋯ › Share this session): a teammate opens one of your sessions from Shared with me, in
+    their browser, and either watches or writes (on your providers; they read its files, never use the terminal or
+    allow calls, and Pi uses your machines and secrets for them only if you say so). Unsharing ends it at once.
+    **Continue in mine** copies a shared session into their own pi-phone. Pi shares on a card, too.
   - **Hardened:** only ports 80 and 443 open, sign-in limits that people's containers can't get around, no
     cross-site changes, and security headers. See deploy/README.md › Security.
 

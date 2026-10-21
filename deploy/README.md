@@ -30,6 +30,18 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
   - Their next visit starts it again in a few seconds. Calls waiting for approval don't keep it up; they wait across the stop.
   - **Always on** (a switch per person on the People page): their pi-phone is never stopped when idle, and starts by
     itself if it was stopped, so scheduled messages run without a visit.
+- **Sharing sessions** (⋯ › Share this session, in a person's pi-phone; "Share a chat session" in their role):
+  - **Levels:** each teammate gets **Can write** (send messages and steer Pi, on the sharer's providers and money;
+    read the session's files and changes) or **Can watch** (the chat only).
+  - **Opening it:** teammates find it under **Shared with me** (the gateway's page and the pi-phone menu) and open it
+    at `/space/<key>/<write|watch>/`. The gateway forwards that to the sharer's pi-phone as a scoped account made for
+    them there, limited to the shared sessions.
+  - **Limits:** a teammate never writes files, runs shell commands, uses the terminal, or allows Pi's calls. Pi uses
+    the sharer's machines and secrets for their messages only where the share allows it; a session on a machine
+    needs that.
+  - **Ending it:** unsharing, disabling the sharer, or removing either account ends access at once.
+  - **Continue in mine** copies a shared session into the teammate's own pi-phone, on their own providers.
+  - **Audit log:** share, unshare and continue are recorded.
 - **Updates roll out by themselves:** after `docker compose ... up -d --build` makes a new image, people's running
   pi-phones are made again from it one at a time, each when Pi isn't at work there. Stopped ones are made again when they
   next start. Their data (the volume) is kept, and an open page reconnects in a few seconds. The Server page shows how
@@ -170,8 +182,9 @@ What the team server shows to the network, and how each part is guarded (PP-26).
 | `/auth/gw/*` (the rest) | signed in | each route's permission from the person's role (People, Roles, Audit, Server, Backup); changes from the gateway's own pages only |
 | `/auth/gw/backup`, `/auth/gw/people/<id>/export` | `server.manage` | the Owner only, unless you give it to another role; never through Pi |
 | everything else | signed in, with "a pi-phone of their own" | forwarded to the person's own container with its token; account, invite and device routes refused there |
-| WebSocket (terminal) | the same | Origin must be this server |
-| `:8081/internal/boards`, `/internal/docs`, `/internal/team` | a pi-phone of this server | its own token; as its person, by their role; Pi's team calls through an allow list (no passwords, exports, backups or the server key) |
+| WebSocket (terminal) | the same | Origin must be this server; never under `/space/` |
+| `/space/<key>/<write\|watch>/…` | signed in, with that session shared with them at that level | otherwise 404, whatever exists; forwarded to the sharer's pi-phone with the scoped account's token, never the sharer's own; pi-phone's sign-in routes refused |
+| `:8081/internal/boards`, `/internal/docs`, `/internal/team`, `/internal/shares` | a pi-phone of this server | its own token; as its person, by their role; Pi's team calls through an allow list (no passwords, exports, backups or the server key) |
 
 **Limits on what comes in:** the gateway's own routes take a JSON object of 64 KB at most (documents with images: 16 MB);
 anything larger gets 413 and anything else 400. A request has 15 minutes to arrive.
