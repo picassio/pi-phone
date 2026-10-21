@@ -618,6 +618,14 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     reaches only them.
   - **Runs** act as this pi-phone's own person (`Team.#person`). Queueing a run also gives the task to the person's own
     Pi on the gateway.
+  - **Project wikis** (PP-42, `src/gateway/project-wiki.ts`): Pi's knowledge about a shared board's project.
+    - **Storage:** pages by slug, in the gateway's `/data/boards/wiki.sqlite`, with FTS5 search. Queries become
+      quoted word prefixes, so FTS syntax never comes from outside.
+    - **Who may:** the board service decides: those who see the board read, leads and members write, and a Pi's
+      writes are named "Pi (person)". Every write is pushed like a board change, and a deleted board takes its wiki.
+    - **Pi's tools** (team server only, in board mode): `project_wiki_search`, `project_wiki_read`,
+      `project_wiki_write`, `project_wiki_edit`. Pi's prompt lists the board's pages; plan mode allows the two reads.
+    - **The Wiki tab's routes:** `projects/:key/wiki`, `wiki/:slug` (GET, PUT) and `wiki-search`.
   - **Each member's own environment** (PP-41):
     - **Places:** a member's places (their clone) are personal.
     - **Runs** stay in the runner's pi-phone, and are laid over the shared task there (`task.run`).

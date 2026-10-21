@@ -77,6 +77,9 @@ const ALWAYS_ALLOWED = new Set([
     "session_read",
     "session_wait",
     "pi_sessions",
+    // A shared board's project wiki (PP-42), read.
+    "project_wiki_search",
+    "project_wiki_read",
 ]);
 /** Tools that only read when asked to list (their other actions change things). */
 const LISTS = new Set(["approvals", "schedule", "watch_ci"]);

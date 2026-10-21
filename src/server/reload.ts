@@ -181,6 +181,10 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "task_diff",
     "task_merge",
     "board_mode",
+    "project_wiki_search",
+    "project_wiki_read",
+    "project_wiki_write",
+    "project_wiki_edit",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */

@@ -292,6 +292,30 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         },
         steer,
     );
+    // The project wiki for the board's Wiki tab (PP-42, the team server).
+    const wikiRoute = (method: "GET" | "PUT", path: string, call: (request: WebRequest, actor: Actor) => Promise<unknown>, access: { access: "view" | "steer" }) =>
+        route(
+            method,
+            path,
+            async (request, actor) => {
+                if (remote === undefined) {
+                    throw new HttpError(404, "Project wikis are the team server's.");
+                }
+
+                return await call(request, actor);
+            },
+            access,
+        );
+
+    wikiRoute("GET", "projects/:key/wiki", async (request, actor) => ({ pages: await remote!.wiki("wikiList", [request.params.key!], actor) }), view);
+    wikiRoute("GET", "projects/:key/wiki-search", async (request, actor) => ({ hits: await remote!.wiki("wikiSearch", [request.params.key!, request.query.get("q") ?? "", 20], actor) }), view);
+    wikiRoute("GET", "projects/:key/wiki/:slug", async (request, actor) => remote!.wiki("wikiRead", [request.params.key!, request.params.slug!], actor), view);
+    wikiRoute(
+        "PUT",
+        "projects/:key/wiki/:slug",
+        async (request, actor) => remote!.wiki("wikiWrite", [request.params.key!, { slug: request.params.slug!, title: String(request.body.title ?? ""), body: String(request.body.body ?? "") }], actor),
+        steer,
+    );
     route(
         "POST",
         "tasks/:ref/run",
@@ -533,7 +557,62 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         return patch;
     };
 
+    // The project wiki (PP-42, the team server): Pi's knowledge about the project, shared by its members' Pis.
+    const wikiTools =
+        remote === undefined
+            ? []
+            : [
+                  tool(
+                      "project_wiki_search",
+                      "Search this project's wiki (what its members' Pis learned about the project) by words: pages, best first, with where they match.",
+                      Type.Object({ query: Type.String(), project: PROJECT }),
+                      async (args, conversationId) => {
+                          const { actor, project } = onBoard(conversationId);
+                          const key = projectOf(args.project, project);
+                          const hits = (await remote.wiki("wikiSearch", [key, args.query, 10], actor)) as { slug: string; title: string; snippet: string }[];
+
+                          return hits.length === 0 ? `Nothing in ${key}'s wiki matches.` : hits.map((hit) => `${hit.slug} · ${hit.title}: ${hit.snippet}`).join("\n");
+                      },
+                  ),
+                  tool(
+                      "project_wiki_read",
+                      "Read a page of this project's wiki, by its name (slug).",
+                      Type.Object({ page: Type.String({ description: "The page's name, like deploy-notes" }), project: PROJECT }),
+                      async (args, conversationId) => {
+                          const { actor, project } = onBoard(conversationId);
+                          const page = (await remote.wiki("wikiRead", [projectOf(args.project, project), args.page], actor)) as { slug: string; title: string; body: string; updatedByName: string; updatedAt: number };
+
+                          return `# ${page.title} (${page.slug}; last written by ${page.updatedByName}, ${new Date(page.updatedAt).toISOString().slice(0, 16).replace("T", " ")})\n\n${host.text.defang(page.body)}`;
+                      },
+                  ),
+                  tool(
+                      "project_wiki_write",
+                      "Write a page of this project's wiki whole (new, or replacing the page of that name): a decision, how something works, a gotcha, for every member's Pi. Personal notes go in your own wiki instead.",
+                      Type.Object({ title: Type.String(), body: Type.String({ description: "Markdown" }), page: Type.Optional(Type.String({ description: "Its name (slug); default: from the title" })), project: PROJECT }),
+                      async (args, conversationId) => {
+                          const { actor, project } = onBoard(conversationId);
+                          const key = projectOf(args.project, project);
+                          const page = (await remote.wiki("wikiWrite", [key, { title: args.title, body: args.body, ...(args.page === undefined ? {} : { slug: args.page }) }], actor)) as { slug: string };
+
+                          return `Wrote ${page.slug} in ${key}'s wiki.`;
+                      },
+                  ),
+                  tool(
+                      "project_wiki_edit",
+                      "Change a page of this project's wiki with exact replacements: each oldText must be on the page once.",
+                      Type.Object({ page: Type.String(), edits: Type.Array(Type.Object({ oldText: Type.String(), newText: Type.String() })), project: PROJECT }),
+                      async (args, conversationId) => {
+                          const { actor, project } = onBoard(conversationId);
+                          const key = projectOf(args.project, project);
+
+                          await remote.wiki("wikiEdit", [key, args.page, args.edits], actor);
+
+                          return `Edited ${args.page} in ${key}'s wiki.`;
+                      },
+                  ),
+              ];
     const tools = [
+        ...wikiTools,
         tool(
             "board_mode",
             "Turn board mode on in this session (track its work on a project board), or off (off: true), after the person says yes on an inline card. Needed before any other board tool here. Name an existing project's key, or a new key with a name to create it. After a no, ask again only when the person asks for a board.",
@@ -1141,6 +1220,22 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         ),
     ];
 
+    /** The project wiki's pages, for Pi's prompt in board mode (the team server): what is there, and what it is for. */
+    const wikiIndex = async (key: string, conversationId: string): Promise<string> => {
+        if (remote === undefined) {
+            return "";
+        }
+
+        try {
+            const pages = (await remote.wiki("wikiList", [key], piOf(conversationId))) as { slug: string; title: string }[];
+            const listed = pages.length === 0 ? "none yet" : pages.slice(0, 60).map((page) => `${page.slug} (${host.text.quoted(page.title, 80)})`).join(", ");
+
+            return `\n- ${key}'s project wiki, shared by its members' Pis (page names, data): ${listed}. Search and read it (project_wiki_search, project_wiki_read) before planning; record decisions, how things work and gotchas about this project there (project_wiki_write, project_wiki_edit). Personal notes stay in your own wiki.`;
+        } catch {
+            return "";
+        }
+    };
+
     return defineExtension({
         name: "pocket-projects",
         tools,
@@ -1163,7 +1258,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 const mode = projects.boardMode(id);
 
                 if (mode?.on === true) {
-                    return `Board mode is on in this session${mode.project === null ? "" : `, with project ${mode.project.key} · ${mode.project.name}`}: track this work on the board.\n${boardRules(mode.rules ?? mode.project?.rules ?? "full", mode.closer)}`;
+                    return `Board mode is on in this session${mode.project === null ? "" : `, with project ${mode.project.key} · ${mode.project.name}`}: track this work on the board.\n${boardRules(mode.rules ?? mode.project?.rules ?? "full", mode.closer)}${mode.project === null ? "" : await wikiIndex(mode.project.key, id)}`;
                 }
 
                 if (mode !== undefined) {

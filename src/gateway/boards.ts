@@ -13,6 +13,7 @@
 import { HttpError } from "../server/errors.ts";
 import { type Actor, type Closer, CLOSERS, type Person, type Project, Projects, type Task } from "../server/projects.ts";
 import type { GatewayStore, PersonBox } from "./store.ts";
+import { ProjectWiki } from "./project-wiki.ts";
 
 /** A call from a pi-phone: the store method, its arguments without the actor, and when Pi makes it, its session. */
 export type BoardCall = { method: string; args: unknown[]; pi?: { conversationId: string; closer: Closer } };
@@ -23,14 +24,26 @@ const PERSONAL = ["folder", "places", "mainSession", "autoRuns"];
 export class BoardService {
     readonly #store: GatewayStore;
     readonly #projects: Projects;
+    /** Each board's project wiki (PP-42). */
+    readonly #wiki: ProjectWiki;
+    readonly #changes = new Set<(projectId: string) => void>();
 
     constructor(store: GatewayStore, dir: string, now: () => number = Date.now) {
         this.#store = store;
         this.#projects = new Projects(dir, () => this.people(), now);
+        this.#wiki = new ProjectWiki(dir, now);
+        this.#projects.onChange((projectId) => this.#changed(projectId));
     }
 
     close(): void {
         this.#projects.close();
+        this.#wiki.close();
+    }
+
+    #changed(projectId: string): void {
+        for (const listener of this.#changes) {
+            listener(projectId);
+        }
     }
 
     /** Call `listener` when a task is given to a person's own Pi (`pi:<person>`), to start their pi-phone on it (PP-40). */
@@ -44,7 +57,9 @@ export class BoardService {
 
     /** Call `listener` with a board's id whenever it changes, to tell its members' pi-phones (PP-40). */
     onChange(listener: (projectId: string) => void): () => void {
-        return this.#projects.onChange(listener);
+        this.#changes.add(listener);
+
+        return () => this.#changes.delete(listener);
     }
 
     /** Everyone with an account, as the boards' rules see them: by their team role, live. */
@@ -151,7 +166,40 @@ export class BoardService {
             return value;
         };
 
+        const wiki = this.#wiki;
+        /** A board whose wiki this person may write: its leads and members, not its viewers. */
+        const writable = (project: Project) => {
+            if (person.role === "viewer" || store.roleOn(person, project) === "viewer") {
+                throw new HttpError(403, `You are a viewer on ${project.key}: its wiki is its members' to write.`);
+            }
+
+            return project;
+        };
+        const by = { id: person.id, name: call.pi === undefined ? person.name : `Pi (${person.name})` };
+
         switch (call.method) {
+            case "wikiList":
+                return wiki.list(looked({ project: store.project(actor, key) }).project.id);
+            case "wikiRead":
+                return wiki.read(looked({ project: store.project(actor, key) }).project.id, String(args[1] ?? ""));
+            case "wikiSearch":
+                return wiki.search(store.project(actor, key).id, String(args[1] ?? ""), Number(args[2] ?? 10));
+            case "wikiWrite": {
+                const project = writable(store.project(actor, key));
+                const page = wiki.write(project.id, (args[1] ?? {}) as never, by);
+
+                this.#changed(project.id);
+
+                return page;
+            }
+            case "wikiEdit": {
+                const project = writable(store.project(actor, key));
+                const page = wiki.edit(project.id, String(args[1] ?? ""), (args[2] ?? []) as never, by);
+
+                this.#changed(project.id);
+
+                return page;
+            }
             case "list":
                 return store.list(actor);
             case "allProjects":
@@ -207,7 +255,14 @@ export class BoardService {
             case "remove":
                 permitted("projects.delete", "Deleting boards");
 
-                return audited("board deleted", key.toUpperCase(), store.remove(actor, key));
+                {
+                    const project = store.project(actor, key);
+
+                    store.remove(actor, key);
+                    wiki.forget(project.id);
+
+                    return audited("board deleted", key.toUpperCase(), undefined);
+                }
             case "createTask":
                 return store.createTask(actor, key, ownPi(args[1]) as never);
             case "updateTask":

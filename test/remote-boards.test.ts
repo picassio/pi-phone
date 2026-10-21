@@ -3,7 +3,7 @@
 // Binh, it is mirrored into his after a sync, and changes reach the other's mirror when the gateway pushes; Pi's
 // sessions come back as plain numbers to their own pi-phone and namespaced to others; "pi" means the asker's own Pi;
 // places are each one's own; a run stays in its runner's pi-phone while the others see its steps and whose session it
-// is (PP-41); and unsharing takes the board out of Binh's pi-phone, stopping his run there.
+// is (PP-41); the project wiki is shared by its members' Pis, viewers only reading it (PP-42); and unsharing takes the board out of Binh's pi-phone, stopping his run there.
 import { cleanUp, root } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
@@ -104,6 +104,21 @@ test("pi-phones share a board through the gateway, each with its own mirror, pla
 
     assert.deepEqual(his.places, [{ folder: "/data/home/binh-web", cap: 1 }]);
     assert.equal((await anna.boards.project(as, "WEB")).folder, "/data/home/web");
+
+    // The project wiki (PP-42): Anna writes, Binh's Pi finds it and edits it, as "Pi (Binh)"; a viewer only reads.
+    const before = pushes.length;
+
+    await anna.boards.wiki("wikiWrite", ["WEB", { title: "Deploy notes", body: "We deploy the site with docker compose." }], as);
+    assert.ok(pushes.length > before, "a wiki change is pushed like a board change");
+    assert.deepEqual(((await binh.boards.wiki("wikiSearch", ["WEB", "docker"], piIn("3"))) as { slug: string }[]).map((hit) => hit.slug), ["deploy-notes"]);
+    await binh.boards.wiki("wikiEdit", ["WEB", "deploy-notes", [{ oldText: "docker compose", newText: "docker compose on the devbox" }]], piIn("3"));
+    const notes = (await anna.boards.wiki("wikiRead", ["WEB", "deploy-notes"], as)) as { body: string; updatedByName: string };
+
+    assert.deepEqual([notes.body, notes.updatedByName], ["We deploy the site with docker compose on the devbox.", "Pi (Binh)"]);
+    await anna.boards.setMembers(as, "WEB", [ids.Binh!], { [ids.Binh!]: "viewer" });
+    await assert.rejects(binh.boards.wiki("wikiWrite", ["WEB", { title: "Mine", body: "x" }], as), /viewer on WEB/);
+    assert.equal(((await binh.boards.wiki("wikiList", ["WEB"], as)) as unknown[]).length, 1, "but reads it");
+    await anna.boards.setMembers(as, "WEB", [ids.Binh!]);
 
     // Binh runs his task in his own pi-phone; then Anna unshares the board: his pi-phone lets it go, and his run stops.
     const run = binh.projects.queueRun(as, task.ref);
