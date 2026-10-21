@@ -213,6 +213,9 @@ export default function createSharing(host: PocketHost, web: ExtensionWeb) {
     }
 
     const sharing = new Sharing(host);
+
+    // The Share sheet and Shared with me (`sharing-web/`): this pi-phone's person's.
+    web.client("sharing-web");
     /** Only this pi-phone's own person. */
     const mine = (request: WebRequest) => {
         if (request.user.role !== "owner") {
