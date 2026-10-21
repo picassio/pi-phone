@@ -2,6 +2,7 @@
 import { BASE, routeOf } from "./base.js";
 import { onRoute, pushRoute } from "./back.js";
 import { sessionForest } from "./session-tree.js";
+import { liveMessage } from "./live.js";
 
 /** A random id. crypto.randomUUID only exists on https and localhost pages; plain-http network addresses lack it. */
 export function uid() {
@@ -515,7 +516,7 @@ function mergeView(current, data) {
         conversation: data.conversation,
         entries,
         order,
-        live: data.live,
+        live: mergeLive(base.live, data.live),
         agent: data.agent,
         stats: data.stats,
         clients: data.clients,
@@ -540,6 +541,36 @@ function mergeView(current, data) {
         // What the folder has checked out: `{ branch }` or `{ detached }`, and null outside a repository.
         branch: data.branch === undefined ? base.branch : data.branch,
     };
+}
+
+let reconnecting = false;
+
+/**
+ * The live run from an update, whose message may come as what changed (`liveMessage`). One that does not fit what this
+ * tab has, which should not happen, keeps the message as it was and connects again for a full view.
+ */
+function mergeLive(current, live) {
+    if (live.generation?.message?.keep === undefined) {
+        return live;
+    }
+
+    const had = current.generation?.message;
+    let message = liveMessage(had, live.generation.message);
+
+    if (message === null) {
+        message = had;
+
+        // One batch of events may hold several such updates: connect once.
+        if (!reconnecting) {
+            reconnecting = true;
+            setTimeout(() => {
+                reconnecting = false;
+                connect();
+            });
+        }
+    }
+
+    return { ...live, generation: { ...live.generation, message } };
 }
 
 /** The `moving` marks that a session list has not caught up with yet: it still shows those sessions where they were. */
@@ -674,10 +705,10 @@ const handlers = {
 
 /**
  * What this code understands of the server's updates, sent with each connection. 2: it keeps the queue when an update
- * leaves it out. The server sends a tab whose code names none (older code, as a tab asleep through an update keeps)
- * the queue with each update.
+ * leaves it out. 3: it takes the message being written as what changed (`mergeLive`). The server sends a tab below 3 the
+ * whole message with each update, and one whose code names none (as a tab asleep through an update keeps) the queue too.
  */
-const PROTOCOL = 2;
+const PROTOCOL = 3;
 const TRANSPORT_KEY = "pocket.transport";
 const local = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/.test(location.hostname);
 /** After an event stream stalls on this address, poll for a day, then try the stream again: one slow start is not forever. */

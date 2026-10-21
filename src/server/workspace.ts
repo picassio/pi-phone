@@ -26,7 +26,7 @@ import {
     switchBranch,
     validBranchName,
 } from "./branches.ts";
-import { type Changes, changesIn, diffOf, revertFile } from "./changes.ts";
+import { type Changes, changesIn, diffOf, editFacts, revertFile } from "./changes.ts";
 import type { User } from "./config.ts";
 import { describe, HttpError } from "./errors.ts";
 import { FileLists, type FileListing, type FileView, listRemoteFiles, viewFile, viewRemoteFile } from "./files.ts";
@@ -36,6 +36,7 @@ import { machinePaths } from "./machine-paths.ts";
 import type { Machine } from "./machines.ts";
 import { displayPath, expandHome } from "./paths.ts";
 import { isRemote, parsePlace } from "./places.ts";
+import type { ClientEntry } from "./projection.ts";
 
 /** The largest image the viewer shows from a machine: it travels over the link whole. */
 const MAX_REMOTE_IMAGE = 20 * 1024 * 1024;
@@ -44,6 +45,9 @@ const MAX_REMOTE_IMAGE = 20 * 1024 * 1024;
 const REMOTE_HEAD_MS = 15_000;
 /** The largest file the viewer downloads to the device. */
 const MAX_DOWNLOAD = 200 * 1024 * 1024;
+
+/** How many sessions' Pi edits are kept between looks at Changes (`#edits`). */
+const EDITS_KEPT = 64;
 
 export class Workspace {
     readonly #app: PocketApp;
@@ -58,10 +62,16 @@ export class Workspace {
     /**
      * The looks at what a conversation's folder changed that are under way, per reach (its folder only, or its
      * repository). Every tab that shows a session asks (the top bar's count), often together as Pi moves on; those that
-     * ask while a look is under way share it, as each reads the whole history for Pi's edits and runs git. One asked
-     * after it ends looks again, so what it says is never older than the question.
+     * ask while a look is under way share it, as each reads the new history for Pi's edits and runs git. One asked after
+     * it ends looks again, so what it says is never older than the question.
      */
     readonly #changesUnderWay = new Map<ConversationId, Promise<Changes>>();
+
+    /**
+     * What Changes needs of each session's history (`editFacts`) and the newest entry it read, for the sessions looked
+     * at last: entries never change, so a look reads only those added since, not the whole history each time.
+     */
+    readonly #edits = new Map<ConversationId, { last: number; entries: ClientEntry[] }>();
 
     /**
      * Where each folder's repository keeps its files, for a minute: views ask on every update. A folder in none is
@@ -845,7 +855,7 @@ export class Workspace {
 
         const folder = this.#folder(id);
         const pending = (async () =>
-            changesIn(folder.cwd, await this.#app.transcripts.allEntries(id, false), folder.access))().finally(() => {
+            changesIn(folder.cwd, await this.#editEntries(id), folder.access))().finally(() => {
             if (this.#changesUnderWay.get(key) === pending) {
                 this.#changesUnderWay.delete(key);
             }
@@ -854,6 +864,35 @@ export class Workspace {
         this.#changesUnderWay.set(key, pending);
 
         return pending;
+    }
+
+    /** A session's history as far as Changes reads it, oldest first, read from storage since the last look. */
+    async #editEntries(id: ConversationId): Promise<ClientEntry[]> {
+        const read = await this.#app.transcripts.entriesAfter(
+            id,
+            this.#edits.get(id)?.last ?? 0,
+            false,
+        );
+        // Another look may have read some of them meanwhile: keep each entry once, in order.
+        const known = this.#edits.get(id) ?? { last: 0, entries: [] };
+        const added = read.entries.flatMap((entry) => {
+            const facts = entry.id > known.last ? editFacts(entry) : undefined;
+
+            return facts === undefined ? [] : [facts];
+        });
+        const next = {
+            last: Math.max(known.last, read.last),
+            entries: added.length === 0 ? known.entries : [...known.entries, ...added],
+        };
+
+        this.#edits.delete(id);
+        this.#edits.set(id, next);
+
+        if (this.#edits.size > EDITS_KEPT) {
+            this.#edits.delete(this.#edits.keys().next().value!);
+        }
+
+        return next.entries;
     }
 
     /** Looks under way began before a file was undone: one asked from now on looks again. */

@@ -200,6 +200,47 @@ function piEdits(
     return edits;
 }
 
+/**
+ * The part of an entry that `piEdits` reads, or nothing when it reads none: what a session keeps of its history between
+ * looks (`workspace.ts`), so each look reads only the entries added since.
+ */
+export function editFacts(entry: ClientEntry): ClientEntry | undefined {
+    if (entry.kind === "assistant") {
+        const blocks = entry.blocks.flatMap((block) =>
+            block.type === "toolCall" && (EDITORS.has(block.name) || block.name === CODEMODE)
+                ? [{ ...block, args: { path: block.args.path } }]
+                : [],
+        );
+
+        return blocks.length === 0 ? undefined : { id: entry.id, kind: "assistant", blocks };
+    }
+
+    if (entry.kind === "toolResult" && (entry.isError || entry.name === CODEMODE)) {
+        const { id, kind, callId, name, isError } = entry;
+        const calls = (entry.details as { calls?: unknown } | undefined)?.calls;
+        const details = Array.isArray(calls)
+            ? {
+                  calls: (calls as unknown[]).flatMap((call) => {
+                      if (typeof call !== "object" || call === null) {
+                          return [];
+                      }
+
+                      // pi-phone's codemode keeps each call's arguments as JSON text (`nestedPath` reads the path from it):
+                      // only the path is kept, as that text, so a script's big arguments are not.
+                      const { name, status, args } = call as Record<string, unknown>;
+                      const path = nestedPath(args);
+
+                      return [{ name, status, args: path === undefined ? undefined : JSON.stringify({ path }) }];
+                  }),
+              }
+            : undefined;
+
+        return { id, kind, callId, name, isError, text: "", details };
+    }
+
+    return undefined;
+}
+
 function kindOf(code: string): ChangeKind {
     if (code === "??") {
         return "new";

@@ -7,6 +7,7 @@
  * how it ended. The call waits for the person as an approval does (`Approvals`, with `form: { type: "interview" }`),
  * and after a restart it finds an answer given while it was away.
  */
+import { rebased } from "./docs.ts";
 import type { JsonValue } from "@earendil-works/chord";
 import { defineDoc } from "@earendil-works/pi-durable";
 
@@ -74,6 +75,7 @@ export type Interview = {
 export const InterviewsDoc = defineDoc<{ items: Record<string, Interview> }>({
     kind: "pocket.interviews",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "current",

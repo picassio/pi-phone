@@ -18,3 +18,9 @@ is skipped on purpose.
 - Interrupt (PP-65): 1923035, c40be26, ead0b3d, 9b68685, and the composer part of 2af63f9 (Queue stays chosen; not its
   slots). Model names (cab7322, fc705ad) are PiP's only: nothing to take.
 - Subagent tiles (PP-66): 638e8f5, 242bbbf, with upstream's test/peeks.test.ts back (it was cut at the fork and runs).
+- Speed (PP-68): 11d7e9f, 120a4ec, a82ed70, f3af788 (live Markdown, block by block; the session list and rail not drawn
+  again for a view-only change), f1fdb02, 0ae752c (the message Pi writes sent as what changed), 4dc9a43 (the session list
+  only when it changed), 9bff1b9, c1095e0, b2af3bd (compression, ETag and 304, modulepreload links: relative here, for a
+  shared space's <base>), cfe0ddc (a new document base every 64 changes: done by hand for pi-phone's documents, those in
+  docs.ts and its own in para-capture.ts, interviews.ts and openui.ts), e4bc3a4 (Changes reads only new entries; editFacts
+  keeps pi-phone codemode's `args` path).

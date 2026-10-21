@@ -10,6 +10,7 @@
  *
  * Also what people typed and picked in interactive answers (`OpenUiStateDoc`).
  */
+import { rebased } from "./docs.ts";
 import type { JsonValue } from "@earendil-works/chord";
 import { defineDoc } from "@earendil-works/pi-durable";
 
@@ -24,6 +25,7 @@ export type OpenUiAnswer = { status: number; body: unknown };
 export const OpenUiStateDoc = defineDoc<{ items: Record<string, { state: { [key: string]: JsonValue }; at: number }> }>({
     kind: "pocket.openui-state",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "current",

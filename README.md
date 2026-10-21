@@ -191,6 +191,8 @@ No Termux, no laptop, no cloud VM.
   restore** of everything.
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
   they finish, so it pushes, ends its turn, and is woken by the result.
+- **Quick on a phone.** A streaming answer redraws only its last block, and only what changed in it crosses the wire;
+  text and the event stream go compressed, and web files are cached (ETag, 304) and fetched at once (modulepreload).
 - **Updates from GitHub.** Every passing build on `master` is a release, with release notes. The app checks it (at
   start, or Settings › Check for app updates): server and UI changes swap in within seconds; a new Android shell is a
   one-tap install.

@@ -15,7 +15,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { Message } from "@earendil-works/pi-ai";
 import { AgentDoc, type ConversationId, defineDoc } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
-import { SessionsDoc } from "./docs.ts";
+import { SessionsDoc, rebased } from "./docs.ts";
 import { describe } from "./errors.ts";
 import { generateSummary, serializeSessionForWiki } from "pi-para/summarize";
 
@@ -38,6 +38,7 @@ export const ParaCaptureDoc = defineDoc<{
 }>({
     kind: "phone.para-capture",
     version: 1,
+    ...rebased,
     scope: "session",
     initial: () => ({ sessions: {} }),
 });

@@ -63,7 +63,7 @@ export function createHandler(options: HttpOptions) {
                 if (file !== undefined) {
                     response.setHeader("access-control-allow-origin", "*");
 
-                    return serveFile(response, file, TYPES[extname(file)] ?? "application/octet-stream");
+                    return await serveFile(request, response, file, TYPES[extname(file)] ?? "application/octet-stream");
                 }
             }
 
@@ -71,12 +71,13 @@ export function createHandler(options: HttpOptions) {
                 const file = katexFile(parts.slice(2));
 
                 if (file !== undefined) {
-                    return serveFile(response, file, TYPES[extname(file)] ?? "application/octet-stream");
+                    return await serveFile(request, response, file, TYPES[extname(file)] ?? "application/octet-stream");
                 }
             }
 
             if (parts[0] === "vendor" && parts[1] !== undefined && VENDOR[parts[1]] !== undefined) {
-                return serveFile(
+                return await serveFile(
+                    request,
                     response,
                     VENDOR[parts[1]]!,
                     parts[1].endsWith(".css") ? "text/css; charset=utf-8" : "text/javascript; charset=utf-8",
@@ -116,7 +117,7 @@ export function createHandler(options: HttpOptions) {
                 return serveApp(response, request.headers["x-pocket-base"] as string | undefined);
             }
 
-            return serveFile(response, file);
+            return await serveFile(request, response, file);
         } catch (error) {
             const status = error instanceof HttpError ? error.status : 500;
 

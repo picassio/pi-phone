@@ -6,6 +6,7 @@
  */
 import type { PiLink } from "./pi-handoff.ts";
 import {
+    type CheckpointInfo,
     type ConversationId,
     defineDoc,
     defineDocFamily,
@@ -14,6 +15,16 @@ import {
 } from "@earendil-works/pi-durable";
 import type { Repeat } from "./when.ts";
 import type { Worktree } from "./worktrees.ts";
+
+/**
+ * Every document here keeps only its current value, so its stored history is one base and the deltas after it, and a
+ * cold read replays them all: without a new base now and then, a busy one (spend, the sessions list) replays tens of
+ * thousands. Writing a base drops the revisions before it. Not part of the stored semantics, so safe to change
+ * (pi-pocket cfe0ddc).
+ */
+export const rebased = {
+    checkpointWhen: (_value: unknown, _ops: unknown, info: CheckpointInfo) => info.deltasSinceBase >= 64,
+};
 
 /** A group of sessions: what it is (`project:PP`), what the list calls it, and the session's part in it. */
 export type SessionGroup = { id: string; title: string; role: "lead" | "task" };
@@ -67,6 +78,7 @@ export type SessionMeta = {
 export const SessionsDoc = defineDoc<{ items: Record<string, SessionMeta> }>({
     kind: "pocket.sessions",
     version: 1,
+    ...rebased,
     scope: "session",
     initial: () => ({ items: {} }),
 });
@@ -75,6 +87,7 @@ export const SessionsDoc = defineDoc<{ items: Record<string, SessionMeta> }>({
 export const FolderFavoritesDoc = defineDoc<{ users: Record<string, string[]> }>({
     kind: "pocket.folder-favorites",
     version: 1,
+    ...rebased,
     scope: "session",
     initial: () => ({ users: {} }),
 });
@@ -90,6 +103,7 @@ export const AuthorsDoc = defineDoc<{
 }>({
     kind: "pocket.authors",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "current",
@@ -122,6 +136,7 @@ export type ArtifactMeta = {
 export const ArtifactsDoc = defineDoc<{ items: Record<string, ArtifactMeta> }>({
     kind: "pocket.artifacts",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "current",
@@ -132,6 +147,7 @@ export const ArtifactsDoc = defineDoc<{ items: Record<string, ArtifactMeta> }>({
 export const ArtifactBodyDoc = defineDocFamily<{ content: string }, { content: string }>({
     kind: "pocket.artifact-body",
     version: 1,
+    ...rebased,
     family: true,
     scope: "conversation",
     history: "latest",
@@ -194,6 +210,7 @@ export const SubagentsDoc = defineDoc<{
 }>({
     kind: "pocket.subagents",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     // A fork starts without subagents: they belong to the conversation that spawned them.
@@ -221,6 +238,7 @@ export type ChatMessage = {
 export const ChatDoc = defineDoc<{ messages: ChatMessage[] }>({
     kind: "pocket.chat",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "current",
@@ -234,6 +252,7 @@ export const CHAT_LIMIT = 500;
 export const ReactionsDoc = defineDoc<{ entries: Record<string, Record<string, string[]>> }>({
     kind: "pocket.reactions",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "current",
@@ -257,6 +276,7 @@ export type Pin = {
 export const PinsDoc = defineDoc<{ items: Pin[] }>({
     kind: "pocket.pins",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "current",
@@ -269,6 +289,7 @@ export type Notes = { text: string; rev: number; by?: string; at?: number };
 export const NotesDoc = defineDoc<Notes>({
     kind: "pocket.notes",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "current",
@@ -281,6 +302,7 @@ export type Turns = { on: boolean; driver?: string; asks: string[] };
 export const TurnsDoc = defineDoc<Turns>({
     kind: "pocket.turns",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "initial",
@@ -293,6 +315,7 @@ export type Decision = { allow: boolean; by: string; userId: string; at: number 
 export const DecisionsDoc = defineDoc<{ calls: Record<string, Decision> }>({
     kind: "pocket.decisions",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "current",
@@ -309,6 +332,7 @@ export const STOPPED = "stopped before it answered";
 export const PlanDoc = defineDoc<{ on: boolean; by?: string; at?: number }>({
     kind: "pocket.plan",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "current",
@@ -330,6 +354,7 @@ export const SpendDoc = defineDoc<{
 }>({
     kind: "pocket.spend",
     version: 1,
+    ...rebased,
     scope: "session",
     initial: () => ({ people: {}, counted: {} }),
 });
@@ -341,6 +366,7 @@ export const SpendDoc = defineDoc<{
 export const CommandRequestsDoc = defineDocFamily<{ items: Record<string, number> }, null>({
     kind: "pocket.extension-command-request",
     version: 1,
+    ...rebased,
     family: true,
     scope: "conversation",
     history: "latest",
@@ -355,6 +381,7 @@ export const CommandRequestsDoc = defineDocFamily<{ items: Record<string, number
 export const ShellRequestsDoc = defineDoc<{ items: Record<string, number> }>({
     kind: "pocket.shell-requests",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "initial",
@@ -390,6 +417,7 @@ export type Schedule = {
 export const ScheduleDoc = defineDoc<{ items: Record<string, Schedule> }>({
     kind: "pocket.schedules",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "initial",
@@ -416,6 +444,7 @@ export type Goal = {
 export const GoalDoc = defineDoc<{ goal?: Goal }>({
     kind: "pocket.goal",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "initial",
@@ -441,6 +470,7 @@ export type CiWatch = {
 export const CiWatchesDoc = defineDoc<{ items: Record<string, CiWatch> }>({
     kind: "phone.ci-watches",
     version: 1,
+    ...rebased,
     scope: "conversation",
     history: "latest",
     fork: "initial",
