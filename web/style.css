@@ -2357,6 +2357,7 @@ pre.diff .del {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
     padding: 16px;
     border: 1px solid var(--warn-line);
     border-radius: calc(var(--r-window) + 2px);
@@ -2387,6 +2388,8 @@ pre.diff .del {
     flex-direction: column;
     gap: 1px;
     min-width: 0;
+    /* A long URL or name in what Pi asks breaks where it must, instead of widening the card past the screen. */
+    overflow-wrap: anywhere;
 }
 
 .approval-ask {
