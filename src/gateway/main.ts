@@ -17,6 +17,7 @@ import { DocService } from "./docs.ts";
 import { SocketController } from "./controller-client.ts";
 import { Gateway } from "./server.ts";
 import { GatewayStore } from "./store.ts";
+import { trustedProxy } from "./proxy-guard.ts";
 
 const env = (name: string): string => {
     const value = process.env[name];
@@ -42,7 +43,13 @@ const store = new GatewayStore(db);
 const boardsDir = join(data, "boards");
 
 mkdirSync(boardsDir, { recursive: true });
-const auth = await makeAuth({ db, secret: store.authSecret(), origin });
+// A failed sign-in, or two-factor code, goes to the Audit log with the email tried and the address (PP-26).
+const auth = await makeAuth({
+    db,
+    secret: store.authSecret(),
+    origin,
+    onSignInFailed: (failure) => store.audit("", "sign-in failed", failure.email, { how: failure.how, ...(failure.ip === undefined ? {} : { ip: failure.ip }) }),
+});
 
 const boards = new BoardService(store, boardsDir);
 const docs = new DocService(store, boards, boardsDir, Date.now, (line) => console.error(line));
@@ -55,7 +62,22 @@ const gateway = new Gateway({
     origin,
     log: (line) => console.error(line),
 });
-const server = createServer((request, response) => void gateway.handle(request, response));
+// The public port only from the HTTPS proxy (PP-26), when compose names it; tests and a bare gateway take anyone.
+const proxy = process.env.PP_TRUSTED_PROXY;
+const fromProxy = proxy === undefined || proxy === "" ? async () => true : trustedProxy(proxy);
+const server = createServer(
+    (request, response) =>
+        void (async () => {
+            if (!(await fromProxy(request.socket.remoteAddress))) {
+                response.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
+                response.end("Only through the server's address.\n");
+
+                return;
+            }
+
+            await gateway.handle(request, response);
+        })(),
+);
 // The internal port: only people's pi-phones reach it, on their own networks (PP-39). Caddy sends nothing there.
 const internal = createServer((request, response) => void gateway.internal(request, response));
 
@@ -64,7 +86,19 @@ internal.listen(Number(process.env.PP_GATEWAY_INTERNAL_PORT ?? 8081), "0.0.0.0")
 // Idle pi-phones stop (PP-33).
 gateway.sweeping();
 
-server.on("upgrade", (request, socket, head) => void gateway.upgrade(request, socket, head));
+server.on(
+    "upgrade",
+    (request, socket, head) =>
+        void (async () => {
+            if (!(await fromProxy(request.socket.remoteAddress))) {
+                socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
+
+                return;
+            }
+
+            await gateway.upgrade(request, socket, head);
+        })(),
+);
 server.requestTimeout = 15 * 60_000;
 server.listen(Number(process.env.PP_GATEWAY_PORT ?? 8080), "0.0.0.0", () => {
     console.log(`pi-phone gateway for ${origin}`);

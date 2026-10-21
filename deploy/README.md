@@ -22,7 +22,8 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
     without their permissions. Secrets, the terminal, provider sign-in, settings and extensions are refused. Only the
     role's models are offered, and its spend cap stops new messages.
   - **A role without "a pi-phone of their own"** (Viewer) sees only the gateway's pages.
-  - **The audit log** (`/auth/audit`) records invites, joins, role changes, resets, and disabling or removing people.
+  - **The audit log** (`/auth/audit`) records invites, joins, role changes, resets, disabling or removing people, and
+    sign-ins that failed or were blocked (the email tried and the address).
 - **Idle pi-phones stop** (the Server page, `/auth/server`, for roles with "server settings"):
   - A person's container stops after 30 minutes unused (you set the minutes; 0 never stops), unless a page of it is open
     or Pi is at work there (writing, tools, subagents, scheduled messages).
@@ -100,8 +101,12 @@ The downloads hold everyone's data: their sessions, provider sign-ins and secret
 
 - **One person:** People › **Download data** gives their pi-phone's `/data` as a `.tar.gz`. It works for stopped
   people too. A running pi-phone's is taken as it is at that moment.
-- **The whole server:** Server › **Download a backup** gives one `.tar.gz`. Inside are `manifest.json` (who is who),
-  `gateway.sqlite` (accounts, roles, settings, each pi-phone's token) and `people/<key>.tar` for each person.
+- **The whole server:** Server › **Download a backup** gives one `.tar.gz`. Inside are:
+  - `manifest.json`: who is who;
+  - `gateway.sqlite`: accounts, roles, settings, each pi-phone's token;
+  - `boards/`: shared boards (`pocket.sqlite`), project wikis (`wiki.sqlite`), and team and board documents with their
+    images (`documents.sqlite`);
+  - `people/<key>.tar` for each person.
 - **Restore one person** (their key is in the manifest, or in their container's name `pp-user-<key>`):
 
   ```sh
@@ -117,7 +122,8 @@ The downloads hold everyone's data: their sessions, provider sign-ins and secret
   mkdir restore && tar xzf pi-phone-server-<date>.tar.gz -C restore
   docker compose -p pi-phone-team down
   docker run --rm --entrypoint sh --user 0 -v pi-phone-team_gateway-data:/data -v "$PWD/restore":/r:ro \
-    pi-phone-server:local -c 'rm -f /data/gateway.sqlite* && cp /r/gateway.sqlite /data/ && chown 1000:1000 /data/gateway.sqlite'
+    pi-phone-server:local -c 'rm -rf /data/gateway.sqlite* /data/boards && cp /r/gateway.sqlite /data/ && mkdir /data/boards &&
+      cp /r/boards/*.sqlite /data/boards/ && chown -R 1000:1000 /data/gateway.sqlite /data/boards'
   for f in restore/people/*.tar; do
     k=$(basename "$f" .tar); docker rm -f "pp-user-$k" 2>/dev/null
     docker run --rm -i --entrypoint sh --user 0 -v "pp-data-$k":/data pi-phone-server:local \
@@ -125,6 +131,60 @@ The downloads hold everyone's data: their sessions, provider sign-ins and secret
   done
   docker compose -p pi-phone-team up -d
   ```
+
+## Security
+
+What the team server shows to the network, and how each part is guarded (PP-26).
+
+- **Exposed:** only Caddy's ports 80 (redirects to HTTPS) and 443. Nothing else is published.
+- **Inside Docker:**
+  - The gateway's public port, **8080**, answers only Caddy (`PP_TRUSTED_PROXY=caddy`). People's containers share a
+    network with the gateway, so without this they could call sign-in directly with a made-up address and get around the
+    limit on tries.
+  - Its internal port, **8081**, is for people's pi-phones. Each call carries that pi-phone's own token.
+  - The **controller** has no network at all: the gateway reaches it through a Unix socket with a shared secret.
+- **Sign-in:** better-auth, with sessions in an HttpOnly, Secure, SameSite=Lax cookie that lasts 30 days.
+  - **Limits:** 10 sign-ins and 10 two-factor codes a minute per address, and 100 requests a minute for the rest.
+  - **Audit log:** a failed sign-in records the email tried, how (password, two-factor code, backup code, passkey) and the
+    address; a blocked one records the address, once a minute.
+  - **Advice:** turn on two-factor or add a passkey for the Owner and anyone who manages people. It isn't enforced.
+- **Cross-site requests:**
+  - The gateway's own changes (`/auth/gw/*`) are refused unless they come from its own pages (Origin), so a page on
+    another machine of the same tailnet can't make them with your cookie.
+  - pi-phone's changes need its `X-Pocket` header, and the terminal's WebSocket checks Origin.
+- **Headers (Caddy and the apps):**
+  - **Caddy:** HSTS, `nosniff`, no referrer, frames only from this site, and camera, microphone and location for this
+    site only. The browser still asks before any of them.
+  - **The apps:** the gateway's pages send a strict CSP and can't be framed; pi-phone sends its own CSP, and artifacts
+    run sandboxed.
+- **People's containers:** all Linux capabilities dropped, `no-new-privileges`, memory, CPU and process caps from the
+  role, a network and a volume each, no published ports. A pi-phone never sees another's files.
+
+**Routes and who may call them:**
+
+| Route | Who | Checked |
+| --- | --- | --- |
+| `/auth/api/*` | anyone | better-auth: sign-in, two-factor, passkeys; the limits above; Origin on changes |
+| `/auth/gw/state`, `/auth/gw/invite/<code>` | anyone | a used or expired invite is refused; codes are 24 random bytes |
+| `/auth/gw/setup` | anyone, once | the setup token (24 random bytes, compared in constant time); refused once an owner exists |
+| `/auth/gw/*` (the rest) | signed in | each route's permission from the person's role (People, Roles, Audit, Server, Backup); changes from the gateway's own pages only |
+| `/auth/gw/backup`, `/auth/gw/people/<id>/export` | `server.manage` | the Owner only, unless you give it to another role; never through Pi |
+| everything else | signed in, with "a pi-phone of their own" | forwarded to the person's own container with its token; account, invite and device routes refused there |
+| WebSocket (terminal) | the same | Origin must be this server |
+| `:8081/internal/boards`, `/internal/docs`, `/internal/team` | a pi-phone of this server | its own token; as its person, by their role; Pi's team calls through an allow list (no passwords, exports, backups or the server key) |
+
+**Limits on what comes in:** the gateway's own routes take a JSON object of 64 KB at most (documents with images: 16 MB);
+anything larger gets 413 and anything else 400. A request has 15 minutes to arrive.
+
+**Secrets, and where they live:**
+- **Setup token:** in the gateway's log until the owner is set up, and unused after.
+- **Controller secret:** `/run/pi-phone/secret` in the `control` volume, readable by the gateway's group only.
+- **better-auth's signing secret, and each pi-phone's token:** in `gateway.sqlite`.
+- **The server's OpenRouter key** (search in documents): in `gateway.sqlite`. It's never shown again, never in the audit
+  log, and never set by Pi.
+- **People's provider sign-ins and secrets:** in their own volume.
+
+A backup holds all of these, so keep the file as safe as the server.
 
 ## Smoke test
 

@@ -430,6 +430,21 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   - **The controller** (`controller.ts`) holds the Docker socket alone, has no network, and serves a Unix socket with a
     shared secret. Each person gets `pp-user-<key>` on `pp-net-<key>` (with only the gateway attached) and `pp-data-<key>`,
     with CapDrop ALL, no-new-privileges, no published ports, a PID limit and memory/CPU caps.
+  - **Hardening** (PP-26; deploy/README.md › Security has the route table):
+    - **8080 only from Caddy:** `proxy-guard.ts` lets in the addresses of `PP_TRUSTED_PROXY` (Docker DNS, looked up again
+      on a miss at most once a second). Containers share networks with the gateway, so they could otherwise call sign-in
+      directly with a made-up `X-Forwarded-For` and dodge better-auth's per-address limit.
+    - **Origin on changes:** non-GET `/auth/gw/*` needs Origin equal to `PP_ORIGIN` (the Lax cookie still reaches a
+      same-site, cross-origin page, such as another tailnet machine). Pi's `#teamCall` is in-process and exempt.
+    - **Sign-in audit:** a better-auth `hooks.after` (`onSignInFailed`) records failed password, TOTP, backup-code and
+      passkey steps with the email and Caddy's address; 429s from the limiter (before hooks) are recorded by the
+      gateway on `finish`, once a minute per address.
+    - **Bodies:** `readBody` answers 413 past its limit and 400 for anything but a JSON object (it was a 500).
+    - **Backups** include `boards/` (`pocket.sqlite`, `wiki.sqlite`, `documents.sqlite`) through `VACUUM INTO`
+      snapshots; before, shared boards, project wikis and team documents were left out.
+    - **Caddy** adds `X-Frame-Options: SAMEORIGIN` only where the app sent none (`?`; a plain `header` replaced the
+      gateway's DENY, seen live) and a `Permissions-Policy` (camera,
+      microphone, geolocation for self only).
 - **Custom roles** (PP-22):
   - **The gateway** keeps roles in its own tables (`pp_role`, `pp_user_role`), with `roles.ts` holding the catalogue and the
     seeded roles. better-auth only ever sees owner/member, and people actions go through its internalAdapter, since its

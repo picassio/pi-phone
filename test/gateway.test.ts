@@ -72,7 +72,8 @@ before(async () => {
     await new Promise<void>((resolve) => gateway.listen(0, "127.0.0.1", resolve));
     origin = `http://127.0.0.1:${(gateway.address() as { port: number }).port}`;
 
-    const auth = await makeAuth({ db, secret: store.authSecret(), origin });
+    // As main.ts: a failed sign-in step goes to the Audit log (PP-26).
+    const auth = await makeAuth({ db, secret: store.authSecret(), origin, onSignInFailed: (failure) => store.audit("", "sign-in failed", failure.email, { how: failure.how, ...(failure.ip === undefined ? {} : { ip: failure.ip }) }) });
 
     const handler = new Gateway({ auth, store, controller, ...served(store), origin, log: (line) => console.error(line) });
 
@@ -330,4 +331,47 @@ test("a WebSocket opens only from the gateway's own page, signed in", async () =
 
     assert.match(await upgrade({ origin }), /403/, "not signed in");
     assert.match(await upgrade({ origin: "http://evil.example" }), /403/);
+});
+
+test("hardening (PP-26): the gateway's changes only from its own pages; failed and blocked sign-ins in the audit log", async () => {
+    const owner = browser();
+
+    assert.equal((await owner.go("/auth/api/sign-in/email", { email: "tuan@example.com", password: "a long password 1" })).status, 200);
+    const cookie = Object.entries(owner.cookies()).map(([name, value]) => `${name}=${value}`).join("; ");
+    const was = store.idleMinutes();
+    // Another site under the same name (another machine on the tailnet) gets the Lax cookie, but not this Origin.
+    const post = (headers: Record<string, string>) => fetch(`${origin}/auth/gw/server`, { method: "POST", headers: { cookie, "content-type": "text/plain", ...headers }, body: JSON.stringify({ idleMinutes: was + 7 }) });
+
+    assert.equal((await post({ origin: "https://other.tailnet.ts.net" })).status, 403);
+    assert.equal((await post({})).status, 403, "no Origin: refused too");
+    assert.equal(store.idleMinutes(), was, "nothing changed");
+    assert.equal((await owner.go("/auth/gw/server", { idleMinutes: was })).status, 200, "from its own page");
+    // A body too large, or not JSON: said so, not a 500.
+    const qr = (body: string) => fetch(`${origin}/auth/gw/qr`, { method: "POST", headers: { cookie, origin, "content-type": "application/json" }, body });
+
+    assert.equal((await qr(JSON.stringify({ text: "x".repeat(70_000) }))).status, 413);
+    assert.equal((await qr("{not json")).status, 400);
+    assert.equal((await qr("[1,2]")).status, 400);
+
+    // A wrong password: the email tried (as typed, lower-cased), how, and Caddy's address for the client.
+    const signIn = (password: string, ip: string) =>
+        fetch(`${origin}/auth/api/sign-in/email`, { method: "POST", headers: { origin, "content-type": "application/json", "x-forwarded-for": ip }, body: JSON.stringify({ email: "Tuan@Example.com", password }) });
+
+    assert.equal((await signIn("not the password 1", "203.0.113.7")).status, 401);
+    const failed = store.auditLog().find((entry) => entry.action === "sign-in failed");
+
+    assert.deepEqual([failed?.actor, failed?.target, failed?.details], ["", "tuan@example.com", { how: "password", ip: "203.0.113.7" }]);
+
+    // Over the limit (10 a minute per address): blocked, recorded once a minute per address however many tries.
+    const statuses: number[] = [];
+
+    for (let i = 0; i < 13; i++) {
+        statuses.push((await signIn(`not the password ${i}`, "203.0.113.8")).status);
+    }
+
+    assert.ok(statuses.includes(429), `blocked: ${statuses.join(" ")}`);
+    const blocked = store.auditLog().filter((entry) => entry.action === "sign-in blocked");
+
+    assert.equal(blocked.length, 1);
+    assert.deepEqual(blocked[0]?.details, { ip: "203.0.113.8", path: "/sign-in/email" });
 });

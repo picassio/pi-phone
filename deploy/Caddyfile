@@ -18,6 +18,10 @@
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "no-referrer"
+		# Pages are framed only by this site (artifacts). `?`: only where the app sent none, so the gateway's DENY stays.
+		?X-Frame-Options "SAMEORIGIN"
+		# Camera, microphone (dictation) and location for this site only, still asked by the browser; the rest off.
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), serial=(), bluetooth=(), hid=(), midi=(), browsing-topics=()"
 		-Server
 	}
 	# Event streams flush at once; WebSockets (the terminal) pass through.

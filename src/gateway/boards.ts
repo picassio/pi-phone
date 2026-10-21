@@ -10,6 +10,7 @@
  * `<key>:<number>`. What is personal (a board's folder and places, its main session, whether it runs Pi's tasks by
  * itself) is never kept here: each pi-phone keeps its own.
  */
+import { join } from "node:path";
 import { HttpError } from "../server/errors.ts";
 import { type Actor, type BoardRole, type Closer, CLOSERS, type Person, type Project, Projects, type Task } from "../server/projects.ts";
 import type { GatewayStore, PersonBox } from "./store.ts";
@@ -34,6 +35,12 @@ export class BoardService {
         this.#projects = new Projects(dir, () => this.people(), now);
         this.#wiki = new ProjectWiki(dir, now);
         this.#projects.onChange((projectId) => this.#changed(projectId));
+    }
+
+    /** Consistent copies of the boards' and the project wikis' databases, as `pocket.sqlite` and `wiki.sqlite` in `dir` (backup, PP-26). */
+    snapshot(dir: string): void {
+        this.#projects.snapshot(join(dir, "pocket.sqlite"));
+        this.#wiki.snapshot(join(dir, "wiki.sqlite"));
     }
 
     close(): void {

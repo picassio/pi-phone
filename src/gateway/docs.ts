@@ -68,6 +68,11 @@ export class DocService {
         boards.onRemoved((projectId) => this.#docs.forgetScope(`project:${projectId}`));
     }
 
+    /** A consistent copy of the team's and boards' documents, for the backup (PP-26). */
+    snapshot(file: string): void {
+        this.#docs.snapshot(file);
+    }
+
     close(): void {
         this.#docs.close();
     }

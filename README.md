@@ -210,10 +210,12 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
   - **Accounts:** by invite, with passkeys and two-factor.
   - **A pi-phone per person**, each in its own container.
   - **Custom roles**, which set features, models, monthly spend, memory and CPU.
-  - **An audit log.**
+  - **An audit log**, failed and blocked sign-ins included.
   - **Idle pi-phones stop**, with **Always on** per person.
   - **Rolling updates**, with data kept.
   - **Downloads:** each person's data, and a whole-server backup.
+  - **Hardened:** only ports 80 and 443 open, sign-in limits that people's containers can't get around, no
+    cross-site changes, and security headers. See deploy/README.md › Security.
 
 ## Use it
 

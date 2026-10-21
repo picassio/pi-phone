@@ -27,6 +27,8 @@ services:
       PP_GATEWAY_DATA: /data
       PP_CONTROLLER_SOCKET: /run/pi-phone/controller.sock
       PP_CONTROLLER_SECRET_FILE: /run/pi-phone/secret
+      # The public port (8080) answers only Caddy: people's containers share networks with the gateway (PP-26).
+      PP_TRUSTED_PROXY: caddy
       TZ: ${TZ:-UTC}
     volumes:
       - gateway-data:/data

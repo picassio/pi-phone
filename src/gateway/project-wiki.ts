@@ -44,6 +44,11 @@ export class ProjectWiki {
         `);
     }
 
+    /** A consistent copy of the project wikis' database in `file` (`VACUUM INTO`), for the team server's backup (PP-26). */
+    snapshot(file: string): void {
+        this.#db.prepare("VACUUM INTO ?").run(file);
+    }
+
     close(): void {
         this.#db.close();
     }

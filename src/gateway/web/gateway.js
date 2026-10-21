@@ -548,7 +548,7 @@ async function auditPage(me) {
 
     page(
         "Audit log",
-        "Who changed what: invites, roles, people.",
+        "Who changed what: invites, roles, people; and sign-ins that failed or were blocked.",
         nav(me),
         h(
             "div",
@@ -562,8 +562,9 @@ async function auditPage(me) {
                           h("b", {}, entry.action),
                           " ",
                           entry.target ? h("span", {}, "· ", who(entry.target)) : null,
-                          h("div", { class: "muted" }, `${new Date(entry.at).toLocaleString()} · by ${who(entry.actor)}`),
-                          entry.details?.role?.name ? h("div", { class: "muted" }, `role: ${entry.details.role.name}`) : entry.details?.to ? h("div", { class: "muted" }, `${entry.details.from} → ${entry.details.to}`) : null,
+                          // A failed or blocked sign-in has nobody behind it yet (PP-26): when, how, and from where.
+                          h("div", { class: "muted" }, `${new Date(entry.at).toLocaleString()}${entry.actor ? ` · by ${who(entry.actor)}` : ""}`),
+                          entry.details?.ip ? h("div", { class: "muted" }, `${entry.details.how ?? entry.details.path ?? ""} · from ${entry.details.ip}`) : entry.details?.role?.name ? h("div", { class: "muted" }, `role: ${entry.details.role.name}`) : entry.details?.to ? h("div", { class: "muted" }, `${entry.details.from} → ${entry.details.to}`) : null,
                       ),
                   ),
         ),

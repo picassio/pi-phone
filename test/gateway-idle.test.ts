@@ -3,7 +3,9 @@
 // the server's minutes stops; the next visit starts it again; 0 minutes never stops; the setting is the server.manage
 // role's; browsers can't ask a pi-phone what it is doing; an always-on pi-phone is kept running and started by itself;
 // a new image renews running ones that are not at work; and a person's data and the whole server download as .tar.gz.
-import { cleanUp } from "./helpers.ts";
+import { cleanUp, root } from "./helpers.ts";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { DatabaseSync } from "node:sqlite";
@@ -279,7 +281,17 @@ test("a person's data, and the whole server, as .tar.gz downloads (PP-35)", asyn
     assert.equal(backup.status, 200);
     const files = untar(gunzipSync(Buffer.from(await backup.arrayBuffer())));
 
-    assert.deepEqual(Object.keys(files), ["manifest.json", "gateway.sqlite", `people/${key}.tar`]);
+    assert.deepEqual(Object.keys(files), ["manifest.json", "gateway.sqlite", "boards/pocket.sqlite", "boards/wiki.sqlite", "boards/documents.sqlite", `people/${key}.tar`]);
+    // Shared boards, project wikis and documents are the gateway's too (PP-26): real copies of their databases.
+    for (const [name, table] of [["boards/pocket.sqlite", "pocket_projects"], ["boards/wiki.sqlite", "pp_wiki_pages"], ["boards/documents.sqlite", "doc_images"]] as const) {
+        const copy = join(mkdtempSync(join(root, "gw-backup-")), "copy.sqlite");
+
+        writeFileSync(copy, files[name]!);
+        const opened = new DatabaseSync(copy);
+
+        assert.ok(opened.prepare("SELECT name FROM sqlite_master WHERE name = ?").get(table), `${name} has ${table}`);
+        opened.close();
+    }
     assert.equal(files["gateway.sqlite"]!.subarray(0, 15).toString(), "SQLite format 3", "a copy of the gateway's database");
     assert.deepEqual(JSON.parse(files["manifest.json"]!.toString()).people, [{ key, email: "owner@example.test", name: "Owner" }]);
     assert.equal(untar(files[`people/${key}.tar`]!)["data/pocket/session.txt"]?.toString(), "a session's data");

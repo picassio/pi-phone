@@ -8,7 +8,7 @@
  * Routes: `/auth/api/*` better-auth; `/auth/gw/*` the gateway's own (state, setup, invites, people); `/auth/static/*`
  * its page's files; `/auth/*` its page (sign-in, setup, invite, account, people); anything else, the person's pi-phone.
  */
-import { createReadStream, createWriteStream, existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect as netConnect } from "node:net";
@@ -545,12 +545,41 @@ export class Gateway {
         return { status: answer.status, body: answer.text === "" ? {} : (JSON.parse(answer.text) as unknown) };
     }
 
+    /** When each address was last recorded as blocked by the sign-in limit. */
+    readonly #blockedAt = new Map<string, number>();
+
+    /** A request the sign-in limit refused: recorded with its address (Caddy's `X-Forwarded-For`), once a minute per address. */
+    #blocked(request: IncomingMessage, path: string): void {
+        const forwarded = request.headers["x-forwarded-for"];
+        const ip = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim() || (request.socket.remoteAddress ?? "unknown");
+        const now = Date.now();
+
+        if (now - (this.#blockedAt.get(ip) ?? -Infinity) < 60_000) {
+            return;
+        }
+
+        this.#blockedAt.set(ip, now);
+
+        if (this.#blockedAt.size > 1000) {
+            this.#blockedAt.delete(this.#blockedAt.keys().next().value!);
+        }
+
+        this.#options.store.audit("", "sign-in blocked", undefined, { ip, path: path.slice("/auth/api".length) });
+    }
+
     /** One HTTP request. */
     async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
         const path = (request.url ?? "/").split("?")[0]!;
 
         try {
             if (path.startsWith("/auth/api/")) {
+                // Blocked by the sign-in limit (PP-26): to the Audit log, once a minute per address at most.
+                response.on("finish", () => {
+                    if (response.statusCode === 429) {
+                        this.#blocked(request, path);
+                    }
+                });
+
                 return await this.#authHandler(request, response);
             }
 
@@ -598,6 +627,15 @@ export class Gateway {
 
             await this.#forward(request, response, user);
         } catch (error) {
+            // A body too large or not JSON says so; anything else is the gateway's own fault.
+            if (error instanceof HttpError) {
+                if (!response.headersSent) {
+                    json(response, error.status, { error: error.message });
+                }
+
+                return;
+            }
+
             this.#options.log(`gateway: ${request.method} ${path}: ${String(error)}`);
 
             if (!response.headersSent) {
@@ -745,6 +783,14 @@ export class Gateway {
         const actor = as === undefined ? (user?.id ?? "") : `pi:${as.user.id}`;
         const role = user === undefined ? undefined : store.roleOf(user.id, user.role);
         const can = (permission: Permission) => role?.permissions.includes(permission) === true;
+
+        // A change only from the gateway's own pages (PP-26): the sign-in cookie is SameSite=Lax, which another site under
+        // the same name (another machine on the tailnet) still gets. Browsers send Origin with every POST; Pi's calls
+        // (`as`) come from inside, not over HTTP.
+        if (as === undefined && method !== "GET" && method !== "HEAD" && request.headers.origin !== this.#options.origin) {
+            return json(response, 403, { error: "Changes come only from this server's own pages." });
+        }
+
         const isOwner = role?.id === OWNER_ROLE.id;
 
         // What the page needs: whether the owner is still to be set up, and who is signed in, with their role.
@@ -985,6 +1031,16 @@ export class Gateway {
                 store.snapshot(db);
 
                 const entries: TarEntry[] = [{ name: "gateway.sqlite", size: statSync(db).size, file: db }];
+                // Shared boards, project wikis, and team and board documents (PP-39, PP-42, PP-46): the gateway's own too.
+                const boards = join(folder, "boards");
+
+                mkdirSync(boards);
+                this.#options.boards.snapshot(boards);
+                this.#options.docs.snapshot(join(boards, "documents.sqlite"));
+
+                for (const name of ["pocket.sqlite", "wiki.sqlite", "documents.sqlite"]) {
+                    entries.push({ name: `boards/${name}`, size: statSync(join(boards, name)).size, file: join(boards, name) });
+                }
                 const users = new Map(store.users().map((each) => [each.id, each]));
                 const people: { key: string; email: string | null; name: string | null }[] = [];
 
@@ -1290,7 +1346,7 @@ async function readBody(request: IncomingMessage, limit = 64 * 1024): Promise<Re
         size += (chunk as Buffer).length;
 
         if (size > limit) {
-            throw new Error("Too large.");
+            throw new HttpError(413, "That is more than this route takes.");
         }
 
         chunks.push(chunk as Buffer);
@@ -1298,7 +1354,17 @@ async function readBody(request: IncomingMessage, limit = 64 * 1024): Promise<Re
 
     const text = Buffer.concat(chunks).toString("utf8");
 
-    return text === "" ? {} : (JSON.parse(text) as Record<string, unknown>);
+    try {
+        const value = text === "" ? {} : (JSON.parse(text) as unknown);
+
+        if (typeof value !== "object" || value === null || Array.isArray(value)) {
+            throw new Error("not an object");
+        }
+
+        return value as Record<string, unknown>;
+    } catch {
+        throw new HttpError(400, "The body is not a JSON object.");
+    }
 }
 
 const NO_PI = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>pi-phone</title><body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#1a1b26;color:#c0caf5;font:16px system-ui;text-align:center;padding:24px"><div><p>Your role has no pi-phone of its own: you see what others share with you.</p><p><a style="color:#7aa2f7" href="/auth/account">Your account</a></p></div></body>`;

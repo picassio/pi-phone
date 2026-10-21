@@ -6,6 +6,7 @@
  */
 import { passkey } from "@better-auth/passkey";
 import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { createAuthMiddleware, isAPIError } from "better-auth/api";
 import { getMigrations } from "better-auth/db/migration";
 import { admin, twoFactor } from "better-auth/plugins";
 import { adminAc, defaultStatements, userAc } from "better-auth/plugins/admin/access";
@@ -17,6 +18,8 @@ export type GatewayAuthOptions = {
     secret: string;
     /** The address people open: `https://tuanlh-devbox-01.tailf11d61.ts.net`. Passkeys are tied to its host name. */
     origin: string;
+    /** A failed sign-in step (PP-26): how (password, two-factor code, backup code, passkey), the email tried, the address. */
+    onSignInFailed?: (failure: { how: string; email?: string; ip?: string }) => void;
 };
 
 /** The roles in phase 1: the owner (better-auth's admin rights) and members. Phase 2 makes them the owner's to define. */
@@ -24,7 +27,15 @@ const ac = createAccessControl(defaultStatements);
 const roles = { owner: ac.newRole(adminAc.statements), member: ac.newRole(userAc.statements) };
 
 /** better-auth's options for the gateway: its tables follow from them (`migrate`), then `makeAuth` uses them. */
-function authOptions({ db, secret, origin }: GatewayAuthOptions) {
+/** The sign-in steps a failure of is recorded (PP-26), and what each is called in the Audit log. */
+const WATCHED: Record<string, string> = {
+    "/sign-in/email": "password",
+    "/two-factor/verify-totp": "two-factor code",
+    "/two-factor/verify-backup-code": "backup code",
+    "/passkey/verify-authentication": "passkey",
+};
+
+function authOptions({ db, secret, origin, onSignInFailed }: GatewayAuthOptions) {
     const url = new URL(origin);
 
     return {
@@ -38,6 +49,21 @@ function authOptions({ db, secret, origin }: GatewayAuthOptions) {
         session: { expiresIn: 30 * 24 * 3600, updateAge: 24 * 3600 },
         rateLimit: { enabled: true, window: 60, max: 100, customRules: { "/sign-in/email": { window: 60, max: 10 }, "/two-factor/verify-totp": { window: 60, max: 10 } } },
         advanced: { cookiePrefix: "pp", useSecureCookies: url.protocol === "https:" },
+        hooks: {
+            after: createAuthMiddleware(async (ctx) => {
+                const how = WATCHED[ctx.path];
+
+                if (how === undefined || !isAPIError(ctx.context.returned) || onSignInFailed === undefined) {
+                    return;
+                }
+
+                const email = typeof ctx.body?.email === "string" ? ctx.body.email.trim().toLowerCase().slice(0, 200) : undefined;
+                // Caddy's: it puts the client's address there (and replaces whatever the client sent).
+                const ip = ctx.request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+
+                onSignInFailed({ how, ...(email === undefined ? {} : { email }), ...(ip === undefined || ip === "" ? {} : { ip }) });
+            }),
+        },
         plugins: [
             twoFactor({ issuer: "pi-phone" }),
             passkey({ rpID: url.hostname, rpName: "pi-phone", origin }),
