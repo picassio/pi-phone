@@ -134,7 +134,8 @@ export class Gateway {
         }
 
         try {
-            const upstream = await this.#upstream(person);
+            // Asked of the controller every time, not from what this gateway last saw: their pi-phone may have stopped since.
+            const upstream = await this.#upstream(person, true);
 
             for (let tries = 0; tries < 15 && !(await this.#policy(person, upstream)); tries++) {
                 await new Promise((resolve) => setTimeout(resolve, 2000));
