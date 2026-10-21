@@ -134,6 +134,10 @@ No Termux, no laptop, no cloud VM.
     deleted pages to bring back, and search across all of them.
   - **Where:** Mine, and each board's (a board's **Docs** opens them). On the team server there are Team documents
     too, edited by roles with "Edit team documents".
+  - **Search by meaning:** pages are found by what they say, not only their words, merged with keyword matches.
+    Yours use the wiki's embedding model with your OpenRouter sign-in; the team's use a model and an OpenRouter key
+    the owner sets on the gateway's Server page. Its cost shows in Spend (or on the Server page).
+  - **Pi** searches, reads, writes, edits and moves documents for you, and deletes or restores them on a card.
 
 ### Other machines
 - **Work on other machines.** Add an SSH key and a machine (Settings › SSH keys, Machines). A session on a machine

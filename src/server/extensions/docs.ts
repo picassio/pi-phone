@@ -9,6 +9,7 @@ import { defineExtension, defineTool, section } from "@earendil-works/pi-durable
 import type { ExtensionWeb, PocketHost, WebRequest } from "../host.ts";
 import { HttpError } from "../errors.ts";
 import { Docs } from "../docs-access.ts";
+import { openRouterEmbedder } from "../embeddings.ts";
 import { Projects } from "../projects.ts";
 
 export default function createDocs(host: PocketHost, web: ExtensionWeb) {
@@ -25,6 +26,15 @@ export default function createDocs(host: PocketHost, web: ExtensionWeb) {
         },
         teamServer: host.teamServer,
         ...(host.teamServer === undefined ? { projects } : {}),
+        // Search by meaning (PP-49): the wiki's embedding model, with the person's OpenRouter sign-in; costs in Spend.
+        embedder: async () => {
+            const model = (await host.para.settings()).embeddingModel;
+            const key = model === null ? undefined : await host.apiKey("openrouter");
+
+            return model === null || key === undefined ? undefined : openRouterEmbedder(key, model);
+        },
+        spent: (usage) => void host.para.chargeEmbedding(usage).catch(() => {}),
+        log: (line) => host.notice("warning", line),
     });
 
     // The Documents page (`docs-web/`): this pi-phone's person's.
@@ -53,6 +63,7 @@ export default function createDocs(host: PocketHost, web: ExtensionWeb) {
         (mine(request),
         answer(async () => ({ value: (await docs.call(String(request.body.scope ?? ""), String(request.body.method ?? ""), Array.isArray(request.body.args) ? request.body.args : [])) ?? null }))),
     );
+    web.route("GET", "meaning", (request) => (mine(request), answer(async () => docs.meaning())));
     web.route("GET", "search", (request) =>
         (mine(request),
         answer(async () => {

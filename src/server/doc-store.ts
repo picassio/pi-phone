@@ -8,8 +8,9 @@
  * backlinks are the pages whose text links to it. Deleting keeps the page and its versions, gone from the tree until
  * restored. Search is by keyword here (SQLite's full-text search); by meaning comes with embeddings (PP-49).
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
+import { cosine, type Embedder, passages } from "./embeddings.ts";
 import { HttpError } from "./errors.ts";
 
 export type Author = { id: string; name: string };
@@ -47,7 +48,19 @@ export class DocumentStore {
             ) STRICT;
             CREATE INDEX IF NOT EXISTS doc_versions_page ON doc_versions (page_id, at);
             CREATE VIRTUAL TABLE IF NOT EXISTS doc_search USING fts5(page_id UNINDEXED, scope UNINDEXED, title, body);
+            CREATE TABLE IF NOT EXISTS doc_chunks (
+                page_id TEXT NOT NULL, scope TEXT NOT NULL, idx INTEGER NOT NULL, text TEXT NOT NULL, hash TEXT NOT NULL, vector BLOB,
+                PRIMARY KEY (page_id, idx)
+            ) STRICT;
+            CREATE INDEX IF NOT EXISTS doc_chunks_scope ON doc_chunks (scope);
+            CREATE TABLE IF NOT EXISTS doc_meta (name TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
         `);
+        // Pages saved before search by meaning (or never cut into passages): cut now, to embed with the rest.
+        this.#transaction(() => {
+            for (const row of this.#db.prepare("SELECT id, scope, title, body FROM doc_pages WHERE deleted_at IS NULL AND id NOT IN (SELECT page_id FROM doc_chunks)").all() as Row[]) {
+                this.#chunk(String(row.scope), String(row.id), String(row.title), String(row.body));
+            }
+        });
     }
 
     close(): void {
@@ -133,6 +146,7 @@ export class DocumentStore {
             }
 
             this.#db.prepare("DELETE FROM doc_search WHERE scope = ? AND page_id IN (SELECT id FROM doc_pages WHERE scope = ? AND deleted_at IS NOT NULL)").run(scope, scope);
+            this.#db.prepare("DELETE FROM doc_chunks WHERE scope = ? AND page_id IN (SELECT id FROM doc_pages WHERE scope = ? AND deleted_at IS NOT NULL)").run(scope, scope);
         });
 
         return pages;
@@ -243,6 +257,7 @@ export class DocumentStore {
         this.#transaction(() => {
             this.#db.prepare("UPDATE doc_pages SET deleted_at = ? WHERE id = ?").run(this.#now(), id);
             this.#db.prepare("DELETE FROM doc_search WHERE page_id = ?").run(id);
+            this.#db.prepare("DELETE FROM doc_chunks WHERE page_id = ?").run(id);
         });
     }
 
@@ -333,6 +348,7 @@ export class DocumentStore {
             this.#db.prepare("DELETE FROM doc_pages WHERE scope = ?").run(scope);
             this.#db.prepare("DELETE FROM doc_folders WHERE scope = ?").run(scope);
             this.#db.prepare("DELETE FROM doc_search WHERE scope = ?").run(scope);
+            this.#db.prepare("DELETE FROM doc_chunks WHERE scope = ?").run(scope);
         });
     }
 
@@ -387,6 +403,115 @@ export class DocumentStore {
     #index(scope: string, id: string, title: string, body: string): void {
         this.#db.prepare("DELETE FROM doc_search WHERE page_id = ?").run(id);
         this.#db.prepare("INSERT INTO doc_search (page_id, scope, title, body) VALUES (?, ?, ?, ?)").run(id, scope, title, body);
+        this.#chunk(scope, id, title, body);
+    }
+
+    /** A page's passages for search by meaning: kept with their vectors where the text (and model) did not change. */
+    #chunk(scope: string, id: string, title: string, body: string): void {
+        const model = this.#model();
+        const kept = new Map((this.#db.prepare("SELECT hash, vector FROM doc_chunks WHERE page_id = ? AND vector IS NOT NULL").all(id) as Row[]).map((row) => [String(row.hash), row.vector as Uint8Array]));
+        const path = this.#pageOf(this.#db.prepare("SELECT * FROM doc_pages WHERE id = ?").get(id) as Row).path;
+
+        this.#db.prepare("DELETE FROM doc_chunks WHERE page_id = ?").run(id);
+        passages(title, path, body).forEach((text, idx) => {
+            const hash = hashOf(model, text);
+
+            this.#db.prepare("INSERT INTO doc_chunks (page_id, scope, idx, text, hash, vector) VALUES (?, ?, ?, ?, ?, ?)").run(id, scope, idx, text, hash, kept.get(hash) ?? null);
+        });
+    }
+
+    /** The embedding model the vectors are of ("" before any). */
+    #model(): string {
+        return String((this.#db.prepare("SELECT value FROM doc_meta WHERE name = 'model'").get() as Row | undefined)?.value ?? "");
+    }
+
+    // ---- Search by meaning (PP-49) -----------------------------------------------------------------------------------
+
+    /**
+     * Passages still to embed with `model`, oldest pages first. A different model than before: every passage is to embed
+     * again (their vectors would not compare).
+     */
+    pending(model: string, limit = 32): { pageId: string; idx: number; hash: string; text: string }[] {
+        if (this.#model() !== model) {
+            this.#transaction(() => {
+                this.#db.prepare("INSERT INTO doc_meta (name, value) VALUES ('model', ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value").run(model);
+
+                for (const row of this.#db.prepare("SELECT page_id, idx, text FROM doc_chunks").all() as Row[]) {
+                    this.#db.prepare("UPDATE doc_chunks SET hash = ?, vector = NULL WHERE page_id = ? AND idx = ?").run(hashOf(model, String(row.text)), String(row.page_id), Number(row.idx));
+                }
+            });
+        }
+
+        return (this.#db.prepare("SELECT page_id, idx, hash, text FROM doc_chunks WHERE vector IS NULL ORDER BY page_id, idx LIMIT ?").all(limit) as Row[]).map((row) => ({ pageId: String(row.page_id), idx: Number(row.idx), hash: String(row.hash), text: String(row.text) }));
+    }
+
+    /** Vectors for passages: kept only where the passage is still as it was embedded (its hash). */
+    setVectors(rows: { pageId: string; idx: number; hash: string; vector: number[] }[]): void {
+        this.#transaction(() => {
+            for (const row of rows) {
+                this.#db.prepare("UPDATE doc_chunks SET vector = ? WHERE page_id = ? AND idx = ? AND hash = ?").run(new Uint8Array(new Float32Array(row.vector).buffer), row.pageId, row.idx, row.hash);
+            }
+        });
+    }
+
+    /** How many passages there are, and how many have vectors. */
+    indexed(): { passages: number; embedded: number } {
+        const row = this.#db.prepare("SELECT COUNT(*) AS n, COUNT(vector) AS v FROM doc_chunks").get() as Row;
+
+        return { passages: Number(row.n), embedded: Number(row.v) };
+    }
+
+    /**
+     * Search by keyword and, given the query's vector, by meaning: both rankings merged (reciprocal rank fusion), a page
+     * once, with where it matched (the keyword snippet, else the passage that matched best).
+     */
+    hybrid(scopes: string[], query: string, vector: number[] | null, limit = 20): DocHit[] {
+        const words = this.search(scopes, query, limit * 2);
+
+        if (vector === null || scopes.length === 0) {
+            return words.slice(0, limit);
+        }
+
+        scopes.forEach(check);
+        const asked = new Float32Array(vector);
+        const best = new Map<string, { score: number; text: string; scope: string }>();
+
+        for (const row of this.#db.prepare(`SELECT page_id, scope, text, vector FROM doc_chunks WHERE vector IS NOT NULL AND scope IN (${scopes.map(() => "?").join(", ")})`).all(...scopes) as Row[]) {
+            const bytes = row.vector as Uint8Array;
+            const score = cosine(asked, new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4));
+            const page = String(row.page_id);
+
+            if ((best.get(page)?.score ?? -2) < score) {
+                best.set(page, { score, text: String(row.text), scope: String(row.scope) });
+            }
+        }
+
+        // Only pages near the best match by meaning: measured with text-embedding-3-small, a page that matches scores
+        // 0.25 to 0.55 and the rest of a small store sits 0.1 or more below it, while a fixed floor would cut short queries.
+        const ranked = [...best.entries()].sort((a, b) => b[1].score - a[1].score);
+        const meaning = ranked.filter(([, each]) => each.score >= (ranked[0]?.[1].score ?? 0) - NEAR).slice(0, limit * 2);
+        const fused = new Map<string, number>();
+        const K = 60;
+
+        words.forEach((hit, rank) => fused.set(hit.pageId, (fused.get(hit.pageId) ?? 0) + 1 / (K + rank + 1)));
+        meaning.forEach(([page], rank) => fused.set(page, (fused.get(page) ?? 0) + 1 / (K + rank + 1)));
+
+        return [...fused.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, limit)
+            .flatMap(([pageId]) => {
+                const byWord = words.find((hit) => hit.pageId === pageId);
+
+                if (byWord !== undefined) {
+                    return [byWord];
+                }
+
+                const matched = best.get(pageId)!;
+                const page = this.page(matched.scope, pageId);
+                const passage = matched.text.split("\n").slice(1).join(" ").replace(/\s+/g, " ").trim();
+
+                return [{ scope: page.scope, pageId, title: page.title, path: page.path, snippet: passage.length > 160 ? `${passage.slice(0, 160)}…` : passage }];
+            });
     }
 
     #transaction(work: () => void): void {
@@ -423,6 +548,51 @@ function nameOf(name: string, what: "page" | "folder"): string {
     return clean;
 }
 
+/** How far below the best match by meaning a page may score and still be found by meaning (cosine). */
+const NEAR = 0.1;
+const hashOf = (model: string, text: string) => createHash("sha256").update(`${model}\n${text}`).digest("hex");
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const folderOf = (row: Row): DocFolder => ({ id: String(row.id), parentId: row.parent_id === null ? null : String(row.parent_id), name: String(row.name), createdAt: Number(row.created_at), updatedAt: Number(row.updated_at) });
 const infoOf = (row: Row): DocPageInfo => ({ id: String(row.id), folderId: row.folder_id === null ? null : String(row.folder_id), title: String(row.title), updatedByName: String(row.updated_by_name), updatedAt: Number(row.updated_at) });
+
+/**
+ * Embed what is pending in a store, in batches, until nothing is (PP-49): what each batch cost goes to `spent`. One run at
+ * a time per store: a run asked for while one goes is folded into it.
+ */
+export function indexer(store: DocumentStore, embedder: () => Promise<Embedder | undefined>, spent: (usage: { model: string; tokens: number; cost?: number }) => void, log: (line: string) => void): () => void {
+    let running = false;
+    let again = false;
+    const run = async () => {
+        if (running) {
+            again = true;
+
+            return;
+        }
+
+        running = true;
+
+        try {
+            do {
+                again = false;
+                const with_ = await embedder();
+
+                if (with_ === undefined) {
+                    return;
+                }
+
+                for (let batch = store.pending(with_.model, 32); batch.length > 0; batch = store.pending(with_.model, 32)) {
+                    const done = await with_.embed(batch.map((each) => each.text));
+
+                    store.setVectors(batch.map((each, index) => ({ ...each, vector: done.vectors[index]! })));
+                    spent({ model: with_.model, tokens: done.tokens, ...(done.cost === undefined ? {} : { cost: done.cost }) });
+                }
+            } while (again);
+        } catch (error) {
+            log(`documents: embedding for search by meaning failed: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            running = false;
+        }
+    };
+
+    return () => void run();
+}

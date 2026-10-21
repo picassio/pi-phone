@@ -11,7 +11,8 @@
  */
 import { join } from "node:path";
 import { HttpError } from "../server/errors.ts";
-import { type Author, DocumentStore } from "../server/doc-store.ts";
+import { type Author, DocumentStore, indexer } from "../server/doc-store.ts";
+import { type Embedder, openRouterEmbedder } from "../server/embeddings.ts";
 import type { BoardService } from "./boards.ts";
 import type { GatewayStore, PersonBox } from "./store.ts";
 
@@ -24,11 +25,17 @@ export class DocService {
     readonly #store: GatewayStore;
     readonly #boards: BoardService;
     readonly #docs: DocumentStore;
+    /** Embed what is pending, with the server's key (PP-49). */
+    readonly #index: () => void;
+    readonly #now: () => number;
 
-    constructor(store: GatewayStore, boards: BoardService, dir: string, now: () => number = Date.now) {
+    constructor(store: GatewayStore, boards: BoardService, dir: string, now: () => number = Date.now, log: (line: string) => void = () => {}) {
         this.#store = store;
         this.#boards = boards;
+        this.#now = now;
         this.#docs = new DocumentStore(join(dir, "documents.sqlite"), now);
+        this.#index = indexer(this.#docs, async () => this.embedder(), (usage) => this.#spent(usage), log);
+        this.#index();
         // A board deleted: its documents go with it.
         boards.onRemoved((projectId) => this.#docs.forgetScope(`project:${projectId}`));
     }
@@ -37,7 +44,30 @@ export class DocService {
         this.#docs.close();
     }
 
-    call(box: PersonBox, call: DocCall): unknown {
+    /** The server's embedder for search by meaning, or undefined (keyword only) without a key and a model. */
+    embedder(): Embedder | undefined {
+        const { key, model } = this.#store.docsSearch();
+
+        return key === null || model === null ? undefined : openRouterEmbedder(key, model);
+    }
+
+    /** Search by meaning's state, for the Server page: the model, whether there is a key, this month's spend, how much is indexed. */
+    searchState(): { model: string | null; keySet: boolean; month: { tokens: number; cost: number }; indexed: { passages: number; embedded: number } } {
+        const { key, model } = this.#store.docsSearch();
+
+        return { model, keySet: key !== null, month: this.#store.docsSpend(new Date(this.#now()).toISOString().slice(0, 7)), indexed: this.#docs.indexed() };
+    }
+
+    /** The search settings changed: index again with them. */
+    reindex(): void {
+        this.#index();
+    }
+
+    #spent(usage: { tokens: number; cost?: number }): void {
+        this.#store.addDocsSpend(new Date(this.#now()).toISOString().slice(0, 7), usage.tokens, usage.cost ?? 0);
+    }
+
+    async call(box: PersonBox, call: DocCall): Promise<unknown> {
         const user = this.#store.users().find((each) => each.id === box.userId);
 
         if (user === undefined || user.banned) {
@@ -92,12 +122,33 @@ export class DocService {
             ];
         }
 
-        // Search: the scopes asked for that this person may read.
+        // Whether search here is by meaning too.
+        if (call.method === "meaning") {
+            return this.embedder() !== undefined;
+        }
+
+        // Search: the scopes asked for that this person may read; by meaning too, with the server's key.
         if (call.method === "search") {
             const asked = (Array.isArray(args[0]) ? args[0] : []).map((name) => scope(name));
-            const hits = this.#docs.search(
+            const query = String(args[1] ?? "");
+            const embedder = this.embedder();
+            let vector: number[] | null = null;
+
+            if (embedder !== undefined && query.trim() !== "") {
+                try {
+                    const embedded = await embedder.embed([query]);
+
+                    vector = embedded.vectors[0] ?? null;
+                    this.#spent(embedded);
+                } catch {
+                    // By keyword, then.
+                }
+            }
+
+            const hits = this.#docs.hybrid(
                 asked.map((each) => each.inside),
-                String(args[1] ?? ""),
+                query,
+                vector,
                 Number(args[2] ?? 20),
             );
 
@@ -153,6 +204,8 @@ export class DocService {
                 audit("folder deleted", String(rest[0]));
                 value = docs.removeFolder(where.inside, String(rest[0]));
         }
+
+        this.#index();
 
         return out(value, where.inside, where.outside);
     }

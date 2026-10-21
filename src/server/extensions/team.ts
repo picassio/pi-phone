@@ -213,19 +213,30 @@ export default function createTeam(host: PocketHost) {
         }),
         tool(
             "team_server",
-            "The team server's settings: how many idle minutes before a pi-phone stops (0: never), and how many pi-phones there are, running, and on an older image. With idleMinutes, changes it (asks the person first). Needs server.manage.",
-            Type.Object({ idleMinutes: Type.Optional(Type.Number()), reason: Type.Optional(Type.String()) }),
-            async (args: { idleMinutes?: number; reason?: string }, api, context) => {
-                const show = (answer: { idleMinutes: number; containers: { all: number; running: number; outdated: number } }) =>
-                    `Idle pi-phones stop after ${answer.idleMinutes === 0 ? "never" : `${answer.idleMinutes} minutes`}. ${answer.containers.all} pi-phones, ${answer.containers.running} running, ${answer.containers.outdated} on an older image.`;
+            "The team server's settings: how many idle minutes before a pi-phone stops (0: never); how many pi-phones there are, running, and on an older image; and search in team documents (its OpenRouter embedding model, whether the owner set its key, how much is indexed, this month's spend). With idleMinutes or docsModel (an OpenRouter embedding model's id; empty for keyword only), changes it (asks the person first). The key itself is only typed by a person on the Server page. Needs server.manage.",
+            Type.Object({ idleMinutes: Type.Optional(Type.Number()), docsModel: Type.Optional(Type.String()), reason: Type.Optional(Type.String()) }),
+            async (args: { idleMinutes?: number; docsModel?: string; reason?: string }, api, context) => {
+                type Server = { idleMinutes: number; containers: { all: number; running: number; outdated: number }; docs: { model: string | null; keySet: boolean; month: { tokens: number; cost: number }; indexed: { passages: number; embedded: number } } };
+                const show = (answer: Server) =>
+                    [
+                        `Idle pi-phones stop after ${answer.idleMinutes === 0 ? "never" : `${answer.idleMinutes} minutes`}. ${answer.containers.all} pi-phones, ${answer.containers.running} running, ${answer.containers.outdated} on an older image.`,
+                        answer.docs.model === null || !answer.docs.keySet
+                            ? `Team documents are searched by keyword only (${answer.docs.model === null ? "no embedding model" : "no OpenRouter key: the owner types it on the Server page"}).`
+                            : `Team documents are searched by meaning too, with ${answer.docs.model}: ${answer.docs.indexed.embedded} of ${answer.docs.indexed.passages} passages indexed; this month ${answer.docs.month.tokens} tokens, ${answer.docs.month.cost < 0.01 ? "under $0.01" : `$${answer.docs.month.cost.toFixed(2)}`}.`,
+                    ].join("\n");
 
-                if (args.idleMinutes === undefined) {
+                if (args.idleMinutes === undefined && args.docsModel === undefined) {
                     return show((await call("server", "GET")) as never);
                 }
 
-                await ask(api, context, "team_server", `Stop idle pi-phones after ${args.idleMinutes === 0 ? "never" : `${args.idleMinutes} minutes`}`, args.reason ?? "");
+                const change = [
+                    args.idleMinutes === undefined ? undefined : `stop idle pi-phones after ${args.idleMinutes === 0 ? "never" : `${args.idleMinutes} minutes`}`,
+                    args.docsModel === undefined ? undefined : args.docsModel.trim() === "" ? "search team documents by keyword only" : `search team documents with ${args.docsModel.trim()}`,
+                ].filter((each) => each !== undefined).join(", and ");
 
-                return show((await call("server", "POST", { idleMinutes: args.idleMinutes })) as never);
+                await ask(api, context, "team_server", change.charAt(0).toUpperCase() + change.slice(1), args.reason ?? "");
+
+                return show((await call("server", "POST", { ...(args.idleMinutes === undefined ? {} : { idleMinutes: args.idleMinutes }), ...(args.docsModel === undefined ? {} : { docsModel: args.docsModel }) })) as never);
             },
         ),
     ];

@@ -608,6 +608,11 @@ async function serverPage(me) {
         status.textContent = `${all} pi-phone${all === 1 ? "" : "s"}, ${running} running${outdated > 0 ? `, ${outdated} on an older image (made again from the new one when Pi is not at work there, or as they next start)` : ""}.`;
     };
     const server = await gw("server");
+    const docsLine = (docs) =>
+        docs.model === null || !docs.keySet
+            ? "By keyword only for now."
+            : `By meaning with ${docs.model}: ${docs.indexed.embedded} of ${docs.indexed.passages} passages indexed. This month: ${docs.month.tokens.toLocaleString()} tokens${docs.month.cost > 0 ? `, ${docs.month.cost < 0.01 ? "under $0.01" : `$${docs.month.cost.toFixed(2)}`}` : ""}.`;
+    const docsStatus = h("p", { class: "muted" }, docsLine(server.docs));
 
     show(server);
     page(
@@ -626,6 +631,23 @@ async function serverPage(me) {
         ),
         h("h2", {}, "Now"),
         status,
+        h("h2", {}, "Search in documents"),
+        h("p", { class: "muted" }, "Team and project documents are searched by meaning too, with an OpenRouter embedding model and a key for it, used for nothing else. Without them, search is by keyword."),
+        form(
+            [
+                field("Embedding model (OpenRouter)", "docsModel", "text", { required: false, value: server.docs.model ?? "", placeholder: "openai/text-embedding-3-small" }),
+                field(`OpenRouter key${server.docs.keySet ? " (one is set: type a new one to replace it)" : ""}`, "docsKey", "password", { required: false, autocomplete: "off", placeholder: server.docs.keySet ? "••••••••" : "sk-or-…" }),
+            ],
+            "Save",
+            async (values) => {
+                const body = { docsModel: values.docsModel, ...(values.docsKey === "" ? {} : { docsKey: values.docsKey }) };
+                const saved = await gw("server", body);
+
+                show(saved);
+                docsStatus.textContent = docsLine(saved.docs) + " Saved.";
+            },
+        ),
+        docsStatus,
         h("h2", {}, "Backup"),
         h("p", { class: "muted" }, "One .tar.gz with this server's accounts, roles and settings, and every person's pi-phone data. It takes a while with many people. How to restore it: deploy/README.md."),
         h("a", { class: "button", href: "/auth/gw/backup", download: "" }, "Download a backup"),

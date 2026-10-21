@@ -666,6 +666,19 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
       - **Place:** mine, team, or a board's key; the default is the session's board, else mine.
       - **Who:** only this pi-phone's person; Pi's saves are "Pi (person)".
       - **Plan mode** allows the reads. A prompt section keeps documents apart from the wikis.
+    - **Search by meaning** (PP-49, `embeddings.ts`): each page is cut into passages (by heading, about 800 tokens,
+      title and folder in front), kept in `doc_chunks` with a hash of model and text, and embedded on OpenRouter in
+      batches of 32 after each save (`indexer`).
+      - **Kept:** only changed passages are embedded again; a new model embeds everything again (`doc_meta.model`).
+      - **Search:** keyword (FTS5) and cosine over the query's vector, merged by reciprocal rank fusion (k 60).
+        By meaning, only pages within 0.1 of the best match count (`NEAR`): measured on the devbox with
+        text-embedding-3-small, matches scored 0.25–0.55 and the rest 0.1 or more below; a fixed floor cut short queries.
+        Pages saved before passages existed are cut when the store opens.
+        A failed query embedding falls back to keyword search, with a log line.
+      - **Mine:** the wiki's embedding model plus the person's OpenRouter key; cost through `Para.chargeEmbedding`.
+      - **Team and projects:** the gateway's own model and key (`pp_setting` docs_model/docs_key), set on the
+        Server page; spend per month in `docs_spend_<month>`. The key is never answered back nor audited. Pi may
+        set the model (`team_server`) but never the key: `#teamCall` refuses `docsKey`.
   - **Each member's own environment** (PP-41):
     - **Places:** a member's places (their clone) are personal.
     - **Runs** stay in the runner's pi-phone, and are laid over the shared task there (`task.run`).

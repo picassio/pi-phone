@@ -470,7 +470,7 @@ export class Gateway {
             if (path === "/internal/docs" && request.method === "POST") {
                 const body = await readBody(request);
 
-                return json(response, 200, { value: this.#options.docs.call(box, body as never) ?? null });
+                return json(response, 200, { value: (await this.#options.docs.call(box, body as never)) ?? null });
             }
 
             if (path === "/internal/boards" && request.method === "POST") {
@@ -511,6 +511,11 @@ export class Gateway {
     async #teamCall(box: PersonBox, route: string, method: string, body: unknown): Promise<{ status: number; body: unknown }> {
         if (!Gateway.TEAM_ROUTES.some(([allowed, pattern]) => allowed === method && pattern.test(route))) {
             return { status: 403, body: { error: `Pi does not do ${method} ${route}: some things (passwords, exports, backups) are only people's, on the gateway's pages.` } };
+        }
+
+        // The server key for search in documents is set by a person on the Server page, never through Pi (PP-49).
+        if (route === "server" && method === "POST" && typeof body === "object" && body !== null && "docsKey" in body) {
+            return { status: 403, body: { error: "Pi does not set the server's OpenRouter key: the owner types it on the Server page." } };
         }
 
         const person = this.#options.store.users().find((each) => each.id === box.userId);
@@ -921,19 +926,38 @@ export class Gateway {
             }
 
             if (method === "POST") {
-                const minutes = Number((await readBody(request)).idleMinutes);
+                const body = await readBody(request);
 
-                if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440) {
-                    return json(response, 400, { error: "Idle minutes are a whole number from 0 (never stop) to 1440." });
+                if (body.idleMinutes !== undefined) {
+                    const minutes = Number(body.idleMinutes);
+
+                    if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440) {
+                        return json(response, 400, { error: "Idle minutes are a whole number from 0 (never stop) to 1440." });
+                    }
+
+                    store.setIdleMinutes(minutes);
+                    store.audit(actor, "server settings", undefined, { idleMinutes: minutes });
                 }
 
-                store.setIdleMinutes(minutes);
-                store.audit(actor, "server settings", undefined, { idleMinutes: minutes });
+                // Search by meaning in team and project documents (PP-49): an OpenRouter embedding model and the key.
+                if (body.docsModel !== undefined || body.docsKey !== undefined) {
+                    const model = body.docsModel === undefined ? undefined : body.docsModel === null || String(body.docsModel).trim() === "" ? null : String(body.docsModel).trim();
+                    const key = body.docsKey === undefined ? undefined : body.docsKey === null || String(body.docsKey).trim() === "" ? null : String(body.docsKey).trim();
+
+                    if (model !== undefined && model !== null && !/^[\w.-]+\/[\w.:-]+$/.test(model)) {
+                        return json(response, 400, { error: "The embedding model is an OpenRouter model's id, like openai/text-embedding-3-small." });
+                    }
+
+                    store.setDocsSearch({ ...(model === undefined ? {} : { model }), ...(key === undefined ? {} : { key }) });
+                    store.audit(actor, "server settings", undefined, { docsModel: store.docsSearch().model, docsKey: store.docsSearch().key === null ? "none" : "set" });
+                    this.#options.docs.reindex();
+                }
             }
 
             const listed = await this.#options.controller.list();
 
             return json(response, 200, {
+                docs: this.#options.docs.searchState(),
                 idleMinutes: store.idleMinutes(),
                 containers: { all: listed.length, running: listed.filter((each) => each.running).length, outdated: listed.filter((each) => !each.current).length },
             });

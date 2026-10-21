@@ -556,6 +556,11 @@ export class Para {
     }
 
     /** An embedding request's cost: what the provider said, else its tokens at the model's price on OpenRouter's list. */
+    /** What search by meaning in documents cost (PP-49): counted as the wiki's embeddings are, in Spend. */
+    async chargeEmbedding(usage: { model: string; tokens: number; cost?: number }): Promise<void> {
+        await this.#spent({ model: usage.model, promptTokens: usage.tokens, ...(usage.cost === undefined ? {} : { cost: usage.cost }) });
+    }
+
     async #spent(usage: { model: string; promptTokens: number; cost?: number }): Promise<void> {
         const price = usage.cost === undefined ? (await this.embeddingModels()).find((each) => each.id === usage.model)?.pricePerMillion : undefined;
 

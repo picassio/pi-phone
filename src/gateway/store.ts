@@ -314,6 +314,37 @@ export class GatewayStore {
         return (this.#db.prepare("SELECT user_id FROM pp_always_on").all() as { user_id: string }[]).map((row) => row.user_id);
     }
 
+    /**
+     * Search by meaning in team and project documents (PP-49): the server's OpenRouter key and embedding model, set by the
+     * owner on the Server page; used for nothing else. The key is never given back, only whether there is one.
+     */
+    docsSearch(): { key: string | null; model: string | null } {
+        return { key: this.#setting("docs_key") ?? null, model: this.#setting("docs_model") ?? null };
+    }
+
+    setDocsSearch(change: { key?: string | null; model?: string | null }): void {
+        for (const [name, value] of [["docs_key", change.key], ["docs_model", change.model]] as const) {
+            if (value === null) {
+                this.#db.prepare("DELETE FROM pp_setting WHERE name = ?").run(name);
+            } else if (value !== undefined) {
+                this.#set(name, value);
+            }
+        }
+    }
+
+    /** What the server key's embeddings cost in a month ("2026-10"): tokens, and dollars where OpenRouter said. */
+    docsSpend(month: string): { tokens: number; cost: number } {
+        const value = this.#setting(`docs_spend_${month}`);
+
+        return value === undefined ? { tokens: 0, cost: 0 } : (JSON.parse(value) as { tokens: number; cost: number });
+    }
+
+    addDocsSpend(month: string, tokens: number, cost: number): void {
+        const was = this.docsSpend(month);
+
+        this.#set(`docs_spend_${month}`, JSON.stringify({ tokens: was.tokens + tokens, cost: was.cost + cost }));
+    }
+
     /** Minutes without use after which a person's pi-phone stops (PP-33); 0: never. 30 until changed. */
     idleMinutes(): number {
         return Number(this.#setting("idle_minutes") ?? 30);

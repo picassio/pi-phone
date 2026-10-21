@@ -59,3 +59,25 @@ test("on the team server: the team's and shared boards' documents at the gateway
     assert.deepEqual((await docs.search("ship")).map((hit) => hit.scope).sort(), ["mine", "team"], "both places");
     docs.close();
 });
+
+test("Mine searched by meaning with the person's embedder: indexed after a save, the query embedded, both counted (PP-49)", async () => {
+    const dir = mkdtempSync(join(root, "docs-meaning-"));
+    const spent: number[] = [];
+    // Stand-in vectors: "deploy" and "ship" mean the same; anything else, another thing.
+    const embedder = {
+        model: "stand/in",
+        async embed(texts: string[]) {
+            return { vectors: texts.map((text) => (/deploy|ship/i.test(text) ? [1, 0] : [0, 1])), tokens: texts.length };
+        },
+    };
+    const docs = new Docs({ dataDir: dir, me: () => ME, teamServer: undefined, embedder: async () => embedder, spent: (usage) => spent.push(usage.tokens) });
+
+    await docs.call("mine", "write", [{ title: "Release", body: "Ship it on Fridays." }]);
+    await docs.call("mine", "write", [{ title: "Lunch", body: "Pizza." }]);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    assert.deepEqual(await docs.meaning(), { mine: true, team: null });
+    assert.deepEqual((await docs.search("deploy")).map((hit) => hit.title), ["Release"], "found by meaning, not words");
+    assert.ok(spent.length >= 2, "indexing and the query both counted");
+    docs.close();
+});

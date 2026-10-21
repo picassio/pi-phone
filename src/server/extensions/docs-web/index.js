@@ -226,9 +226,11 @@ export default function documents(pocket) {
 
     function Search({ query, go }) {
         const [hits, setHits] = useState(null);
+        const [meaning, setMeaning] = useState(null);
 
         useEffect(() => {
             pocket.api(`search?q=${encodeURIComponent(query)}`).then((answer) => setHits(answer.hits), failed);
+            pocket.api("meaning").then(setMeaning, () => setMeaning(null));
         }, [query]);
 
         if (hits === null) {
@@ -237,6 +239,14 @@ export default function documents(pocket) {
 
         return html`<div>
             <p class="pd-meta">${hits.length === 0 ? `Nothing matches “${query}”.` : `“${query}”: ${hits.length} ${hits.length === 1 ? "page" : "pages"}`}</p>
+            ${
+                meaning &&
+                (!meaning.mine || meaning.team === false) &&
+                html`<p class="pd-meta">
+                    ${!meaning.mine && "Yours are searched by keyword only: choose an embedding model in the wiki's settings (with OpenRouter signed in) to search them by meaning too. "}
+                    ${meaning.team === false && "The team's are searched by keyword only until the server's owner sets search in documents on the Server page."}
+                </p>`
+            }
             ${hits.map(
                 (hit) => html`<button class="pd-row pd-hit" key=${`${hit.scope}:${hit.pageId}`} onClick=${() => go({ kind: "page", scope: hit.scope, id: hit.pageId })}>
                     <span class="pd-row-title">${hit.title}</span>

@@ -209,3 +209,26 @@ test("team and project documents in the gateway, by each person's rights (PP-46)
     boards.call(store.box(ids.Owner!), { method: "remove", args: ["DOC"] });
     assert.match((await doc("Owner", "tree", ["project:DOC"])).error, /no project DOC/);
 });
+
+test("search in documents: Pi may set the model, never the key; the key is never answered back nor audited (PP-49)", async () => {
+    const before = (await team("Owner", "server", "GET")).body as { docs: { model: string | null; keySet: boolean } };
+
+    assert.deepEqual([before.docs.model, before.docs.keySet], [null, false]);
+    assert.match(String((await team("Owner", "server", "POST", { docsModel: "not a model" })).body.error), /OpenRouter model.s id/);
+
+    const refused = await team("Owner", "server", "POST", { docsKey: "sk-or-from-pi" });
+
+    assert.equal(refused.status, 403);
+    assert.match(String(refused.body.error), /Pi does not set the server.s OpenRouter key/);
+    assert.equal(store.docsSearch().key, null);
+
+    // The owner typed the key on the Server page; Pi sets the model.
+    store.setDocsSearch({ key: "sk-or-test-key" });
+    const saved = (await team("Owner", "server", "POST", { docsModel: "openai/text-embedding-3-small" })).body as { docs: Record<string, unknown> };
+
+    assert.deepEqual([saved.docs.model, saved.docs.keySet], ["openai/text-embedding-3-small", true]);
+    assert.ok(!JSON.stringify(saved).includes("sk-or-test-key"), "never answered back");
+    assert.ok(!JSON.stringify(store.auditLog()).includes("sk-or-test-key"), "never in the audit log");
+    assert.ok(store.auditLog().some((entry) => entry.details?.docsKey === "set"));
+    store.setDocsSearch({ key: null, model: null });
+});

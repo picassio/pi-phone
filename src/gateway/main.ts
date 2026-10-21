@@ -45,7 +45,7 @@ mkdirSync(boardsDir, { recursive: true });
 const auth = await makeAuth({ db, secret: store.authSecret(), origin });
 
 const boards = new BoardService(store, boardsDir);
-const docs = new DocService(store, boards, boardsDir);
+const docs = new DocService(store, boards, boardsDir, Date.now, (line) => console.error(line));
 const gateway = new Gateway({
     auth,
     store,

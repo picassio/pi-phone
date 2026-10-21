@@ -10,7 +10,8 @@
  */
 import { join } from "node:path";
 import { HttpError } from "./errors.ts";
-import { type Author, type DocHit, DocumentStore } from "./doc-store.ts";
+import { type Author, type DocHit, DocumentStore, indexer } from "./doc-store.ts";
+import type { Embedder } from "./embeddings.ts";
 import type { Projects } from "./projects.ts";
 
 export type DocScope = { id: string; name: string; write: boolean };
@@ -27,15 +28,31 @@ export type DocsOptions = {
     /** The phone's own boards, for their documents (no team server). */
     projects?: Projects;
     fetch?: typeof fetch;
+    /** Search by meaning here (PP-49): the person's OpenRouter key and embedding model, or undefined (keyword only). */
+    embedder?: () => Promise<Embedder | undefined>;
+    /** What embedding cost, for Spend. */
+    spent?: (usage: { model: string; tokens: number; cost?: number }) => void;
+    log?: (line: string) => void;
 };
 
 export class Docs {
     readonly #local: DocumentStore;
     readonly #options: DocsOptions;
+    /** Embed what is pending here (after a save, and once at the start). */
+    readonly #index: () => void;
 
     constructor(options: DocsOptions) {
         this.#options = options;
         this.#local = new DocumentStore(join(options.dataDir, "documents.sqlite"));
+        this.#index = indexer(this.#local, options.embedder ?? (async () => undefined), options.spent ?? (() => {}), options.log ?? (() => {}));
+        this.#index();
+    }
+
+    /** Whether search here, and at the team server, is by meaning too (else by keyword only). */
+    async meaning(): Promise<{ mine: boolean; team: boolean | null }> {
+        const mine = (await this.#options.embedder?.()) !== undefined;
+
+        return { mine, team: this.#options.teamServer === undefined ? null : ((await this.#remote("meaning", [])) as boolean) };
     }
 
     close(): void {
@@ -74,6 +91,10 @@ export class Docs {
         const withBy = ["write", "edit", "restore"].includes(method) ? [...args, by] : args;
         const value = docs[method]!.call(this.#local, local, ...withBy);
 
+        if (WRITES.has(method)) {
+            this.#index();
+        }
+
         return renamed(value, local, scope);
     }
 
@@ -82,9 +103,24 @@ export class Docs {
         const asked = scopes ?? (await this.scopes()).map((each) => each.id);
         const here = asked.filter((scope) => this.#localScope(scope) !== undefined);
         const there = asked.filter((scope) => this.#localScope(scope) === undefined);
-        const hits = this.#local.search(
+        const embedder = here.length === 0 ? undefined : await this.#options.embedder?.();
+        let vector: number[] | null = null;
+
+        if (embedder !== undefined) {
+            try {
+                const embedded = await embedder.embed([query]);
+
+                vector = embedded.vectors[0] ?? null;
+                this.#options.spent?.({ model: embedder.model, tokens: embedded.tokens, ...(embedded.cost === undefined ? {} : { cost: embedded.cost }) });
+            } catch (error) {
+                this.#options.log?.(`documents: the search's embedding failed, so it is by keyword: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+
+        const hits = this.#local.hybrid(
             here.map((scope) => this.#localScope(scope)!),
             query,
+            vector,
             20,
         ).map((hit) => ({ ...hit, scope: here.find((scope) => this.#localScope(scope) === hit.scope) ?? hit.scope }));
 
