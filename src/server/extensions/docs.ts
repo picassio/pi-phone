@@ -25,6 +25,8 @@ export default function createDocs(host: PocketHost, web: ExtensionWeb) {
         ...(projects === undefined ? {} : { projects }),
     });
 
+    // The Documents page (`docs-web/`): this pi-phone's person's.
+    web.client("docs-web");
     web.onDispose(() => {
         docs.close();
         projects?.close();

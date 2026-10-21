@@ -129,6 +129,11 @@ No Termux, no laptop, no cloud VM.
   contains one shows `[secret NAME]`. Pi asks for a missing one through a hidden field.
 - **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
   search, tracks its open questions until they are answered, and captures idle sessions into it.
+- **Documents** (rail › Documents): your documents in folders, as markdown pages rendered like the wiki.
+  - **Pages:** `[[links]]` between pages, the pages that link back, every saved version to look at and restore,
+    deleted pages to bring back, and search across all of them.
+  - **Where:** Mine, and each board's (a board's **Docs** opens them). On the team server there are Team documents
+    too, edited by roles with "Edit team documents".
 
 ### Other machines
 - **Work on other machines.** Add an SSH key and a machine (Settings › SSH keys, Machines). A session on a machine

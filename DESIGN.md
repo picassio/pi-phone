@@ -716,6 +716,8 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   - Links: `/?page=<module>:<page>` opens an extension's page once its module is ready (`openPageWhenReady` in
     `extension-ui.js`: opened earlier, the module list would close it); `#task:PP-3` opens a task, from a link anywhere
     or the address (asked again until the sheet shows, as the linked page's opening closes sheets).
+  - `pocket.openPageOf(module, page)` opens another module's page (never its sheets), once that module is ready. A
+    board's Docs button uses it to open Documents on the board's place (PP-47).
 
 ## 5. Build
 

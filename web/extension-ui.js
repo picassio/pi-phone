@@ -889,6 +889,19 @@ function pocketFor(record) {
                 openPage(record.module, id);
             }
         },
+        // Another module's page, by its module's name and the page's id (a board's Docs opens Documents, PP-47): a page
+        // only, never another module's sheet, and only while this version is loaded.
+        openPageOf(module, id) {
+            tick(record);
+
+            if (!isId(module) || !isId(id)) {
+                throw new Error("pocket.openPageOf: give it a module's name and the id of one of its pages");
+            }
+
+            if (change()) {
+                openPageWhenReady(module, id);
+            }
+        },
         closePage() {
             tick(record);
 

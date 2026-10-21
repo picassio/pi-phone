@@ -300,6 +300,17 @@ export default function projects(pocket) {
                 </div>
                 <span class="pj-sp"></span>
                 <button class="button small ghost" title="Tasks given to you or your Pi, on every board" onClick=${() => pocket.openSheet("mine")}>Mine</button>
+                <button
+                    class="button small ghost"
+                    title="This board's documents"
+                    onClick=${() => {
+                        // The Documents page opens on the place it finds here (PP-47).
+                        localStorage.setItem("pi-phone.docs.place", `project:${key}`);
+                        pocket.openPageOf("docs", "docs");
+                    }}
+                >
+                    Docs
+                </button>
                 <button class="icon-button" title="Project settings" aria-label="Project settings" onClick=${() => pocket.openSheet("project", { project: key })}>
                     ${svg("M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6", 18)}
                 </button>
