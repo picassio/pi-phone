@@ -63,9 +63,12 @@ export class Places {
     readonly #remote = new Map<string, RemoteExecutionEnv>();
     /** The phone's own pi-env daemon, for terminals here; started on the first one. */
     #localDaemon: Connection | undefined;
+    /** The PATH of every command run on the phone, read as each one starts: the app's tools (pi-ssh, officecli) first. */
+    readonly #path: () => string;
 
-    constructor(machines: Machines) {
+    constructor(machines: Machines, path: () => string) {
         this.#machines = machines;
+        this.#path = path;
     }
 
     /** The execution environment of a cwd. A machine's needs the machine connected (`Machines.ready`). */
@@ -76,7 +79,18 @@ export class Places {
             let env = this.#local.get(place.path);
 
             if (env === undefined) {
-                env = new NodeExecutionEnv({ cwd: place.path });
+                const path = this.#path;
+
+                // Read as each command starts (the environment spreads it then), so officecli counts once installed: the
+                // bash tool, secret_save, goals' checks and schedules' commands all find the same tools (PP-30).
+                env = new NodeExecutionEnv({
+                    cwd: place.path,
+                    shellEnv: {
+                        get PATH() {
+                            return path();
+                        },
+                    },
+                });
                 this.#local.set(place.path, env);
             }
 

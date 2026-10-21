@@ -25,6 +25,7 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "ask for a key": ["secret_request", { name: "NEW_KEY", description: "The test service's key" }],
     "save a key": ["secret_save", { name: "MADE_KEY", command: "printf 'generated-%s-%s' abcdefgh 123", description: "made by a command" }],
     "list them": ["secrets_list", {}],
+    "save over the app's ssh": ["secret_save", { name: "SSH_MADE", command: "pi-ssh-fake devbox 'cat token'", description: "read over pi-ssh" }],
 };
 
 const route: FauxResponseStep = (request) => {
@@ -195,6 +196,20 @@ test("secret_save keeps a command's output as a secret without showing it", asyn
     assert.ok(!(await modelTexts(app, id)).join("\n").includes("generated-abcdefgh-123"));
     assert.deepEqual(app.secrets.environment(["MADE_KEY"], work), { MADE_KEY: "generated-abcdefgh-123" });
     assert.match(readFileSync(join(root, "data", "secrets.json"), "utf8"), /generated-abcdefgh-123/, "in the store's file");
+});
+
+test("secret_save's command finds the app's tools, as bash does: pi-ssh's folder is on its PATH (PP-30)", async () => {
+    // A stand-in for pi-ssh, in the folder pi-ssh lives in.
+    const bin = join(app.machines.piSsh, "..");
+
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, "pi-ssh-fake"), "#!/bin/sh\nprintf 'from-%s-%s' \"$1\" over-ssh\n", { mode: 0o755 });
+
+    const id = await newSession(app);
+    const answer = await turn(id, "save over the app's ssh");
+
+    assert.match(answer, /Saved SSH_MADE/);
+    assert.deepEqual(app.secrets.environment(["SSH_MADE"], work), { SSH_MADE: "from-devbox-over-ssh" });
 });
 
 test("Pi's browser names the secrets it types, for the folder and ask-first rules (PP-32)", async () => {

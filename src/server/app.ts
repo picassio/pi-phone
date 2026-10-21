@@ -451,7 +451,7 @@ export class PocketApp {
         this.machines = new Machines(options.dataDir, this.sshKeys, sshDir, this.sshAgent, this.#home, () =>
             void this.#refreshClients().catch((error: unknown) => this.log(`machines not sent to the tabs: ${describe(error)}`)),
         );
-        this.places = new Places(this.machines);
+        this.places = new Places(this.machines, () => this.#toolPath());
         this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
         const phoneSettings = new PhoneSettingsFile(options.dataDir);
 
@@ -630,9 +630,7 @@ export class PocketApp {
 
                             // On the phone, `pi-ssh` (the app's machines, through its agent) and `officecli` are on the PATH.
                             if (!isRemote(cwd)) {
-                                const office = this.officecli.available() ? `${this.officecli.binDir}:` : "";
-
-                                execution.env.PATH = `${office}${join(this.machines.piSsh, "..")}:${process.env.PATH ?? ""}`;
+                                execution.env.PATH = this.#toolPath();
                             } else {
                                 // On a machine, the tools pi-phone installed there come first (`machine-tools.ts`).
                                 execution.command = `PATH="$HOME/${TOOLS_BIN}:$PATH"; export PATH\n${execution.command}`;
@@ -3695,6 +3693,13 @@ export class PocketApp {
     // ─── Browser ────────────────────────────────────────────────────────────
 
     // ─── Shutdown ───────────────────────────────────────────────────────────
+
+    /** The PATH of commands on the phone: `officecli` when installed and `pi-ssh` (the app's machines, through its agent) first. */
+    #toolPath(): string {
+        const office = this.officecli.available() ? `${this.officecli.binDir}:` : "";
+
+        return `${office}${join(this.machines.piSsh, "..")}:${process.env.PATH ?? ""}`;
+    }
 
     close(): Promise<void> {
         this.#closing ??= (async () => {
