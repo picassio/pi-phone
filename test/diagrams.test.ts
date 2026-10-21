@@ -11,7 +11,7 @@ test("pele is served to the web app as one module, and the import map names it",
 
     assert.ok(existsSync(file), file);
     assert.doesNotMatch(readFileSync(file, "utf8"), /^import |\bfrom "\.\//m, "no imports of its own");
-    assert.match(readFileSync(new URL("../web/index.html", import.meta.url), "utf8"), /"pele": "\/vendor\/pele\.mjs"/);
+    assert.match(readFileSync(new URL("../web/index.html", import.meta.url), "utf8"), /"pele": "\.\/vendor\/pele\.mjs"/);
 });
 
 test("pele draws flowcharts, sequences, and charts as SVG without scripts, and says where a diagram is wrong", () => {

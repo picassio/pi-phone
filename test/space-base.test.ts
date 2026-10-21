@@ -42,6 +42,12 @@ test("the page's base: a shared space's under the gateway, '/' otherwise", () =>
 });
 
 test("the page's own paths are relative, so they resolve under its base", () => {
+    // Import-map addresses must start with ./ (a bare "vendor/x.mjs" is invalid there and blocks the module).
+    const html0 = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
+    const map = JSON.parse(/<script type="importmap">([\s\S]*?)<\/script>/.exec(html0)![1]!) as { imports: Record<string, string> };
+
+    assert.ok(Object.values(map.imports).every((address) => address.startsWith("./")), JSON.stringify(map.imports));
+
     const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
     const own = [...html.matchAll(/(?:href|src)="([^"]+)"|"(\/vendor\/[^"]+)"|url\("([^"]+)"\)/g)].map((match) => match[1] ?? match[2] ?? match[3]);
 
