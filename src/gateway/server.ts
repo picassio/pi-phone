@@ -476,7 +476,7 @@ export class Gateway {
 
             // Sessions this pi-phone's person shares, and what is shared with them (PP-55).
             if (path === "/internal/shares" && request.method === "POST") {
-                return json(response, 200, { value: this.#shares(box, await readBody(request)) });
+                return json(response, 200, { value: await this.#shares(box, await readBody(request)) });
             }
 
             if (path === "/internal/boards" && request.method === "POST") {
@@ -503,7 +503,7 @@ export class Gateway {
      * whole list, with the scoped account's token in their pi-phone), what they share, and what is shared with them.
      * Sharing more needs "Share a chat session"; taking a share away never does.
      */
-    #shares(box: PersonBox, asked: Record<string, unknown>): unknown {
+    async #shares(box: PersonBox, asked: Record<string, unknown>): Promise<unknown> {
         const store = this.#options.store;
         const me = store.users().find((each) => each.id === box.userId);
 
@@ -561,8 +561,46 @@ export class Gateway {
 
                     return key === undefined ? [] : [{ sharer: names.get(each.sharer) ?? "Someone", level: each.level, sessions: each.sessions.map((session) => ({ ...session, url: `/space/${key}/${each.level}/s/${session.id}` })) }];
                 });
+            case "copy": {
+                // Continue in my space (PP-59): a session shared with this person, as a Pi session file from the sharer's
+                // pi-phone (started if it was stopped), for their own pi-phone to continue on their own providers.
+                const sharerBox = store.boxByKey(String(asked.key ?? ""));
+                const sharer = sharerBox === undefined ? undefined : store.users().find((each) => each.id === sharerBox.userId);
+                const level = asked.level === "write" || asked.level === "watch" ? asked.level : undefined;
+                const session = String(asked.session ?? "");
+                const shared = sharer === undefined || sharer.banned || level === undefined ? undefined : store.space(sharer.id, me.id, level);
+
+                if (sharer === undefined || shared === undefined || !shared.sessions.some((each) => each.id === session)) {
+                    throw new HttpError(404, "That session is not shared with you.");
+                }
+
+                const upstream = await this.#upstream(sharer);
+                const copy = await new Promise<{ title: string; text: string }>((resolve, reject) => {
+                    const call = httpRequest(
+                        { host: upstream.host, port: upstream.port, method: "GET", path: `/api/x/sharing/export/${session}`, timeout: 30_000, headers: { host: `${upstream.host}:${upstream.port}`, authorization: `Bearer ${upstream.token}`, "x-pocket": "1" } },
+                        (answer) => {
+                            const chunks: Buffer[] = [];
+
+                            answer.on("data", (chunk: Buffer) => chunks.push(chunk));
+                            answer.on("end", () => {
+                                const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as { title?: string; text?: string; error?: string };
+
+                                return answer.statusCode === 200 && typeof body.text === "string" ? resolve({ title: String(body.title ?? ""), text: body.text }) : reject(new HttpError(answer.statusCode ?? 502, body.error ?? "The sharer's pi-phone did not give the session."));
+                            });
+                        },
+                    );
+
+                    call.on("timeout", () => call.destroy(new HttpError(504, "The sharer's pi-phone took too long.")));
+                    call.on("error", reject);
+                    call.end();
+                });
+
+                store.audit(me.id, "session continued", sharer.id, { session, title: copy.title });
+
+                return copy;
+            }
             default:
-                throw new HttpError(400, "Shares are teammates, put, shared or mine.");
+                throw new HttpError(400, "Shares are teammates, put, shared, mine or copy.");
         }
     }
 

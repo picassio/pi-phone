@@ -289,6 +289,36 @@ export class PiHandoff {
      * Continue the session in Pi: at `place` (a folder on a machine), a new file; without, the linked file, with the
      * session's messages since. Answers the file there.
      */
+    /**
+     * A session as a Pi session file, for a teammate to continue in their own pi-phone (PP-59): its messages as the model
+     * has them now, its model, thinking level and title. Works while Pi works there: the copy is what was said so far.
+     */
+    async sessionFile(id: ConversationId): Promise<{ title: string; text: string }> {
+        const view = await this.#view(id);
+        const messages = messagesOf(view);
+
+        if (modelTail(view) === undefined) {
+            throw new HttpError(400, "This session has no messages yet.");
+        }
+
+        const agent = await (await this.#app.harness.conversation(id, context))!.agent(context);
+        const title = this.#app.sessionMeta(id)?.title ?? "Shared session";
+        const now = new Date().toISOString();
+        let text = line({ type: "session", version: CURRENT_SESSION_VERSION, id: crypto.randomUUID(), timestamp: now, cwd: this.#app.cwdOf(id) });
+        let parent: string | null = null;
+
+        if (agent.model !== undefined) {
+            text += line({ type: "model_change", id: "pp-model", parentId: parent, timestamp: now, provider: agent.model.provider, modelId: agent.model.modelId });
+            parent = "pp-model";
+        }
+
+        text += line({ type: "thinking_level_change", id: "pp-thinking", parentId: parent, timestamp: now, thinkingLevel: agent.thinkingLevel });
+        text += line({ type: "session_info", id: "pp-name", parentId: "pp-thinking", timestamp: now, name: title });
+        text += messageLines(messages, "pp-name", new Map()).text;
+
+        return { title, text };
+    }
+
     async continueInPi(user: User, id: ConversationId, place?: string): Promise<{ machine: string; path: string; cwd: string }> {
         const { link } = this.#check(user, id);
 

@@ -264,6 +264,12 @@ export interface PocketHost {
      * (answering its token, once) or changes one: Can write is `guest`, Can watch is `viewer`, each limited to
      * `sessions`; `budget` is their spend limit (null: none). `remove` ends it, and its open pages, at once.
      */
+    readonly sharedCopy: {
+        /** A session as a Pi session file (PP-59), for the gateway to hand to a teammate. */
+        export(session: number): Promise<{ title: string; text: string }>;
+        /** A Pi session file from a teammate's shared session, continued here as a new session in the default folder. */
+        import(name: string, text: string): Promise<{ id: number }>;
+    };
     readonly teammates: {
         save(account: { id?: string; name: string; role: "guest" | "viewer"; sessions: string[]; budget?: number | null }): { id: string; token?: string };
         remove(id: string): void;

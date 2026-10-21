@@ -29,6 +29,8 @@ let upstreamPort = 0;
 let gateway: Server;
 let origin = "";
 let store: GatewayStore;
+let internal: Server;
+let internalAddress = "";
 
 const controller: ControllerClient = {
     ensure: async (key, _token, caps) => {
@@ -58,6 +60,15 @@ before(async () => {
             return;
         }
 
+        // A shared session as a Pi session file (PP-59), asked by the gateway with the sharer's own token.
+        if ((request.url ?? "").startsWith("/api/x/sharing/export/")) {
+            asked.push({ path: request.url ?? "/", headers: request.headers });
+            response.writeHead(200, { "content-type": "application/json" });
+            response.end(JSON.stringify({ title: "Release plan", text: '{"type":"session"}\n' }));
+
+            return;
+        }
+
         asked.push({ path: request.url ?? "/", headers: request.headers });
         response.writeHead(200, { "content-type": "text/plain", "set-cookie": "pocket_auth=leak; Path=/" });
         response.end(`pi-phone for ${request.headers.authorization}`);
@@ -78,10 +89,15 @@ before(async () => {
     const handler = new Gateway({ auth, store, controller, ...served(store), origin, log: (line) => console.error(line) });
 
     gateway.on("request", (request, response) => void handler.handle(request, response));
+    // The internal port, for people's pi-phones (PP-59 asks it for a copy).
+    internal = createServer((request, response) => void handler.internal(request, response));
+    await new Promise<void>((resolve) => internal.listen(0, "127.0.0.1", resolve));
+    internalAddress = `http://127.0.0.1:${(internal.address() as { port: number }).port}`;
     gateway.on("upgrade", (request, socket, head) => void handler.upgrade(request, socket, head));
 });
 
 after(() => {
+    internal?.close();
     upstream?.close();
     gateway?.closeAllConnections();
     gateway?.close();
@@ -419,6 +435,17 @@ test("shared sessions (PP-56): /space/<key>/<level>/ opens the sharer's pi-phone
     const shared = (await mai.go("/auth/gw/shared")).data.sessions as { title: string; level: string; by: string; url: string }[];
 
     assert.deepEqual(shared, [{ title: "Release plan", level: "write", by: "Tuan", url: `/space/${key}/write/s/7` }]);
+
+    // Continue in my space (PP-59): Mai's pi-phone asks the internal port for a copy of a session shared with her.
+    const copy = (session: string) =>
+        fetch(`${internalAddress}/internal/shares`, { method: "POST", headers: { authorization: `Bearer ${store.box(maiId).token}`, "content-type": "application/json" }, body: JSON.stringify({ method: "copy", key, level: "write", session }) });
+    const copied = (await (await copy("7")).json()) as { value: { title: string; text: string } };
+
+    assert.deepEqual(copied.value, { title: "Release plan", text: '{"type":"session"}\n' });
+    assert.equal(asked.at(-1)?.path, "/api/x/sharing/export/7");
+    assert.equal(asked.at(-1)?.headers.authorization, `Bearer ${store.box(tuan.id).token}`, "the sharer's own pi-phone, asked by the gateway");
+    assert.equal((await copy("8")).status, 404, "only a session shared with her");
+    assert.ok(store.auditLog().some((entry) => entry.action === "session continued" && entry.actor === maiId && entry.target === tuan.id));
 
     // Unshared: gone at once.
     store.putSpace(tuan.id, maiId, "write", "scoped-token-of-mai-in-tuans-pi-phone", []);

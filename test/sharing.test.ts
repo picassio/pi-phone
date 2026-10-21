@@ -2,7 +2,7 @@
 // (Can write: a guest, Can watch: a viewer), limited to the sessions shared that way, and sends the gateway that list
 // with the account's token; a second session joins the same account; a spend limit goes on the writer; the token signs
 // in as that account only; unsharing takes the session away and the account with its last one; only the owner shares.
-import { cleanUp, home, root, scriptedModel, work } from "./helpers.ts";
+import { cleanUp, home, modelTexts, newSession, root, say, scriptedModel, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
@@ -136,4 +136,28 @@ test("a teammate never writes files, runs shell commands, or allows calls; Pi us
     assert.equal((await call(OWNER, "share", { session: notes, teammate: "u-lan", level: "write", machines: true })).status, 200);
     assert.equal(mayUseMachines(fake(lan.id), Number(notes)), true, "switch on for that share");
     assert.equal(mayUseMachines({ teamServer: undefined, requesterOf: () => lan.id } as never, Number(notes)), true, "the phone has no shares");
+});
+
+test("Continue in my space (PP-59): a shared session as a Pi session file, continued as a new session with its messages", async () => {
+    const id = await newSession(app as never);
+
+    await app.commands.updateSession(id, app.config.users.find((each) => each.role === "owner")!, { title: "To carry on" });
+    await say(app as never, id, "remember the number 4242");
+    // Only a shared session leaves this pi-phone.
+    assert.equal((await call(OWNER, `export/${id}`)).status, 404);
+    assert.equal((await call(OWNER, "share", { session: String(id), teammate: "u-mai", level: "watch" })).status, 200);
+
+    const exported = (await (await call(OWNER, `export/${id}`)).json()) as { title: string; text: string };
+
+    assert.equal(exported.title, "To carry on");
+    assert.match(exported.text, /^\{"type":"session"/);
+    assert.match(exported.text, /remember the number 4242/);
+
+    // The teammate's pi-phone continues it: a new session here with the same messages.
+    const owner = app.config.users.find((each) => each.role === "owner")!;
+    const { path } = await app.piSessions.import(owner, "shared-copy.jsonl", Buffer.from(exported.text));
+    const { id: copy } = await app.commands.continuePiSession(owner, path, work);
+
+    assert.notEqual(Number(copy), Number(id));
+    assert.match(JSON.stringify(await modelTexts(app as never, copy)), /remember the number 4242/);
 });

@@ -123,6 +123,18 @@ export default function sharing(pocket) {
 
     function SharedSheet() {
         const [shared, setShared] = useState(null);
+        const [copying, setCopying] = useState(null);
+        // Continue in my space: a copy here, on your own providers; the session it came from stays as it is.
+        const carryOn = (url) => {
+            setCopying(url);
+            pocket
+                .api("continue", { url })
+                .then((made) => {
+                    pocket.notify("info", `Continued "${made.title}" here.`);
+                    location.href = `s/${made.id}`;
+                }, failed)
+                .finally(() => setCopying(null));
+        };
 
         useEffect(() => {
             pocket.api("mine").then((answer) => setShared(answer.shared), failed);
@@ -140,12 +152,15 @@ export default function sharing(pocket) {
 
         return html`<div class="sheet-list">
             ${sessions.map(
-                (session) => html`<a class="setting-row sh-link" key=${session.url} href=${session.url}>
-                    <div class="setting-text">
+                (session) => html`<div class="setting-row sh-row" key=${session.url}>
+                    <a class="setting-text sh-link" href=${session.url}>
                         <span>${session.title}</span>
                         <span>${session.level === "write" ? "You can write" : "You can watch"} · shared by ${session.sharer}</span>
-                    </div>
-                </a>`,
+                    </a>
+                    <button class="button small" disabled=${copying !== null} title="A copy in your pi-phone, on your own providers" onClick=${() => carryOn(session.url)}>
+                        ${copying === session.url ? "Copying…" : "Continue in mine"}
+                    </button>
+                </div>`,
             )}
         </div>`;
     }

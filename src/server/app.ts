@@ -809,6 +809,16 @@ export class PocketApp {
             },
             sessionTitle: (session) => this.sessionMeta(session as unknown as ConversationId)?.title,
             sessionMachine: (session) => (this.sessionMeta(session as unknown as ConversationId) === undefined ? undefined : this.places.machineOf(this.cwdOf(session as unknown as ConversationId))?.name),
+            sharedCopy: {
+                export: (session) => this.piHandoff.sessionFile(session as unknown as ConversationId),
+                import: async (name, text) => {
+                    const owner = this.config.users.find((user) => user.role === "owner")!;
+                    const { path } = await this.piSessions.import(owner, name, Buffer.from(text));
+                    const { id } = await this.commands.continuePiSession(owner, path, this.defaultCwd);
+
+                    return { id: Number(id) };
+                },
+            },
             teammates: {
                 save: (account) => this.#saveTeammate(account),
                 remove: (id) => {

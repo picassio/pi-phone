@@ -156,6 +156,33 @@ export class Sharing {
         await this.#sync(state, teammate, name, pi);
     }
 
+    /** A shared session as a Pi session file (PP-59), for the gateway to give a teammate; only one that is shared. */
+    async exportShared(session: string): Promise<{ title: string; text: string }> {
+        if (this.#state.load().sessions[session] === undefined) {
+            throw new HttpError(404, "That session is not shared.");
+        }
+
+        return this.#host.sharedCopy.export(Number(session));
+    }
+
+    /**
+     * Continue in my space (PP-59): a session a teammate shares with this person (its /space/ address), copied from their
+     * pi-phone through the gateway, as a new session here on this person's own providers.
+     */
+    async continueShared(url: string): Promise<{ id: number; title: string }> {
+        const match = /^\/space\/([A-Za-z0-9_-]{6,64})\/(write|watch)\/s\/(\d+)$/.exec(url);
+
+        if (match === null) {
+            throw new HttpError(400, "A shared session's address: /space/<key>/<write|watch>/s/<id>.");
+        }
+
+        const [, key, level, session] = match;
+        const copy = (await gateway(this.#host, { method: "copy", key, level, session })) as { title: string; text: string };
+        const { id } = await this.#host.sharedCopy.import(`shared-${key}-${session}-${Date.now()}.jsonl`, copy.text);
+
+        return { id, title: copy.title };
+    }
+
     /** What is shared with this person, from the gateway. */
     async mine(): Promise<unknown> {
         return gateway(this.#host, { method: "mine" });
@@ -256,4 +283,7 @@ export default function createSharing(host: PocketHost, web: ExtensionWeb) {
         })),
     );
     web.route("GET", "mine", (request) => (mine(request), answer(async () => ({ shared: await sharing.mine() }))));
+    // For the gateway, with this pi-phone's own token: a shared session for a teammate's Continue in my space.
+    web.route("GET", "export/:id", (request) => (mine(request), answer(async () => sharing.exportShared(request.params.id!))));
+    web.route("POST", "continue", (request) => (mine(request), answer(async () => sharing.continueShared(String(request.body.url ?? "")))));
 }
