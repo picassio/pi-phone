@@ -574,12 +574,23 @@ async function auditPage(me) {
 // ─── Shared with me ───
 
 async function sharedPage(me) {
-    const { boards } = await gw("shared");
+    const { boards, sessions } = await gw("shared");
 
     page(
         "Shared with me",
-        "Boards others shared with you, and the team's boards you're on. Each opens in your own pi-phone, where your Pi works on it in your own copy of the code.",
+        "Sessions others share with you open in their pi-phone, on their providers: you watch, or write if they let you. Boards open in your own pi-phone, where your Pi works on them in your own copy of the code.",
         nav(me),
+        h("h2", {}, "Sessions"),
+        h(
+            "div",
+            { class: "list" },
+            sessions.length === 0
+                ? h("p", { class: "muted" }, "Nothing yet.")
+                : sessions.map((session) =>
+                      h("a", { class: "card", href: session.url }, h("b", {}, session.title), h("div", { class: "muted" }, `${session.level === "write" ? "You can write" : "You can watch"} · shared by ${session.by}`)),
+                  ),
+        ),
+        h("h2", {}, "Boards"),
         h(
             "div",
             { class: "list" },

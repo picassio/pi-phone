@@ -31,12 +31,12 @@ test("the page's base: a shared space's under the gateway, '/' otherwise", () =>
     assert.match(own.body, /<link rel="manifest"/);
     assert.match(own.policy, /base-uri 'self'/);
 
-    const space = page("/space/04656eb7cba9cf09cd17a8e1/");
+    const space = page("/space/04656eb7cba9cf09cd17a8e1/write/");
 
-    assert.match(space.body, /<base href="\/space\/04656eb7cba9cf09cd17a8e1\/" \/>/);
+    assert.match(space.body, /<base href="\/space\/04656eb7cba9cf09cd17a8e1\/write\/" \/>/);
     assert.doesNotMatch(space.body, /rel="manifest"/, "no install of the sharer's app");
 
-    for (const wrong of ["/elsewhere/", "https://evil.example/", "/space/x/", "/space/../"]) {
+    for (const wrong of ["/elsewhere/", "https://evil.example/", "/space/x/write/", "/space/04656eb7cba9cf09cd17a8e1/", "/space/04656eb7cba9cf09cd17a8e1/edit/"]) {
         assert.match(page(wrong).body, /<base href="\/" \/>/, wrong);
     }
 });

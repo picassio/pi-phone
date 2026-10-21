@@ -808,6 +808,17 @@ export class PocketApp {
                 return { code: result.value.exitCode ?? -1, stdout, stderr };
             },
             sessionTitle: (session) => this.sessionMeta(session as unknown as ConversationId)?.title,
+            sessionMachine: (session) => (this.sessionMeta(session as unknown as ConversationId) === undefined ? undefined : this.places.machineOf(this.cwdOf(session as unknown as ConversationId))?.name),
+            teammates: {
+                save: (account) => this.#saveTeammate(account),
+                remove: (id) => {
+                    if (this.config.userById(id)?.role !== "owner") {
+                        this.#forget(id);
+                        this.#peopleChanged();
+                    }
+                },
+                exists: (id) => this.config.userById(id) !== undefined,
+            },
             sessionState: (session) => this.sessionState(session as unknown as ConversationId),
             lastAnswer: (session) => this.lastAnswer(session as unknown as ConversationId),
             settleSession: async (session, reason, ifUnset = false) => {
@@ -2996,6 +3007,31 @@ export class PocketApp {
                 this.#forget(user.id);
             }
         }
+    }
+
+    /** A teammate's scoped account (PP-55), made or changed; its open pages hear of the change at once. */
+    #saveTeammate(account: { id?: string; name: string; role: "guest" | "viewer"; sessions: string[]; budget?: number | null }): { id: string; token?: string } {
+        const sessions = account.sessions.filter((id) => this.#sessions[id] !== undefined);
+        const budget = account.budget === null || account.budget === undefined ? undefined : account.budget;
+        const known = account.id === undefined ? undefined : this.config.userById(account.id);
+
+        if (known !== undefined && known.role !== "owner") {
+            this.config.updateUser(known.id, { name: account.name, role: account.role, sessions, budget });
+            void this.#refreshUser(known.id);
+            this.#peopleChanged();
+
+            return { id: known.id };
+        }
+
+        const made = this.config.addUser(account.name, account.role, sessions);
+
+        if (budget !== undefined) {
+            this.config.updateUser(made.user.id, { budget });
+        }
+
+        this.#peopleChanged();
+
+        return { id: made.user.id, token: made.token };
     }
 
     #forget(userId: string): void {

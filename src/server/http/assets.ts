@@ -171,7 +171,7 @@ function appPolicy(html: string): string {
 }
 
 /** A shared space's address (PP-54), as the team server's gateway sends it: `/space/<key>/`. */
-const SPACE_BASE = /^\/space\/[A-Za-z0-9_-]{6,64}\/$/;
+const SPACE_BASE = /^\/space\/[A-Za-z0-9_-]{6,64}\/(write|watch)\/$/;
 
 /**
  * The app page, with its content security policy. Under `base` (a teammate opening a session shared with them, through

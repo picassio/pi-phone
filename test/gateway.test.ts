@@ -375,3 +375,52 @@ test("hardening (PP-26): the gateway's changes only from its own pages; failed a
     assert.equal(blocked.length, 1);
     assert.deepEqual(blocked[0]?.details, { ip: "203.0.113.8", path: "/sign-in/email" });
 });
+
+test("shared sessions (PP-56): /space/<key>/<level>/ opens the sharer's pi-phone as the teammate's scoped account, and nothing else", async () => {
+    const owner = browser();
+
+    assert.equal((await owner.go("/auth/api/sign-in/email", { email: "tuan@example.com", password: "a long password 1" })).status, 200);
+    const tuan = (await owner.go("/auth/gw/state")).data.me as { id: string };
+    // A teammate, by invite.
+    const invite = (await owner.go("/auth/gw/invites", { role: "member", minutes: 60 })).data as { code: string };
+    const mai = browser();
+
+    assert.equal((await mai.go(`/auth/gw/invite/${invite.code}`, { name: "Mai", email: "mai@example.com", password: "mai's long password" })).status, 200);
+    assert.equal((await mai.go("/auth/api/sign-in/email", { email: "mai@example.com", password: "mai's long password" })).status, 200);
+    const maiId = ((await mai.go("/auth/gw/state")).data.me as { id: string }).id;
+    const key = store.box(tuan.id).key;
+
+    // Nothing shared yet: no such page, whatever exists.
+    assert.equal((await mai.go(`/space/${key}/write/`)).status, 404);
+    assert.equal((await mai.go(`/space/${key}/nonsense/`)).status, 404);
+    assert.equal((await mai.go("/space/nobody123456/write/")).status, 404);
+
+    // Tuan's pi-phone shared session 7 with Mai, Can write, through a scoped account.
+    store.putSpace(tuan.id, maiId, "write", "scoped-token-of-mai-in-tuans-pi-phone", [{ id: "7", title: "Release plan", machines: false }]);
+    asked.length = 0;
+    assert.equal((await mai.go(`/space/${key}/write`)).status, 303, "the base's last slash first");
+    const opened = await mai.go(`/space/${key}/write/s/7?chat=1`);
+
+    assert.equal(opened.data.text, "pi-phone for Bearer scoped-token-of-mai-in-tuans-pi-phone", "as the scoped account, never Tuan's own token");
+    assert.equal(asked.at(-1)?.path, "/s/7?chat=1", "the path under the prefix");
+    assert.equal(asked.at(-1)?.headers["x-pocket-base"], `/space/${key}/write/`);
+    assert.equal((await mai.go(`/space/${key}/watch/`)).status, 404, "not shared at that level");
+    assert.equal((await mai.go(`/space/${key}/write/login`)).status, 403, "pi-phone's own sign-in routes stay refused");
+    assert.equal((await owner.go(`/space/${key}/write/`)).status, 404, "not your own space");
+
+    // A browser can't set the base on its own pi-phone requests.
+    asked.length = 0;
+    await mai.go("/", undefined, "GET");
+    const plain = asked.at(-1);
+
+    assert.equal(plain?.headers["x-pocket-base"], undefined);
+
+    // Shared with me lists it, with its address.
+    const shared = (await mai.go("/auth/gw/shared")).data.sessions as { title: string; level: string; by: string; url: string }[];
+
+    assert.deepEqual(shared, [{ title: "Release plan", level: "write", by: "Tuan", url: `/space/${key}/write/s/7` }]);
+
+    // Unshared: gone at once.
+    store.putSpace(tuan.id, maiId, "write", "scoped-token-of-mai-in-tuans-pi-phone", []);
+    assert.equal((await mai.go(`/space/${key}/write/s/7`)).status, 404);
+});

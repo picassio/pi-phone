@@ -1,0 +1,114 @@
+// Sharing sessions from a pi-phone on the team server (PP-55): sharing makes a scoped account per teammate and level
+// (Can write: a guest, Can watch: a viewer), limited to the sessions shared that way, and sends the gateway that list
+// with the account's token; a second session joins the same account; a spend limit goes on the writer; the token signs
+// in as that account only; unsharing takes the session away and the account with its last one; only the owner shares.
+import { cleanUp, home, root, scriptedModel, work } from "./helpers.ts";
+import assert from "node:assert/strict";
+import { createServer, type Server } from "node:http";
+import { join } from "node:path";
+import { after, before, test } from "node:test";
+import { createHandler } from "../src/server/http.ts";
+import { PocketApp } from "../src/server/app.ts";
+
+const OWNER = "o".repeat(43);
+const puts: { teammate: string; level: string; token: string; sessions: { id: string; title: string; machines: boolean }[] }[] = [];
+let gateway: Server;
+let server: Server;
+let app: PocketApp;
+let base = "";
+
+before(async () => {
+    // A stand-in for the gateway's /internal/shares: teammates Mai and Lan; every put recorded.
+    gateway = createServer((request, response) => {
+        let text = "";
+
+        request.on("data", (chunk) => (text += chunk));
+        request.on("end", () => {
+            const body = JSON.parse(text) as Record<string, unknown>;
+
+            assert.equal(request.headers.authorization, `Bearer ${OWNER}`, "with this pi-phone's own token");
+            const value = body.method === "teammates" ? [{ id: "u-mai", name: "Mai" }, { id: "u-lan", name: "Lan" }] : body.method === "put" ? (puts.push(body as never), { added: [], removed: [] }) : [];
+
+            response.writeHead(200, { "content-type": "application/json" });
+            response.end(JSON.stringify({ value }));
+        });
+    });
+    await new Promise<void>((resolve) => gateway.listen(0, "127.0.0.1", resolve));
+    const model = scriptedModel();
+
+    app = await PocketApp.open({
+        dataDir: join(root, "sharing-data"),
+        defaultCwd: work,
+        supervised: false,
+        log: () => {},
+        configureModels: (models) => models.registerNativeProvider(model.provider),
+        home,
+        officecli: { runs: false },
+        ownerToken: OWNER,
+        gatewayUrl: `http://127.0.0.1:${(gateway.address() as { port: number }).port}`,
+    });
+    server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+});
+
+after(async () => {
+    server?.closeAllConnections();
+    server?.close();
+    gateway?.close();
+    await app?.close();
+    cleanUp();
+});
+
+const call = (token: string, path: string, body?: unknown) =>
+    fetch(`${base}/api/x/sharing/${path}`, {
+        method: body === undefined ? "GET" : "POST",
+        headers: { authorization: `Bearer ${token}`, "x-pocket": "1", "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+const session = async (title: string) => {
+    const owner = app.config.users.find((each) => each.role === "owner")!;
+    const { id } = await app.commands.createSession(owner, { cwd: work });
+
+    await app.commands.updateSession(id, owner, { title });
+
+    return String(id);
+};
+const account = (name: string) => app.config.users.find((each) => each.name === name);
+
+test("share, a second session, watch, a spend limit, the scoped token, unshare", async () => {
+    const plan = await session("Release plan");
+    const notes = await session("Notes");
+
+    // Can write: a guest limited to the session, and the gateway gets its token.
+    assert.equal((await call(OWNER, "share", { session: plan, teammate: "u-mai", level: "write", budget: 5 })).status, 200);
+    const writer = account("Mai (team)");
+
+    assert.deepEqual([writer?.role, writer?.sessions, writer?.budget], ["guest", [plan], 5]);
+    assert.deepEqual([puts.at(-1)?.teammate, puts.at(-1)?.level, puts.at(-1)?.sessions.map((each) => each.id)], ["u-mai", "write", [plan]]);
+    const token = puts.at(-1)!.token;
+
+    // The token signs in as that account only: it may not share, nor see the owner's other sessions.
+    const me = (await (await fetch(`${base}/api/me`, { headers: { authorization: `Bearer ${token}` } })).json()) as { user?: { role?: string; name?: string } };
+
+    assert.equal(me.user?.role ?? (me as { role?: string }).role, "guest");
+    assert.equal((await call(token, "share", { session: notes, teammate: "u-lan", level: "write" })).status, 404, "the owner's routes: not there for anyone else");
+
+    // Can watch, on another session: a second account, a viewer.
+    assert.equal((await call(OWNER, "share", { session: notes, teammate: "u-mai", level: "watch" })).status, 200);
+    assert.deepEqual([account("Mai (team, watching)")?.role, account("Mai (team, watching)")?.sessions], ["viewer", [notes]]);
+    assert.deepEqual(((await (await call(OWNER, `session/${notes}`)).json()) as { shares: { teammate: string; level: string }[] }).shares.map((each) => [each.teammate, each.level]), [["u-mai", "watch"]]);
+
+    // Unshared: the writer had only that one, so it goes, and the gateway hears an empty list with the same token.
+    assert.equal((await call(OWNER, "unshare", { session: plan, teammate: "u-mai" })).status, 200);
+    assert.equal(account("Mai (team)"), undefined);
+    const last = puts.findLast((each) => each.level === "write");
+
+    assert.deepEqual([last?.token, last?.sessions], [token, []]);
+    assert.equal((await fetch(`${base}/api/me`, { headers: { authorization: `Bearer ${token}` } })).status, 401, "its token no longer works");
+
+    // No such teammate, no such session, nonsense level.
+    assert.equal((await call(OWNER, "share", { session: plan, teammate: "u-nobody", level: "write" })).status, 404);
+    assert.equal((await call(OWNER, "share", { session: "99999", teammate: "u-mai", level: "write" })).status, 404);
+    assert.equal((await call(OWNER, "share", { session: plan, teammate: "u-mai", level: "edit" })).status, 400);
+});

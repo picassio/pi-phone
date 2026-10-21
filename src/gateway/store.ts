@@ -16,6 +16,11 @@ export const INVITE_MINUTES = [60, 24 * 60, 7 * 24 * 60] as const;
 
 const token = (bytes = 24) => randomBytes(bytes).toString("base64url");
 
+/** What a teammate may do in shared sessions (PP-55): write (send and steer) or watch. */
+export type SpaceLevel = "write" | "watch";
+/** A shared session as Shared with me lists it; `machines`: Pi may use the sharer's machines and secrets for their messages. */
+export type SpaceSession = { id: string; title: string; machines: boolean };
+
 export class GatewayStore {
     readonly #db: DatabaseSync;
     readonly #now: () => number;
@@ -38,6 +43,10 @@ export class GatewayStore {
             CREATE TABLE IF NOT EXISTS pp_audit (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
                 target TEXT, details TEXT
+            );
+            CREATE TABLE IF NOT EXISTS pp_space (
+                sharer TEXT NOT NULL, teammate TEXT NOT NULL, level TEXT NOT NULL, token TEXT NOT NULL, sessions TEXT NOT NULL,
+                updated_at INTEGER NOT NULL, PRIMARY KEY (sharer, teammate, level)
             );
         `);
 
@@ -381,6 +390,48 @@ export class GatewayStore {
     /** A consistent copy of the gateway's database (accounts, roles, settings), for the server backup (PP-35). */
     snapshot(file: string): void {
         this.#db.prepare("VACUUM INTO ?").run(file);
+    }
+
+    // ─── Shared sessions (PP-55) ───
+    // A sharer's sessions shared with one teammate at one level, and the token of the scoped account in the sharer's
+    // pi-phone that opens them. The sharer's pi-phone sends the whole of it after every change.
+
+    /** One teammate's sessions from one sharer, at one level: put whole (none: gone). What changed, for the audit log. */
+    putSpace(sharer: string, teammate: string, level: SpaceLevel, token: string, sessions: SpaceSession[]): { added: string[]; removed: string[] } {
+        const before = this.space(sharer, teammate, level)?.sessions.map((each) => each.id) ?? [];
+        const after = sessions.map((each) => each.id);
+
+        if (sessions.length === 0) {
+            this.#db.prepare("DELETE FROM pp_space WHERE sharer = ? AND teammate = ? AND level = ?").run(sharer, teammate, level);
+        } else {
+            this.#db
+                .prepare("INSERT INTO pp_space (sharer, teammate, level, token, sessions, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(sharer, teammate, level) DO UPDATE SET token = excluded.token, sessions = excluded.sessions, updated_at = excluded.updated_at")
+                .run(sharer, teammate, level, token, JSON.stringify(sessions), this.#now());
+        }
+
+        return { added: after.filter((id) => !before.includes(id)), removed: before.filter((id) => !after.includes(id)) };
+    }
+
+    space(sharer: string, teammate: string, level: SpaceLevel): { token: string; sessions: SpaceSession[] } | undefined {
+        const row = this.#db.prepare("SELECT token, sessions FROM pp_space WHERE sharer = ? AND teammate = ? AND level = ?").get(sharer, teammate, level) as { token: string; sessions: string } | undefined;
+
+        return row === undefined ? undefined : { token: row.token, sessions: JSON.parse(row.sessions) as SpaceSession[] };
+    }
+
+    /** What a person shares (`as: "sharer"`) or is shared (`as: "teammate"`): never the tokens. */
+    spaces(userId: string, as: "sharer" | "teammate"): { sharer: string; teammate: string; level: SpaceLevel; sessions: SpaceSession[]; updatedAt: number }[] {
+        return (this.#db.prepare(`SELECT sharer, teammate, level, sessions, updated_at FROM pp_space WHERE ${as} = ? ORDER BY updated_at DESC`).all(userId) as { sharer: string; teammate: string; level: SpaceLevel; sessions: string; updated_at: number }[]).map((row) => ({
+            sharer: row.sharer,
+            teammate: row.teammate,
+            level: row.level,
+            sessions: JSON.parse(row.sessions) as SpaceSession[],
+            updatedAt: row.updated_at,
+        }));
+    }
+
+    /** A removed account: nothing shared by or with them any more. */
+    forgetSpaces(userId: string): void {
+        this.#db.prepare("DELETE FROM pp_space WHERE sharer = ? OR teammate = ?").run(userId, userId);
     }
 
     forgetBox(userId: string): void {

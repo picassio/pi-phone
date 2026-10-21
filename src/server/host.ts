@@ -257,6 +257,18 @@ export interface PocketHost {
     groupSession(session: number, group: { id: string; title: string; role: "lead" | "task" } | null): Promise<void>;
     /** A session's title, or undefined when there is no such session. */
     sessionTitle(session: number): string | undefined;
+    /** The machine a session works on (its name), or undefined when it works here or there is no such session. */
+    sessionMachine(session: number): string | undefined;
+    /**
+     * Teammates' scoped accounts in this pi-phone (PP-55: sessions shared through the team server). `save` makes one
+     * (answering its token, once) or changes one: Can write is `guest`, Can watch is `viewer`, each limited to
+     * `sessions`; `budget` is their spend limit (null: none). `remove` ends it, and its open pages, at once.
+     */
+    readonly teammates: {
+        save(account: { id?: string; name: string; role: "guest" | "viewer"; sessions: string[]; budget?: number | null }): { id: string; token?: string };
+        remove(id: string): void;
+        exists(id: string): boolean;
+    };
     /**
      * Where a session's work is now: working (since when), waiting for an approval, or ended (failed or not, and when, if
      * this process saw it end). Undefined when there is no such session.

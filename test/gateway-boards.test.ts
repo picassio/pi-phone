@@ -256,3 +256,44 @@ test("images in team documents: over the old 64 KB body, metadata gone, by the w
     assert.match(String((await team("Owner", "server", "POST", { docsVision: "not a model" })).body.error), /image description model is an OpenRouter model/);
     store.setDocsSearch({ key: null, model: null, vision: null });
 });
+
+/** A shares call from someone's pi-phone (PP-55). */
+async function shares(name: string, body: Record<string, unknown>) {
+    const response = await fetch(`${address}/internal/shares`, { method: "POST", headers: { authorization: `Bearer ${store.box(ids[name]!).token}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+    const answer = (await response.json()) as { value?: unknown; error?: string };
+
+    return { status: response.status, value: answer.value as never, error: answer.error ?? "" };
+}
+
+test("shares from a pi-phone (PP-55): teammates, a whole list per teammate and level, audited; sharing needs the role, unsharing never", async () => {
+    const teammates = (await shares("Binh", { method: "teammates" })).value as { id: string; name: string }[];
+
+    assert.deepEqual(teammates.map((each) => each.name).sort(), ["Chi", "Dao", "Owner"], "everyone but yourself");
+
+    const token = "a-scoped-token-in-binhs-pi-phone-0001";
+    const put = await shares("Binh", { method: "put", teammate: ids.Chi, level: "write", token, sessions: [{ id: "12", title: "Fix the build", machines: false }, { id: "13", title: "Notes", machines: true }] });
+
+    assert.deepEqual(put.value, { added: ["12", "13"], removed: [] });
+    assert.match((await shares("Binh", { method: "put", teammate: ids.Binh, level: "write", token, sessions: [] })).error, /teammate on this server/, "not yourself");
+    assert.match((await shares("Binh", { method: "put", teammate: ids.Chi, level: "edit", token, sessions: [] })).error, /write or watch/);
+
+    // Chi sees it under Shared with me, with its address; Binh sees what he shares; nobody sees the token.
+    const mine = (await shares("Chi", { method: "mine" })).value as { sharer: string; level: string; sessions: { id: string; url: string; machines: boolean }[] }[];
+
+    assert.equal(mine[0]?.sharer, "Binh");
+    assert.deepEqual(mine[0]?.sessions.map((each) => [each.id, each.url, each.machines]), [["12", `/space/${store.box(ids.Binh!).key}/write/s/12`, false], ["13", `/space/${store.box(ids.Binh!).key}/write/s/13`, true]]);
+    assert.ok(!JSON.stringify((await shares("Binh", { method: "shared" })).value).includes(token));
+    assert.ok(!JSON.stringify(mine).includes(token));
+
+    // Unsharing one: the list without it.
+    assert.deepEqual((await shares("Binh", { method: "put", teammate: ids.Chi, level: "write", token, sessions: [{ id: "13", title: "Notes", machines: true }] })).value, { added: [], removed: ["12"] });
+    const log = store.auditLog().filter((entry) => entry.action.startsWith("session"));
+
+    assert.deepEqual(log.map((entry) => [entry.action, entry.actor === ids.Binh, entry.target === ids.Chi, entry.details?.session]).reverse(), [["session shared", true, true, "12"], ["session shared", true, true, "13"], ["session unshared", true, true, "12"]]);
+
+    // Dao's role can't share; taking a share away still works.
+    store.putSpace(ids.Dao!, ids.Chi!, "watch", token, [{ id: "1", title: "Old", machines: false }]);
+    assert.match((await shares("Dao", { method: "put", teammate: ids.Chi, level: "watch", token, sessions: [{ id: "1", title: "Old", machines: false }, { id: "2", title: "New", machines: false }] })).error, /not part of your role/);
+    assert.equal((await shares("Dao", { method: "put", teammate: ids.Chi, level: "watch", token, sessions: [] })).status, 200);
+    store.putSpace(ids.Binh!, ids.Chi!, "write", token, []);
+});

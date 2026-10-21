@@ -20,7 +20,7 @@ import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import QRCode from "qrcode";
 import type { GatewayAuth } from "./auth.ts";
 import { CATALOGUE, checkRole, OWNER_ROLE, type Permission } from "./roles.ts";
-import { type GatewayStore, INVITE_MINUTES, type PersonBox } from "./store.ts";
+import { type GatewayStore, INVITE_MINUTES, type PersonBox, type SpaceLevel, type SpaceSession } from "./store.ts";
 import { type TarEntry, tarStream } from "./tar.ts";
 import type { BoardService } from "./boards.ts";
 import type { DocService } from "./docs.ts";
@@ -429,7 +429,7 @@ export class Gateway {
         const headers: Record<string, string | string[]> = {};
 
         for (const [name, value] of Object.entries(request.headers)) {
-            if (value !== undefined && !["cookie", "authorization", "host", "x-forwarded-proto", "x-forwarded-host", "x-forwarded-for", "connection"].includes(name)) {
+            if (value !== undefined && !["cookie", "authorization", "host", "x-forwarded-proto", "x-forwarded-host", "x-forwarded-for", "connection", "x-pocket-base"].includes(name)) {
                 headers[name] = value;
             }
         }
@@ -474,6 +474,11 @@ export class Gateway {
                 return json(response, 200, { value: (await this.#options.docs.call(box, body as never)) ?? null });
             }
 
+            // Sessions this pi-phone's person shares, and what is shared with them (PP-55).
+            if (path === "/internal/shares" && request.method === "POST") {
+                return json(response, 200, { value: this.#shares(box, await readBody(request)) });
+            }
+
             if (path === "/internal/boards" && request.method === "POST") {
                 const body = await readBody(request);
 
@@ -490,6 +495,74 @@ export class Gateway {
             this.#options.log(`gateway: internal ${path}: ${String(error)}`);
 
             return json(response, 500, { error: "The gateway could not answer." });
+        }
+    }
+
+    /**
+     * The shares of `box`'s person (PP-55): who they may share with, putting one teammate's sessions at one level (the
+     * whole list, with the scoped account's token in their pi-phone), what they share, and what is shared with them.
+     * Sharing more needs "Share a chat session"; taking a share away never does.
+     */
+    #shares(box: PersonBox, asked: Record<string, unknown>): unknown {
+        const store = this.#options.store;
+        const me = store.users().find((each) => each.id === box.userId);
+
+        if (me === undefined || me.banned) {
+            throw new HttpError(403, "This pi-phone's person can't share.");
+        }
+
+        const names = new Map(store.users().map((each) => [each.id, each.name]));
+        const mayShare = store.can(me.id, me.role, "sessions.share");
+
+        switch (asked.method) {
+            case "teammates":
+                return store
+                    .users()
+                    .filter((each) => each.id !== me.id && !each.banned)
+                    .map((each) => ({ id: each.id, name: each.name }));
+            case "put": {
+                const teammate = store.users().find((each) => each.id === asked.teammate);
+                const level = asked.level === "write" || asked.level === "watch" ? asked.level : undefined;
+                const sessions = (Array.isArray(asked.sessions) ? asked.sessions : []).flatMap((each): SpaceSession[] => {
+                    const given = each as Record<string, unknown>;
+
+                    return /^\d{1,12}$/.test(String(given.id ?? "")) ? [{ id: String(given.id), title: String(given.title ?? "").slice(0, 200), machines: given.machines === true }] : [];
+                });
+
+                if (teammate === undefined || teammate.id === me.id || level === undefined || typeof asked.token !== "string" || asked.token.length < 20) {
+                    throw new HttpError(400, "A teammate on this server, write or watch, and the scoped account's token.");
+                }
+
+                const before = store.space(me.id, teammate.id, level)?.sessions.map((each) => each.id) ?? [];
+
+                if (!mayShare && sessions.some((each) => !before.includes(each.id))) {
+                    throw new HttpError(403, "Sharing chat sessions is not part of your role.");
+                }
+
+                const changed = store.putSpace(me.id, teammate.id, level, asked.token, sessions);
+                const actor = asked.pi === true ? `pi:${me.id}` : me.id;
+                const title = (id: string) => sessions.find((each) => each.id === id)?.title ?? id;
+
+                for (const id of changed.added) {
+                    store.audit(actor, "session shared", teammate.id, { session: id, title: title(id), level });
+                }
+
+                for (const id of changed.removed) {
+                    store.audit(actor, "session unshared", teammate.id, { session: id, level });
+                }
+
+                return changed;
+            }
+            case "shared":
+                return store.spaces(me.id, "sharer").map((each) => ({ teammate: each.teammate, name: names.get(each.teammate) ?? "Someone", level: each.level, sessions: each.sessions }));
+            case "mine":
+                return store.spaces(me.id, "teammate").flatMap((each) => {
+                    const key = store.boxOf(each.sharer)?.key;
+
+                    return key === undefined ? [] : [{ sharer: names.get(each.sharer) ?? "Someone", level: each.level, sessions: each.sessions.map((session) => ({ ...session, url: `/space/${key}/${each.level}/s/${session.id}` })) }];
+                });
+            default:
+                throw new HttpError(400, "Shares are teammates, put, shared or mine.");
         }
     }
 
@@ -605,6 +678,11 @@ export class Gateway {
                 return json(response, 401, { error: "Sign in first: /auth/sign-in" });
             }
 
+            // A session someone shared with this person (PP-56): any role may open one, a Viewer's too.
+            if (path === "/space" || path.startsWith("/space/")) {
+                return await this.#space(request, response, user);
+            }
+
             // A role without a pi-phone of its own (Viewer): only the gateway's pages, and what others share with them.
             if (!this.#options.store.can(user.id, user.role, "pi.use")) {
                 if (request.method === "GET" && (request.headers.accept ?? "").includes("text/html")) {
@@ -644,20 +722,21 @@ export class Gateway {
         }
     }
 
-    async #forward(request: IncomingMessage, response: ServerResponse, user: User, retried = false): Promise<void> {
+    /** A person's own pi-phone, or (`space`) a sharer's, as a teammate's scoped account there (PP-56). */
+    async #forward(request: IncomingMessage, response: ServerResponse, user: User, retried = false, space?: Space): Promise<void> {
         const key = this.#options.store.box(user.id).key;
 
         // In use while the request is open (a page's event stream stays open as long as the page).
         this.#use(key, 1);
 
         try {
-            await this.#forwardTo(request, response, user, retried);
+            await this.#forwardTo(request, response, user, retried, space);
         } finally {
             this.#use(key, -1);
         }
     }
 
-    async #forwardTo(request: IncomingMessage, response: ServerResponse, user: User, retried: boolean): Promise<void> {
+    async #forwardTo(request: IncomingMessage, response: ServerResponse, user: User, retried: boolean, space?: Space): Promise<void> {
         const upstream = await this.#upstream(user, retried);
 
         // Not before it has the person's role's policy (PP-22).
@@ -673,7 +752,9 @@ export class Gateway {
         }
 
         await new Promise<void>((done) => {
-            const sent = httpRequest({ host: upstream.host, port: upstream.port, method: request.method, path: request.url, headers: this.#forwarded(request, upstream) }, (answer) => {
+            // A shared space: the teammate's scoped token, the path under the prefix, and the base the page lives under.
+            const headers = space === undefined ? this.#forwarded(request, upstream) : { ...this.#forwarded(request, { ...upstream, token: space.token }), "x-pocket-base": space.base };
+            const sent = httpRequest({ host: upstream.host, port: upstream.port, method: request.method, path: space?.path ?? request.url, headers }, (answer) => {
                 const headers = { ...answer.headers };
 
                 delete headers["set-cookie"];
@@ -705,12 +786,61 @@ export class Gateway {
         });
     }
 
+    /**
+     * `/space/<key>/<write|watch>/…` (PP-56): the sessions `key`'s person shares with this one at that level, in their
+     * pi-phone, as the scoped account made for it there. Nothing else: anything not shared with this person is "no such
+     * page", whether it exists or not. Their container starts if it was stopped, and the open page keeps it up.
+     */
+    async #space(request: IncomingMessage, response: ServerResponse, user: User): Promise<void> {
+        const url = request.url ?? "/";
+        const match = /^\/space\/([A-Za-z0-9_-]{6,64})\/(write|watch)(\/[^?#]*)?(\?.*)?$/.exec(url);
+        const missing = () => {
+            if (request.method === "GET" && (request.headers.accept ?? "").includes("text/html")) {
+                response.writeHead(404, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+                response.end(NOT_SHARED);
+
+                return;
+            }
+
+            json(response, 404, { error: "Nothing is shared with you here." });
+        };
+
+        if (match === null) {
+            return missing();
+        }
+
+        const [, key, level, rest, query] = match as unknown as [string, string, SpaceLevel, string | undefined, string | undefined];
+        const box = this.#options.store.boxByKey(key);
+        const sharer = box === undefined ? undefined : this.#options.store.users().find((each) => each.id === box.userId);
+        const shared = sharer === undefined || sharer.banned || sharer.id === user.id ? undefined : this.#options.store.space(sharer.id, user.id, level);
+
+        if (box === undefined || sharer === undefined || shared === undefined) {
+            return missing();
+        }
+
+        const base = `/space/${key}/${level}/`;
+
+        // The page's relative URLs need the base's last slash.
+        if (rest === undefined) {
+            return redirect(response, `${base}${query ?? ""}`);
+        }
+
+        const inner = `${rest}${query ?? ""}`;
+
+        if (REFUSED.some((pattern) => pattern.test(inner))) {
+            return json(response, 403, { error: "Not in a shared session." });
+        }
+
+        await this.#forward(request, response, sharer, false, { token: shared.token, path: inner, base });
+    }
+
     /** A WebSocket (the terminal): the same person, the same container, piped both ways. */
     async upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
         try {
             const user = await this.#user(request);
 
-            if (user === undefined || REFUSED.some((pattern) => pattern.test(request.url ?? "/")) || !this.#options.store.can(user.id, user.role, "pi.use")) {
+            // The terminal is never part of a shared session (PP-57).
+            if (user === undefined || (request.url ?? "/").startsWith("/space/") || REFUSED.some((pattern) => pattern.test(request.url ?? "/")) || !this.#options.store.can(user.id, user.role, "pi.use")) {
                 socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
 
                 return;
@@ -959,7 +1089,15 @@ export class Gateway {
             const names = new Map(store.users().map((each) => [each.id, each.name]));
             const seen = this.#options.boards.call(store.box(user.id), { method: "list", args: [] }) as { key: string; name: string; owner: string; team: boolean; open: boolean }[];
 
+            // Sessions others share with this person (PP-58): each opens in the sharer's pi-phone, under /space/.
+            const sessions = store.spaces(user.id, "teammate").flatMap((each) => {
+                const key = store.boxOf(each.sharer)?.key;
+
+                return key === undefined ? [] : each.sessions.map((session) => ({ title: session.title, level: each.level, by: names.get(each.sharer) ?? "Someone", url: `/space/${key}/${each.level}/s/${session.id}` }));
+            });
+
             return json(response, 200, {
+                sessions,
                 boards: seen
                     .filter((board) => board.owner !== user.id)
                     .map((board) => ({ key: board.key, name: board.name, team: board.team, open: board.open, by: board.team ? null : (names.get(board.owner) ?? "Someone") })),
@@ -1288,6 +1426,8 @@ export class Gateway {
                 store.setAlwaysOn(id, false);
                 // Off every board; the boards they made become the team's, so their work isn't lost (PP-39).
                 this.#options.boards.forgetPerson(id);
+                // Nothing shared by or with them any more (PP-55).
+                store.forgetSpaces(id);
                 await ctx.internalAdapter.deleteUser(id);
                 store.forgetRoleOf(id);
             }
@@ -1366,6 +1506,11 @@ async function readBody(request: IncomingMessage, limit = 64 * 1024): Promise<Re
         throw new HttpError(400, "The body is not a JSON object.");
     }
 }
+
+/** Where a shared space's requests go (PP-56): the scoped account's token, the path under the prefix, the page's base. */
+type Space = { token: string; path: string; base: string };
+
+const NOT_SHARED = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>pi-phone</title><body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#1a1b26;color:#c0caf5;font:16px system-ui;text-align:center;padding:24px"><div><p>Nothing is shared with you here, or it is no longer shared.</p><p><a style="color:#7aa2f7" href="/auth/shared">Shared with me</a></p></div></body>`;
 
 const NO_PI = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>pi-phone</title><body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#1a1b26;color:#c0caf5;font:16px system-ui;text-align:center;padding:24px"><div><p>Your role has no pi-phone of its own: you see what others share with you.</p><p><a style="color:#7aa2f7" href="/auth/account">Your account</a></p></div></body>`;
 

@@ -1,5 +1,5 @@
 // App state, the server connection, and API calls. Components read `store.state` and re-render on `store.subscribe`.
-import { routeOf } from "./base.js";
+import { BASE, routeOf } from "./base.js";
 import { onRoute, pushRoute } from "./back.js";
 import { sessionForest } from "./session-tree.js";
 
@@ -782,6 +782,14 @@ function streamEvents(query) {
             if (error.status === 401) {
                 connection.close();
                 store.set({ me: null });
+
+                return;
+            }
+
+            // In a session shared with you (PP-56), 404 means it is no longer shared: the page says so.
+            if (error.status === 404 && BASE !== "/") {
+                connection.close();
+                location.reload();
 
                 return;
             }
