@@ -27,13 +27,53 @@ if (-not $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 Write-Host '1/5 OpenSSH Server'
 # By winget (Microsoft's own OpenSSH package): a few seconds, with progress. Windows' optional feature comes from
 # Windows Update, which shows none for many minutes and never ends where it is blocked.
+$openssh = Join-Path $env:ProgramFiles 'OpenSSH'
+# OpenSSH installed but its services gone (seen 2026-10-21): winget then skips it as already installed and its MSI has no
+# install-sshd.ps1, so the services are registered here, as that script would.
+function Register-OpenSsh {
+    $sshd = Join-Path $openssh 'sshd.exe'
+    if (-not (Get-Service sshd -ErrorAction SilentlyContinue) -and (Test-Path $sshd)) {
+        Write-Host 'Registering the sshd service'
+        New-Service -Name sshd -DisplayName 'OpenSSH SSH Server' -BinaryPathName ('"' + $sshd + '"') -StartupType Automatic | Out-Null
+        sc.exe privs sshd SeAssignPrimaryTokenPrivilege/SeTcbPrivilege/SeBackupPrivilege/SeRestorePrivilege/SeImpersonatePrivilege | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not give the sshd service its privileges (sc.exe privs).' }
+    }
+    $agent = Join-Path $openssh 'ssh-agent.exe'
+    if (-not (Get-Service ssh-agent -ErrorAction SilentlyContinue) -and (Test-Path $agent)) {
+        Write-Host 'Registering the ssh-agent service'
+        New-Service -Name ssh-agent -DisplayName 'OpenSSH Authentication Agent' -BinaryPathName ('"' + $agent + '"') -StartupType Manual | Out-Null
+        sc.exe privs ssh-agent SeImpersonatePrivilege | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not give the ssh-agent service its privileges (sc.exe privs).' }
+    }
+}
+Register-OpenSsh
 if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'winget is missing: install App Installer from the Microsoft Store, or add OpenSSH Server in Settings > System > Optional features, then paste this again.' }
     winget install --id Microsoft.OpenSSH.Preview --exact --source winget --silent --accept-package-agreements --accept-source-agreements
-    if ($LASTEXITCODE -ne 0 -or -not (Get-Service sshd -ErrorAction SilentlyContinue)) { throw 'winget could not install OpenSSH: add OpenSSH Server in Settings > System > Optional features, then paste this again.' }
+    # Its exit code decides nothing (0x8A15002B, -1978335189, is "already installed"): whether sshd.exe is there does.
+    $wingetExit = $LASTEXITCODE
+    Register-OpenSsh
+    if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) { throw "winget could not install OpenSSH (exit code $wingetExit): add OpenSSH Server in Settings > System > Optional features, then paste this again." }
 }
 Set-Service -Name sshd -StartupType Automatic
-Start-Service sshd
+$startError = $null
+try { Start-Service sshd } catch { $startError = $_.Exception.Message }
+$listening = $null
+if (-not $startError) {
+    foreach ($i in 1..10) {
+        $listening = Get-NetTCPConnection -LocalPort 22 -State Listen -ErrorAction SilentlyContinue
+        if ($listening) { break }
+        Start-Sleep -Milliseconds 500
+    }
+}
+if (-not $listening) {
+    # What sshd says of its config and host keys: the service's own sshd.exe (winget's, or Windows' optional feature's).
+    $path = (Get-CimInstance Win32_Service -Filter "Name='sshd'").PathName
+    $exe = if ($path -match '^"([^"]+)"') { $Matches[1] } else { ($path -split ' ')[0] }
+    $check = & { $ErrorActionPreference = 'Continue'; & $exe -t 2>&1 } | ForEach-Object { "$_" } | Out-String
+    $why = if ($startError) { "sshd did not start ($startError)" } else { 'sshd started but nothing listens on port 22' }
+    throw "$why. sshd -t says: $(if ($check.Trim()) { $check.Trim() } else { 'nothing (its config is valid)' })"
+}
 
 Write-Host '2/5 Firewall: SSH (TCP 22) in'
 if (Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue) {
