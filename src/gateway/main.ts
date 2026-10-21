@@ -12,6 +12,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { makeAuth } from "./auth.ts";
+import { BoardService } from "./boards.ts";
 import { SocketController } from "./controller-client.ts";
 import { Gateway } from "./server.ts";
 import { GatewayStore } from "./store.ts";
@@ -36,16 +37,26 @@ const db = new DatabaseSync(join(data, "gateway.sqlite"));
 db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
 
 const store = new GatewayStore(db);
+// The team's boards (PP-39): a database of their own, next to the gateway's.
+const boardsDir = join(data, "boards");
+
+mkdirSync(boardsDir, { recursive: true });
 const auth = await makeAuth({ db, secret: store.authSecret(), origin });
 
+const boards = new BoardService(store, boardsDir);
 const gateway = new Gateway({
     auth,
     store,
+    boards,
     controller: new SocketController(env("PP_CONTROLLER_SOCKET"), readFileSync(env("PP_CONTROLLER_SECRET_FILE"), "utf8").trim()),
     origin,
     log: (line) => console.error(line),
 });
 const server = createServer((request, response) => void gateway.handle(request, response));
+// The internal port: only people's pi-phones reach it, on their own networks (PP-39). Caddy sends nothing there.
+const internal = createServer((request, response) => void gateway.internal(request, response));
+
+internal.listen(Number(process.env.PP_GATEWAY_INTERNAL_PORT ?? 8081), "0.0.0.0");
 
 // Idle pi-phones stop (PP-33).
 gateway.sweeping();

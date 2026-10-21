@@ -3,8 +3,10 @@
 // the server's minutes stops; the next visit starts it again; 0 minutes never stops; the setting is the server.manage
 // role's; browsers can't ask a pi-phone what it is doing; an always-on pi-phone is kept running and started by itself;
 // a new image renews running ones that are not at work; and a person's data and the whole server download as .tar.gz.
-import { cleanUp } from "./helpers.ts";
+import { cleanUp, root } from "./helpers.ts";
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { join } from "node:path";
 import { createServer, type Server } from "node:http";
 import { DatabaseSync } from "node:sqlite";
 import { Readable } from "node:stream";
@@ -14,6 +16,7 @@ import { after, before, test } from "node:test";
 import { makeAuth } from "../src/gateway/auth.ts";
 import { type ControllerClient, Gateway } from "../src/gateway/server.ts";
 import { GatewayStore } from "../src/gateway/store.ts";
+import { BoardService } from "../src/gateway/boards.ts";
 
 after(() => cleanUp());
 
@@ -111,7 +114,7 @@ before(async () => {
     server = createServer();
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-    gateway = new Gateway({ auth: await makeAuth({ db, secret: store.authSecret(), origin }), store, controller, origin, log: () => undefined, now: () => clock });
+    gateway = new Gateway({ auth: await makeAuth({ db, secret: store.authSecret(), origin }), store, controller, boards: new BoardService(store, mkdtempSync(join(root, "gw-boards-"))), origin, log: () => undefined, now: () => clock });
     server.on("request", (request, response) => void gateway.handle(request, response));
 });
 
@@ -254,7 +257,7 @@ test("a new image: running pi-phones are made again from it when not at work", a
 
 test("a gateway made again (an update) reaches people's running pi-phones before asking them, so it can stop and renew them", async () => {
     const db = new DatabaseSync(":memory:");
-    const fresh = new Gateway({ auth: await makeAuth({ db, secret: store.authSecret(), origin }), store, controller, origin, log: () => undefined, now: () => clock });
+    const fresh = new Gateway({ auth: await makeAuth({ db, secret: store.authSecret(), origin }), store, controller, boards: new BoardService(store, mkdtempSync(join(root, "gw-boards-"))), origin, log: () => undefined, now: () => clock });
 
     running = true;
     current = false;

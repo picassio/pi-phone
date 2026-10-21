@@ -583,6 +583,26 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
       the gateway's board service (PP-39).
     - **Personal:** places, runs, board mode and main sessions stay on `Projects` itself.
     - **`Team`** takes both.
+  - **Board rules for sharing** (PP-39), in the store, so the phone and the gateway apply the same:
+    - **Roles:** members are lead, member or viewer (`pocket_project_members.role`); a board's owner and the app's
+      owner lead it, and only leads manage members.
+    - **Team boards:** `owner = TEAM`, managed by `Person.managesTeam`, with `open` letting everyone see them as
+      viewers. `Person.seesAll` sees every board and changes none.
+    - **Unsharing and leaving** give the person's tasks, and their Pi's (`pi:<id>`), back to nobody, with a comment.
+      `forgetPerson` hands a gone account's boards to the team.
+    - **Pi's actor** carries its session's `closer`, so "Pi never closes what it worked on" works without board mode.
+- **The board service** (PP-39, `src/gateway/boards.ts`):
+  - **Where it lives:** the team server keeps the shared part of every board in the gateway, on its own
+    `/data/boards/pocket.sqlite`.
+  - **How pi-phones call it:** `POST /internal/boards { method, args, pi? }` on the gateway's internal port (8081),
+    which only their networks reach and Caddy never sends to. The owner token identifies the pi-phone (`boxByToken`).
+  - **The actor** is made by the gateway from that pi-phone's person, never taken from the call. Rights are live,
+    from the role: projects.create, projects.share, projects.delete, projects.team, and projects.view_all looks logged.
+  - **Sessions** are kept as `<key>:<number>`.
+  - **Personal fields** (folder, places, main session, autoRuns) are refused.
+  - **Lookups:** the store's internal ones (taskById, projectById, allProjects, sessionsOf) only show what the
+    person sees.
+  - **Removing an account** calls `forgetPerson`.
   - agent-board's five types and hierarchy (Epic → Story/Task/Bug; Story → Task/Bug/Sub-task; Task, Bug → Sub-task)
     and its eight states. The store keeps what must hold whatever a model does: who sees a project (the owner all;
     others the ones they own or are members of; viewers only read), the hierarchy (no circles), Done only after a

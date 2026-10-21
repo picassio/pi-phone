@@ -282,6 +282,17 @@ export class GatewayStore {
         return box;
     }
 
+    /** A person's pi-phone by its owner token: how a pi-phone calling the gateway's internal port is known (PP-39). */
+    boxByToken(given: string): PersonBox | undefined {
+        if (!/^[A-Za-z0-9_-]{24,128}$/.test(given)) {
+            return undefined;
+        }
+
+        const row = this.#db.prepare("SELECT * FROM pp_person WHERE token = ?").get(given) as Record<string, unknown> | undefined;
+
+        return row === undefined ? undefined : { userId: String(row.user_id), key: String(row.key), token: String(row.token), createdAt: Number(row.created_at) };
+    }
+
     /** A person's pi-phone by its key (the controller's name for it). */
     boxByKey(key: string): PersonBox | undefined {
         const row = this.#db.prepare("SELECT * FROM pp_person WHERE key = ?").get(key) as Record<string, unknown> | undefined;

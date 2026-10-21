@@ -48,6 +48,7 @@ export const CATALOGUE = [
             "projects.share": "Share project boards",
             "projects.delete": "Delete project boards",
             "projects.view_all": "See every board, private ones too (each look is logged)",
+            "projects.team": "Make and manage team boards (they belong to the team, not a person)",
             "tasks.run": "Let Pi run a board's tasks",
             "tasks.merge": "Merge a task's branch",
         },

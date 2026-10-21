@@ -3,8 +3,10 @@
 // own pi-phone with its owner token and none of your cookies; another person reaches only theirs; pi-phone's own sign-in
 // and invites are refused; an invite makes one account, with its role, once; TOTP asks for a code after the password; a
 // person the owner disables is signed out and their pi-phone stopped; and a WebSocket from another page is refused.
-import { cleanUp } from "./helpers.ts";
+import { cleanUp, root } from "./helpers.ts";
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { join } from "node:path";
 import { createHmac } from "node:crypto";
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import { DatabaseSync } from "node:sqlite";
@@ -13,6 +15,7 @@ import { after, before, test } from "node:test";
 import { makeAuth } from "../src/gateway/auth.ts";
 import { type ControllerClient, Gateway } from "../src/gateway/server.ts";
 import { GatewayStore } from "../src/gateway/store.ts";
+import { BoardService } from "../src/gateway/boards.ts";
 
 after(() => cleanUp());
 
@@ -73,7 +76,7 @@ before(async () => {
 
     const auth = await makeAuth({ db, secret: store.authSecret(), origin });
 
-    const handler = new Gateway({ auth, store, controller, origin, log: (line) => console.error(line) });
+    const handler = new Gateway({ auth, store, controller, boards: new BoardService(store, mkdtempSync(join(root, "gw-boards-"))), origin, log: (line) => console.error(line) });
 
     gateway.on("request", (request, response) => void handler.handle(request, response));
     gateway.on("upgrade", (request, socket, head) => void handler.upgrade(request, socket, head));

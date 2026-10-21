@@ -22,6 +22,8 @@ import type { GatewayAuth } from "./auth.ts";
 import { CATALOGUE, checkRole, OWNER_ROLE, type Permission } from "./roles.ts";
 import { type GatewayStore, INVITE_MINUTES } from "./store.ts";
 import { type TarEntry, tarStream } from "./tar.ts";
+import type { BoardService } from "./boards.ts";
+import { HttpError } from "../server/errors.ts";
 
 /** What the gateway asks the controller (`src/controller/`): a person's pi-phone, by key. */
 /** A person's container as the controller lists it. */
@@ -41,6 +43,8 @@ export type GatewayOptions = {
     auth: GatewayAuth;
     store: GatewayStore;
     controller: ControllerClient;
+    /** The shared part of the team's boards (PP-39). */
+    boards: BoardService;
     /** The address people open: `https://…`. */
     origin: string;
     log: (line: string) => void;
@@ -380,6 +384,38 @@ export class Gateway {
         headers["x-forwarded-host"] = url.host;
 
         return headers;
+    }
+
+    /**
+     * One request on the gateway's internal port (PP-39), which only people's pi-phones reach (on their own networks; Caddy
+     * never sends anything there): each with its own owner token, for the services pi-phones share.
+     */
+    async internal(request: IncomingMessage, response: ServerResponse): Promise<void> {
+        const path = (request.url ?? "/").split("?")[0]!;
+        const given = /^Bearer (.+)$/.exec(request.headers.authorization ?? "")?.[1] ?? "";
+        const box = this.#options.store.boxByToken(given);
+
+        try {
+            if (box === undefined) {
+                return json(response, 401, { error: "Not a pi-phone of this server." });
+            }
+
+            if (path === "/internal/boards" && request.method === "POST") {
+                const body = await readBody(request);
+
+                return json(response, 200, { value: this.#options.boards.call(box, body as never) ?? null });
+            }
+
+            return json(response, 404, { error: "No such route." });
+        } catch (error) {
+            if (error instanceof HttpError) {
+                return json(response, error.status, { error: error.message, status: error.status });
+            }
+
+            this.#options.log(`gateway: internal ${path}: ${String(error)}`);
+
+            return json(response, 500, { error: "The gateway could not answer." });
+        }
     }
 
     /** One HTTP request. */
@@ -1027,6 +1063,8 @@ export class Gateway {
 
                 store.forgetAuthExtras(id);
                 store.setAlwaysOn(id, false);
+                // Off every board; the boards they made become the team's, so their work isn't lost (PP-39).
+                this.#options.boards.forgetPerson(id);
                 await ctx.internalAdapter.deleteUser(id);
                 store.forgetRoleOf(id);
             }

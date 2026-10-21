@@ -62,15 +62,34 @@ const MAX_TEXT = 20_000;
 const MAX_LABELS = 12;
 const MAX_CHECKLIST = 60;
 
-/** Who a project's rules see: a person, by their role. */
+/**
+ * Who a project's rules see: a person, by their role. On the team server (PP-39) two of their team role's permissions
+ * come too: `seesAll` (projects.view_all: sees every board, never changes one for that) and `managesTeam`
+ * (projects.team: makes and manages team boards).
+ */
 export interface Person {
     id: string;
     name: string;
     role: Role;
+    seesAll?: boolean;
+    managesTeam?: boolean;
 }
 
-/** Who acts: a person in the app, or Pi working for one in a session. */
-export type Actor = { kind: "person"; person: Person } | { kind: "pi"; person: Person; conversationId: string };
+/**
+ * Who acts: a person in the app, or Pi working for one in a session, with that session's board mode setting of who
+ * moves tasks Pi worked on to Done (`closer`), which the board's rules need wherever the board lives.
+ */
+export type Actor = { kind: "person"; person: Person } | { kind: "pi"; person: Person; conversationId: string; closer: Closer };
+
+/** A person's standing on one board (PP-39): leads manage its members, members change it, viewers only read. */
+export const BOARD_ROLES = ["lead", "member", "viewer"] as const;
+export type BoardRole = (typeof BOARD_ROLES)[number];
+
+/** The owner of a team board: it belongs to the team, not a person, and those who manage team boards manage it. */
+export const TEAM = "team";
+
+/** Whether a task's assignee is Pi: `pi` (the phone's one Pi), or `pi:<person>`, a person's own Pi (the team server). */
+export const isPi = (assignee: string | null): boolean => assignee === "pi" || (assignee?.startsWith("pi:") ?? false);
 
 export interface ChecklistItem {
     text: string;
@@ -140,8 +159,15 @@ export interface Project {
     folder: string | null;
     /** Where its tasks run; none set, its folder with 2 at once. */
     places: ProjectPlace[];
+    /** A person's id, or `TEAM` for a team board. */
     owner: string;
     members: string[];
+    /** Each member's standing on the board (the owner is its lead). */
+    memberRoles: Record<string, BoardRole>;
+    /** A team board: it belongs to the team. */
+    team: boolean;
+    /** A team board everyone on the team can see, as a viewer. */
+    open: boolean;
     labels: string[];
     /** Whether a task assigned to Pi starts by itself; off, the main session asks first. */
     autoRuns: boolean;
@@ -337,6 +363,16 @@ export class Projects {
             this.#db.exec("ALTER TABLE pocket_task_runs ADD COLUMN merged TEXT");
         }
 
+        if (!columns.includes("open")) {
+            this.#db.exec("ALTER TABLE pocket_projects ADD COLUMN open INTEGER NOT NULL DEFAULT 0");
+        }
+
+        const memberColumns = (this.#db.prepare("PRAGMA table_info(pocket_project_members)").all() as Row[]).map((row) => String(row.name));
+
+        if (!memberColumns.includes("role")) {
+            this.#db.exec("ALTER TABLE pocket_project_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
+        }
+
         if (!columns.includes("rules")) {
             this.#db.exec("ALTER TABLE pocket_projects ADD COLUMN rules TEXT NOT NULL DEFAULT 'full'");
         }
@@ -372,8 +408,13 @@ export class Projects {
             .map((project) => ({ ...project, counts: this.#counts(project.id) }));
     }
 
-    create(actor: Actor, input: { key: string; name: string; folder?: string | null }): Project {
+    /** A board: the maker's own, or with `team`, the team's (PP-39; whoever makes it leads it). */
+    create(actor: Actor, input: { key: string; name: string; folder?: string | null; team?: boolean }): Project {
         this.#requireEdit(actor.person);
+
+        if (input.team === true && actor.person.managesTeam !== true) {
+            throw new HttpError(403, "Making team boards is not part of your role.");
+        }
 
         const key = String(input.key ?? "").trim().toUpperCase();
         const name = String(input.name ?? "").trim();
@@ -397,7 +438,12 @@ export class Projects {
             .prepare(
                 "INSERT INTO pocket_projects (id, key, name, folder, owner, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             )
-            .run(id, key, name, folderOf(input.folder), actor.person.id, now, now);
+            .run(id, key, name, folderOf(input.folder), input.team === true ? TEAM : actor.person.id, now, now);
+
+        if (input.team === true) {
+            this.#db.prepare("INSERT INTO pocket_project_members (project_id, user_id, role) VALUES (?, ?, 'lead')").run(id, actor.person.id);
+        }
+
         this.#changed(id);
 
         return this.#projectById(id)!;
@@ -456,8 +502,12 @@ export class Projects {
         return this.#projectById(project.id)!;
     }
 
-    /** Who besides its owner may see the project: people's ids. The project's owner or the app's owner sets it. */
-    setMembers(actor: Actor, key: string, userIds: string[]): Project {
+    /**
+     * Who besides its owner may see the project: people's ids, each a member unless `roles` says lead or viewer. Its
+     * leads, its owner, the app's owner, or (a team board) whoever manages team boards set it. Someone taken off loses
+     * it at once: what was assigned to them, or to their Pi, goes back to nobody, with a comment (PP-39).
+     */
+    setMembers(actor: Actor, key: string, userIds: string[], roles: Record<string, BoardRole> = {}): Project {
         const project = this.#manage(actor, key);
         const known = new Set(this.#people().map((person) => person.id));
         const ids = [...new Set(userIds)].filter((id) => id !== project.owner);
@@ -467,16 +517,119 @@ export class Projects {
             throw bad(`No such person: ${unknown.join(", ")}.`);
         }
 
+        const wrong = Object.entries(roles).filter(([, role]) => !(BOARD_ROLES as readonly string[]).includes(role));
+
+        if (wrong.length > 0) {
+            throw bad(`A member is a ${BOARD_ROLES.join(", ")}, not ${wrong.map(([, role]) => role).join(", ")}.`);
+        }
+
         this.#transaction(() => {
             this.#db.prepare("DELETE FROM pocket_project_members WHERE project_id = ?").run(project.id);
 
             for (const id of ids) {
-                this.#db.prepare("INSERT INTO pocket_project_members (project_id, user_id) VALUES (?, ?)").run(project.id, id);
+                this.#db.prepare("INSERT INTO pocket_project_members (project_id, user_id, role) VALUES (?, ?, ?)").run(project.id, id, roles[id] ?? "member");
+            }
+
+            for (const gone of project.members.filter((id) => !ids.includes(id))) {
+                this.#unassign(actor, project, gone);
             }
         });
         this.#changed(project.id);
 
         return this.#projectById(project.id)!;
+    }
+
+    /** Leave a board shared with you (PP-39). Its maker cannot: they delete it, or move it to the team. */
+    leave(actor: Actor, key: string): void {
+        const project = this.#see(actor, key);
+        const me = actor.person.id;
+
+        if (project.owner === me) {
+            throw new HttpError(409, `You made ${project.key}: delete it, or move it to the team, instead of leaving it.`);
+        }
+
+        if (!project.members.includes(me)) {
+            throw new HttpError(409, `You are not a member of ${project.key}.`);
+        }
+
+        this.#transaction(() => {
+            this.#db.prepare("DELETE FROM pocket_project_members WHERE project_id = ? AND user_id = ?").run(project.id, me);
+            this.#unassign(actor, project, me);
+        });
+        this.#changed(project.id);
+    }
+
+    /** A personal board becomes the team's (PP-39): its maker stays on it as a lead. Whoever manages team boards, and leads it. */
+    moveToTeam(actor: Actor, key: string): Project {
+        const project = this.#manage(actor, key);
+
+        if (project.team) {
+            throw new HttpError(409, `${project.key} is a team board already.`);
+        }
+
+        if (actor.person.managesTeam !== true) {
+            throw new HttpError(403, "Managing team boards is not part of your role.");
+        }
+
+        this.#transaction(() => {
+            this.#db.prepare("UPDATE pocket_projects SET owner = ?, updated_at = ? WHERE id = ?").run(TEAM, this.#now(), project.id);
+            this.#db.prepare("DELETE FROM pocket_project_members WHERE project_id = ? AND user_id = ?").run(project.id, project.owner);
+            this.#db.prepare("INSERT INTO pocket_project_members (project_id, user_id, role) VALUES (?, ?, 'lead')").run(project.id, project.owner);
+        });
+        this.#changed(project.id);
+
+        return this.#projectById(project.id)!;
+    }
+
+    /** A team board everyone on the team can see as a viewer, or only its members (PP-39). */
+    setOpen(actor: Actor, key: string, open: boolean): Project {
+        const project = this.#manage(actor, key);
+
+        if (!project.team) {
+            throw new HttpError(409, `${project.key} is a personal board: move it to the team first.`);
+        }
+
+        this.#db.prepare("UPDATE pocket_projects SET open = ?, updated_at = ? WHERE id = ?").run(open ? 1 : 0, this.#now(), project.id);
+        this.#changed(project.id);
+
+        return this.#projectById(project.id)!;
+    }
+
+    /**
+     * Someone's account is gone (the team server, PP-39): off every board, with what was theirs given back to nobody;
+     * boards they made become the team's, so nothing is lost (members keep them; those nobody else was on wait for
+     * whoever manages team boards).
+     */
+    forgetPerson(userId: string): void {
+        const system: Actor = { kind: "person", person: { id: "system", name: "pi-phone", role: "owner" } };
+
+        for (const project of this.#allProjects()) {
+            if (project.owner === userId) {
+                this.#db.prepare("UPDATE pocket_projects SET owner = ?, updated_at = ? WHERE id = ?").run(TEAM, this.#now(), project.id);
+            }
+
+            if (project.owner === userId || project.members.includes(userId)) {
+                this.#transaction(() => {
+                    this.#db.prepare("DELETE FROM pocket_project_members WHERE project_id = ? AND user_id = ?").run(project.id, userId);
+                    this.#unassign(system, project, userId);
+                });
+                this.#changed(project.id);
+            }
+        }
+    }
+
+    /** Tasks of `project` assigned to someone, or to their Pi, go back to nobody, with a comment saying why. */
+    #unassign(actor: Actor, project: Project, userId: string): void {
+        const name = this.#people().find((person) => person.id === userId)?.name ?? "Someone";
+        const now = this.#now();
+
+        for (const task of this.#tasksOf(project.id).filter((each) => each.assignee === userId || each.assignee === `pi:${userId}`)) {
+            this.#db.prepare("UPDATE pocket_tasks SET assignee = NULL, updated_at = ? WHERE id = ?").run(now, task.id);
+            this.#db
+                .prepare("INSERT INTO pocket_task_comments (id, task_id, author, session, text, created_at) VALUES (?, ?, ?, NULL, ?, ?)")
+                .run(randomUUID(), task.id, authorOf(actor), `Unassigned: ${name} is no longer on ${project.key}.`, now);
+            this.#record(actor, task.id, project.id, "changed", { assignee: null });
+        }
     }
 
     /** A project and all its tasks, for good. Its owner or the app's owner only. */
@@ -564,7 +717,7 @@ export class Projects {
 
         const made = this.#taskById(id)!;
 
-        if (made.assignee === "pi") {
+        if (isPi(made.assignee)) {
             this.#toPi(made);
         }
 
@@ -805,7 +958,7 @@ export class Projects {
 
         const saved = this.#taskById(task.id)!;
 
-        if (changes.assignee === "pi" && saved.state !== "done") {
+        if (isPi(saved.assignee) && changes.assignee !== undefined && saved.state !== "done") {
             this.#toPi(saved);
         }
 
@@ -1140,7 +1293,33 @@ export class Projects {
     // ---- Rules ---------------------------------------------------------------------------------------------------
 
     #sees(person: Person, project: Project): boolean {
-        return person.role === "owner" || project.owner === person.id || project.members.includes(person.id);
+        return (
+            person.role === "owner" ||
+            person.seesAll === true ||
+            project.owner === person.id ||
+            project.members.includes(person.id) ||
+            (project.open && person.role !== "viewer") ||
+            (project.team && person.managesTeam === true)
+        );
+    }
+
+    /** A person's standing on a board: its owner and the app's owner lead it, then their membership, then what they see. */
+    roleOn(person: Person, project: Project): BoardRole | undefined {
+        if (person.role === "owner" || project.owner === person.id) {
+            return "lead";
+        }
+
+        const member = project.memberRoles[person.id];
+
+        if (member !== undefined) {
+            return member;
+        }
+
+        if (project.team && person.managesTeam === true) {
+            return "lead";
+        }
+
+        return this.#sees(person, project) ? "viewer" : undefined;
     }
 
     #see(actor: Actor, key: string): Project {
@@ -1153,16 +1332,21 @@ export class Projects {
         return project;
     }
 
-    #requireEdit(person: Person): void {
+    /** A change at all: never by an app viewer; on `project`, never by one of its viewers. */
+    #requireEdit(person: Person, project?: Project): void {
         if (person.role === "viewer") {
             throw new HttpError(403, "You can view projects but not change them. Ask the owner for steering rights.");
+        }
+
+        if (project !== undefined && this.roleOn(person, project) === "viewer") {
+            throw new HttpError(403, `You are a viewer on ${project.key}: ask one of its leads to make you a member.`);
         }
     }
 
     #edit(actor: Actor, key: string): Project {
         const project = this.#see(actor, key);
 
-        this.#requireEdit(actor.person);
+        this.#requireEdit(actor.person, project);
 
         return project;
     }
@@ -1170,8 +1354,8 @@ export class Projects {
     #manage(actor: Actor, key: string): Project {
         const project = this.#edit(actor, key);
 
-        if (actor.person.role !== "owner" && project.owner !== actor.person.id) {
-            throw new HttpError(403, `Only ${project.key}'s owner can do that.`);
+        if (this.roleOn(actor.person, project) !== "lead") {
+            throw new HttpError(403, project.team ? `Only ${project.key}'s leads, or whoever manages team boards, can do that.` : `Only ${project.key}'s owner or its leads can do that.`);
         }
 
         return project;
@@ -1197,7 +1381,7 @@ export class Projects {
     #editTask(actor: Actor, ref: string): { project: Project; task: Task } {
         const found = this.#seeTask(actor, ref);
 
-        this.#requireEdit(actor.person);
+        this.#requireEdit(actor.person, found.project);
 
         return found;
     }
@@ -1240,7 +1424,7 @@ export class Projects {
         // In a session where the person chose that Pi closes tasks (their OK in chat is the approval), it may.
         if (
             actor.kind === "pi" &&
-            (this.boardMode(actor.conversationId)?.closer ?? "person") === "person" &&
+            actor.closer === "person" &&
             this.sessionsOf(task.id).some((session) => session.role === "worker" && session.conversationId === actor.conversationId)
         ) {
             throw new HttpError(
@@ -1263,6 +1447,20 @@ export class Projects {
     #assigneeOf(project: Project, assignee: string | null): string | null {
         if (assignee === null || assignee === "") {
             return null;
+        }
+
+        // A person's own Pi (the team server): "pi:<person>", for someone who may change the board.
+        const own = /^pi:(.+)$/i.exec(String(assignee).trim());
+
+        if (own !== null) {
+            const owner = this.#personRef(own[1]!);
+            const person = this.#people().find((each) => each.id === owner);
+
+            if (person === undefined || owner === "pi" || !this.#sees(person, project) || this.roleOn(person, project) === "viewer") {
+                throw bad(`${own[1]}'s Pi cannot work on ${project.key}: they need to be a member of it.`);
+            }
+
+            return `pi:${owner}`;
         }
 
         const id = this.#personRef(assignee);
@@ -1361,9 +1559,9 @@ export class Projects {
             name: String(row.name),
             folder: row.folder === null ? null : String(row.folder),
             owner: String(row.owner),
-            members: (this.#db.prepare("SELECT user_id FROM pocket_project_members WHERE project_id = ? ORDER BY user_id").all(row.id!) as Row[]).map(
-                (member) => String(member.user_id),
-            ),
+            ...this.#membersOf(String(row.id)),
+            team: String(row.owner) === TEAM,
+            open: Number(row.open ?? 0) === 1,
             labels: JSON.parse(String(row.labels)) as string[],
             places: JSON.parse(String(row.places ?? "[]")) as ProjectPlace[],
             autoRuns: Number(row.auto_runs) === 1,
@@ -1371,6 +1569,15 @@ export class Projects {
             mainSession: row.main_session === null ? null : String(row.main_session),
             createdAt: Number(row.created_at),
             updatedAt: Number(row.updated_at),
+        };
+    }
+
+    #membersOf(projectId: string): { members: string[]; memberRoles: Record<string, BoardRole> } {
+        const rows = this.#db.prepare("SELECT user_id, role FROM pocket_project_members WHERE project_id = ? ORDER BY user_id").all(projectId) as Row[];
+
+        return {
+            members: rows.map((row) => String(row.user_id)),
+            memberRoles: Object.fromEntries(rows.map((row) => [String(row.user_id), (BOARD_ROLES as readonly string[]).includes(String(row.role)) ? (String(row.role) as BoardRole) : "member"])),
         };
     }
 

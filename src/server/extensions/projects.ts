@@ -383,7 +383,8 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             throw new HttpError(403, "Nobody asked for this work, so there is nobody to act for on the board.");
         }
 
-        return { kind: "pi", person, conversationId };
+        // Who closes tasks Pi worked on, as this session's board mode says: the board's rules need it wherever it lives.
+        return { kind: "pi", person, conversationId, closer: projects.boardMode(conversationId)?.closer ?? "person" };
     };
     /** Board tools work only where the person said yes. */
     const onBoard = (conversationId: string): { actor: Actor; project: string | null } => {

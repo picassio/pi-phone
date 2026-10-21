@@ -21,7 +21,7 @@ const TUAN: Person = { id: "u-tuan", name: "Tuan", role: "guest" };
 const VIEW: Person = { id: "u-view", name: "Vi", role: "viewer" };
 const people = () => [OWNER, TUAN, VIEW];
 const as = (person: Person): Actor => ({ kind: "person", person });
-const pi = (conversationId: string, person = OWNER): Actor => ({ kind: "pi", person, conversationId });
+const pi = (conversationId: string, person = OWNER): Actor => ({ kind: "pi", person, conversationId, closer: "person" });
 
 function store(): Projects {
     return new Projects(mkdtempSync(join(root, "projects-")), people);
@@ -194,11 +194,13 @@ test("a session's board settings: who closes tasks and its rules, kept; the proj
 
     assert.deepEqual([mode.closer, mode.rules, mode.project?.rules], ["pi", "light", "light"], "kept across a restart and a board-mode change");
 
-    // Where Pi closes tasks, it may move one it worked on to Done; elsewhere it may not.
-    const worked = again.createTask(pi("c-1"), "PP", { title: "Mine" });
+    // Where Pi closes tasks, it may move one it worked on to Done; elsewhere it may not. Pi's actor carries its session's
+    // setting, as the board tools make it (`piOf`).
+    const closing: Actor = { kind: "pi", person: OWNER, conversationId: "c-1", closer: again.boardMode("c-1")!.closer };
+    const worked = again.createTask(closing, "PP", { title: "Mine" });
 
-    again.updateTask(pi("c-1"), worked.ref, { state: "in_progress" });
-    again.updateTask(pi("c-1"), worked.ref, { state: "done" });
+    again.updateTask(closing, worked.ref, { state: "in_progress" });
+    again.updateTask(closing, worked.ref, { state: "done" });
     again.setBoardMode(as(OWNER), "c-2", true, "PP");
 
     const other = again.createTask(pi("c-2"), "PP", { title: "Theirs" });
