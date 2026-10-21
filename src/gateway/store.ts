@@ -34,6 +34,7 @@ export class GatewayStore {
             );
             CREATE TABLE IF NOT EXISTS pp_role (id TEXT PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS pp_user_role (user_id TEXT PRIMARY KEY, role_id TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS pp_always_on (user_id TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS pp_audit (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
                 target TEXT, details TEXT
@@ -279,6 +280,36 @@ export class GatewayStore {
         this.#db.prepare("INSERT INTO pp_person (user_id, key, token, created_at) VALUES (?, ?, ?, ?)").run(box.userId, box.key, box.token, box.createdAt);
 
         return box;
+    }
+
+    /** A person's pi-phone by its key (the controller's name for it). */
+    boxByKey(key: string): PersonBox | undefined {
+        const row = this.#db.prepare("SELECT * FROM pp_person WHERE key = ?").get(key) as Record<string, unknown> | undefined;
+
+        return row === undefined ? undefined : { userId: String(row.user_id), key, token: String(row.token), createdAt: Number(row.created_at) };
+    }
+
+    /** Whether a person's pi-phone is kept running, never stopped when idle (PP-33). */
+    alwaysOn(userId: string): boolean {
+        return this.#db.prepare("SELECT 1 FROM pp_always_on WHERE user_id = ?").get(userId) !== undefined;
+    }
+
+    setAlwaysOn(userId: string, on: boolean): void {
+        this.#db.prepare(on ? "INSERT OR IGNORE INTO pp_always_on (user_id) VALUES (?)" : "DELETE FROM pp_always_on WHERE user_id = ?").run(userId);
+    }
+
+    /** Everyone whose pi-phone is kept running. */
+    alwaysOnPeople(): string[] {
+        return (this.#db.prepare("SELECT user_id FROM pp_always_on").all() as { user_id: string }[]).map((row) => row.user_id);
+    }
+
+    /** Minutes without use after which a person's pi-phone stops (PP-33); 0: never. 30 until changed. */
+    idleMinutes(): number {
+        return Number(this.#setting("idle_minutes") ?? 30);
+    }
+
+    setIdleMinutes(minutes: number): void {
+        this.#set("idle_minutes", String(minutes));
     }
 
     boxOf(userId: string): PersonBox | undefined {

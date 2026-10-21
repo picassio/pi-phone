@@ -31,7 +31,7 @@ import { addressOf } from "../devices.ts";
 import { HttpError } from "../errors.ts";
 import { machinePaths } from "../machine-paths.ts";
 import { formatPlace, isRemote, parsePlace } from "../places.ts";
-import { runningNow } from "../running.ts";
+import { activity, runningNow } from "../running.ts";
 import { conversationRoutes } from "./conversation-routes.ts";
 import { createEventStreams } from "./events.ts";
 import { extensionRoute } from "./extension-routes.ts";
@@ -409,6 +409,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
         if (first === "running" && method === "GET") {
             return json(response, 200, await runningNow(app, user));
+        }
+
+        // Whether this pi-phone is at work, for the server edition's gateway that stops idle ones (PP-33); browsers never reach it.
+        if (first === "activity" && second === undefined && method === "GET") {
+            requireOwner(user);
+
+            return json(response, 200, await activity(app, user));
         }
 
         if (first === "spend" && method === "GET") {

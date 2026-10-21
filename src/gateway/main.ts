@@ -47,6 +47,9 @@ const gateway = new Gateway({
 });
 const server = createServer((request, response) => void gateway.handle(request, response));
 
+// Idle pi-phones stop (PP-33).
+gateway.sweeping();
+
 server.on("upgrade", (request, socket, head) => void gateway.upgrade(request, socket, head));
 server.requestTimeout = 15 * 60_000;
 server.listen(Number(process.env.PP_GATEWAY_PORT ?? 8080), "0.0.0.0", () => {

@@ -191,3 +191,20 @@ export async function runningNow(app: PocketApp, user: User): Promise<RunningSes
         (a, b) => Number(b.busy) - Number(a.busy) || b.tasks.length - a.tasks.length,
     );
 }
+
+/**
+ * Whether this pi-phone is at work, for the server edition's gateway (PP-33), which stops idle ones: anything in
+ * Running now (Pi writing, tools, subagents, scheduled messages, commands) keeps it up. Calls that wait for approval do
+ * not: they wait for a person, who starts it again by coming back, and they survive the stop.
+ */
+export async function activity(app: PocketApp, owner: User): Promise<{ busy: boolean; why?: string }> {
+    const working = (await runningNow(app, owner)).find((session) => session.busy || session.tasks.length > 0);
+
+    if (working === undefined) {
+        return { busy: false };
+    }
+
+    const what = working.tasks[0]?.label ?? "writing an answer";
+
+    return { busy: true, why: `${working.title}: ${what}` };
+}

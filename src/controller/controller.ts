@@ -29,6 +29,9 @@ export type ControllerOptions = {
 
 export type Person = { container: string; host: string; port: number; running: boolean };
 
+/** A person's container in the list: whose, whether it runs, and whether it is of the image people run now. */
+export type Listed = { id: string; host: string; port: number; running: boolean; current: boolean };
+
 /** What a refused or failed request says: its HTTP status, and why. */
 export class ControllerError extends Error {
     readonly status: number;
@@ -115,6 +118,28 @@ export class Controller {
         }
 
         return { memoryMb, cpus };
+    }
+
+    /** The id of the image people run now, or undefined when there is none yet. */
+    async #imageId(): Promise<string | undefined> {
+        const answer = await this.#docker("GET", `/images/${encodeURIComponent(this.#options.image)}/json`);
+
+        return answer.status === 200 ? (answer.body as { Id?: string }).Id : undefined;
+    }
+
+    /** Every person's container (labelled `io.piphone.role=person`), running or not. */
+    async list(): Promise<Listed[]> {
+        const filters = encodeURIComponent(JSON.stringify({ label: ["io.piphone.role=person"] }));
+        const found = (await this.#expect("GET", `/containers/json?all=true&filters=${filters}`, undefined, [200])) as { Labels?: Record<string, string>; State?: string; ImageID?: string }[];
+        const image = await this.#imageId();
+
+        return found
+            .map((each) => {
+                const id = each.Labels?.["io.piphone.person"] ?? "";
+
+                return { id, host: names(id).container, port: 8787, running: each.State === "running", current: image !== undefined && each.ImageID === image };
+            })
+            .filter((each) => PERSON_ID.test(each.id));
     }
 
     /** A person's container now: running or not, or undefined when there is none. */

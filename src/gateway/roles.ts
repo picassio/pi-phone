@@ -18,6 +18,13 @@ export const CATALOGUE = [
         },
     },
     {
+        group: "Server",
+        enforced: "gateway",
+        permissions: {
+            "server.manage": "Server settings: stopping idle pi-phones, image updates, backups",
+        },
+    },
+    {
         group: "Their own pi-phone",
         enforced: "container",
         permissions: {

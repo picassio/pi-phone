@@ -14,6 +14,7 @@ import {
 } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { activity } from "../src/server/running.ts";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
@@ -163,12 +164,16 @@ const items = async (id: ConversationId) =>
 
 test("a scheduled message goes out at its time, also after a restart, once; a repeat goes back to sleep", async () => {
     const id = await newSession(app);
+
+    // Nothing at work yet: the server edition's gateway may stop this pi-phone (PP-33); a schedule keeps it up.
+    assert.deepEqual(await activity(app, owner(app)), { busy: false });
     const once = await app.commands.schedule(id, owner(app), {
         when: "in 10m check the build",
         zone: "UTC",
     });
 
     assert.equal(once.text, "check the build");
+    assert.equal((await activity(app, owner(app))).busy, true, "a scheduled message keeps it up");
     assert.equal(once.content, "[scheduled] check the build");
     const repeat = await app.commands.schedule(id, owner(app), {
         when: "every 20m ping",

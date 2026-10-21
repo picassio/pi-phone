@@ -1,6 +1,6 @@
 /** The gateway's side of the controller (`src/controller/main.ts`): its Unix socket, with the shared secret. */
 import { request as httpRequest } from "node:http";
-import type { ControllerClient } from "./server.ts";
+import type { ControllerClient, Listed } from "./server.ts";
 
 export class SocketController implements ControllerClient {
     readonly #socket: string;
@@ -46,6 +46,10 @@ export class SocketController implements ControllerClient {
 
     async ensure(key: string, token: string, caps: { memoryMb: number; cpus: number }): Promise<{ host: string; port: number }> {
         return (await this.#call("POST", `/people/${key}/ensure`, { token, caps })) as { host: string; port: number };
+    }
+
+    async list(): Promise<Listed[]> {
+        return ((await this.#call("GET", "/people")) as { people: Listed[] }).people;
     }
 
     async stop(key: string): Promise<void> {

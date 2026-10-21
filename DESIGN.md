@@ -445,6 +445,15 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
     - **Models:** modelList, configure and submit hold to the allow list.
     - **Spend:** the monthly cap counts from what the person had spent when the month began.
     - **The page:** `server.policy` lets the menu, rail and launcher leave items out (`roleAllows`).
+- **Idle stop and always on** (PP-33):
+  - **The gateway** counts what is open to each person's pi-phone: forwarded requests, a page's event stream, and
+    WebSockets. It also notes when each was last used, and sweeps every minute with the controller's list (`GET /people`).
+  - **A running pi-phone stops** when nothing is open to it, it is past the server's idle minutes (`pp_setting`
+    idle_minutes), and its `GET /api/activity` (owner only, refused from browsers) says it is not busy. Busy means
+    anything in Running now; waiting approvals don't count.
+  - **A visit during a stop** waits for the stop, then starts the container again.
+  - **Always on** (`pp_always_on`): never stopped, and `#keepUp` starts the container if the list shows it stopped,
+    then sends the role's policy, trying for 30 s while it boots.
 - **Effective HTML** (`third_party/effective-html/`; owner's decision of 2026-10-18): plannotator/effective-html's 7
   skills (MIT, at commit `975b047`) for HTML artifacts: `html` (router), `design-artifact`, `html-wireframe`,
   `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every

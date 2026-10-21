@@ -6,7 +6,7 @@
  *   PP_DOCKER_SOCKET=/var/run/docker.sock PP_USER_IMAGE=pi-phone-server:local PP_GATEWAY_CONTAINER=pi-phone-gateway \
  *   PP_CONTROLLER_SOCKET=/run/pi-phone/controller.sock PP_CONTROLLER_SECRET_FILE=/run/pi-phone/secret node src/controller/main.ts
  *
- * Routes (JSON): GET /people/<id>, POST /people/<id>/ensure { token, caps: { memoryMb, cpus } }, POST /people/<id>/stop,
+ * Routes (JSON): GET /people, GET /people/<id>, POST /people/<id>/ensure { token, caps: { memoryMb, cpus } }, POST /people/<id>/stop,
  * POST /people/<id>/remove { purge }.
  */
 import { chmodSync, chownSync, existsSync, readFileSync, rmSync } from "node:fs";
@@ -71,7 +71,13 @@ const server = createServer((request, response) => {
                 throw new ControllerError(401, "Not the gateway.");
             }
 
-            const match = /^\/people\/([^/]+)(?:\/(ensure|stop|remove))?$/.exec(new URL(request.url ?? "/", "http://controller").pathname);
+            const path = new URL(request.url ?? "/", "http://controller").pathname;
+
+            if (path === "/people" && request.method === "GET") {
+                return reply(200, { people: await controller.list() });
+            }
+
+            const match = /^\/people\/([^/]+)(?:\/(ensure|stop|remove))?$/.exec(path);
 
             if (match === null) {
                 throw new ControllerError(404, "No such route.");

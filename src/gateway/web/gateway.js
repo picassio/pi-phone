@@ -332,6 +332,7 @@ const nav = (me) =>
         has(me, "people.invite") || has(me, "people.manage") ? h("a", { class: "button", href: "/auth/people", onclick: (event) => (event.preventDefault(), go("/auth/people")) }, "People") : null,
         has(me, "roles.manage") ? h("a", { class: "button", href: "/auth/roles", onclick: (event) => (event.preventDefault(), go("/auth/roles")) }, "Roles") : null,
         has(me, "audit.view") ? h("a", { class: "button", href: "/auth/audit", onclick: (event) => (event.preventDefault(), go("/auth/audit")) }, "Audit log") : null,
+        has(me, "server.manage") ? h("a", { class: "button", href: "/auth/server", onclick: (event) => (event.preventDefault(), go("/auth/server")) }, "Server") : null,
     );
 
 async function people(me) {
@@ -424,6 +425,14 @@ async function renderPeople(box, me, roles) {
                 { class: "card person" },
                 h("b", {}, person.name, " ", mayAct ? null : h("span", { class: "tag" }, person.roleName), person.banned ? h("span", { class: "tag" }, "disabled") : null, person.twoFactor ? h("span", { class: "tag" }, "2FA") : null),
                 h("span", { class: "muted" }, person.email),
+                has(me, "server.manage") && !person.banned
+                    ? h(
+                          "label",
+                          { class: "check", title: "Never stopped when idle; started by itself, so scheduled messages run without a visit" },
+                          h("input", { type: "checkbox", checked: person.alwaysOn, onchange: (event) => act(person, "always-on", { on: event.target.checked }) }),
+                          " Always on",
+                      )
+                    : null,
                 mayAct
                     ? h(
                           "div",
@@ -556,6 +565,37 @@ async function auditPage(me) {
     );
 }
 
+// ─── Server ───
+
+async function serverPage(me) {
+    const status = h("p", { class: "muted" });
+    const show = (server) => {
+        const { all, running, outdated } = server.containers;
+
+        status.textContent = `${all} pi-phone${all === 1 ? "" : "s"}, ${running} running${outdated > 0 ? `, ${outdated} on an older image` : ""}.`;
+    };
+    const server = await gw("server");
+
+    show(server);
+    page(
+        "Server",
+        "How this server runs people's pi-phones.",
+        nav(me),
+        h("h2", {}, "Idle pi-phones"),
+        h("p", { class: "muted" }, "A pi-phone stops when nobody has it open and it isn't at work (Pi writing, tools, scheduled messages). It starts again on the next visit, in a few seconds."),
+        form(
+            [field("Stop after this many minutes unused (0: never)", "idleMinutes", "number", { min: "0", max: "1440", step: "1", value: String(server.idleMinutes) })],
+            "Save",
+            async (values) => {
+                show(await gw("server", { idleMinutes: Number(values.idleMinutes) }));
+                status.textContent += " Saved.";
+            },
+        ),
+        h("h2", {}, "Now"),
+        status,
+    );
+}
+
 // ─── Routes ───
 
 async function route() {
@@ -592,6 +632,10 @@ async function route() {
 
     if (path === "/auth/audit" && has(state.me, "audit.view")) {
         return auditPage(state.me);
+    }
+
+    if (path === "/auth/server" && has(state.me, "server.manage")) {
+        return serverPage(state.me);
     }
 
     if (path === "/auth/sign-in" && next() !== "/") {

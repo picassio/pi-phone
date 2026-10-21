@@ -35,6 +35,7 @@ const controller: ControllerClient = {
 
         return { host: "127.0.0.1", port: upstreamPort };
     },
+    list: async () => [],
     stop: async (key) => void controllerCalls.push(`stop ${key}`),
     remove: async (key, purge) => void controllerCalls.push(`remove ${key} ${purge}`),
 };
@@ -245,7 +246,7 @@ test("custom roles (PP-22): the owner's catalogue, a role's caps and permissions
 
     assert.deepEqual(listed.roles.map((role) => role.id), ["owner", "admin", "member", "viewer"], "the owner's, then the seeded ones");
     assert.equal(listed.roles[0]!.builtin, true);
-    assert.deepEqual(listed.catalogue.map((group) => group.group), ["People", "Their own pi-phone", "Sharing"]);
+    assert.deepEqual(listed.catalogue.map((group) => group.group), ["People", "Server", "Their own pi-phone", "Sharing"]);
 
     // A role of the owner's own: checked, then used for an invite; its caps reach the controller.
     const bad = await owner.go("/auth/gw/roles", { name: "Bad", permissions: ["no.such"], memoryMb: 1024, cpus: 1 });

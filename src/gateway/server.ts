@@ -20,8 +20,12 @@ import { CATALOGUE, checkRole, OWNER_ROLE, type Permission } from "./roles.ts";
 import { type GatewayStore, INVITE_MINUTES } from "./store.ts";
 
 /** What the gateway asks the controller (`src/controller/`): a person's pi-phone, by key. */
+/** A person's container as the controller lists it. */
+export type Listed = { id: string; host: string; port: number; running: boolean; current: boolean };
+
 export interface ControllerClient {
     ensure(key: string, token: string, caps: { memoryMb: number; cpus: number }): Promise<{ host: string; port: number }>;
+    list(): Promise<Listed[]>;
     stop(key: string): Promise<void>;
     remove(key: string, purge: boolean): Promise<void>;
 }
@@ -33,6 +37,8 @@ export type GatewayOptions = {
     /** The address people open: `https://…`. */
     origin: string;
     log: (line: string) => void;
+    /** The clock (tests move it). */
+    now?: () => number;
 };
 
 type User = { id: string; name: string; email: string; role?: string | null; banned?: boolean | null; twoFactorEnabled?: boolean | null };
@@ -44,7 +50,7 @@ const ICON_DIR = resolve(import.meta.dirname, "..", "..", "web");
 const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png" };
 
 /** pi-phone's routes for signing in and managing people: the gateway does these, so they never reach a container. */
-const REFUSED = [/^\/login(\/|$|\?)/, /^\/recover(\/|$|\?)/, /^\/api\/(invite|recovery-code|devices|users|sign-out-everywhere|logout|access|tailscale|policy)(\/|$|\?)/];
+const REFUSED = [/^\/login(\/|$|\?)/, /^\/recover(\/|$|\?)/, /^\/api\/(invite|recovery-code|devices|users|sign-out-everywhere|logout|access|tailscale|policy|activity)(\/|$|\?)/];
 
 /** How long a pi-phone found running is taken as running, before the controller is asked again. */
 const READY_MS = 60_000;
@@ -57,10 +63,148 @@ export class Gateway {
     readonly #starting = new Map<string, Promise<{ host: string; port: number }>>();
     /** The policy each person's pi-phone has from this gateway, as JSON, by key (PP-22). */
     readonly #applied = new Map<string, string>();
+    /** Requests and WebSockets open to each person's pi-phone now, by key: an open page keeps it up (PP-33). */
+    readonly #open = new Map<string, number>();
+    /** When each person's pi-phone was last used through this gateway, by key. */
+    readonly #used = new Map<string, number>();
+    /** Stops under way, by key: a visit waits for one before starting the pi-phone again. */
+    readonly #stopping = new Map<string, Promise<void>>();
+    readonly #now: () => number;
+    /** When this gateway started: a pi-phone it has not seen used counts from then. */
+    readonly #since: number;
+    #sweeping = false;
 
     constructor(options: GatewayOptions) {
         this.#options = options;
         this.#authHandler = toNodeHandler(options.auth);
+        this.#now = options.now ?? Date.now;
+        this.#since = this.#now();
+    }
+
+    /** A request or WebSocket to a person's pi-phone opened (+1) or ended (-1). */
+    #use(key: string, delta: 1 | -1): void {
+        this.#open.set(key, Math.max(0, (this.#open.get(key) ?? 0) + delta));
+        this.#used.set(key, this.#now());
+    }
+
+    /** Stop a person's pi-phone; their next visit waits for it, then starts it again. */
+    async #stop(key: string, why: string): Promise<void> {
+        const stopping = (async () => {
+            this.#ready.delete(key);
+            this.#applied.delete(key);
+            await this.#options.controller.stop(key);
+            this.#options.log(`gateway: stopped ${key} (${why})`);
+        })().finally(() => this.#stopping.delete(key));
+
+        this.#stopping.set(key, stopping);
+        await stopping;
+    }
+
+    /** What a person's pi-phone says it is doing (`/api/activity`), or undefined when it does not answer. */
+    async #activity(place: { host: string; port: number }, token: string): Promise<{ busy: boolean; why?: string } | undefined> {
+        return new Promise((resolve) => {
+            const call = httpRequest({ host: place.host, port: place.port, method: "GET", path: "/api/activity", timeout: 5000, headers: { host: `${place.host}:${place.port}`, authorization: `Bearer ${token}`, "x-pocket": "1" } }, (answer) => {
+                const chunks: Buffer[] = [];
+
+                answer.on("data", (chunk: Buffer) => chunks.push(chunk));
+                answer.on("end", () => {
+                    try {
+                        resolve(answer.statusCode === 200 ? (JSON.parse(Buffer.concat(chunks).toString("utf8")) as { busy: boolean; why?: string }) : undefined);
+                    } catch {
+                        resolve(undefined);
+                    }
+                });
+            });
+
+            call.on("error", () => resolve(undefined));
+            call.on("timeout", () => call.destroy());
+            call.end();
+        });
+    }
+
+    /**
+     * One look at everyone's pi-phone (every minute, `sweeping`): a running one stops when nothing is open to it, it was
+     * not used for the server's idle minutes, and it says it is not at work (PP-33). One that does not answer is left.
+     */
+    async sweep(): Promise<void> {
+        if (this.#sweeping) {
+            return;
+        }
+
+        this.#sweeping = true;
+
+        try {
+            const minutes = this.#options.store.idleMinutes();
+            const kept = new Set(this.#options.store.alwaysOnPeople());
+            const listed = await this.#options.controller.list();
+
+            // Always on: started when it is not running (stopped before, or never yet), with its role's policy.
+            for (const userId of kept) {
+                const box = this.#options.store.boxOf(userId);
+
+                await this.#keepUp(userId, box === undefined || !listed.some((each) => each.id === box.key && each.running));
+            }
+
+            if (minutes === 0) {
+                return;
+            }
+
+            for (const each of listed) {
+                const box = this.#options.store.boxByKey(each.id);
+
+                if (!each.running || box === undefined || kept.has(box.userId) || (this.#open.get(each.id) ?? 0) > 0 || this.#stopping.has(each.id) || this.#starting.has(each.id)) {
+                    continue;
+                }
+
+                if (this.#now() - (this.#used.get(each.id) ?? this.#since) < minutes * 60_000) {
+                    continue;
+                }
+
+                const doing = await this.#activity(each, box.token);
+
+                if (doing === undefined || doing.busy) {
+                    continue;
+                }
+
+                await this.#stop(each.id, `idle for ${minutes} min`);
+            }
+        } catch (error) {
+            this.#options.log(`gateway: sweep: ${String(error)}`);
+        } finally {
+            this.#sweeping = false;
+        }
+    }
+
+    /**
+     * Keep a person's pi-phone running (always on): started if it is not, and given their role's policy, tried for a
+     * while as it starts, so it never works without the role's limits for long. Not for someone disabled, or whose role
+     * has no pi-phone.
+     */
+    async #keepUp(userId: string, stopped: boolean): Promise<void> {
+        const person = this.#options.store.users().find((each) => each.id === userId);
+
+        if (person === undefined || person.banned || !this.#options.store.can(person.id, person.role, "pi.use") || this.#stopping.has(this.#options.store.box(userId).key)) {
+            return;
+        }
+
+        try {
+            const upstream = await this.#upstream(person, stopped);
+
+            for (let tries = 0; tries < 15 && !(await this.#policy(person, upstream)); tries++) {
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+        } catch (error) {
+            this.#options.log(`gateway: keeping ${userId}'s pi-phone up: ${String(error)}`);
+        }
+    }
+
+    /** Sweep every minute; returns how to stop. */
+    sweeping(): () => void {
+        const timer = setInterval(() => void this.sweep(), 60_000);
+
+        timer.unref();
+
+        return () => clearInterval(timer);
     }
 
     async #user(request: IncomingMessage): Promise<User | undefined> {
@@ -78,6 +222,9 @@ export class Gateway {
         if (!fresh && known !== undefined && Date.now() - known.at < READY_MS) {
             return { ...known, token: box.token };
         }
+
+        // Stopping (idle) a moment ago: started again once that is done.
+        await this.#stopping.get(box.key);
 
         let starting = this.#starting.get(box.key);
 
@@ -213,6 +360,19 @@ export class Gateway {
     }
 
     async #forward(request: IncomingMessage, response: ServerResponse, user: User, retried = false): Promise<void> {
+        const key = this.#options.store.box(user.id).key;
+
+        // In use while the request is open (a page's event stream stays open as long as the page).
+        this.#use(key, 1);
+
+        try {
+            await this.#forwardTo(request, response, user, retried);
+        } finally {
+            this.#use(key, -1);
+        }
+    }
+
+    async #forwardTo(request: IncomingMessage, response: ServerResponse, user: User, retried: boolean): Promise<void> {
         const upstream = await this.#upstream(user, retried);
 
         // Not before it has the person's role's policy (PP-22).
@@ -298,6 +458,10 @@ export class Gateway {
                 inner.pipe(socket);
                 socket.pipe(inner);
             });
+            const key = this.#options.store.box(user.id).key;
+
+            this.#use(key, 1);
+            socket.once("close", () => this.#use(key, -1));
 
             inner.on("error", () => socket.destroy());
             socket.on("error", () => inner.destroy());
@@ -495,6 +659,31 @@ export class Gateway {
             return json(response, 200, changed);
         }
 
+        // The server's settings (PP-33): when idle pi-phones stop; and how many there are, running and on an old image.
+        if (route === "server") {
+            if (!can("server.manage")) {
+                return json(response, 403, { error: "Your role does not manage the server." });
+            }
+
+            if (method === "POST") {
+                const minutes = Number((await readBody(request)).idleMinutes);
+
+                if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440) {
+                    return json(response, 400, { error: "Idle minutes are a whole number from 0 (never stop) to 1440." });
+                }
+
+                store.setIdleMinutes(minutes);
+                store.audit(user.id, "server settings", undefined, { idleMinutes: minutes });
+            }
+
+            const listed = await this.#options.controller.list();
+
+            return json(response, 200, {
+                idleMinutes: store.idleMinutes(),
+                containers: { all: listed.length, running: listed.filter((each) => each.running).length, outdated: listed.filter((each) => !each.current).length },
+            });
+        }
+
         if (route === "audit" && method === "GET") {
             if (!can("audit.view")) {
                 return json(response, 403, { error: "Your role does not see the audit log." });
@@ -552,9 +741,35 @@ export class Gateway {
                 people: store.users().map((each) => {
                     const theirs = store.roleOf(each.id, each.role);
 
-                    return { id: each.id, name: each.name, email: each.email, role: theirs.id, roleName: theirs.name, banned: each.banned === true, twoFactor: each.twoFactorEnabled === true, box: store.boxOf(each.id)?.key ?? null };
+                    return { id: each.id, name: each.name, email: each.email, role: theirs.id, roleName: theirs.name, banned: each.banned === true, twoFactor: each.twoFactorEnabled === true, box: store.boxOf(each.id)?.key ?? null, alwaysOn: store.alwaysOn(each.id) };
                 }),
             });
+        }
+
+        // Always on (PP-33): a person's pi-phone never stops when idle, and starts by itself. The server's to decide (your own too).
+        const keep = /^people\/([A-Za-z0-9_-]{6,64})\/always-on$/.exec(route);
+
+        if (keep !== null && method === "POST") {
+            if (!can("server.manage")) {
+                return json(response, 403, { error: "Your role does not manage the server." });
+            }
+
+            const id = keep[1]!;
+
+            if (!store.users().some((each) => each.id === id)) {
+                return json(response, 404, { error: "No such person." });
+            }
+
+            const on = (await readBody(request)).on === true;
+
+            store.setAlwaysOn(id, on);
+            store.audit(user.id, on ? "always on" : "not always on", id);
+
+            if (on) {
+                await this.#keepUp(id, true);
+            }
+
+            return json(response, 200, { ok: true, alwaysOn: on });
         }
 
         const act = /^people\/([A-Za-z0-9_-]{6,64})\/(reset-password|reset-two-factor|disable|enable|remove|role)$/.exec(route);
@@ -629,8 +844,7 @@ export class Gateway {
                 const box = store.boxOf(id);
 
                 if (box !== undefined) {
-                    this.#ready.delete(box.key);
-                    await this.#options.controller.stop(box.key);
+                    await this.#stop(box.key, "disabled");
                 }
             } else if (action === "enable") {
                 await ctx.internalAdapter.updateUser(id, { banned: false, banReason: null, banExpires: null });
@@ -648,6 +862,7 @@ export class Gateway {
                 }
 
                 store.forgetAuthExtras(id);
+                store.setAlwaysOn(id, false);
                 await ctx.internalAdapter.deleteUser(id);
                 store.forgetRoleOf(id);
             }

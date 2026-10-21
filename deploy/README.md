@@ -23,6 +23,12 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
     role's models are offered, and its spend cap stops new messages.
   - **A role without "a pi-phone of their own"** (Viewer) sees only the gateway's pages.
   - **The audit log** (`/auth/audit`) records invites, joins, role changes, resets, and disabling or removing people.
+- **Idle pi-phones stop** (the Server page, `/auth/server`, for roles with "server settings"):
+  - A person's container stops after 30 minutes unused (you set the minutes; 0 never stops), unless a page of it is open
+    or Pi is at work there (writing, tools, subagents, scheduled messages).
+  - Their next visit starts it again in a few seconds. Calls waiting for approval don't keep it up; they wait across the stop.
+  - **Always on** (a switch per person on the People page): their pi-phone is never stopped when idle, and starts by
+    itself if it was stopped, so scheduled messages run without a visit.
 
 For one person only, with the owner token and no gateway, use `compose.single.yaml` instead (`-f compose.single.yaml`).
 
