@@ -156,8 +156,11 @@ const SUBAGENTS_FILE = "subagents.ts";
 /** The most models the owner may allow subagents besides their session's own. */
 const MAX_SUBAGENT_MODELS = 50;
 
-/** The most peek tiles a tab gets live at once: the ones on its screen, which a tall screen fits a handful of. */
-export const MAX_PEEKS = 12;
+/**
+ * The most conversations a tab gets live peeks for at once: the sessions on its screen, and the subagents working
+ * there, each row asking for its own as the tiles do.
+ */
+export const MAX_PEEKS = 20;
 /**
  * How a run that failed leaves its messages: the model or its provider answered with an error, no model was there to
  * ask, or the run broke. Stopped (`aborted`), cleared (`reset`), and replaced (`stale`) runs did not fail.

@@ -17,3 +17,4 @@ is skipped on purpose.
   session here; the picker opens in the session's folder), 6856e07 (a message sent again takes the session's model).
 - Interrupt (PP-65): 1923035, c40be26, ead0b3d, 9b68685, and the composer part of 2af63f9 (Queue stays chosen; not its
   slots). Model names (cab7322, fc705ad) are PiP's only: nothing to take.
+- Subagent tiles (PP-66): 638e8f5, 242bbbf, with upstream's test/peeks.test.ts back (it was cut at the fork and runs).

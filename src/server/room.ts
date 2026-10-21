@@ -95,10 +95,17 @@ const PEEK_REASON = 300;
  */
 const QUEUED_TEXT = 500;
 
-/** What a peek tile shows of a session: its last steps, and the calls waiting for approval. */
+/** What a peek tile shows of a session: its last steps, the subagents at work there, and the calls waiting. */
 export type PeekSummary = {
     conversationId: ConversationId;
     lines: PeekLine[];
+    /** The session's subagents at work now, newest asked first: a tile says what each does from its own peek. */
+    agents: {
+        name: string;
+        conversationId: ConversationId;
+        asked?: string;
+        askedAt?: number;
+    }[];
     approvals: {
         id: string;
         conversationId: ConversationId;
@@ -764,15 +771,36 @@ export class Room {
             }
         }
 
+        const approvals = this.#app.approvals.all();
+        const waiting = new Set(
+            approvals
+                .filter((request) => request.conversationId !== this.id)
+                .map((request) => request.conversationId),
+        );
+
         return {
             conversationId: this.id,
             lines: peekLines(
                 recent.reverse(),
                 projectLive(view.docs["pi.live"] as LiveState | undefined),
             ),
+            // The subagents at work here, as the subagents bar lists them: the tile rows get what each does from
+            // their own peeks, which the tab asks for while the rows are on its screen.
+            agents: Object.entries(this.subagents)
+                .filter(
+                    ([, record]) =>
+                        this.#app.isBusy(record.conversationId) ||
+                        waiting.has(record.conversationId),
+                )
+                .sort(([, a], [, b]) => (b.askedAt ?? 0) - (a.askedAt ?? 0))
+                .map(([name, record]) => ({
+                    name,
+                    conversationId: record.conversationId,
+                    ...(record.asked === undefined ? {} : { asked: record.asked }),
+                    ...(record.askedAt === undefined ? {} : { askedAt: record.askedAt }),
+                })),
             // Its own calls waiting for someone; for a session, its subagents' too, as they make the session wait.
-            approvals: this.#app.approvals
-                .all()
+            approvals: approvals
                 .filter(
                     (request) =>
                         request.conversationId === this.id ||

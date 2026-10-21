@@ -9625,6 +9625,190 @@ textarea.notes {
     width: 60%;
 }
 
+/* The subagents at work in a peek tile: a row each, those waiting first, then how many more. */
+.agent-tiles {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0 8px 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--hair);
+}
+
+.agent-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    padding: 7px 9px 8px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+    background: var(--card-2);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    /* A double tap picks and opens it; the browser's double-tap zoom would take the second tap. */
+    touch-action: manipulation;
+    transition:
+        background-color var(--t-hover) var(--ease-out),
+        border-color var(--t-hover) var(--ease-out);
+}
+
+@media (hover: hover) {
+    .agent-tile:hover {
+        border-color: var(--line);
+        background: var(--hover);
+    }
+}
+
+.agent-tile:focus-visible {
+    outline-offset: -2px;
+}
+
+/* The board's selected one: ringed as its square is. */
+.agent-tile.on {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.agent-tile.waiting.on {
+    outline-color: var(--warn);
+}
+
+.agent-tile.waiting {
+    border-color: var(--warn-line);
+    background: var(--warn-soft);
+}
+
+.agent-tile-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+/* The session list's square, in its folder's color, a step larger here. */
+.agent-tile .state-mark {
+    width: 9px;
+    height: 9px;
+    --q: 4px;
+    --cut: 2px;
+}
+
+.agent-tile-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--accent);
+    font: 600 12px / 1.4 var(--mono);
+}
+
+.agent-tile.waiting .agent-tile-name {
+    color: var(--warn);
+}
+
+.agent-tile-state {
+    flex: none;
+    color: var(--faint);
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+}
+
+.agent-tile.waiting .agent-tile-state {
+    color: var(--warn);
+}
+
+.agent-tile-now {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    color: var(--muted);
+    font: 11.5px / 1.45 var(--mono);
+}
+
+/* In a peek tile, one line each: the square and the name, then what it does, cut short. */
+.agent-tiles .agent-tile {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-color: transparent;
+    background: transparent;
+}
+
+.agent-tiles .agent-tile-head {
+    flex: 0 1 auto;
+    max-width: 45%;
+}
+
+.agent-tiles .agent-tile-name {
+    flex: 0 1 auto;
+}
+
+/* The square's shape and the row's color say its state; the words are its label's. */
+.agent-tiles .agent-tile-state {
+    display: none;
+}
+
+.agent-tiles .agent-tile-now {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.agent-tiles .agent-tile.waiting {
+    border-color: var(--warn-line);
+    background: var(--warn-soft);
+}
+
+/* The rest, counted: the board shows them all. */
+.agent-more {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+    padding: 3px 6px;
+    border: 0;
+    border-radius: var(--r-control);
+    background: transparent;
+    color: var(--muted);
+    font: 500 11.5px / 1.4 var(--sans);
+    text-align: left;
+    cursor: pointer;
+    transition:
+        background-color var(--t-hover) var(--ease-out),
+        color var(--t-hover) var(--ease-out);
+}
+
+.agent-more svg:last-child {
+    margin-left: auto;
+    color: var(--faint);
+}
+
+.agent-more-wait {
+    color: var(--warn);
+}
+
+@media (hover: hover) {
+    .agent-more:hover {
+        background: var(--hover);
+        color: var(--text);
+    }
+}
+
+.agent-more:focus-visible {
+    outline-offset: -2px;
+}
+
 /* The call a session waits on: the whole command when it is short enough to allow from here, and the guard's reason. */
 .peek-ask {
     flex: none;
@@ -9645,6 +9829,16 @@ textarea.notes {
     font-size: 12px;
     font-weight: 600;
     color: var(--warn);
+}
+
+/* Which subagent asks, where the session's tile shows a subagent's call. */
+.peek-ask-who {
+    margin-left: auto;
+    overflow: hidden;
+    color: var(--muted);
+    font: 500 11.5px / 1.4 var(--sans);
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .peek-ask-what {
@@ -13775,16 +13969,55 @@ textarea.notes {
     font-size: 0.85rem;
 }
 
-/* A session: its title and how its subagents are, then a square for each. */
+/* A session: its title and how its subagents are, a square for each, and a sub-tile for each at work. */
 .board-row {
     display: flex;
-    align-items: center;
-    gap: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
     margin-bottom: 8px;
     padding: 12px 14px;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
     transition: opacity var(--t-fade) var(--ease-almost);
+}
+
+.board-row-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* The subagents at work in it: what each does now, at a glance, without opening one. */
+.board-live {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--hair);
+}
+
+.board-live-more {
+    grid-column: 1 / -1;
+    justify-self: start;
+    min-height: 28px;
+    padding: 4px 10px;
+    border: 1px solid var(--hair);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: 500 12px / 1.4 var(--sans);
+    cursor: pointer;
+    transition:
+        background-color var(--t-hover) var(--ease-out),
+        color var(--t-hover) var(--ease-out);
+}
+
+@media (hover: hover) {
+    .board-live-more:hover {
+        background: var(--hover);
+        color: var(--text);
+    }
 }
 
 .board-session {
@@ -14199,11 +14432,18 @@ textarea.notes {
 }
 
 .board.phone .board-row {
-    display: flex;
+    gap: 8px;
+    padding: 12px;
+}
+
+.board.phone .board-row-head {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
-    padding: 12px;
+}
+
+.board.phone .board-live {
+    grid-template-columns: 1fr;
 }
 
 .board.phone .board-session {

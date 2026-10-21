@@ -24,6 +24,9 @@ No Termux, no laptop, no cloud VM.
 ### The agent
 - **A durable agent on the phone.** Sessions, subagents, and tool calls are stored as they happen (SQLite). Kill the
   app or update it mid-run and the work continues where it stopped.
+- **Subagents at a glance.** A peek tile lists the subagents at work in its session (3 at most, 1 in the phone's
+  strip; **N more** opens the board there), and the subagents board shows a sub-tile for each (6 a session, 3 on a
+  phone). An approval on a tile names the subagent that asks.
 - **A session list after T3 Code.** A scope picker (All, each project, each folder, Archived) instead of tabs; Pinned,
   Active (a project's running task sessions under its main session), and a folded **Settled** shelf. A session settles
   by itself after a day idle, when its task run ends, or when its branch is merged, and comes back with new activity;
