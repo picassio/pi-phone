@@ -55,7 +55,7 @@ export function OpenUiFrame({ program = null, src = null, title = "Answer", fill
     const ref = useRef(null);
     const [height, setHeight] = useState(240);
     const theme = modeOf(paletteOf()) === "dark" ? "dark" : "light";
-    const address = src ?? `/a/openui?theme=${theme}`;
+    const address = src ?? `a/openui?theme=${theme}`;
     const conversationId = store.state.conversationId;
     // Blocks by their program; artifacts by their address (its version is in it).
     const key = program !== null ? answerKey("p", program) : answerKey("a", String(src).split("?")[0]);
@@ -102,7 +102,7 @@ export function OpenUiFrame({ program = null, src = null, title = "Answer", fill
                 const query = typeof data.query === "string" && data.query.startsWith("?") ? data.query : "";
 
                 try {
-                    const response = await fetch(`/api/openui/${data.path}${query}`, { headers: { "X-Pocket": "1" } });
+                    const response = await fetch(`api/openui/${data.path}${query}`, { headers: { "X-Pocket": "1" } });
 
                     reply({
                         type: "iui-fetch-reply",

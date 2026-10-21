@@ -130,7 +130,7 @@ export function FileView({ path, line, onOpen = openFile, onLoad }) {
             html`<iframe
                 class="file-office"
                 title=${name}
-                src=${`/a/office/${store.state.conversationId}?path=${encodeURIComponent(file.path)}`}
+                src=${`a/office/${store.state.conversationId}?path=${encodeURIComponent(file.path)}`}
                 sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads"
             ></iframe>`
         }
@@ -287,7 +287,7 @@ function FileActions({ file, shown, previewable, preview, onPreview, running, on
  * as that browser's download. Here or on the session's machine, as the Files panel's Download does.
  */
 export const downloadSessionFile = (path, name) =>
-    attempt(() => downloadFile(`/api/c/${store.state.conversationId}/download?path=${encodeURIComponent(path)}`, name));
+    attempt(() => downloadFile(`api/c/${store.state.conversationId}/download?path=${encodeURIComponent(path)}`, name));
 
 /** The viewer as a sheet: opened from a path in a reply, a tool card, a mention, or Changes. */
 export function FileSheet({ path, line }) {

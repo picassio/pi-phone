@@ -318,7 +318,7 @@ const COMMANDS = [
     {
         name: "export",
         description: "Download this conversation as Markdown",
-        run: () => location.assign(`/api/c/${store.state.view.conversation.id}/export`),
+        run: () => location.assign(`api/c/${store.state.view.conversation.id}/export`),
     },
     {
         name: "resume",

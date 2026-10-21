@@ -445,7 +445,7 @@ export function MenuSheet({ places = true }) {
             }
             ${
                 conversation &&
-                html`<a class="list-item" href=${`/api/c/${conversation.id}/export`} download>
+                html`<a class="list-item" href=${`api/c/${conversation.id}/export`} download>
                     <span>Export as Markdown</span>
                     <span class="muted small">the whole history</span>
                 </a>`

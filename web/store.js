@@ -1,4 +1,5 @@
 // App state, the server connection, and API calls. Components read `store.state` and re-render on `store.subscribe`.
+import { routeOf } from "./base.js";
 import { onRoute, pushRoute } from "./back.js";
 import { sessionForest } from "./session-tree.js";
 
@@ -182,7 +183,7 @@ function opened(id) {
 opened(store.state.conversationId);
 
 function routeConversation() {
-    const match = /^\/s\/(\d+)/.exec(location.pathname);
+    const match = /^\/s\/(\d+)/.exec(routeOf(location.pathname));
 
     return match ? Number(match[1]) : null;
 }
@@ -378,7 +379,7 @@ export async function api(path, body, options = {}) {
         }
     }
 
-    const response = await fetch(`/api/${path}`, init);
+    const response = await fetch(`api/${path}`, init);
     const text = await response.text();
     let data;
 
@@ -720,7 +721,7 @@ addEventListener("pageshow", (event) => {
 
 /** Server-sent events: one long response the server writes to as things change. */
 function streamEvents(query) {
-    const events = new EventSource(`/api/events?${query}`);
+    const events = new EventSource(`api/events?${query}`);
     /** The first batch arrived whole: the session's view, or the session list when no session is open. */
     let settled = false;
     const settles = query.includes("&c=") ? ["view", "missing"] : ["sessions"];
@@ -814,7 +815,7 @@ function pollEvents(query) {
             request?.abort();
 
             if (session) {
-                fetch(`/api/poll?session=${session}&close=1`, { keepalive: true }).catch(() => {});
+                fetch(`api/poll?session=${session}&close=1`, { keepalive: true }).catch(() => {});
             }
         },
     };
@@ -827,7 +828,7 @@ function pollEvents(query) {
 
             try {
                 const response = await fetch(
-                    `/api/poll?${query}${session ? `&session=${session}&ack=${ack}` : ""}`,
+                    `api/poll?${query}${session ? `&session=${session}&ack=${ack}` : ""}`,
                     { signal: request.signal, cache: "no-store" },
                 );
 
@@ -959,7 +960,7 @@ export function closeSignIn(flowId) {
 export function navigate(conversationId, { replace = false, sheet = null } = {}) {
     const path = conversationId === null ? "/" : `/s/${conversationId}`;
 
-    if (location.pathname !== path || store.state.conversationId !== conversationId) {
+    if (routeOf(location.pathname) !== path || store.state.conversationId !== conversationId) {
         pushRoute(path, { replace });
     }
 

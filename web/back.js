@@ -11,6 +11,7 @@
 // by a tap takes its entry back off; one opened adds an entry. Going back (the person's own) closes the layers above the
 // entry it lands on.
 
+import { at, routeOf } from "./base.js";
 import { useEffect, useLayoutEffect, useRef } from "preact/hooks";
 
 /** The open layers, oldest first: `{ close, gone, shown }`. */
@@ -142,8 +143,8 @@ addEventListener("popstate", (event) => {
 
         done();
 
-        if (follow && location.pathname !== shown) {
-            shown = location.pathname;
+        if (follow && routeOf(location.pathname) !== shown) {
+            shown = routeOf(location.pathname);
             routeListener();
         }
 
@@ -160,8 +161,8 @@ addEventListener("popstate", (event) => {
     // further from the session list; anything else counts as back.
     const back = event.state?.pocket?.back;
 
-    if (location.pathname !== shown) {
-        shown = location.pathname;
+    if (routeOf(location.pathname) !== shown) {
+        shown = routeOf(location.pathname);
         heading(
             event.hasUAVisualTransition
                 ? "shown"
@@ -319,7 +320,7 @@ export const goBack = () => history.back();
 const HOME = "/";
 
 /** The route the app shows, ahead of history while layers come off for a new one; how far back the list is from it. */
-let shown = location.pathname;
+let shown = routeOf(location.pathname);
 let shownBack = history.state?.pocket?.back;
 let routeTimer = 0;
 let homeRequest = 0;
@@ -361,9 +362,9 @@ export function pushRoute(path, { replace = false } = {}) {
         shownBack = back;
 
         if (replace) {
-            history.replaceState(state, "", path);
+            history.replaceState(state, "", at(path));
         } else {
-            history.pushState(state, "", path);
+            history.pushState(state, "", at(path));
         }
     });
     // Layers still open (a panel that stays) get their entries again, above the new route.
@@ -431,7 +432,7 @@ export function startHistory({ home }) {
         return;
     }
 
-    if (location.pathname === HOME) {
+    if (routeOf(location.pathname) === HOME) {
         history.replaceState({ pocket: { layers: 0, back: 0 } }, "", location.href);
     } else if (home) {
         listUnderOnFirstTap();
@@ -466,7 +467,7 @@ function listUnderOnFirstTap() {
 
         const here = location.pathname + location.search + location.hash;
 
-        history.replaceState({ pocket: { layers: 0, back: 0 } }, "", HOME);
+        history.replaceState({ pocket: { layers: 0, back: 0 } }, "", at(HOME));
         history.pushState({ pocket: { layers: 0, back: 1 } }, "", here);
         shownBack = 1;
     };

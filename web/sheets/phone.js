@@ -19,7 +19,7 @@ export function PhoneSheet() {
         addEventListener("focus", () => refresh((count) => count + 1), { once: true });
     };
     const backup = () =>
-        attempt(() => downloadFile("/api/backup", `pi-phone-backup-${new Date().toISOString().slice(0, 10)}.tar.gz`));
+        attempt(() => downloadFile("api/backup", `pi-phone-backup-${new Date().toISOString().slice(0, 10)}.tar.gz`));
     const restore = (event) => {
         const file = event.currentTarget.files[0];
 

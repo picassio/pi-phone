@@ -61,9 +61,9 @@ function loadKatex() {
         const sheet = document.createElement("link");
 
         sheet.rel = "stylesheet";
-        sheet.href = "/vendor/katex/katex.min.css";
+        sheet.href = "vendor/katex/katex.min.css";
         document.head.append(sheet);
-        katex = import("/vendor/katex/katex.mjs").then((module) => module.default);
+        katex = import(new URL("vendor/katex/katex.mjs", document.baseURI).href).then((module) => module.default);
     }
 
     return katex;

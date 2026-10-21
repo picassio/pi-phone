@@ -28,7 +28,7 @@ function loadStyles() {
     const link = document.createElement("link");
 
     link.rel = "stylesheet";
-    link.href = "/vendor/xterm.css";
+    link.href = "vendor/xterm.css";
     link.dataset.xterm = "";
     document.head.append(link);
 }

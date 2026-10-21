@@ -218,7 +218,7 @@ export default function wiki(pocket) {
                               : `Sessions idle for ${capture.minutes} min are captured, on ${capture.model}.`
                     }
                     ${capture.last && ` Last: session #${capture.last.session}, ${ago(new Date(capture.last.at).toISOString())} ago.`}
-                    ${capture.conversation !== null && html` <a href=${`/s/${capture.conversation}`}>Open the capture session</a>`}
+                    ${capture.conversation !== null && html` <a href=${`s/${capture.conversation}`}>Open the capture session</a>`}
                 </p>`
             }
             ${CATEGORIES.map(([key, label, hint]) => {

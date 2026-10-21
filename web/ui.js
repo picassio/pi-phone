@@ -19,11 +19,14 @@ const currentConversation = () => store.state.view.conversation?.id;
 
 /** An image file on the server (absolute, `~/…`, or relative to the session's folder), shown through the app. */
 export const fileUrl = (path, conversationId = currentConversation()) =>
-    `/api/c/${conversationId}/file?path=${encodeURIComponent(path)}`;
+    `api/c/${conversationId}/file?path=${encodeURIComponent(path)}`;
 
 /** The `index`th image stored in a message: a pasted image or one a tool returned. */
 export const entryImageUrl = (entryId, index, conversationId = currentConversation()) =>
-    `/api/c/${conversationId}/image/${entryId}/${index}`;
+    `api/c/${conversationId}/image/${entryId}/${index}`;
+
+/** The app's own image addresses: a session's files and stored images, and artifacts; from the root or the base. */
+const APP_IMAGE = /^\/?(api\/c\/\d+\/(file\?|image\/)|a\/\d+\/)/;
 
 /** Where the browser loads `![alt](src)` from. Web and data URLs stay; paths and file:// URLs point at the server. */
 function imageSource(src, conversationId) {
@@ -33,8 +36,9 @@ function imageSource(src, conversationId) {
         return value;
     }
 
-    if (value.startsWith("/api/") || value.startsWith("/a/")) {
-        return value;
+    // The app's own images: relative to the page's base (PP-54), also when an older message wrote them from the root.
+    if (APP_IMAGE.test(value)) {
+        return value.replace(/^\//, "");
     }
 
     const file = /^file:\/\//i.test(value);
@@ -150,10 +154,7 @@ const PURIFY = {
 };
 
 /** Images the app serves for a conversation (files, stored images, artifacts), or inline data. Nothing else loads. */
-const localImage = (src) =>
-    /^\/api\/c\/\d+\/(file\?|image\/)/.test(src) ||
-    /^\/a\/\d+\//.test(src) ||
-    /^data:image\//i.test(src);
+const localImage = (src) => APP_IMAGE.test(src) || /^data:image\//i.test(src);
 
 /** Code blocks past this size show without colors: coloring them would hold up the conversation. */
 export const COLOR_LIMIT = 200_000;
@@ -1064,7 +1065,7 @@ export function Boot({ caption = "starting", detail = "", inline = false }) {
         role="status"
         aria-live="polite"
     >
-        <div class="boot-mark" data-part="brand-mark" aria-hidden="true"><img class="brand-icon" src="/icon.svg" alt="" /></div>
+        <div class="boot-mark" data-part="brand-mark" aria-hidden="true"><img class="brand-icon" src="icon.svg" alt="" /></div>
         <div class="boot-bar" aria-hidden="true"><span></span></div>
         <div class="boot-caption">${caption}</div>
         ${detail && html`<div class="boot-detail">${detail}</div>`}

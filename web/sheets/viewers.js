@@ -71,7 +71,7 @@ export function ArtifactViewer({ id, version }) {
     const [nonce, setNonce] = useState(0);
     const latest = artifact?.versions.at(-1)?.version;
     const theme = artifact?.type === "markdown" ? themeQuery() : "";
-    const src = `/a/${view.conversation.id}/${encodeURIComponent(id)}/${shown ?? "latest"}${theme}`;
+    const src = `a/${view.conversation.id}/${encodeURIComponent(id)}/${shown ?? "latest"}${theme}`;
 
     return html`<div class="viewer">
         <header class="viewer-head">

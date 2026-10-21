@@ -84,6 +84,9 @@ tasks.port1.onmessage = () => {
     turn++;
 };
 
+/** An address the server gives from the root (`/x/…`), under the page's base (PP-54: a shared space's `/space/<key>/`). */
+const underBase = (url) => new URL(String(url).replace(/^\//, ""), document.baseURI).href;
+
 function nextTurn() {
     if (!posted) {
         posted = true;
@@ -441,7 +444,8 @@ async function load(entry) {
     redraw();
 
     try {
-        const loaded = await import(entry.url);
+        // Under the page's base (PP-54): the server names it from the root.
+        const loaded = await import(underBase(entry.url));
 
         if (record.gone) {
             return;
@@ -669,10 +673,11 @@ function routeOf(module, path) {
         throw refuse("has a . or .. part: give the route's own path");
     }
 
-    const prefix = `/api/x/${module}/`;
-    const url = new URL(`${prefix}${relative}`, location.origin);
+    // Under the page's base (PP-54: a shared space lives under /space/<key>/).
+    const prefix = new URL(`api/x/${module}/`, document.baseURI);
+    const url = new URL(relative, prefix);
 
-    if (url.origin !== location.origin || !url.pathname.startsWith(prefix)) {
+    if (url.origin !== prefix.origin || !url.pathname.startsWith(prefix.pathname)) {
         throw refuse("leads out of the module's routes");
     }
 
@@ -738,7 +743,7 @@ function pocketFor(record) {
     };
 
     /** Its own folder's address, `/x/<module>/<version>/`, where its stylesheets are. */
-    const folder = () => new URL(".", new URL(record.url, location.href));
+    const folder = () => new URL(".", underBase(record.url));
 
     return Object.freeze({
         version: POCKET_API,

@@ -12,7 +12,7 @@ export async function downloadImage(src, title) {
     const base = (title || "image").replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 80) || "image";
 
     if (!src.startsWith("data:") && !src.startsWith("blob:")) {
-        const path = new URL(src, location.href).pathname;
+        const path = new URL(src, document.baseURI).pathname;
         const own = /\.[a-z0-9]{2,5}$/i.exec(path)?.[0] ?? ".png";
 
         return downloadFile(src, /\.[a-z0-9]{2,5}$/i.test(base) ? base : base + own);
@@ -40,7 +40,7 @@ export async function downloadImage(src, title) {
 
 export async function downloadFile(url, name) {
     if (window.PiPhoneApp?.download) {
-        window.PiPhoneApp.download(new URL(url, location.href).href, name);
+        window.PiPhoneApp.download(new URL(url, document.baseURI).href, name);
         notify("info", `Saving ${name} to Downloads…`);
 
         return;

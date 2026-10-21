@@ -657,7 +657,7 @@ function FilesTab({ changes, covering }) {
                               aria-label=${`Download ${name}`}
                               title="Download (to Downloads on the phone)"
                               onClick=${() =>
-                                  attempt(() => downloadFile(`/api/c/${id}/download?path=${encodeURIComponent(shown.path)}`, name))}
+                                  attempt(() => downloadFile(`api/c/${id}/download?path=${encodeURIComponent(shown.path)}`, name))}
                           >
                               <${Icon} name="download" size=${16} />
                           </button>

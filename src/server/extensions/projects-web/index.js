@@ -112,14 +112,14 @@ export default function projects(pocket) {
 
         if (assignee === "pi") {
             // pi-phone's own mark (web/icon.svg), as the rail and sign-in show it.
-            return html`<span class="pj-av pi" title="Pi"><img src="/icon.svg" alt="" draggable="false" /></span>`;
+            return html`<span class="pj-av pi" title="Pi"><img src="icon.svg" alt="" draggable="false" /></span>`;
         }
 
         // A person's own Pi (the team server): Pi's mark, named for them.
         if (assignee.startsWith("pi:")) {
             const whose = people.find((person) => person.id === assignee.slice(3))?.name ?? "someone";
 
-            return html`<span class="pj-av pi" title=${`Pi (${whose})`}><img src="/icon.svg" alt="" draggable="false" /></span>`;
+            return html`<span class="pj-av pi" title=${`Pi (${whose})`}><img src="icon.svg" alt="" draggable="false" /></span>`;
         }
 
         const name = people.find((person) => person.id === assignee)?.name ?? "Someone";
@@ -337,7 +337,7 @@ export default function projects(pocket) {
                     return html`${running > 0 && html`<span class="pj-chip" style="--tone:var(--o-cyan)"><i></i>Running <b>${running}</b></span>`}
                     ${queued > 0 && html`<span class="pj-chip" style="--tone:var(--faint)"><i></i>Queued <b>${queued}</b></span>`}`;
                 })()}
-                ${board?.lead && html`<a class="pj-chip pj-lead-chip" href=${`/s/${board.lead.session}`} title="The project's main session">${svg("M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z", 12)} Main session</a>`}
+                ${board?.lead && html`<a class="pj-chip pj-lead-chip" href=${`s/${board.lead.session}`} title="The project's main session">${svg("M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z", 12)} Main session</a>`}
                 <span class="pj-chip quiet">${total} ${total === 1 ? "task" : "tasks"} · ${counts.done ?? 0} done</span>
             </div>
             <div class="pj-views" role="tablist" aria-label="View">
@@ -1493,7 +1493,7 @@ export default function projects(pocket) {
         }
 
         const open = run?.conversationId
-            ? html`<a class="btn small" href=${`/s/${run.conversationId}`} onClick=${() => close()}>Open session</a>`
+            ? html`<a class="btn small" href=${`s/${run.conversationId}`} onClick=${() => close()}>Open session</a>`
             : null;
         const sessionLine = run?.conversationId
             ? html`<div class="pt-run-session">${svg(CHAT, 13)}<span>Session #${run.conversationId}${which > 1 ? ` · ${nth(which)} run` : ""}</span><span class="pj-sp"></span>${open}</div>`
@@ -1561,7 +1561,7 @@ export default function projects(pocket) {
                 html`<i class="pt-spin"></i>`,
                 `Pi is working · ${took(Date.now() - since)}`,
                 html`<span>${run.state === "starting" ? "Making its worktree" : session?.state?.waiting ? "Waiting for an approval" : "In its own session"}${run.worktree ? html` in <code>${shortFolder(run.worktree)}</code>` : ""}</span>${branchLine}`,
-                run.conversationId ? html`<a class="btn primary grow" href=${`/s/${run.conversationId}`} onClick=${() => close()}>${svg(CHAT, 14)}Open session</a>` : null,
+                run.conversationId ? html`<a class="btn primary grow" href=${`s/${run.conversationId}`} onClick=${() => close()}>${svg(CHAT, 14)}Open session</a>` : null,
             );
         }
 
@@ -1872,7 +1872,7 @@ export default function projects(pocket) {
                                 .join(" · ")
                           : "Mentions it";
 
-                return html`<a class="pt-row pt-session" href=${`/s/${session.conversationId}`} onClick=${() => close()}>
+                return html`<a class="pt-row pt-session" href=${`s/${session.conversationId}`} onClick=${() => close()}>
                     <span class=${`pt-sess-icon ${busy ? "busy" : ""} ${session.state?.waiting ? "waiting" : ""}`}>${svg(session.role === "main" ? BOARD : CHAT, 14)}</span>
                     <span class="pt-t">${(session.title ?? `Session #${session.conversationId}`).replace(/^[A-Z][A-Z0-9]{1,5}-\d+ · /, "")}<small>${what} · #${session.conversationId}</small></span>
                     ${svg(CHEVRON, 15, "pt-chev")}
@@ -2033,7 +2033,7 @@ export default function projects(pocket) {
                     </div>
                     ${
                         lead
-                            ? html`<a class="button small" href=${`/s/${lead.session}`} onClick=${() => close()}>Open #${lead.session}</a>`
+                            ? html`<a class="button small" href=${`s/${lead.session}`} onClick=${() => close()}>Open #${lead.session}</a>`
                             : html`<button
                                   class="button small primary"
                                   disabled=${busy || !project.folder}

@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
     <head>
+        <base href="/" />
         <meta charset="utf-8" />
         <meta
             name="viewport"
@@ -11,10 +12,10 @@
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <title>pi-phone</title>
-        <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
-        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="preload" href="/style.css" as="style" />
+        <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
+        <link rel="icon" href="icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="preload" href="style.css" as="style" />
         <!--
             The cascade layers, in the order they win: the app's own CSS and extensions' (pocket), the colors chosen in
             Appearance (palette), then the theme (theme.js). Sizes people choose stay inline and win over all three, unless a
@@ -22,7 +23,7 @@
         -->
         <style>
             @layer pocket, palette, theme;
-            @import url("/style.css") layer(pocket);
+            @import url("style.css") layer(pocket);
         </style>
         <!--
             The last look this browser used (theme.js keeps it), before the first paint: no flash of another theme. The
@@ -31,7 +32,7 @@
         -->
         <script>
             (function () {
-                var fonts = ["/fonts/Geist.woff2", "/fonts/JetBrainsMono.woff2"];
+                var fonts = ["fonts/Geist.woff2", "fonts/JetBrainsMono.woff2"];
                 var sheets = [];
                 try {
                     var look = JSON.parse(localStorage.getItem("pocket.themeCache") || "null");
@@ -99,14 +100,14 @@
         <script type="importmap">
             {
                 "imports": {
-                    "preact": "/vendor/preact.mjs",
-                    "preact/hooks": "/vendor/preact-hooks.mjs",
-                    "htm": "/vendor/htm.mjs",
-                    "marked": "/vendor/marked.mjs",
-                    "dompurify": "/vendor/purify.mjs",
-                    "pele": "/vendor/pele.mjs",
-                    "@xterm/xterm": "/vendor/xterm.mjs",
-                    "@xterm/addon-fit": "/vendor/xterm-addon-fit.mjs"
+                    "preact": "vendor/preact.mjs",
+                    "preact/hooks": "vendor/preact-hooks.mjs",
+                    "htm": "vendor/htm.mjs",
+                    "marked": "vendor/marked.mjs",
+                    "dompurify": "vendor/purify.mjs",
+                    "pele": "vendor/pele.mjs",
+                    "@xterm/xterm": "vendor/xterm.mjs",
+                    "@xterm/addon-fit": "vendor/xterm-addon-fit.mjs"
                 }
             }
         </script>
@@ -115,11 +116,11 @@
         <!-- The same boot screen the app shows while it starts (Boot in ui.js), so nothing jumps when the script takes over. -->
         <div id="app">
             <div class="boot" data-part="boot" role="status">
-                <div class="boot-mark" data-part="brand-mark" aria-hidden="true"><img class="brand-icon" src="/icon.svg" alt="" /></div>
+                <div class="boot-mark" data-part="brand-mark" aria-hidden="true"><img class="brand-icon" src="icon.svg" alt="" /></div>
                 <div class="boot-bar" aria-hidden="true"><span></span></div>
                 <div class="boot-caption">starting</div>
             </div>
         </div>
-        <script type="module" src="/app.js"></script>
+        <script type="module" src="app.js"></script>
     </body>
 </html>

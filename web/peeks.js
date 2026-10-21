@@ -415,7 +415,7 @@ function PeekLine({ line }) {
             </div>`;
         case "text":
             return html`<div class="peek-line text">
-                <span class="peek-mark pi"><img src="/icon.svg" alt="Pi" /></span>
+                <span class="peek-mark pi"><img src="icon.svg" alt="Pi" /></span>
                 <span class="peek-text">${line.text}</span>
             </div>`;
 

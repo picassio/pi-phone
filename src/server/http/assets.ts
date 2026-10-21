@@ -163,14 +163,21 @@ function appPolicy(html: string): string {
         "frame-src 'self'",
         "worker-src 'self'",
         "object-src 'none'",
-        "base-uri 'none'",
+        // The page's own <base href> (PP-54), never another site's.
+        "base-uri 'self'",
         "form-action 'self'",
         "frame-ancestors 'self'",
     ].join("; ");
 }
 
-/** The app page, with its content security policy. */
-export function serveApp(response: ServerResponse): void {
+/** A shared space's address (PP-54), as the team server's gateway sends it: `/space/<key>/`. */
+const SPACE_BASE = /^\/space\/[A-Za-z0-9_-]{6,64}\/$/;
+
+/**
+ * The app page, with its content security policy. Under `base` (a teammate opening a session shared with them, through
+ * the gateway: `/space/<key>/`) its relative URLs resolve there, and it offers no install (that is the sharer's app).
+ */
+export function serveApp(response: ServerResponse, base?: string): void {
     let body: string;
 
     try {
@@ -179,6 +186,10 @@ export function serveApp(response: ServerResponse): void {
         send(response, 404, "Not found");
 
         return;
+    }
+
+    if (base !== undefined && SPACE_BASE.test(base)) {
+        body = body.replace('<base href="/" />', `<base href="${base}" />`).replace(/\s*<link rel="manifest"[^>]*>/, "");
     }
 
     send(response, 200, body, "text/html; charset=utf-8", {

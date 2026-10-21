@@ -926,7 +926,7 @@ function fetchDiff(id, path) {
 
             try {
                 const response = await fetch(
-                    `/api/c/${id}/changes/diff?path=${encodeURIComponent(path)}`,
+                    `api/c/${id}/changes/diff?path=${encodeURIComponent(path)}`,
                 );
                 const text = await response.text();
 
@@ -1072,7 +1072,7 @@ function TreeNode({ node, depth, current, viewed, onPick }) {
         >
             <span class=${`change-kind ${file.kind}`}>${KIND_LETTERS[file.kind]}</span>
             <span class="dr-name">${file.path.split("/").pop()}</span>
-            ${file.byPi && html`<img class="dr-pi" src="/icon.svg" title="Pi edited it" alt="Pi edited it" />`}
+            ${file.byPi && html`<img class="dr-pi" src="icon.svg" title="Pi edited it" alt="Pi edited it" />`}
             <span class="dr-tail">${viewed(file) ? html`<${Icon} name="check" size=${13} />` : html`<${ChangeCounts} added=${file.added ?? 0} removed=${file.removed ?? 0} />`}</span>
         </button>`,
     )}`;

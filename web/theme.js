@@ -486,7 +486,7 @@ export function apply() {
     // or the theme's own shows.
     const wallpaper =
         p.theme === "desktop" && p.wallpaper && p.tiling && desktop?.wallpaper
-            ? `url("/api/theme/wallpaper?v=${encodeURIComponent(desktop.stamp)}")`
+            ? `url("api/theme/wallpaper?v=${encodeURIComponent(desktop.stamp)}")`
             : null;
     // Width other than Comfortable is the person's choice, inline over the theme's; Comfortable leaves it to the theme.
     const width = WIDTHS[p.width];
