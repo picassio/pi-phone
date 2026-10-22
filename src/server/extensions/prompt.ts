@@ -12,7 +12,7 @@ import {
     getDocsPath,
     loadProjectContextFiles,
 } from "@earendil-works/pi-coding-agent";
-import { defineExtension, type PromptInput, section } from "@earendil-works/pi-durable";
+import { defineExtension, hook, type PromptInput, section, type ToolExecutionResult, ToolTask } from "@earendil-works/pi-durable";
 import { APP_ROOT } from "../config.ts";
 import type { PocketHost } from "../host.ts";
 
@@ -37,12 +37,32 @@ Pi's browser here is a headless Chrome on this machine (the owner watches it in 
 You work in the conversation's working directory, on that machine, with the tools you are given. ${DURABLE}`;
 
 const GUIDELINES = `- Keep replies short and easy to read on a small screen. Lead with the answer; use short paragraphs, lists, and small code blocks.
-- Use read to look at files instead of cat or sed. Use edit for precise changes and write for new files or full rewrites.
+- Use read to look at files instead of cat or sed. Change files only with edit (or write for a new file or a full rewrite); never with scripts, heredocs, or sed -i in bash: those edits show no diff. Use bash to run things.
 - Show file paths clearly when you work with files.
 - When the person must do something you cannot (make a token, sign in, tap a button, decide), give numbered steps they can follow later without this chat: exact places (links, menus, buttons), values, and what to tell you when done.
 - To show the user an image file from where you work (a screenshot, a chart, a picture), embed it in your reply with Markdown: ![short description](/absolute/path.png). Paths relative to the working directory work too. Files the user attaches are saved where you work; their paths are listed in the message.
 - Before running something destructive or irreversible, say what it will do. A guard may ask a human to approve risky commands; if a call is blocked, do not try to get around the block.
 - Do not commit, push, publish, or deploy unless asked.`;
+
+/** What a bash result gets when its command wrote files by script: a reminder, never a refusal. */
+export const EDIT_NOTE = "Note: this command wrote files by script, which shows no diff in the app. Change files with edit (or write for a new file) instead; use bash to run things.";
+
+/**
+ * Whether a bash command writes files by script rather than through edit or write (PP-100): a program's file writes
+ * (writeFileSync, open(…, "w")), sed or perl in place, `cat > file` (a heredoc too), or tee. sed, perl, cat and tee
+ * count where a command starts (not as words in a search); output sent to /dev/null or another stream is not a file.
+ */
+export function writesByScript(command: string): boolean {
+    const start = String.raw`(?:^|[|;&(])\s*(?:sudo\s+)?`;
+
+    return [
+        /\b(?:writeFileSync|appendFileSync|writeFile)\s*\(/,
+        /\bopen\s*\([^)]*,\s*['"](?:w|a|x)b?\+?['"]/,
+        new RegExp(String.raw`${start}(?:sed|perl)\b[^|;&\n]*\s-[a-zA-Z]*i`, "m"),
+        new RegExp(String.raw`${start}cat\b[^|;&\n]*?(?<![0-9&])>>?\s*(?!&|\/dev\/null\b)[^\s|;&]`, "m"),
+        new RegExp(String.raw`${start}tee\b(?!\s+\/dev\/null\b)`, "m"),
+    ].some((pattern) => pattern.test(command));
+}
 
 /** Where pi-phone's code and Pi's documentation are, as Pi's prompt says where Pi's is: to read only when needed. */
 function docs(dataDir: string): string {
@@ -123,6 +143,20 @@ export default function createPrompt(host: PocketHost) {
 
     return defineExtension({
         name: "pocket-prompt",
+        hooks: [
+            // Edits made by scripts in bash show no diff: the result says so, and the command still ran (PP-100).
+            hook(ToolTask, {
+                afterTool: (call, result): ToolExecutionResult | undefined => {
+                    const command = (call.arguments as { command?: unknown }).command;
+
+                    if (call.name !== "bash" || typeof command !== "string" || !writesByScript(command)) {
+                        return undefined;
+                    }
+
+                    return { ...result, output: [...(result.output ?? []), { type: "text", text: `\n${EDIT_NOTE}` }] };
+                },
+            }),
+        ],
         sections: [
             section("preamble", (input) => {
                 const machine = host.machineOf(cwdOf(input));
