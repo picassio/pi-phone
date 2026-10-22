@@ -1356,6 +1356,8 @@ export function createApi(options: HttpOptions, auth: Auth) {
         if (first === "providers" && second === undefined && method === "GET") {
             if (user.role === "owner") {
                 await app.providers.checkAll(3_000);
+                // Team accounts a teammate changed since (PP-74).
+                await app.refreshTeamAccounts();
             }
 
             const own = app.providers.list(user.role === "owner");
@@ -1426,6 +1428,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
         // The subscription accounts' plan limits (`usage-limits.ts`): Providers and the model menu ask `fresh` as they open.
         if (first === "usage-limits" && second === undefined && method === "GET") {
             const fresh = url.searchParams.get("fresh") === "1";
+
+            // The model menu opening: team accounts a teammate signed in or out since show (PP-74).
+            if (fresh && user.role === "owner") {
+                await app.refreshTeamAccounts();
+            }
 
             // With the team subscriptions this person may use (PP-74), asked of the team server.
             return json(response, 200, { usage: [...(await app.usageLimits.all(fresh)), ...(await app.teamAccounts.usage(fresh))] });

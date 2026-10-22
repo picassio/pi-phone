@@ -3393,6 +3393,17 @@ export class PocketApp {
         }
     }
 
+    /** Team accounts a teammate signed in, out, renamed or removed (PP-74): the models follow, and tabs hear of them. */
+    async refreshTeamAccounts(): Promise<void> {
+        try {
+            if (await this.teamAccounts.refresh(this.models)) {
+                this.providers.modelsChanged();
+            }
+        } catch (error) {
+            this.log(`Team accounts not listed: ${describe(error)}`);
+        }
+    }
+
     async setExtensionEnabled(user: User, file: string, enabled: boolean, { byPolicy = false }: { byPolicy?: boolean } = {}): Promise<void> {
         const module = this.loader.list().find((each) => each.file === file);
 

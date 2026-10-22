@@ -32,6 +32,8 @@ const controller: ControllerClient = {
 };
 
 let store: GatewayStore;
+let gatewayAccounts: TeamAccounts;
+let gatewayRuntime: ModelRuntime;
 let internal: Server;
 let address = "";
 const ids: Record<string, string> = {};
@@ -70,8 +72,11 @@ before(async () => {
     const runtime = await ModelRuntime.create({ authPath: join(dir, "auth.json"), modelsPath: null });
 
     runtime.registerNativeProvider(faux.provider);
+    gatewayRuntime = runtime;
 
     const teamAccounts = new TeamAccounts(store, dir);
+
+    gatewayAccounts = teamAccounts;
 
     await teamAccounts.open(runtime);
     teamAccounts.add("faux", "Work", ids.Owner!);
@@ -199,4 +204,21 @@ test("each answer's cost is counted to the person and the account, and the role'
     // Empty again (no limit): answers again.
     store.saveRole({ ...store.role("member")!, teamSpendLimit: null });
     assert.equal((await models.completeSimple(model, ask("again"))).stopReason, "stop");
+});
+
+test("an account usable later (signed in, or given to the role) reaches the pi-phone when its Providers sheet or model menu opens", async () => {
+    const { models, client } = await binhsPiPhone();
+
+    // The scripted provider needs no sign-in: this one is usable as soon as Binh's role has it.
+    gatewayAccounts.add("faux", "Later", ids.Owner!);
+    await gatewayRuntime.setRuntimeApiKey("faux~team-later", "another-key");
+    assert.equal(await client.refresh(models), false, "not Binh's role's yet: nothing new");
+    assert.deepEqual(models.getModels("faux~team-later"), []);
+
+    store.saveRole({ ...store.role("member")!, teamAccounts: ["faux~team-work", "faux~team-later"] });
+    assert.equal(await client.refresh(models), true, "usable now");
+    assert.ok(models.getModels("faux~team-later").length > 0, "its models are here");
+    assert.equal(client.label("faux~team-later"), "Team Later");
+    assert.equal(await client.refresh(models), false, "nothing changed since");
+    store.saveRole({ ...store.role("member")!, teamAccounts: ["faux~team-work"] });
 });

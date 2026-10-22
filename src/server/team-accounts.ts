@@ -210,6 +210,31 @@ export class TeamAccountsClient {
         }
     }
 
+    /**
+     * Whether the team accounts this person may use (signed in) changed since the last sync, and then sync: a teammate
+     * signed one in, signed one out, renamed or removed one. Asked when the Providers sheet or the model menu opens.
+     */
+    async refresh(models: ModelRuntime): Promise<boolean> {
+        if (!this.available) {
+            return false;
+        }
+
+        const { accounts } = await this.list();
+        const now = accounts
+            .filter((account) => account.usable && account.configured && models.getProvider(account.provider) !== undefined)
+            .map((account) => `${account.id}=${account.name}`)
+            .sort();
+        const was = [...this.#registered].map(([id, name]) => `${id}=${name}`).sort();
+
+        if (now.join("\n") === was.join("\n")) {
+            return false;
+        }
+
+        await this.sync(models);
+
+        return true;
+    }
+
     /** The name a team account's models show after their provider's: "Team Work" (`anthropic · Team Work account`). */
     label(id: string): string | undefined {
         const name = this.#registered.get(id);
