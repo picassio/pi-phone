@@ -93,9 +93,26 @@ test("someone with providers.manage adds a team account and signs it in with a k
     assert.equal(added.status, 200, added.error);
     assert.equal(added.value.account.id, "openrouter~team-work");
 
+    // A sign-in left at its question (its page closed) does not hold the next one back: starting again ends it.
+    const left = (await call("Ana", { action: "login", id: "openrouter~team-work", type: "api_key" })).value.flowId;
+
+    for (let seen: Step[] = []; !seen.some((step) => step.step === "prompt"); ) {
+        seen = [...seen, ...(await call("Ana", { action: "wait", flowId: left, after: seen.length })).value.steps];
+    }
+
     const login = await call("Ana", { action: "login", id: "openrouter~team-work", type: "api_key" });
     const flowId = login.value.flowId;
     let steps: Step[] = [];
+    let ended: Step | undefined;
+
+    for (let after = 0; ended === undefined; ) {
+        const waited = await call("Ana", { action: "wait", flowId: left, after });
+
+        after += waited.value.steps.length;
+        ended = waited.value.steps.find((step) => step.step === "done");
+    }
+
+    assert.equal(ended.ok, false, "the one left behind ended");
 
     // The steps wait for Ana's pi-phone; the key prompt comes first.
     for (let after = 0; !steps.some((step) => step.step === "prompt"); ) {
@@ -137,7 +154,7 @@ test("someone with providers.manage adds a team account and signs it in with a k
     assert.ok(!JSON.stringify(listed.value).includes(KEY));
     assert.deepEqual(
         auditLines(),
-        ["team account added · OpenRouter · Team Work", "team account sign-in · OpenRouter · Team Work"],
+        ["team account added · OpenRouter · Team Work", "team account sign-in · OpenRouter · Team Work", "team account sign-in · OpenRouter · Team Work"],
     );
 });
 

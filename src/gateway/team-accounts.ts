@@ -299,6 +299,13 @@ export class TeamAccounts {
     startLogin(id: string, userId: string, type: "oauth" | "api_key"): string {
         this.#need(id);
 
+        // A sign-in of this account left waiting (its page closed before the code came) would hold this one back: it ends.
+        for (const other of this.#flows.values()) {
+            if (other.account === id && !other.done) {
+                this.#stop(other);
+            }
+        }
+
         const flow: Flow = { id: randomUUID(), account: id, userId, steps: [], waiters: new Set(), prompts: new Map(), abort: new AbortController(), done: false };
         const push = (step: FlowStep) => {
             flow.steps.push(step);
@@ -400,7 +407,17 @@ export class TeamAccounts {
         const flow = this.#flows.get(flowId);
 
         if (flow !== undefined && flow.userId === userId) {
-            flow.abort.abort();
+            this.#stop(flow);
+        }
+    }
+
+    /** End a sign-in: its runtime call is aborted, and a question it waits on is answered with "cancelled". */
+    #stop(flow: Flow): void {
+        flow.abort.abort();
+
+        for (const [promptId, waiting] of flow.prompts) {
+            flow.prompts.delete(promptId);
+            waiting.reject(new Error("cancelled"));
         }
     }
 
