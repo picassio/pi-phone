@@ -1399,6 +1399,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
         if (first === "team-accounts" && second !== undefined && (third === "remove" || third === "logout") && method === "POST") {
             requireOwner(user);
             await (third === "remove" ? app.teamAccounts.remove(decodeURIComponent(second)) : app.teamAccounts.logout(decodeURIComponent(second)));
+            await app.syncTeamAccounts();
 
             return json(response, 200, { ok: true });
         }
@@ -1409,7 +1410,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
             const id = decodeURIComponent(second);
 
             return json(response, 200, {
-                flowId: await app.teamAccounts.startLogin(id, String(body.name ?? id), body.type === "oauth" ? "oauth" : "api_key", () => app.providers.modelsChanged()),
+                flowId: await app.teamAccounts.startLogin(id, String(body.name ?? id), body.type === "oauth" ? "oauth" : "api_key", () => void app.syncTeamAccounts()),
             });
         }
 

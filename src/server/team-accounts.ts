@@ -5,7 +5,41 @@
  * pi-phone fetches its steps (a link, a code to paste, a device code) and shows them in its sign-in card as its own
  * sign-ins do (the `auth` event), and sends the answers back.
  */
+import {
+    type Api,
+    type AssistantMessage,
+    type AssistantMessageEvent,
+    type AssistantMessageEventStream,
+    createAssistantMessageEventStream,
+    type Context,
+    type Model,
+    type Provider,
+    type SimpleStreamOptions,
+} from "@earendil-works/pi-ai";
+import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { HttpError } from "./errors.ts";
+
+/** The options sent along with a request: how the model answers (the gateway takes only these too). */
+const RELAYED = ["temperature", "samplingParams", "maxTokens", "cacheRetention", "sessionId", "metadata", "toolChoice", "reasoning", "thinkingBudgets"] as const;
+/** What a team account's provider is signed in with here: nothing real, the gateway has the sign-in. */
+const ON_THE_TEAM_SERVER = "team-server";
+
+/** A failed answer, as pi-ai ends a stream that failed: the reason in `errorMessage`. */
+function failed(model: Model<Api>, message: string, aborted = false): AssistantMessageEvent {
+    const error: AssistantMessage = {
+        role: "assistant",
+        content: [],
+        api: model.api,
+        provider: model.provider,
+        model: model.id,
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: aborted ? "aborted" : "error",
+        errorMessage: message,
+        timestamp: Date.now(),
+    };
+
+    return { type: "error", reason: aborted ? "aborted" : "error", error };
+}
 
 /** A sign-in step as the Providers sheet shows it (`providers.ts`, `client.send("auth", …)`). */
 type Step = { step: string; [key: string]: unknown };
@@ -21,6 +55,8 @@ export type TeamAccountRow = {
     models: number;
     /** The roles that may use it, by name. */
     roles: string[];
+    /** Whether this person's role may use it. */
+    usable: boolean;
 };
 
 export class TeamAccountsClient {
@@ -29,6 +65,8 @@ export class TeamAccountsClient {
     readonly #send: (data: Record<string, unknown>) => void;
     /** Sign-ins under way here, by id: whose they are. */
     readonly #flows = new Set<string>();
+    /** The team accounts registered as providers here: their names, by id. */
+    readonly #registered = new Map<string, string>();
 
     constructor(server: { url: string; token: string } | undefined, send: (data: Record<string, unknown>) => void) {
         this.#server = server;
@@ -117,6 +155,133 @@ export class TeamAccountsClient {
         })();
 
         return flowId;
+    }
+
+    /**
+     * The team accounts this person may use, signed in, as providers of this pi-phone (S2): each with its models, from the
+     * gateway, and answers that come from there. Ones no longer theirs (a role changed, an account removed or signed
+     * out) go: a session on one then says its model needs another. On the team server only; again at each policy.
+     */
+    async sync(models: ModelRuntime): Promise<void> {
+        if (!this.available) {
+            return;
+        }
+
+        const { accounts } = await this.list();
+        const usable = accounts.filter((account) => account.usable && account.configured);
+
+        for (const account of usable) {
+            const base = models.getProvider(account.provider);
+
+            if (base === undefined) {
+                continue;
+            }
+
+            const { models: list } = await this.#call<{ models: Model<Api>[] }>({ action: "models", id: account.id });
+
+            models.registerNativeProvider(this.#provider(account, base, list));
+            await models.setRuntimeApiKey(account.id, ON_THE_TEAM_SERVER);
+            this.#registered.set(account.id, account.name);
+        }
+
+        for (const id of [...this.#registered.keys()]) {
+            if (!usable.some((account) => account.id === id)) {
+                await models.removeRuntimeApiKey(id).catch(() => undefined);
+                models.unregisterProvider(id);
+                this.#registered.delete(id);
+            }
+        }
+    }
+
+    /** The name a team account's models show after their provider's: "Team Work" (`anthropic · Team Work account`). */
+    label(id: string): string | undefined {
+        const name = this.#registered.get(id);
+
+        return name === undefined ? undefined : `Team ${name}`;
+    }
+
+    /** A team account as a provider here: its models, and each answer asked of the gateway. */
+    #provider(account: TeamAccountRow, base: Provider, list: Model<Api>[]): Provider {
+        const relay = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => this.#stream(model, context, options);
+
+        return {
+            id: account.id,
+            name: `${base.name} · Team ${account.name}`,
+            auth: base.auth,
+            getModels: () => list,
+            stream: relay,
+            streamSimple: relay,
+        } as unknown as Provider;
+    }
+
+    /** One answer of a team account's model: asked of the gateway, its events pushed here as they come. */
+    #stream(model: Model<Api>, context: Context, options?: SimpleStreamOptions): AssistantMessageEventStream {
+        const events = createAssistantMessageEventStream();
+        const server = this.#server!;
+        const relayed: Record<string, unknown> = {};
+
+        for (const key of RELAYED) {
+            if (options?.[key] !== undefined) {
+                relayed[key] = options[key];
+            }
+        }
+
+        void (async () => {
+            let ended = false;
+
+            try {
+                const response = await fetch(`${server.url}/internal/llm/stream`, {
+                    method: "POST",
+                    headers: { authorization: `Bearer ${server.token}`, "content-type": "application/json" },
+                    body: JSON.stringify({ id: model.provider, model: model.id, context, options: relayed }),
+                    ...(options?.signal === undefined ? {} : { signal: options.signal }),
+                });
+
+                if (!response.ok || response.body === null) {
+                    const answer = (await response.json().catch(() => ({}))) as { error?: string };
+
+                    events.push(failed(model, answer.error ?? `The team server answered ${response.status}.`));
+                    ended = true;
+
+                    return;
+                }
+
+                const decoder = new TextDecoder();
+                let pending = "";
+
+                for await (const chunk of response.body) {
+                    pending += decoder.decode(chunk as Uint8Array, { stream: true });
+
+                    for (let end = pending.indexOf("\n"); end !== -1; end = pending.indexOf("\n")) {
+                        const line = pending.slice(0, end);
+
+                        pending = pending.slice(end + 1);
+
+                        if (line.trim() !== "") {
+                            const event = JSON.parse(line) as AssistantMessageEvent;
+
+                            events.push(event);
+                            ended ||= event.type === "done" || event.type === "error";
+                        }
+                    }
+                }
+            } catch (error) {
+                if (!ended) {
+                    const aborted = options?.signal?.aborted === true;
+
+                    events.push(failed(model, aborted ? "Stopped." : `The team server stopped answering: ${error instanceof Error ? error.message : String(error)}`, aborted));
+                    ended = true;
+                }
+            } finally {
+                if (!ended) {
+                    events.push(failed(model, "The team server ended the answer early."));
+                }
+
+                events.end();
+            }
+        })();
+
+        return events;
     }
 
     /** Whether a sign-in is one of the team's, under way here. */

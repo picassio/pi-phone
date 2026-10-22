@@ -399,7 +399,8 @@ export class Gateway {
      */
     async #policy(user: User, upstream: { host: string; port: number; token: string }): Promise<boolean> {
         const role = this.#options.store.roleOf(user.id, user.role);
-        const policy = JSON.stringify({ permissions: role.permissions, models: role.models, spendLimit: role.spendLimit, role: role.name });
+        // With the team accounts the role may use (PP-69): a change sends the policy again, and the pi-phone lists them anew.
+        const policy = JSON.stringify({ permissions: role.permissions, models: role.models, spendLimit: role.spendLimit, role: role.name, teamAccounts: role.builtin ? ["*"] : (role.teamAccounts ?? []) });
         const key = this.#options.store.box(user.id).key;
 
         if (this.#applied.get(key) === policy) {
@@ -482,6 +483,11 @@ export class Gateway {
                 return json(response, 200, { value: await this.#shares(box, await readBody(request)) });
             }
 
+            // A team account's model answering this pi-phone's person (PP-69): streamed back as pi-ai's events, one per line.
+            if (path === "/internal/llm/stream" && request.method === "POST") {
+                return await this.#teamStream(box, request, response);
+            }
+
             // The team's provider accounts (PP-69): listed by what this person may use, managed with providers.manage.
             if (path === "/internal/team-accounts" && request.method === "POST") {
                 return json(response, 200, { value: await this.#teamAccounts(box, (await readBody(request)) as Record<string, unknown>) });
@@ -504,6 +510,49 @@ export class Gateway {
 
             return json(response, 500, { error: "The gateway could not answer." });
         }
+    }
+
+    /**
+     * A team account's model, for `box`'s person (PP-69): checked against their role (the account, its model) at every
+     * call, then answered with the account's sign-in on the gateway and streamed back as pi-ai's events, one JSON line
+     * each. A pi-phone that closes the request (Stop, Interrupt) stops the call. Refusals come as JSON with a status.
+     */
+    async #teamStream(box: PersonBox, request: IncomingMessage, response: ServerResponse): Promise<void> {
+        const store = this.#options.store;
+        const me = store.users().find((each) => each.id === box.userId);
+
+        if (me === undefined || me.banned || !store.can(me.id, me.role, "pi.use")) {
+            throw new HttpError(403, "This pi-phone's person can't use the team's accounts.");
+        }
+
+        const role = store.roleOf(me.id, me.role);
+        const asked = (await readBody(request, 64 * 1024 * 1024)) as { id?: unknown; model?: unknown; context?: unknown; options?: unknown };
+        const id = String(asked.id ?? "");
+        const modelId = String(asked.model ?? "");
+
+        if (!role.builtin && !(role.teamAccounts ?? []).includes(id)) {
+            throw new HttpError(403, `${role.name} may not use this team account: ask your team's owner.`);
+        }
+
+        if (role.models.length > 0 && !role.models.includes(`${id}/${modelId}`)) {
+            throw new HttpError(403, `${role.name} may not use the model ${modelId}.`);
+        }
+
+        const stop = new AbortController();
+        const events = this.#options.teamAccounts.stream(id, modelId, asked.context as never, (asked.options ?? {}) as Record<string, unknown>, stop.signal);
+
+        response.on("close", () => stop.abort());
+        response.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store" });
+
+        for await (const event of events) {
+            if (response.destroyed) {
+                break;
+            }
+
+            response.write(`${JSON.stringify(event)}\n`);
+        }
+
+        response.end();
     }
 
     /**
@@ -536,8 +585,17 @@ export class Gateway {
                 accounts: accounts
                     .list()
                     .filter((account) => manage || mayUse(account.id))
-                    .map((account) => ({ ...account, roles: roles.filter((each) => (each.teamAccounts ?? []).includes(account.id)).map((each) => each.name) })),
+                    .map((account) => ({ ...account, usable: mayUse(account.id), roles: roles.filter((each) => (each.teamAccounts ?? []).includes(account.id)).map((each) => each.name) })),
             };
+        }
+
+        // A team account's models, for a pi-phone whose person may use it.
+        if (action === "models") {
+            if (!mayUse(id)) {
+                throw new HttpError(403, `${role.name} may not use this team account.`);
+            }
+
+            return { models: accounts.models(id) };
         }
 
         // A sign-in this person started: its next steps, and their answers.
@@ -1163,7 +1221,10 @@ export class Gateway {
                 counts[id] = (counts[id] ?? 0) + 1;
             }
 
-            return json(response, 200, { roles: store.roles(), counts, catalogue: CATALOGUE });
+            // The team accounts (PP-69) a role may be given, by name: "OpenRouter · Team Work".
+            const teamAccounts = this.#options.teamAccounts.list().map((account) => ({ id: account.id, name: `${account.providerName} · Team ${account.name}`, configured: account.configured }));
+
+            return json(response, 200, { roles: store.roles(), counts, catalogue: CATALOGUE, teamAccounts });
         }
 
         if (route === "roles" && method === "POST") {

@@ -227,6 +227,8 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
   - **Team accounts** (Providers › Add team account, with "Add, sign in and remove the team's provider accounts" in
     one's role): a provider's key or subscription sign-in, set up once for the team. It sits under its provider in
     everyone's Providers sheet, marked TEAM; the key or sign-in stays on the team server, never in anyone's pi-phone.
+    Roles say which team accounts their people may use; their models show in the model menu ("openrouter · Team Work
+    account"), and each answer comes through the team server, checked against the person's role at every call.
   - **Hardened:** only ports 80 and 443 open, sign-in limits that people's containers can't get around, no
     cross-site changes, and security headers. See deploy/README.md › Security.
 

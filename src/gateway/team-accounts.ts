@@ -11,7 +11,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { AuthPrompt, Provider } from "@earendil-works/pi-ai";
+import type { Api, AssistantMessageEventStream, AuthPrompt, Context, Model, Provider, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { ACCOUNT_PROVIDERS, accountProvider } from "../server/accounts.ts";
 import { HttpError } from "../server/errors.ts";
@@ -54,6 +54,8 @@ export interface TeamAccountRows {
 }
 
 const MAX_NAME = 40;
+/** The options a pi-phone's request may carry: how the model answers, never where to or with what credential. */
+const RELAYED = ["temperature", "samplingParams", "maxTokens", "cacheRetention", "sessionId", "metadata", "toolChoice", "reasoning", "thinkingBudgets"] as const;
 /** How long a finished sign-in's steps wait to be fetched. */
 const FLOW_KEPT_MS = 10 * 60_000;
 
@@ -134,9 +136,16 @@ export class TeamAccounts {
 
     /** Every team account, with what its sign-in can do and whether it is signed in. */
     list() {
+        const rows = this.#rows.teamAccounts();
+
+        // None made yet: nothing to ask the runtime about.
+        if (rows.length === 0) {
+            return [];
+        }
+
         const runtime = this.runtime;
 
-        return this.#rows.teamAccounts().map((account) => {
+        return rows.map((account) => {
             const provider = runtime.getProvider(account.id);
             const auth = (provider as { auth?: { apiKey?: unknown; oauth?: { name?: string; loginLabel?: string } } } | undefined)?.auth;
             const status = runtime.getProviderAuthStatus(account.id);
@@ -211,6 +220,38 @@ export class TeamAccounts {
         }
 
         return account;
+    }
+
+    // ─── Its models, used through the gateway (S2) ───
+
+    /** A team account's models, as its people's pi-phones list them. */
+    models(id: string): readonly Model<Api>[] {
+        this.#need(id);
+
+        return this.runtime.getModels(id);
+    }
+
+    /**
+     * One answer of a team account's model, with its sign-in: the gateway's own copy of the model, and only the options a
+     * pi-phone may set (`RELAYED`), so what it sends cannot change where the request goes or what it carries.
+     */
+    stream(id: string, modelId: string, context: Context, given: Record<string, unknown>, signal: AbortSignal): AssistantMessageEventStream {
+        this.#need(id);
+        const model = this.runtime.getModel(id, modelId);
+
+        if (model === undefined) {
+            throw new HttpError(404, `The team account has no model ${modelId}.`);
+        }
+
+        const options: SimpleStreamOptions = { signal };
+
+        for (const key of RELAYED) {
+            if (given[key] !== undefined) {
+                (options as Record<string, unknown>)[key] = given[key];
+            }
+        }
+
+        return this.runtime.streamSimple(model, context, options);
     }
 
     // ─── Signing in, from a person's Providers sheet ───

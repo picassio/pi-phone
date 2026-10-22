@@ -625,6 +625,8 @@ export class PocketApp {
         this.#configureModels?.(this.models);
         // Before anything reads the models: sessions on an account's models resume with it there.
         this.accounts.registerAll();
+        // And the team's accounts this person may use, on the team server (PP-69): before sessions on them resume too.
+        await this.syncTeamAccounts(false);
         measureModelStreams(this.models);
         await this.models.getAvailable().catch(() => []);
 
@@ -2214,6 +2216,12 @@ export class PocketApp {
      */
     accountLabel(provider: string): string | undefined {
         const account = this.accounts.get(provider);
+        // A team account's (PP-69): "Team Work".
+        const team = this.teamAccounts.label(provider);
+
+        if (team !== undefined) {
+            return team;
+        }
 
         if (account !== undefined) {
             return account.name;
@@ -3326,6 +3334,8 @@ export class PocketApp {
         const policy = checkPolicy(given);
 
         this.policy.set(policy);
+        // The team accounts the role may use come with the policy's change (PP-69).
+        await this.syncTeamAccounts();
 
         for (const [file, permission] of Object.entries(POLICY_EXTENSIONS)) {
             if (this.loader.list().some((each) => each.file === file)) {
@@ -3335,6 +3345,24 @@ export class PocketApp {
 
         for (const client of this.#clients) {
             client.send("reload", {});
+        }
+    }
+
+    /**
+     * The team accounts this person may use, as providers here (`team-accounts.ts`, PP-69): at start, when the role's
+     * policy comes, and after one is signed in, out, or removed. A team server that does not answer leaves them as they
+     * were, and says so in the log; their sessions then fail with the reason until the next try.
+     */
+    async syncTeamAccounts(tell = true): Promise<void> {
+        try {
+            await this.teamAccounts.sync(this.models);
+        } catch (error) {
+            this.log(`Team accounts not listed: ${describe(error)}`);
+        }
+
+        // Tabs get the models again; not while the app opens (nothing is drawn yet).
+        if (tell) {
+            this.providers.modelsChanged();
         }
     }
 

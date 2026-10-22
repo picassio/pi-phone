@@ -583,7 +583,7 @@ async function renderPeople(box, me, roles) {
 // ─── Roles (roles.manage) ───
 
 async function rolesPage(me) {
-    const { roles, counts, catalogue } = await gw("roles");
+    const { roles, counts, catalogue, teamAccounts } = await gw("roles");
     const editor = (role) => {
         const fields = [
             field("Name", "name", "text", { value: role?.name ?? "", maxlength: 40 }),
@@ -597,6 +597,22 @@ async function rolesPage(me) {
                     ),
                 ),
             ),
+            // The team accounts its people may use (PP-69); the owner's role uses every one.
+            teamAccounts.length === 0
+                ? null
+                : h(
+                      "fieldset",
+                      { class: "card" },
+                      h("legend", {}, "Team accounts they may use"),
+                      ...teamAccounts.map((account) =>
+                          h(
+                              "label",
+                              { class: "check" },
+                              h("input", { type: "checkbox", name: `t:${account.id}`, checked: role?.teamAccounts?.includes(account.id) ?? false }),
+                              h("span", {}, account.name, account.configured ? null : h("span", { class: "muted" }, " needs sign-in")),
+                          ),
+                      ),
+                  ),
             h("div", { class: "row" }, field("Memory (MB)", "memoryMb", "number", { value: role?.memoryMb ?? 2048, min: 256, max: 16384, step: 256 }), field("CPUs", "cpus", "number", { value: role?.cpus ?? 1, min: 0.25, max: 8, step: 0.25 })),
             h("label", {}, "Models they may use: one provider/model per line, none for any", h("textarea", { name: "models", rows: 3 }, (role?.models ?? []).join("\n"))),
             h("label", {}, "Spend limit, dollars a month: empty for none", h("input", { name: "spendLimit", type: "number", min: 0, step: "any", value: role?.spendLimit ?? "" })),
@@ -604,6 +620,7 @@ async function rolesPage(me) {
         const body = (values) => ({
             name: values.name,
             permissions: Object.keys(values).filter((key) => key.startsWith("p:")).map((key) => key.slice(2)),
+            teamAccounts: Object.keys(values).filter((key) => key.startsWith("t:")).map((key) => key.slice(2)),
             memoryMb: Number(values.memoryMb),
             cpus: Number(values.cpus),
             models: String(values.models ?? "").split("\n"),

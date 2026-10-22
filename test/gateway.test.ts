@@ -20,7 +20,7 @@ after(() => cleanUp());
 /** What the stand-in pi-phone was asked: by path, its headers. */
 const asked: { path: string; headers: IncomingHttpHeaders }[] = [];
 /** The policies the gateway sent, by the pi-phone token they went with (PP-22). */
-const policies: Record<string, { permissions: string[]; models: string[]; spendLimit: number | null; role: string }> = {};
+const policies: Record<string, { permissions: string[]; models: string[]; spendLimit: number | null; role: string; teamAccounts?: string[] }> = {};
 const controllerCalls: string[] = [];
 /** The caps each person's pi-phone was last started with, by key. */
 const capsOf: Record<string, { memoryMb: number; cpus: number }> = {};
@@ -290,7 +290,7 @@ test("custom roles (PP-22): the owner's catalogue, a role's caps and permissions
     assert.equal((await worker.go("/")).status, 200);
     assert.deepEqual(capsOf[store.boxOf(kim.id)!.key], { memoryMb: 1536, cpus: 0.5 }, "the role's caps");
     // Kim's pi-phone got Kim's role's policy before anything else (PP-22), and Kim can't send one.
-    assert.deepEqual(policies[`Bearer ${store.boxOf(kim.id)!.token}`], { permissions: ["pi.use", "web.search", "people.manage", "people.invite"], models: ["anthropic/claude-haiku-5-5"], spendLimit: 20, role: "Contractor" });
+    assert.deepEqual(policies[`Bearer ${store.boxOf(kim.id)!.token}`], { permissions: ["pi.use", "web.search", "people.manage", "people.invite"], models: ["anthropic/claude-haiku-5-5"], spendLimit: 20, role: "Contractor", teamAccounts: [] });
     assert.equal((await worker.go("/api/policy", { permissions: ["browser.use"], models: [], spendLimit: null, role: "x" })).status, 403);
 
     // Kim's role manages people (not better-auth's admin): Kim resets a member's password, but not an owner's, and

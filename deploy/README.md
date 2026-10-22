@@ -48,6 +48,10 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
     gateway's `team-providers/auth.json` (mode 600, in the gateway's volume and its backups), never in a person's pi-phone.
   - Adding a subscription warns that it is licensed to one person. Added, signed in, renamed, signed out and removed
     accounts are in the Audit log.
+  - **Using them:** the Roles page lists the team accounts a role's people may use (the owner's role: all). Their models
+    show in those people's model menus; each call goes from their pi-phone to the gateway's internal port
+    (`/internal/llm/stream`), which checks the role (the account and the role's model list) every time, answers with
+    the account's sign-in, and streams the answer back. Stop and Interrupt end the call there too.
 - **Updates roll out by themselves:** after `docker compose ... up -d --build` makes a new image, people's running
   pi-phones are made again from it one at a time, each when Pi isn't at work there. Stopped ones are made again when they
   next start. Their data (the volume) is kept, and an open page reconnects in a few seconds. The Server page shows how
