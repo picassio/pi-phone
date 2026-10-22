@@ -11,6 +11,8 @@ import { READ_CLOSE, READ_OPEN } from "../session-control.ts";
 const reply = (text: string) => ({ output: [{ type: "text" as const, text }] });
 
 const GUIDE = `You can reach this app's other sessions with the sessions tools, as the person you work for, with their rights: sessions (list), session_read, session_start, session_send, session_wait, session_stop, session_settle, session_archive, approvals.
+- A session stuck on something in its context (every request fails): session_compact, session_new_context, or session_fork (a new session before the message that stopped it). Each asks your person on a card; read the session first and say why.
+- These work on other sessions only, never this one.
 - Folder groups in your person's session list are theirs too: session_groups lists them; session_group_create, _rename, _pin, _fold, _order and _move change them when asked; session_group_delete asks them on a card.
 - Use them when your person asks you to look after, test through, or hand work to other sessions; not on your own initiative.
 - Read a session (session_read) before you message or stop it, and do only what it needs.
@@ -140,6 +142,89 @@ export default function createSessions(host: PocketHost) {
             await host.sessions.update(api.conversationId, args.session, { archived: args.archived });
 
             return reply(`${args.archived ? "Archived" : "Brought back"} #${args.session}.`);
+        },
+    });
+    // ─── Getting a session past what stops it (PP-99): another session's menu actions, each asked on a card ───
+    const why = Type.String({ description: "Why, in a sentence: shown on the card" });
+    /** The person's yes on a card, for a change to another session: false when they say no. */
+    const asked = async (
+        api: { conversationId: Parameters<typeof host.sessions.status>[0]; taskId: unknown; callId: string },
+        context: Parameters<typeof host.approvals.request>[1],
+        tool: string,
+        subject: string,
+        reason: string,
+    ): Promise<{ allow: boolean; by: string }> =>
+        host.approvals.request(
+            {
+                id: `${tool}-${String(api.conversationId)}-${api.callId}`,
+                conversationId: api.conversationId,
+                taskId: api.taskId as never,
+                callId: api.callId,
+                tool,
+                subject,
+                reason,
+                createdAt: Date.now(),
+            },
+            context,
+        );
+    const fork = defineTool({
+        name: "session_fork",
+        description:
+            "Fork another session: a new session whose history ends just before one of the person's messages there, as editing that message does, sending nothing (asks your person on a card first). For a session stuck on a message: the fork goes on without it.",
+        parameters: Type.Object({
+            session,
+            message: Type.Number({ description: "Which of the person's messages there, counted from the newest: 1 is the latest, 2 the one before" }),
+            reason: why,
+        }),
+        execute: async (args, api, context) => {
+            const line = await host.sessions.checkRescue(api.conversationId, args.session, false);
+            const answer = await asked(api, context, "session_fork", `Fork ${line} before the person's message ${args.message === 1 ? "(the latest)" : `${args.message} from the end`}`, args.reason);
+
+            if (!answer.allow) {
+                return reply(`${answer.by} said no: nothing was forked.`);
+            }
+
+            const made = await host.sessions.fork(api.conversationId, args.session, args.message);
+
+            return reply(`Forked #${args.session} as #${made.id}: [it](/s/${made.id}). It ends just before that message; send it what to do with session_send.`);
+        },
+    });
+    const newContext = defineTool({
+        name: "session_new_context",
+        description: "Start a new context in another session, as its menu's New context does: Pi there no longer sees what came before, though people still do (asks your person on a card first).",
+        parameters: Type.Object({ session, reason: why }),
+        execute: async (args, api, context) => {
+            const line = await host.sessions.checkRescue(api.conversationId, args.session, true);
+            const answer = await asked(api, context, "session_new_context", `New context in ${line}: Pi there starts fresh; the history stays to read`, args.reason);
+
+            if (!answer.allow) {
+                return reply(`${answer.by} said no: #${args.session} keeps its context.`);
+            }
+
+            await host.sessions.newContext(api.conversationId, args.session);
+
+            return reply(`Started a new context in #${args.session}.`);
+        },
+    });
+    const compact = defineTool({
+        name: "session_compact",
+        description: "Compact another session's context, as its menu's Compact does: a summary takes the place of older messages (asks your person on a card first).",
+        parameters: Type.Object({
+            session,
+            focus: Type.Optional(Type.String({ description: "What the summary should keep, if anything in particular" })),
+            reason: why,
+        }),
+        execute: async (args, api, context) => {
+            const line = await host.sessions.checkRescue(api.conversationId, args.session, true);
+            const answer = await asked(api, context, "session_compact", `Compact the context of ${line}${args.focus === undefined ? "" : `, keeping: ${args.focus}`}`, args.reason);
+
+            if (!answer.allow) {
+                return reply(`${answer.by} said no: #${args.session} was not compacted.`);
+            }
+
+            await host.sessions.compact(api.conversationId, args.session, args.focus?.trim() || undefined);
+
+            return reply(`Compacting #${args.session}: it runs there now (session_wait, then session_read, to see it).`);
         },
     });
     const approvals = defineTool({
@@ -318,7 +403,7 @@ export default function createSessions(host: PocketHost) {
 
     return defineExtension({
         name: "pocket-sessions",
-        tools: [list, read, start, send, wait, stop, settle, archive, approvals, groupsList, groupCreate, groupRename, groupPin, groupFold, groupOrder, groupMove, groupDelete],
+        tools: [list, read, start, send, wait, stop, settle, archive, fork, newContext, compact, approvals, groupsList, groupCreate, groupRename, groupPin, groupFold, groupOrder, groupMove, groupDelete],
         sections: [section("sessions", () => GUIDE)],
     });
 }

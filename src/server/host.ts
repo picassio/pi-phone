@@ -335,7 +335,25 @@ export interface PocketHost {
     /** Other sessions, as the person a session works for (`session-control.ts`): the sessions tools. */
     readonly sessions: Pick<
         SessionControl,
-        "list" | "status" | "read" | "start" | "send" | "stop" | "wait" | "approvals" | "deny" | "piSessions" | "importPiSession" | "continueInPi" | "bringBack" | "update" | "groups"
+        | "list"
+        | "status"
+        | "read"
+        | "start"
+        | "send"
+        | "stop"
+        | "wait"
+        | "approvals"
+        | "deny"
+        | "piSessions"
+        | "importPiSession"
+        | "continueInPi"
+        | "bringBack"
+        | "update"
+        | "groups"
+        | "checkRescue"
+        | "fork"
+        | "newContext"
+        | "compact"
     >;
     /** Messages to Pi for later: the schedule tool sets up Pi's own. */
     readonly schedules: Pick<Schedules, "add" | "cancel" | "list" | "task">;

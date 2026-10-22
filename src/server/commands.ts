@@ -1625,6 +1625,36 @@ export class Commands {
     }
 
     /**
+     * A new session whose history ends just before one of the person messages here, counted from the newest (1 is the
+     * latest), as an edit's fork does, but sending nothing: for `session_fork`, to get a session past a message that
+     * stopped it (PP-99).
+     */
+    async forkBefore(id: ConversationId, user: User, nth: number): Promise<{ id: ConversationId }> {
+        this.#requireForkable(id, user);
+
+        if (!Number.isInteger(nth) || nth < 1) {
+            throw new HttpError(400, "Which message: 1 is the person's latest, 2 the one before it, and so on.");
+        }
+
+        const messages = (await this.#app.transcripts.allEntries(id, false)).filter((entry) => entry.kind === "user");
+        const message = messages.at(-nth);
+
+        if (message === undefined) {
+            throw new HttpError(404, `The session has ${messages.length} message${messages.length === 1 ? "" : "s"} from people.`);
+        }
+
+        const previous = (
+            await (
+                await this.#app.conversation(id)
+            ).entries({ maxEntryId: (message.id - 1) as unknown as EntryId }, 1, undefined, context)
+        ).items[0];
+
+        return {
+            id: await this.#branch(id, user, { at: previous?.id as unknown as number | undefined, label: "fork", worktree: false }),
+        };
+    }
+
+    /**
      * Send one of this session's messages again in a fork that ends just before it: edited (`text`), or as it was, maybe
      * to another model (`model`). The original stays as it is.
      */

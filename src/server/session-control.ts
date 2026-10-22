@@ -365,6 +365,41 @@ export class SessionControl {
     }
 
     /**
+     * Before the card that asks the person: refused at once when it is this session, or when the person may not do it
+     * there (`drive`: compact and New context need the session's driver, as from its menu). Answers its line.
+     */
+    async checkRescue(caller: ConversationId, id: number, drive: boolean): Promise<string> {
+        const { user, target } = this.#target(caller, id, true);
+
+        if (drive) {
+            await this.#app.requireDriver(target, user);
+        }
+
+        return this.status(caller, id);
+    }
+
+    /** A new session with the history before one of the person messages there (1: the latest), as the person (PP-99). */
+    async fork(caller: ConversationId, id: number, message: number): Promise<{ id: number }> {
+        const { user, target } = this.#target(caller, id, true);
+
+        return { id: Number((await this.#app.commands.forkBefore(target, user, message)).id) };
+    }
+
+    /** The menu's New context, as the person: Pi there no longer sees what came before; everyone still can. */
+    async newContext(caller: ConversationId, id: number): Promise<void> {
+        const { user, target } = this.#target(caller, id, true);
+
+        await this.#app.commands.reset(target, user, undefined);
+    }
+
+    /** The menu's Compact, as the person, with what the summary should keep (`focus`). */
+    async compact(caller: ConversationId, id: number, focus: string | undefined): Promise<void> {
+        const { user, target } = this.#target(caller, id, true);
+
+        await this.#app.commands.compact(target, user, focus);
+    }
+
+    /**
      * Wait until the session's run ends (or, when none starts within a few seconds, that it is idle), up to `timeoutMs`;
      * answers its state then and its last answer.
      */

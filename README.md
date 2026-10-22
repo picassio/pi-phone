@@ -69,7 +69,9 @@ No Termux, no laptop, no cloud VM.
 - **Schedules and goals.** Pi messages itself later or on repeat (`schedule`), and a session can keep working toward a
   goal it checks.
 - **Other sessions.** Pi can list, read, start, message, wait for, and stop the app's other sessions, as the person it
-  works for.
+  works for. It can also get a stuck session going again, each time after you say yes on a card: fork it before the
+  message that stopped it (`session_fork`), start a new context there (`session_new_context`), or compact it
+  (`session_compact`). Never its own session.
 - **Projects** (an extension, off until you turn it on in Settings › Extensions): boards of tasks that keep work from
   being forgotten. Pi asks once before it tracks a session's work on a board ("Track this on the board?"), then keeps
   its tasks current with `task_create`, `task_update`, and `task_comment`. Epics, Stories, Tasks, Bugs, and Sub-tasks;
