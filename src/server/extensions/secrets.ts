@@ -69,6 +69,22 @@ export function browserSecretNames(tool: string, args: Record<string, unknown>):
     return undefined;
 }
 
+/** A tool's result with secrets' values replaced on every channel: what the model reads, programs get, and UIs show. */
+export function redactToolResult(result: ToolExecutionResult, redact: (text: string) => string): ToolExecutionResult {
+    return {
+        ...result,
+        ...(result.output === undefined
+            ? {}
+            : { output: result.output.map((part) => (part.type === "text" ? { ...part, text: redact(part.text) } : part)) }),
+        ...(result.details === undefined ? {} : { details: redactJson(result.details, redact) }),
+        ...(result.structuredOutput === undefined ? {} : { structuredOutput: redactJson(result.structuredOutput, redact) }),
+        // Diagnostics end the result the model reads, so they are redacted too (PP-92).
+        ...(result.diagnostics === undefined
+            ? {}
+            : { diagnostics: result.diagnostics.map((diagnostic) => ({ ...diagnostic, message: redact(diagnostic.message) })) }),
+    };
+}
+
 export default function createSecrets(host: PocketHost) {
     const { secrets } = host;
     // The app's own stores of keys: its ssh folder (keys, its agent's socket), the database (private SSH keys), and the
@@ -305,28 +321,8 @@ export default function createSecrets(host: PocketHost) {
                     return undefined;
                 },
                 // Every result, with secrets' values replaced before it is stored and reaches the model.
-                afterTool: (_call, result): ToolExecutionResult | undefined => {
-                    if (secrets.longest() === 0) {
-                        return undefined;
-                    }
-
-                    const redact = (text: string) => secrets.redact(text);
-
-                    return {
-                        ...result,
-                        ...(result.output === undefined
-                            ? {}
-                            : {
-                                  output: result.output.map((part) =>
-                                      part.type === "text" ? { ...part, text: redact(part.text) } : part,
-                                  ),
-                              }),
-                        ...(result.details === undefined ? {} : { details: redactJson(result.details, redact) }),
-                        ...(result.structuredOutput === undefined
-                            ? {}
-                            : { structuredOutput: redactJson(result.structuredOutput, redact) }),
-                    };
-                },
+                afterTool: (_call, result): ToolExecutionResult | undefined =>
+                    secrets.longest() === 0 ? undefined : redactToolResult(result, (text) => secrets.redact(text)),
             }),
         ],
     });

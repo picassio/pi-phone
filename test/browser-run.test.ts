@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Observed } from "../src/server/browser/page.ts";
-import { actionSpace, buildQuestions, type Decider, type Question, readAnswers, report, runGoal, type RunPage } from "../src/server/browser/run.ts";
+import { actionSpace, buildQuestions, type Decider, type Question, readAnswers, report, runGoal, type RunPage, SessionDecider } from "../src/server/browser/run.ts";
 
 const rect = { x: 0, y: 0, w: 10, h: 10 };
 
@@ -124,6 +124,29 @@ test("an answer that was not offered refuses the whole reply", () => {
 
     assert.throws(() => readAnswers(questions, { operation: { choice: "HACK" }, click_target: { choice: "1" }, type_text_target: { choice: "1" }, select_target: { choice: "2:1" }, goal_achieved: { noul: 0 } }), /not offered/);
     assert.throws(() => readAnswers(questions, { operation: { choice: "CLICK" } }), /did not answer/);
+    // A chat model's partial reply (PP-94): read, as long as it chose an operation and what it gave was offered.
+    assert.deepEqual(readAnswers(questions, { operation: { choice: "CLICK" }, click_target: { choice: "1" } }, true), { operation: { choice: "CLICK" }, click_target: { choice: "1" } });
+    assert.throws(() => readAnswers(questions, { click_target: { choice: "1" } }, true), /did not answer operation/);
+    assert.throws(() => readAnswers(questions, { operation: { choice: "CLICK" }, click_target: { choice: "99" } }, true), /not offered/);
+});
+
+test("the session's model may leave out answers it did not need; only a step missing its own answer stops (PP-94)", async () => {
+    // As Gemini 2.5 Flash answered: the chosen operation and its target, nothing for the others.
+    const replies = [
+        '```json\n{"operation": {"choice": "TYPE_TEXT"}, "type_text_target": {"choice": "1"}, "value_for_field": {"choice": "query"}}\n```',
+        '{"operation": {"choice": "CLICK"}, "click_target": {"choice": "3"}}',
+        '{"operation": {"choice": "DONE"}, "goal_achieved": {"noul": 0.97}}',
+    ];
+    const { runPage, done } = shop();
+    const result = await runGoal(runPage, new SessionDecider(async () => replies.shift() ?? "{}"), options({ query: "lamp" }));
+
+    assert.equal(result.status, "done", result.detail ?? "");
+    assert.deepEqual(done, ["type 1 lamp", "click 3"]);
+
+    const missing = await runGoal(shop().runPage, new SessionDecider(async () => '{"operation": {"choice": "CLICK"}}'), options());
+
+    assert.equal(missing.reason, "decision_error");
+    assert.equal(missing.detail, "The run model chose CLICK without a target.");
 });
 
 test("a run types only a supplied value, clicks, and is done when the goal is visibly met", async () => {

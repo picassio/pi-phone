@@ -13,7 +13,7 @@ import {
 } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { userInfo } from "node:os";
 import { join } from "node:path";
@@ -290,6 +290,41 @@ test("a folder that is not on the machine is refused by name; worktrees stay on 
         app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${remoteHome}`, worktree: true }),
         /worktree of its own is for folders on this phone/,
     );
+
+    // A file is not a folder (PP-90); a link to a folder is one, as on the phone.
+    writeFileSync(join(remoteHome, "a-file.txt"), "text\n");
+    symlinkSync(join(remoteHome, "project"), join(remoteHome, "project-link"));
+    await assert.rejects(app.places.checkDirectory(`machine:${machineId}:${join(remoteHome, "a-file.txt")}`, context), {
+        status: 400,
+        message: /a-file\.txt on box is a file, not a folder/,
+    });
+    await assert.rejects(app.places.checkDirectory(`machine:${machineId}:${join(remoteHome, "nothing-here")}`, context), {
+        status: 404,
+        message: /There is no folder .*nothing-here on box/,
+    });
+    assert.equal(
+        await app.places.checkDirectory(`machine:${machineId}:${join(remoteHome, "project-link")}`, context),
+        `machine:${machineId}:${join(remoteHome, "project-link")}`,
+    );
+});
+
+test("a machine that does not answer is refused in seconds by the folder picker and a new session", { skip, timeout: 60_000 }, async () => {
+    // Set up, at an address where nothing listens: before PP-91 the check waited on its connection for good.
+    const gone = app.machines.add({ name: "silent", address: `${userInfo().username}@127.0.0.1:1`, keyId: app.machines.get(machineId).keyId });
+
+    Object.assign(app.machines.get(gone.id), { hostKey: "SHA256:test (ED25519)", remote: app.machines.get(machineId).remote });
+
+    try {
+        const started = Date.now();
+
+        await assert.rejects(app.places.checkDirectory(`machine:${gone.id}:${remoteHome}`, context, 3_000), {
+            status: 502,
+            message: /^silent does not answer: /,
+        });
+        assert.ok(Date.now() - started < 10_000, `refused in ${Date.now() - started} ms`);
+    } finally {
+        await app.machines.remove(gone.id);
+    }
 });
 
 test("a session on the phone still works as before", async () => {
@@ -415,7 +450,7 @@ test("an attachment to a session on a machine is copied there, and the message n
 
     writeFileSync(local, "attached words\n");
     const home = app.machines.get(machineId).remote!.home;
-    const there = join(home, ".pi", "mobile", "uploads", String(id), "abc-notes.txt");
+    const there = join(home, ".pi", "mobile", "uploads", app.config.serverId, String(id), "abc-notes.txt");
 
     try {
         const { submissionId } = await app.commands.submit(id, owner(app), {
@@ -432,7 +467,65 @@ test("an attachment to a session on a machine is copied there, and the message n
         assert.ok(!texts.some((each) => each.includes(local)), "the phone's path is not in the message");
         assert.match(told, /copied to ~\/.pi\/mobile\/uploads on that machine/);
     } finally {
-        rmSync(join(home, ".pi", "mobile", "uploads", String(id)), { recursive: true, force: true });
+        rmSync(join(home, ".pi", "mobile", "uploads", app.config.serverId, String(id)), { recursive: true, force: true });
+    }
+});
+
+test("attachments on a machine: per server, copied whole, never over another; an invited person sees them, and nothing a link leads to", { skip }, async () => {
+    const project = join(remoteHome, "project");
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${project}` });
+    const home = app.machines.get(machineId).remote!.home;
+    // This server's own folder there, so another pi-phone's session of the same number never meets these (PP-98).
+    const folder = join(home, ".pi", "mobile", "uploads", app.config.serverId, String(id));
+    const uploads = app.workspace.uploadDirectory(id);
+    const local = join(uploads, "k2-pic.png");
+    const outside = join(remoteHome, "outside");
+
+    assert.match(app.config.serverId, /^[0-9a-f]{16}$/);
+    mkdirSync(uploads, { recursive: true });
+    copyFileSync(join(APP_ROOT, "web", "icon-192.png"), local);
+    let guestId: string | undefined;
+
+    try {
+        const placed = await app.workspace.placeUploads(id, [local]);
+
+        assert.deepEqual(placed, [join(folder, "k2-pic.png")]);
+        // Written as .part, then named: nothing half-copied is left under the name (PP-97).
+        assert.deepEqual(readdirSync(folder), ["k2-pic.png"]);
+        assert.deepEqual(await app.workspace.placeUploads(id, [local]), placed, "a resend keeps the same file");
+
+        const other = join(root, "elsewhere", "k2-pic.png");
+
+        mkdirSync(join(root, "elsewhere"), { recursive: true });
+        writeFileSync(other, "not the same picture");
+        await assert.rejects(app.workspace.placeUploads(id, [other]), { status: 409, message: /There is another k2-pic\.png/ });
+        assert.deepEqual(readFileSync(placed[0]!), readFileSync(local), "the first one is not written over");
+
+        // Someone invited to this session only sees its attachment there (PP-96)…
+        const guest = app.config.addUser("Visitor", "guest").user;
+
+        guestId = guest.id;
+        app.setAccess(owner(app), guest.id, { sessions: [String(id)] });
+        const invited = app.config.userById(guest.id)!;
+
+        assert.equal((await app.workspace.remoteImage(invited, id, placed[0]!))?.type, "image/png");
+
+        // …and not what a link in the folder leads to outside it (PP-95). The owner still reaches it.
+        mkdirSync(outside, { recursive: true });
+        copyFileSync(join(APP_ROOT, "web", "icon-192.png"), join(outside, "secret.png"));
+        symlinkSync(join(outside, "secret.png"), join(project, "peek.png"));
+        await assert.rejects(app.workspace.remoteImage(invited, id, "peek.png"), { status: 404 });
+        await assert.rejects(app.workspace.remoteImage(invited, id, join(outside, "secret.png")), { status: 404 });
+        assert.equal((await app.workspace.remoteImage(owner(app), id, join(outside, "secret.png")))?.type, "image/png");
+    } finally {
+        // Gone again: with a second person, later tests' messages would say who wrote them, and their routes miss.
+        if (guestId !== undefined) {
+            app.removeUser(owner(app), guestId);
+        }
+
+        rmSync(folder, { recursive: true, force: true });
+        rmSync(join(project, "peek.png"), { force: true });
+        rmSync(outside, { recursive: true, force: true });
     }
 });
 
@@ -447,7 +540,7 @@ test("a photo added to an interview in a session on a machine is copied there: P
 
     writeFileSync(local, png);
     const home = app.machines.get(machineId).remote!.home;
-    const there = join(home, ".pi", "mobile", "uploads", String(id), "k1-photo.png");
+    const there = join(home, ".pi", "mobile", "uploads", app.config.serverId, String(id), "k1-photo.png");
 
     try {
         const { submissionId } = await app.commands.submit(id, owner(app), { text: "ask for a photo", requestId: crypto.randomUUID() });
@@ -476,7 +569,7 @@ test("a photo added to an interview in a session on a machine is copied there: P
         assert.ok(texts.some((each) => each.includes(there)), texts.join("\n"));
         assert.ok(!texts.some((each) => each.includes(local)), "the phone's path is not in what Pi gets");
     } finally {
-        rmSync(join(home, ".pi", "mobile", "uploads", String(id)), { recursive: true, force: true });
+        rmSync(join(home, ".pi", "mobile", "uploads", app.config.serverId, String(id)), { recursive: true, force: true });
     }
 });
 

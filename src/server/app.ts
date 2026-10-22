@@ -463,14 +463,19 @@ export class PocketApp {
 
         this.sshAgent = new SshAgent(sshDir, (line) => this.log(line));
         this.sshKeys = new SshKeys(options.dataDir, this.sshAgent, sshDir, this.#home);
-        this.secrets = new Secrets(options.dataDir);
+        this.secrets = new Secrets(options.dataDir, Date.now, (line) => this.log(line));
         this.policy = new PolicyStore(options.dataDir);
         this.web = new WebSearch(this.config, this.secrets, async (provider) => (await this.models.getAuth(provider))?.auth.apiKey);
         // Every tab's machines (the folder picker, Ports, Pi sessions on a machine) come with `hello`: a machine connected,
-        // renamed, or removed reaches them at once, not at their next connection.
-        this.machines = new Machines(options.dataDir, this.sshKeys, sshDir, this.sshAgent, this.#home, () =>
-            void this.#refreshClients().catch((error: unknown) => this.log(`machines not sent to the tabs: ${describe(error)}`)),
-        );
+        // renamed, or removed reaches them at once, not at their next connection. A changed machine's connection and
+        // environments go too: sessions there reconnect with its new address, key or host key (PP-87).
+        this.machines = new Machines(options.dataDir, this.sshKeys, sshDir, this.sshAgent, this.#home, (id) => {
+            if (id !== undefined) {
+                this.places.forget(id);
+            }
+
+            void this.#refreshClients().catch((error: unknown) => this.log(`machines not sent to the tabs: ${describe(error)}`));
+        });
         this.places = new Places(this.machines, () => this.#toolPath());
         this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
         // A team account's sign-in steps go to this pi-phone's person, as their own sign-ins' do (not to teammates).
@@ -2709,14 +2714,15 @@ export class PocketApp {
             values = typeof body.values === "object" && body.values !== null ? (body.values as Record<string, string>) : {};
         }
 
-        const fields = form.fields.map((field) => ({ index: field.index, value: values[field.name] }));
+        // A password or a code stays out of what Pi reads of the page afterwards; a username may show (PP-93).
+        const fields = form.fields.map((field) => ({ index: field.index, value: values[field.name], hide: field.name !== "username" }));
 
         if (fields.some((field) => typeof field.value !== "string" || field.value === "")) {
             throw new HttpError(400, `Fill in ${form.fields.map((field) => field.label).join(" and ")}.`);
         }
 
         try {
-            await this.browserAt(form.place ?? "phone", Number(request.conversationId)).fillFields(Number(request.conversationId), fields as { index: number; value: string }[]);
+            await this.browserAt(form.place ?? "phone", Number(request.conversationId)).fillFields(Number(request.conversationId), fields as { index: number; value: string; hide: boolean }[]);
         } catch (error) {
             throw new HttpError(409, error instanceof Error ? error.message : String(error));
         }

@@ -293,10 +293,16 @@ export class Workspace {
 
     /**
      * A path on the session's machine as the session means it: absolute, `~/…` (the machine's home), or relative to its
-     * folder. Someone invited to one session gets only files under that folder, by path (the machine's links are not
-     * resolved from here).
+     * folder. Someone invited to one session gets only files in that folder and in its attachments there
+     * (`placeUploads`, for this session and the ones it was forked from), with the machine's links resolved there
+     * first, so a link inside the folder does not lead outside it (PP-95, PP-96).
      */
-    #remotePath(remote: NonNullable<ReturnType<Workspace["remoteOf"]>>, user: User, path: string): string {
+    async #remotePath(
+        remote: NonNullable<ReturnType<Workspace["remoteOf"]>>,
+        id: ConversationId,
+        user: User,
+        path: string,
+    ): Promise<string> {
         // The panel names its folders as places (`machine:<id>:<path>`): one on this session's machine only.
         const place = parsePlace(path.trim());
 
@@ -306,17 +312,37 @@ export class Workspace {
 
         const file = remote.paths.resolve(remote.cwd, remote.paths.expandHome(place.path, remote.machine.remote!.home));
 
-        if (user.sessions !== undefined && !remote.paths.within(remote.cwd, file)) {
-            throw new HttpError(404, "Image not found");
+        if (user.sessions === undefined) {
+            return file;
         }
 
-        return file;
+        const folders = [remote.cwd, ...this.#lineage(id).map((each) => this.#machineUploads(remote, each))];
+        const [real, roots] = await Promise.all([
+            remote.env.canonicalPath(file, BACKGROUND_CONTEXT),
+            Promise.all(folders.map((each) => remote.env.canonicalPath(each, BACKGROUND_CONTEXT))),
+        ]);
+
+        if (!real.ok || !roots.some((root) => root.ok && remote.paths.within(remote.paths.normal(root.value), remote.paths.normal(real.value)))) {
+            throw new HttpError(404, `${path} is not there.`);
+        }
+
+        return remote.paths.normal(real.value);
     }
 
     /**
-     * Copy files the person uploaded on the phone (`uploadDirectory`) to the session's machine, under
-     * `~/.pi/mobile/uploads/<id>/`, so Pi's tools there read them: each one's path there, in order. Nothing to do in a
-     * session on the phone. Fails, with the machine's reason, when one cannot be written.
+     * Where a session's attachments go on its machine: `~/.pi/mobile/uploads/<server id>/<session>`. The server's id
+     * keeps them apart from another pi-phone's sessions of the same number on that machine (PP-98).
+     */
+    #machineUploads(remote: NonNullable<ReturnType<Workspace["remoteOf"]>>, id: ConversationId): string {
+        return remote.paths.join(remote.machine.remote!.home, ".pi", "mobile", "uploads", this.#app.config.serverId, String(id));
+    }
+
+    /**
+     * Copy files the person uploaded on the phone (`uploadDirectory`) to the session's machine (`#machineUploads`), so
+     * Pi's tools there read them: each one's path there, in order. Nothing to do in a session on the phone. Each goes to
+     * `<name>.part` first, then takes its name, so a copy cut off halfway never looks finished; the same file already
+     * there (a resend) is kept, and another with that name is refused (PP-97). Fails, with the machine's reason, when one
+     * cannot be written.
      */
     async placeUploads(id: ConversationId, paths: readonly string[]): Promise<string[]> {
         const remote = this.#remote(id);
@@ -325,21 +351,42 @@ export class Workspace {
             return [...paths];
         }
 
-        const folder = `${remote.machine.remote!.home}/.pi/mobile/uploads/${String(id)}`;
+        const machine = remote.machine.name;
+        const folder = this.#machineUploads(remote, id);
         const made = await remote.env.createDir(folder, { recursive: true }, BACKGROUND_CONTEXT);
 
         if (!made.ok) {
-            throw new HttpError(502, `Could not make ${folder} on ${remote.machine.name}: ${made.error.message}`);
+            throw new HttpError(502, `Could not make ${folder} on ${machine}: ${made.error.message}`);
         }
 
         const placed: string[] = [];
 
         for (const path of paths) {
-            const target = `${folder}/${basename(path)}`;
-            const written = await remote.env.writeFile(target, await readFile(path), BACKGROUND_CONTEXT);
+            const name = basename(path);
+            const target = remote.paths.join(folder, name);
+            const data = await readFile(path);
+            const there = await remote.env.fileInfo(target, BACKGROUND_CONTEXT);
 
-            if (!written.ok) {
-                throw new HttpError(502, `Could not copy ${basename(path)} to ${remote.machine.name}: ${written.error.message}`);
+            if (there.ok) {
+                const same =
+                    there.value.kind === "file" && there.value.size === data.length
+                        ? await remote.env.readBinaryFile(target, BACKGROUND_CONTEXT)
+                        : undefined;
+
+                if (same === undefined || !same.ok || !data.equals(Buffer.from(same.value))) {
+                    throw new HttpError(409, `There is another ${name} in ${folder} on ${machine}.`);
+                }
+
+                placed.push(target);
+                continue;
+            }
+
+            const part = `${target}.part`;
+            const written = await remote.env.writeFile(part, data, BACKGROUND_CONTEXT);
+            const moved = written.ok ? await remote.env.renameFile(part, target, BACKGROUND_CONTEXT) : written;
+
+            if (!moved.ok) {
+                throw new HttpError(502, `Could not copy ${name} to ${machine}: ${moved.error.message}`);
             }
 
             placed.push(target);
@@ -366,7 +413,7 @@ export class Workspace {
             return undefined;
         }
 
-        const file = this.#remotePath(remote, user, path);
+        const file = await this.#remotePath(remote, id, user, path);
         const info = await remote.env.fileInfo(file, BACKGROUND_CONTEXT);
 
         if (!info.ok || info.value.kind !== "file") {
@@ -643,7 +690,7 @@ export class Workspace {
         const remote = this.#remote(id);
 
         if (remote !== undefined) {
-            file = this.#remotePath(remote, user, path);
+            file = await this.#remotePath(remote, id, user, path);
 
             try {
                 return { path: file, display: displayPath(file, remote.cwd), ...(await viewRemoteFile(remote.env, file)) };
@@ -716,7 +763,7 @@ export class Workspace {
         const tooLarge = () => new HttpError(413, `Files up to ${MAX_DOWNLOAD / 1024 / 1024} MB can be downloaded.`);
 
         if (remote !== undefined) {
-            const file = this.#remotePath(remote, user, path);
+            const file = await this.#remotePath(remote, id, user, path);
             const info = await remote.env.fileInfo(file, BACKGROUND_CONTEXT);
 
             if (!info.ok || info.value.kind !== "file") {

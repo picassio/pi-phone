@@ -99,6 +99,9 @@ const PAGES: Record<string, string> = {
         <a href="/two">Next page</a>`,
     "/login": `<!doctype html><title>Sign in</title><form onsubmit="event.preventDefault();document.getElementById('out').textContent='Hello ' + user.value + (pw.value === 'hunter2' ? ', signed in' : ', wrong password')">
         <label>Email <input id="user" autocomplete="username"></label><label>Password <input id="pw" type="password"></label><button>Sign in</button></form><p id="out">Signed out</p>`,
+    // A one-time code in a plain text field, which the page then shows back (PP-93).
+    "/code": `<!doctype html><title>Code</title><form onsubmit="event.preventDefault();document.getElementById('out').textContent='Checked ' + code.value">
+        <label>Code <input id="code" inputmode="numeric"></label><button>Verify</button></form><p id="out">Waiting</p>`,
     "/sheet": `<!doctype html><title>Sheet</title><p id="out">Feed</p>
         <div style="position:fixed;left:0;right:0;bottom:0;padding:16px;background:#222;color:#fff">
             <div>Open in...</div>
@@ -220,7 +223,7 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
 
         assert.doesNotMatch(login, /password "Password" value/);
         await assert.rejects(browser.type(1, pw, "guess", {}), /password field: type a saved secret/);
-        await browser.fillFields(1, [{ index: user, value: "tuan@example.com" }, { index: pw, value: "hunter2" }]);
+        await browser.fillFields(1, [{ index: user, value: "tuan@example.com", hide: false }, { index: pw, value: "hunter2", hide: true }]);
 
         const filled = await browser.snapshot(1);
 
@@ -233,6 +236,20 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
         await browser.input({ type: "tap", x: 10, y: 10 });
         browser.takeOver(false);
         assert.match(await browser.snapshot(1), /^Sign in — /);
+
+        // A code the person typed on a card, in a plain field: never in what Pi reads of the page, even shown back (PP-93).
+        const codePage = await browser.open(1, "http://pi.test/code");
+
+        await browser.fillFields(1, [{ index: Number(/\[(\d+)\] textbox "Code"/.exec(codePage)![1]), value: "493817", hide: true }]);
+        const withCode = await browser.snapshot(1);
+
+        assert.doesNotMatch(withCode, /493817/, "not as the field's value");
+        assert.match(withCode, /textbox "Code" value "\[typed by the person\]"/);
+        const checked = await browser.click(1, Number(/\[(\d+)\] button "Verify"/.exec(withCode)![1]));
+
+        assert.match(checked, /Checked \[typed by the person\]/);
+        assert.doesNotMatch(checked, /493817/);
+        assert.doesNotMatch((await browser.text(1, 10_000)).text, /493817/, "nor in the whole page's text");
 
         // Dialogs (PP-79): declined unless asked; accepted when asked, and the page gets the answer it was told.
         const dialogs = await browser.open(1, "http://pi.test/dialogs");

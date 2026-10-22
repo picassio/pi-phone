@@ -57,6 +57,25 @@ export function namesIn(command: string): string[] {
 }
 
 /** Whether `cwd` is `folder` or below it. */
+/** The secrets a file holds, or what is wrong with it. */
+function readSecretsFile(file: string): Record<string, Stored> | string {
+    let parsed: unknown;
+
+    try {
+        parsed = JSON.parse(readFileSync(file, "utf8"));
+    } catch (error) {
+        return `${file} is not valid JSON (${String(error)})`;
+    }
+
+    const items = (parsed as { secrets?: unknown } | null)?.secrets;
+
+    if (items === undefined || typeof items !== "object" || items === null || Array.isArray(items)) {
+        return `${file} has no "secrets" object`;
+    }
+
+    return items as Record<string, Stored>;
+}
+
 function within(cwd: string, folder: string): boolean {
     const base = folder.replace(/\/+$/, "");
 
@@ -71,27 +90,26 @@ export class Secrets {
     /** Each value's forms that are replaced in output, longest first, with the name they stand for. */
     #patterns: { text: string; name: string }[] = [];
 
-    constructor(dataDir: string, now: () => number = Date.now) {
+    /**
+     * A secrets file that cannot be read (not JSON, no "secrets" object) is moved aside to
+     * `secrets.json.broken-<time>`, said in the log, and the app starts with no secrets rather than not at all (PP-92).
+     */
+    constructor(dataDir: string, now: () => number = Date.now, log: (line: string) => void = () => {}) {
         this.#file = join(dataDir, FILE);
         this.#now = now;
 
         if (existsSync(this.#file)) {
-            let parsed: unknown;
+            const items = readSecretsFile(this.#file);
 
-            try {
-                parsed = JSON.parse(readFileSync(this.#file, "utf8"));
-            } catch (error) {
-                throw new Error(`The secrets file ${this.#file} is not valid JSON: ${String(error)}`);
-            }
+            if (typeof items === "string") {
+                const aside = `${this.#file}.broken-${now()}`;
 
-            const items = (parsed as { secrets?: Record<string, Stored> } | null)?.secrets;
-
-            if (items === undefined || typeof items !== "object" || items === null) {
-                throw new Error(`The secrets file ${this.#file} has no "secrets" object`);
-            }
-
-            for (const [name, item] of Object.entries(items)) {
-                this.#secrets.set(name, { ...item, name });
+                renameSync(this.#file, aside);
+                log(`secrets: ${items}; moved it to ${aside} and started with no secrets`);
+            } else {
+                for (const [name, item] of Object.entries(items)) {
+                    this.#secrets.set(name, { ...item, name });
+                }
             }
         }
 

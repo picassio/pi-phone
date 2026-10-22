@@ -247,6 +247,46 @@ export class BrowserPage {
         this.cdp = cdp;
     }
 
+    /**
+     * What a person typed into this page through a card (a password, a one-time code; not a username), kept in memory
+     * only: everything Pi reads of the page has them as `[typed by the person]` (PP-93). A code in a plain text field
+     * would otherwise show in the next read.
+     */
+    readonly #typed = new Set<string>();
+
+    /** `text` with what the person typed through a card taken out, longest first. */
+    hideTyped(text: string): string {
+        let result = text;
+
+        for (const value of [...this.#typed].sort((a, b) => b.length - a.length)) {
+            result = result.split(value).join("[typed by the person]");
+        }
+
+        return result;
+    }
+
+    /** A read with the person's typing hidden in what Pi is told; its guards stay, so a stale read is still seen. */
+    #hidden(observed: Observed): Observed {
+        if (this.#typed.size === 0) {
+            return observed;
+        }
+
+        const hide = (text: string | undefined) => (text === undefined ? undefined : this.hideTyped(text));
+
+        return {
+            ...observed,
+            url: this.hideTyped(observed.url),
+            title: this.hideTyped(observed.title),
+            text: this.hideTyped(observed.text),
+            actions: observed.actions.map((action) => ({
+                ...action,
+                label: this.hideTyped(action.label),
+                ...(action.value === undefined ? {} : { value: hide(action.value) }),
+                ...(action.current_value === undefined ? {} : { current_value: hide(action.current_value) }),
+            })),
+        };
+    }
+
     /** Whether pictures come from the GPU surface (a desktop Chrome: at the device scale) or the view (the phone's WebView). */
     #fromSurface = false;
 
@@ -491,7 +531,7 @@ export class BrowserPage {
                 const observed = await this.evaluate<Observed | null>(SNAPSHOT);
 
                 if (observed !== null && observed !== undefined) {
-                    return observed;
+                    return this.#hidden(observed);
                 }
             } catch (error) {
                 if (!(error instanceof StalePage)) {
@@ -665,9 +705,20 @@ export class BrowserPage {
      * Type into a field, password fields too: Pi's own typing goes through `type`, which refuses passwords; this is for
      * what the person typed on a sign-in or code card, which goes into the page without passing through Pi.
      */
-    async fill(observed: Observed, element: Element, text: string, { clear = true, submit = false }: { clear?: boolean; submit?: boolean } = {}): Promise<void> {
+    /** `hide`: the person typed it on a card (a password, a code), so Pi's reads of this page never show it (`hideTyped`). */
+    async fill(
+        observed: Observed,
+        element: Element,
+        text: string,
+        { clear = true, submit = false, hide = false }: { clear?: boolean; submit?: boolean; hide?: boolean } = {},
+    ): Promise<void> {
         if (!element.fill) {
             throw new Error(`[${element.index}] ${element.label} is not a field to type into.`);
+        }
+
+        // Kept before it is typed: a read the typing sets off already hides it. Very short values would hide too much.
+        if (hide && text.length >= 3) {
+            this.#typed.add(text);
         }
 
         if (!(await this.#fresh(observed, element.node))) {
@@ -773,9 +824,9 @@ export class BrowserPage {
     /** All of the page's text at once (an article, docs, a table), up to `max` characters. */
     async text(max: number): Promise<{ title: string; url: string; text: string; cut: boolean }> {
         const page = await this.evaluate<{ title: string; url: string; text: string }>("({title: document.title, url: location.href, text: document.body ? document.body.innerText : ''})");
-        const text = page.text.replace(/\n{3,}/g, "\n\n").trim();
+        const text = this.hideTyped(page.text.replace(/\n{3,}/g, "\n\n").trim());
 
-        return { title: page.title, url: page.url, text: text.slice(0, max), cut: text.length > max };
+        return { title: this.hideTyped(page.title), url: this.hideTyped(page.url), text: text.slice(0, max), cut: text.length > max };
     }
 
     /** What is in view now, as a JPEG (base64). */

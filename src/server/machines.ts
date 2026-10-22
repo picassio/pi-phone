@@ -75,8 +75,11 @@ export class Machines {
     readonly piSsh: string;
     readonly #agentSocket: string;
     readonly #home: string;
-    /** Told after every change (`#save`): the app sends its tabs the connected machines again (`hello`). */
-    readonly #changed: () => void;
+    /**
+     * Told after every change (`#save`), with the machine that changed: its connection and environments go
+     * (`Places.forget`), and the app sends its tabs the connected machines again (`hello`).
+     */
+    readonly #changed: (id: string | undefined) => void;
     #machines: Machine[];
 
     constructor(
@@ -85,7 +88,7 @@ export class Machines {
         sshDir: string,
         agent: SshAgent,
         home = process.env.HOME || homedir(),
-        changed: () => void = () => {},
+        changed: (id: string | undefined) => void = () => {},
     ) {
         this.#file = join(dataDir, FILE);
         this.#keys = keys;
@@ -104,10 +107,11 @@ export class Machines {
         this.#leaveHomeSsh();
     }
 
-    #save(): void {
+    /** `changed`: the machine whose address, key, name, host key or connection changed, so its old connection goes. */
+    #save(changed?: string): void {
         writeFileSync(this.#file, `${JSON.stringify({ machines: this.#machines }, null, 2)}\n`, { mode: 0o600 });
         this.#writeConfig();
-        this.#changed();
+        this.#changed(changed);
     }
 
     /**
@@ -141,6 +145,8 @@ export class Machines {
                     `    UserKnownHostsFile ${quoteConfigValue(this.knownHostsFile)}`,
                     "    StrictHostKeyChecking yes",
                     "    BatchMode yes",
+                    // A machine that does not answer fails in seconds, not after the system's TCP timeout (about 2 min).
+                    "    ConnectTimeout 15",
                     "    ServerAliveInterval 15",
                 ].join("\n"),
             ].join("\n\n") + "\n",
@@ -328,7 +334,7 @@ export class Machines {
             machine.keyId = body.keyId;
         }
 
-        this.#save();
+        this.#save(id);
 
         return { ...machine };
     }
@@ -339,7 +345,7 @@ export class Machines {
 
         await forgetHostKey(this.target(machine));
         this.#machines = this.#machines.filter((each) => each.id !== id);
-        this.#save();
+        this.#save(id);
     }
 
     /**
@@ -388,7 +394,7 @@ export class Machines {
         }
 
         machine.hostKey = fingerprint;
-        this.#save();
+        this.#save(id);
 
         return { ...machine };
     }
@@ -402,7 +408,7 @@ export class Machines {
         delete machine.remote;
         delete machine.daemon;
         delete machine.connectedAt;
-        this.#save();
+        this.#save(id);
     }
 
     /**
@@ -445,7 +451,7 @@ export class Machines {
 
             machine.remote = { platform: remote.platform, arch: remote.arch, home };
             machine.connectedAt = Date.now();
-            this.#save();
+            this.#save(id);
 
             return { ...machine, ...(remote.warnings.length === 0 ? {} : { warnings: remote.warnings }) } as Machine;
         } catch (error) {
@@ -508,11 +514,12 @@ export function sshProblem(said: string): string {
         return "the machine refused the key: is its public key in ~/.ssh/authorized_keys there? (On Windows, for an administrator account: C:\\ProgramData\\ssh\\administrators_authorized_keys.)";
     }
 
-    if (/host key|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(said)) {
+    // Narrow: pi-env's "No host key received from <host>" means the machine did not answer, not that its key changed.
+    if (/Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED|host key (for \S+ )?(has )?changed/i.test(said)) {
         return "its host key changed since you accepted it: if it was reinstalled, forget the old key and scan again";
     }
 
-    if (/Connection refused|Could not resolve|No route|timed out|Network is unreachable|no answer in/i.test(said)) {
+    if (/Connection refused|Could not resolve|No route|timed out|Network is unreachable|no answer in|No host key received/i.test(said)) {
         return "the machine is not reachable from the phone (off, asleep, or another network)";
     }
 
@@ -541,5 +548,8 @@ function sshFailure(machine: Machine, error: unknown): Error {
         return new HttpError(502, `Could not reach ${machine.name} (${machine.user}@${machine.host}): ${sshProblem(said)}`);
     }
 
-    return error instanceof Error ? error : new Error(String(error));
+    // pi-env's own errors (a scan that got no host key, a daemon that did not start): in the owner's words too.
+    const said = error instanceof Error ? error.message : String(error);
+
+    return new HttpError(502, `Could not reach ${machine.name} (${machine.user}@${machine.host}): ${sshProblem(said)}`);
 }

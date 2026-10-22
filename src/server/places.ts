@@ -55,6 +55,8 @@ export const pathOf = (cwd: string): string => parsePlace(cwd).path;
 export type MachineHealth = { ok: boolean; at: number; problem?: string; said?: string };
 
 const HEALTH_MS = 60_000;
+/** How long a machine has to answer before its folder is refused (`checkDirectory`). */
+const CHECK_MS = 10_000;
 
 export class Places {
     readonly #machines: Machines;
@@ -241,8 +243,12 @@ export class Places {
         });
     }
 
-    /** Checks that the place's folder exists there, and answers the cwd in canonical form. */
-    async checkDirectory(cwd: string, context: Context): Promise<string> {
+    /**
+     * Checks that the place is a folder there (through links, as a folder here is), and answers the cwd in canonical
+     * form. The machine is reached first, so one that does not answer is refused in seconds (PP-91): the folder picker
+     * and a new session both come through here.
+     */
+    async checkDirectory(cwd: string, context: Context, reachMs = CHECK_MS): Promise<string> {
         const place = parsePlace(cwd);
 
         if (place.machineId === undefined) {
@@ -250,6 +256,12 @@ export class Places {
         }
 
         const machine = this.#machines.ready(place.machineId);
+        const reached = await this.reach(machine.id, reachMs);
+
+        if (!reached.ok) {
+            throw new HttpError(502, `${machine.name} does not answer: ${sshProblem(reached.error)}`);
+        }
+
         const env = this.env(cwd);
         const absolute = await env.absolutePath(place.path, context);
 
@@ -257,14 +269,23 @@ export class Places {
             throw new HttpError(400, `${place.path} on ${machine.name}: ${absolute.error.message}`);
         }
 
-        const exists = await env.exists(absolute.value, context);
+        // A file is not a folder to work in (PP-90); a link to a folder is.
+        const real = await env.canonicalPath(absolute.value, context);
+        const found = real.ok ? await env.fileInfo(real.value, context) : real;
 
-        if (!exists.ok) {
-            throw new HttpError(502, `Could not reach ${machine.name}: ${exists.error.message}`);
+        if (!found.ok) {
+            if (found.error.code === "not_found") {
+                throw new HttpError(404, `There is no folder ${absolute.value} on ${machine.name}.`);
+            }
+
+            throw new HttpError(
+                found.error.code === "unknown" ? 502 : 400,
+                `Could not open ${absolute.value} on ${machine.name}: ${found.error.message}`,
+            );
         }
 
-        if (!exists.value) {
-            throw new HttpError(404, `There is no folder ${absolute.value} on ${machine.name}.`);
+        if (found.value.kind !== "directory") {
+            throw new HttpError(400, `${absolute.value} on ${machine.name} is a file, not a folder.`);
         }
 
         const paths = machinePaths(machine.remote);

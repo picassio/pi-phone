@@ -887,13 +887,14 @@ export class PiBrowser {
 
     /**
      * What the person typed on a sign-in or code card, into the page's fields by number (as last read): password fields
-     * too. It never goes to Pi; the page is read again afterwards, and a password field's value is never read.
+     * too. It never goes to Pi; the page is read again afterwards, and a password field's value is never read. With
+     * `hide` (a password, a code), the page keeps it out of everything Pi reads of it from now on (PP-93).
      */
-    fillFields(session: number, fields: { index: number; value: string }[]): Promise<void> {
+    fillFields(session: number, fields: { index: number; value: string; hide: boolean }[]): Promise<void> {
         return this.#run(session, "Filling in what you typed", async (tab) => {
             const page = tab.page;
             // By node, from the read the card was made from: filling one field may renumber the others.
-            const nodes = fields.map((field) => ({ node: this.#element(field.index).element.node, index: field.index, value: field.value }));
+            const nodes = fields.map((field) => ({ node: this.#element(field.index).element.node, index: field.index, value: field.value, hide: field.hide }));
 
             for (const field of nodes) {
                 const observed = await page.observe();
@@ -903,7 +904,7 @@ export class PiBrowser {
                     throw new StalePage(`Field [${field.index}] is gone from the page: read it again and ask once more.`);
                 }
 
-                await page.fill(observed, element, field.value, { clear: true });
+                await page.fill(observed, element, field.value, { clear: true, hide: field.hide });
             }
 
             tab.observed = await page.observe();

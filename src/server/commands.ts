@@ -416,7 +416,7 @@ export class Commands {
 
     /**
      * Attachments where the session's tools can open them: as they are for a session on this phone; for one on a
-     * machine (`places.ts`), copied to `~/.pi/mobile/uploads/<session>/` there (beside pi-env's own folder, out of the
+     * machine (`places.ts`), copied to `~/.pi/mobile/uploads/<server id>/<session>/` there (beside pi-env's own folder, out of the
      * project and its git status), with their paths there. A copy that fails stops the message, naming the file.
      */
     /**
@@ -1637,7 +1637,9 @@ export class Commands {
 
         this.#requireForkable(id, user);
         const entryId = entryIdOf(request.entryId);
-        const edited = optionalText(request.text, "text")?.trim();
+        const typed = optionalText(request.text, "text")?.trim();
+        // A known secret's value pasted into the edited message stays out of the conversation, as in `submit` (PP-92).
+        const edited = typed === undefined ? undefined : app.secrets.redact(typed);
         const asked = request.model as { provider?: unknown; modelId?: unknown } | undefined;
 
         checkModel(asked);

@@ -3,14 +3,14 @@
 // is replaced before it is sent, and Pi asks for one through a hidden field, never the chat.
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { namesIn, Secrets } from "../src/server/secrets.ts";
-import { browserSecretNames } from "../src/server/extensions/secrets.ts";
+import { browserSecretNames, redactToolResult } from "../src/server/extensions/secrets.ts";
 
 const VALUE = "s3cr3t-value-0123456789";
 const notes = join(work, "secret-notes.txt");
@@ -164,6 +164,55 @@ test("a value someone pastes into a message is replaced by its name before it is
 
     assert.match(heard, /here it is \[secret TEST_TOKEN\]/);
     assert.ok(!(await modelTexts(app, id)).join("\n").includes(VALUE));
+});
+
+test("a value pasted into an edited message sent again is replaced by its name too (PP-92)", async () => {
+    const id = await newSession(app);
+
+    await turn(id, "first words");
+    const entries = await (await app.conversation(id)).entries({}, 50, undefined, context);
+    const user = entries.items.find((entry) => entry.kind === "pi.user")!;
+    const { id: fork } = await app.commands.resend(id, owner(app), { entryId: Number(user.id), text: `edited with ${VALUE}` });
+
+    const ofFork = async () => (await (await app.conversation(fork)).entries({}, 50, undefined, context)).items;
+
+    await until(async () => (await ofFork()).some((entry) => entry.kind === "pi.assistant"), "the answer to the edit");
+    const sent = JSON.stringify((await ofFork()).filter((entry) => entry.kind === "pi.user").map((entry) => entry.model));
+
+    assert.match(sent, /edited with \[secret TEST_TOKEN\]/);
+    assert.ok(!sent.includes(VALUE));
+});
+
+test("a tool's diagnostics are redacted with the rest of its result (PP-92)", () => {
+    const redact = (text: string) => text.replaceAll(VALUE, "[secret TEST_TOKEN]");
+    const result = redactToolResult(
+        {
+            output: [{ type: "text", text: `out ${VALUE}` }],
+            diagnostics: [{ severity: "warn", message: `lint saw ${VALUE}`, code: "x1" }],
+        } as never,
+        redact,
+    );
+
+    assert.deepEqual(result.diagnostics, [{ severity: "warn", message: "lint saw [secret TEST_TOKEN]", code: "x1" }]);
+    assert.ok(!JSON.stringify(result).includes(VALUE));
+});
+
+test("a secrets file that cannot be read is moved aside, and the app starts with no secrets (PP-92)", () => {
+    const dir = mkdtempSync(join(root, "secrets-"));
+    const lines: string[] = [];
+
+    writeFileSync(join(dir, "secrets.json"), "{ not json");
+    const secrets = new Secrets(dir, () => 1234, (line) => lines.push(line));
+
+    assert.deepEqual(secrets.list(), []);
+    assert.deepEqual(readdirSync(dir), ["secrets.json.broken-1234"]);
+    assert.equal(readFileSync(join(dir, "secrets.json.broken-1234"), "utf8"), "{ not json", "kept as it was");
+    assert.match(lines.join("\n"), /secrets\.json is not valid JSON .*moved it to .*secrets\.json\.broken-1234/);
+
+    // One without a "secrets" object, the same.
+    writeFileSync(join(dir, "secrets.json"), "[]");
+    assert.deepEqual(new Secrets(dir, () => 5678, (line) => lines.push(line)).list(), []);
+    assert.match(lines.at(-1)!, /has no "secrets" object/);
 });
 
 test("Pi asks for a secret through a hidden field: the value goes to the store, never the chat", async () => {

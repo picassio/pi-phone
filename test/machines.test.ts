@@ -180,7 +180,28 @@ test("what an ssh failure means, in the owner's words", () => {
     assert.match(sshProblem("ssh: connect to host 192.168.1.5 port 22: No route to host"), /not reachable from the phone/);
     assert.match(sshProblem("no answer in 10 s"), /not reachable from the phone/);
     assert.match(sshProblem("@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@"), /host key changed/);
+    assert.match(sshProblem("Host key verification failed."), /host key changed/);
+    // pi-env's scan of a machine that did not answer: not a changed key (PP-89).
+    assert.match(sshProblem("No host key received from 10.255.255.1"), /not reachable from the phone/);
     assert.equal(sshProblem("something else"), "something else");
+});
+
+test("a machine that does not answer: ssh gives up in 15 s, and a scan says it is not reachable", async () => {
+    // Without it, ssh waits for the system's TCP timeout, about 2 minutes (PP-88).
+    assert.match(readFileSync(machines.configFile, "utf8"), /^Host \*\n(?: {4}.*\n)*? {4}ConnectTimeout 15\n/m);
+
+    const key = await keys.generate("nobody");
+    const machine = machines.add({ name: "nobody", address: `me@127.0.0.1:${await freePort()}`, keyId: key.id });
+
+    try {
+        // pi-env's own error, in the owner's words, not as it said it (PP-89).
+        await assert.rejects(machines.scan(machine.id), {
+            status: 502,
+            message: new RegExp(`^Could not reach nobody \\(me@127\\.0\\.0\\.1\\): the machine is not reachable from the phone`),
+        });
+    } finally {
+        await machines.remove(machine.id);
+    }
 });
 
 test("the app's files from before leave ~/.ssh: known hosts moved into its own folder, its config and Include gone", () => {

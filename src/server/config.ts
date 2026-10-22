@@ -143,6 +143,12 @@ interface PocketConfig {
     docsImageModel?: string;
     /** Also listen on the phone's Tailscale address, for people on the owner's tailnet (`tailnet.ts`). Absent: off. */
     tailscale?: boolean;
+    /**
+     * This server's own random id, made when first needed: it names this server's folder on the owner's machines
+     * (`~/.pi/mobile/uploads/<serverId>/`), so the phone and a team server using one machine keep their sessions'
+     * attachments apart (PP-98).
+     */
+    serverId?: string;
 }
 
 export const DEFAULT_SEND_LIMIT = 30;
@@ -221,6 +227,16 @@ export class ConfigStore {
 
     get ownerToken(): string {
         return this.#config.ownerToken;
+    }
+
+    /** This server's own id: random, made once, and kept. */
+    get serverId(): string {
+        if (this.#config.serverId === undefined) {
+            this.#config.serverId = randomBytes(8).toString("hex");
+            this.save();
+        }
+
+        return this.#config.serverId;
     }
 
     get users(): readonly User[] {

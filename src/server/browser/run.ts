@@ -88,8 +88,12 @@ export class DecisionError extends Error {}
 
 const text = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value));
 
-/** Every answer asked for, and only offered choices: anything else refuses the whole reply. */
-export function readAnswers(questions: Record<string, Question>, answers: unknown): Answers {
+/**
+ * Every answer asked for, and only offered choices: anything else refuses the whole reply. With `partial` (a chat
+ * model, which often leaves out the target of an operation it did not choose), only `operation` must be there; the
+ * run refuses a step whose own answer is missing (PP-94). What is there must still be an offered choice.
+ */
+export function readAnswers(questions: Record<string, Question>, answers: unknown, partial = false): Answers {
     if (typeof answers !== "object" || answers === null) {
         throw new DecisionError("The run model answered without answers.");
     }
@@ -98,6 +102,10 @@ export function readAnswers(questions: Record<string, Question>, answers: unknow
 
     for (const [name, question] of Object.entries(questions)) {
         const answer = (answers as Record<string, unknown>)[name] as Answers[string] | undefined;
+
+        if (partial && name !== "operation" && (answer === undefined || answer === null)) {
+            continue;
+        }
 
         if (typeof answer !== "object" || answer === null) {
             throw new DecisionError(`The run model did not answer ${name}.`);
@@ -195,7 +203,7 @@ export class SessionDecider implements Decider {
             throw new DecisionError("The session's model did not answer the step's questions as JSON.");
         }
 
-        return { answers: readAnswers(questions, parsed), cost: 0, tokens: { input: 0, output: 0 } };
+        return { answers: readAnswers(questions, parsed, true), cost: 0, tokens: { input: 0, output: 0 } };
     }
 }
 
@@ -460,7 +468,13 @@ export async function runGoal(page: RunPage, decider: Decider, options: RunOptio
 
         try {
             if (operation === "CLICK" || operation === "TYPE_TEXT" || operation === "SELECT") {
-                const key = answers[`${operation.toLowerCase()}_target`]!.choice!;
+                const key = answers[`${operation.toLowerCase()}_target`]?.choice;
+
+                // The session's model may leave out answers (`readAnswers`): only the one this step needs stops it.
+                if (key === undefined) {
+                    return finish("stopped", "decision_error", `The run model chose ${operation} without a target.`);
+                }
+
                 const target = space.targets[operation][key]!;
 
                 if (operation === "CLICK") {
