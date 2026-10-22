@@ -8,6 +8,7 @@ import { useChanges } from "../diff.js";
 import { filesAvailable, setFilesOpen } from "../files-panel.js";
 import { peeksOn, togglePeeks } from "../peeks.js";
 import { modelRefreshAvailable, refreshModels } from "../model-refresh.js";
+import { groupOf } from "../session-groups.js";
 import { setArchived } from "../sessions.js";
 import { isRemotePlace, splitPlace } from "../place.js";
 import { openSubagent } from "../subagents.js";
@@ -449,6 +450,13 @@ export function MenuSheet({ places = true }) {
                     <span>Export as Markdown</span>
                     <span class="muted small">the whole history</span>
                 </a>`
+            }
+            ${
+                session &&
+                steer &&
+                !scoped() &&
+                !conversation.archived &&
+                item("Move to group…", () => openSheet({ type: "session-move", ids: [conversation.id] }), groupOf(conversation.id)?.name ?? "not in a group")
             }
             ${
                 session &&

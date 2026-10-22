@@ -24,6 +24,7 @@ import {
     roleAllows,
 } from "./store.js";
 import { finishedUnseen } from "./seen.js";
+import { createGroup, foldGroup, groupOf, moveToGroup, pinGroup, placeGroup, renameGroup } from "./session-groups.js";
 import { isPinned, prefs, setPrefs, togglePin } from "./theme.js";
 import {
     APPLE,
@@ -316,6 +317,7 @@ function SessionRow({
     folders,
     team = false,
     settled = null,
+    filed,
     onPick,
     onSelect,
 }) {
@@ -358,8 +360,10 @@ function SessionRow({
     const mark = stateMark(session, live > 0, marked);
     // Finished since this browser last looked: its result is unread, so its title reads bold.
     const unseen = finishedUnseen(session);
-    // Archive (and Settle) for people who steer, pin, and mark-unread show on hover; an archived session only comes back.
-    const acts = (canSteer() ? (session.archived ? 1 : 2) : 0) + (session.archived ? 0 : 2);
+    // Archive (and Settle, and Move to group) for people who steer, pin, and mark-unread show on hover; an archived
+    // session only comes back.
+    const grouping = canSteer() && !scoped() && !session.archived;
+    const acts = (canSteer() ? (session.archived ? 1 : 2) : 0) + (session.archived ? 0 : 2) + (grouping ? 1 : 0);
     // A task session (a project's): its task's ref leads its third line; its title says the rest.
     const task = session.group?.role === "task" ? /^([A-Z][A-Z0-9]{1,5}-\d+) · (.*)$/.exec(title) : null;
     const shownTitle = task ? task[2] : title;
@@ -372,7 +376,7 @@ function SessionRow({
     const when = session.waiting ? "waits" : session.busy && session.busySince ? workingFor(session.busySince) : timeAgo(session.updatedAt);
 
     return html`<div
-        class=${`session-row ${open ? "active" : ""} ${selected ? "selected" : ""} ${pressing ? "pressing" : ""} ${moving ? "moving" : ""} ${marked ? "marked-unread" : ""} ${unseen ? "unseen" : ""} ${team ? "team" : ""} ${settled ? "settled" : ""} ${["no-acts", "one-act", "", "three-acts", "four-acts"][acts]}`}
+        class=${`session-row ${open ? "active" : ""} ${selected ? "selected" : ""} ${pressing ? "pressing" : ""} ${moving ? "moving" : ""} ${marked ? "marked-unread" : ""} ${unseen ? "unseen" : ""} ${team ? "team" : ""} ${settled ? "settled" : ""} ${["no-acts", "one-act", "", "three-acts", "four-acts", "five-acts"][acts]}`}
         data-part="session-row"
         data-state=${ROW_STATES[mark.shape.split(" ")[0]]}
         data-id=${session.id}
@@ -402,6 +406,7 @@ function SessionRow({
                     <${Icon} name=${session.group ? "board" : remote ? "monitor" : "folder"} size=${12} />
                     <span class="session-where">${place}</span>
                     ${pinned && html`<span class="session-pinned" title="Pinned"><${Icon} name="pin" size=${10} /></span>`}
+                    ${filed && html`<span class="sg-tag" title=${`In the group ${filed}`}><${Icon} name="folder" size=${9} />${filed}</span>`}
                     <span class="session-side">
                         ${
                             fork &&
@@ -464,6 +469,17 @@ function SessionRow({
             </span>
         </button>
         <span class="session-actions">
+            ${
+                grouping &&
+                html`<button
+                    class="session-act"
+                    title="Move to a folder group"
+                    aria-label="Move to group"
+                    onClick=${() => openSheet({ type: "session-move", ids: [session.id] })}
+                >
+                    <${Icon} name="folder" size=${14} />
+                </button>`
+            }
             ${
                 canSteer() &&
                 !session.archived &&
@@ -583,14 +599,39 @@ function inScope(session, scope) {
 }
 
 /**
- * Sessions in sections, as T3 Code's sidebar has them: Pinned, Active (newest first; a project's running task sessions
- * under its main session), then the folded Settled shelf (the last settled first). While searching, or in the archive,
- * one flat list. `team` holds the rows drawn under their main session.
+ * Sessions in sections, as T3 Code's sidebar has them: Pinned, the person's pinned folder groups, Active (newest first;
+ * a project's running task sessions under its main session), their other folder groups (PP-76) in their order, then
+ * the folded Settled shelf (the last settled first). A group holds its sessions whether they are active or settled
+ * (settled ones last); a pinned session shows in Pinned only. Under a scope, a group with nothing in it is left out.
+ * While searching, or in the archive, one flat list. `team` holds the rows drawn under their main session.
  */
-function groupsOf(shown, { scope, needle, pinned, now }) {
+function groupsOf(shown, { scope, needle, pinned, now, mine }) {
     if (needle !== "" || scope === "archived") {
         return [{ key: "flat", label: needle ? "Matches" : "Archived", rows: shown, team: new Set() }];
     }
+
+    const filed = new Map(mine.groups.map((group) => [group.id, []]));
+
+    for (const session of shown) {
+        const group = mine.members[String(session.id)];
+
+        if (group !== undefined && filed.has(group) && !pinned.includes(session.id)) {
+            filed.get(group).push(session);
+        }
+    }
+
+    const inGroups = new Set([...filed.values()].flat().map((session) => session.id));
+    const folders = mine.groups
+        .map((group) => {
+            const rows = filed.get(group.id);
+            const live = rows.filter((session) => settledOf(session, now) === null).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+            const done = rows.filter((session) => settledOf(session, now) !== null).sort((a, b) => settledAt(b) - settledAt(a));
+
+            return { key: `g:${group.id}`, label: group.name, folder: group, rows: [...live, ...done], team: new Set() };
+        })
+        .filter((group) => scope === "all" || group.rows.length > 0);
+
+    shown = shown.filter((session) => !inGroups.has(session.id));
 
     const live = shown.filter((session) => settledOf(session, now) === null);
     const settled = shown.filter((session) => settledOf(session, now) !== null).sort((a, b) => settledAt(b) - settledAt(a));
@@ -619,13 +660,20 @@ function groupsOf(shown, { scope, needle, pinned, now }) {
 
     return [
         ...(pins.length > 0 ? [{ key: "pinned", label: "Pinned", rows: pins, team: new Set() }] : []),
-        ...(ordered.length > 0 ? [{ key: "active", label: "Active", rows: ordered, team }] : []),
+        ...folders.filter((group) => group.folder.pinned),
+        // Active stays while there are groups: it is where a session dragged out of one goes.
+        ...(ordered.length > 0 || folders.length > 0 ? [{ key: "active", label: "Active", rows: ordered, team }] : []),
+        ...folders.filter((group) => !group.folder.pinned),
         ...(settled.length > 0 ? [{ key: "settled", label: "Settled", foldable: true, rows: settled, team: new Set() }] : []),
     ];
 }
 
-/** Whether a group shows folded: the Settled shelf unless opened, the others when closed. */
-const folded = (group, closed) => (group.key === "flat" ? false : group.foldable ? !closed.has(`open:${group.key}`) : closed.has(group.key));
+/**
+ * Whether a group shows folded: a folder group as its person left it (on every device), the Settled shelf unless
+ * opened, the others when closed here.
+ */
+const folded = (group, closed) =>
+    group.key === "flat" ? false : group.folder ? group.folder.folded : group.foldable ? !closed.has(`open:${group.key}`) : closed.has(group.key);
 
 /**
  * The list's scope, in place of tabs (after T3 Code's "All projects"): All, each project (its team's sessions), each
@@ -740,7 +788,7 @@ function ScopePicker({ scope, onScope, sessions, home }) {
 const listKept = { query: "", scroll: 0 };
 
 function AllSessions({ compact = false }) {
-    const { sessions, sessionsLoaded, server, pinned } = store.state;
+    const { sessions, sessionsLoaded, server, pinned, sessionGroups } = store.state;
     const canStart = canSteer() && !scoped();
     const [query, setQueryState] = useState(() => (compact ? "" : listKept.query));
     const [scope, setScopeState] = useState(readScope);
@@ -750,6 +798,8 @@ function AllSessions({ compact = false }) {
     const [tapSelects, setTapSelects] = useState(false);
     // The row a finger holds down, before its actions open.
     const [pressing, setPressing] = useState(null);
+    // The folder group whose name is being typed (PP-76): a new one, or one being renamed.
+    const [naming, setNaming] = useState(null);
     // The selection as drags and clicks see it between renders; the row a Shift+click extends from; the row a Ctrl/⌘ press
     // already selected, whose click then does nothing; the rows in view, in order.
     const picked = useRef(selected);
@@ -835,12 +885,12 @@ function AllSessions({ compact = false }) {
             Boolean(session.archived) === archived &&
             inScope(session, scope) &&
             (needle === "" ||
-                `${session.title ?? ""} ${session.cwd} ${shortPath(session.cwd, server?.home)} ${session.model ?? ""}`
+                `${session.title ?? ""} ${session.cwd} ${shortPath(session.cwd, server?.home)} ${session.model ?? ""} ${groupOf(session.id, sessionGroups)?.name ?? ""}`
                     .toLowerCase()
                     .includes(needle)),
     );
     const forest = sessionForest(shown, { pinned, folders: false });
-    const groups = groupsOf(forest.roots, { scope, needle, pinned, now: Date.now() }).map(
+    const groups = groupsOf(forest.roots, { scope, needle, pinned, now: Date.now(), mine: sessionGroups }).map(
         (group) => ({
             ...group,
             rows: group.rows.flatMap((root) => forest.rows.get(root.id)),
@@ -1040,6 +1090,11 @@ function AllSessions({ compact = false }) {
         }
 
         if (!event.ctrlKey && !event.metaKey) {
+            // A plain press that moves carries the row (and the rest of the selection) to a group (PP-76).
+            if (mayGroup) {
+                carry(event, picked.current.has(id) ? [...picked.current] : [id], "sessions");
+            }
+
             return;
         }
 
@@ -1150,6 +1205,8 @@ function AllSessions({ compact = false }) {
         addEventListener("blur", stop);
     };
 
+    const moveChosen = () => openSheet({ type: "session-move", ids: chosen });
+
     const archiveChosen = () => {
         clearSelection();
         setArchived(chosen, !archived);
@@ -1197,6 +1254,118 @@ function AllSessions({ compact = false }) {
 
         return () => removeEventListener("keydown", onKey);
     }, [selecting]);
+
+    // Folder groups (PP-76): only for people who steer here with a list of their own (not an invited guest).
+    const mayGroup = canSteer() && !scoped();
+
+    /**
+     * Drag and drop with a mouse (PP-76): sessions onto a folder group's name (into it), Active's (out of every group) or
+     * Pinned's (pinned); a folder group's name before another's (its place, pinned like the one it lands by), onto
+     * Pinned (pinned) or Active (unpinned). The menus do all of this too; dragging is a shortcut. The click that ends a
+     * drag opens nothing.
+     */
+    const carry = (event, ids, kind) => {
+        const root = document.documentElement;
+        const startX = event.clientX;
+        const startY = event.clientY;
+        let ghost = null;
+        let target = null;
+
+        const label =
+            kind === "group"
+                ? (sessionGroups.groups.find((group) => group.id === ids[0])?.name ?? "")
+                : ids.length === 1
+                  ? (sessions.find((session) => session.id === ids[0])?.title ?? "New session")
+                  : `${ids.length} sessions`;
+        const move = (each) => {
+            if (ghost === null) {
+                if (Math.hypot(each.clientX - startX, each.clientY - startY) < 6) {
+                    return;
+                }
+
+                ghost = document.createElement("div");
+                ghost.className = "sg-ghost";
+                ghost.textContent = label;
+                document.body.append(ghost);
+                root.classList.add("sg-carrying");
+            }
+
+            ghost.style.transform = `translate(${each.clientX + 12}px, ${each.clientY + 8}px)`;
+            const next = document.elementFromPoint(each.clientX, each.clientY)?.closest?.("[data-drop]") ?? null;
+            const fits = next !== null && !(kind === "group" && next.dataset.drop === `g:${ids[0]}`);
+
+            if ((fits ? next : null) !== target) {
+                target?.classList.remove("sg-drop");
+                target = fits ? next : null;
+                target?.classList.add("sg-drop");
+            }
+        };
+        const eat = (each) => {
+            each.preventDefault();
+            each.stopPropagation();
+        };
+        const up = () => {
+            removeEventListener("pointermove", move, true);
+            removeEventListener("pointerup", up, true);
+            removeEventListener("pointercancel", up, true);
+
+            if (ghost === null) {
+                return;
+            }
+
+            ghost.remove();
+            root.classList.remove("sg-carrying");
+            target?.classList.remove("sg-drop");
+            addEventListener("click", eat, true);
+            setTimeout(() => removeEventListener("click", eat, true), 60);
+
+            const drop = target?.dataset.drop;
+
+            if (drop === undefined) {
+                return;
+            }
+
+            if (kind === "sessions") {
+                if (drop === "pinned") {
+                    ids.filter((id) => !isPinned(id)).forEach(togglePin);
+                } else {
+                    void moveToGroup(ids, drop === "active" ? null : drop.slice(2));
+                }
+
+                clearSelection();
+
+                return;
+            }
+
+            const id = ids[0];
+            const group = sessionGroups.groups.find((each) => each.id === id);
+
+            if (drop === "pinned" || drop === "active") {
+                if (group.pinned !== (drop === "pinned")) {
+                    void pinGroup(id, drop === "pinned");
+                }
+
+                return;
+            }
+
+            const before = sessionGroups.groups.find((each) => each.id === drop.slice(2));
+
+            void placeGroup(id, before.id).then(() => before.pinned !== group.pinned && pinGroup(id, before.pinned));
+        };
+
+        addEventListener("pointermove", move, true);
+        addEventListener("pointerup", up, true);
+        addEventListener("pointercancel", up, true);
+    };
+
+    /** "+ New group": an empty one, its name ready to type. */
+    const newGroup = async () => {
+        const made = await createGroup("New group");
+
+        if (made !== undefined) {
+            setNaming(made.id);
+        }
+    };
 
     const toggleGroup = (key) => {
         const next = new Set(closed);
@@ -1303,26 +1472,71 @@ function AllSessions({ compact = false }) {
                           .find((shape) => shape === "waiting" || shape === "failed")
                     : undefined;
 
+                const folder = group.folder;
+                // The folder groups end with "+ New group", before Settled (or at the end).
+                const lastFolder = mayGroup && !needle && !archived && group.key === groups.findLast((each) => each.folder && !each.folder.pinned || each.key === "active")?.key;
+                const drop = mayGroup && !needle && !archived && (folder || group.key === "active" || group.key === "pinned") ? (folder ? `g:${folder.id}` : group.key) : undefined;
+
                 return html`<section
-                    class=${`session-group ${isClosed ? "closed" : ""}`}
+                    class=${`session-group ${isClosed ? "closed" : ""} ${folder ? "sg-group" : ""}`}
                     data-part="session-group"
                     data-group=${group.key}
                     key=${`${scope}:${group.key}`}
                 >
                     ${
-                        group.key !== "flat" || needle
+                        folder && naming === folder.id
+                            ? html`<div class="group-head sg-head sg-naming" data-part="session-group-head">
+                                  <${Icon} name="folder" size=${12} />
+                                  <input
+                                      class="sg-name-field"
+                                      aria-label="The group's name"
+                                      maxlength="60"
+                                      value=${folder.name}
+                                      ref=${(field) => field && document.activeElement !== field && !field.dataset.focused && ((field.dataset.focused = "1"), field.focus(), field.select())}
+                                      onKeyDown=${(event) => {
+                                          if (event.key === "Enter") {
+                                              event.currentTarget.blur();
+                                          } else if (event.key === "Escape") {
+                                              event.preventDefault();
+                                              event.currentTarget.value = folder.name;
+                                              event.currentTarget.blur();
+                                          }
+                                      }}
+                                      onBlur=${(event) => {
+                                          const name = event.currentTarget.value.trim();
+
+                                          setNaming(null);
+
+                                          if (name !== "" && name !== folder.name) {
+                                              void renameGroup(folder.id, name);
+                                          }
+                                      }}
+                                  />
+                              </div>`
+                            : group.key !== "flat" || needle
                             ? html`<button
-                                class="group-head"
+                                class=${`group-head ${folder ? "sg-head" : ""}`}
                                 data-part="session-group-head"
-                                onClick=${() => group.key !== "flat" && toggleGroup(group.foldable ? `open:${group.key}` : group.key)}
+                                data-drop=${drop}
+                                onClick=${() => group.key !== "flat" && (folder ? foldGroup(folder.id, !folder.folded) : toggleGroup(group.foldable ? `open:${group.key}` : group.key))}
+                                onPointerDown=${(event) => folder && mayGroup && event.pointerType === "mouse" && event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && carry(event, [folder.id], "group")}
+                                onContextMenu=${(event) => {
+                                    // A long press (or a right click) on a group's name: its menu.
+                                    if (folder && mayGroup) {
+                                        event.preventDefault();
+                                        openSheet({ type: "session-group", id: folder.id });
+                                    }
+                                }}
                                 aria-expanded=${!isClosed}
                             >
                                 <span class="group-name" data-part="session-group-name">
+                                    ${folder && html`<${Icon} name="folder" size=${12} />`}
                                     ${
                                         typeof group.label === "string"
                                             ? html`<b>${group.label}</b>`
                                             : group.label
                                     }
+                                    ${folder?.pinned && html`<span class="sg-pin" title="Pinned"><${Icon} name="pin" size=${10} /></span>`}
                                 </span>
                                 ${
                                     trouble &&
@@ -1340,6 +1554,19 @@ function AllSessions({ compact = false }) {
                             </button>`
                             : null
                     }
+                    ${
+                        folder &&
+                        mayGroup &&
+                        naming !== folder.id &&
+                        html`<button
+                            class="sg-more"
+                            title="Pin, rename, fold, move or delete the group"
+                            aria-label=${`${folder.name}: the group's menu`}
+                            onClick=${() => openSheet({ type: "session-group", id: folder.id })}
+                        >
+                            <${Icon} name="more" size=${14} />
+                        </button>`
+                    }
                     <div class="group-body" inert=${isClosed}>
                         <div>
                             ${group.rows.map(
@@ -1355,14 +1582,16 @@ function AllSessions({ compact = false }) {
                                         pressing=${pressing === session.id}
                                         folders=${false}
                                         team=${group.team?.has(session.id)}
-                                        settled=${group.key === "settled" ? settledOf(session) : null}
+                                        settled=${group.key === "settled" || folder ? settledOf(session) : null}
+                                        filed=${group.key === "flat" ? groupOf(session.id, sessionGroups)?.name : undefined}
                                         onPick=${pick}
                                         onSelect=${select}
                                     />`,
                             )}
                         </div>
                     </div>
-                </section>`;
+                </section>
+                ${lastFolder && html`<button class="sg-new" data-part="session-group-new" onClick=${newGroup}><${Icon} name="plus" size=${12} />New group</button>`}`;
             })}
         </div>
         ${
@@ -1383,6 +1612,11 @@ function AllSessions({ compact = false }) {
                     html`<button class="button" onClick=${pinChosen}>
                         ${allPinned ? "Unpin" : "Pin"}
                     </button>`
+                }
+                ${
+                    !archived &&
+                    mayGroup &&
+                    html`<button class="button" title="Move them to a folder group" onClick=${moveChosen}>Move…</button>`
                 }
                 <button
                     class="select-clear"

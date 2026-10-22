@@ -236,6 +236,15 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ok: true });
         }
 
+        // Folder groups in the session list (PP-76): one change at a time.
+        if (first === "session-groups" && second === undefined && method === "GET") {
+            return json(response, 200, await app.sessionGroups.list(user));
+        }
+
+        if (first === "session-groups" && second === undefined && method === "POST") {
+            return json(response, 200, await app.sessionGroups.change(user, await readJson(request)));
+        }
+
         if (first === "logout" && method === "POST") {
             clearAuthCookie(response);
 

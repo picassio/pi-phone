@@ -65,6 +65,8 @@ import {
     type ChatMessage,
     DecisionsDoc,
     FolderFavoritesDoc,
+    SessionGroupsDoc,
+    type SessionGroupsOf,
     type SessionMeta,
     SessionsDoc,
     type SubagentRecord,
@@ -76,6 +78,7 @@ import { ExtensionCommands } from "./extension-commands.ts";
 import { ExtensionWebs, mayUse } from "./extension-web.ts";
 import { defang, quoted } from "./fence.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
+import { SessionGroups } from "./session-groups.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
 import { PhoneEvents } from "./phone-events.ts";
@@ -368,6 +371,7 @@ export class PocketApp {
     readonly piHandoff = new PiHandoff(this);
     /** Each person's favorite working folders, shared by their devices. */
     readonly folderFavorites = new FolderFavorites(this);
+    readonly sessionGroups = new SessionGroups(this);
     /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */
     readonly github = new GitHubLogin();
     /** The app's SSH keys, for machines (`ssh-keys.ts`). */
@@ -1262,6 +1266,8 @@ export class PocketApp {
             this.folderFavorites.committed(
                 change.value as { users: Record<string, string[]> } | null,
             );
+        } else if (kind === SessionGroupsDoc.definition.kind) {
+            this.sessionGroups.committed(change.value as { users: Record<string, SessionGroupsOf> } | null);
         } else if (ROOM_DOCS.has(kind) && id !== undefined) {
             if (kind === ChatDoc.definition.kind) {
                 if (
@@ -2317,6 +2323,8 @@ export class PocketApp {
             },
             // Read after the guard's wait, so a connecting device does not replace a live update with an older list.
             folderFavorites: await this.folderFavorites.list(user),
+            // Their folder groups in the session list (PP-76), on every device.
+            sessionGroups: await this.sessionGroups.list(user),
             // Every theme folder, for Appearance and for the look this tab uses (`theme.js`).
             themes: this.themes.list(user.role === "owner"),
         };

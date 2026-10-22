@@ -84,6 +84,8 @@ export const store = {
         sessions: [],
         /** This person's favorite folders, in shortcut order, sent by the server to every signed-in device. */
         folderFavorites: [],
+        /** This person's folder groups in the session list (PP-76), from the server: the same on every device. */
+        sessionGroups: { groups: [], members: {} },
         /** False until the server's first session list arrives: an empty list until then means "not here yet". */
         sessionsLoaded: false,
         /** Sessions on their way into the archive (true) or out of it (false), by id, until the list catches up (`sessions.js`). */
@@ -625,6 +627,7 @@ const handlers = {
             users: data.users,
             former: data.former ?? {},
             folderFavorites: data.folderFavorites ?? [],
+            sessionGroups: data.sessionGroups,
             models: data.models,
             ...(Array.isArray(data.usage) ? { usage: usageMap(data.usage) } : {}),
             guard: data.guard,
@@ -641,6 +644,7 @@ const handlers = {
             moving: stillMoving(state.moving, sessions),
         })),
     "folder-favorites": (folderFavorites) => store.set({ folderFavorites }),
+    "session-groups": (sessionGroups) => store.set({ sessionGroups }),
     models: (models) => store.set({ models }),
     usage: (usage) => store.set((state) => ({ usage: { ...state.usage, [usage.provider]: usage } })),
     // A theme folder came, went, or changed (`theme.js` loads its new version).

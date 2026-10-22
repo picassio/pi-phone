@@ -32,6 +32,7 @@ import { InviteSheet, PeopleSheet } from "./sheets/people.js";
 import { AuthDialog, ProvidersSheet } from "./sheets/providers.js";
 import { RunningSheet } from "./sheets/running.js";
 import { SessionSheet } from "./sheets/session.js";
+import { GroupSheet, MoveSheet } from "./sheets/session-groups.js";
 import { ShortcutsSheet } from "./sheets/shortcuts.js";
 import { SpendSheet } from "./sheets/spend.js";
 import { TextSheet } from "./sheets/text.js";
@@ -270,6 +271,13 @@ function sheetBody(sheet) {
             body = store.state.sessions.some((each) => each.id === sheet.id)
                 ? html`<${SessionSheet} id=${sheet.id} />`
                 : null;
+            break;
+        // Folder groups (PP-76): moving sessions to one, and a group's menu.
+        case "session-move":
+            body = html`<${MoveSheet} ids=${sheet.ids} />`;
+            break;
+        case "session-group":
+            body = store.state.sessionGroups.groups.some((each) => each.id === sheet.id) ? html`<${GroupSheet} key=${sheet.id} id=${sheet.id} />` : null;
             break;
         case "places":
             body = view.conversation ? html`<${PlacesSheet} />` : null;

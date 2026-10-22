@@ -16403,6 +16403,197 @@ pre.gallery-code {
     display: none;
 }
 
+/* Folder groups (PP-76): the person's own sections. Their name in the list's body colour with a folder icon (and a pin
+ * when pinned), the menu button at the end of the line, "+ New group" under the last one. */
+.sessions .session-group.sg-group {
+    position: relative;
+}
+
+.sessions .session-group > .group-head.sg-head {
+    padding-right: 34px;
+}
+
+.sessions .session-group > .group-head.sg-head .group-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sessions .session-group > .group-head.sg-head .group-name .icon {
+    order: 0;
+    flex: none;
+    color: var(--muted);
+    transform: none;
+}
+
+.sessions .session-group > .group-head.sg-head .group-name b {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.sg-pin {
+    display: inline-flex;
+    flex: none;
+    color: var(--warn);
+}
+
+.sg-pin .icon {
+    color: inherit !important;
+}
+
+.sessions .session-group > .sg-more {
+    position: absolute;
+    top: 9px;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 22px;
+    border-radius: var(--r-tag);
+    color: var(--faint);
+}
+
+@media (hover: hover) {
+    .sessions .session-group > .sg-more:hover {
+        color: var(--text);
+        background: var(--hover);
+    }
+}
+
+/* Typing a group's name, where its name shows. */
+.sessions .session-group > .group-head.sg-naming {
+    padding-right: 10px;
+}
+
+.sg-name-field {
+    flex: 1;
+    min-width: 0;
+    height: 26px;
+    padding: 0 8px;
+    font-size: 12.5px;
+}
+
+.sg-new {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    margin: 2px 0 4px;
+    padding: 6px 10px;
+    border-radius: var(--r-control);
+    color: var(--faint);
+    font-size: 12px;
+}
+
+@media (hover: hover) {
+    .sg-new:hover {
+        color: var(--accent);
+        background: var(--hover);
+    }
+}
+
+/* Its group, on a match while searching. */
+.sg-tag {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: 3px;
+    margin-left: 4px;
+    padding: 0 5px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--hover);
+    color: var(--muted);
+    font-size: 10.5px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Dragging with a mouse: where it would land, and what is carried. */
+.sessions .session-group > .group-head.sg-drop {
+    outline: 1.5px dashed var(--accent-line);
+    outline-offset: -2px;
+    border-radius: var(--r-control);
+    background: var(--accent-soft);
+}
+
+.sessions .session-group > .group-head.sg-drop b {
+    color: var(--accent);
+}
+
+.sg-ghost {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 60;
+    max-width: 260px;
+    padding: 6px 12px;
+    overflow: hidden;
+    border-radius: var(--r-control);
+    background: var(--raised);
+    color: var(--text);
+    font-size: 13px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    box-shadow: 0 12px 30px -10px var(--sh);
+    pointer-events: none;
+}
+
+.sg-carrying,
+.sg-carrying * {
+    cursor: grabbing !important;
+    user-select: none;
+}
+
+/* The move sheet: the group a session is in, and a new group's name. */
+.sg-pick > span:first-child {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.sg-pick.on {
+    background: var(--accent-soft);
+}
+
+.sg-check {
+    display: inline-flex;
+    color: var(--accent);
+}
+
+.sg-create {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.sheet-list + .sg-create {
+    margin-top: 10px;
+}
+
+.sg-create input {
+    width: 100%;
+    min-width: 0;
+}
+
+.sg-danger > span:first-child {
+    color: var(--err);
+}
+
+/* Five hover actions with Move to group. */
+@media (hover: hover) {
+    .session-row.five-acts:hover .session-side,
+    .session-row.five-acts:has(:focus-visible) .session-side {
+        min-width: 122px;
+    }
+}
+
 /* The scope menu as the design has it: a project's key in a chip. */
 .scope-key {
     flex: none;

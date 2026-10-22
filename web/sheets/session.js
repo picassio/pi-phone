@@ -1,6 +1,7 @@
 // A session's actions from its row in the session list, for touch screens, which cannot hover to show them.
+import { groupOf } from "../session-groups.js";
 import { selectFromList, setArchived, setSettled, settledOf } from "../sessions.js";
-import { canSteer, closeSheet, isUnread, setUnread, store } from "../store.js";
+import { canSteer, isUnread, openSheet, scoped, setUnread, store, closeSheet } from "../store.js";
 import { isPinned, togglePin } from "../theme.js";
 import { html, item, Sheet } from "../ui.js";
 
@@ -45,6 +46,12 @@ export function SessionSheet({ id }) {
                 then(() => setUnread(id, !isUnread(id))),
                 "this browser",
             )
+        }
+        ${
+            steer &&
+            !scoped() &&
+            !session.archived &&
+            item("Move to group…", () => openSheet({ type: "session-move", ids: [id] }), groupOf(id)?.name ?? "not in a group")
         }
         ${
             steer &&

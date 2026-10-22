@@ -32,6 +32,12 @@ No Termux, no laptop, no cloud VM.
   by itself after a day idle, when its task run ends, or when its branch is merged, and comes back with new activity;
   Settle and Un-settle by hand too (and `session_settle` for Pi). Rows show where, the time (or how long it has been
   working), the title, the branch or task, and the status.
+- **Folder groups in the session list.** Make your own groups (**+ New group**) and move chats into them: Move to
+  group… from a chat's long press, its row, its menu, or a selection's **Move…**, or drag on a desktop. A chat is in one
+  group at most; a group can be pinned (under the pinned chats), folded, renamed, reordered, or deleted (its chats go
+  back to Active). They're yours, kept on the server and the same on every device; under a project or folder scope each
+  shows only that scope's chats, and searching finds chats by their group's name. Pi can do all of it
+  (`session_groups`, `session_group_create`, `_rename`, `_pin`, `_fold`, `_order`, `_move`; deleting asks on a card).
 - **Real tools.** `bash`, `read` (text and images), `write`, `edit`, and `codemode` (scripts that call the tools),
   with git, gh, ssh, Node, npm, ripgrep, and fd in the bundled userland.
 - **Sign in once.** Claude Pro/Max, other providers' OAuth, or API keys, from the Providers sheet. GitHub through a

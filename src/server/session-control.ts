@@ -18,6 +18,7 @@ import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
 import { clip, defang, quoted } from "./fence.ts";
 import { formatPlace } from "./places.ts";
+import type { SessionGroup, SessionGroupsRequest, SessionGroupsView } from "./session-groups.ts";
 
 /** A Pi session file changed this recently may still be written by a `pi` running there: listed as busy. */
 const BUSY_MS = 2 * 60_000;
@@ -327,6 +328,27 @@ export class SessionControl {
             { text: message, requestId: key, mode: now ? "steer" : "followUp" },
             this.#via(root),
         );
+    }
+
+    /**
+     * The folder groups (PP-76) of the person the calling session works for: theirs to see and change, with sessions they
+     * can see. Without an action, what they are now, with each session's title.
+     */
+    async groups(caller: ConversationId, request: SessionGroupsRequest): Promise<SessionGroupsView & { group?: SessionGroup; titles: Record<string, string> }> {
+        const { user } = this.#caller(caller);
+
+        for (const id of Array.isArray(request.sessions) ? request.sessions : []) {
+            if (this.#app.sessionMeta(Number(id) as never) === undefined) {
+                throw new Error(`There is no session #${String(id)}.`);
+            }
+
+            this.#app.requireSee(user, Number(id) as never);
+        }
+
+        const answer = request.action === undefined ? await this.#app.sessionGroups.list(user) : await this.#app.sessionGroups.change(user, request);
+        const titles = Object.fromEntries(this.#app.sessions(user).map((item) => [String(item.id), item.title ?? "New session"]));
+
+        return { ...answer, titles };
     }
 
     /** Archive or bring back, settle or un-settle a session, as the person the calling session works for. */
