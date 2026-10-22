@@ -178,6 +178,8 @@ export type UsageLimitsOptions = {
     claudeVersion: () => string;
     /** Every tab hears of new figures. */
     publish: (usage: AccountUsage) => void;
+    /** The auth file the sign-ins are in, when not Pi's own (the team server's team accounts, PP-74). */
+    authPath?: string;
     fetch?: typeof fetch;
     now?: () => number;
 };
@@ -293,7 +295,7 @@ export class UsageLimits {
 
         if (base === "github-copilot") {
             // Its usage is the GitHub account's: asked with the GitHub token the sign-in keeps, not the short Copilot one.
-            const credential = readStoredCredential(provider);
+            const credential = readStoredCredential(provider, this.#options.authPath);
             const github = credential?.type === "oauth" ? credential.refresh : undefined;
 
             if (typeof github !== "string" || github === "") {

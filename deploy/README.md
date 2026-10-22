@@ -56,6 +56,9 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
     **team spend limit** (dollars a month each; empty for none) refuses further calls once reached, apart from the
     role's own spend limit, which leaves team spend out. The Server page's "Team accounts' spend" lists this month's,
     by person and account, against their role's limit.
+  - **Subscriptions:** a team Claude, Codex or Copilot sign-in's plan limits are asked on the gateway with its own
+    sign-in (kept a minute, asked again after an answer) and shown as usage bars to everyone who may use it. Claude
+    requests get the Claude Code billing patch on the gateway, with the caller's setting (Settings › Claude Code billing).
 - **Updates roll out by themselves:** after `docker compose ... up -d --build` makes a new image, people's running
   pi-phones are made again from it one at a time, each when Pi isn't at work there. Stopped ones are made again when they
   next start. Their data (the volume) is kept, and an open page reconnects in a few seconds. The Server page shows how

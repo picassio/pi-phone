@@ -13,7 +13,10 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Api, AssistantMessageEventStream, AuthPrompt, Context, Model, Provider, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { ACCOUNT_PROVIDERS, accountProvider } from "../server/accounts.ts";
+import { ACCOUNT_PROVIDERS, accountProvider, baseProvider } from "../server/accounts.ts";
+import { patchClaudeCodePayload } from "../server/cc-patch.ts";
+import { DEFAULT_SETTINGS } from "../server/phone-settings.ts";
+import { type AccountUsage, UsageLimits } from "../server/usage-limits.ts";
 import { HttpError } from "../server/errors.ts";
 
 export type TeamAccount = {
@@ -81,10 +84,35 @@ export class TeamAccounts {
     #runtime: ModelRuntime | undefined;
     readonly #flows = new Map<string, Flow>();
 
-    constructor(rows: TeamAccountRows, dataDir: string, now: () => number = Date.now) {
+    /** The team subscriptions' plan limits (PP-74), asked with their sign-ins here; kept a minute. */
+    readonly #usage: UsageLimits;
+    /** Claude Code's version for the billing patch and the usage endpoint: the last caller's setting (`phone.json`). */
+    #claudeVersion = DEFAULT_SETTINGS.claudeCodeBilling.version;
+
+    constructor(rows: TeamAccountRows, dataDir: string, now: () => number = Date.now, usageFetch?: typeof fetch) {
         this.#rows = rows;
         this.#dir = join(dataDir, "team-providers");
         this.#now = now;
+        this.#usage = new UsageLimits({
+            models: () => this.runtime,
+            claudeVersion: () => this.#claudeVersion,
+            publish: () => undefined,
+            authPath: join(this.#dir, "auth.json"),
+            now,
+            ...(usageFetch === undefined ? {} : { fetch: usageFetch }),
+        });
+    }
+
+    /** The plan limits of these team accounts that have them (a subscription of Claude, Codex or Copilot). */
+    async usage(ids: readonly string[], fresh: boolean): Promise<AccountUsage[]> {
+        const found = await Promise.all(ids.map((id) => this.#usage.get(id, fresh)));
+
+        return found.filter((each): each is AccountUsage => each !== undefined);
+    }
+
+    /** An answer on `id` ended: its figures are asked again, at most once a minute. */
+    answered(id: string): void {
+        this.#usage.afterRun(id);
     }
 
     /** The gateway's own model runtime, with the team's sign-ins only; each team account registered on it. */
@@ -235,7 +263,11 @@ export class TeamAccounts {
      * One answer of a team account's model, with its sign-in: the gateway's own copy of the model, and only the options a
      * pi-phone may set (`RELAYED`), so what it sends cannot change where the request goes or what it carries.
      */
-    stream(id: string, modelId: string, context: Context, given: Record<string, unknown>, signal: AbortSignal): AssistantMessageEventStream {
+    /**
+     * One answer of a team account's model. `billing` is the caller's Claude Code billing setting: a Claude subscription's
+     * requests get the patch here, where they are made (the caller's own `onPayload` can't come along).
+     */
+    stream(id: string, modelId: string, context: Context, given: Record<string, unknown>, signal: AbortSignal, billing?: { enabled: boolean; version: string }): AssistantMessageEventStream {
         this.#need(id);
         const model = this.runtime.getModel(id, modelId);
 
@@ -249,6 +281,13 @@ export class TeamAccounts {
             if (given[key] !== undefined) {
                 (options as Record<string, unknown>)[key] = given[key];
             }
+        }
+
+        if (billing?.enabled === true && /^\d+\.\d+\.\d+$/.test(billing.version)) {
+            const version = billing.version;
+
+            this.#claudeVersion = version;
+            options.onPayload = (payload, requestModel) => patchClaudeCodePayload(payload, baseProvider(requestModel.provider), { version });
         }
 
         return this.runtime.streamSimple(model, context, options);

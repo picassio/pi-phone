@@ -526,7 +526,7 @@ export class Gateway {
         }
 
         const role = store.roleOf(me.id, me.role);
-        const asked = (await readBody(request, 64 * 1024 * 1024)) as { id?: unknown; model?: unknown; context?: unknown; options?: unknown };
+        const asked = (await readBody(request, 64 * 1024 * 1024)) as { id?: unknown; model?: unknown; context?: unknown; options?: unknown; billing?: unknown };
         const id = String(asked.id ?? "");
         const modelId = String(asked.model ?? "");
 
@@ -547,7 +547,15 @@ export class Gateway {
         }
 
         const stop = new AbortController();
-        const events = this.#options.teamAccounts.stream(id, modelId, asked.context as never, (asked.options ?? {}) as Record<string, unknown>, stop.signal);
+        const billing = typeof asked.billing === "object" && asked.billing !== null ? (asked.billing as { enabled?: unknown; version?: unknown }) : undefined;
+        const events = this.#options.teamAccounts.stream(
+            id,
+            modelId,
+            asked.context as never,
+            (asked.options ?? {}) as Record<string, unknown>,
+            stop.signal,
+            billing === undefined ? undefined : { enabled: billing.enabled === true, version: String(billing.version ?? "") },
+        );
         let usage: { cost?: { total?: number }; totalTokens?: number } | undefined;
 
         response.on("close", () => stop.abort());
@@ -568,6 +576,9 @@ export class Gateway {
             if (usage !== undefined && ((usage.cost?.total ?? 0) > 0 || (usage.totalTokens ?? 0) > 0)) {
                 store.addTeamSpend(month, me.id, id, usage.cost?.total ?? 0, usage.totalTokens ?? 0);
             }
+
+            // A subscription's plan limits moved (PP-74).
+            this.#options.teamAccounts.answered(id);
         }
 
         response.end();
@@ -605,6 +616,16 @@ export class Gateway {
                     .filter((account) => manage || mayUse(account.id))
                     .map((account) => ({ ...account, usable: mayUse(account.id), roles: roles.filter((each) => (each.teamAccounts ?? []).includes(account.id)).map((each) => each.name) })),
             };
+        }
+
+        // The plan limits of the team subscriptions this person may use (PP-74): everyone who can use one sees its bars.
+        if (action === "usage") {
+            const ids = accounts
+                .list()
+                .filter((account) => mayUse(account.id) && account.configured)
+                .map((account) => account.id);
+
+            return { usage: await accounts.usage(ids, asked.fresh === true) };
         }
 
         // A team account's models, for a pi-phone whose person may use it.

@@ -468,16 +468,21 @@ export class PocketApp {
         this.places = new Places(this.machines, () => this.#toolPath());
         this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
         // A team account's sign-in steps go to this pi-phone's person, as their own sign-ins' do (not to teammates).
-        this.teamAccounts = new TeamAccountsClient(this.#teamServer, (data) => {
-            for (const client of this.clients) {
-                if (client.user.role === "owner") {
-                    client.send("auth", data);
-                }
-            }
-        });
         const phoneSettings = new PhoneSettingsFile(options.dataDir);
 
         this.phoneSettings = phoneSettings;
+        this.teamAccounts = new TeamAccountsClient(
+            this.#teamServer,
+            (data) => {
+                for (const client of this.clients) {
+                    if (client.user.role === "owner") {
+                        client.send("auth", data);
+                    }
+                }
+            },
+            // The billing patch is made on the team server for its Claude subscriptions, with this person's setting (PP-74).
+            () => phoneSettings.current().claudeCodeBilling,
+        );
 
         this.usageLimits = new UsageLimits({
             models: () => this.models,
@@ -1132,6 +1137,20 @@ export class PocketApp {
                 // A run spent some of its account's plan: its figures are asked again (`usage-limits.ts`).
                 if (ranOn !== undefined && (change.value.status === "done" || change.value.status === "unanswered")) {
                     this.usageLimits.afterRun(ranOn);
+
+                    // A team subscription's (PP-74): asked of the team server, which keeps them a minute; every tab told.
+                    if (this.teamAccounts.label(ranOn) !== undefined) {
+                        void this.teamAccounts
+                            .usage(true)
+                            .then((found) => {
+                                for (const usage of found.filter((each) => each.provider === ranOn)) {
+                                    for (const client of this.#clients) {
+                                        client.send("usage", usage);
+                                    }
+                                }
+                            })
+                            .catch((error: unknown) => this.log(`team usage not asked: ${describe(error)}`));
+                    }
                 }
 
                 // Its run failed: the commit that settles it ends the run too, so the list hears of both at once.

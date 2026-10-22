@@ -18,6 +18,7 @@ import {
 } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { HttpError } from "./errors.ts";
+import type { AccountUsage } from "./usage-limits.ts";
 
 /** The options sent along with a request: how the model answers (the gateway takes only these too). */
 const RELAYED = ["temperature", "samplingParams", "maxTokens", "cacheRetention", "sessionId", "metadata", "toolChoice", "reasoning", "thinkingBudgets"] as const;
@@ -68,9 +69,25 @@ export class TeamAccountsClient {
     /** The team accounts registered as providers here: their names, by id. */
     readonly #registered = new Map<string, string>();
 
-    constructor(server: { url: string; token: string } | undefined, send: (data: Record<string, unknown>) => void) {
+    /** The person's Claude Code billing setting (`phone.json`), sent with each answer asked of the team server. */
+    readonly #billing: () => { enabled: boolean; version: string };
+
+    constructor(server: { url: string; token: string } | undefined, send: (data: Record<string, unknown>) => void, billing: () => { enabled: boolean; version: string }) {
         this.#server = server;
         this.#send = send;
+        this.#billing = billing;
+    }
+
+    /**
+     * The plan limits of the team subscriptions this person may use (PP-74), asked of the team server, which keeps them a
+     * minute: none off the team server or without team accounts here.
+     */
+    async usage(fresh: boolean): Promise<AccountUsage[]> {
+        if (this.#server === undefined || this.#registered.size === 0) {
+            return [];
+        }
+
+        return (await this.#call<{ usage: AccountUsage[] }>({ action: "usage", fresh })).usage;
     }
 
     /** On the team server only. */
@@ -233,7 +250,7 @@ export class TeamAccountsClient {
                 const response = await fetch(`${server.url}/internal/llm/stream`, {
                     method: "POST",
                     headers: { authorization: `Bearer ${server.token}`, "content-type": "application/json" },
-                    body: JSON.stringify({ id: model.provider, model: model.id, context, options: relayed }),
+                    body: JSON.stringify({ id: model.provider, model: model.id, context, options: relayed, billing: this.#billing() }),
                     ...(options?.signal === undefined ? {} : { signal: options.signal }),
                 });
 

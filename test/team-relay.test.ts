@@ -36,7 +36,9 @@ let internal: Server;
 let address = "";
 const ids: Record<string, string> = {};
 /** The scripted model on the gateway: what it was last asked, and how many calls it answered. */
-const asked: { calls: number; aborted: number } = { calls: 0, aborted: 0 };
+const asked: { calls: number; aborted: number; patched: boolean[] } = { calls: 0, aborted: 0, patched: [] };
+/** Binh's Claude Code billing setting (phone.json), sent with each answer. */
+let billing = { enabled: true, version: "2.1.280" };
 
 before(async () => {
     const db = new DatabaseSync(":memory:");
@@ -59,6 +61,7 @@ before(async () => {
         const text = typeof last?.content === "string" ? last.content : "";
 
         asked.calls += 1;
+        asked.patched.push(typeof (options as { onPayload?: unknown } | undefined)?.onPayload === "function");
         options?.signal?.addEventListener("abort", () => (asked.aborted += 1));
 
         return fauxAssistantMessage([fauxText(`echo: ${text}`)]);
@@ -90,7 +93,7 @@ async function binhsPiPhone() {
 
     models.registerNativeProvider(scriptedModel().provider);
 
-    const client = new TeamAccountsClient({ url: address, token: store.box(ids.Binh!).token }, () => undefined);
+    const client = new TeamAccountsClient({ url: address, token: store.box(ids.Binh!).token }, () => undefined, () => billing);
 
     await client.sync(models);
 
@@ -113,6 +116,12 @@ test("a teammate's pi-phone lists the team account's models and gets its answers
     assert.equal(answer.stopReason, "stop", answer.errorMessage ?? "");
     assert.deepEqual(answer.content, [{ type: "text", text: "echo: hello team" }]);
     assert.equal(asked.calls, before + 1, "answered on the gateway");
+    assert.equal(asked.patched.at(-1), true, "the billing patch, made on the gateway with Binh's setting");
+
+    billing = { enabled: false, version: "2.1.280" };
+    await models.completeSimple(listed[0] as Model<Api>, ask("no patch"));
+    assert.equal(asked.patched.at(-1), false, "off in Binh's settings: not patched");
+    billing = { enabled: true, version: "2.1.280" };
 });
 
 test("a role without the account, or without the model, is refused with the reason", async () => {
