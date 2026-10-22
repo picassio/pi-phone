@@ -1098,6 +1098,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 subagentModels?: unknown;
                 sessionSendLimit?: unknown;
                 wikiCaptureMinutes?: unknown;
+                compactAt?: unknown;
             }>(request);
 
             // One at a time: a second that fails must not leave the first changed.
@@ -1108,6 +1109,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.subagentModels,
                     body.sessionSendLimit,
                     body.wikiCaptureMinutes,
+                    body.compactAt,
                 ].filter((value) => value !== undefined).length > 1
             ) {
                 throw new HttpError(400, "Change one setting at a time.");
@@ -1128,6 +1130,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
             if (body.sessionSendLimit !== undefined) {
                 await app.setSessionSendLimit(user, body.sessionSendLimit);
+            }
+
+            // When sessions compact by themselves (PP-78).
+            if (body.compactAt !== undefined) {
+                await app.setCompactAt(user, body.compactAt);
             }
 
             // Null clears it: new sessions start with the last model picked again.

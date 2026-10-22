@@ -32,6 +32,9 @@ No Termux, no laptop, no cloud VM.
   by itself after a day idle, when its task run ends, or when its branch is merged, and comes back with new activity;
   Settle and Un-settle by hand too (and `session_settle` for Pi). Rows show where, the time (or how long it has been
   working), the title, the branch or task, and the status.
+- **Auto-compact when you want.** A session compacts its context by itself just before the model's limit; it can
+  happen sooner, at a percentage of the context you pick (10–95%), for every session or one (Menu › Compact context).
+  The context meter marks where. Pi changes both on a card (`sessions.compactAt`, `sessions.sessionCompactAt`).
 - **Folder groups in the session list.** Make your own groups (**+ New group**) and move chats into them: Move to
   group… from a chat's long press, its row, its menu, or a selection's **Move…**, or drag on a desktop. A chat is in one
   group at most; a group can be pinned (under the pinned chats), folded, renamed, reordered, or deleted (its chats go
@@ -281,6 +284,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
 | Extensions (Projects, Wiki, Pi's browser, …) | **Extensions** | "Turn on Projects" |
 | Spend and limits | **Spend** | "Limit this session to $5" |
+| When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
 | Other devices and people | **Access** (Tailscale), **People** (devices, invites, recovery code) | Yes for listing devices, signing one or all out, or changing a person's role. The recovery code is yours |
 | Notifications, screen off, backup | **This phone** | Yes for making a backup. Restoring one is yours |
 | Appearance, dictation language | **Appearance** and **Dictation**, per browser tab | Only the theme new browsers start with ("make lantern the default theme") |

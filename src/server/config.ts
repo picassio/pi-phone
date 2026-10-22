@@ -123,6 +123,8 @@ interface PocketConfig {
      * no limit. Absent: `DEFAULT_SEND_LIMIT`. A session's own (`SessionMeta.sendLimit`) comes first.
      */
     sessionSendLimit?: number | null;
+    /** When sessions compact by themselves (`auto-compact.ts`): a percentage of the context. Absent: only when nearly full. */
+    compactAt?: number;
     /** Minutes a session is idle before what it learned goes to the wiki (`para-capture.ts`); null: never by itself. */
     wikiCaptureMinutes?: number | null;
     /**
@@ -339,6 +341,21 @@ export class ConfigStore {
             delete this.#config.sessionSendLimit;
         } else {
             this.#config.sessionSendLimit = limit;
+        }
+
+        this.save();
+    }
+
+    /** When sessions compact by themselves: a percentage of the context, or "full" (only when nearly full, the default). */
+    get compactAt(): number | "full" {
+        return this.#config.compactAt ?? "full";
+    }
+
+    set compactAt(at: number | "full") {
+        if (at === "full") {
+            delete this.#config.compactAt;
+        } else {
+            this.#config.compactAt = at;
         }
 
         this.save();

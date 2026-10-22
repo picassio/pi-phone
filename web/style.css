@@ -3425,7 +3425,37 @@ pre.diff .del {
 }
 
 .status-line .meter {
+    position: relative;
     width: 36px;
+}
+
+/* Auto-compact's percentage row (PP-78): "At [70] % of the context [Use]". */
+.ac-percent {
+    gap: 8px;
+    justify-content: flex-start;
+}
+
+.ac-percent input {
+    width: 64px;
+    flex: none;
+}
+
+.ac-percent .button {
+    margin-left: auto;
+}
+
+.ac-percent.on {
+    background: var(--accent-soft);
+}
+
+/* Where the session compacts by itself (PP-78). */
+.meter-mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--text);
+    opacity: 0.7;
 }
 
 /* Lancet Guard: a pill that opens Extensions, green while it guards and yellow while it does not. */

@@ -9,6 +9,9 @@ import { filesAvailable, setFilesOpen } from "../files-panel.js";
 import { peeksOn, togglePeeks } from "../peeks.js";
 import { modelRefreshAvailable, refreshModels } from "../model-refresh.js";
 import { groupOf } from "../session-groups.js";
+
+/** The Compact context row's hint: when the session compacts by itself (PP-78). */
+const compactHint = (at) => (typeof at === "number" ? `now, or by itself at ${at}%` : "summarize older messages");
 import { setArchived } from "../sessions.js";
 import { isRemotePlace, splitPlace } from "../place.js";
 import { openSubagent } from "../subagents.js";
@@ -432,7 +435,7 @@ export function MenuSheet({ places = true }) {
             }
             ${conversation && trustAvailable() && item("Project trust", () => openSheet({ type: "trust" }), trustHint())}
             ${session && steer && driving && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
-            ${conversation && steer && driving && item("Compact context", () => openSheet({ type: "compact" }), "summarize older messages")}
+            ${conversation && steer && driving && item("Compact context", () => openSheet({ type: "compact" }), compactHint(conversation.compactAt ?? store.state.server?.compactAt))}
             ${conversation && steer && driving && item("New context", () => openSheet({ type: "reset" }), "Pi starts fresh; history stays")}
             ${schedulesAvailable() && item("Scheduled messages", () => openSheet({ type: "schedules" }), view.schedules.length === 0 ? "none" : `${view.schedules.length} coming`)}
             ${

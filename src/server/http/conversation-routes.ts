@@ -61,6 +61,13 @@ export async function conversationRoutes(
         return json(response, 200, { own: app.sessionMeta(id)?.browserRunModel ?? null, global: app.config.browserRunModel });
     }
 
+    // When this session compacts by itself (PP-78): its own, "full", or "inherit" the setting for all.
+    if (third === "compact-at" && method === "POST") {
+        await app.setSessionCompactAt(id, user, (await readJson<{ at?: unknown }>(request)).at);
+
+        return json(response, 200, { ok: true });
+    }
+
     if (third === "send-limit" && method === "POST") {
         const body = await readJson<{ limit?: unknown }>(request);
 

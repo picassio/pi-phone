@@ -12,6 +12,7 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
+import { MAX_COMPACT_AT, MIN_COMPACT_AT } from "./auto-compact.ts";
 import { makeBackup } from "./backup.ts";
 import { copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -202,6 +203,30 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             owner: true,
             read: () => String(app.config.sessionSendLimit ?? "none"),
             apply: (user, value) => app.setSessionSendLimit(user, count(value, "The limit")),
+        },
+        // ─── Auto-compact (PP-78) ───
+        {
+            id: "sessions.compactAt",
+            area: "sessions",
+            title: "When sessions compact their context by themselves",
+            help: `For every session: a percentage of the model's context window (${MIN_COMPACT_AT} to ${MAX_COMPACT_AT}), or full (only when nearly full, the default). A session's own setting comes first.`,
+            owner: true,
+            read: () => String(app.config.compactAt),
+            apply: (user, value) => app.setCompactAt(user, value),
+        },
+        {
+            id: "sessions.sessionCompactAt",
+            area: "sessions",
+            title: "When one session compacts its context by itself",
+            help: `A percentage (${MIN_COMPACT_AT} to ${MAX_COMPACT_AT}), full (only when nearly full), or inherit (the setting for every session). Target: the session's number.`,
+            owner: true,
+            target: "session",
+            read: (target) => {
+                const own = app.sessionMeta(session(target))?.compactAt;
+
+                return own === undefined ? `inherit (${String(app.config.compactAt)})` : String(own);
+            },
+            apply: (user, value, target) => app.setSessionCompactAt(session(target), user, value),
         },
         // ─── Pi's browser ───
         {

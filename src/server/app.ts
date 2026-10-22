@@ -79,6 +79,7 @@ import { ExtensionWebs, mayUse } from "./extension-web.ts";
 import { defang, quoted } from "./fence.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
 import { SessionGroups } from "./session-groups.ts";
+import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
 import { PhoneEvents } from "./phone-events.ts";
@@ -372,6 +373,7 @@ export class PocketApp {
     /** Each person's favorite working folders, shared by their devices. */
     readonly folderFavorites = new FolderFavorites(this);
     readonly sessionGroups = new SessionGroups(this);
+    readonly autoCompact = new AutoCompact(this);
     /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */
     readonly github = new GitHubLogin();
     /** The app's SSH keys, for machines (`ssh-keys.ts`). */
@@ -1136,6 +1138,14 @@ export class PocketApp {
                     this.providers.runFailed(change.value.detail);
                 } else if (change.value.status === "done" && ranOn !== undefined) {
                     this.providers.runAnswered(ranOn);
+                }
+
+                // Its context past the session's auto-compact percentage (PP-78): it compacts.
+                if (change.value.status === "done") {
+                    const ref = this.#agents.get(change.value.conversationId)?.model;
+                    const window = ref === undefined ? undefined : this.models.getModel(ref.provider, ref.modelId)?.contextWindow;
+
+                    void this.autoCompact.afterRun(change.value.conversationId, window).catch((error: unknown) => this.log(`auto-compact: ${describe(error)}`));
                 }
 
                 // A run spent some of its account's plan: its figures are asked again (`usage-limits.ts`).
@@ -2310,6 +2320,8 @@ export class PocketApp {
                 approvalRule: this.config.approvalRule,
                 // How many messages and new sessions a session may send others in an hour (`session-control.ts`).
                 sessionSendLimit: this.config.sessionSendLimit,
+                // When sessions compact by themselves: a percentage, or "full" (`auto-compact.ts`).
+                compactAt: this.config.compactAt,
                 // Minutes idle before a session is captured into the wiki, or null (`para-capture.ts`).
                 wikiCaptureMinutes: this.config.wikiCaptureMinutes,
                 // The model and thinking level new sessions start with, or null for the last one picked.
@@ -2556,6 +2568,8 @@ export class PocketApp {
                 : { worktree: { branch: meta.worktree.branch, source: meta.worktree.source } }),
             // Its own limit on messages to other sessions (`session-control.ts`); absent, the setting for all.
             ...(meta?.sendLimit === undefined ? {} : { sendLimit: meta.sendLimit }),
+            // Its own auto-compact (`auto-compact.ts`); absent, the setting for all.
+            ...(meta?.compactAt === undefined ? {} : { compactAt: meta.compactAt }),
             // Whether a fork could get a worktree of its own.
             ...(meta === undefined
                 ? {}
@@ -3586,6 +3600,38 @@ export class PocketApp {
                 delete meta.browserRunModel;
             } else {
                 meta.browserRunModel = model as string;
+            }
+        }, context);
+    }
+
+    /** When every session compacts by itself (PP-78): a percentage, or "full". The owner's. */
+    async setCompactAt(user: User, value: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        this.config.compactAt = checkCompactAt(value, false);
+        await this.#refreshClients();
+    }
+
+    /** One session's own auto-compact: a percentage, "full", or "inherit" (the setting for all). Whoever steers it. */
+    async setSessionCompactAt(id: ConversationId, user: User, value: unknown): Promise<void> {
+        this.requireSee(user, id);
+        await this.requireDriver(id, user);
+        const at = checkCompactAt(value, true);
+        const root = this.rootOf(id);
+
+        await this.harness.commit(async (tx) => {
+            const meta = (await tx.doc(SessionsDoc)).items[String(root)];
+
+            if (meta === undefined) {
+                throw new HttpError(404, "There is no such session.");
+            }
+
+            if (at === "inherit") {
+                delete meta.compactAt;
+            } else {
+                meta.compactAt = at;
             }
         }, context);
     }

@@ -1816,7 +1816,9 @@ function StatusLine() {
         const percent = Math.min(100, Math.round((used / window) * 100));
         // Compacted since the last answer: what is left, estimated until the next answer measures it.
         const about = stats.contextEstimated ? "~" : "";
-        const title = `${about}${formatTokens(used)} of ${formatTokens(window)} tokens in context`;
+        // Where this session compacts by itself (PP-78), marked on the meter.
+        const at = view.conversation?.compactAt ?? store.state.server?.compactAt;
+        const title = `${about}${formatTokens(used)} of ${formatTokens(window)} tokens in context${typeof at === "number" ? ` · auto-compacts at ${at}%` : ""}`;
 
         details.push(title);
 
@@ -1825,6 +1827,7 @@ function StatusLine() {
                 <span class="word">context</span>
                 <span class=${`meter ${contextLevel(percent)}`} aria-hidden="true">
                     <span style=${`width:${percent}%`}></span>
+                    ${typeof at === "number" && html`<i class="meter-mark" style=${`left:${at}%`}></i>`}
                 </span>
                 <span class="num">${about}${percent}%</span>
             </span>`,

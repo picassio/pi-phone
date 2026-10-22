@@ -32,6 +32,7 @@ import { InviteSheet, PeopleSheet } from "./sheets/people.js";
 import { AuthDialog, ProvidersSheet } from "./sheets/providers.js";
 import { RunningSheet } from "./sheets/running.js";
 import { SessionSheet } from "./sheets/session.js";
+import { CompactSheet } from "./sheets/compact.js";
 import { GroupSheet, MoveSheet } from "./sheets/session-groups.js";
 import { ShortcutsSheet } from "./sheets/shortcuts.js";
 import { SpendSheet } from "./sheets/spend.js";
@@ -353,15 +354,9 @@ function sheetBody(sheet) {
                 submit=${(value) => actions.setInstructions(value)}
             />`;
             break;
+        // Compact now, and when the session compacts by itself (PP-78).
         case "compact":
-            body = html`<${TextSheet}
-                title="Compact context"
-                label="What should the summary keep? (optional)"
-                placeholder="e.g. the failing test names"
-                multiline=${true}
-                button="Compact"
-                submit=${(value) => actions.compact(value)}
-            />`;
+            body = html`<${CompactSheet} />`;
             break;
         case "name":
             body = html`<${TextSheet}

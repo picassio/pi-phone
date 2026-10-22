@@ -51,6 +51,8 @@ export type SessionMeta = {
      * a number, or null for no limit. Absent: the owner's setting for all sessions.
      */
     sendLimit?: number | null;
+    /** When this session compacts by itself (`auto-compact.ts`): a percentage of the context, or "full". Absent: the setting for all. */
+    compactAt?: number | "full";
     /** The run model for this session's `browser_run`: "session" or a Jev model's OpenRouter id. Absent: the owner's. */
     browserRunModel?: string;
     /** The "Wiki capture" session (`para-capture.ts`): captures of the others run there. */
