@@ -116,6 +116,10 @@ const PAGES: Record<string, string> = {
         <input type="file" id="pics" multiple style="display:none" onchange="out.textContent='Photos ' + [...this.files].map(f => f.name).join(',')">
         <a href="/two" target="_blank">Open in a new tab</a>`,
     "/ua": `<!doctype html><title>UA</title><meta name="viewport" content="width=device-width"><p id="out"></p><script>out.textContent = (/Android.*Mobile/.test(navigator.userAgent) ? 'phone' : 'desktop') + ' ' + innerWidth + ' touch ' + navigator.maxTouchPoints;</script>`,
+    // Dialogs (PP-79): a confirm that says what came back, and a prompt.
+    "/dialogs": `<!doctype html><title>Dialogs</title><p id="out">Nothing yet</p>
+        <button onclick="out.textContent = confirm('Delete the group?') ? 'Deleted' : 'Kept'">Delete</button>
+        <button onclick="out.textContent = 'Name: ' + prompt('Name it', 'Work')">Name</button>`,
     "/two": `<!doctype html><title>Two</title><p>Page two</p><article>${"A long article. ".repeat(400)}</article>`,
 };
 
@@ -229,6 +233,23 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
         await browser.input({ type: "tap", x: 10, y: 10 });
         browser.takeOver(false);
         assert.match(await browser.snapshot(1), /^Sign in — /);
+
+        // Dialogs (PP-79): declined unless asked; accepted when asked, and the page gets the answer it was told.
+        const dialogs = await browser.open(1, "http://pi.test/dialogs");
+        const del = Number(/\[(\d+)\] button "Delete"/.exec(dialogs)![1]);
+        const declined = await browser.click(1, del);
+
+        assert.match(declined, /The page showed a dialog \(confirm: Delete the group\?\); it was declined\./);
+        assert.match(declined, /Kept/);
+
+        const accepted = await browser.click(1, Number(/\[(\d+)\] button "Delete"/.exec(declined)![1]), true);
+
+        assert.match(accepted, /The page showed a dialog \(confirm: Delete the group\?\); it was accepted\./);
+        assert.match(accepted, /Deleted/, "the page got yes");
+
+        const named = await browser.click(1, Number(/\[(\d+)\] button "Name"/.exec(accepted)![1]), true);
+
+        assert.match(named, /Name: Work/, "a prompt accepted gets its default");
     } finally {
         await browser.close();
     }

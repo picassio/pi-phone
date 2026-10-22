@@ -573,11 +573,15 @@ export class PiBrowser {
         tab.title = observed.title;
         this.#set({});
 
-        const dialog = page.dialog;
+        // The dialogs it showed: answered in the page (most), or by DevTools (one the page did not answer itself).
+        const dialogs = (await page.takeDialogs()).map((each) => `The page showed a dialog (${each.text}); it was ${each.accepted ? "accepted" : "declined"}.\n`);
 
-        page.dialog = undefined;
+        if (page.dialog !== undefined) {
+            dialogs.push(`The page showed a dialog (${page.dialog}); it was ${page.acceptDialogs ? "accepted" : "declined"}.\n`);
+            page.dialog = undefined;
+        }
 
-        return `${opened}${this.#tabs.length > 1 ? `Tab ${this.#tabs.indexOf(tab) + 1} of ${this.#tabs.length}. ` : ""}${dialog === undefined ? "" : `The page showed a dialog (${dialog}); it was ${page.acceptDialogs ? "accepted" : "declined"}.\n`}${describe(observed, tab.elements)}`;
+        return `${opened}${this.#tabs.length > 1 ? `Tab ${this.#tabs.indexOf(tab) + 1} of ${this.#tabs.length}. ` : ""}${dialogs.join("")}${describe(observed, tab.elements)}`;
     }
 
     #element(index: number): { observed: Observed; element: Element } {
@@ -619,14 +623,14 @@ export class PiBrowser {
         return this.#run(session, this.#doing("Clicking", index), async ({ page }) => {
             const { observed, element } = this.#element(index);
 
-            page.acceptDialogs = acceptDialog;
+            await page.setAcceptDialogs(acceptDialog);
 
             try {
                 await page.click(observed, element);
 
                 return await this.#read();
             } finally {
-                page.acceptDialogs = false;
+                await page.setAcceptDialogs(false);
             }
         });
     }
@@ -701,14 +705,14 @@ export class PiBrowser {
 
     press(session: number, key: string, acceptDialog = false): Promise<string> {
         return this.#run(session, `Pressing ${key}`, async ({ page }) => {
-            page.acceptDialogs = acceptDialog;
+            await page.setAcceptDialogs(acceptDialog);
 
             try {
                 await page.press(key);
 
                 return await this.#read();
             } finally {
-                page.acceptDialogs = false;
+                await page.setAcceptDialogs(false);
             }
         });
     }

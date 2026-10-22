@@ -95,6 +95,23 @@ export type Element = {
 };
 
 /** The page changed (or the element moved, or something covers it) since it was read: read it again. */
+/**
+ * In every document Pi's browser loads (PP-79): alert, confirm and prompt answer at once, as Pi asked for the click or
+ * key press under way (`__piDialogs.accept`), and keep what they showed (the last five) for the next read.
+ */
+const DIALOGS = `(() => {
+    if (window.__piDialogs) return;
+    const state = { accept: false, shown: [] };
+    Object.defineProperty(window, "__piDialogs", { value: state });
+    const show = (type, message, accepted) => {
+        state.shown.push({ text: type + ": " + String(message ?? "").slice(0, 300), accepted });
+        if (state.shown.length > 5) state.shown.shift();
+    };
+    window.alert = function (message) { show("alert", message, true); };
+    window.confirm = function (message) { show("confirm", message, state.accept); return state.accept; };
+    window.prompt = function (message, value) { show("prompt", message, state.accept); return state.accept ? String(value ?? "") : null; };
+})()`;
+
 export class StalePage extends Error {}
 
 /** One element per observed node, in page order, numbered from 1. */
@@ -279,6 +296,11 @@ export class BrowserPage {
                 this.#loading = false;
             }
         });
+        // Dialogs are answered in the page (PP-79): the phone's WebView has no dialog UI, and answers confirm() with false
+        // before DevTools hears of it. Every document gets alert, confirm and prompt that answer as Pi asked and say what
+        // they showed; DevTools' dialogs (beforeunload, a page that kept the originals) are still answered below.
+        await this.cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: DIALOGS }).catch(() => {});
+        await this.evaluate<unknown>(DIALOGS).catch(() => {});
         this.cdp.on("Page.javascriptDialogOpening", (params) => {
             this.dialog = `${String(params.type)}: ${String(params.message ?? "").slice(0, 300)}`;
             void this.cdp.send("Page.handleJavaScriptDialog", { accept: this.acceptDialogs }).catch(() => {});
@@ -376,6 +398,19 @@ export class BrowserPage {
 
     /** Whether the next dialog is accepted (a click or key press Pi asked to accept them for); declined otherwise. */
     acceptDialogs = false;
+
+    /** Accept dialogs (or not) from now: here, for DevTools' dialogs, and in the page, for its own. */
+    async setAcceptDialogs(accept: boolean): Promise<void> {
+        this.acceptDialogs = accept;
+        await this.evaluate<unknown>(`window.__piDialogs && (window.__piDialogs.accept = ${accept})`).catch(() => {});
+    }
+
+    /** The dialogs the page showed since the last time, each with how it was answered; then none. */
+    async takeDialogs(): Promise<{ text: string; accepted: boolean }[]> {
+        const shown = await this.evaluate<{ text: string; accepted: boolean }[] | null>("(() => { const d = window.__piDialogs; if (!d) return null; const s = d.shown.slice(); d.shown.length = 0; return s; })()").catch(() => null);
+
+        return shown ?? [];
+    }
 
     async evaluate<T>(expression: string, awaitPromise = false): Promise<T> {
         const answer = await this.cdp.send<{ result?: { value?: unknown }; exceptionDetails?: { text?: string; exception?: { description?: string } } }>("Runtime.evaluate", {
