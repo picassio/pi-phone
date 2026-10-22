@@ -33,7 +33,6 @@ import {
     itemsOf,
     lineCount,
     matchCount,
-    plural,
     rowsBefore,
     says,
     short,
@@ -60,6 +59,7 @@ import {
     Thumb,
 } from "./ui.js";
 import { LimitSwitch } from "./usage.js";
+import { t, tn, tx } from "./i18n.js";
 
 const REPORT = /^\[subagent (\S+) (answered|failed)([^\]]*)\]\s?([\s\S]*)$/;
 /** Where the next report starts, in a message of several that arrived together (`extensions/subagents.ts`). */
@@ -76,7 +76,7 @@ const TEAM_VIA = /^(?:(?:([A-Z][A-Z0-9]{1,5}-\d+) · )?task session #(\d+)|the b
 /** What came from outside in such a message, fenced as data for Pi: a check's log, a webhook's post, GitHub's events. */
 const FENCED =
     /<(ci-log|webhook-payload|github-event)((?: [a-z]+="[^"\n]*")*)>\n([\s\S]*?)\n<\/\1>/g;
-const FENCE_LABELS = { "webhook-payload": "What was posted", "github-event": "On GitHub" };
+const FENCE_LABELS = { "webhook-payload": () => t("What was posted"), "github-event": () => t("On GitHub") };
 
 /** A message from the app with what it fenced for Pi shown as blocks of its own, named after what each is. */
 function FencedText({ text }) {
@@ -87,10 +87,12 @@ function FencedText({ text }) {
         const name = /"([^"]*)"/.exec(match[2])?.[1];
         const label =
             match[1] === "ci-log"
-                ? `Log of ${name ?? "a check"}`
+                ? t("Log of {name}", { name: name ?? t("a check") })
                 : match[1] === "github-event"
-                  ? `On GitHub${name ? `: ${name}` : ""}`
-                  : (name ?? FENCE_LABELS[match[1]]);
+                  ? name
+                      ? t("On GitHub: {name}", { name })
+                      : t("On GitHub")
+                  : (name ?? FENCE_LABELS[match[1]]?.());
 
         parts.push(
             html`<${MentionedText} text=${text.slice(last, match.index).replace(/\n$/, "")} />`,
@@ -221,7 +223,7 @@ function Report({ report, view, fresh }) {
             ${
                 child &&
                 html`<button class="link" onClick=${() => openSubagent(child.conversationId)}>
-                    Open →
+                    ${t("Open →")}
                 </button>`
             }
         </div>
@@ -302,7 +304,7 @@ function UserEntry({ entry, view, users }) {
     const author =
         authorName(entry.id, view, users) ??
         entry.from ??
-        (view.conversation?.kind === "subagent" ? "Main agent" : undefined);
+        (view.conversation?.kind === "subagent" ? t("Main agent") : undefined);
     const [written, attachments] = splitAttachments(entry.text);
     // Set up earlier to go out now: by a person (who shows as its author) or by Pi.
     // Only a message nobody typed: someone writing "[via …]" themselves gets no label.
@@ -324,12 +326,12 @@ function UserEntry({ entry, view, users }) {
     const team = via && !scheduled ? TEAM_VIA.exec(via[1]) : null;
     const name = team
         ? team[2]
-            ? (team[1] ?? "Task session")
+            ? (team[1] ?? t("Task session"))
             : team[3]
-              ? `Project ${team[3]}`
-              : "The board"
+              ? t("Project {key}", { key: team[3] })
+              : t("The board")
         : (author ?? (scheduled ? "Pi" : undefined));
-    const viaNote = team?.[2] ? `task session #${team[2]}` : team ? null : via?.[1];
+    const viaNote = team?.[2] ? t("task session #{n}", { n: team[2] }) : team ? null : via?.[1];
     // Your own messages take the accent; someone else's, their color; one from someone the app does not know (a name
     // the message carries, the main agent, Pi's own schedule), a quiet one.
     const mark =
@@ -361,7 +363,7 @@ function UserEntry({ entry, view, users }) {
             class="prompt tappable"
             data-part="prompt"
             data-from=${from}
-            title="Edit, send again, or copy"
+            title=${t("Edit, send again, or copy")}
             tabindex="0"
             onClick=${(event) => openMessage(event, entry.id)}
             onKeyDown=${(event) => {
@@ -385,8 +387,8 @@ function UserEntry({ entry, view, users }) {
                 </span>
                 ${name && html`<b class="prompt-author" data-part="prompt-author">${name}</b>`}
                 ${entry.at && html`<span class="prompt-time">${clock(entry.at)}</span>`}
-                ${scheduled && html`<span class="prompt-time">· scheduled</span>`}
-                ${via && viaNote && html`<span class="prompt-time">· ${team ? "" : "via "}${peerText === undefined ? viaNote : "a linked session"}</span>`}
+                ${scheduled && html`<span class="prompt-time">· ${t("scheduled")}</span>`}
+                ${via && viaNote && html`<span class="prompt-time">· ${team ? (peerText === undefined ? viaNote : t("a linked session")) : t("via {where}", { where: peerText === undefined ? viaNote : t("a linked session") })}</span>`}
             </span>
             <div class="prompt-body" data-part="prompt-text">
                 ${
@@ -416,7 +418,7 @@ function UserEntry({ entry, view, users }) {
                             (path) =>
                                 html`<button
                                     class="chip"
-                                    title=${`Sent with the message: ${path}`}
+                                    title=${t("Sent with the message: {path}", { path })}
                                     onClick=${() => openFile(path)}
                                 >
                                     📄 ${path.split("/").pop()}
@@ -441,7 +443,7 @@ function UserEntry({ entry, view, users }) {
                 ${
                     entry.images > 0 &&
                     !attachments &&
-                    html`<${EntryImages} entryId=${entry.id} count=${entry.images} label="Image" />`
+                    html`<${EntryImages} entryId=${entry.id} count=${entry.images} label=${t("Image")} />`
                 }
             </div>
         </div>
@@ -458,7 +460,7 @@ function Collapsible({ text, limit = 600 }) {
     return html`<div class=${`collapsible ${open ? "open" : ""}`}>
         <${Markdown} text=${open ? text : `${text.slice(0, limit)}…`} />
         <button class="link" onClick=${() => setOpen(!open)}>
-            ${open ? "Show less" : "Show more"}
+            ${open ? t("Show less") : t("Show more")}
         </button>
     </div>`;
 }
@@ -549,12 +551,12 @@ function stepWords(call) {
  */
 function outcome({ call, result, details, status }) {
     if (status === "approval") {
-        return { text: "needs approval", tone: "warn" };
+        return { text: t("needs approval"), tone: "warn" };
     }
 
     if (status === "denied" || status === "stopped") {
         return {
-            text: /was interrupted/.test(result?.text ?? "") ? "cut off by a restart" : status,
+            text: /was interrupted/.test(result?.text ?? "") ? t("cut off by a restart") : status === "denied" ? t("denied") : t("stopped"),
             tone: "",
         };
     }
@@ -591,34 +593,28 @@ function outcome({ call, result, details, status }) {
             );
 
             return result.images > 0
-                ? { text: "image", tone: "" }
-                : !result.clipped && { text: plural(lineCount(read), "line"), tone: "" };
+                ? { text: t("image"), tone: "" }
+                : !result.clipped && { text: tn(lineCount(read), "{n} line", "{n} lines"), tone: "" };
         }
 
         // A long result reaches the browser cut short (its start and end): its lines cannot be counted.
         case "grep":
             return /^No matches/.test(text)
-                ? { text: "no matches", tone: "" }
+                ? { text: t("no matches"), tone: "" }
                 : {
-                      text: result.clipped
-                          ? "many matches"
-                          : plural(matchCount(withoutNotes(text)), "match").replace(
-                                "matchs",
-                                "matches",
-                            ),
+                      text: result.clipped ? t("many matches") : tn(matchCount(withoutNotes(text)), "{n} match", "{n} matches"),
                       tone: "",
                   };
         case "find":
         case "ls":
             return /^(?:No files|\(empty directory\))/.test(text)
-                ? { text: "none", tone: "" }
+                ? { text: t("none"), tone: "" }
                 : {
                       text: result.clipped
-                          ? "many"
-                          : plural(
-                                lineCount(withoutNotes(text)),
-                                call.name === "ls" ? "entry" : "file",
-                            ).replace("entrys", "entries"),
+                          ? t("many")
+                          : call.name === "ls"
+                            ? tn(lineCount(withoutNotes(text)), "{n} entry", "{n} entries")
+                            : tn(lineCount(withoutNotes(text)), "{n} file", "{n} files"),
                       tone: "",
                   };
 
@@ -632,11 +628,7 @@ function outcome({ call, result, details, status }) {
             const lines = lineCount(withoutNotes(text).trim());
 
             return {
-                text: result.clipped
-                    ? "long output"
-                    : lines === 0
-                      ? "no output"
-                      : plural(lines, "line"),
+                text: result.clipped ? t("long output") : lines === 0 ? t("no output") : tn(lines, "{n} line", "{n} lines"),
                 tone: "",
             };
         }
@@ -646,9 +638,7 @@ function outcome({ call, result, details, status }) {
                 ? { text: `v${details.version}`, tone: "" }
                 : null;
         case "codemode":
-            return Array.isArray(details?.calls)
-                ? { text: plural(details.calls.length, "call"), tone: "" }
-                : null;
+            return Array.isArray(details?.calls) ? { text: tn(details.calls.length, "{n} call", "{n} calls"), tone: "" } : null;
 
         case "subagent": {
             const agent = store.state.view.subagents?.find((each) => each.name === args.name);
@@ -755,10 +745,10 @@ function ThoughtStep({ block, streaming, reading }) {
             >
                 <${StepMark} status=${streaming ? "running" : "done"} kind="thought" />
                 <span class="step-label" data-part="step-label">
-                    ${streaming ? "Thinking" : block.redacted ? "Thought (redacted)" : "Thought"}
+                    ${streaming ? t("Thinking") : block.redacted ? t("Thought (redacted)") : t("Thought")}
                 </span>
                 <span class="step-subject"></span>
-                ${streaming && html`<${Spinner} label="Thinking" />`}
+                ${streaming && html`<${Spinner} label=${t("Thinking")} />`}
             </button>
         </div>
         ${
@@ -844,7 +834,7 @@ function ToolStep({
                     class="link small tool-open"
                     onClick=${() => openFile(`${args.path}${at}`)}
                 >
-                    Open ${args.path.split("/").pop()} →
+                    ${t("Open {name} →", { name: args.path.split("/").pop() })}
                 </button>`,
             );
         }
@@ -956,7 +946,7 @@ function ToolStep({
 
         // A call still streaming has no stored entry to load yet.
         if (clipped && entryId !== undefined) {
-            parts.push(html`<button class="link" onClick=${loadFull}>Load everything</button>`);
+            parts.push(html`<button class="link" onClick=${loadFull}>${t("Load everything")}</button>`);
         }
 
         body = html`<div class="step-body" data-part="step-detail">${parts}</div>`;
@@ -1019,7 +1009,7 @@ function ToolStep({
                     title=${`Open ${args.name ?? "the subagent"}`}
                     onClick=${() => openSubagent(child)}
                 >
-                    Open →
+                    ${t("Open →")}
                 </button>`
             }
         </div>
@@ -1033,7 +1023,7 @@ function ToolStep({
                 class=${`step-decision ${decision.allow ? "allowed" : "denied"}`}
                 title=${new Date(decision.at).toLocaleString()}
             >
-                <${Icon} name="shield" size=${13} /> ${decision.allow ? "Allowed" : "Denied"} by ${decision.by}
+                <${Icon} name="shield" size=${13} /> ${decision.allow ? t("Allowed by {who}", { who: decision.by }) : t("Denied by {who}", { who: decision.by })}
             </div>`
         }
         ${
@@ -1063,7 +1053,7 @@ function ToolStep({
                         class="artifact-link"
                         onClick=${() => openSheet({ type: "viewer", id: artifact.id, version: artifact.version })}
                     >
-                        Open ${artifact.title} · version ${artifact.version} →
+                        ${t("Open {title} · version {version} →", { title: artifact.title, version: artifact.version })}
                     </button>`
                 }
             </div>`
@@ -1255,7 +1245,7 @@ function ActivityGroup({
         >
             <${Icon} name="chevron" size=${14} class="chev" part="activity-chevron" />
             <span class="activity-summary">${summarize(all, thinking)}</span>
-            ${failed > 0 && html`<span class="activity-failed">${failed} failed</span>`}
+            ${failed > 0 && html`<span class="activity-failed">${t("{n} failed", { n: failed })}</span>`}
             <${GroupTime} id=${id} start=${start} end=${end} live=${live} />
         </button>
         ${
@@ -1361,17 +1351,17 @@ function InterviewCard({ approval }) {
         <div class="approval-head">
             <span class="approval-shield" aria-hidden="true"><${Icon} name="chat" size=${16} /></span>
             <div class="approval-title">
-                <span class="approval-ask">${form.count === 1 ? "Pi has a question" : `Pi has ${form.count} questions`}: ${form.title}</span>
+                <span class="approval-ask">${tn(form.count, "Pi has a question: {title}", "Pi has {n} questions: {title}", { title: form.title })}</span>
                 ${approval.reason && html`<span class="approval-reason">${approval.reason}</span>`}
             </div>
         </div>
         ${
             canSteer()
                 ? html`<div class="approval-actions">
-                      <button class="button" disabled=${busy} onClick=${skip}>Skip</button>
-                      <button class="button primary" onClick=${open}>Answer</button>
+                      <button class="button" disabled=${busy} onClick=${skip}>${t("Skip")}</button>
+                      <button class="button primary" onClick=${open}>${t("Answer")}</button>
                   </div>`
-                : html`<div class="muted small">Waiting for someone who can steer to answer.</div>`
+                : html`<div class="muted small">${t("Waiting for someone who can steer to answer.")}</div>`
         }
     </div>`;
 }
@@ -1394,37 +1384,37 @@ function SecretRequestCard({ approval }) {
         <div class="approval-head">
             <span class="approval-shield" aria-hidden="true"><${Icon} name="key" size=${16} /></span>
             <div class="approval-title">
-                <span class="approval-ask">Pi asks for a secret: <span class="mono">${approval.form.name}</span></span>
+                <span class="approval-ask">${tx("Pi asks for a secret: {name}", { name: html`<span class="mono">${approval.form.name}</span>` })}</span>
                 <span class="approval-reason">${approval.reason}</span>
             </div>
         </div>
         ${
             me?.role !== "owner"
-                ? html`<div class="muted small">The owner keeps secrets: waiting for them to answer.</div>`
+                ? html`<div class="muted small">${t("The owner keeps secrets: waiting for them to answer.")}</div>`
                 : html`<input
                       type="password"
                       class="mono"
-                      aria-label=${`Value of ${approval.form.name}`}
+                      aria-label=${t("Value of {name}", { name: approval.form.name })}
                       autocomplete="off"
-                      placeholder="Paste or type it; it never enters the chat"
+                      placeholder=${t("Paste or type it; it never enters the chat")}
                       value=${value}
                       onInput=${(event) => setValue(event.currentTarget.value)}
                       onKeyDown=${(event) => event.key === "Enter" && value.length >= 8 && save()}
                   />
                   <div class="muted small">
-                      Saved in Settings › Secrets. Pi uses it as <span class="mono">${approval.form.name}</span> without seeing it.
+                      ${tx("Saved in Settings › Secrets. Pi uses it as {name} without seeing it.", { name: html`<span class="mono">${approval.form.name}</span>` })}
                   </div>`
         }
         ${
             canSteer() &&
             html`<div class="approval-actions">
                 <button class="button deny" disabled=${busy} onClick=${() => run(() => actions.approve(approval.id, false))}>
-                    Decline
+                    ${t("Decline")}
                 </button>
                 ${
                     me?.role === "owner" &&
                     html`<button class="button primary" disabled=${busy || value.length < 8} onClick=${save}>
-                        Save secret
+                        ${t("Save secret")}
                     </button>`
                 }
             </div>`
@@ -1450,21 +1440,26 @@ function BrowserAskCard({ approval }) {
     };
     const filled = form.fields.every((field) => (values[field.name] ?? "") !== "");
     const send = (body) => run(() => actions.answerBrowserAsk(approval.id, body));
-    const title = form.kind === "sign-in" ? `Sign in to ${form.site}` : form.kind === "code" ? `A code for ${form.site}` : `Pi needs your hand on ${form.site}`;
+    const title =
+        form.kind === "sign-in"
+            ? t("Sign in to {site}", { site: form.site })
+            : form.kind === "code"
+              ? t("A code for {site}", { site: form.site })
+              : t("Pi needs your hand on {site}", { site: form.site });
 
     return html`<div class="approval" data-part="approval">
         <div class="approval-head">
             <span class="approval-shield" aria-hidden="true"><${Icon} name=${form.kind === "do" ? "globe" : "key"} size=${16} /></span>
             <div class="approval-title">
                 <span class="approval-ask">${title}</span>
-                <span class="approval-reason">${form.kind === "sign-in" ? "Pi's browser is at its sign-in. What you type goes into the page; Pi never sees it." : form.instruction}</span>
+                <span class="approval-reason">${form.kind === "sign-in" ? t("Pi's browser is at its sign-in. What you type goes into the page; Pi never sees it.") : form.instruction}</span>
             </div>
         </div>
         ${
             !owner
-                ? html`<div class="muted small">Pi's browser is the owner's: waiting for them.</div>`
+                ? html`<div class="muted small">${t("Pi's browser is the owner's: waiting for them.")}</div>`
                 : form.kind === "do"
-                  ? html`<div class="muted small">Open Pi's browser, do it there (you have the page until you hand it back), then tell Pi it is done.</div>`
+                  ? html`<div class="muted small">${t("Open Pi's browser, do it there (you have the page until you hand it back), then tell Pi it is done.")}</div>`
                   : html`<form
                         class="browser-ask-fields"
                         onSubmit=${(event) => {
@@ -1481,14 +1476,14 @@ function BrowserAskCard({ approval }) {
                                 autocomplete=${field.name === "username" ? "username" : field.name === "password" ? "current-password" : "one-time-code"}
                                 inputmode=${field.name === "code" ? "numeric" : undefined}
                                 aria-label=${field.label}
-                                placeholder=${field.name === "username" ? `${field.label} (username or email)` : field.name === "password" ? "Password" : field.label}
+                                placeholder=${field.name === "username" ? t("{label} (username or email)", { label: field.label }) : field.name === "password" ? t("Password") : field.label}
                                 value=${values[field.name] ?? ""}
                                 onInput=${(event) => setValues({ ...values, [field.name]: event.currentTarget.value })}
                             />`,
                         )}
                         ${
                             form.kind === "sign-in" &&
-                            html`<label class="check small"><input type="checkbox" checked=${remember} onChange=${(event) => setRemember(event.currentTarget.checked)} /> Remember in Secrets for next time</label>`
+                            html`<label class="check small"><input type="checkbox" checked=${remember} onChange=${(event) => setRemember(event.currentTarget.checked)} /> ${t("Remember in Secrets for next time")}</label>`
                         }
                         <button type="submit" hidden></button>
                     </form>`
@@ -1496,8 +1491,8 @@ function BrowserAskCard({ approval }) {
         ${
             canSteer() &&
             html`<div class="approval-actions">
-                <button class="button deny" disabled=${busy} onClick=${() => run(() => actions.approve(approval.id, false))}>${form.kind === "do" ? "Can't" : "Not now"}</button>
-                ${owner && form.saved && html`<button class="button" disabled=${busy} onClick=${() => send({ useSaved: true })}>Use the kept sign-in</button>`}
+                <button class="button deny" disabled=${busy} onClick=${() => run(() => actions.approve(approval.id, false))}>${form.kind === "do" ? t("Can't") : t("Not now")}</button>
+                ${owner && form.saved && html`<button class="button" disabled=${busy} onClick=${() => send({ useSaved: true })}>${t("Use the kept sign-in")}</button>`}
                 ${
                     owner &&
                     (form.kind === "do"
@@ -1509,7 +1504,7 @@ function BrowserAskCard({ approval }) {
                                           setPiBrowser(await browserApi("browser/take-over", { on: true }));
                                       })}
                               >
-                                  Open Pi's browser
+                                  ${t("Open Pi's browser")}
                               </button>
                               <button class="button primary" disabled=${busy} onClick=${() => run(async () => {
                                   if (piBrowserState()?.takenOver) {
@@ -1517,8 +1512,8 @@ function BrowserAskCard({ approval }) {
                                   }
 
                                   await actions.answerBrowserAsk(approval.id, { done: true });
-                              })}>Done</button>`
-                        : html`<button class="button primary" disabled=${busy || !filled} onClick=${() => send({ values, remember })}>${form.kind === "code" ? "Enter code" : "Sign in"}</button>`)
+                              })}>${t("Done")}</button>`
+                        : html`<button class="button primary" disabled=${busy || !filled} onClick=${() => send({ values, remember })}>${form.kind === "code" ? t("Enter code") : t("Sign in")}</button>`)
                 }
             </div>`
         }
@@ -1540,18 +1535,18 @@ function BoardModeCard({ approval }) {
         <div class="approval-head">
             <span class="approval-shield" aria-hidden="true"><${Icon} name="board" size=${16} /></span>
             <div class="approval-title">
-                <span class="approval-ask">Track this on the board?</span>
+                <span class="approval-ask">${t("Track this on the board?")}</span>
                 <span class="approval-reason">${approval.reason}</span>
             </div>
         </div>
-        <div class="muted small">${approval.subject}. Yes turns board mode on for this session; the session menu turns it off.</div>
+        <div class="muted small">${t("{subject}. Yes turns board mode on for this session; the session menu turns it off.", { subject: approval.subject })}</div>
         ${
             canSteer()
                 ? html`<div class="approval-actions">
-                      <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>Not now</button>
-                      <button class="button primary" disabled=${busy} onClick=${() => answer(true)}>Yes, use the board</button>
+                      <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>${t("Not now")}</button>
+                      <button class="button primary" disabled=${busy} onClick=${() => answer(true)}>${t("Yes, use the board")}</button>
                   </div>`
-                : html`<div class="muted small">Waiting for someone who can steer to answer.</div>`
+                : html`<div class="muted small">${t("Waiting for someone who can steer to answer.")}</div>`
         }
     </div>`;
 }
@@ -1591,23 +1586,23 @@ function ApprovalCard({ approval }) {
         <div class="approval-head">
             <span class="approval-shield" aria-hidden="true"><${Icon} name="shield" size=${16} /></span>
             <div class="approval-title">
-                <span class="approval-ask">Pi asks before this ${approval.tool} call</span>
+                <span class="approval-ask">${tx("Pi asks before this {tool} call", { tool: approval.tool })}</span>
                 <span class="approval-reason">${approval.reason}</span>
             </div>
         </div>
         <pre class="cmd">${approval.tool === "bash" && html`<span class="cmd-sign">$ </span>`}${approval.subject}</pre>
         ${
             !canSteer()
-                ? html`<div class="muted small">Waiting for someone who can steer to answer.</div>`
+                ? html`<div class="muted small">${t("Waiting for someone who can steer to answer.")}</div>`
                 : html`${
                       ownCall &&
                       html`<div class="muted small">
-                          Someone else has to allow this: it came from your message. You can deny it.
+                          ${t("Someone else has to allow this: it came from your message. You can deny it.")}
                       </div>`
                   }
                 <div class="approval-actions">
                     <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>
-                        Deny
+                        ${t("Deny")}
                     </button>
                     ${
                         !ownCall &&
@@ -1616,7 +1611,7 @@ function ApprovalCard({ approval }) {
                             disabled=${busy}
                             onClick=${() => answer(true)}
                         >
-                            Allow
+                            ${t("Allow")}
                         </button>`
                     }
                 </div>`
@@ -1659,8 +1654,8 @@ function AnswerActions({ entry }) {
         <span class="reaction-host answer-tool">
             <button
                 class="reaction add"
-                aria-label="React"
-                title="React"
+                aria-label=${t("React")}
+                title=${t("React")}
                 onClick=${() => setPicking(!picking)}
             >
                 ☺+
@@ -1678,30 +1673,30 @@ function AnswerActions({ entry }) {
             class="answer-tool"
             onClick=${() => discuss(entry.id, plainText(text).replace(/\s+/g, " ").slice(0, 280))}
         >
-            Discuss
+            ${t("Discuss")}
         </button>
         <button
             class="answer-tool"
             onClick=${() => attempt(() => actions.pin({ entryId: entry.id }))}
         >
-            ${pinned ? html`<${Icon} name="pin" size=${12} /> Pinned` : "Pin"}
+            ${pinned ? html`<${Icon} name="pin" size=${12} /> ${t("Pinned")}` : t("Pin")}
         </button>
         <button
             class="answer-tool"
             onClick=${() =>
                 copyText(text).then(
-                    () => notify("info", "Copied."),
-                    () => notify("error", "Could not copy."),
+                    () => notify("info", t("Copied.")),
+                    () => notify("error", t("Could not copy.")),
                 )}
         >
-            Copy
+            ${t("Copy")}
         </button>
         <button
             class="answer-tool"
-            title="Fork, retry"
+            title=${t("Fork, retry")}
             onClick=${() => openSheet({ type: "message", entryId: entry.id })}
         >
-            More
+            ${t("More")}
         </button>
     </div>`;
 }
@@ -1713,10 +1708,10 @@ function AnswerEnd({ entry }) {
 
     return html`${
         entry.stopReason === "error" &&
-        html`<div class="error-box">${entry.error ?? "The model request failed."}</div>
+        html`<div class="error-box">${entry.error ?? t("The model request failed.")}</div>
             <${LimitSwitch} error=${entry.error} />`
     }
-    ${entry.stopReason === "aborted" && html`<div class="muted small">Stopped.</div>`}
+    ${entry.stopReason === "aborted" && html`<div class="muted small">${t("Stopped.")}</div>`}
     ${answer && html`<${AnswerActions} entry=${entry} />`}`;
 }
 
@@ -1750,25 +1745,25 @@ function Divider({ entry }) {
     if (entry.kind === "fromPi") {
         // A teammate's shared session continued here (Continue in mine, PP-59): its file is named shared-…
         if (String(entry.file ?? "").startsWith("shared-")) {
-            return html`<div class="divider"><span>Continued from a session shared with you</span></div>`;
+            return html`<div class="divider"><span>${t("Continued from a session shared with you")}</span></div>`;
         }
 
         return html`<div class="divider">
-            <span>Continued from Pi in the terminal</span>
+            <span>${t("Continued from Pi in the terminal")}</span>
             <div class="muted small mono">${entry.file}</div>
         </div>`;
     }
 
     if (entry.kind === "reset") {
         return html`<div class="divider">
-            <span>New context</span>
+            <span>${t("New context")}</span>
             ${entry.text && html`<div class="divider-body"><${Markdown} text=${entry.text} /></div>`}
         </div>`;
     }
 
     return html`<div class="divider">
         <button class="link" onClick=${() => setOpen(!open)}>
-            Context compacted ${open ? "▾" : "▸"}
+            ${t("Context compacted")} ${open ? "▾" : "▸"}
         </button>
         ${open && html`<div class="divider-body"><${Markdown} text=${entry.summary} /></div>`}
     </div>`;
@@ -1789,7 +1784,7 @@ function History({ firstId, results, keepPlace, conversationId }) {
                         store.set({ history: earlier });
                     })}
             >
-                Show earlier messages
+                ${t("Show earlier messages")}
             </button>
         </div>`;
     }
@@ -1809,10 +1804,10 @@ function History({ firstId, results, keepPlace, conversationId }) {
 
 /** How a command someone ran ended, when that is worth saying. */
 const SHELL_ENDS = {
-    timeout: "timed out",
-    failed: "could not run",
-    interrupted: "cut off by a restart",
-    stopped: "stopped",
+    timeout: () => t("timed out"),
+    failed: () => t("could not run"),
+    interrupted: () => t("cut off by a restart"),
+    stopped: () => t("stopped"),
 };
 
 /** How many of a command's last lines show before "Show all". */
@@ -1846,7 +1841,7 @@ function OutputCard({ entry, command, meta, failed = false, longCommand = false,
             ${
                 (long || longCommand) &&
                 html`<button class="link small" onClick=${() => setOpen(!open)}>
-                    ${open ? "Show less" : long ? `Show all ${lines.length} lines` : "Show all"}
+                    ${open ? t("Show less") : long ? t("Show all {n} lines", { n: lines.length }) : t("Show all")}
                 </button>`
             }
             ${
@@ -1860,7 +1855,7 @@ function OutputCard({ entry, command, meta, failed = false, longCommand = false,
                             setOpen(true);
                         })}
                 >
-                    Load everything
+                    ${t("Load everything")}
                 </button>`
             }
             ${
@@ -1873,10 +1868,10 @@ function OutputCard({ entry, command, meta, failed = false, longCommand = false,
 
                             setFull(text);
                             await copyText(text);
-                            notify("info", "Copied the output.");
+                            notify("info", t("Copied the output."));
                         })}
                 >
-                    Copy output
+                    ${t("Copy output")}
                 </button>`
             }
         </div>
@@ -1888,7 +1883,7 @@ function CommandEntry({ entry }) {
     return html`<${OutputCard}
         entry=${entry}
         command=${`/${entry.command}`}
-        meta=${`${entry.name} · not shown to Pi${entry.clipped ? " · only the end is kept" : ""}`}
+        meta=${`${entry.name} · ${t("not shown to Pi")}${entry.clipped ? ` · ${t("only the end is kept")}` : ""}`}
         copy=${true}
     />`;
 }
@@ -1901,13 +1896,13 @@ function ShellEntry({ entry }) {
         entry.status === "done"
             ? entry.code === 0
                 ? ""
-                : `exit ${entry.code}`
-            : SHELL_ENDS[entry.status];
+                : t("exit {code}", { code: entry.code })
+            : SHELL_ENDS[entry.status]?.();
 
     return html`<${OutputCard}
         entry=${entry}
         command=${`$ ${entry.command}`}
-        meta=${`${entry.name}${end ? ` · ${end}` : ""}${entry.context ? "" : " · not shown to Pi"}`}
+        meta=${`${entry.name}${end ? ` · ${end}` : ""}${entry.context ? "" : ` · ${t("not shown to Pi")}`}`}
         failed=${Boolean(end)}
         longCommand=${longCommand}
     />`;
@@ -1916,7 +1911,7 @@ function ShellEntry({ entry }) {
 /** Something a person did that Pi was told about, such as undoing a file. */
 function NoteEntry({ entry }) {
     return html`<div class="note-line" id=${`entry-${entry.id}`}>
-        ${entry.name} ${entry.text}. <span class="muted">Pi was told.</span>
+        ${entry.name} ${entry.text}. <span class="muted">${t("Pi was told.")}</span>
     </div>`;
 }
 
@@ -1965,12 +1960,12 @@ function PendingShells({ conversationId, rows }) {
             <div class="shell-card">
                 <div class="shell-head">
                     <span class="mono shell-command">$ ${each.command}</span>
-                    <span class="muted small"><${Spinner} /> running</span>
+                    <span class="muted small"><${Spinner} /> ${t("running")}</span>
                     <button
                         class="link small"
                         onClick=${() => attempt(() => actions.stopShell(each.taskId))}
                     >
-                        Stop
+                        ${t("Stop")}
                     </button>
                 </div>
             </div>
@@ -2216,7 +2211,7 @@ function Items({ items, results, slots, approvals, busy, past = false, conversat
         return [
             group,
             html`<div key=${`${item.key}:stopped`} class="reply" data-part="reply">
-                <div class="muted small">Stopped.</div>
+                <div class="muted small">${t("Stopped.")}</div>
             </div>`,
         ];
     });
@@ -2393,16 +2388,16 @@ function LiveThought({ generation, entries, id }) {
 
     const empty = text === "";
     const streaming = thought?.streaming && !empty;
-    const label = empty ? "Thinking" : thought.writing ? "Current thought" : "Latest thought";
+    const label = empty ? t("Thinking") : thought.writing ? t("Current thought") : t("Latest thought");
     const shown = !empty
         ? text
         : thought?.block.redacted
-          ? "The model has hidden its thinking."
+          ? t("The model has hidden its thinking.")
           : generation !== undefined && generation.message === undefined
-            ? "Waiting for thinking text…"
-            : "No thinking text shared for this response.";
+            ? t("Waiting for thinking text…")
+            : t("No thinking text shared for this response.");
 
-    return html`<section class="live-thought" id=${id} aria-label="Pi's thinking">
+    return html`<section class="live-thought" id=${id} aria-label=${t("Pi's thinking")}>
         <div class="live-thought-label">${label}</div>
         <div
             class=${`live-thought-text ${empty ? "is-empty" : ""} ${streaming ? "streaming" : ""}`}
@@ -2473,15 +2468,15 @@ function LiveLine({ live, approvals, start, entries, conversationId }) {
     let state;
 
     if (waiting) {
-        state = canAnswer(approvals) ? "Waiting for your approval" : "Waiting for approval";
+        state = canAnswer(approvals) ? t("Waiting for your approval") : t("Waiting for approval");
     } else if (retry) {
-        state = "Retrying";
+        state = t("Retrying");
     } else if ((live.compactions ?? []).length > 0) {
-        state = "Compacting context";
+        state = t("Compacting context");
     } else if (working || (partial.length > 0 && partial.at(-1).type !== "thinking")) {
-        state = "Working";
+        state = t("Working");
     } else {
-        state = "Thinking";
+        state = t("Thinking");
     }
 
     const thoughtId = `live-thought-${conversationId}`;
@@ -2499,14 +2494,14 @@ function LiveLine({ live, approvals, start, entries, conversationId }) {
                 class=${`live-fold ${open ? "open" : ""}`}
                 aria-expanded=${open}
                 aria-controls=${thoughtId}
-                aria-label=${open ? "Hide Pi's thinking" : "Show Pi's thinking"}
-                title=${open ? "Hide Pi's thinking" : "Show Pi's thinking"}
+                aria-label=${open ? t("Hide Pi's thinking") : t("Show Pi's thinking")}
+                title=${open ? t("Hide Pi's thinking") : t("Show Pi's thinking")}
                 onClick=${fold}
             ><${Icon} name="chevron" size=${14} class="chev" /></button>`
         }
         <span class="live-dot" data-part="live-mark" aria-hidden="true"></span>
         <span class="live-state" role="status">
-            ${state}${retry && !waiting && seconds > 0 && html`<span aria-hidden="true"> in ${seconds}s</span>`}
+            ${state}${retry && !waiting && seconds > 0 && html`<span aria-hidden="true"> ${t("in {n}s", { n: seconds })}</span>`}
         </span>
         ${start !== undefined && html`<span class="live-time" aria-hidden="true">${span(Date.now() - start)}</span>`}
         ${
@@ -2523,7 +2518,7 @@ function LiveLine({ live, approvals, start, entries, conversationId }) {
             live.busy &&
             canSteer() &&
             !COARSE.matches &&
-            html`<span class="live-esc" title="Press Esc twice">Esc stops</span>`
+            html`<span class="live-esc" title=${t("Press Esc twice")}>${t("Esc stops")}</span>`
         }
     </div>`;
 }
@@ -2720,7 +2715,7 @@ export function Transcript() {
         return html`<main class="scroller">
             <div class="empty">
                 <p>${missing}</p>
-                <button class="button" onClick=${() => navigate(null)}>All sessions</button>
+                <button class="button" onClick=${() => navigate(null)}>${t("All sessions")}</button>
             </div>
         </main>`;
     }
@@ -2789,16 +2784,16 @@ export function Transcript() {
                 sessionsLoaded &&
                 (source
                     ? html`<button class="breadcrumb" onClick=${() => navigate(source.id)}>
-                        <${Icon} name="fork" size=${14} /> Forked from ${source.title ?? "New session"}
+                        <${Icon} name="fork" size=${14} /> ${t("Forked from {title}", { title: source.title ?? t("New session") })}
                     </button>`
                     : html`<p class="muted small">
-                        <${Icon} name="fork" size=${14} /> Forked from another session
+                        <${Icon} name="fork" size=${14} /> ${t("Forked from another session")}
                     </p>`)
             }
             ${
                 start > 0
                     ? html`<div class="divider">
-                        <button class="link" onClick=${showEarlier}>Show earlier messages</button>
+                        <button class="link" onClick=${showEarlier}>${t("Show earlier messages")}</button>
                     </div>`
                     : first &&
                       (first.kind === "compaction" || first.kind === "reset") &&
@@ -2815,7 +2810,7 @@ export function Transcript() {
                 html`<div class="empty hint">
                     <div class="pi"><img class="brand-icon" src="icon.svg" alt="" /></div>
                     <p>
-                        ${conversation.kind === "subagent" ? "This subagent has no messages yet." : "Ask anything. Pi works in this session's folder, and keeps working if the server restarts."}
+                        ${conversation.kind === "subagent" ? t("This subagent has no messages yet.") : t("Ask anything. Pi works in this session's folder, and keeps working if the server restarts.")}
                     </p>
                 </div>`
             }
@@ -2849,7 +2844,7 @@ export function Transcript() {
             showJump &&
             html`<button
                 class="jump"
-                aria-label="To the bottom"
+                aria-label=${t("To the bottom")}
                 onClick=${() => {
                     stick.current = true;
                     toBottom(scroller.current);

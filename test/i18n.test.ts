@@ -38,6 +38,29 @@ test("sentences come from the catalog with their placeholders; one it lacks stay
     assert.equal(timeAgo(Date.now() - 2 * 3_600_000), "2h");
 });
 
+test("what a group of calls did reads as whole phrases in Chinese, joined as Chinese joins a list (PP-84)", async () => {
+    // @ts-expect-error: plain JS, no types.
+    const { summarize } = await import("../web/turns.js");
+    const call = (name: string, args: Record<string, unknown>, id: string) => ({ block: { type: "toolCall", name, args, id } });
+    const steps = [
+        { block: { type: "thinking" } },
+        call("read", { path: "a.ts" }, "1"),
+        call("read", { path: "b.ts" }, "2"),
+        call("bash", { command: "ls" }, "3"),
+        call("some_extension_tool", {}, "4"),
+    ];
+
+    assert.equal(summarize(steps, false), "Thought, read 2 files, ran 1 command, used some_extension_tool");
+    useCatalog("zh-CN", JSON.parse(readFileSync(new URL("../web/i18n/zh-CN.json", import.meta.url), "utf8")));
+
+    try {
+        assert.equal(summarize(steps, false), "思考了、读取了 2 个文件、运行了 1 条命令和使用了 some_extension_tool");
+        assert.equal(summarize([{ block: { type: "thinking" } }], true), "正在思考");
+    } finally {
+        useCatalog("en", {});
+    }
+});
+
 test("the language: a choice, else the browser's when the app speaks it, else English", () => {
     assert.equal(resolveLanguage("zh-CN", ["en-US"]), "zh-CN");
     assert.equal(resolveLanguage("auto", ["zh-TW", "en"]), "zh-CN", "Chinese of any script reads Simplified for now");

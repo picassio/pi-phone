@@ -1,6 +1,8 @@
 // How the transcript reads a conversation, without drawing it: Pi's answers split into runs of words and groups of
 // thinking and tool calls (`itemsOf`), what a group did in a line (`summarize`), and what a call came to, read from what
-// its tool printed. Pure functions with no imports, so `test/turns.test.ts` runs them in Node; transcript.js draws them.
+// its tool printed. Pure functions, importing only the app's words (`i18n.js`, English unless a page chose another), so
+// `test/turns.test.ts` runs them in Node; transcript.js draws them.
+import { currentLanguage, t, tn } from "./i18n.js";
 
 export const short = (text, max = 160) => {
     const flat = String(text ?? "")
@@ -91,8 +93,8 @@ export function testOutcome(text, command = "") {
             : Number(/\b(?:in|Duration|Time:)\s+([\d.]+)\s?s\b/.exec(text)?.[1] ?? NaN);
 
     return [
-        `${passed} passed`,
-        failed !== undefined && Number(failed) > 0 && `${failed} failed`,
+        t("{n} passed", { n: passed }),
+        failed !== undefined && Number(failed) > 0 && t("{n} failed", { n: failed }),
         Number.isFinite(seconds) && `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`,
     ]
         .filter(Boolean)
@@ -104,15 +106,15 @@ export function shortError(text) {
     const exit = /(?:exited with code|exit code:?) (\d+)/i.exec(text);
 
     if (exit) {
-        return `exit ${exit[1]}`;
+        return t("exit {code}", { code: exit[1] });
     }
 
     if (/timed out/i.test(text)) {
-        return "timed out";
+        return t("timed out");
     }
 
     if (/\b(?:Command|Operation|was) aborted\b/.test(text)) {
-        return "stopped";
+        return t("stopped");
     }
 
     // The first line that says something: not a tag around the harness's own errors ("<harness>"), nor its "[error]".
@@ -153,6 +155,9 @@ const DID = {
     session_follow: { verb: "followed", noun: "session", by: "session" },
     session_stop: { verb: "stopped", noun: "session", by: "session" },
     session_archive: { verb: "archived", noun: "session", by: "session" },
+    session_fork: { verb: "forked", noun: "session", by: "session" },
+    session_new_context: { verb: "started a new context in", noun: "session", by: "session" },
+    session_compact: { verb: "compacted", noun: "session", by: "session" },
     session_schedule: { verb: "scheduled", noun: "message" },
     schedule: { verb: "scheduled", noun: "reminder" },
     approvals: { verb: "checked approvals" },
@@ -252,6 +257,99 @@ function byAction(name, args) {
     return undefined;
 }
 
+/**
+ * What each kind of call did, as a whole phrase with its count, for languages other than English (PP-84): the same kinds
+ * as `DID` and `byAction`, by verb and noun. English builds its line from the pieces instead (`summarize`).
+ */
+const PHRASES = {
+    thought: () => t("thought"),
+    thinking: () => t("thinking"),
+    "read|file": (n) => tn(n, "read {n} file", "read {n} files"),
+    "edited|file": (n) => tn(n, "edited {n} file", "edited {n} files"),
+    "wrote|file": (n) => tn(n, "wrote {n} file", "wrote {n} files"),
+    "ran|command": (n) => tn(n, "ran {n} command", "ran {n} commands"),
+    "ran|script": (n) => tn(n, "ran {n} script", "ran {n} scripts"),
+    "ran|subagent": (n) => tn(n, "ran {n} subagent", "ran {n} subagents"),
+    "ran|task": (n) => tn(n, "ran {n} task", "ran {n} tasks"),
+    searched: () => t("searched"),
+    "listed|folder": (n) => tn(n, "listed {n} folder", "listed {n} folders"),
+    "used the browser": () => t("used the browser"),
+    "published|artifact": (n) => tn(n, "published {n} artifact", "published {n} artifacts"),
+    "looked over sessions": () => t("looked over sessions"),
+    "read|session": (n) => tn(n, "read {n} session", "read {n} sessions"),
+    "started|session": (n) => tn(n, "started {n} session", "started {n} sessions"),
+    "messaged|session": (n) => tn(n, "messaged {n} session", "messaged {n} sessions"),
+    "followed|session": (n) => tn(n, "followed {n} session", "followed {n} sessions"),
+    "stopped|session": (n) => tn(n, "stopped {n} session", "stopped {n} sessions"),
+    "archived|session": (n) => tn(n, "archived {n} session", "archived {n} sessions"),
+    "forked|session": (n) => tn(n, "forked {n} session", "forked {n} sessions"),
+    "started a new context in|session": (n) => tn(n, "started a new context in {n} session", "started a new context in {n} sessions"),
+    "compacted|session": (n) => tn(n, "compacted {n} session", "compacted {n} sessions"),
+    "scheduled|message": (n) => tn(n, "scheduled {n} message", "scheduled {n} messages"),
+    "scheduled|reminder": (n) => tn(n, "scheduled {n} reminder", "scheduled {n} reminders"),
+    "checked schedules": () => t("checked schedules"),
+    "cancelled|reminder": (n) => tn(n, "cancelled {n} reminder", "cancelled {n} reminders"),
+    "cancelled|message": (n) => tn(n, "cancelled {n} message", "cancelled {n} messages"),
+    "checked approvals": () => t("checked approvals"),
+    "denied|call": (n) => tn(n, "denied {n} call", "denied {n} calls"),
+    "asked|set of questions": (n) => tn(n, "asked {n} set of questions", "asked {n} sets of questions"),
+    "searched the web": () => t("searched the web"),
+    "read|page": (n) => tn(n, "read {n} page", "read {n} pages"),
+    "read|document": (n) => tn(n, "read {n} document", "read {n} documents"),
+    "asked to use the board": () => t("asked to use the board"),
+    "checked the boards": () => t("checked the boards"),
+    "made|project": (n) => tn(n, "made {n} project", "made {n} projects"),
+    "listed tasks": () => t("listed tasks"),
+    "read|task": (n) => tn(n, "read {n} task", "read {n} tasks"),
+    "added|task": (n) => tn(n, "added {n} task", "added {n} tasks"),
+    "updated|task": (n) => tn(n, "updated {n} task", "updated {n} tasks"),
+    "commented on|task": (n) => tn(n, "commented on {n} task", "commented on {n} tasks"),
+    "deleted|task": (n) => tn(n, "deleted {n} task", "deleted {n} tasks"),
+    "withdrew the run of|task": (n) => tn(n, "withdrew the run of {n} task", "withdrew the runs of {n} tasks"),
+    "read the diff of|task": (n) => tn(n, "read the diff of {n} task", "read the diffs of {n} tasks"),
+    "merged|task": (n) => tn(n, "merged {n} task", "merged {n} tasks"),
+    "linked a session to|task": (n) => tn(n, "linked a session to {n} task", "linked sessions to {n} tasks"),
+    "shared|project": (n) => tn(n, "shared {n} project", "shared {n} projects"),
+    "deleted|project": (n) => tn(n, "deleted {n} project", "deleted {n} projects"),
+    "changed|project": (n) => tn(n, "changed {n} project", "changed {n} projects"),
+    "started the main session of|project": (n) => tn(n, "started the main session of {n} project", "started the main sessions of {n} projects"),
+    "checked its secrets": () => t("checked its secrets"),
+    "asked for|secret": (n) => tn(n, "asked for {n} secret", "asked for {n} secrets"),
+    "saved|secret": (n) => tn(n, "saved {n} secret", "saved {n} secrets"),
+    "saved|lesson": (n) => tn(n, "saved {n} lesson", "saved {n} lessons"),
+    "read its lessons": () => t("read its lessons"),
+    "changed|lesson": (n) => tn(n, "changed {n} lesson", "changed {n} lessons"),
+    "forgot|lesson": (n) => tn(n, "forgot {n} lesson", "forgot {n} lessons"),
+    "watched|pull request": (n) => tn(n, "watched {n} pull request", "watched {n} pull requests"),
+    "stopped watching the PR": () => t("stopped watching the PR"),
+    "checked the PR watch": () => t("checked the PR watch"),
+    "set up|repository watch": (n) => tn(n, "set up {n} repository watch", "set up {n} repository watches"),
+    "removed|repository watch": (n) => tn(n, "removed {n} repository watch", "removed {n} repository watches"),
+    "checked repository watches": () => t("checked repository watches"),
+    "checked on subagents": () => t("checked on subagents"),
+};
+
+/**
+ * A group's calls in a line in the person's language (not English): one phrase per kind, joined as the language joins a
+ * list. A kind no phrase names (an extension's own, a tool `DID` does not know) says its verb and noun as they are.
+ */
+function summarizeIn(language, did) {
+    const parts = [...did].flatMap(([verb, nouns]) => {
+        if (nouns.size === 0) {
+            return [PHRASES[verb]?.() ?? (verb.startsWith("used ") ? t("used {tool}", { tool: verb.slice(5) }) : verb)];
+        }
+
+        return [...nouns].map(([noun, things]) => {
+            const count = things.size;
+            const phrase = PHRASES[`${verb}|${noun}`];
+
+            return phrase === undefined ? tn(count, "{verb} {n} {noun}", "{verb} {n} {noun}s", { verb, noun }) : phrase(count);
+        });
+    });
+
+    return new Intl.ListFormat(language, { type: "conjunction" }).format(parts);
+}
+
 /** Several things in a sentence: "a, b and c". */
 const sentence = (parts) =>
     parts.length < 2 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
@@ -298,6 +396,11 @@ export function summarize(steps, thinking) {
             things.add(typeof by === "string" || typeof by === "number" ? String(by) : call.id);
             nouns.set(kind.noun, things);
         }
+    }
+
+    if (currentLanguage() !== "en") {
+        // A thought still being written, with nothing else done yet, is "thinking" there too.
+        return summarizeIn(currentLanguage(), did.size === 1 && did.has("thought") && thinking ? new Map([["thinking", new Map()]]) : did);
     }
 
     let before = null;
