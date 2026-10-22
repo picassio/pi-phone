@@ -15,6 +15,7 @@ import { makeAuth } from "../src/gateway/auth.ts";
 import { BoardService } from "../src/gateway/boards.ts";
 import { DocService } from "../src/gateway/docs.ts";
 import { type ControllerClient, Gateway } from "../src/gateway/server.ts";
+import { TeamAccounts } from "../src/gateway/team-accounts.ts";
 import { GatewayStore } from "../src/gateway/store.ts";
 import { type Actor, type Person, Projects, type Run, type Task } from "../src/server/projects.ts";
 import { type RemoteBoards, remoteBoards } from "../src/server/remote-boards.ts";
@@ -54,7 +55,7 @@ before(async () => {
     service.onChange((projectId) => pushes.push(projectId));
     service.onAssignedToPi((task) => toPi.push(task));
 
-    const gateway = new Gateway({ auth, store, controller, boards: service, docs: new DocService(store, service, dir), origin, log: () => undefined });
+    const gateway = new Gateway({ auth, store, controller, boards: service, docs: new DocService(store, service, dir), teamAccounts: new TeamAccounts(store, dir), origin, log: () => undefined });
 
     internal = createServer((request, response) => void gateway.internal(request, response));
     await new Promise<void>((resolve) => internal.listen(0, "127.0.0.1", resolve));

@@ -42,6 +42,12 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
   - **Ending it:** unsharing, disabling the sharer, or removing either account ends access at once.
   - **Continue in mine** copies a shared session into the teammate's own pi-phone, on their own providers.
   - **Audit log:** share, unshare and continue are recorded.
+- **Team accounts** (Providers › Add team account, in a pi-phone of someone with `providers.manage`):
+  - A provider's API key or subscription sign-in, set up once for the team; several per provider ("Work", "Research").
+  - The sign-in runs on the gateway, its steps shown in the person's Providers sheet; the key or token is kept only in the
+    gateway's `team-providers/auth.json` (mode 600, in the gateway's volume and its backups), never in a person's pi-phone.
+  - Adding a subscription warns that it is licensed to one person. Added, signed in, renamed, signed out and removed
+    accounts are in the Audit log.
 - **Updates roll out by themselves:** after `docker compose ... up -d --build` makes a new image, people's running
   pi-phones are made again from it one at a time, each when Pi isn't at work there. Stopped ones are made again when they
   next start. Their data (the volume) is kept, and an open page reconnects in a few seconds. The Server page shows how

@@ -24,6 +24,7 @@ import { type GatewayStore, INVITE_MINUTES, type PersonBox, type SpaceLevel, typ
 import { type TarEntry, tarStream } from "./tar.ts";
 import type { BoardService } from "./boards.ts";
 import type { DocService } from "./docs.ts";
+import type { TeamAccounts } from "./team-accounts.ts";
 import type { Task } from "../server/projects.ts";
 import { HttpError } from "../server/errors.ts";
 
@@ -49,6 +50,8 @@ export type GatewayOptions = {
     boards: BoardService;
     /** Team and project documents (PP-46). */
     docs: DocService;
+    /** The team's provider accounts (PP-69), opened. */
+    teamAccounts: TeamAccounts;
     /** The address people open: `https://…`. */
     origin: string;
     log: (line: string) => void;
@@ -479,6 +482,11 @@ export class Gateway {
                 return json(response, 200, { value: await this.#shares(box, await readBody(request)) });
             }
 
+            // The team's provider accounts (PP-69): listed by what this person may use, managed with providers.manage.
+            if (path === "/internal/team-accounts" && request.method === "POST") {
+                return json(response, 200, { value: await this.#teamAccounts(box, (await readBody(request)) as Record<string, unknown>) });
+            }
+
             if (path === "/internal/boards" && request.method === "POST") {
                 const body = await readBody(request);
 
@@ -495,6 +503,108 @@ export class Gateway {
             this.#options.log(`gateway: internal ${path}: ${String(error)}`);
 
             return json(response, 500, { error: "The gateway could not answer." });
+        }
+    }
+
+    /**
+     * The team's provider accounts (PP-69), as `box`'s person may see and change them. Everyone sees the ones their role may
+     * use (the owner's: all); someone with providers.manage sees all, and adds, signs in, renames, signs out and removes
+     * them. Sign-ins run here; their steps wait for this pi-phone to fetch them (`wait`) and answer them.
+     */
+    async #teamAccounts(box: PersonBox, asked: Record<string, unknown>): Promise<unknown> {
+        const store = this.#options.store;
+        const accounts = this.#options.teamAccounts;
+        const me = store.users().find((each) => each.id === box.userId);
+
+        if (me === undefined || me.banned || !store.can(me.id, me.role, "pi.use")) {
+            throw new HttpError(403, "This pi-phone's person can't use the team's accounts.");
+        }
+
+        const manage = store.can(me.id, me.role, "providers.manage");
+        const role = store.roleOf(me.id, me.role);
+        const mayUse = (id: string) => role.builtin || (role.teamAccounts ?? []).includes(id);
+        const action = String(asked.action ?? "");
+        const id = String(asked.id ?? "");
+        const flowId = String(asked.flowId ?? "");
+
+        if (action === "list") {
+            // Which roles use each, by name: for whoever manages them.
+            const roles = store.roles().filter((each) => !each.builtin);
+
+            return {
+                manage,
+                accounts: accounts
+                    .list()
+                    .filter((account) => manage || mayUse(account.id))
+                    .map((account) => ({ ...account, roles: roles.filter((each) => (each.teamAccounts ?? []).includes(account.id)).map((each) => each.name) })),
+            };
+        }
+
+        // A sign-in this person started: its next steps, and their answers.
+        if (action === "wait") {
+            return await accounts.wait(flowId, me.id, Number(asked.after ?? 0));
+        }
+
+        if (action === "answer") {
+            accounts.answer(flowId, me.id, String(asked.promptId ?? ""), asked.value === undefined || asked.value === null ? undefined : String(asked.value));
+
+            return { ok: true };
+        }
+
+        if (action === "cancel") {
+            accounts.cancel(flowId, me.id);
+
+            return { ok: true };
+        }
+
+        if (!manage) {
+            throw new HttpError(403, `${role.name} does not include managing the team's provider accounts: ask your team's owner.`);
+        }
+
+        const named = (accountId: string) => {
+            const account = accounts.get(accountId);
+
+            return account === undefined ? accountId : `${accounts.runtime.getProvider(account.provider)?.name ?? account.provider} · Team ${account.name}`;
+        };
+
+        switch (action) {
+            case "add": {
+                const account = accounts.add(asked.provider, asked.name, me.id);
+
+                store.audit(me.id, "team account added", named(account.id));
+
+                return { account };
+            }
+            case "rename": {
+                const before = named(id);
+                const account = accounts.rename(id, asked.name);
+
+                store.audit(me.id, "team account renamed", named(id), { from: before });
+
+                return { account };
+            }
+            case "login": {
+                const type = asked.type === "oauth" ? "oauth" : "api_key";
+
+                store.audit(me.id, "team account sign-in", named(id), { how: type === "oauth" ? "subscription" : "API key" });
+
+                return { flowId: accounts.startLogin(id, me.id, type) };
+            }
+            case "logout":
+                await accounts.logout(id);
+                store.audit(me.id, "team account signed out", named(id));
+
+                return { ok: true };
+            case "remove": {
+                const name = named(id);
+
+                await accounts.remove(id);
+                store.audit(me.id, "team account removed", name);
+
+                return { ok: true };
+            }
+            default:
+                throw new HttpError(400, "No such action on team accounts.");
         }
     }
 

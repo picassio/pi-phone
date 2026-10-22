@@ -4,11 +4,13 @@ import { join } from "node:path";
 import { BoardService } from "../src/gateway/boards.ts";
 import { DocService } from "../src/gateway/docs.ts";
 import type { GatewayStore } from "../src/gateway/store.ts";
+import { TeamAccounts } from "../src/gateway/team-accounts.ts";
 import { root } from "./helpers.ts";
 
-export function served(store: GatewayStore): { boards: BoardService; docs: DocService } {
+/** The services a test gateway needs; its team accounts are made, and opened only by tests that use them. */
+export function served(store: GatewayStore): { boards: BoardService; docs: DocService; teamAccounts: TeamAccounts } {
     const dir = mkdtempSync(join(root, "gw-boards-"));
     const boards = new BoardService(store, dir);
 
-    return { boards, docs: new DocService(store, boards, dir) };
+    return { boards, docs: new DocService(store, boards, dir), teamAccounts: new TeamAccounts(store, dir) };
 }

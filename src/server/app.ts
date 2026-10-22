@@ -8,6 +8,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { Accounts } from "./accounts.ts";
+import { TeamAccountsClient } from "./team-accounts.ts";
 import { PhoneSettingsFile } from "./phone-settings.ts";
 import { UsageLimits } from "./usage-limits.ts";
 import { rmSync } from "node:fs";
@@ -381,6 +382,8 @@ export class PocketApp {
     readonly machines: Machines;
     /** More accounts of a subscription provider, each a provider of its own (`accounts.ts`). */
     readonly accounts: Accounts;
+    /** The team's provider accounts on the team server (`team-accounts.ts`, PP-69). */
+    readonly teamAccounts: TeamAccountsClient;
     /** The subscription accounts' plan limits (`usage-limits.ts`). */
     readonly usageLimits: UsageLimits;
     /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
@@ -464,6 +467,14 @@ export class PocketApp {
         );
         this.places = new Places(this.machines, () => this.#toolPath());
         this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
+        // A team account's sign-in steps go to this pi-phone's person, as their own sign-ins' do (not to teammates).
+        this.teamAccounts = new TeamAccountsClient(this.#teamServer, (data) => {
+            for (const client of this.clients) {
+                if (client.user.role === "owner") {
+                    client.send("auth", data);
+                }
+            }
+        });
         const phoneSettings = new PhoneSettingsFile(options.dataDir);
 
         this.phoneSettings = phoneSettings;

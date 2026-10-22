@@ -16830,3 +16830,27 @@ pre.gallery-code {
         white-space: normal;
     }
 }
+
+/* A team account in Providers (PP-69): marked TEAM, as the mockup shows, under its provider like an account. */
+.pv-team-tag {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 7px;
+    border: 1px solid var(--accent-line);
+    border-radius: 999px;
+    color: var(--accent);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: 2px;
+}
+
+/* Adding a team account of a provider with a subscription sign-in: a subscription is one person's. */
+.provider .pv-team-warn {
+    margin: 12px 0 0;
+    padding: 8px 10px;
+    border: 1px solid var(--warn-line);
+    border-radius: var(--r-row);
+    background: var(--warn-soft);
+    color: var(--text);
+}

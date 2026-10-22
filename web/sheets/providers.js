@@ -215,6 +215,39 @@ export function ProvidersSheet() {
             setName("");
             load();
         });
+    // The team's accounts (PP-69): on the team server, managed there; these call its routes through this pi-phone.
+    const [addingTeam, setAddingTeam] = useState(null);
+    const addTeamAccount = (provider) =>
+        attempt(async () => {
+            await api("team-accounts", { provider: provider.id, name });
+            setAddingTeam(null);
+            setName("");
+            load();
+        });
+    const renameTeamAccount = (provider) =>
+        attempt(async () => {
+            await api(`team-accounts/${encodeURIComponent(provider.id)}`, { name });
+            setRenaming(null);
+            setName("");
+            load();
+        });
+    const teamLogin = (provider, type, button) => {
+        loginButton.current = button;
+
+        return attempt(() => api(`team-accounts/${encodeURIComponent(provider.id)}/login`, { type, name: provider.name }));
+    };
+    const teamLogout = (provider) =>
+        confirm(`Sign the team account “${provider.account.name}” out? Everyone using its models needs another until it is signed in again.`) &&
+        attempt(async () => {
+            await api(`team-accounts/${encodeURIComponent(provider.id)}/logout`, {});
+            load();
+        });
+    const removeTeamAccount = (provider) =>
+        confirm(`Remove the team account “${provider.account.name}”? Its sign-in is deleted, and everyone's sessions on its models need another model.`) &&
+        attempt(async () => {
+            await api(`team-accounts/${encodeURIComponent(provider.id)}/remove`, {});
+            load();
+        });
     const removeAccount = (provider) =>
         confirm(`Remove the account “${provider.account.name}”? It is signed out, and sessions on its models need another model.`) &&
         attempt(async () => {
@@ -230,10 +263,10 @@ export function ProvidersSheet() {
             maxlength="40"
             value=${name}
             onInput=${(event) => setName(event.currentTarget.value)}
-            onKeyDown=${(event) => (event.key === "Enter" ? onSave() : event.key === "Escape" && (setAdding(null), setRenaming(null)))}
+            onKeyDown=${(event) => (event.key === "Enter" ? onSave() : event.key === "Escape" && (setAdding(null), setAddingTeam(null), setRenaming(null)))}
         />
         <button class="button small primary" disabled=${name.trim() === ""} onClick=${onSave}>Save</button>
-        <button class="button small" onClick=${() => (setAdding(null), setRenaming(null), setName(""))}>Cancel</button>
+        <button class="button small" onClick=${() => (setAdding(null), setAddingTeam(null), setRenaming(null), setName(""))}>Cancel</button>
     </div>`;
 
     return html`<${Sheet} title="Providers" onClose=${closeSheet}>
@@ -268,7 +301,17 @@ export function ProvidersSheet() {
                 </div>`
             }
             ${list.map(
-                (provider) => html`<div class=${`provider ${provider.account ? "account" : ""} ${provider.account || provider.accounts ? "family" : ""}`}>
+                (provider) => provider.team ? html`<${TeamRow}
+                    provider=${provider}
+                    of=${family(provider).name}
+                    renaming=${renaming === provider.id}
+                    nameField=${nameField}
+                    onLogin=${teamLogin}
+                    onLogout=${teamLogout}
+                    onRename=${() => (setAdding(null), setAddingTeam(null), setName(provider.account.name), setRenaming(provider.id))}
+                    onRenamed=${() => renameTeamAccount(provider)}
+                    onRemove=${removeTeamAccount}
+                />` : html`<div class=${`provider ${provider.account ? "account" : ""} ${provider.account || provider.accounts ? "family" : ""}`}>
                     <div>
                         <div>
                             ${provider.account ? provider.account.name : provider.name}
@@ -289,6 +332,16 @@ export function ProvidersSheet() {
                         }
                         ${provider.configured && html`<${UsageBars} provider=${provider.id} />`}
                         ${adding === provider.id && nameField(() => addAccount(provider), "New account's name")}
+                        ${
+                            addingTeam === provider.id &&
+                            html`${nameField(() => addTeamAccount(provider), "New team account's name")}
+                                ${
+                                    provider.teamAdd === "subscription" &&
+                                    html`<p class="pv-team-warn small">
+                                        <b>A subscription is licensed to one person.</b> ${provider.name}'s plans are for one person's use: sharing one with a team may break its terms, and heavy use can get the account limited. An API key is made for this.
+                                    </p>`
+                                }`
+                        }
                         ${renaming === provider.id && nameField(() => renameAccount(provider), "Account's name")}
                     </div>
                     ${
@@ -324,8 +377,14 @@ export function ProvidersSheet() {
                             }
                             ${
                                 provider.accounts &&
-                                html`<button class="button small ghost" onClick=${() => (setRenaming(null), setName(""), setAdding(provider.id))}>
+                                html`<button class="button small ghost" onClick=${() => (setRenaming(null), setAddingTeam(null), setName(""), setAdding(provider.id))}>
                                     Add account
+                                </button>`
+                            }
+                            ${
+                                provider.teamAdd &&
+                                html`<button class="button small ghost" onClick=${() => (setRenaming(null), setAdding(null), setName(""), setAddingTeam(provider.id))}>
+                                    Add team account
                                 </button>`
                             }
                             ${
@@ -339,6 +398,43 @@ export function ProvidersSheet() {
             )}
         </div>
     <//>`;
+}
+
+/**
+ * A team account (PP-69): under its provider, like an account of the person's own, marked TEAM. Its sign-in or key is on
+ * the team server; someone who manages the team's accounts signs it in, out, renames and removes it here, and "Who can
+ * use" opens the team server's Roles. Everyone else sees it without buttons.
+ */
+function TeamRow({ provider, of, renaming, nameField, onLogin, onLogout, onRename, onRenamed, onRemove }) {
+    const { roles, manage } = provider.team;
+    const who = roles.length === 0 ? "no role uses it yet" : `${roles.join(", ")} can use`;
+
+    return html`<div class="provider account family pv-team">
+        <div>
+            <div>
+                ${provider.account.name}${" "}
+                <span class="pv-team-tag">Team</span>${" "}
+                <span class="muted small">· team account of ${of}</span>
+                ${provider.configured && html` <span class="ok">✓</span>`}
+            </div>
+            <div class="muted small">
+                ${manage ? `${provider.configured ? "signed in" : "not signed in"} · on the team server · ${provider.models} models · ${who}` : `from your team · ${provider.models} models`}
+            </div>
+            ${provider.configured && html`<${UsageBars} provider=${provider.id} />`}
+            ${renaming && nameField(onRenamed, "Team account's name")}
+        </div>
+        ${
+            manage &&
+            html`<div class="provider-actions">
+                ${provider.oauth && html`<button class="button small" onClick=${(event) => onLogin(provider, "oauth", event.currentTarget)}>${provider.oauth}</button>`}
+                ${provider.apiKey && html`<button class="button small" onClick=${(event) => onLogin(provider, "api_key", event.currentTarget)}>API key</button>`}
+                ${provider.configured && html`<button class="button small ghost" onClick=${() => onLogout(provider)}>Log out</button>`}
+                <button class="button small ghost" onClick=${onRename}>Rename</button>
+                <a class="button small ghost" href="/auth/roles" target="_top">Who can use</a>
+                <button class="button small ghost" onClick=${() => onRemove(provider)}>Remove</button>
+            </div>`
+        }
+    </div>`;
 }
 
 /** A provider signs in in place; sign-ins requested elsewhere still get their own dialog. */

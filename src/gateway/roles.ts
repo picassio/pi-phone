@@ -25,6 +25,13 @@ export const CATALOGUE = [
         },
     },
     {
+        group: "Team accounts",
+        enforced: "gateway",
+        permissions: {
+            "providers.manage": "Add, sign in and remove the team's provider accounts (a provider's sign-in or key for the whole team)",
+        },
+    },
+    {
         group: "Documents",
         enforced: "gateway",
         permissions: {
@@ -76,6 +83,8 @@ export type Role = {
     models: string[];
     /** Dollars a month its people's Pi may spend; null: no limit. */
     spendLimit: number | null;
+    /** The team accounts (`<provider>~team-<slug>`) its people may use (PP-69); the owner's role: every one. */
+    teamAccounts?: string[];
     /** The owner's role: everything, not editable. */
     builtin: boolean;
 };
@@ -100,6 +109,7 @@ export function checkRole(given: Record<string, unknown>, id: string): Role {
     const cpus = Number(given.cpus);
     const models = Array.isArray(given.models) ? given.models.map((each) => String(each).trim()).filter((each) => each !== "") : [];
     const spendLimit = given.spendLimit === null || given.spendLimit === undefined || given.spendLimit === "" ? null : Number(given.spendLimit);
+    const teamAccounts = Array.isArray(given.teamAccounts) ? [...new Set(given.teamAccounts.map((each) => String(each).trim()).filter((each) => each !== ""))] : [];
 
     if (name === "" || name.length > 40) {
         throw new Error("A role's name is 1 to 40 characters.");
@@ -127,5 +137,9 @@ export function checkRole(given: Record<string, unknown>, id: string): Role {
         throw new Error("A spend limit is 0 to 100000 dollars a month, or none.");
     }
 
-    return { id, name, permissions: permissions as Permission[], memoryMb, cpus, models, spendLimit, builtin: false };
+    if (teamAccounts.some((each) => !/^[\w.-]+~team-[a-z0-9-]+$/.test(each)) || teamAccounts.length > 100) {
+        throw new Error("Team accounts are given by their ids (provider~team-name).");
+    }
+
+    return { id, name, permissions: permissions as Permission[], memoryMb, cpus, models, spendLimit, teamAccounts, builtin: false };
 }

@@ -4,9 +4,10 @@
  * person's pi-phone: its key (the name of their container, network, and volume) and the owner token the gateway made for
  * it, which only the gateway uses.
  */
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { OWNER_ROLE, type Permission, type Role, SEEDED } from "./roles.ts";
+import type { TeamAccount } from "./team-accounts.ts";
 
 export type Invite = { code: string; role: string; createdBy: string; createdAt: number; expiresAt: number; usedBy: string | null; usedAt: number | null };
 export type PersonBox = { userId: string; key: string; token: string; createdAt: number };
@@ -44,6 +45,7 @@ export class GatewayStore {
                 id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
                 target TEXT, details TEXT
             );
+            CREATE TABLE IF NOT EXISTS pp_team_account (id TEXT PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS pp_space (
                 sharer TEXT NOT NULL, teammate TEXT NOT NULL, level TEXT NOT NULL, token TEXT NOT NULL, sessions TEXT NOT NULL,
                 updated_at INTEGER NOT NULL, PRIMARY KEY (sharer, teammate, level)
@@ -180,6 +182,44 @@ export class GatewayStore {
 
     #set(name: string, value: string): void {
         this.#db.prepare("INSERT INTO pp_setting (name, value) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value").run(name, value);
+    }
+
+    // ─── Team accounts (PP-69): their rows; their sign-ins are in the gateway's own auth file ───
+
+    teamAccounts(): TeamAccount[] {
+        const rows = this.#db.prepare("SELECT body FROM pp_team_account ORDER BY id").all() as { body: string }[];
+
+        return rows.map((row) => JSON.parse(row.body) as TeamAccount);
+    }
+
+    saveTeamAccount(account: TeamAccount): void {
+        this.#db.prepare("INSERT INTO pp_team_account (id, body) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body").run(account.id, JSON.stringify(account));
+    }
+
+    /** Gone, and from every role that listed it. */
+    deleteTeamAccount(id: string): void {
+        this.#db.prepare("DELETE FROM pp_team_account WHERE id = ?").run(id);
+
+        for (const role of this.roles()) {
+            if (!role.builtin && (role.teamAccounts ?? []).includes(id)) {
+                this.saveRole({ ...role, teamAccounts: (role.teamAccounts ?? []).filter((each) => each !== id) });
+            }
+        }
+    }
+
+    /** This server's own id, made once, for sign-ins that identify the installation (ChatGPT). */
+    deviceId(): string {
+        const kept = this.#setting("device_id");
+
+        if (kept !== undefined) {
+            return kept;
+        }
+
+        const made = randomUUID();
+
+        this.#set("device_id", made);
+
+        return made;
     }
 
     /** better-auth's secret, made once and kept: sessions and its encrypted fields depend on it. */

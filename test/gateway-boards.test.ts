@@ -15,6 +15,7 @@ import { makeAuth } from "../src/gateway/auth.ts";
 import { BoardService } from "../src/gateway/boards.ts";
 import { DocService } from "../src/gateway/docs.ts";
 import { type ControllerClient, Gateway } from "../src/gateway/server.ts";
+import { TeamAccounts } from "../src/gateway/team-accounts.ts";
 import { GatewayStore } from "../src/gateway/store.ts";
 
 after(() => cleanUp());
@@ -58,7 +59,7 @@ before(async () => {
     boards = new BoardService(store, dir);
     docs = new DocService(store, boards, dir);
 
-    const gateway = new Gateway({ auth, store, controller, boards, docs, origin, log: () => undefined });
+    const gateway = new Gateway({ auth, store, controller, boards, docs, teamAccounts: new TeamAccounts(store, mkdtempSync(join(root, "gw-team-"))), origin, log: () => undefined });
 
     internal = createServer((request, response) => void gateway.internal(request, response));
     await new Promise<void>((resolve) => internal.listen(0, "127.0.0.1", resolve));

@@ -1349,7 +1349,68 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 await app.providers.checkAll(3_000);
             }
 
-            return json(response, 200, app.providers.list(user.role === "owner"));
+            const own = app.providers.list(user.role === "owner");
+
+            if (!app.teamAccounts.available || user.role !== "owner") {
+                return json(response, 200, own);
+            }
+
+            // The team's accounts (PP-69), each under its provider like an account of the person's own. Someone who
+            // manages them gets Add team account on every provider that can sign in.
+            const team = await app.teamAccounts.list();
+
+            return json(response, 200, [
+                // A subscription (Claude, ChatGPT, Copilot: the providers that have accounts) is one person's: its form warns.
+                ...own.map((provider) =>
+                    team.manage && !provider.account && (provider.apiKey || provider.oauth !== null)
+                        ? { ...provider, teamAdd: app.accounts.providers().includes(provider.id) ? "subscription" : "key" }
+                        : provider,
+                ),
+                ...team.accounts.map((account) => ({
+                    id: account.id,
+                    name: `${account.providerName} · Team ${account.name}`,
+                    account: { name: account.name, of: account.provider },
+                    team: { roles: account.roles, manage: team.manage },
+                    configured: account.configured,
+                    source: "team server",
+                    label: null,
+                    apiKey: account.signIn.apiKey,
+                    oauth: account.signIn.oauth,
+                    models: account.models,
+                })),
+            ]);
+        }
+
+        // The team's provider accounts (PP-69): managed on the gateway, as this person may there.
+        if (first === "team-accounts" && second === undefined && method === "POST") {
+            requireOwner(user);
+            const body = await readJson<{ provider?: unknown; name?: unknown }>(request);
+
+            return json(response, 200, await app.teamAccounts.add(body.provider, body.name));
+        }
+
+        if (first === "team-accounts" && second !== undefined && third === undefined && method === "POST") {
+            requireOwner(user);
+            const body = await readJson<{ name?: unknown }>(request);
+
+            return json(response, 200, await app.teamAccounts.rename(decodeURIComponent(second), body.name));
+        }
+
+        if (first === "team-accounts" && second !== undefined && (third === "remove" || third === "logout") && method === "POST") {
+            requireOwner(user);
+            await (third === "remove" ? app.teamAccounts.remove(decodeURIComponent(second)) : app.teamAccounts.logout(decodeURIComponent(second)));
+
+            return json(response, 200, { ok: true });
+        }
+
+        if (first === "team-accounts" && second !== undefined && third === "login" && method === "POST") {
+            requireOwner(user);
+            const body = await readJson<{ type?: string; name?: string }>(request);
+            const id = decodeURIComponent(second);
+
+            return json(response, 200, {
+                flowId: await app.teamAccounts.startLogin(id, String(body.name ?? id), body.type === "oauth" ? "oauth" : "api_key", () => app.providers.modelsChanged()),
+            });
         }
 
         // The subscription accounts' plan limits (`usage-limits.ts`): Providers and the model menu ask `fresh` as they open.
@@ -1418,6 +1479,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "auth" && second !== undefined && third === "cancel" && method === "POST") {
+            // A team account's sign-in runs on the gateway (PP-69).
+            if (app.teamAccounts.owns(second)) {
+                await app.teamAccounts.cancel(second);
+
+                return json(response, 200, { ok: true });
+            }
+
             app.providers.cancelLogin(user, second);
 
             return json(response, 200, { ok: true });
@@ -1425,6 +1493,12 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
         if (first === "auth" && second !== undefined && third !== undefined && method === "POST") {
             const body = await readJson<{ value?: string; cancel?: boolean }>(request);
+
+            if (app.teamAccounts.owns(second)) {
+                await app.teamAccounts.answer(second, third, body.cancel === true ? undefined : String(body.value ?? ""));
+
+                return json(response, 200, { ok: true });
+            }
 
             app.providers.answerLogin(
                 user,
