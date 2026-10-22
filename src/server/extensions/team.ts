@@ -14,7 +14,11 @@ const LASTS: Record<string, number> = { "1 hour": 60, "1 day": 24 * 60, "7 days"
 const ACTIONS = ["role", "reset-two-factor", "disable", "enable", "remove", "always-on", "not-always-on"] as const;
 
 type Person = { id: string; name: string; email: string; role: string; roleName: string; banned: boolean; twoFactor: boolean; alwaysOn: boolean };
-type Role = { id: string; name: string; permissions: string[]; memoryMb: number; cpus: number; models: string[]; spendLimit: number | null; builtin: boolean };
+type Role = { id: string; name: string; permissions: string[]; memoryMb: number; cpus: number; models: string[]; spendLimit: number | null; teamAccounts?: string[]; teamSpendLimit?: number | null; builtin: boolean };
+type TeamAccount = { id: string; provider: string; name: string; providerName: string; configured: boolean; usable: boolean; roles: string[] };
+type Usage = { provider: string; windows?: { label: string; usedPercent: number; resetsAt?: number }[]; plan?: string; error?: string };
+/** Providers a team account can be of: those with a key or a subscription sign-in (src/server/accounts.ts). */
+const PROVIDER_HINT = "a provider's id, like anthropic, openai, openrouter, openai-codex, github-copilot, google";
 
 export default function createTeam(host: PocketHost) {
     const server = host.teamServer;
@@ -75,6 +79,35 @@ export default function createTeam(host: PocketHost) {
 
         if (found.length !== 1) {
             throw new Error(found.length === 0 ? `Nobody on the team is called ${who}: team_people lists them.` : `More than one person is called ${who}: give their email.`);
+        }
+
+        return found[0]!;
+    };
+    /** The team accounts' own route, as this pi-phone's person; Pi's changes are logged as Pi's. */
+    const accounts = async (body: Record<string, unknown>): Promise<unknown> => {
+        const response = await fetch(`${server.url}/internal/team-accounts`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${server.token}`, "content-type": "application/json" },
+            body: JSON.stringify({ ...body, pi: true }),
+            signal: AbortSignal.timeout(20_000),
+        });
+        const answer = (await response.json()) as { value?: unknown; error?: string };
+
+        if (!response.ok) {
+            throw new Error(answer.error ?? `The team server answered ${response.status}.`);
+        }
+
+        return answer.value;
+    };
+    const teamAccounts = async () => (await accounts({ action: "list" })) as { manage: boolean; accounts: TeamAccount[] };
+    /** A team account by id, or by its name ("Work") when only one has it. */
+    const findAccount = async (which: string) => {
+        const all = (await teamAccounts()).accounts;
+        const wanted = which.trim().toLowerCase();
+        const found = all.filter((account) => account.id === which.trim() || account.name.toLowerCase() === wanted);
+
+        if (found.length !== 1) {
+            throw new Error(found.length === 0 ? `No team account is called ${which}: team_providers lists them.` : `More than one team account is called ${which}: give its id.`);
         }
 
         return found[0]!;
@@ -160,14 +193,17 @@ export default function createTeam(host: PocketHost) {
             const { roles: all, counts, catalogue } = await roles();
 
             return [
-                ...all.map((role) => `- ${role.name} (${role.id}${role.builtin ? ", built in" : ""}; ${counts[role.id] ?? 0} people): ${role.memoryMb} MB, ${role.cpus} CPU, models ${role.models.length === 0 ? "any" : role.models.join(", ")}, spend ${role.spendLimit === null ? "no limit" : `$${role.spendLimit}/month`}; ${role.permissions.join(", ") || "no permissions"}`),
+                ...all.map(
+                    (role) =>
+                        `- ${role.name} (${role.id}${role.builtin ? ", built in" : ""}; ${counts[role.id] ?? 0} people): ${role.memoryMb} MB, ${role.cpus} CPU, models ${role.models.length === 0 ? "any" : role.models.join(", ")}, spend ${role.spendLimit === null ? "no limit" : `$${role.spendLimit}/month`}; team accounts ${role.builtin ? "all" : (role.teamAccounts ?? []).join(", ") || "none"}, team spend ${(role.teamSpendLimit ?? null) === null ? "no limit" : `$${role.teamSpendLimit}/month each`}; ${role.permissions.join(", ") || "no permissions"}`,
+                ),
                 "Permissions:",
                 ...catalogue.flatMap((group) => Object.entries(group.permissions).map(([id, words]) => `  ${id}: ${words} (${group.group})`)),
             ].join("\n");
         }),
         tool(
             "team_role_save",
-            "Add a role, or change one (give its id), on the team server (asks the person first): its permissions (team_roles lists them), memory and CPUs of its people's pi-phones, the models they may use (none: any), and a monthly spend limit (none: no limit). Needs roles.manage.",
+            "Add a role, or change one (give its id), on the team server (asks the person first): its permissions (team_roles lists them), memory and CPUs of its people's pi-phones, the models they may use (none: any), a monthly spend limit (none: no limit), the team accounts its people may use (team_providers lists them; left out when changing a role: kept) and a team spend limit, dollars a month each on those accounts (none: no limit; left out when changing: kept). Needs roles.manage.",
             Type.Object({
                 id: Type.Optional(Type.String({ description: "An existing role's id to change; leave out to add one" })),
                 name: Type.String(),
@@ -176,12 +212,36 @@ export default function createTeam(host: PocketHost) {
                 cpus: Type.Number(),
                 models: Type.Optional(Type.Array(Type.String())),
                 spendLimit: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
+                teamAccounts: Type.Optional(Type.Array(Type.String({ description: "A team account's id, like anthropic~team-max" }))),
+                teamSpendLimit: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
                 reason: Type.String(),
             }),
-            async (args: { id?: string; name: string; permissions: string[]; memoryMb: number; cpus: number; models?: string[]; spendLimit?: number | null; reason: string }, api, context) => {
-                const role = { name: args.name, permissions: args.permissions, memoryMb: args.memoryMb, cpus: args.cpus, models: args.models ?? [], spendLimit: args.spendLimit ?? null };
+            async (args: { id?: string; name: string; permissions: string[]; memoryMb: number; cpus: number; models?: string[]; spendLimit?: number | null; teamAccounts?: string[]; teamSpendLimit?: number | null; reason: string }, api, context) => {
+                // Changing a role keeps its team accounts and team spend limit unless given: the role's form sends them all.
+                const was = args.id === undefined ? undefined : (await roles()).roles.find((each) => each.id === args.id);
 
-                await ask(api, context, "team_role_save", `${args.id === undefined ? "Add the role" : `Change the role ${args.id} to`} ${args.name}: ${args.permissions.join(", ") || "no permissions"}; ${args.memoryMb} MB, ${args.cpus} CPU; models ${role.models.length === 0 ? "any" : role.models.join(", ")}; spend ${role.spendLimit === null ? "no limit" : `$${role.spendLimit}/month`}`, args.reason);
+                if (args.id !== undefined && was === undefined) {
+                    throw new Error(`No role ${args.id}: team_roles lists them.`);
+                }
+
+                const role = {
+                    name: args.name,
+                    permissions: args.permissions,
+                    memoryMb: args.memoryMb,
+                    cpus: args.cpus,
+                    models: args.models ?? [],
+                    spendLimit: args.spendLimit ?? null,
+                    teamAccounts: args.teamAccounts ?? was?.teamAccounts ?? [],
+                    teamSpendLimit: args.teamSpendLimit === undefined ? (was?.teamSpendLimit ?? null) : args.teamSpendLimit,
+                };
+
+                await ask(
+                    api,
+                    context,
+                    "team_role_save",
+                    `${args.id === undefined ? "Add the role" : `Change the role ${args.id} to`} ${args.name}: ${args.permissions.join(", ") || "no permissions"}; ${args.memoryMb} MB, ${args.cpus} CPU; models ${role.models.length === 0 ? "any" : role.models.join(", ")}; spend ${role.spendLimit === null ? "no limit" : `$${role.spendLimit}/month`}; team accounts ${role.teamAccounts.join(", ") || "none"}, team spend ${role.teamSpendLimit === null ? "no limit" : `$${role.teamSpendLimit}/month each`}`,
+                    args.reason,
+                );
 
                 const saved = (await call(args.id === undefined ? "roles" : `roles/${args.id}`, "POST", role)) as Role;
 
@@ -238,6 +298,102 @@ export default function createTeam(host: PocketHost) {
                 await ask(api, context, "team_server", change.charAt(0).toUpperCase() + change.slice(1), args.reason ?? "");
 
                 return show((await call("server", "POST", { ...(args.idleMinutes === undefined ? {} : { idleMinutes: args.idleMinutes }), ...(args.docsModel === undefined ? {} : { docsModel: args.docsModel }), ...(args.docsVision === undefined ? {} : { docsVision: args.docsVision }) })) as never);
+            },
+        ),
+        // The team's provider accounts (PP-69): set up once on the team server, used by roles. Never their keys or
+        // sign-ins: a person signs in on the account's row in Providers.
+        tool(
+            "team_providers",
+            "The team server's provider accounts (API keys or subscriptions, set up once for the team) you can see: each one's id, whether it is signed in, which roles may use it, and its plan's usage where it has one (a Claude, Codex or Copilot subscription). Their keys and sign-ins stay on the team server: never here.",
+            Type.Object({}),
+            async () => {
+                const { manage, accounts: all } = await teamAccounts();
+
+                if (all.length === 0) {
+                    return `No team accounts${manage ? " yet: team_provider_add makes one." : " you may use."}`;
+                }
+
+                const usage = new Map((((await accounts({ action: "usage", fresh: false })) as { usage: Usage[] }).usage).map((each) => [each.provider, each]));
+                const bars = (id: string) => {
+                    const found = usage.get(id);
+
+                    if (found === undefined) {
+                        return "";
+                    }
+
+                    return found.error !== undefined ? `; ${found.error}` : `; usage: ${(found.windows ?? []).map((window) => `${window.label} ${Math.round(window.usedPercent)}%`).join(", ")}`;
+                };
+
+                return [
+                    ...all.map((account) => `- ${account.providerName} · Team ${account.name} (${account.id}): ${account.configured ? "signed in" : "not signed in yet (a person signs in on its row in Providers)"}; ${manage ? `${account.roles.length === 0 ? "no role uses it" : `used by ${account.roles.join(", ")}`} (and the owner's)` : account.usable ? "you may use it" : "your role may not use it"}${bars(account.id)}`),
+                    manage ? "You manage them: team_provider_add, team_provider_access, team_provider_remove." : "",
+                ]
+                    .filter((line) => line !== "")
+                    .join("\n");
+            },
+        ),
+        tool(
+            "team_provider_add",
+            `Add a team account on the team server (asks the person first): ${PROVIDER_HINT}, and a name ("Work"). It starts signed out: tell the person to sign it in on its row in Providers (a key, or a subscription; a subscription is licensed to one person, so check its terms). Then team_provider_access says which roles may use it. Needs providers.manage.`,
+            Type.Object({ provider: Type.String(), name: Type.String(), reason: Type.String() }),
+            async (args: { provider: string; name: string; reason: string }, api, context) => {
+                await ask(api, context, "team_provider_add", `Add a team account of ${args.provider} called ${args.name}`, args.reason);
+                const { account } = (await accounts({ action: "add", provider: args.provider, name: args.name })) as { account: { id: string } };
+
+                return `Added ${account.id}. It isn't signed in: the person signs it in on its row in Providers (Menu › Providers, under ${args.provider}). No role uses it yet: team_provider_access.`;
+            },
+        ),
+        tool(
+            "team_provider_access",
+            "Say which roles may use a team account (asks the person first): the whole list of role ids (team_roles lists them; the owner's role always may). Their people see its models in their model menu at once. Needs roles.manage.",
+            Type.Object({ account: Type.String({ description: "Its id, or its name" }), roles: Type.Array(Type.String({ description: "A role's id" })), reason: Type.String() }),
+            async (args: { account: string; roles: string[]; reason: string }, api, context) => {
+                const account = await findAccount(args.account);
+                const all = (await roles()).roles.filter((role) => !role.builtin);
+                const unknown = args.roles.filter((id) => !all.some((role) => role.id === id));
+
+                if (unknown.length > 0) {
+                    throw new Error(`No role ${unknown.join(", ")}: team_roles lists them.`);
+                }
+
+                const changed = all
+                    .map((role) => {
+                        const has = (role.teamAccounts ?? []).includes(account.id);
+                        const wants = args.roles.includes(role.id);
+
+                        return has === wants ? undefined : { role, teamAccounts: wants ? [...(role.teamAccounts ?? []), account.id] : (role.teamAccounts ?? []).filter((id) => id !== account.id) };
+                    })
+                    .filter((each) => each !== undefined);
+
+                if (changed.length === 0) {
+                    return `Nothing to change: ${args.roles.length === 0 ? "no role uses it" : `${args.roles.join(", ")} already use it, and no other role`}.`;
+                }
+
+                const words = changed.map(({ role, teamAccounts: next }) => `${next.includes(account.id) ? "let" : "stop"} ${role.name}`).join(", ");
+
+                await ask(api, context, "team_provider_access", `${words.charAt(0).toUpperCase() + words.slice(1)} use ${account.providerName} · Team ${account.name}`, args.reason);
+
+                for (const { role, teamAccounts: next } of changed) {
+                    const { id, builtin, ...body } = role;
+
+                    void builtin;
+                    await call(`roles/${id}`, "POST", { ...body, teamAccounts: next });
+                }
+
+                return `Done: ${words} use ${account.id}.`;
+            },
+        ),
+        tool(
+            "team_provider_remove",
+            "Remove a team account from the team server, with its sign-in (asks the person first). Every role that used it stops at once. Needs providers.manage.",
+            Type.Object({ account: Type.String({ description: "Its id, or its name" }), reason: Type.String() }),
+            async (args: { account: string; reason: string }, api, context) => {
+                const account = await findAccount(args.account);
+
+                await ask(api, context, "team_provider_remove", `Remove the team account ${account.providerName} · Team ${account.name}, with its sign-in${account.roles.length === 0 ? "" : `: ${account.roles.join(", ")} can no longer use it`}`, args.reason);
+                await accounts({ action: "remove", id: account.id });
+
+                return `Removed ${account.id}.`;
             },
         ),
     ];

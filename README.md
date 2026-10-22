@@ -232,7 +232,8 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
     What each person spends on them is counted per account and month: a role can have a team spend limit apart from its
     own (empty for none), and the Server page lists this month's spend by person. A team Claude, Codex or Copilot
     subscription shows its plan's usage bars to everyone who can use it, and Claude requests get the Claude Code
-    billing patch on the team server, as each person's setting says.
+    billing patch on the team server, as each person's setting says. Pi lists them, and adds one, says which roles
+    use it or removes it on a card; signing in stays a person's, on the account's row.
   - **Hardened:** only ports 80 and 443 open, sign-in limits that people's containers can't get around, no
     cross-site changes, and security headers. See deploy/README.md › Security.
 

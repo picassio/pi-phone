@@ -71,6 +71,8 @@ const ALWAYS_ALLOWED = new Set([
     "team_people",
     "team_roles",
     "team_audit",
+    // The team's provider accounts (PP-69), read.
+    "team_providers",
     // People's documents (PP-48), read.
     "doc_search",
     "doc_list",

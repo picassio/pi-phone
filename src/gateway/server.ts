@@ -658,6 +658,8 @@ export class Gateway {
             throw new HttpError(403, `${role.name} does not include managing the team's provider accounts: ask your team's owner.`);
         }
 
+        // Pi's tools (team_provider_*) as this person: the audit log says it was Pi.
+        const actor = asked.pi === true ? `pi:${me.id}` : me.id;
         const named = (accountId: string) => {
             const account = accounts.get(accountId);
 
@@ -668,7 +670,7 @@ export class Gateway {
             case "add": {
                 const account = accounts.add(asked.provider, asked.name, me.id);
 
-                store.audit(me.id, "team account added", named(account.id));
+                store.audit(actor, "team account added", named(account.id));
 
                 return { account };
             }
@@ -676,7 +678,7 @@ export class Gateway {
                 const before = named(id);
                 const account = accounts.rename(id, asked.name);
 
-                store.audit(me.id, "team account renamed", named(id), { from: before });
+                store.audit(actor, "team account renamed", named(id), { from: before });
 
                 return { account };
             }
@@ -696,7 +698,7 @@ export class Gateway {
                 const name = named(id);
 
                 await accounts.remove(id);
-                store.audit(me.id, "team account removed", name);
+                store.audit(actor, "team account removed", name);
 
                 return { ok: true };
             }
