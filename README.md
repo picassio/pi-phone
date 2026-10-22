@@ -47,7 +47,8 @@ No Termux, no laptop, no cloud VM.
   messages there). The wiki's search by meaning has a line of its own: its remote embeddings (indexing and queries),
   with requests and tokens, in the total and in nobody's limit.
 - **Plan mode.** The Plan button by the message box: Pi reads and plans before it changes anything (it still records
-  decisions and findings in the wiki), and a long plan comes as a reviewable HTML page.
+  decisions and findings in the wiki, and uses its browser in full to look at the live app or a site), and a long plan
+  comes as a reviewable HTML page.
 - **Interview.** Pi asks several questions at once in a form (choices with its recommendation, text, photos), and waits
   for the answers, or carries on and gets them later.
 - **Schedules and goals.** Pi messages itself later or on repeat (`schedule`), and a session can keep working toward a

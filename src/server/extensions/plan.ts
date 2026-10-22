@@ -1,7 +1,7 @@
 /**
  * Plan mode lets Pi read and explore but change nothing, so it proposes a plan for people to approve first. While a
- * session is in plan mode, Pi may read files, run read-only shell commands, publish artifacts, look at pages in the
- * browser, run codemode scripts (whose calls get the same checks), and call tools their extension marks read-only;
+ * session is in plan mode, Pi may read files, run read-only shell commands, publish artifacts, use its browser fully
+ * (PP-70: a site is not the work), run codemode scripts (whose calls get the same checks), and call tools their extension marks read-only;
  * everything else is blocked with a note saying why. This keeps Pi to planning; it is not a security boundary: Lancet
  * Guard is. Programs that people configured to run on their own, such as a git diff driver or file system monitor, run
  * as they would for anyone.
@@ -20,7 +20,7 @@ import { BUILT_IN_TOOLS } from "../reload.ts";
 
 /** While plan mode is off: when to suggest it (only a person turns it on). */
 export const SUGGEST_PLAN = `Plan mode: before a large or risky change (many files, a migration or refactor, deleting data, rewriting history, publishing or deploying), suggest that the person turn on plan mode with the Plan button by the message box, and wait for their answer. You cannot turn it on yourself. Small, clear tasks need no plan mode.`;
-const PLANNING = `Plan mode is on. Read and explore, then propose a plan; change nothing yet. You can use read, artifact, screenshot, and bash for simple read-only commands such as ls, cat, grep, find, and git status/log/diff/show, without redirects, globs, variables, or command substitution, and tools marked read-only. The wiki tools work too: record decisions, findings and open questions as you plan. Writing, editing, other commands, and subagents are blocked until a person approves the plan. End your answer with the plan as a short numbered list. For a long plan (many steps, parts, or files), also publish it as an HTML artifact, following the html-plan skill (read its SKILL.md first): it keeps every commitment and is easier to review on a phone; the numbered list stays in your answer.`;
+const PLANNING = `Plan mode is on. Read and explore, then propose a plan; change nothing yet. You can use read, artifact, screenshot, and bash for simple read-only commands such as ls, cat, grep, find, and git status/log/diff/show, without redirects, globs, variables, or command substitution, and tools marked read-only. Pi's browser works in full (open, click, type, choose, scroll, run): use it to look at the live app or any site; still ask before anything that pays, sends, books, or deletes there. The wiki tools work too: record decisions, findings and open questions as you plan. Writing, editing, other commands, and subagents are blocked until a person approves the plan. End your answer with the plan as a short numbered list. For a long plan (many steps, parts, or files), also publish it as an HTML artifact, following the html-plan skill (read its SKILL.md first): it keeps every commitment and is easier to review on a phone; the numbered list stays in your answer.`;
 
 /** Tools that change nothing, or whose own calls are checked one by one (codemode). */
 /**
@@ -47,19 +47,6 @@ const ALWAYS_ALLOWED = new Set([
     "interview",
     "web_search",
     "fetch_content",
-    // Pi's browser, looking only: opening and reading pages, scrolling, history, pointing, tabs. Clicking, typing, choosing and
-    // pressing keys can submit something, and wait for the plan.
-    "browser_open",
-    "browser_snapshot",
-    "browser_text",
-    "browser_screenshot",
-    "browser_wait",
-    "browser_scroll",
-    "browser_back",
-    "browser_forward",
-    "browser_hover",
-    "browser_new_tab",
-    "browser_tabs",
     "openui_guide",
     // Only reads: the devices signed in.
     "devices",
@@ -94,20 +81,6 @@ const ALWAYS_ALLOWED = new Set([
 ]);
 /** Tools that only read when asked to list (their other actions change things). */
 const LISTS = new Set(["approvals", "schedule", "watch_ci"]);
-/** What the browser may do in plan mode: look at pages, not act on them. */
-const BROWSER_LOOKS = new Set([
-    "navigate",
-    "snapshot",
-    "screenshot",
-    "console",
-    "back",
-    "forward",
-    "reload",
-    "scroll",
-    "wait",
-    "viewport",
-    "hover",
-]);
 
 type ArgsCheck = (args: readonly string[]) => boolean;
 const anyArgs: ArgsCheck = () => true;
@@ -343,6 +316,12 @@ export function blockedInPlanMode(
         return undefined;
     }
 
+    // Pi's browser, in full (the owner, 2026-10-22, PP-70): looking at the live app or a site often takes clicks and
+    // typing, and a site is not the work. What pays, sends, books or deletes there Pi asks about first, as always.
+    if (tool === "browser" || tool.startsWith("browser_")) {
+        return undefined;
+    }
+
     if (LISTS.has(tool) && args.action === "list") {
         return undefined;
     }
@@ -362,16 +341,6 @@ export function blockedInPlanMode(
         return undefined;
     }
 
-    // A data: page is a page Pi writes, scripts and all: looking at pages means pages that exist.
-    const scripted =
-        tool === "browser" &&
-        args.action === "navigate" &&
-        /^\s*data:/i.test(String(args.url ?? ""));
-
-    if (tool === "browser" && BROWSER_LOOKS.has(String(args.action)) && !scripted) {
-        return undefined;
-    }
-
     if (tool === "bash" && typeof args.command === "string" && readOnlyCommand(args.command)) {
         return undefined;
     }
@@ -379,9 +348,7 @@ export function blockedInPlanMode(
     const what =
         tool === "bash"
             ? "This command is not a simple read-only one"
-            : tool === "browser"
-              ? `The browser's ${String(args.action)} can change things on the page`
-              : `The ${tool} tool can change things`;
+            : `The ${tool} tool can change things`;
 
     return `Plan mode is on: ${what}, so it is blocked. Keep exploring with read and read-only commands, then propose your plan; a person approves it before anything changes.`;
 }

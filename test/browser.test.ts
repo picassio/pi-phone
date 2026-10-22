@@ -30,14 +30,14 @@ test("an address as typed: a page opens as it is, a bare name gets https, words 
     }
 });
 
-test("in plan mode Pi may open and read pages, but not click, type, choose, or press keys", () => {
-    for (const tool of ["browser_open", "browser_snapshot", "browser_text", "browser_screenshot", "browser_scroll", "browser_back", "browser_wait", "browser_hover", "browser_tabs", "browser_new_tab"]) {
+test("in plan mode Pi's browser works in full: reading, and clicking, typing, choosing, keys and runs too (PP-70)", () => {
+    for (const tool of ["browser_open", "browser_snapshot", "browser_text", "browser_screenshot", "browser_scroll", "browser_back", "browser_wait", "browser_hover", "browser_tabs", "browser_new_tab", "browser_click", "browser_type", "browser_select", "browser_press", "browser_close", "browser_upload", "browser_save_pdf", "browser_run", "browser_size", "browser_sign_in", "browser_ask_code", "browser_ask_user"]) {
         assert.equal(blockedInPlanMode(tool, {}), undefined, tool);
     }
 
-    for (const tool of ["browser_click", "browser_type", "browser_select", "browser_press", "browser_close", "browser_upload", "browser_save_pdf"]) {
-        assert.match(blockedInPlanMode(tool, {}) ?? "", /Plan mode is on/, tool);
-    }
+    // The rest stays as it was: writing files and other commands wait for the plan.
+    assert.match(blockedInPlanMode("write", { path: "a", content: "" }) ?? "", /Plan mode is on/);
+    assert.match(blockedInPlanMode("bash", { command: "npm install" }) ?? "", /Plan mode is on/);
 });
 
 test("controls are numbered once each, a drop-down with its choices, and described with the visible text", () => {
