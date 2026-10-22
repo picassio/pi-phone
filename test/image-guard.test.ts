@@ -3,6 +3,8 @@
 // result too), and images within it are left as they are.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { crc32, deflateSync } from "node:zlib";
+import { createNodePhotonImages } from "@earendil-works/pi-durable/images/node";
 import { fitImages, imageSize } from "../src/server/image-guard.ts";
 
 /** A PNG's first bytes: its signature and IHDR, with the size. */
@@ -69,4 +71,46 @@ test("a request's images over 2000 px a side are scaled, anywhere in it; smaller
     assert.equal((payload.messages[0]!.content[0] as { source: { data: string } }).source.data, small, "within the limit: as it was");
     assert.equal((payload.messages[1]!.content[0] as { content: { source?: { data: string } }[] }).content[1]!.source!.data, "U01BTEw=");
     assert.equal((payload.messages[2]!.content[0] as { image_url: { url: string } }).image_url.url, "data:image/jpeg;base64,U01BTEw=");
+});
+
+/** A one-colour PNG (1-bit greyscale, all black, every row unfiltered): a blank page, a few KB however big. */
+const blankPng = (width: number, height: number) => {
+    const chunk = (type: string, data: Buffer) => {
+        const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+        const framed = Buffer.alloc(body.length + 8);
+
+        framed.writeUInt32BE(data.length, 0);
+        body.copy(framed, 4);
+        framed.writeUInt32BE(crc32(body), body.length + 4);
+
+        return framed;
+    };
+    const header = Buffer.alloc(13);
+    const pixels = Buffer.alloc(height * (1 + Math.ceil(width / 8)));
+
+    header.writeUInt32BE(width, 0);
+    header.writeUInt32BE(height, 4);
+    header[8] = 1;
+
+    return Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        chunk("IHDR", header),
+        chunk("IDAT", deflateSync(pixels)),
+        chunk("IEND", Buffer.alloc(0)),
+    ]);
+};
+
+// Session #993 failed every request with "Cannot transfer object of unsupported type.": a blank page's screenshot is
+// over 2000 px a side but under 4 KB, so its decoded Buffer sat in Node's shared pool, which cannot be transferred to
+// the Photon worker.
+test("a small blank image over 2000 px is scaled by the Photon worker without failing", async () => {
+    const page = blankPng(2400, 3600);
+
+    assert.ok(page.length < 4096, `the image is ${page.length} bytes: too big for Node's Buffer pool`);
+
+    const payload = { messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/png", data: page.toString("base64") } }] }] };
+    const block = payload.messages[0]!.content[0]!;
+
+    assert.equal(await fitImages(payload, await createNodePhotonImages()), 1);
+    assert.deepEqual(imageSize(Buffer.from(block.source.data, "base64")), { width: 1333, height: 2000 });
 });

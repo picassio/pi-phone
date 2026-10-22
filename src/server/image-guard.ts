@@ -89,7 +89,9 @@ export async function fitImages(payload: unknown, images: ImageProcessor): Promi
     let scaled = 0;
     /** The image as the model may take it, or undefined when it fits as it is (or cannot be read: left to the provider). */
     const fit = async (data: string, mimeType: string): Promise<{ data: string; mimeType: string } | undefined> => {
-        const bytes = Buffer.from(data, "base64");
+        // A copy with memory of its own: an image under 4 KB decodes into Node's shared Buffer pool, which the Photon
+        // worker cannot be handed ("Cannot transfer object of unsupported type"), as a Buffer's slice is a view.
+        const bytes = new Uint8Array(Buffer.from(data, "base64"));
         const size = imageSize(bytes);
 
         if (size === undefined || (size.width <= MAX_SIDE && size.height <= MAX_SIDE)) {
