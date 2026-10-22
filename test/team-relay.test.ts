@@ -164,3 +164,30 @@ test("Stop ends the call on the gateway too", async () => {
 
     assert.equal(asked.aborted, before + 1, "the gateway's call was stopped");
 });
+
+test("each answer's cost is counted to the person and the account, and the role's team spend limit refuses past it", async () => {
+    const { models } = await binhsPiPhone();
+    const model = models.getModels("faux~team-work")[0] as Model<Api>;
+    const month = new Date().toISOString().slice(0, 7);
+    const before = store.teamSpendOf(month, ids.Binh!);
+    const answer = await models.completeSimple(model, ask("count me"));
+    const row = store.teamSpend(month).find((each) => each.userId === ids.Binh && each.account === "faux~team-work");
+
+    assert.equal(answer.stopReason, "stop", answer.errorMessage ?? "");
+    assert.ok(row !== undefined && row.tokens > 0, "counted by person and account");
+    assert.ok(store.teamSpendOf(month, ids.Binh!) >= before, "the month's sum");
+
+    // Past the role's limit (here $0, so any spend reaches it): refused with the reason, before the model is asked.
+    store.addTeamSpend(month, ids.Binh!, "faux~team-work", 0.5, 0);
+    store.saveRole({ ...store.role("member")!, teamSpendLimit: 0.25 });
+    const calls = asked.calls;
+    const refused = await models.completeSimple(model, ask("more"));
+
+    assert.equal(refused.stopReason, "error");
+    assert.match(refused.errorMessage ?? "", /You've used this month's team spend \(Member: \$0\.25 a month\)/);
+    assert.equal(asked.calls, calls, "not asked");
+
+    // Empty again (no limit): answers again.
+    store.saveRole({ ...store.role("member")!, teamSpendLimit: null });
+    assert.equal((await models.completeSimple(model, ask("again"))).stopReason, "stop");
+});

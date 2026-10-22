@@ -229,6 +229,8 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
     everyone's Providers sheet, marked TEAM; the key or sign-in stays on the team server, never in anyone's pi-phone.
     Roles say which team accounts their people may use; their models show in the model menu ("openrouter · Team Work
     account"), and each answer comes through the team server, checked against the person's role at every call.
+    What each person spends on them is counted per account and month: a role can have a team spend limit apart from its
+    own (empty for none), and the Server page lists this month's spend by person.
   - **Hardened:** only ports 80 and 443 open, sign-in limits that people's containers can't get around, no
     cross-site changes, and security headers. See deploy/README.md › Security.
 

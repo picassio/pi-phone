@@ -52,6 +52,10 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
     show in those people's model menus; each call goes from their pi-phone to the gateway's internal port
     (`/internal/llm/stream`), which checks the role (the account and the role's model list) every time, answers with
     the account's sign-in, and streams the answer back. Stop and Interrupt end the call there too.
+  - **Spend:** each answer's cost is counted on the gateway per person, account and month (`pp_team_spend`). A role's
+    **team spend limit** (dollars a month each; empty for none) refuses further calls once reached, apart from the
+    role's own spend limit, which leaves team spend out. The Server page's "Team accounts' spend" lists this month's,
+    by person and account, against their role's limit.
 - **Updates roll out by themselves:** after `docker compose ... up -d --build` makes a new image, people's running
   pi-phones are made again from it one at a time, each when Pi isn't at work there. Stopped ones are made again when they
   next start. Their data (the volume) is kept, and an open page reconnects in a few seconds. The Server page shows how

@@ -616,6 +616,10 @@ async function rolesPage(me) {
             h("div", { class: "row" }, field("Memory (MB)", "memoryMb", "number", { value: role?.memoryMb ?? 2048, min: 256, max: 16384, step: 256 }), field("CPUs", "cpus", "number", { value: role?.cpus ?? 1, min: 0.25, max: 8, step: 0.25 })),
             h("label", {}, "Models they may use: one provider/model per line, none for any", h("textarea", { name: "models", rows: 3 }, (role?.models ?? []).join("\n"))),
             h("label", {}, "Spend limit, dollars a month: empty for none", h("input", { name: "spendLimit", type: "number", min: 0, step: "any", value: role?.spendLimit ?? "" })),
+            // Apart from their own spend (PP-73): what each may spend on the team's accounts.
+            teamAccounts.length === 0
+                ? null
+                : h("label", {}, "Team spend limit, dollars a month each, on the team's accounts: empty for none", h("input", { name: "teamSpendLimit", type: "number", min: 0, step: "any", value: role?.teamSpendLimit ?? "" })),
         ];
         const body = (values) => ({
             name: values.name,
@@ -625,6 +629,7 @@ async function rolesPage(me) {
             cpus: Number(values.cpus),
             models: String(values.models ?? "").split("\n"),
             spendLimit: values.spendLimit === "" ? null : Number(values.spendLimit),
+            teamSpendLimit: values.teamSpendLimit === undefined || values.teamSpendLimit === "" ? null : Number(values.teamSpendLimit),
         });
 
         return form(fields, role ? "Save" : "Add the role", async (values) => {
@@ -762,6 +767,41 @@ async function sharedPage(me) {
 
 // ─── Server ───
 
+/** This month's spend on the team's accounts (PP-73): a line per person, their total against their role's limit, then each account. */
+function teamSpendCard(spend) {
+    const dollars = (cost) => (cost > 0 && cost < 0.01 ? "under $0.01" : `$${cost.toFixed(2)}`);
+    const people = new Map();
+
+    for (const row of spend.rows) {
+        const person = people.get(row.userId) ?? { name: row.name, limit: row.limit, cost: 0, accounts: [] };
+
+        person.cost += row.cost;
+        person.accounts.push(`${row.accountName} ${dollars(row.cost)} · ${row.tokens.toLocaleString()} tokens`);
+        people.set(row.userId, person);
+    }
+
+    const month = new Date(`${spend.month}-01T00:00:00Z`).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
+
+    return [
+        h("h2", {}, "Team accounts' spend"),
+        people.size === 0
+            ? h("div", { class: "card" }, h("p", { class: "muted" }, `Nobody has used the team's accounts in ${month}.`))
+            : h(
+                  "div",
+                  { class: "card log" },
+                  ...[...people.values()].map((person) =>
+                      h(
+                          "div",
+                          { class: "log-row" },
+                          h("div", {}, h("b", {}, person.name), " · ", dollars(person.cost), person.limit === null ? null : h("span", { class: person.cost >= person.limit ? "gw-spend-over" : "muted" }, ` of $${person.limit}`)),
+                          h("div", { class: "muted small" }, person.accounts.join(" · ")),
+                      ),
+                  ),
+                  h("p", { class: "muted small gw-spend-note" }, `${month}, counted here after each answer. A role's team spend limit is on the Roles page.`),
+              ),
+    ];
+}
+
 async function serverPage(me) {
     // What runs now, in figures at the top; then each setting in its own card (PP-62).
     const stats = h("div", { class: "stats" });
@@ -824,6 +864,7 @@ async function serverPage(me) {
                 },
             ),
         ),
+        ...teamSpendCard(server.teamSpend),
         h("h2", {}, "Backup"),
         h(
             "div",

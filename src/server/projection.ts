@@ -566,6 +566,19 @@ export function usageCost(usage: UsageState | undefined): number {
     return cost;
 }
 
+/** What a conversation spent on the team server's accounts (PP-73): models of providers `<provider>~team-<slug>`. */
+export function teamUsageCost(usage: UsageState | undefined): number {
+    let cost = 0;
+
+    for (const [key, value] of Object.entries(usage?.models ?? {}) as [string, UsageNumbers][]) {
+        if (/^[^/]+~team-[^/]+\//.test(key)) {
+            cost += value.cost?.total ?? 0;
+        }
+    }
+
+    return cost;
+}
+
 export function projectStats(
     usage: UsageState | undefined,
     entries: readonly EntryRecord[],

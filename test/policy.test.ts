@@ -74,10 +74,14 @@ test("a role's policy: features off and kept off, tools and routes refused, mode
     await assert.rejects(app.commands.configure(id, me, { model: { provider: "faux", modelId: "faux-2" } }), /Member does not include faux\/faux-2/);
     await assert.rejects(app.commands.submit(other, me, { text: "hi", requestId: crypto.randomUUID() }), /Member does not include faux\/faux-2/);
 
-    // The monthly cap: $5 spent this month stops new messages.
+    // The monthly cap: $5 spent this month stops new messages. What went to the team server's accounts doesn't count:
+    // the team server holds that to the role's team spend limit (PP-73).
+    await recordCost(app, id, 9, "faux~team-work/faux-1");
+    await until(() => app.spend.personSpent(me.id) >= 9, "the team spend counted to the owner", 15_000);
+    assert.doesNotThrow(() => app.spend.check(me, id), "team spend is not the role's own cap");
     await recordCost(app, id, 5.5);
     // Spend adds it to the person a moment later, as it stores counts.
-    await until(() => app.spend.personSpent(me.id) >= 5.5, "the spend counted to the owner", 15_000);
+    await until(() => app.spend.personSpent(me.id) >= 14.5, "the spend counted to the owner", 15_000);
     await assert.rejects(app.commands.submit(id, me, { text: "more", requestId: crypto.randomUUID() }), /monthly spend limit is reached/);
 
     // A role that allows them again: they come back.

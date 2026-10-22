@@ -429,6 +429,17 @@ label.check .muted {
     border-top: 0;
 }
 
+/* The Server page's team spend (PP-73): a person over their role's limit, and the note under the list. */
+.gw-spend-over {
+    color: var(--bad);
+}
+
+.gw-spend-note {
+    margin: 0;
+    padding: 10px 0;
+    border-top: 1px solid var(--hair);
+}
+
 /* The Server page's figures: three tiles in a row. */
 .stats {
     display: grid;

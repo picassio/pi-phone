@@ -10,7 +10,7 @@ import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { SessionsDoc, SpendDoc, type WikiSpend } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
-import { usageCost } from "./projection.ts";
+import { teamUsageCost, usageCost } from "./projection.ts";
 
 const context = BACKGROUND_CONTEXT;
 
@@ -46,6 +46,10 @@ export class Spend {
     readonly #owed = new Map<ConversationId, Map<string, number>>();
     /** What `SpendDoc` says each person spent, as of the last count. */
     #people: Record<string, number> = {};
+    /** The same three for the part spent on the team server's accounts (PP-73). */
+    readonly #teamCosts = new Map<ConversationId, number>();
+    readonly #teamOwed = new Map<ConversationId, Map<string, number>>();
+    #team: Record<string, number> = {};
     /** Runs being stopped for a limit, until they end: each is stopped, and announced, once. */
     readonly #stopping = new Set<ConversationId>();
     #timer: NodeJS.Timeout | undefined;
@@ -67,7 +71,10 @@ export class Spend {
         const harness = this.#app.harness;
 
         for (const id of ids) {
-            this.#costs.set(id, usageCost(await harness.snapshot(UsageDoc, id, context)));
+            const usage = await harness.snapshot(UsageDoc, id, context);
+
+            this.#costs.set(id, usageCost(usage));
+            this.#teamCosts.set(id, teamUsageCost(usage));
         }
 
         if ((await harness.snapshot(SpendDoc, context)) === undefined) {
@@ -85,13 +92,19 @@ export class Spend {
         const stored = await harness.snapshot(SpendDoc, context);
 
         this.#people = { ...stored?.people };
+        this.#team = { ...stored?.team };
         this.#wiki = stored?.wiki;
 
         for (const id of ids) {
             const added = (this.#costs.get(id) ?? 0) - (stored?.counted[String(id)] ?? 0);
+            const team = (this.#teamCosts.get(id) ?? 0) - (stored?.teamCounted?.[String(id)] ?? 0);
 
             if (added > 0) {
                 this.#owe(id, this.#payer(id), added);
+            }
+
+            if (team > 0) {
+                this.#owe(id, this.#payer(id), team, this.#teamOwed);
             }
         }
 
@@ -99,11 +112,11 @@ export class Spend {
     }
 
     /** Add spend in a conversation to a person, to be stored with the next count. */
-    #owe(id: ConversationId, payer: string, added: number): void {
-        const owed = this.#owed.get(id) ?? new Map<string, number>();
+    #owe(id: ConversationId, payer: string, added: number, to = this.#owed): void {
+        const owed = to.get(id) ?? new Map<string, number>();
 
         owed.set(payer, (owed.get(payer) ?? 0) + added);
-        this.#owed.set(id, owed);
+        to.set(id, owed);
     }
 
     /**
@@ -113,11 +126,18 @@ export class Spend {
     usageChanged(id: ConversationId, usage: UsageState | null): void {
         const cost = usageCost(usage ?? undefined);
         const added = cost - (this.#costs.get(id) ?? 0);
+        const team = teamUsageCost(usage ?? undefined);
+        const teamAdded = team - (this.#teamCosts.get(id) ?? 0);
 
         this.#costs.set(id, cost);
+        this.#teamCosts.set(id, team);
 
         if (added > 0) {
             this.#owe(id, this.#payer(id), added);
+        }
+
+        if (teamAdded > 0) {
+            this.#owe(id, this.#payer(id), teamAdded, this.#teamOwed);
         }
 
         this.#later();
@@ -153,17 +173,19 @@ export class Spend {
     /** Store the spend added to people, then stop work that went past a limit. */
     async #count(): Promise<void> {
         const owed = [...this.#owed];
+        const teamOwed = [...this.#teamOwed];
         const wiki = this.#wikiAdded;
 
         this.#owed.clear();
+        this.#teamOwed.clear();
         this.#wikiAdded = undefined;
 
-        if (owed.length === 0 && wiki === undefined) {
+        if (owed.length === 0 && teamOwed.length === 0 && wiki === undefined) {
             return;
         }
 
         try {
-            this.#people = await this.#app.harness.commit(async (tx) => {
+            [this.#people, this.#team] = await this.#app.harness.commit(async (tx) => {
                 const doc = await tx.doc(SpendDoc);
 
                 if (wiki !== undefined) {
@@ -178,7 +200,14 @@ export class Spend {
                     }
                 }
 
-                return { ...doc.people };
+                for (const [id, payers] of teamOwed) {
+                    for (const [payer, added] of payers) {
+                        doc.teamCounted = { ...doc.teamCounted, [String(id)]: (doc.teamCounted?.[String(id)] ?? 0) + added };
+                        doc.team = { ...doc.team, [payer]: (doc.team?.[payer] ?? 0) + added };
+                    }
+                }
+
+                return [{ ...doc.people }, { ...doc.team }] as const;
             }, context);
         } catch (error) {
             // Still owed: the next count stores it.
@@ -187,6 +216,12 @@ export class Spend {
             for (const [id, payers] of owed) {
                 for (const [payer, added] of payers) {
                     this.#owe(id, payer, added);
+                }
+            }
+
+            for (const [id, payers] of teamOwed) {
+                for (const [payer, added] of payers) {
+                    this.#owe(id, payer, added, this.#teamOwed);
                 }
             }
 
@@ -283,7 +318,8 @@ export class Spend {
         }
 
         // The owner of a pi-phone behind the server edition's gateway: their role's monthly cap (PP-22).
-        const month = person?.role === "owner" ? app.policy.month(this.personSpent(userId)) : undefined;
+        // Not what went to the team's accounts: the team server holds that to the role's team spend limit (PP-73).
+        const month = person?.role === "owner" ? app.policy.month(this.personSpent(userId) - (this.#team[userId] ?? 0)) : undefined;
 
         if (month !== undefined && month.spent >= month.cap) {
             return { budget: month.cap, monthly: true };

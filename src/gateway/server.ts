@@ -538,18 +538,36 @@ export class Gateway {
             throw new HttpError(403, `${role.name} may not use the model ${modelId}.`);
         }
 
+        // The role's monthly team spend for each of its people (PP-73), apart from their own pi-phone's.
+        const month = new Date().toISOString().slice(0, 7);
+        const limit = role.builtin ? null : (role.teamSpendLimit ?? null);
+
+        if (limit !== null && store.teamSpendOf(month, me.id) >= limit) {
+            throw new HttpError(403, `You've used this month's team spend (${role.name}: $${limit} a month): ask your team's owner.`);
+        }
+
         const stop = new AbortController();
         const events = this.#options.teamAccounts.stream(id, modelId, asked.context as never, (asked.options ?? {}) as Record<string, unknown>, stop.signal);
+        let usage: { cost?: { total?: number }; totalTokens?: number } | undefined;
 
         response.on("close", () => stop.abort());
         response.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store" });
 
-        for await (const event of events) {
-            if (response.destroyed) {
-                break;
-            }
+        try {
+            // To the end even when the pi-phone went away: the stopped call's last event says what it cost.
+            for await (const event of events) {
+                if (event.type === "done" || event.type === "error") {
+                    usage = (event.type === "done" ? event.message : event.error).usage;
+                }
 
-            response.write(`${JSON.stringify(event)}\n`);
+                if (!response.destroyed) {
+                    response.write(`${JSON.stringify(event)}\n`);
+                }
+            }
+        } finally {
+            if (usage !== undefined && ((usage.cost?.total ?? 0) > 0 || (usage.totalTokens ?? 0) > 0)) {
+                store.addTeamSpend(month, me.id, id, usage.cost?.total ?? 0, usage.totalTokens ?? 0);
+            }
         }
 
         response.end();
@@ -1357,8 +1375,25 @@ export class Gateway {
 
             const listed = await this.#options.controller.list();
 
+            // This month's team spend (PP-73): each person's, by account, with their role's limit.
+            const month = new Date().toISOString().slice(0, 7);
+            const people = new Map(store.users().map((each) => [each.id, each]));
+            const accountNames = new Map(store.teamAccounts().map((each) => [each.id, each.name]));
+            const teamSpend = store.teamSpend(month).map((row) => {
+                const person = people.get(row.userId);
+                const role = person === undefined ? undefined : store.roleOf(person.id, person.role);
+
+                return {
+                    ...row,
+                    name: person?.name ?? "Someone removed",
+                    accountName: accountNames.get(row.account) ?? row.account,
+                    limit: role === undefined || role.builtin ? null : (role.teamSpendLimit ?? null),
+                };
+            });
+
             return json(response, 200, {
                 docs: this.#options.docs.searchState(),
+                teamSpend: { month, rows: teamSpend },
                 idleMinutes: store.idleMinutes(),
                 containers: { all: listed.length, running: listed.filter((each) => each.running).length, outdated: listed.filter((each) => !each.current).length },
             });

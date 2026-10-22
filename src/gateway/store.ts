@@ -46,6 +46,10 @@ export class GatewayStore {
                 target TEXT, details TEXT
             );
             CREATE TABLE IF NOT EXISTS pp_team_account (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS pp_team_spend (
+                month TEXT NOT NULL, user_id TEXT NOT NULL, account TEXT NOT NULL, cost REAL NOT NULL, tokens INTEGER NOT NULL,
+                PRIMARY KEY (month, user_id, account)
+            );
             CREATE TABLE IF NOT EXISTS pp_space (
                 sharer TEXT NOT NULL, teammate TEXT NOT NULL, level TEXT NOT NULL, token TEXT NOT NULL, sessions TEXT NOT NULL,
                 updated_at INTEGER NOT NULL, PRIMARY KEY (sharer, teammate, level)
@@ -194,6 +198,28 @@ export class GatewayStore {
 
     saveTeamAccount(account: TeamAccount): void {
         this.#db.prepare("INSERT INTO pp_team_account (id, body) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body").run(account.id, JSON.stringify(account));
+    }
+
+    /** What a person's answers from a team account cost in a month ("2026-10"), added after each answer (PP-73). */
+    addTeamSpend(month: string, userId: string, account: string, cost: number, tokens: number): void {
+        this.#db
+            .prepare(
+                "INSERT INTO pp_team_spend (month, user_id, account, cost, tokens) VALUES (?, ?, ?, ?, ?) ON CONFLICT(month, user_id, account) DO UPDATE SET cost = cost + excluded.cost, tokens = tokens + excluded.tokens",
+            )
+            .run(month, userId, account, cost, tokens);
+    }
+
+    /** A month's team spend, by person and account; or one person's, all accounts summed. */
+    teamSpend(month: string): { userId: string; account: string; cost: number; tokens: number }[] {
+        const rows = this.#db.prepare("SELECT user_id, account, cost, tokens FROM pp_team_spend WHERE month = ? ORDER BY cost DESC").all(month) as { user_id: string; account: string; cost: number; tokens: number }[];
+
+        return rows.map((row) => ({ userId: row.user_id, account: row.account, cost: row.cost, tokens: row.tokens }));
+    }
+
+    teamSpendOf(month: string, userId: string): number {
+        const row = this.#db.prepare("SELECT COALESCE(SUM(cost), 0) AS cost FROM pp_team_spend WHERE month = ? AND user_id = ?").get(month, userId) as { cost: number };
+
+        return row.cost;
     }
 
     /** Gone, and from every role that listed it. */

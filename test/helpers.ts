@@ -106,11 +106,11 @@ export async function until(
 }
 
 /** Record `dollars` more of model usage in a conversation, the way a model response does: the scripted model costs nothing. */
-export async function recordCost(app: App, id: ConversationId, dollars: number): Promise<void> {
+export async function recordCost(app: App, id: ConversationId, dollars: number, model = "faux/faux-1"): Promise<void> {
     await app.harness.commit(async (tx) => {
         const usage = await tx.doc(UsageDoc, id);
 
-        usage.models["faux/faux-1"] ??= {
+        usage.models[model] ??= {
             input: 0,
             output: 0,
             cacheRead: 0,
@@ -118,8 +118,8 @@ export async function recordCost(app: App, id: ConversationId, dollars: number):
             totalTokens: 0,
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
         };
-        usage.models["faux/faux-1"].cost.output += dollars;
-        usage.models["faux/faux-1"].cost.total += dollars;
+        usage.models[model].cost.output += dollars;
+        usage.models[model].cost.total += dollars;
     }, context);
 }
 

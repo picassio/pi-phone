@@ -351,6 +351,12 @@ export const SpendDoc = defineDoc<{
     counted: Record<string, number>;
     /** The wiki's search by meaning: its remote embeddings (indexing pages, and queries), nobody's in particular. */
     wiki?: WikiSpend;
+    /**
+     * The part of `people` and `counted` spent on the team server's accounts (PP-73): the team server counts it against
+     * the role's team spend limit, so the role's own monthly cap leaves it out.
+     */
+    team?: Record<string, number>;
+    teamCounted?: Record<string, number>;
 }>({
     kind: "pocket.spend",
     version: 1,
