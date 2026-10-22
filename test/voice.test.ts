@@ -12,6 +12,8 @@ const STUBS: Record<string, string> = {
     "./store.js": `export const notify = () => {};`,
     "./ui.js": `export const html = () => null; export const Icon = () => null;`,
     "./android-speech.js": `export const dictationLanguage = () => "vi-VN";`,
+    // The app's words in English, as written: no catalog to fetch, no page to set the language on.
+    "./i18n.js": `export const t = (text) => text;`,
 };
 
 registerHooks({
