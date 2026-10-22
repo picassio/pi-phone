@@ -19,7 +19,7 @@ import {
 import { APPLE, html, Icon, Sheet, shortPath } from "../ui.js";
 import { piSessionsAvailable } from "./pi-sessions.js";
 import { continueInPiAt } from "./pi-handoff.js";
-import { joinPlace, splitPlace } from "../place.js";
+import { joinPlace, missingFolder, splitPlace } from "../place.js";
 
 /** Whether hidden folders show: kept for the next time the picker opens. */
 const HIDDEN_KEY = "pocket.folderHidden";
@@ -28,10 +28,6 @@ const touch = matchMedia("(pointer: coarse)").matches;
 
 /** A folder's path with a name added: `/a` and `b` make `/a/b`, `/` and `b` make `/b`. */
 const joined = (folder, name) => `${folder.replace(/\/+$/, "")}/${name.replace(/^\/+/, "")}`;
-
-/** Whether a failure says a folder is not there yet, and so could be made: only a whole path, as the server makes no other. */
-const notThere = (error, target) =>
-    error.status === 404 && /isn't there/.test(error.message) && /^\s*[~/]/.test(target);
 
 /** A folder's name: the last part of its path, or ~ for home and / for the root. */
 function nameOf(path, home) {
@@ -216,9 +212,9 @@ export function CwdSheet({ mode, start, title }) {
                 }
 
                 // A favorite that does not open, however, gets the banner, which can remove it.
-                if (notThere(error, path) || store.state.folderFavorites.includes(path)) {
+                if (missingFolder(error, path) || store.state.folderFavorites.includes(path)) {
                     setMissing(path);
-                    setMissingWhy(notThere(error, path) ? null : error.message);
+                    setMissingWhy(missingFolder(error, path) ? null : error.message);
                     setEditing(null);
                 } else if (listing) {
                     notify("error", error.message);

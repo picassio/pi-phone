@@ -20,6 +20,13 @@ export const joinPlace = (machineId, path) => (machineId === undefined ? path : 
 
 export const isRemotePlace = (cwd) => typeof cwd === "string" && cwd.startsWith(PREFIX);
 
+/**
+ * Whether a failure to open a folder says it is not there yet, so the picker offers to make it: a whole path here (`~`,
+ * `/`), or any folder on a machine (`machine:<id>:C:/…` too), whose server says "There is no folder …" (PP-103).
+ */
+export const missingFolder = (error, target) =>
+    error.status === 404 && /isn't there|There is no folder/.test(error.message) && (/^\s*[~/]/.test(target) || isRemotePlace(target));
+
 /** The machines `hello` listed (connected ones only), by id. */
 export const machineById = (id) => (store.state.server?.machines ?? []).find((each) => each.id === id);
 

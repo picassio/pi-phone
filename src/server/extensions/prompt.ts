@@ -44,6 +44,10 @@ const GUIDELINES = `- Keep replies short and easy to read on a small screen. Lea
 - Before running something destructive or irreversible, say what it will do. A guard may ask a human to approve risky commands; if a call is blocked, do not try to get around the block.
 - Do not commit, push, publish, or deploy unless asked.`;
 
+/** A session on a Windows machine: how its shell (Git Bash) runs Windows programs, and how to write its paths (PP-101). */
+export const WINDOWS_SHELL =
+    "It runs Windows. bash there is Git Bash: Unix commands work, and Windows programs (.exe, cmd //c, powershell -NoProfile -Command) run from it; write cmd //c, since Git Bash turns a lone /c into the path C:/. Give read, write and edit Windows paths with forward slashes (C:/Users/…); in bash the same folder is also /c/Users/….";
+
 /** What a bash result gets when its command wrote files by script: a reminder, never a refusal. */
 export const EDIT_NOTE = "Note: this command wrote files by script, which shows no diff in the app. Change files with edit (or write for a new file) instead; use bash to run things.";
 
@@ -207,7 +211,7 @@ export default function createPrompt(host: PocketHost) {
                     "That machine's git, gh, and other programs use its own logins and tools, not the phone's. Files the user attaches are copied to ~/.pi/mobile/uploads on that machine; the message lists their paths there.",
                     ...(machine.platform.startsWith("windows")
                         ? [
-                              "It runs Windows. bash there is Git Bash: Unix commands work, and Windows programs (.exe, cmd /c, powershell -NoProfile -Command) run from it. Give read, write and edit Windows paths with forward slashes (C:/Users/…); in bash the same folder is also /c/Users/….",
+                              WINDOWS_SHELL,
                           ]
                         : []),
                     "A command stops about 30 seconds after the phone's connection to the machine drops, with an error; check what happened before running it again.",
