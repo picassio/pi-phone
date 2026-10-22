@@ -16577,6 +16577,34 @@ pre.gallery-code {
     margin-top: 10px;
 }
 
+.sg-find {
+    grid-template-columns: minmax(0, 1fr);
+    margin-bottom: 10px;
+}
+
+.sg-find + .sheet-list:empty {
+    display: none;
+}
+
+.list-item.sg-new-item > span:first-child {
+    color: var(--accent);
+}
+
+/* "+ New group", and showing or hiding the empty groups, under the groups. */
+.sg-foot {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sg-foot .sg-new {
+    width: auto;
+}
+
+.sg-foot .sg-empties {
+    margin-left: auto;
+}
+
 .sg-create input {
     width: 100%;
     min-width: 0;

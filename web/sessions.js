@@ -583,8 +583,15 @@ export async function setSettled(id, settled) {
 /** What the list shows: everything, one project's team, one folder, or the archive. Kept on this device. */
 const SCOPE_KEY = "pocket.sessionScope";
 const readScope = () => localStorage.getItem(SCOPE_KEY) ?? "all";
+/** Whether empty folder groups show under All, on this device (PP-76). */
+const EMPTY_KEY = "pocket.showEmptyGroups";
 
-function inScope(session, scope) {
+function inScope(session, scope, mine) {
+    // One of the person's folder groups (PP-76).
+    if (scope.startsWith("fg:")) {
+        return mine.members[String(session.id)] === scope.slice(3);
+    }
+
     if (scope.startsWith("group:")) {
         return session.group?.id === scope.slice(6);
     }
@@ -605,7 +612,7 @@ function inScope(session, scope) {
  * (settled ones last); a pinned session shows in Pinned only. Under a scope, a group with nothing in it is left out.
  * While searching, or in the archive, one flat list. `team` holds the rows drawn under their main session.
  */
-function groupsOf(shown, { scope, needle, pinned, now, mine }) {
+function groupsOf(shown, { scope, needle, pinned, now, mine, showEmpty, fresh }) {
     if (needle !== "" || scope === "archived") {
         return [{ key: "flat", label: needle ? "Matches" : "Archived", rows: shown, team: new Set() }];
     }
@@ -627,9 +634,12 @@ function groupsOf(shown, { scope, needle, pinned, now, mine }) {
             const live = rows.filter((session) => settledOf(session, now) === null).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
             const done = rows.filter((session) => settledOf(session, now) !== null).sort((a, b) => settledAt(b) - settledAt(a));
 
-            return { key: `g:${group.id}`, label: group.name, folder: group, rows: [...live, ...done], team: new Set() };
+            return { key: `g:${group.id}`, label: group.name, folder: group, under: !group.pinned, rows: [...live, ...done], team: new Set() };
         })
-        .filter((group) => scope === "all" || group.rows.length > 0);
+        // Empty groups: shown under All only when asked (or just made here); under a scope, never.
+        .filter((group) => group.rows.length > 0 || (scope === "all" && (showEmpty || fresh.has(group.folder.id))));
+    const empties = scope === "all" ? mine.groups.filter((group) => !filed.get(group.id).length).length : 0;
+    const under = folders.filter((group) => group.under);
 
     shown = shown.filter((session) => !inGroups.has(session.id));
 
@@ -661,9 +671,11 @@ function groupsOf(shown, { scope, needle, pinned, now, mine }) {
     return [
         ...(pins.length > 0 ? [{ key: "pinned", label: "Pinned", rows: pins, team: new Set() }] : []),
         ...folders.filter((group) => group.folder.pinned),
-        // Active stays while there are groups: it is where a session dragged out of one goes.
-        ...(ordered.length > 0 || folders.length > 0 ? [{ key: "active", label: "Active", rows: ordered, team }] : []),
-        ...folders.filter((group) => !group.folder.pinned),
+        // Active stays under All while there are groups: it is where a session dragged out of one goes.
+        ...(ordered.length > 0 || (scope === "all" && folders.length > 0) ? [{ key: "active", label: "Active", rows: ordered, team }] : []),
+        // The other groups under one heading that folds them all at once, on this device.
+        ...(under.length > 0 || empties > 0 ? [{ key: "groups", label: "Groups", heading: true, count: mine.groups.filter((group) => !group.pinned).length, empties, rows: [], team: new Set() }] : []),
+        ...under,
         ...(settled.length > 0 ? [{ key: "settled", label: "Settled", foldable: true, rows: settled, team: new Set() }] : []),
     ];
 }
@@ -679,7 +691,7 @@ const folded = (group, closed) =>
  * The list's scope, in place of tabs (after T3 Code's "All projects"): All, each project (its team's sessions), each
  * folder, or the archive, with how many are there and how many work.
  */
-function ScopePicker({ scope, onScope, sessions, home }) {
+function ScopePicker({ scope, onScope, sessions, home, mine }) {
     const [open, setOpen] = useState(false);
     const live = sessions.filter((session) => !session.archived);
     const teams = new Map();
@@ -722,12 +734,18 @@ function ScopePicker({ scope, onScope, sessions, home }) {
     const name =
         scope === "archived"
             ? "Archived"
-            : scope.startsWith("group:")
+            : scope.startsWith("fg:")
+              ? (mine.groups.find((group) => group.id === scope.slice(3))?.name ?? "Group")
+              : scope.startsWith("group:")
               ? (teams.get(scope.slice(6))?.title ?? "Project")
               : scope.startsWith("folder:")
                 ? folderPlace(scope.slice(7))
                 : "All";
-    const icon = scope === "archived" ? "archive" : scope.startsWith("group:") ? "board" : scope.startsWith("folder:") ? "folder" : "menu";
+    const icon = scope === "archived" ? "archive" : scope.startsWith("group:") ? "board" : scope.startsWith("folder:") || scope.startsWith("fg:") ? "folder" : "menu";
+    // The person's folder groups (PP-76), pinned ones first, with how many chats each holds now.
+    const filed = mine.groups
+        .map((group) => ({ group, count: live.filter((session) => mine.members[String(session.id)] === group.id).length }))
+        .sort((a, b) => Number(b.group.pinned) - Number(a.group.pinned));
     const option = (key, lead, label, hint) => html`<button role="option" aria-selected=${scope === key} class=${scope === key ? "on" : ""} onClick=${() => pick(key)}>
         ${lead}<span class="scope-label">${label}</span><small>${hint}</small>
     </button>`;
@@ -751,6 +769,10 @@ function ScopePicker({ scope, onScope, sessions, home }) {
             open &&
             html`<div class="session-scope-menu" role="listbox" aria-label="Show">
                 ${option("all", null, "All", `${live.length} active`)}
+                ${filed.length > 0 && html`<div class="scope-sec">Groups</div>`}
+                ${filed.map(({ group, count }) =>
+                    option(`fg:${group.id}`, html`<${Icon} name=${group.pinned ? "pin" : "folder"} size=${13} />`, group.name, `${count}`),
+                )}
                 ${teams.size > 0 && html`<div class="scope-sec">Projects</div>`}
                 ${[...teams.values()]
                     .sort((a, b) => b.at - a.at)
@@ -791,7 +813,9 @@ function AllSessions({ compact = false }) {
     const { sessions, sessionsLoaded, server, pinned, sessionGroups } = store.state;
     const canStart = canSteer() && !scoped();
     const [query, setQueryState] = useState(() => (compact ? "" : listKept.query));
-    const [scope, setScopeState] = useState(readScope);
+    const [chosenScope, setScopeState] = useState(readScope);
+    // A folder group's scope whose group is gone: All.
+    const scope = chosenScope.startsWith("fg:") && !sessionGroups.groups.some((group) => group.id === chosenScope.slice(3)) ? "all" : chosenScope;
     const [closed, setClosed] = useState(readClosed);
     const [selected, setSelectedState] = useState(() => new Set());
     // Taps select rows instead of opening them: a selection started from a long press's sheet, on a touch screen.
@@ -800,6 +824,13 @@ function AllSessions({ compact = false }) {
     const [pressing, setPressing] = useState(null);
     // The folder group whose name is being typed (PP-76): a new one, or one being renamed.
     const [naming, setNaming] = useState(null);
+    // Folder groups made on this device show while empty; the others only when asked (on this device).
+    const [fresh, setFresh] = useState(() => new Set());
+    const [showEmpty, setShowEmptyState] = useState(() => localStorage.getItem(EMPTY_KEY) === "1");
+    const setShowEmpty = (next) => {
+        localStorage.setItem(EMPTY_KEY, next ? "1" : "0");
+        setShowEmptyState(next);
+    };
     // The selection as drags and clicks see it between renders; the row a Shift+click extends from; the row a Ctrl/⌘ press
     // already selected, whose click then does nothing; the rows in view, in order.
     const picked = useRef(selected);
@@ -883,19 +914,20 @@ function AllSessions({ compact = false }) {
     const shown = sessions.filter(
         (session) =>
             Boolean(session.archived) === archived &&
-            inScope(session, scope) &&
+            inScope(session, scope, sessionGroups) &&
             (needle === "" ||
                 `${session.title ?? ""} ${session.cwd} ${shortPath(session.cwd, server?.home)} ${session.model ?? ""} ${groupOf(session.id, sessionGroups)?.name ?? ""}`
                     .toLowerCase()
                     .includes(needle)),
     );
     const forest = sessionForest(shown, { pinned, folders: false });
-    const groups = groupsOf(forest.roots, { scope, needle, pinned, now: Date.now(), mine: sessionGroups }).map(
-        (group) => ({
+    // Folded under the Groups heading: the groups below it go.
+    const groups = groupsOf(forest.roots, { scope, needle, pinned, now: Date.now(), mine: sessionGroups, showEmpty, fresh })
+        .filter((group) => !(group.under && closed.has("groups")))
+        .map((group) => ({
             ...group,
             rows: group.rows.flatMap((root) => forest.rows.get(root.id)),
-        }),
-    );
+        }));
 
     visible.current = groups.flatMap((group) => (folded(group, closed) ? [] : group.rows.map(({ session }) => session.id)));
     const chosen = shown.filter((session) => selected.has(session.id)).map((session) => session.id);
@@ -1363,7 +1395,13 @@ function AllSessions({ compact = false }) {
         const made = await createGroup("New group");
 
         if (made !== undefined) {
+            setFresh(new Set([...fresh, made.id]));
             setNaming(made.id);
+
+            // Under the folded Groups heading it would not show: the heading opens.
+            if (closed.has("groups")) {
+                toggleGroup("groups");
+            }
         }
     };
 
@@ -1449,7 +1487,7 @@ function AllSessions({ compact = false }) {
                         </button>`
             }
         </label>
-        <${ScopePicker} scope=${scope} onScope=${setScope} sessions=${sessions} home=${server?.home} />
+        <${ScopePicker} scope=${scope} onScope=${setScope} sessions=${sessions} home=${server?.home} mine=${sessionGroups} />
         <div
             class="session-items"
             ref=${list}
@@ -1474,7 +1512,8 @@ function AllSessions({ compact = false }) {
 
                 const folder = group.folder;
                 // The folder groups end with "+ New group", before Settled (or at the end).
-                const lastFolder = mayGroup && !needle && !archived && group.key === groups.findLast((each) => each.folder && !each.folder.pinned || each.key === "active")?.key;
+                const lastFolder = mayGroup && !needle && !archived && !scope.startsWith("fg:") && group.key === groups.findLast((each) => each.under || each.key === "groups" || each.key === "active")?.key;
+                const empties = groups.find((each) => each.key === "groups")?.empties ?? 0;
                 const drop = mayGroup && !needle && !archived && (folder || group.key === "active" || group.key === "pinned") ? (folder ? `g:${folder.id}` : group.key) : undefined;
 
                 return html`<section
@@ -1548,7 +1587,7 @@ function AllSessions({ compact = false }) {
                                     ></span>`
                                 }
                                 <span class="group-count" data-part="session-group-count">
-                                    ${group.rows.length}
+                                    ${group.count ?? group.rows.length}
                                 </span>
                                 ${group.key !== "flat" && html`<${Icon} name="down" size=${11} />`}
                             </button>`
@@ -1591,7 +1630,19 @@ function AllSessions({ compact = false }) {
                         </div>
                     </div>
                 </section>
-                ${lastFolder && html`<button class="sg-new" data-part="session-group-new" onClick=${newGroup}><${Icon} name="plus" size=${12} />New group</button>`}`;
+                ${
+                    lastFolder &&
+                    html`<div class="sg-foot">
+                        <button class="sg-new" data-part="session-group-new" onClick=${newGroup}><${Icon} name="plus" size=${12} />New group</button>
+                        ${
+                            empties > 0 &&
+                            !closed.has("groups") &&
+                            html`<button class="sg-new sg-empties" onClick=${() => setShowEmpty(!showEmpty)}>
+                                ${showEmpty ? "Hide empty groups" : `Show ${empties} empty ${empties === 1 ? "group" : "groups"}`}
+                            </button>`
+                        }
+                    </div>`
+                }`;
             })}
         </div>
         ${

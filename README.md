@@ -36,7 +36,10 @@ No Termux, no laptop, no cloud VM.
   group… from a chat's long press, its row, its menu, or a selection's **Move…**, or drag on a desktop. A chat is in one
   group at most; a group can be pinned (under the pinned chats), folded, renamed, reordered, or deleted (its chats go
   back to Active). They're yours, kept on the server and the same on every device; under a project or folder scope each
-  shows only that scope's chats, and searching finds chats by their group's name. Pi can do all of it
+  shows only that scope's chats, and searching finds chats by their group's name. For many groups: the Move sheet finds
+  a group as you type (recent ones first) or makes the one you typed, the scope picker shows a single group, a
+  **Groups** heading folds them all on this device, and Fold all / Unfold all is in any group's menu. Empty groups
+  stay hidden until **Show empty groups**. Pi can do all of it
   (`session_groups`, `session_group_create`, `_rename`, `_pin`, `_fold`, `_order`, `_move`; deleting asks on a card).
 - **Real tools.** `bash`, `read` (text and images), `write`, `edit`, and `codemode` (scripts that call the tools),
   with git, gh, ssh, Node, npm, ripgrep, and fd in the bundled userland.

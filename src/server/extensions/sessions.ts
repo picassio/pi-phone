@@ -236,9 +236,15 @@ export default function createSessions(host: PocketHost) {
     });
     const groupFold = defineTool({
         name: "session_group_fold",
-        description: "Fold one of your person's folder groups (only its name and count show) or unfold it, on every device.",
-        parameters: Type.Object({ group: groupRef, folded: Type.Boolean() }),
+        description: "Fold one of your person's folder groups (only its name and count show) or unfold it, on every device; group \"all\" folds or unfolds every one.",
+        parameters: Type.Object({ group: Type.String({ description: "A group's id or name, from session_groups, or all" }), folded: Type.Boolean() }),
         execute: async (args, api) => {
+            if (args.group.trim().toLowerCase() === "all") {
+                await host.sessions.groups(api.conversationId, { action: "fold-all", folded: args.folded });
+
+                return reply(`${args.folded ? "Folded" : "Unfolded"} every group.`);
+            }
+
             const { group } = await findGroup(api.conversationId, args.group);
 
             await host.sessions.groups(api.conversationId, { action: "fold", id: group.id, folded: args.folded });

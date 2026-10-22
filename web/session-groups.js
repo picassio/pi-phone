@@ -27,6 +27,7 @@ export const moveToGroup = (ids, group) => change({ action: "move", sessions: id
 export const renameGroup = (id, name) => change({ action: "rename", id, name });
 export const pinGroup = (id, pinned) => change({ action: "pin", id, pinned });
 export const foldGroup = (id, folded) => change({ action: "fold", id, folded });
+export const foldAllGroups = (folded) => change({ action: "fold-all", folded });
 
 /** Where another group is: before it when it was above, after it when it was below (a swap with a neighbour). */
 export function moveGroup(id, other) {

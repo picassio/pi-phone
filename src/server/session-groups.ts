@@ -1,7 +1,7 @@
 /**
  * Folder groups in the session list (PP-76): each person's own groups, kept on the server and sent to all their
  * devices, as favorite folders are. A group has a name, may be pinned (it shows under the pinned chats) or folded, and
- * the groups keep the person's order. A session is in at most one group; groups do not nest. Deleting a group sends
+ * the groups keep the person's order (and remember when each was last used). A session is in at most one group; groups do not nest. Deleting a group sends
  * its sessions back to Active: nothing is archived.
  */
 import { randomUUID } from "node:crypto";
@@ -14,7 +14,8 @@ import { HttpError } from "./errors.ts";
 const MAX_GROUPS = 100;
 const MAX_NAME = 60;
 
-export type SessionGroup = { id: string; name: string; pinned: boolean; folded: boolean };
+/** `usedAt`: when it was made or last had sessions moved in (the Move sheet lists recent ones first). */
+export type SessionGroup = { id: string; name: string; pinned: boolean; folded: boolean; usedAt: number };
 export type SessionGroupsView = { groups: SessionGroup[]; members: Record<string, string> };
 
 /** What can be asked: one action, with what it needs. */
@@ -65,7 +66,8 @@ export class SessionGroups {
         const mine = await app.harness.commit(async (tx) => {
             const doc = await tx.doc(SessionGroupsDoc);
             const was = doc.users[user.id] ?? empty();
-            const groups = was.groups.map((group) => ({ ...group }));
+            // Groups made before `usedAt` count as used long ago.
+            const groups: SessionGroup[] = was.groups.map((group) => ({ ...group, usedAt: group.usedAt ?? 0 }));
             const members = { ...was.members };
             const find = (id: unknown) => {
                 const found = groups.find((group) => group.id === id);
@@ -83,7 +85,7 @@ export class SessionGroups {
                         throw new HttpError(409, `You can keep up to ${MAX_GROUPS} folder groups.`);
                     }
 
-                    touched = { id: randomUUID().slice(0, 8), name: nameOf(request.name), pinned: false, folded: false };
+                    touched = { id: randomUUID().slice(0, 8), name: nameOf(request.name), pinned: false, folded: false, usedAt: Date.now() };
                     groups.push(touched);
 
                     for (const id of sessions) {
@@ -104,6 +106,15 @@ export class SessionGroups {
                     touched = find(request.id);
                     touched.folded = flag(request.folded, "folded");
                     break;
+                case "fold-all": {
+                    const folded = flag(request.folded, "folded");
+
+                    for (const group of groups) {
+                        group.folded = folded;
+                    }
+
+                    break;
+                }
                 case "order": {
                     const order = Array.isArray(request.order) ? request.order.map(String) : [];
 
@@ -120,6 +131,10 @@ export class SessionGroups {
                     }
 
                     const into = request.group === null ? null : find(request.group);
+
+                    if (into !== null) {
+                        into.usedAt = Date.now();
+                    }
 
                     for (const id of sessions) {
                         if (into === null) {
@@ -147,7 +162,7 @@ export class SessionGroups {
                     break;
                 }
                 default:
-                    throw new HttpError(400, "A folder group change is create, rename, pin, fold, order, move or delete.");
+                    throw new HttpError(400, "A folder group change is create, rename, pin, fold, fold-all, order, move or delete.");
             }
 
             doc.users[user.id] = { groups, members };
@@ -186,7 +201,7 @@ export class SessionGroups {
 function view(mine: SessionGroupsOf): SessionGroupsView {
     const ids = new Set(mine.groups.map((group) => group.id));
 
-    return { groups: mine.groups.map((group) => ({ ...group })), members: Object.fromEntries(Object.entries(mine.members).filter(([, group]) => ids.has(group))) };
+    return { groups: mine.groups.map((group) => ({ ...group, usedAt: group.usedAt ?? 0 })), members: Object.fromEntries(Object.entries(mine.members).filter(([, group]) => ids.has(group))) };
 }
 
 function nameOf(value: unknown): string {

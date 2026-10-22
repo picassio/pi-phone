@@ -93,7 +93,7 @@ export const FolderFavoritesDoc = defineDoc<{ users: Record<string, string[]> }>
 });
 
 /** One person's folder groups in the session list (PP-76): the groups in their order, and each session's group. */
-export type SessionGroupsOf = { groups: { id: string; name: string; pinned: boolean; folded: boolean }[]; members: Record<string, string> };
+export type SessionGroupsOf = { groups: { id: string; name: string; pinned: boolean; folded: boolean; usedAt?: number }[]; members: Record<string, string> };
 
 export const SessionGroupsDoc = defineDoc<{ users: Record<string, SessionGroupsOf> }>({
     kind: "pocket.session-groups",

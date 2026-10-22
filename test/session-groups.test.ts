@@ -48,6 +48,13 @@ test("a person makes groups, moves sessions in and out, pins, folds, orders and 
         await app.sessionGroups.change(me, { action: "move", sessions: [b, c], group: hr.id });
         assert.deepEqual((await app.sessionGroups.list(me)).members, { [a]: cmg.id, [b]: hr.id, [c]: hr.id });
 
+        // Moving sessions in marks the group used (the Move sheet lists recent ones first).
+        const usedBefore = cmg.usedAt;
+
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        await app.sessionGroups.change(me, { action: "move", sessions: [a], group: cmg.id });
+        assert.ok((await app.sessionGroups.list(me)).groups.find((group) => group.id === cmg.id)!.usedAt > usedBefore, "used now");
+
         // Out of every group.
         await app.sessionGroups.change(me, { action: "move", sessions: [c], group: null });
         assert.equal((await app.sessionGroups.list(me)).members[String(c)], undefined);
@@ -56,6 +63,11 @@ test("a person makes groups, moves sessions in and out, pins, folds, orders and 
         await app.sessionGroups.change(me, { action: "fold", id: cmg.id, folded: true });
         await app.sessionGroups.change(me, { action: "rename", id: hr.id, name: "Hiring" });
         await app.sessionGroups.change(me, { action: "order", order: [hr.id, cmg.id] });
+
+        // Fold all, then unfold all.
+        assert.ok((await app.sessionGroups.change(me, { action: "fold-all", folded: true })).groups.every((group) => group.folded));
+        assert.ok((await app.sessionGroups.change(me, { action: "fold-all", folded: false })).groups.every((group) => !group.folded));
+        await app.sessionGroups.change(me, { action: "fold", id: cmg.id, folded: true });
 
         const now = await app.sessionGroups.list(me);
 
@@ -119,6 +131,8 @@ test("Pi's tools: list, create with sessions, rename, pin, fold, order, move; de
 
     await tool("session_group_rename", { group: "Pi made", name: "Pi's" });
     await tool("session_group_pin", { group: made.id, pinned: true });
+    await tool("session_group_fold", { group: "all", folded: false });
+    assert.ok((await groups()).every((group) => !group.folded), "unfolded every group");
     await tool("session_group_fold", { group: "Pi's", folded: true });
     await tool("session_group_move", { sessions: [b], group: null });
 
