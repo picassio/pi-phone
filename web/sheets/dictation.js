@@ -4,6 +4,7 @@ import { useState } from "preact/hooks";
 import { DICTATION_LANGUAGE_KEY } from "../android-speech.js";
 import { closeSheet, notify } from "../store.js";
 import { Choice, html, Sheet } from "../ui.js";
+import { t } from "../i18n.js";
 
 /** Languages Google's recognizer hears well, by BCP 47 tag; names come from the browser, in its own language. */
 const LANGUAGES = [
@@ -32,21 +33,19 @@ export function DictationSheet() {
         }
 
         setPicked(tag);
-        notify("info", `Dictation listens for ${named(tag === "" ? phone : tag)}.`);
+        notify("info", t("Dictation listens for {language}.", { language: named(tag === "" ? phone : tag) }));
     };
 
-    return html`<${Sheet} title="Dictation" onClose=${closeSheet}>
+    return html`<${Sheet} title=${t("Dictation")} onClose=${closeSheet}>
         <p class="muted small">
-            Tap the mic beside Send and speak: words show in the message box as they are heard, and nothing is sent by
-            itself. In the app, Android's own speech recognizer listens (Google's, as voice typing uses); in a browser, the
-            browser's. This device keeps its own choice.
+            ${t("Tap the mic beside Send and speak: words show in the message box as they are heard, and nothing is sent by itself. In the app, Android's own speech recognizer listens (Google's, as voice typing uses); in a browser, the browser's. This device keeps its own choice.")}
         </p>
         <div class="field">
-            <div class="label">Language</div>
+            <div class="label">${t("Language")}</div>
             <${Choice}
-                label="Language"
+                label=${t("Language")}
                 value=${picked}
-                options=${[{ value: "", label: `The phone's: ${named(phone)}` }, ...LANGUAGES.map((tag) => ({ value: tag, label: named(tag) }))]}
+                options=${[{ value: "", label: t("The phone's: {language}", { language: named(phone) }) }, ...LANGUAGES.map((tag) => ({ value: tag, label: named(tag) }))]}
                 onChange=${pick}
             />
         </div>

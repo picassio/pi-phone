@@ -6,6 +6,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { t } from "./i18n.js";
 import { closeSheet, notify, store } from "./store.js";
 import { copyText, html, Icon, shortPath } from "./ui.js";
 
@@ -147,11 +148,11 @@ export function TerminalSheet({ place, run }) {
             } else if (message.type === "gone") {
                 // It ended, or waited too long, while nobody looked: a new one, saying so.
                 forget(place);
-                terminal.write("\r\n\x1b[2m[that shell is gone; a new one]\x1b[0m\r\n");
+                terminal.write(`\r\n\x1b[2m${t("[that shell is gone; a new one]")}\x1b[0m\r\n`);
                 connect();
             } else if (message.type === "exit") {
                 forget(place);
-                terminal.write(`\r\n\x1b[2m[exited with ${message.code}]\x1b[0m\r\n`);
+                terminal.write(`\r\n\x1b[2m${t("[exited with {code}]", { code: message.code })}\x1b[0m\r\n`);
                 setState("ended");
             } else if (message.type === "error") {
                 terminal.write(`\r\n\x1b[31m${message.message}\x1b[0m\r\n`);
@@ -226,22 +227,22 @@ export function TerminalSheet({ place, run }) {
 
         // A mouse's selection is copied at once; with a finger, the text opens to select in.
         if (selection) {
-            copyText(selection).then(() => notify("info", "Copied."));
+            copyText(selection).then(() => notify("info", t("Copied.")));
         } else {
             setSelecting(screenText(term.current));
         }
     };
 
-    return html`<div class="terminal-sheet" role="dialog" aria-modal="true" aria-label="Terminal" data-part="terminal">
+    return html`<div class="terminal-sheet" role="dialog" aria-modal="true" aria-label=${t("Terminal")} data-part="terminal">
         <div class="terminal-bar">
             <${Icon} name="terminal" size=${16} />
             <span class="terminal-title mono">${shortPath(place, home)}</span>
             <span class=${`terminal-state ${state}`}>
-                ${state === "connecting" ? "connecting…" : state === "away" ? "disconnected" : state === "ended" ? "ended" : ""}
+                ${state === "connecting" ? t("connecting…") : state === "away" ? t("disconnected") : state === "ended" ? t("ended") : ""}
             </span>
-            ${state === "away" && html`<button class="button small" onClick=${connect}>Reconnect</button>`}
-            ${state !== "ended" && html`<button class="button small ghost" title="Stop the shell" onClick=${end}>End</button>`}
-            <button class="icon-button" aria-label="Close the terminal; the shell runs on" title="Close (the shell runs on)" onClick=${closeSheet}>
+            ${state === "away" && html`<button class="button small" onClick=${connect}>${t("Reconnect")}</button>`}
+            ${state !== "ended" && html`<button class="button small ghost" title=${t("Stop the shell")} onClick=${end}>${t("End")}</button>`}
+            <button class="icon-button" aria-label=${t("Close the terminal; the shell runs on")} title=${t("Close (the shell runs on)")} onClick=${closeSheet}>
                 <${Icon} name="close" />
             </button>
         </div>
@@ -251,8 +252,8 @@ export function TerminalSheet({ place, run }) {
             html`<div class="terminal-overlay">
                 <textarea class="terminal-text mono" readonly ref=${(el) => el && (el.scrollTop = el.scrollHeight)}>${selecting}</textarea>
                 <div class="sheet-actions">
-                    <button class="button small" onClick=${() => copyText(selecting).then(() => notify("info", "Copied all."))}>Copy all</button>
-                    <button class="button small primary" onClick=${() => setSelecting(null)}>Done</button>
+                    <button class="button small" onClick=${() => copyText(selecting).then(() => notify("info", t("Copied all.")))}>${t("Copy all")}</button>
+                    <button class="button small primary" onClick=${() => setSelecting(null)}>${t("Done")}</button>
                 </div>
             </div>`
         }
@@ -272,14 +273,14 @@ export function TerminalSheet({ place, run }) {
                     term.current?.focus();
                 }}
             >
-                <textarea name="text" class="terminal-text mono" placeholder="Paste here, then Send" autofocus></textarea>
+                <textarea name="text" class="terminal-text mono" placeholder=${t("Paste here, then Send")} autofocus></textarea>
                 <div class="sheet-actions">
-                    <button type="button" class="button small" onClick=${() => setPasting(false)}>Cancel</button>
-                    <button class="button small primary">Send</button>
+                    <button type="button" class="button small" onClick=${() => setPasting(false)}>${t("Cancel")}</button>
+                    <button class="button small primary">${t("Send")}</button>
                 </div>
             </form>`
         }
-        <div class="terminal-keys" role="toolbar" aria-label="Keys">
+        <div class="terminal-keys" role="toolbar" aria-label=${t("Keys")}>
             ${KEYS.map(
                 ([label, data]) => html`<button
                     class=${`terminal-key ${data === null && ctrlOn ? "on" : ""}`}
@@ -297,8 +298,8 @@ export function TerminalSheet({ place, run }) {
                     ${label}
                 </button>`,
             )}
-            <button class="terminal-key" onClick=${() => setPasting(true)}>Paste</button>
-            <button class="terminal-key" onPointerDown=${(event) => event.preventDefault()} onClick=${select}>Select</button>
+            <button class="terminal-key" onClick=${() => setPasting(true)}>${t("Paste")}</button>
+            <button class="terminal-key" onPointerDown=${(event) => event.preventDefault()} onClick=${select}>${t("Select")}</button>
         </div>
     </div>`;
 }

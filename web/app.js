@@ -436,7 +436,7 @@ function App() {
 
     if (state.me === undefined) {
         return html`<${Boot}
-            caption=${state.notices.some((notice) => notice.level === "error") ? "waiting for the server" : "starting"}
+            caption=${state.notices.some((notice) => notice.level === "error") ? t("waiting for the server") : t("starting")}
         />
         <${Notices} />`;
     }

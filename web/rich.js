@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { DiffBlock } from "./diff.js";
 import { highlight, langOf } from "./highlight.js";
+import { t } from "./i18n.js";
 import { RunFrame, useFitHeight } from "./run-frame.js";
 import DOMPurify from "dompurify";
 import { OpenUiFrame } from "./openui.js";
@@ -177,7 +178,7 @@ function MermaidDiagram({ source }) {
                     onError: (error) => live && setProblem(error instanceof Error ? error.message : String(error)),
                 });
             },
-            (error) => live && setProblem(`The diagram renderer did not load: ${error.message}`),
+            (error) => live && setProblem(t("The diagram renderer did not load: {message}", { message: error.message })),
         );
 
         return () => {
@@ -194,19 +195,19 @@ function MermaidDiagram({ source }) {
 
 // ─── Blocks ───────────────────────────────────────────────────────────────────────
 
-const VIEW_NAMES = { html: "Preview", svg: "Image", diff: "Diff", mermaid: "Diagram", openui: "Answer" };
+const VIEW_NAMES = () => ({ html: t("Preview"), svg: t("Image"), diff: t("Diff"), mermaid: t("Diagram"), openui: t("Answer") });
 
 /** An SVG as an image: as an image, it runs no scripts and loads nothing. Tap it to see it full screen. */
 function SvgImage({ source }) {
     const [broken, setBroken] = useState(false);
 
     if (broken) {
-        return html`<p class="muted small rich-note">This SVG could not be drawn.</p>`;
+        return html`<p class="muted small rich-note">${t("This SVG could not be drawn.")}</p>`;
     }
 
     return html`<img
         class="rich-svg"
-        alt="SVG image"
+        alt=${t("SVG image")}
         src=${`data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`}
         onError=${() => setBroken(true)}
     />`;
@@ -232,8 +233,8 @@ function RichBlock({ kind, lang, source, streaming }) {
 
     const copy = () =>
         copyText(source).then(
-            () => notify("info", "Copied."),
-            () => notify("error", "Could not copy."),
+            () => notify("info", t("Copied.")),
+            () => notify("error", t("Could not copy.")),
         );
 
     let body;
@@ -270,7 +271,7 @@ function RichBlock({ kind, lang, source, streaming }) {
                         class=${view === "shown" ? "on" : ""}
                         onClick=${() => setView("shown")}
                     >
-                        ${VIEW_NAMES[kind]}
+                        ${VIEW_NAMES()[kind]}
                     </button>
                     <button
                         type="button"
@@ -279,7 +280,7 @@ function RichBlock({ kind, lang, source, streaming }) {
                         class=${view === "code" ? "on" : ""}
                         onClick=${() => setView("code")}
                     >
-                        Code
+                        ${t("Code")}
                     </button>
                 </span>`
             }
@@ -290,13 +291,13 @@ function RichBlock({ kind, lang, source, streaming }) {
                 html`<button
                     type="button"
                     class=${`rich-run ${running ? "on" : ""}`}
-                    title=${running ? "Stop its scripts" : "Run its scripts in a sandbox, as an artifact runs: it can reach the internet, not the app"}
+                    title=${running ? t("Stop its scripts") : t("Run its scripts in a sandbox, as an artifact runs: it can reach the internet, not the app")}
                     onClick=${() => setRunning(!running)}
                 >
-                    ${running ? "■ Stop" : "▶ Run"}
+                    ${running ? t("■ Stop") : t("▶ Run")}
                 </button>`
             }
-            <button type="button" class="copy" onClick=${copy}>Copy</button>
+            <button type="button" class="copy" onClick=${copy}>${t("Copy")}</button>
         </div>
         ${body}
     </div>`;

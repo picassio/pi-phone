@@ -1,6 +1,7 @@
 // Settings › Access (src/server/tailnet.ts): whether people on the owner's tailnet reach this phone, and where. The
 // Tailscale app on the phone connects it to the tailnet; this only listens on its address, never on other networks.
 import { useEffect, useState } from "preact/hooks";
+import { t, tx } from "../i18n.js";
 import { api, attempt, closeSheet, notify, openSheet } from "../store.js";
 import { copyText, html, Loader, Sheet, Switch } from "../ui.js";
 
@@ -28,12 +29,11 @@ export function AccessSheet() {
             }
         });
 
-    return html`<${Sheet} title="Access" onClose=${closeSheet}>
+    return html`<${Sheet} title=${t("Access")} onClose=${closeSheet}>
         <p class="muted small">
-            Let people on your Tailscale network open this phone's invite links. Connect the Tailscale app on this phone;
-            pi-phone then listens on its Tailscale address too, and on no other network. Invite people from Settings › People.
+            ${t("Let people on your Tailscale network open this phone's invite links. Connect the Tailscale app on this phone; pi-phone then listens on its Tailscale address too, and on no other network. Invite people from Settings › People.")}
         </p>
-        ${!state && html`<${Loader} label="Loading" />`}
+        ${!state && html`<${Loader} label=${t("Loading")} />`}
         ${
             state &&
             html`<div class="provider toggle">
@@ -42,15 +42,15 @@ export function AccessSheet() {
                     <div class="muted small">
                         ${
                             !state.enabled
-                                ? "Off: only this phone reaches pi-phone."
+                                ? t("Off: only this phone reaches pi-phone.")
                                 : state.url
-                                  ? html`On: <span class="mono">${state.url}</span>`
-                                  : "On, waiting for Tailscale."
+                                  ? tx("On: {url}", { url: html`<span class="mono">${state.url}</span>` })
+                                  : t("On, waiting for Tailscale.")
                         }
                     </div>
                     ${state.problem && html`<p class="wiki-problem">${state.problem}</p>`}
                 </div>
-                <${Switch} on=${state.enabled} disabled=${busy} label="Reach over Tailscale" onChange=${() => toggle(!state.enabled)} />
+                <${Switch} on=${state.enabled} disabled=${busy} label=${t("Reach over Tailscale")} onChange=${() => toggle(!state.enabled)} />
             </div>
             ${
                 state.url &&
@@ -59,13 +59,13 @@ export function AccessSheet() {
                         class="button"
                         onClick=${() =>
                             copyText(state.url).then(
-                                () => notify("info", "Address copied."),
-                                () => notify("error", "Could not copy."),
+                                () => notify("info", t("Address copied.")),
+                                () => notify("error", t("Could not copy.")),
                             )}
                     >
-                        Copy address
+                        ${t("Copy address")}
                     </button>
-                    <button class="button primary" onClick=${() => openSheet({ type: "people" })}>Invite someone</button>
+                    <button class="button primary" onClick=${() => openSheet({ type: "people" })}>${t("Invite someone")}</button>
                 </div>`
             }`
         }

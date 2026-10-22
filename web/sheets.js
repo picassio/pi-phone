@@ -43,6 +43,7 @@ import { TrustSheet } from "./trust.js";
 import { addLayer, goBack, removeLayer } from "./back.js";
 import { actions, api, signOut, store } from "./store.js";
 import { Boundary, html, Icon, SheetBack, SheetInfo, usePresence } from "./ui.js";
+import { t } from "./i18n.js";
 
 // ─── Back ─────────────────────────────────────────────────────────────────────────
 
@@ -288,8 +289,8 @@ function sheetBody(sheet) {
             break;
         case "rename":
             body = html`<${TextSheet}
-                title="Rename"
-                label="Session title"
+                title=${t("Rename")}
+                label=${t("Session title")}
                 initial=${view.conversation?.title ?? ""}
                 submit=${(value) => actions.updateSession(view.conversation.id, { title: value })}
             />`;
@@ -334,22 +335,22 @@ function sheetBody(sheet) {
             break;
         case "reset":
             body = html`<${TextSheet}
-                title="New context"
-                hint="Pi starts fresh: it no longer sees the messages so far, though everyone here still does."
-                label="Handoff note (optional)"
-                placeholder="e.g. We fixed the login bug; next is the signup form."
+                title=${t("New context")}
+                hint=${t("Pi starts fresh: it no longer sees the messages so far, though everyone here still does.")}
+                label=${t("Handoff note (optional)")}
+                placeholder=${t("e.g. We fixed the login bug; next is the signup form.")}
                 multiline=${true}
-                button="Start a new context"
+                button=${t("Start a new context")}
                 submit=${(value) => actions.reset(value)}
             />`;
             break;
         case "instructions":
             body = html`<${TextSheet}
-                title="Instructions for Pi"
-                hint="Pi gets these with every message in this session, after its own instructions. Everyone here can see them. Leave empty for none."
-                label="Instructions"
+                title=${t("Instructions for Pi")}
+                hint=${t("Pi gets these with every message in this session, after its own instructions. Everyone here can see them. Leave empty for none.")}
+                label=${t("Instructions")}
                 initial=${view.agent?.instructions ?? ""}
-                placeholder="e.g. Use pnpm, not npm. Ask before adding dependencies."
+                placeholder=${t("e.g. Use pnpm, not npm. Ask before adding dependencies.")}
                 multiline=${true}
                 submit=${(value) => actions.setInstructions(value)}
             />`;
@@ -360,11 +361,11 @@ function sheetBody(sheet) {
             break;
         case "name":
             body = html`<${TextSheet}
-                title="Your name"
-                label="Shown on your messages to others"
+                title=${t("Your name")}
+                label=${t("Shown on your messages to others")}
                 initial=${me?.name ?? ""}
                 footer=${html`<button class="button ghost wide sheet-footer signout" onClick=${signOut}>
-                    <${Icon} name="logout" size=${16} /> Sign out
+                    <${Icon} name="logout" size=${16} /> ${t("Sign out")}
                 </button>`}
                 submit=${async (value) => {
                     await api("me", { name: value });

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { HtmlPreview, Highlighted } from "../rich.js";
 import { api, attempt, canSteer, closeSheet, notify } from "../store.js";
 import { fileUrl, html, Icon, Loader, Markdown, Sheet } from "../ui.js";
+import { t, tn } from "../i18n.js";
 
 const labelOf = (option) => (typeof option === "string" ? option : option.label);
 
@@ -53,7 +54,7 @@ function Media({ block, conversationId }) {
     } else if (block.type === "html") {
         body = html`<${HtmlPreview} source=${block.html} />`;
     } else {
-        body = html`<p class="muted small">A ${block.chart?.type ?? ""} chart: charts show here as Mermaid (pie, xychart).</p>`;
+        body = html`<p class="muted small">${t("A {type} chart: charts show here as Mermaid (pie, xychart).", { type: block.chart?.type ?? "" })}</p>`;
     }
 
     return html`<figure class="interview-media" style=${block.maxHeight ? `max-height:${block.maxHeight};overflow:auto` : ""}>
@@ -62,8 +63,8 @@ function Media({ block, conversationId }) {
     </figure>`;
 }
 
-/** Suggestions for asking about an option, as pi-interview offers them. */
-const ASK_CHIPS = ["Pros and cons?", "When is this the right pick?", "What would it take?"];
+/** Suggestions for asking about an option, as pi-interview offers them, in the person's language. */
+const askChips = () => [t("Pros and cons?"), t("When is this the right pick?"), t("What would it take?")];
 
 /**
  * Ask about one option (`interview-helpers.ts`): the thread so far, kept with the interview, suggestions, and a box
@@ -91,20 +92,20 @@ function AskPanel({ option, thread, helpers, conversationId }) {
                 <div class="interview-asked-a"><${Markdown} text=${turn.a} conversationId=${conversationId} /></div>
             </div>`,
         )}
-        ${busy && html`<${Loader} label="Asking" />`}
+        ${busy && html`<${Loader} label=${t("Asking")} />`}
         <div class="interview-chips">
-            ${ASK_CHIPS.map((chip) => html`<button class="button small" disabled=${busy} onClick=${() => send(chip)}>${chip}</button>`)}
+            ${askChips().map((chip) => html`<button class="button small" disabled=${busy} onClick=${() => send(chip)}>${chip}</button>`)}
         </div>
         <div class="row">
             <input
-                aria-label=${`Ask about ${option}`}
-                placeholder="Ask about this option…"
+                aria-label=${t("Ask about {option}", { option })}
+                placeholder=${t("Ask about this option…")}
                 value=${text}
                 disabled=${busy}
                 onInput=${(event) => setText(event.currentTarget.value)}
                 onKeyDown=${(event) => event.key === "Enter" && text.trim() !== "" && send(text)}
             />
-            <button class="button small primary" disabled=${busy || text.trim() === ""} onClick=${() => send(text)}>Ask</button>
+            <button class="button small primary" disabled=${busy || text.trim() === ""} onClick=${() => send(text)}>${t("Ask")}</button>
         </div>
     </div>`;
 }
@@ -112,15 +113,15 @@ function AskPanel({ option, thread, helpers, conversationId }) {
 /** A review's proposal: the question and its options rewritten, to take or leave. */
 function ReviewProposal({ review, onUse, onDismiss, busy }) {
     return html`<div class="interview-review">
-        <div class="label">Suggested rewrite</div>
+        <div class="label">${t("Suggested rewrite")}</div>
         <div class="interview-review-question">${review.question}</div>
         <ul>
             ${review.options.map((option) => html`<li>${option}</li>`)}
         </ul>
         ${review.why && html`<p class="muted small">${review.why}</p>`}
         <div class="sheet-actions">
-            <button class="button small" disabled=${busy} onClick=${onDismiss}>Keep mine</button>
-            <button class="button small primary" disabled=${busy} onClick=${onUse}>Use it</button>
+            <button class="button small" disabled=${busy} onClick=${onDismiss}>${t("Keep mine")}</button>
+            <button class="button small primary" disabled=${busy} onClick=${onUse}>${t("Use it")}</button>
         </div>
     </div>`;
 }
@@ -175,7 +176,7 @@ function Choices({ question, answer, onChange, disabled, conversationId, helpers
                         }}
                     />
                     <span>${label}</span>
-                    ${picks.includes(label) && question.conviction !== "slight" && html`<span class="badge">Recommended</span>`}
+                    ${picks.includes(label) && question.conviction !== "slight" && html`<span class="badge">${t("Recommended")}</span>`}
                     ${
                         helpers &&
                         !disabled &&
@@ -187,7 +188,7 @@ function Choices({ question, answer, onChange, disabled, conversationId, helpers
                                 setAsking(asking === label ? null : label);
                             }}
                         >
-                            Ask${(asked?.[`${question.id}\n${label}`]?.length ?? 0) > 0 ? ` (${asked[`${question.id}\n${label}`].length})` : ""}
+                            ${(asked?.[`${question.id}\n${label}`]?.length ?? 0) > 0 ? t("Ask ({n})", { n: asked[`${question.id}\n${label}`].length }) : t("Ask")}
                         </button>`
                     }
                 </label>
@@ -196,7 +197,7 @@ function Choices({ question, answer, onChange, disabled, conversationId, helpers
                     choice &&
                     html`<input
                         class="interview-note"
-                        placeholder="Optional clarification…"
+                        placeholder=${t("Optional clarification…")}
                         value=${choice.note ?? ""}
                         disabled=${disabled}
                         onInput=${(event) => note(label, event.currentTarget.value)}
@@ -233,13 +234,13 @@ function Choices({ question, answer, onChange, disabled, conversationId, helpers
                         }
                     }}
                 />
-                <span>Other</span>
+                <span>${t("Other")}</span>
             </label>
             ${
                 otherOn &&
                 html`<input
                     class="interview-note"
-                    placeholder="Your answer"
+                    placeholder=${t("Your answer")}
                     value=${otherText}
                     disabled=${disabled}
                     onInput=${(event) => setOther(event.currentTarget.value)}
@@ -265,7 +266,7 @@ function Choices({ question, answer, onChange, disabled, conversationId, helpers
             !disabled &&
             html`<div class="interview-helpers">
                 <button class="button small" disabled=${busy !== null} onClick=${() => run("more", () => helpers.more(question.id))}>
-                    ${busy === "more" ? "Thinking…" : "✦ More options"}
+                    ${busy === "more" ? t("Thinking…") : t("✦ More options")}
                 </button>
                 <button
                     class="button small"
@@ -279,7 +280,7 @@ function Choices({ question, answer, onChange, disabled, conversationId, helpers
                             }
                         })}
                 >
-                    ${busy === "review" ? "Reviewing…" : "↻ Review"}
+                    ${busy === "review" ? t("Reviewing…") : t("↻ Review")}
                 </button>
             </div>`
         }
@@ -317,7 +318,7 @@ function Images({ question, answer, onChange, disabled, conversationId }) {
         ${paths.map(
             (path) => html`<span class="interview-thumb" key=${path}>
                 <img src=${fileUrl(path, conversationId)} alt="" />
-                ${!disabled && html`<button class="icon-button" aria-label="Remove" onClick=${() => remove(path)}><${Icon} name="close" size=${14} /></button>`}
+                ${!disabled && html`<button class="icon-button" aria-label=${t("Remove")} onClick=${() => remove(path)}><${Icon} name="close" size=${14} /></button>`}
             </span>`,
         )}
         <input
@@ -334,7 +335,7 @@ function Images({ question, answer, onChange, disabled, conversationId }) {
         ${
             !disabled &&
             html`<button class="button small" disabled=${busy} onClick=${() => input.current?.click()}>
-                ${busy ? "Uploading…" : paths.length === 0 ? "Add a photo" : "Add more"}
+                ${busy ? t("Uploading…") : paths.length === 0 ? t("Add a photo") : t("Add more")}
             </button>`
         }
     </div>`;
@@ -459,16 +460,16 @@ export function InterviewSheet({ conversationId, callId }) {
     // Skip and Submit in the header, always in reach however long the form is.
     const actions =
         waiting &&
-        html`<button class="button small" disabled=${busy} onClick=${() => finish("cancel")}>Skip</button>
-            <button class="button small primary" disabled=${busy} onClick=${() => finish("submit")}>Submit</button>`;
+        html`<button class="button small" disabled=${busy} onClick=${() => finish("cancel")}>${t("Skip")}</button>
+            <button class="button small primary" disabled=${busy} onClick=${() => finish("submit")}>${t("Submit")}</button>`;
 
-    return html`<${Sheet} title=${interview?.questions.title ?? "Interview"} onClose=${closeSheet} className="interview" actions=${actions} wide>
+    return html`<${Sheet} title=${interview?.questions.title ?? t("Interview")} onClose=${closeSheet} className="interview" actions=${actions} wide>
         ${problem && html`<p class="wiki-problem">${problem}</p>`}
-        ${!interview && !problem && html`<${Loader} label="Loading the questions" />`}
+        ${!interview && !problem && html`<${Loader} label=${t("Loading the questions")} />`}
         ${
             interview &&
             html`${interview.questions.description && html`<div class="interview-description"><${Markdown} text=${interview.questions.description} conversationId=${conversationId} /></div>`}
-            ${!waiting && html`<p class="muted small">This interview ended (${interview.status}${interview.by ? `, by ${interview.by}` : ""}).</p>`}
+            ${!waiting && html`<p class="muted small">${interview.by ? t("This interview ended ({status}, by {who}).", { status: interview.status, who: interview.by }) : t("This interview ended ({status}).", { status: interview.status })}</p>`}
             ${questions.map(
                 (question) => html`<${QuestionCard}
                     key=${question.id}
@@ -484,8 +485,7 @@ export function InterviewSheet({ conversationId, callId }) {
             ${
                 waiting &&
                 html`<p class="muted small interview-status">
-                    ${unanswered === 0 ? "All answered." : `${unanswered} not answered yet.`} Saved as you go: close it and come back
-                    any time. Submit is at the top.
+                    ${unanswered === 0 ? t("All answered.") : tn(unanswered, "{n} not answered yet.", "{n} not answered yet.")} ${t("Saved as you go: close it and come back any time. Submit is at the top.")}
                 </p>`
             }`
         }

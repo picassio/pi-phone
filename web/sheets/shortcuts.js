@@ -1,61 +1,63 @@
 // The keyboard shortcuts, as a list. The keys themselves are handled in app.js.
 import { closeSheet } from "../store.js";
 import { html, Keys, Sheet } from "../ui.js";
+import { t, tx } from "../i18n.js";
 
 // Each row: its keys, and what they do. An "or" between keys means either one, and a "…" a run from one to the other.
-const SHORTCUTS = [
+// A function, so its words are in the person's language (chosen after this module loads).
+const SHORTCUTS = () => [
     [
-        "Sessions",
+        t("Sessions"),
         [
-            ["Mod K", "Launcher: sessions, actions, themes"],
-            ["Alt 1 … Alt 9", "Jump to a session, like a workspace"],
-            ["Alt ↑ or Alt ↓", "Previous or next session"],
-            ["Alt N", "New session"],
-            ["Mod 1 … Mod 9", "In New session: start in a favorite folder"],
-            ["Alt", "Hold to see session numbers"],
-            ["Mod B", "Fold or unfold the sidebar"],
-            ["Mod Click", "In the sidebar: select a session; drag to select every one you pass"],
-            ["Shift Click", "In the sidebar: select a run of sessions"],
+            ["Mod K", t("Launcher: sessions, actions, themes")],
+            ["Alt 1 … Alt 9", t("Jump to a session, like a workspace")],
+            ["Alt ↑ or Alt ↓", t("Previous or next session")],
+            ["Alt N", t("New session")],
+            ["Mod 1 … Mod 9", t("In New session: start in a favorite folder")],
+            ["Alt", t("Hold to see session numbers")],
+            ["Mod B", t("Fold or unfold the sidebar")],
+            ["Mod Click", t("In the sidebar: select a session; drag to select every one you pass")],
+            ["Shift Click", t("In the sidebar: select a run of sessions")],
         ],
     ],
     [
-        "Panels",
+        t("Panels"),
         [
-            ["Alt B", "Open or close the browser"],
-            ["Alt E", "Open or close the Files tile: the folder's files, and what changed"],
-            ["Alt A", "Open or close PiP, your assistant"],
-            ["Alt P", "Show or hide peek tiles"],
-            ["Alt T", "Show thinking: turn the live disclosure on or off"],
-            ["Mod F", "Find in this session"],
+            ["Alt B", t("Open or close the browser")],
+            ["Alt E", t("Open or close the Files tile: the folder's files, and what changed")],
+            ["Alt A", t("Open or close PiP, your assistant")],
+            ["Alt P", t("Show or hide peek tiles")],
+            ["Alt T", t("Show thinking: turn the live disclosure on or off")],
+            ["Mod F", t("Find in this session")],
         ],
     ],
     [
-        "Message box",
+        t("Message box"),
         [
-            ["/", "Commands"],
-            ["@", "Mention a file or folder"],
-            ["!", "Run a command (!! keeps it from Pi)"],
-            ["↑", "In an empty box: what you sent before"],
-            ["Ctrl R", "Search what you sent before"],
-            ["Alt V", "Dictate into the message box, or stop (where the browser can)"],
-            ["Esc Esc", "Stop Pi while it works"],
+            ["/", t("Commands")],
+            ["@", t("Mention a file or folder")],
+            ["!", t("Run a command (!! keeps it from Pi)")],
+            ["↑", t("In an empty box: what you sent before")],
+            ["Ctrl R", t("Search what you sent before")],
+            ["Alt V", t("Dictate into the message box, or stop (where the browser can)")],
+            ["Esc Esc", t("Stop Pi while it works")],
         ],
     ],
     [
-        "Changes",
+        t("Changes"),
         [
-            ["j or k", "The next or previous file"],
-            ["n or p", "The next or previous change"],
-            ["v", "Mark the file viewed, or not"],
-            ["s", "The layout: auto, split, or unified"],
-            ["w", "Wrap long lines, or not"],
+            ["j or k", t("The next or previous file")],
+            ["n or p", t("The next or previous change")],
+            ["v", t("Mark the file viewed, or not")],
+            ["s", t("The layout: auto, split, or unified")],
+            ["w", t("Wrap long lines, or not")],
         ],
     ],
     [
-        "Anywhere",
+        t("Anywhere"),
         [
-            ["?", "This list"],
-            ["Esc", "Close what is open"],
+            ["?", t("This list")],
+            ["Esc", t("Close what is open")],
         ],
     ],
 ];
@@ -66,14 +68,14 @@ function Chords({ keys }) {
         .split(" ")
         .map((key) =>
             key === "or" || key === "…"
-                ? html`<span class="muted">${key}</span>`
+                ? html`<span class="muted">${key === "or" ? t("or") : key}</span>`
                 : html`<${Keys} keys=${key} />`,
         );
 }
 
 export function ShortcutsSheet() {
-    return html`<${Sheet} title="Keyboard shortcuts" onClose=${closeSheet}>
-        ${SHORTCUTS.map(
+    return html`<${Sheet} title=${t("Keyboard shortcuts")} onClose=${closeSheet}>
+        ${SHORTCUTS().map(
             ([title, rows]) => html`<div class="group" key=${title}>
                 <div class="group-title">${title}</div>
                 <dl class="shortcuts">
@@ -85,7 +87,11 @@ export function ShortcutsSheet() {
             </div>`,
         )}
         <p class="muted small">
-            In the launcher, start with <kbd>></kbd> for actions, <kbd>@</kbd> for sessions, or <kbd>#</kbd> for themes. Arrowing onto colors shows them; Enter keeps them.
+            ${tx("In the launcher, start with {actions} for actions, {sessions} for sessions, or {themes} for themes. Arrowing onto colors shows them; Enter keeps them.", {
+                actions: html`<kbd>></kbd>`,
+                sessions: html`<kbd>@</kbd>`,
+                themes: html`<kbd>#</kbd>`,
+            })}
         </p>
     <//>`;
 }

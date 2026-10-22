@@ -3,6 +3,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet } from "../store.js";
 import { copyText, html, Loader, Sheet } from "../ui.js";
+import { t, tx } from "../i18n.js";
 
 export function GitHubSheet() {
     const [status, setStatus] = useState(null);
@@ -30,9 +31,9 @@ export function GitHubSheet() {
 
     return html`<${Sheet} title="GitHub" onClose=${closeSheet}>
         <p class="muted small">
-            Pi's <span class="mono">git</span> and <span class="mono">gh</span> use this account for private repositories, pushes, and pull requests. The sign-in stays in the app's home folder, where Pi can read it.
+            ${tx("Pi's {git} and {gh} use this account for private repositories, pushes, and pull requests. The sign-in stays in the app's home folder, where Pi can read it.", { git: html`<span class="mono">git</span>`, gh: html`<span class="mono">gh</span>` })}
         </p>
-        ${status === null && html`<${Loader} label="Checking GitHub" />`}
+        ${status === null && html`<${Loader} label=${t("Checking GitHub")} />`}
         ${
             status !== null &&
             html`<div class="sheet-list">
@@ -40,15 +41,15 @@ export function GitHubSheet() {
                     <div>
                         <div>GitHub ${signedIn && html` <span class="ok">✓</span>`}</div>
                         <div class="muted small">
-                            ${signedIn ? `signed in · ${status.login}` : status.state === "waiting" ? "signing in" : "not configured"}
+                            ${signedIn ? t("signed in · {login}", { login: status.login }) : status.state === "waiting" ? t("signing in") : t("not configured")}
                         </div>
                     </div>
                     <div class="provider-actions">
                         ${
                             signedIn
-                                ? html`<button class="button small ghost" onClick=${logout}>Sign out</button>`
+                                ? html`<button class="button small ghost" onClick=${logout}>${t("Sign out")}</button>`
                                 : status.state !== "waiting" &&
-                                  html`<button class="button small" onClick=${start}>Sign in</button>`
+                                  html`<button class="button small" onClick=${start}>${t("Sign in")}</button>`
                         }
                     </div>
                 </div>
@@ -58,24 +59,24 @@ export function GitHubSheet() {
             status?.state === "waiting" &&
             html`<div class="auth-event">
                     <p>
-                        Enter this code at <a href=${status.verificationUri} target="_blank" rel="noopener">${status.verificationUri}</a>
+                        ${tx("Enter this code at {link}", { link: html`<a href=${status.verificationUri} target="_blank" rel="noopener">${status.verificationUri}</a>` })}
                     </p>
                     <div class="code-big">${status.userCode}</div>
                     <a class="button primary wide" href=${status.verificationUri} target="_blank" rel="noopener">
-                        Open GitHub
+                        ${t("Open GitHub")}
                     </a>
                     <div class="row">
-                        <button class="button small" onClick=${() => copyText(status.userCode)}>Copy code</button>
-                        <button class="button small ghost" onClick=${cancel}>Cancel</button>
+                        <button class="button small" onClick=${() => copyText(status.userCode)}>${t("Copy code")}</button>
+                        <button class="button small ghost" onClick=${cancel}>${t("Cancel")}</button>
                     </div>
                 </div>
-                <${Loader} label="Waiting for GitHub" />`
+                <${Loader} label=${t("Waiting for GitHub")} />`
         }
         ${
             status?.state === "failed" &&
             html`<div class="error-box">
                 <p>${status.error}</p>
-                <button class="button" onClick=${start}>Start again</button>
+                <button class="button" onClick=${start}>${t("Start again")}</button>
             </div>`
         }
     <//>`;

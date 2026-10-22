@@ -61,6 +61,8 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
+    /* Within the picker, which shrinks: a long name ends in … instead of running under the buttons beside it. */
+    max-width: 100%;
     padding: 4px 6px;
     margin-left: -6px;
     border: 0;

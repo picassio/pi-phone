@@ -3,6 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { folderColor } from "../avatar.js";
 import { api, attempt, canSteer, closeSheet, navigate, notify, store } from "../store.js";
 import { html, Loader, Sheet, Spinner } from "../ui.js";
+import { t, tn } from "../i18n.js";
 
 /** How often the Running now sheet asks again while it is open. */
 const RUNNING_EVERY_MS = 2000;
@@ -40,9 +41,9 @@ export function RunningSheet() {
         return attempt(() => api(`c/${task.conversationId}/${path}/${task.id}/stop`, {}));
     };
 
-    return html`<${Sheet} title="Running now" onClose=${closeSheet}>
-        ${sessions === null && html`<${Loader} label="Looking" />`}
-        ${sessions?.length === 0 && html`<p class="muted">Nothing is running.</p>`}
+    return html`<${Sheet} title=${t("Running now")} onClose=${closeSheet}>
+        ${sessions === null && html`<${Loader} label=${t("Looking")} />`}
+        ${sessions?.length === 0 && html`<p class="muted">${t("Nothing is running.")}</p>`}
         ${sessions?.map(
             (session) => html`<div class="running" key=${session.id}>
                 <div class="running-head">
@@ -57,7 +58,7 @@ export function RunningSheet() {
                     ${
                         session.approvals > 0 &&
                         html`<span class="warn small">
-                            ${session.approvals} waiting for approval
+                            ${tn(session.approvals, "{n} waiting for approval", "{n} waiting for approval")}
                         </span>`
                     }
                     ${
@@ -67,7 +68,7 @@ export function RunningSheet() {
                             class="button small"
                             onClick=${() => attempt(() => api(`c/${session.id}/abort`, {}))}
                         >
-                            Stop
+                            ${t("Stop")}
                         </button>`
                     }
                 </div>
@@ -90,7 +91,7 @@ export function RunningSheet() {
                                 class="link small"
                                 onClick=${() => attempt(() => api(`c/${task.conversationId}/schedules/${encodeURIComponent(task.scheduleId)}/cancel`, {}))}
                             >
-                                Cancel
+                                ${t("Cancel")}
                             </button>`
                         }
                         ${
@@ -101,7 +102,7 @@ export function RunningSheet() {
                                 class="link small"
                                 onClick=${() => attempt(() => api(`c/${task.conversationId}/abort`, {}))}
                             >
-                                Stop
+                                ${t("Stop")}
                             </button>`
                         }
                         ${
@@ -111,7 +112,7 @@ export function RunningSheet() {
                                 class="link small"
                                 onClick=${() => stopCommand(task)}
                             >
-                                Stop
+                                ${t("Stop")}
                             </button>`
                         }
                     </div>`,

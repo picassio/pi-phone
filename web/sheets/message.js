@@ -22,6 +22,7 @@ import {
     Switch,
     writtenText,
 } from "../ui.js";
+import { t } from "../i18n.js";
 
 /** The message to Pi a reply answers: the newest one before it. */
 function promptBefore(entryId) {
@@ -52,7 +53,7 @@ const openBranch = (run) => {
         const created = await run();
 
         navigate(created.id);
-        notify("info", "Opened the new session. The original is unchanged.");
+        notify("info", t("Opened the new session. The original is unchanged."));
     }).finally(() => {
         branching = false;
     });
@@ -87,8 +88,8 @@ function SendAgain({ prompt, worktree }) {
                 `${model.provider}/${model.id} ${model.name}`.toLowerCase().includes(needle)),
     );
 
-    return html`<div class="group-title">Send again in a new session</div>
-    ${item(`With ${modelLabel(view.agent)}`, () => openBranch(() => actions.resend(prompt.id, { worktree })), "same model")}
+    return html`<div class="group-title">${t("Send again in a new session")}</div>
+    ${item(t("With {model}", { model: modelLabel(view.agent) }), () => openBranch(() => actions.resend(prompt.id, { worktree })), "same model")}
     ${
         choosing
             ? html`<div class="message-model-search">
@@ -96,7 +97,7 @@ function SendAgain({ prompt, worktree }) {
                     <${Icon} name="search" size=${16} />
                     <input
                         ref=${search}
-                        placeholder="Search models"
+                        placeholder=${t("Search models")}
                         value=${query}
                         onInput=${(event) => setQuery(event.currentTarget.value)}
                     />
@@ -131,8 +132,8 @@ export function MessageSheet({ entryId }) {
     useFocus(field, draft !== null);
 
     if (entry?.kind !== "user" && entry?.kind !== "assistant") {
-        return html`<${Sheet} title="Message" onClose=${closeSheet}>
-            <p class="muted">This message is not here anymore.</p>
+        return html`<${Sheet} title=${t("Message")} onClose=${closeSheet}>
+            <p class="muted">${t("This message is not here anymore.")}</p>
         <//>`;
     }
 
@@ -148,15 +149,15 @@ export function MessageSheet({ entryId }) {
     const copy = () => {
         closeSheet();
         copyText(text).then(
-            () => notify("info", "Copied."),
-            () => notify("error", "Could not copy."),
+            () => notify("info", t("Copied.")),
+            () => notify("error", t("Could not copy.")),
         );
     };
 
     if (draft !== null) {
-        return html`<${Sheet} title="Edit and send again" onClose=${closeSheet}>
+        return html`<${Sheet} title=${t("Edit and send again")} onClose=${closeSheet}>
             <p class="muted small">
-                Pi gets the edited message in a new session that forks just before the original. The original stays as it is.
+                ${t("Pi gets the edited message in a new session that forks just before the original. The original stays as it is.")}
             </p>
             <textarea
                 ref=${field}
@@ -165,28 +166,28 @@ export function MessageSheet({ entryId }) {
                 onInput=${(event) => setDraft(event.currentTarget.value)}
             ></textarea>
             <div class="row">
-                <button class="button" onClick=${() => setDraft(null)}>Back</button>
+                <button class="button" onClick=${() => setDraft(null)}>${t("Back")}</button>
                 <button
                     class="button primary grow"
                     onClick=${() => openBranch(() => actions.resend(entry.id, { text: draft, worktree }))}
                 >
-                    Send in a new session
+                    ${t("Send in a new session")}
                 </button>
             </div>
         <//>`;
     }
 
-    return html`<${Sheet} title=${toPi ? "Message" : "Reply"} onClose=${closeSheet}>
-        <div class="message-preview">${filesAlone ? "(attachments)" : text}</div>
+    return html`<${Sheet} title=${toPi ? t("Message") : t("Reply")} onClose=${closeSheet}>
+        <div class="message-preview">${filesAlone ? t("(attachments)") : text}</div>
         ${
             canBranch &&
             view.conversation.inRepository &&
             html`<div class="sheet-list">
                 <div class="extension message-worktree">
-                    <div class="extension-main">New sessions get a git worktree of their own</div>
+                    <div class="extension-main">${t("New sessions get a git worktree of their own")}</div>
                     <${Switch}
                         on=${worktree}
-                        label="New sessions get a git worktree of their own"
+                        label=${t("New sessions get a git worktree of their own")}
                         onChange=${() => setWorktree(!worktree)}
                     />
                 </div>

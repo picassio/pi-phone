@@ -194,7 +194,7 @@ function MentionedText({ text }) {
         parts.push(
             html`<button
                 class="file-mention"
-                title=${`Open ${path}`}
+                title=${t("Open {path}", { path })}
                 onClick=${() => openFile(path)}
             >
                 ${written}
@@ -237,14 +237,14 @@ function span(ms) {
     const seconds = Math.max(0, Math.round(ms / 1000));
 
     if (seconds < 60) {
-        return `${seconds}s`;
+        return t("{n}s", { n: seconds });
     }
 
     if (seconds < 3600) {
-        return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
+        return t("{m}m {s}s", { m: Math.floor(seconds / 60), s: String(seconds % 60).padStart(2, "0") });
     }
 
-    return `${Math.floor(seconds / 3600)}h ${String(Math.floor(seconds / 60) % 60).padStart(2, "0")}m`;
+    return t("{h}h {m}m", { h: Math.floor(seconds / 3600), m: String(Math.floor(seconds / 60) % 60).padStart(2, "0") });
 }
 
 /** When a message was sent, from the server's time: "10:42" today, "Oct 3 10:42" before. */
@@ -497,12 +497,12 @@ function StepMark({ status, kind }) {
 }
 
 /** What Pi did with its memory tool, as a step's label. */
-const MEMORY_WORDS = {
-    add: "saved a lesson",
-    update: "changed a lesson",
-    remove: "forgot a lesson",
-    list: "read its lessons",
-};
+const MEMORY_WORDS = () => ({
+    add: t("saved a lesson"),
+    update: t("changed a lesson"),
+    remove: t("forgot a lesson"),
+    list: t("read its lessons"),
+});
 
 /** A call's line: its label (the tool, or a subagent's name) and what it acts on. */
 function stepWords(call) {
@@ -527,7 +527,7 @@ function stepWords(call) {
             };
         case "memory":
             return {
-                label: MEMORY_WORDS[args.action] ?? "memory",
+                label: MEMORY_WORDS()[args.action] ?? t("memory"),
                 subject: args.text ? short(args.text) : (args.id ?? ""),
             };
         case "watch_pr":
@@ -886,7 +886,7 @@ function ToolStep({
                                 <span class="mono">${each.name}</span>
                                 ${
                                     each.durationMs !== undefined &&
-                                    html`<span class="muted">${each.durationMs} ms</span>`
+                                    html`<span class="muted">${t("{n} ms", { n: each.durationMs })}</span>`
                                 }
                                 ${
                                     each.error &&
@@ -1006,7 +1006,7 @@ function ToolStep({
                 child !== undefined &&
                 html`<button
                     class="step-open"
-                    title=${`Open ${args.name ?? "the subagent"}`}
+                    title=${(args.name ?? null) === null ? t("Open the subagent") : t("Open {name}", { name: args.name })}
                     onClick=${() => openSubagent(child)}
                 >
                     ${t("Open →")}
@@ -2509,7 +2509,7 @@ function LiveLine({ live, approvals, start, entries, conversationId }) {
             !waiting &&
             html`<span
                 class="live-why"
-                title=${`Attempt ${live.generation.attempt + 1}, after: ${retry.error}`}
+                title=${t("Attempt {n}, after: {error}", { n: live.generation.attempt + 1, error: retry.error })}
             >
                 ${retry.error}
             </span>`
@@ -2725,10 +2725,10 @@ export function Transcript() {
         const title = sessions.find((session) => session.id === conversationId)?.title;
         const caption =
             connection === "connecting"
-                ? "connecting"
+                ? t("connecting")
                 : connection === "open"
-                  ? "loading session"
-                  : "reconnecting";
+                  ? t("loading session")
+                  : t("reconnecting");
 
         return html`<main class="scroller">
             <${Boot} inline caption=${caption} detail=${title ?? ""} />

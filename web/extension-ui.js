@@ -15,6 +15,7 @@ import {
 } from "preact/hooks";
 import { useBack } from "./back.js";
 import { describersChanged, setCallDescriber } from "./calls.js";
+import { currentLanguage, t, tn, tx } from "./i18n.js";
 import { leaveSafeMode, onSafeModeEnd, safeMode } from "./safe-mode.js";
 import { api, closeSheet, insertIntoComposer, notify, onExtensionEvent, openSheet, store } from "./store.js";
 import { setCallSummary } from "./turns.js";
@@ -26,6 +27,44 @@ import { Choice, html, Icon, iconPath, Loader, Markdown, railState, Sheet, Spinn
  * keep it. The server's `web.api` is the same number.
  */
 export const POCKET_API = 1;
+
+/**
+ * A module's title in the person's language: the server names the built-in modules in English (`reload.ts` TITLES);
+ * a drop-in's own title stays as its author wrote it.
+ */
+export function moduleTitle(title) {
+    const titles = {
+        "System prompt": t("System prompt"),
+        Artifacts: t("Artifacts"),
+        Browser: t("Browser"),
+        Subagents: t("Subagents"),
+        "Agent Teams": t("Agent Teams"),
+        "Scheduled messages": t("Scheduled messages"),
+        "Done when": t("Done when"),
+        "Plan mode": t("Plan mode"),
+        "Lancet Guard": t("Lancet Guard"),
+        Codemode: t("Codemode"),
+        "CI watch": t("CI watch"),
+        "Other sessions": t("Other sessions"),
+        Secrets: t("Secrets"),
+        "Role policy": t("Role policy"),
+        Team: t("Team"),
+        Documents: t("Documents"),
+        "Sharing sessions": t("Sharing sessions"),
+        Interview: t("Interview"),
+        "Web access": t("Web access"),
+        "Interactive answers": t("Interactive answers"),
+        "Machine tools": t("Machine tools"),
+        "Wiki (PARA)": t("Wiki (PARA)"),
+        Projects: t("Projects"),
+        Memory: t("Memory"),
+        PiP: t("PiP"),
+        Triggers: t("Triggers"),
+        "Extension gallery": t("Extension gallery"),
+    };
+
+    return Object.hasOwn(titles, title) ? titles[title] : title;
+}
 
 /** What a browser module can add, each kept by its id. */
 const KINDS = ["rail", "menu", "launcher", "page", "sheet"];
@@ -137,7 +176,7 @@ function tick(record) {
         spent.held = turn;
 
         if (liveRecord(record)) {
-            fail(record, new Error("it redraws without end"), "was stopped");
+            fail(record, new Error(t("it redraws without end")), "was stopped");
         }
 
         throw stopped();
@@ -169,7 +208,7 @@ function chargeOpen(record) {
         spent.inTurn > HELD_OPENS ||
         (spent.inTurn >= SLOW_OPENS && now - spent.turnSince > HELD_MS)
     ) {
-        fail(record, new Error("it redraws without end"), "was stopped");
+        fail(record, new Error(t("it redraws without end")), "was stopped");
 
         return false;
     }
@@ -257,7 +296,7 @@ function reason(error) {
         text = "";
     }
 
-    return text.trim() === "" ? "it gave no reason" : text;
+    return text.trim() === "" ? t("it gave no reason") : text;
 }
 
 /** Run a cleanup; one that fails says so in the console, and the rest still run. */
@@ -407,7 +446,7 @@ function sync(list) {
         safeTold = true;
         notify(
             "warning",
-            "Extensions' browser parts are off in this tab, and so is the theme. Menu → Extensions turns them back on.",
+            t("Extensions' browser parts are off in this tab, and so is the theme. Menu → Extensions turns them back on."),
             () => openSheet({ type: "extensions" }),
         );
     }
@@ -506,8 +545,17 @@ function fail(record, error, how) {
     record.error = reason(error);
     record.how = how;
     console.error(`${record.title}'s browser module ${how}`, error);
-    notify("error", `${record.title} ${how} in this browser: ${record.error}`);
+    notify("error", failedText(record));
     redraw();
+}
+
+/** "Board failed to load in this browser: why": a failed module's notice, and its page's or sheet's error. */
+function failedText(record) {
+    const vars = { title: record.title, reason: record.error };
+
+    return record.how === "was stopped"
+        ? t("{title} was stopped in this browser: {reason}", vars)
+        : t("{title} failed to load in this browser: {reason}", vars);
 }
 
 function unload(record) {
@@ -768,6 +816,16 @@ function pocketFor(record) {
         Switch,
         /** The app's own dropdown (`{ value, options: [{ value, label, detail? }], onChange, label }`), not the system's. */
         Choice,
+        /**
+         * The app's words in the person's language (PP-84): `t` takes an English sentence with {placeholders} and their
+         * values, `tn` a count with its one and other sentences, `tx` a sentence with elements in it; English where the
+         * app's catalog has no sentence.
+         * `language()` is the one in use ("en", "zh-CN"). Uncounted, as `html` is: they draw.
+         */
+        t,
+        tn,
+        tx,
+        language: currentLanguage,
         /** Who uses this tab. */
         me: () => {
             tick(record);
@@ -1442,7 +1500,7 @@ class Guard extends Component {
     }
 
     render({ children, name }, { failed, message }) {
-        return failed ? html`<div class="error-box">${name} failed: ${message}</div>` : children;
+        return failed ? html`<div class="error-box">${t("{name} failed: {message}", { name, message })}</div>` : children;
     }
 }
 
@@ -1668,19 +1726,19 @@ function componentId(component) {
 /** What a page or sheet shows: its component once its module is ready, else why not. */
 function Body({ record, spec, title, props, close }) {
     if (record === undefined) {
-        return html`<p class="muted">This extension is off.</p>`;
+        return html`<p class="muted">${t("This extension is off.")}</p>`;
     }
 
     if (record.status === "failed") {
         return html`<div class="error-box">
-            ${record.title} ${record.how ?? "failed to load"} in this browser: ${record.error}
+            ${failedText(record)}
         </div>`;
     }
 
     if (spec === undefined) {
         return record.status === "ready"
-            ? html`<p class="muted">${record.title} no longer has this.</p>`
-            : html`<${Loader} label=${`Loading ${title}`} />`;
+            ? html`<p class="muted">${t("{title} no longer has this.", { title: record.title })}</p>`
+            : html`<${Loader} label=${t("Loading {title}", { title })} />`;
     }
 
     // A Guard that caught a failure stays with it until its component changes (the page added again, or updated).
@@ -1697,7 +1755,7 @@ export function ExtensionPage() {
     const target = store.state.page;
     const record = modules.get(target?.module);
     const spec = record?.adds.page.get(target?.id);
-    const title = spec?.title ?? record?.title ?? "Extension";
+    const title = spec?.title ?? record?.title ?? t("Extension");
     // A page that keeps Esc for itself (`escape: false`): read as the key comes, as it may change.
     const keepsEscape = useRef(false);
     const close = useMemo(() => pageCloser(record, target?.id), [record, target?.id]);
@@ -1744,14 +1802,14 @@ export function ExtensionPage() {
                 <h2>${title}</h2>
                 ${
                     record &&
-                    record.title !== title &&
-                    html`<div class="board-sub">${record.title}</div>`
+                    moduleTitle(record.title) !== title &&
+                    html`<div class="board-sub">${moduleTitle(record.title)}</div>`
                 }
             </div>
             <button
                 class="icon-button"
-                title="Back to the conversation (Esc)"
-                aria-label="Close"
+                title=${t("Back to the conversation (Esc)")}
+                aria-label=${t("Close")}
                 onClick=${closePage}
             >
                 <${Icon} name="close" />
@@ -1767,7 +1825,7 @@ export function ExtensionPage() {
 export function ExtensionSheet({ sheet }) {
     const record = modules.get(sheet.module);
     const spec = record?.adds.sheet.get(sheet.sheetId);
-    const title = spec?.title ?? record?.title ?? "Extension";
+    const title = spec?.title ?? record?.title ?? t("Extension");
     const close = useMemo(() => sheetCloser(record, sheet.sheetId), [record, sheet.sheetId]);
 
     return html`<${Sheet} title=${title} onClose=${closeSheet} wide=${spec?.wide === true} bare=${spec?.bare === true}>

@@ -4,15 +4,16 @@
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet } from "../store.js";
 import { html, Icon, Loader, Sheet, timeAgo } from "../ui.js";
+import { t, tx } from "../i18n.js";
 
 const NAME = /^[A-Z_][A-Z0-9_]{0,63}$/;
 const MIN_LENGTH = 8;
 
 /** Where a secret may be used, in words. */
 function where(secret) {
-    const folders = secret.folders.length === 0 ? "any folder" : secret.folders.join(", ");
+    const folders = secret.folders.length === 0 ? t("any folder") : secret.folders.join(", ");
 
-    return `${folders} · ${secret.machines ? "phone and machines" : "phone only"}`;
+    return `${folders} · ${secret.machines ? t("phone and machines") : t("phone only")}`;
 }
 
 /** The form for a new secret (`secret` undefined) or a change to one; a blank value keeps the stored one. */
@@ -56,68 +57,68 @@ function SecretForm({ secret, onDone }) {
         ${
             isNew &&
             html`<div class="field">
-                <div class="label">Name</div>
+                <div class="label">${t("Name")}</div>
                 <input
                     autofocus
                     class="mono"
-                    aria-label="Secret name"
+                    aria-label=${t("Secret name")}
                     placeholder="DEEPSEEK_API_KEY"
                     autocapitalize="characters"
                     value=${name}
                     onInput=${(event) => setName(event.currentTarget.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"))}
                 />
-                <p class="muted small">Pi uses it in commands as <span class="mono">$${name || "NAME"}</span>.</p>
+                <p class="muted small">${tx("Pi uses it in commands as {variable}.", { variable: html`<span class="mono">$${name || "NAME"}</span>` })}</p>
             </div>`
         }
         <div class="field">
-            <div class="label">Value</div>
+            <div class="label">${t("Value")}</div>
             <input
                 type="password"
                 class="mono"
-                aria-label="Secret value"
+                aria-label=${t("Secret value")}
                 autocomplete="off"
-                placeholder=${isNew ? "" : "Unchanged; type to replace it"}
+                placeholder=${isNew ? "" : t("Unchanged; type to replace it")}
                 value=${value}
                 onInput=${(event) => setValue(event.currentTarget.value)}
             />
             ${
                 value !== "" &&
                 value.length < MIN_LENGTH &&
-                html`<p class="muted small">At least ${MIN_LENGTH} characters: shorter values would hide ordinary text in outputs.</p>`
+                html`<p class="muted small">${t("At least {n} characters: shorter values would hide ordinary text in outputs.", { n: MIN_LENGTH })}</p>`
             }
         </div>
         <div class="field">
-            <div class="label">What it is for</div>
+            <div class="label">${t("What it is for")}</div>
             <input
-                aria-label="What it is for"
-                placeholder="DeepSeek API: web search and models"
+                aria-label=${t("What it is for")}
+                placeholder=${t("DeepSeek API: web search and models")}
                 value=${description}
                 onInput=${(event) => setDescription(event.currentTarget.value)}
             />
         </div>
         <div class="field">
-            <div class="label">Folders</div>
+            <div class="label">${t("Folders")}</div>
             <textarea
                 rows="2"
                 class="mono"
-                aria-label="Folders"
-                placeholder="Any folder. Or one per line: ~/work/pi-phone, machine:…"
+                aria-label=${t("Folders")}
+                placeholder=${t("Any folder. Or one per line: ~/work/pi-phone, machine:…")}
                 value=${folders}
                 onInput=${(event) => setFolders(event.currentTarget.value)}
             ></textarea>
             <label class="check">
                 <input type="checkbox" checked=${machines} onChange=${(event) => setMachines(event.currentTarget.checked)} />
-                Sessions on machines may use it too
+                ${t("Sessions on machines may use it too")}
             </label>
             <label class="check">
                 <input type="checkbox" checked=${ask} onChange=${(event) => setAsk(event.currentTarget.checked)} />
-                Ask me before each command that uses it
+                ${t("Ask me before each command that uses it")}
             </label>
         </div>
         <div class="sheet-actions">
-            <button class="button" onClick=${() => onDone(false)}>Cancel</button>
+            <button class="button" onClick=${() => onDone(false)}>${t("Cancel")}</button>
             <button class="button primary" disabled=${busy || !nameOk || !valueOk} onClick=${save}>
-                ${busy ? "Saving…" : "Save"}
+                ${busy ? t("Saving…") : t("Save")}
             </button>
         </div>
     </div>`;
@@ -126,7 +127,7 @@ function SecretForm({ secret, onDone }) {
 function SecretRow({ secret, onChanged }) {
     const [editing, setEditing] = useState(false);
     const remove = () =>
-        confirm(`Remove ${secret.name}?\n\nCommands that use $${secret.name} then run without it.`) &&
+        confirm(t("Remove {name}?\n\nCommands that use ${name} then run without it.", { name: secret.name })) &&
         attempt(async () => {
             await api(`secrets/${encodeURIComponent(secret.name)}`, undefined, { method: "DELETE" });
             onChanged();
@@ -151,14 +152,18 @@ function SecretRow({ secret, onChanged }) {
         <div>
             <div class="mono">$${secret.name}</div>
             ${secret.description !== "" && html`<div class="small">${secret.description}</div>`}
-            <div class="muted small">${where(secret)}${secret.ask ? " · asks first" : ""}</div>
+            <div class="muted small">${where(secret)}${secret.ask ? ` · ${t("asks first")}` : ""}</div>
             <div class="muted small">
-                changed ${timeAgo(secret.updatedAt)} ago${secret.usedAt === undefined ? " · not used yet" : ` · used ${timeAgo(secret.usedAt)} ago`}
+                ${
+                    secret.usedAt === undefined
+                        ? t("changed {changed} ago · not used yet", { changed: timeAgo(secret.updatedAt) })
+                        : t("changed {changed} ago · used {used} ago", { changed: timeAgo(secret.updatedAt), used: timeAgo(secret.usedAt) })
+                }
             </div>
         </div>
         <div class="provider-actions">
-            <button class="button small" onClick=${() => setEditing(true)}>Change</button>
-            <button class="button small ghost" onClick=${remove}>Remove</button>
+            <button class="button small" onClick=${() => setEditing(true)}>${t("Change")}</button>
+            <button class="button small ghost" onClick=${remove}>${t("Remove")}</button>
         </div>
     </div>`;
 }
@@ -172,14 +177,12 @@ export function SecretsSheet() {
         attempt(load);
     }, []);
 
-    return html`<${Sheet} title="Secrets" onClose=${closeSheet}>
+    return html`<${Sheet} title=${t("Secrets")} onClose=${closeSheet}>
         <p class="muted small">
-            API keys and tokens Pi uses without seeing them: a command that names one (<span class="mono">$NPM_TOKEN</span>) runs
-            with its value, and any output that shows a value shows <span class="mono">[secret NAME]</span> instead. Pi can ask
-            you for one with a hidden field. Values stay on this phone, in the app's own storage, and go into backups.
+            ${tx("API keys and tokens Pi uses without seeing them: a command that names one ({example}) runs with its value, and any output that shows a value shows {masked} instead. Pi can ask you for one with a hidden field. Values stay on this phone, in the app's own storage, and go into backups.", { example: html`<span class="mono">$NPM_TOKEN</span>`, masked: html`<span class="mono">[secret NAME]</span>` })}
         </p>
-        ${secrets === null && html`<${Loader} label="Loading secrets" />`}
-        ${secrets !== null && secrets.length === 0 && !adding && html`<p class="muted">No secrets yet.</p>`}
+        ${secrets === null && html`<${Loader} label=${t("Loading secrets")} />`}
+        ${secrets !== null && secrets.length === 0 && !adding && html`<p class="muted">${t("No secrets yet.")}</p>`}
         ${
             secrets !== null &&
             secrets.length > 0 &&
@@ -197,7 +200,7 @@ export function SecretsSheet() {
                   />`
                 : html`<div class="sheet-actions">
                       <button class="button primary" onClick=${() => setAdding(true)}>
-                          <${Icon} name="plus" size=${14} /> Add a secret
+                          <${Icon} name="plus" size=${14} /> ${t("Add a secret")}
                       </button>
                   </div>`
         }

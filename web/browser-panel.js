@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
+import { t } from "./i18n.js";
 import { api, attempt, browserApi, browserPath, browserPlace, closePeople, onBrowserFrame, panelsBeside, piBrowserState, setPiBrowser, store } from "./store.js";
 import { html, Icon } from "./ui.js";
 
@@ -118,7 +119,7 @@ function Capture({ field, password }) {
         ref=${field}
         class="pb-capture"
         type=${password ? "password" : "text"}
-        aria-label="Type into the page"
+        aria-label=${t("Type into the page")}
         autocomplete=${password ? "new-password" : "off"}
         autocorrect="off"
         autocapitalize="off"
@@ -203,7 +204,7 @@ function Frame({ interactive, onWheel }) {
         <img
             ref=${image}
             src=${lastFrames.get(key)}
-            alt=${has ? "Pi's browser, live" : ""}
+            alt=${has ? t("Pi's browser, live") : ""}
             draggable="false"
             onClick=${(event) => interactive && tap(event)}
             onWheel=${(event) => {
@@ -213,17 +214,17 @@ function Frame({ interactive, onWheel }) {
                 }
             }}
         />
-        ${!has && html`<span class="pb-wait">Waiting for the page…</span>`}
+        ${!has && html`<span class="pb-wait">${t("Waiting for the page…")}</span>`}
         ${interactive && html`<${Capture} field=${field} password=${password} />`}
     </div>`;
 }
 
 /** Phone or Desktop: the size this session's pages are laid out at (PP-15). */
 function SizeSwitch({ state }) {
-    return html`<div class="segmented pb-size" role="group" aria-label="Page size">
+    return html`<div class="segmented pb-size" role="group" aria-label=${t("Page size")}>
         ${[
-            ["phone", "Phone"],
-            ["desktop", "Desktop"],
+            ["phone", t("Phone")],
+            ["desktop", t("Desktop")],
         ].map(
             ([size, label]) => html`<button
                 class=${state.size === size ? "on" : ""}
@@ -256,10 +257,10 @@ function TakeOverBar() {
                 }
             }}
         >
-            <input value=${address} placeholder="Address or search" aria-label="Open an address" onInput=${(event) => setAddress(event.currentTarget.value)} />
-            <button class="button small">Go</button>
+            <input value=${address} placeholder=${t("Address or search")} aria-label=${t("Open an address")} onInput=${(event) => setAddress(event.currentTarget.value)} />
+            <button class="button small">${t("Go")}</button>
         </form>
-        <p class="pb-hint">Tap the page to type into it: your keys go straight there, and nothing you type stays here.</p>
+        <p class="pb-hint">${t("Tap the page to type into it: your keys go straight there, and nothing you type stays here.")}</p>
         <div class="pb-keys">
             ${["Enter", "Backspace", "Tab", "Escape"].map((key) => html`<button class="pb-key" onPointerDown=${keep} onClick=${() => send({ type: "key", key })}>${key === "Backspace" ? "⌫" : key}</button>`)}
         </div>
@@ -273,15 +274,15 @@ const tabName = (tab) => {
     }
 
     try {
-        return new URL(tab.url).host || "Blank page";
+        return new URL(tab.url).host || t("Blank page");
     } catch {
-        return "Blank page";
+        return t("Blank page");
     }
 };
 
 /** Pi's tabs, when it has more than one: the one in front marked; tapping one brings it to the front. */
 function Tabs({ state }) {
-    return html`<div class="pb-tabs" role="tablist" aria-label="Pi's tabs">
+    return html`<div class="pb-tabs" role="tablist" aria-label=${t("Pi's tabs")}>
         ${state.tabs.map(
             (tab, index) => html`<button
                 class=${`pb-tab ${index === state.tab ? "on" : ""}`}
@@ -309,20 +310,20 @@ export function BrowserPanel({ leaving = false }) {
         data-state=${leaving ? "closing" : undefined}
         role=${beside ? undefined : "dialog"}
         aria-modal=${beside ? undefined : "true"}
-        aria-label="Pi's browser"
+        aria-label=${t("Pi's browser")}
         tabindex="-1"
         inert=${leaving}
     >
         <header class="files-bar pb-bar">
             ${
                 !beside &&
-                html`<button class="icon-button files-back" type="button" aria-label="Back to the conversation" onClick=${() => setBrowserOpen(false)}>
+                html`<button class="icon-button files-back" type="button" aria-label=${t("Back to the conversation")} onClick=${() => setBrowserOpen(false)}>
                     <${Icon} name="back" size=${22} />
                 </button>`
             }
             <div class="pb-title">
-                <b>Pi's browser${state?.place && state.place !== "phone" ? ` on ${state.where}` : ""}</b>
-                <span class="pb-url" title=${state?.url ?? ""}>${state?.open ? state.title || state.url || "Blank page" : "Closed"}</span>
+                <b>${state?.place && state.place !== "phone" ? t("Pi's browser on {where}", { where: state.where }) : t("Pi's browser")}</b>
+                <span class="pb-url" title=${state?.url ?? ""}>${state?.open ? state.title || state.url || t("Blank page") : t("Closed")}</span>
             </div>
             ${
                 state?.open &&
@@ -330,19 +331,19 @@ export function BrowserPanel({ leaving = false }) {
                     class=${`button small ${takenOver ? "primary" : ""}`}
                     onClick=${() => attempt(async () => setPiBrowser(await browserApi("browser/take-over", { on: !takenOver })))}
                 >
-                    ${takenOver ? "Hand back" : "Take over"}
+                    ${takenOver ? t("Hand back") : t("Take over")}
                 </button>`
             }
             ${
                 beside &&
-                html`<button class="icon-button" type="button" aria-label="Close the panel" title="Close" onClick=${() => setBrowserOpen(false)}>
+                html`<button class="icon-button" type="button" aria-label=${t("Close the panel")} title=${t("Close")} onClick=${() => setBrowserOpen(false)}>
                     <${Icon} name="close" size=${17} />
                 </button>`
             }
         </header>
         ${state?.open && (state.tabs?.length ?? 0) > 1 && html`<${Tabs} state=${state} />`}
         <div class=${`pb-status ${state?.doing ? "busy" : ""}`} aria-live="polite">
-            ${state?.doing ? html`<span class="pb-spin" aria-hidden="true"></span>${state.doing}` : takenOver ? "You have the page: Pi waits until you hand it back." : state?.open ? "Pi is not browsing now." : ""}
+            ${state?.doing ? html`<span class="pb-spin" aria-hidden="true"></span>${state.doing}` : takenOver ? t("You have the page: Pi waits until you hand it back.") : state?.open ? t("Pi is not browsing now.") : ""}
         </div>
         <div class="pb-body">
             ${
@@ -350,7 +351,7 @@ export function BrowserPanel({ leaving = false }) {
                     ? html`<${Frame} interactive=${takenOver} onWheel=${(point) => send({ type: "scroll", ...point })} />`
                     : html`<div class="pb-empty">
                           <${Icon} name="globe" size=${28} />
-                          <p>Pi's browser opens when Pi browses: ask Pi to open a page, or to do something on a site.</p>
+                          <p>${t("Pi's browser opens when Pi browses: ask Pi to open a page, or to do something on a site.")}</p>
                       </div>`
             }
         </div>
@@ -359,7 +360,7 @@ export function BrowserPanel({ leaving = false }) {
             state?.open &&
             html`<footer class="pb-foot">
                 <${SizeSwitch} state=${state} />
-                <button class="link small" onClick=${() => attempt(async () => setPiBrowser(await browserApi("browser/close", {})))}>Close this session's tabs</button>
+                <button class="link small" onClick=${() => attempt(async () => setPiBrowser(await browserApi("browser/close", {})))}>${t("Close this session's tabs")}</button>
             </footer>`
         }
     </section>`;
@@ -377,8 +378,8 @@ export function BrowserButton() {
 
     return html`<button
         class=${`icon-button ${shown ? "on" : ""} ${state.doing ? "pb-active" : ""}`}
-        aria-label=${shown ? "Hide Pi's browser" : "Pi's browser"}
-        title="Pi's browser"
+        aria-label=${shown ? t("Hide Pi's browser") : t("Pi's browser")}
+        title=${t("Pi's browser")}
         aria-pressed=${shown}
         onClick=${() => setBrowserOpen(!shown)}
     >
@@ -396,9 +397,9 @@ export function BrowserPreview() {
         return null;
     }
 
-    return html`<button class="pb-preview" onClick=${() => setBrowserOpen(true)} aria-label=${`Pi's browser: ${state.doing}. Open it.`}>
+    return html`<button class="pb-preview" onClick=${() => setBrowserOpen(true)} aria-label=${t("Pi's browser: {doing}. Open it.", { doing: state.doing })}>
         <${PreviewImage} image=${image} />
-        <span class="pb-preview-text"><b>Pi's browser</b><span>${state.doing}</span></span>
+        <span class="pb-preview-text"><b>${t("Pi's browser")}</b><span>${state.doing}</span></span>
         <${Icon} name="chevron" size=${14} />
     </button>`;
 }

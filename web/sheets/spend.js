@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { api, attempt, closeSheet, store } from "../store.js";
 import { html, Icon, Loader, Sheet } from "../ui.js";
+import { t, tn, tx } from "../i18n.js";
 
 const money = (amount) => `$${amount.toFixed(2)}`;
 const largest = (rows) => rows.reduce((max, row) => Math.max(max, row.spent), 1);
@@ -27,7 +28,7 @@ function SpendLimit({ budget, editable, save }) {
 
     if (draft === null) {
         return html`<span class="muted small">
-            ${budget === undefined ? "no limit" : `limit ${money(budget)}`}
+            ${budget === undefined ? t("no limit") : t("limit {amount}", { amount: money(budget) })}
         </span>
         ${
             editable
@@ -36,7 +37,7 @@ function SpendLimit({ budget, editable, save }) {
                     ref=${change}
                     onClick=${() => setDraft(budget === undefined ? "" : String(budget))}
                 >
-                    Change
+                    ${t("Change")}
                 </button>`
                 : html`<span class="spend-change" aria-hidden="true"></span>`
         }`;
@@ -49,7 +50,7 @@ function SpendLimit({ budget, editable, save }) {
         });
 
     return html`<span class="limit-edit">
-        $<input type="number" inputmode="decimal" min="0.01" step="0.01" aria-label="Limit in dollars" ref=${field} value=${draft} onInput=${(event) => setDraft(event.currentTarget.value)} onKeyDown=${(
+        $<input type="number" inputmode="decimal" min="0.01" step="0.01" aria-label=${t("Limit in dollars")} ref=${field} value=${draft} onInput=${(event) => setDraft(event.currentTarget.value)} onKeyDown=${(
             event,
         ) => {
             // Esc lets go of the limit, not the whole sheet.
@@ -63,13 +64,13 @@ function SpendLimit({ budget, editable, save }) {
             disabled=${!(Number(draft) > 0)}
             onClick=${() => done(Number(draft))}
         >
-            Set
+            ${t("Set")}
         </button>
         ${
             budget !== undefined &&
-            html`<button class="button small ghost" onClick=${() => done(null)}>No limit</button>`
+            html`<button class="button small ghost" onClick=${() => done(null)}>${t("No limit")}</button>`
         }
-        <button class="icon-button" aria-label="Cancel" onClick=${() => setDraft(null)}>
+        <button class="icon-button" aria-label=${t("Cancel")} onClick=${() => setDraft(null)}>
             <${Icon} name="close" size=${16} />
         </button>
     </span>`;
@@ -98,37 +99,39 @@ export function SpendSheet() {
     const peopleMax = largest(data?.people ?? []);
     const sessionsMax = largest(data?.sessions ?? []);
 
-    return html`<${Sheet} title="Spend" onClose=${closeSheet} wide=${true}>
-        ${data === null && html`<${Loader} label="Adding it up" />`}
+    return html`<${Sheet} title=${t("Spend")} onClose=${closeSheet} wide=${true}>
+        ${data === null && html`<${Loader} label=${t("Adding it up")} />`}
         ${
             data?.total !== undefined &&
             html`<p class="spend-total">
-                <span>Pi spent</span> <strong>${money(data.total)}</strong> <span>on this server so far.</span>
+                ${tx("Pi spent {amount} on this server so far.", { amount: html`<strong>${money(data.total)}</strong>` }).map((piece) =>
+                    typeof piece === "string" ? html`<span>${piece.trim()}</span>` : piece,
+                )}
             </p>`
         }
         ${
             data?.wiki &&
             html`<div class="group">
-                <div class="group-title">Wiki and documents</div>
+                <div class="group-title">${t("Wiki and documents")}</div>
                 <div class="sheet-list">
                     <div class="spend-row">
                         <span class="grow">
-                            Search by meaning and image descriptions
-                            <small class="muted spend-sub">${data.wiki.requests} ${data.wiki.requests === 1 ? "request" : "requests"} · ${data.wiki.tokens.toLocaleString()} tokens · since ${new Date(data.wiki.since).toLocaleDateString()}</small>
+                            ${t("Search by meaning and image descriptions")}
+                            <small class="muted spend-sub">${tn(data.wiki.requests, "{n} request · {tokens} tokens · since {date}", "{n} requests · {tokens} tokens · since {date}", { tokens: data.wiki.tokens.toLocaleString(), date: new Date(data.wiki.since).toLocaleDateString() })}</small>
                         </span>
                         <span class="mono">${data.wiki.cost > 0 && data.wiki.cost < 0.01 ? `${data.wiki.cost.toFixed(4)}` : money(data.wiki.cost)}</span>
                     </div>
                 </div>
-                <p class="muted small">Indexing pages and each search by meaning (OpenRouter): counted in the total, not in anyone's limit.</p>
+                <p class="muted small">${t("Indexing pages and each search by meaning (OpenRouter): counted in the total, not in anyone's limit.")}</p>
             </div>`
         }
         <p class="muted small">
-            Spend goes to whoever asked for the work. Past a limit, Pi takes no new messages there, a run that crosses it stops, and subagents' reports wait until it is raised.
+            ${t("Spend goes to whoever asked for the work. Past a limit, Pi takes no new messages there, a run that crosses it stops, and subagents' reports wait until it is raised.")}
         </p>
         ${
             data &&
             html`<div class="group">
-                <div class="group-title">People</div>
+                <div class="group-title">${t("People")}</div>
                 <div class="sheet-list">
                     ${data.people.map(
                         (person) => html`<div class="spend-row" key=${person.id}>
@@ -145,7 +148,7 @@ export function SpendSheet() {
                 </div>
             </div>
             <div class="group">
-                <div class="group-title">Sessions</div>
+                <div class="group-title">${t("Sessions")}</div>
                 <div class="sheet-list">
                     ${data.sessions.map(
                         (session) => html`<div class="spend-row" key=${session.id}>

@@ -6,6 +6,7 @@ import { downloadImage } from "../download.js";
 import { OpenUiFrame } from "../openui.js";
 import { modeOf, paletteOf, themeVars } from "../theme.js";
 import { formatBytes, html, Icon, Sheet, timeAgo } from "../ui.js";
+import { t } from "../i18n.js";
 
 /**
  * The app's theme for a Markdown artifact's page, in its address: in its sandbox, the page cannot see the app's look,
@@ -32,11 +33,11 @@ export function ArtifactsSheet() {
         (a, b) => (b.versions.at(-1)?.createdAt ?? 0) - (a.versions.at(-1)?.createdAt ?? 0),
     );
 
-    return html`<${Sheet} title="Artifacts" onClose=${closeSheet} wide=${true}>
+    return html`<${Sheet} title=${t("Artifacts")} onClose=${closeSheet} wide=${true}>
         ${
             items.length === 0 &&
             html`<p class="muted">
-                No artifacts yet. Ask Pi to build something you can look at: a chart, a demo, a game.
+                ${t("No artifacts yet. Ask Pi to build something you can look at: a chart, a demo, a game.")}
             </p>`
         }
         <div class="artifact-grid">
@@ -78,15 +79,15 @@ export function ArtifactViewer({ id, version }) {
             <div class="viewer-title">
                 <strong>${artifact?.title ?? id}</strong>
                 <span class="muted small">
-                    ${artifact?.type ?? ""} · version ${shown}
-                    ${latest && shown !== latest ? html` · <button class="link" onClick=${() => setShown(latest)}>latest is v${latest}</button>` : ""}
+                    ${t("{type} · version {version}", { type: artifact?.type ?? "", version: shown })}
+                    ${latest && shown !== latest ? html` · <button class="link" onClick=${() => setShown(latest)}>${t("latest is v{version}", { version: latest })}</button>` : ""}
                 </span>
             </div>
             ${
                 artifact &&
                 artifact.versions.length > 1 &&
                 html`<select
-                    aria-label="Version"
+                    aria-label=${t("Version")}
                     value=${shown}
                     onChange=${(event) => setShown(Number(event.currentTarget.value))}
                 >
@@ -97,11 +98,11 @@ export function ArtifactViewer({ id, version }) {
                         )}
                 </select>`
             }
-            <button class="icon-button" title="Reload" onClick=${() => setNonce(nonce + 1)}>
+            <button class="icon-button" title=${t("Reload")} onClick=${() => setNonce(nonce + 1)}>
                 ↻
             </button>
-            <a class="button small" href=${src} target="_blank" rel="noopener">Open tab</a>
-            <button class="icon-button" onClick=${closeSheet} aria-label="Close">
+            <a class="button small" href=${src} target="_blank" rel="noopener">${t("Open tab")}</a>
+            <button class="icon-button" onClick=${closeSheet} aria-label=${t("Close")}>
                 <${Icon} name="close" />
             </button>
         </header>
@@ -356,7 +357,7 @@ export function ImageViewer({ src, alt }) {
         class=${`lightbox ${zoomed ? "zoomed" : ""}`}
         role="dialog"
         aria-modal="true"
-        aria-label=${alt || "Image"}
+        aria-label=${alt || t("Image")}
         ref=${stage}
         onPointerDown=${onPointerDown}
         onPointerMove=${onPointerMove}
@@ -372,22 +373,22 @@ export function ImageViewer({ src, alt }) {
         />
         <div class="lightbox-bar">
             <span class="lightbox-title">${alt ?? ""}</span>
-            <button class="icon-button" onClick=${() => zoomBy(1 / 1.5)} disabled=${!zoomed} aria-label="Zoom out">
+            <button class="icon-button" onClick=${() => zoomBy(1 / 1.5)} disabled=${!zoomed} aria-label=${t("Zoom out")}>
                 <span aria-hidden="true">−</span>
             </button>
             <button
                 class="link small lightbox-zoom"
                 onClick=${() => setView({ scale: 1, x: 0, y: 0 })}
-                title="Fit to the screen"
+                title=${t("Fit to the screen")}
             >
                 ${Math.round(view.scale * 100)}%
             </button>
-            <button class="icon-button" onClick=${() => zoomBy(1.5)} disabled=${view.scale >= MAX} aria-label="Zoom in">
+            <button class="icon-button" onClick=${() => zoomBy(1.5)} disabled=${view.scale >= MAX} aria-label=${t("Zoom in")}>
                 <span aria-hidden="true">+</span>
             </button>
-            <button class="button small" onClick=${() => attempt(() => downloadImage(src, alt))}>Download</button>
-            ${!inApp && html`<a class="button small" href=${src} target="_blank" rel="noopener">Open</a>`}
-            <button class="icon-button" onClick=${closeSheet} aria-label="Close">
+            <button class="button small" onClick=${() => attempt(() => downloadImage(src, alt))}>${t("Download")}</button>
+            ${!inApp && html`<a class="button small" href=${src} target="_blank" rel="noopener">${t("Open")}</a>`}
+            <button class="icon-button" onClick=${closeSheet} aria-label=${t("Close")}>
                 <${Icon} name="close" />
             </button>
         </div>

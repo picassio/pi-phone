@@ -4,11 +4,22 @@
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet, store } from "../store.js";
 import { html, Loader, Sheet } from "../ui.js";
+import { t } from "../i18n.js";
 
 export const JEV_DEFAULT = "typesafe/jev-1.13";
 
 /** A run model as a person reads it. */
-export const runModelText = (model) => (model === "session" ? "the session's own model" : `Jev (${model})`);
+export const runModelText = (model) => (model === "session" ? t("the session's own model") : t("Jev ({model})", { model }));
+
+/** The run model in use now, as a row's detail: "the default" when a session has none of its own. */
+const nowText = (model, isDefault = false) =>
+    model === "session"
+        ? isDefault
+            ? t("Now the session's own model, the default")
+            : t("Now the session's own model")
+        : isDefault
+          ? t("Now Jev ({model}), the default", { model })
+          : t("Now Jev ({model})", { model });
 
 /** A setting's row, as the Appearance sheet draws them: what it is on the left, its control on the right. */
 function Row({ title, detail, children }) {
@@ -30,7 +41,7 @@ function RunModelRows({ title, detail, value, onSave, inherit = false }) {
     const [choice, setChoice] = useState(kind);
     const [model, setModel] = useState(kind === "jev" ? value : JEV_DEFAULT);
     const [test, setTest] = useState(null);
-    const choices = [...(inherit ? [["inherit", "Default"]] : []), ["session", "Session model"], ["jev", "Jev"]];
+    const choices = [...(inherit ? [["inherit", t("Default")]] : []), ["session", t("Session model")], ["jev", "Jev"]];
     const pick = (next) => {
         setChoice(next);
         setTest(null);
@@ -51,10 +62,10 @@ function RunModelRows({ title, detail, value, onSave, inherit = false }) {
             choice === "jev" &&
             html`<div class="setting-row pb-jev">
                 <div class="field">
-                    <span class="label">Jev model (OpenRouter id)</span>
+                    <span class="label">${t("Jev model (OpenRouter id)")}</span>
                     <input class="mono" value=${model} placeholder=${JEV_DEFAULT} onInput=${(event) => setModel(event.currentTarget.value)} />
-                    <span class="muted small">About a second and $0.00003 a step. Needs your OpenRouter sign-in, with TypeSafe allowed in OpenRouter's settings (privacy, allowed providers).</span>
-                    ${test && html`<span class=${`small ${test.error ? "wiki-problem" : "muted"}`}>${test.error ?? `It answered ${test.choice} in ${test.ms} ms, for $${test.cost.toFixed(6)}.`}</span>`}
+                    <span class="muted small">${t("About a second and $0.00003 a step. Needs your OpenRouter sign-in, with TypeSafe allowed in OpenRouter's settings (privacy, allowed providers).")}</span>
+                    ${test && html`<span class=${`small ${test.error ? "wiki-problem" : "muted"}`}>${test.error ?? t("It answered {choice} in {ms} ms, for ${cost}.", { choice: test.choice, ms: test.ms, cost: test.cost.toFixed(6) })}</span>`}
                     <div class="sheet-actions">
                         <button
                             class="button small"
@@ -69,9 +80,9 @@ function RunModelRows({ title, detail, value, onSave, inherit = false }) {
                                 }
                             }}
                         >
-                            Test
+                            ${t("Test")}
                         </button>
-                        <button class="button small primary" disabled=${model.trim() === "" || model.trim() === value} onClick=${() => onSave(model.trim())}>Save</button>
+                        <button class="button small primary" disabled=${model.trim() === "" || model.trim() === value} onClick=${() => onSave(model.trim())}>${t("Save")}</button>
                     </div>
                 </div>
             </div>`
@@ -92,20 +103,19 @@ export function BrowserSheet() {
         }
     }, [id]);
 
-    return html`<${Sheet} title="Pi's browser" onClose=${closeSheet}>
+    return html`<${Sheet} title=${t("Pi's browser")} onClose=${closeSheet}>
         <p class="muted small">
-            browser_run carries out a goal in Pi's browser on its own, deciding each step with the run model: the session's own model, or Jev, a small,
-            fast decision model.
+            ${t("browser_run carries out a goal in Pi's browser on its own, deciding each step with the run model: the session's own model, or Jev, a small, fast decision model.")}
         </p>
-        <div class="label">Run model</div>
+        <div class="label">${t("Run model")}</div>
         ${
             global === null
-                ? html`<${Loader} label="Reading the setting" />`
+                ? html`<${Loader} label=${t("Reading the setting")} />`
                 : html`<div class="sheet-list">
                       <${RunModelRows}
                           key=${global}
-                          title="Every session"
-                          detail=${`Now ${runModelText(global)}`}
+                          title=${t("Every session")}
+                          detail=${nowText(global)}
                           value=${global}
                           onSave=${(model) => attempt(async () => setGlobal((await api("browser/run-model", { model }, { method: "PUT" })).model))}
                       />
@@ -113,8 +123,8 @@ export function BrowserSheet() {
                           own !== undefined &&
                           html`<${RunModelRows}
                               key=${String(own)}
-                              title="This session"
-                              detail=${`Now ${runModelText(own ?? global)}${own === null ? ", the default" : ""}`}
+                              title=${t("This session")}
+                              detail=${nowText(own ?? global, own === null)}
                               value=${own}
                               inherit=${true}
                               onSave=${(model) => attempt(async () => setOwn((await api(`c/${id}/browser-run-model`, { model })).own))}

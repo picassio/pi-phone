@@ -4,29 +4,8 @@
 // the message box. Edits save through pi-para's own wiki_write (checks, links, index, log, search). Anywhere in the app,
 // a link to `#wiki:<page>` opens it here.
 const BOOK = "M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h10";
-const CATEGORIES = [
-    ["projects", "Projects", "Goals with an end"],
-    ["areas", "Areas", "Ongoing responsibilities"],
-    ["resources", "Resources", "Reference and know-how"],
-    ["archives", "Archives", "Done or inactive"],
-];
-
-/** How long ago an ISO date was, briefly. */
-function ago(iso) {
-    const ms = Date.now() - Date.parse(iso);
-
-    if (!Number.isFinite(ms)) {
-        return "";
-    }
-
-    const minutes = Math.round(ms / 60_000);
-
-    return minutes < 60
-        ? `${Math.max(1, minutes)}m`
-        : minutes < 48 * 60
-          ? `${Math.round(minutes / 60)}h`
-          : `${Math.round(minutes / 1440)}d`;
-}
+/** The categories by id; their names and hints are given in the person's language inside the module (`categoryText`). */
+const CATEGORIES = ["projects", "areas", "resources", "archives"];
 
 /** [[slug]] and [[slug|label]] as links the page opens (`#wiki:`), outside code. */
 function linkWikilinks(markdown) {
@@ -62,7 +41,31 @@ tags: []
 `;
 
 export default function wiki(pocket) {
-    const { html, useState, useEffect, useRef, Markdown, Icon, Loader, Switch } = pocket;
+    const { html, useState, useEffect, useRef, Markdown, Icon, Loader, Switch, t, tn, tx } = pocket;
+    /** Each category's name and hint, by id. */
+    const categoryText = {
+        projects: [t("Projects"), t("Goals with an end")],
+        areas: [t("Areas"), t("Ongoing responsibilities")],
+        resources: [t("Resources"), t("Reference and know-how")],
+        archives: [t("Archives"), t("Done or inactive")],
+    };
+
+    /** How long ago an ISO date was, briefly. */
+    function ago(iso) {
+        const ms = Date.now() - Date.parse(iso);
+
+        if (!Number.isFinite(ms)) {
+            return "";
+        }
+
+        const minutes = Math.round(ms / 60_000);
+
+        return minutes < 60
+            ? t("{n}m", { n: Math.max(1, minutes) })
+            : minutes < 48 * 60
+              ? t("{n}h", { n: Math.round(minutes / 60) })
+              : t("{n}d", { n: Math.round(minutes / 1440) });
+    }
     // What the page opens on, set by whatever opened it: a page's path or a slug, or a new page.
     let pending = null;
     const open = (target) => {
@@ -150,7 +153,7 @@ export default function wiki(pocket) {
         }
 
         if (!tree) {
-            return html`<${Loader} label="Opening the wiki" />`;
+            return html`<${Loader} label=${t("Opening the wiki")} />`;
         }
 
         const saved = (path) => {
@@ -160,7 +163,7 @@ export default function wiki(pocket) {
         };
 
         return html`<div class="wiki" onClick=${onClick}>
-            ${view.kind !== "home" && html`<button class="wiki-back link" onClick=${back}>‹ Back</button>`}
+            ${view.kind !== "home" && html`<button class="wiki-back link" onClick=${back}>${t("‹ Back")}</button>`}
             ${view.kind === "home" && html`<${Home} tree=${tree} status=${status} capture=${capture} go=${go} />`}
             ${view.kind === "search" && html`<${Search} query=${view.q} go=${go} />`}
             ${view.kind === "page" && html`<${Page} path=${view.path} key=${`${view.path}:${reload}`} go=${go} />`}
@@ -185,26 +188,34 @@ export default function wiki(pocket) {
             >
                 <input
                     type="search"
-                    placeholder="Search the wiki"
-                    aria-label="Search the wiki"
+                    placeholder=${t("Search the wiki")}
+                    aria-label=${t("Search the wiki")}
                     value=${query}
                     onInput=${(event) => setQuery(event.currentTarget.value)}
                 />
-                <button class="button small" disabled=${query.trim() === ""}>Search</button>
+                <button class="button small" disabled=${query.trim() === ""}>${t("Search")}</button>
                 <button
                     type="button"
                     class="button small ghost"
-                    title="New page"
+                    title=${t("New page")}
                     onClick=${() => go({ kind: "edit", create: true, path: "", raw: TEMPLATE("New page", "resources") })}
                 >
-                    New
+                    ${t("New")}
                 </button>
             </form>
             ${
                 status &&
                 html`<p class="wiki-meta">
-                    ${status.pages} page${status.pages === 1 ? "" : "s"} · ${status.wikiDir.replace(/^.*\/files\/home/, "~")} ·
-                    search ${status.embedding ? `keywords and ${status.embedding}` : "by keywords"}
+                    ${
+                        status.embedding
+                            ? tn(status.pages, "{n} page · {dir} · search keywords and {model}", "{n} pages · {dir} · search keywords and {model}", {
+                                  dir: status.wikiDir.replace(/^.*\/files\/home/, "~"),
+                                  model: status.embedding,
+                              })
+                            : tn(status.pages, "{n} page · {dir} · search by keywords", "{n} pages · {dir} · search by keywords", {
+                                  dir: status.wikiDir.replace(/^.*\/files\/home/, "~"),
+                              })
+                    }
                 </p>`
             }
             ${
@@ -212,16 +223,17 @@ export default function wiki(pocket) {
                 html`<p class="wiki-meta">
                     ${
                         capture.model === null
-                            ? `Capture is off: ${capture.why}.`
+                            ? t("Capture is off: {why}.", { why: capture.why })
                             : capture.minutes === null
-                              ? `Capture only when asked (session menu), on ${capture.model}.`
-                              : `Sessions idle for ${capture.minutes} min are captured, on ${capture.model}.`
+                              ? t("Capture only when asked (session menu), on {model}.", { model: capture.model })
+                              : t("Sessions idle for {minutes} min are captured, on {model}.", { minutes: capture.minutes, model: capture.model })
                     }
-                    ${capture.last && ` Last: session #${capture.last.session}, ${ago(new Date(capture.last.at).toISOString())} ago.`}
-                    ${capture.conversation !== null && html` <a href=${`s/${capture.conversation}`}>Open the capture session</a>`}
+                    ${capture.last && ` ${t("Last: session #{session}, {when} ago.", { session: capture.last.session, when: ago(new Date(capture.last.at).toISOString()) })}`}
+                    ${capture.conversation !== null && html` <a href=${`s/${capture.conversation}`}>${t("Open the capture session")}</a>`}
                 </p>`
             }
-            ${CATEGORIES.map(([key, label, hint]) => {
+            ${CATEGORIES.map((key) => {
+                const [label, hint] = categoryText[key];
                 const pages = tree.categories[key] ?? [];
 
                 return html`<section class="wiki-category" key=${key}>
@@ -244,13 +256,13 @@ export default function wiki(pocket) {
                             </button>`,
                         )
                     }
-                    ${open[key] && pages.length === 0 && html`<p class="wiki-empty">Nothing here yet.</p>`}
+                    ${open[key] && pages.length === 0 && html`<p class="wiki-empty">${t("Nothing here yet.")}</p>`}
                 </section>`;
             })}
             ${
                 status?.log.length > 0 &&
                 html`<section class="wiki-log">
-                    <h3>Lately</h3>
+                    <h3>${t("Lately")}</h3>
                     ${status.log.map((line) => html`<p>${line}</p>`)}
                 </section>`
             }
@@ -292,10 +304,10 @@ export default function wiki(pocket) {
 
         return html`<div class="wiki-results">
             <h2>“${query}”</h2>
-            ${results && !full && html`<p class="wiki-meta">Keyword matches; finding by meaning…</p>`}
+            ${results && !full && html`<p class="wiki-meta">${t("Keyword matches; finding by meaning…")}</p>`}
             ${problem && html`<p class="wiki-problem">${problem}</p>`}
-            ${!results && !problem && html`<${Loader} label="Searching" />`}
-            ${results?.length === 0 && html`<p class="wiki-empty">No page has these words.</p>`}
+            ${!results && !problem && html`<${Loader} label=${t("Searching")} />`}
+            ${results?.length === 0 && html`<p class="wiki-empty">${t("No page has these words.")}</p>`}
             ${results?.map(
                 (result) => html`<button class="wiki-row" key=${result.path} onClick=${() => go({ kind: "page", path: result.path })}>
                     <span class="wiki-row-title">${result.title}</span>
@@ -319,12 +331,12 @@ export default function wiki(pocket) {
         }
 
         if (!page) {
-            return html`<${Loader} label="Opening the page" />`;
+            return html`<${Loader} label=${t("Opening the page")} />`;
         }
 
         const ask = () =>
             pocket.compose(
-                `About the wiki page ${page.path} ("${page.title}"): read it with wiki_read first.\n\n`,
+                `${t('About the wiki page {path} ("{title}"): read it with wiki_read first.', { path: page.path, title: page.title })}\n\n`,
             );
 
         return html`<article class="wiki-page">
@@ -339,15 +351,15 @@ export default function wiki(pocket) {
             ${
                 page.backlinks.length > 0 &&
                 html`<div class="wiki-backlinks">
-                    <span>Linked from</span>
+                    <span>${t("Linked from")}</span>
                     ${page.backlinks.map(
                         (link) => html`<button class="link" key=${link.path} onClick=${() => go({ kind: "page", path: link.path })}>${link.title}</button>`,
                     )}
                 </div>`
             }
             <div class="wiki-actions">
-                <button class="button" onClick=${() => go({ kind: "edit", create: false, path: page.path, raw: page.raw })}>Edit</button>
-                <button class="button primary" onClick=${ask}>Ask Pi</button>
+                <button class="button" onClick=${() => go({ kind: "edit", create: false, path: page.path, raw: page.raw })}>${t("Edit")}</button>
+                <button class="button primary" onClick=${ask}>${t("Ask Pi")}</button>
             </div>
         </article>`;
     }
@@ -370,7 +382,7 @@ export default function wiki(pocket) {
                 const target = `${category}/${slug}`;
 
                 await pocket.api("page", { path: target, raw: text, create });
-                pocket.notify("info", create ? `Created ${target}.` : `Saved ${target}.`);
+                pocket.notify("info", create ? t("Created {target}.", { target }) : t("Saved {target}.", { target }));
                 onSaved(target);
             } catch (error) {
                 setProblem(error.message);
@@ -383,13 +395,13 @@ export default function wiki(pocket) {
             ${
                 create &&
                 html`<div class="wiki-new">
-                    <select value=${category} aria-label="Category" onChange=${(event) => setCategory(event.currentTarget.value)}>
-                        ${CATEGORIES.filter(([key]) => key !== "archives").map(([key, label]) => html`<option value=${key}>${label}</option>`)}
+                    <select value=${category} aria-label=${t("Category")} onChange=${(event) => setCategory(event.currentTarget.value)}>
+                        ${CATEGORIES.filter((key) => key !== "archives").map((key) => html`<option value=${key}>${categoryText[key][0]}</option>`)}
                     </select>
                     <input
                         class="mono"
-                        placeholder="page-name"
-                        aria-label="Page name (lowercase, dashes)"
+                        placeholder=${t("page-name")}
+                        aria-label=${t("Page name (lowercase, dashes)")}
                         value=${slug}
                         onInput=${(event) => setSlug(event.currentTarget.value.toLowerCase().replace(/[^a-z0-9-]+/g, "-"))}
                     />
@@ -403,9 +415,9 @@ export default function wiki(pocket) {
             }
             ${problem && html`<p class="wiki-problem">${problem}</p>`}
             <div class="wiki-actions">
-                <button class="button" onClick=${() => setPreview(!preview)}>${preview ? "Edit" : "Preview"}</button>
+                <button class="button" onClick=${() => setPreview(!preview)}>${preview ? t("Edit") : t("Preview")}</button>
                 <button class="button primary" disabled=${busy || (create && slug.replace(/-/g, "") === "")} onClick=${save}>
-                    ${busy ? "Saving…" : "Save"}
+                    ${busy ? t("Saving…") : t("Save")}
                 </button>
             </div>
         </div>`;
@@ -440,7 +452,7 @@ export default function wiki(pocket) {
 
             try {
                 loaded(await pocket.api("settings", patch));
-                pocket.notify("info", "Saved.");
+                pocket.notify("info", t("Saved."));
             } catch (error) {
                 setProblem(error.message);
             } finally {
@@ -449,99 +461,97 @@ export default function wiki(pocket) {
         };
 
         if (!settings) {
-            return problem ? html`<p class="wiki-problem">${problem}</p>` : html`<${Loader} label="Loading the settings" />`;
+            return problem ? html`<p class="wiki-problem">${problem}</p>` : html`<${Loader} label=${t("Loading the settings")} />`;
         }
 
-        const price = (model) => (model.pricePerMillion === 0 ? "free" : "$" + model.pricePerMillion.toFixed(3) + "/M");
+        const price = (model) => (model.pricePerMillion === 0 ? t("free") : "$" + model.pricePerMillion.toFixed(3) + "/M");
         const chosen = embedding?.models?.find((model) => model.id === settings.embeddingModel);
 
         return html`<div class="wiki-settings">
-            <p class="muted small">The wiki is in <span class="mono">${settings.wikiDir.replace(/^.*\/files\/home/, "~")}</span>, in pi-para's format: pi with pi-para on a computer reads it as it is.</p>
+            <p class="muted small">${tx("The wiki is in {dir}, in pi-para's format: pi with pi-para on a computer reads it as it is.", { dir: html`<span class="mono">${settings.wikiDir.replace(/^.*\/files\/home/, "~")}</span>` })}</p>
             ${problem && html`<p class="wiki-problem">${problem}</p>`}
             <div class="sheet-list">
                 <div class="provider">
                     <div>
-                        <div>Capture</div>
-                        <div class="muted small">What an idle session learned goes into the wiki, written by a model of its own in the Wiki capture session. The menu's Capture to wiki does it at once.</div>
+                        <div>${t("Capture")}</div>
+                        <div class="muted small">${t("What an idle session learned goes into the wiki, written by a model of its own in the Wiki capture session. The menu's Capture to wiki does it at once.")}</div>
                         <div class="field">
-                            <div class="label">After a session is idle for (minutes; empty: only when asked)</div>
-                            <input class="mono" inputmode="numeric" value=${minutes} placeholder="only when asked" onInput=${(event) => setMinutes(event.currentTarget.value)} />
+                            <div class="label">${t("After a session is idle for (minutes; empty: only when asked)")}</div>
+                            <input class="mono" inputmode="numeric" value=${minutes} placeholder=${t("only when asked")} onInput=${(event) => setMinutes(event.currentTarget.value)} />
                         </div>
                         <div class="field">
-                            <div class="label">Capture model</div>
+                            <div class="label">${t("Capture model")}</div>
                             <select value=${settings.captureModel} onChange=${(event) => save({ captureModel: event.currentTarget.value })} disabled=${busy}>
-                                <option value="auto">The default model for new sessions</option>
+                                <option value="auto">${t("The default model for new sessions")}</option>
                                 ${settings.models.map((model) => html`<option value=${`${model.provider}/${model.id}`}>${model.provider}/${model.id}</option>`)}
                             </select>
                         </div>
                     </div>
                     <div class="provider-actions">
-                        <button class="button small" disabled=${busy} onClick=${() => save({ captureMinutes: minutes.trim() === "" ? null : Number(minutes) })}>Save</button>
+                        <button class="button small" disabled=${busy} onClick=${() => save({ captureMinutes: minutes.trim() === "" ? null : Number(minutes) })}>${t("Save")}</button>
                     </div>
                 </div>
                 <div class="provider">
                     <div>
-                        <div>Wiki in Pi's prompt</div>
-                        <div class="muted small">The wiki's conventions, its index, and the pages of the session's project, in every session's prompt.</div>
+                        <div>${t("Wiki in Pi's prompt")}</div>
+                        <div class="muted small">${t("The wiki's conventions, its index, and the pages of the session's project, in every session's prompt.")}</div>
                         <div class="field">
-                            <div class="label">Budget (tokens)</div>
+                            <div class="label">${t("Budget (tokens)")}</div>
                             <input class="mono" inputmode="numeric" value=${tokens} onInput=${(event) => setTokens(event.currentTarget.value)} />
                         </div>
                         <label class="check wiki-switch">
-                            <${Switch} on=${settings.contextSchema} label="Include the conventions" disabled=${busy} onChange=${() => save({ contextSchema: !settings.contextSchema })} />
-                            Include the conventions (schema)
+                            <${Switch} on=${settings.contextSchema} label=${t("Include the conventions")} disabled=${busy} onChange=${() => save({ contextSchema: !settings.contextSchema })} />
+                            ${t("Include the conventions (schema)")}
                         </label>
                     </div>
                     <div class="provider-actions">
-                        <button class="button small" disabled=${busy} onClick=${() => save({ contextTokens: Number(tokens) })}>Save</button>
+                        <button class="button small" disabled=${busy} onClick=${() => save({ contextTokens: Number(tokens) })}>${t("Save")}</button>
                     </div>
                 </div>
                 <div class="provider">
                     <div>
-                        <div>Search by meaning ${settings.embeddingModel && html`<span class="ok">✓</span>`}</div>
+                        <div>${t("Search by meaning")} ${settings.embeddingModel && html`<span class="ok">✓</span>`}</div>
                         <div class="muted small">
-                            Keyword search always works. With an OpenRouter embedding model, search also finds pages by meaning, in
-                            the wiki and in your documents. Each search waits for the model to embed the query: some answer in 0.2 s,
-                            others in over 1 s. Changing it embeds the wiki and your documents again.
+                            ${t("Keyword search always works. With an OpenRouter embedding model, search also finds pages by meaning, in the wiki and in your documents. Each search waits for the model to embed the query: some answer in 0.2 s, others in over 1 s. Changing it embeds the wiki and your documents again.")}
                         </div>
                         ${embedding?.error && html`<p class="wiki-problem">${embedding.error}</p>`}
-                        ${embedding && !embedding.error && !embedding.signedIn && html`<p class="muted small">Sign in to OpenRouter in Settings > Providers to use one.</p>`}
-                        ${!embedding && html`<${Loader} label="Loading OpenRouter's models" />`}
+                        ${embedding && !embedding.error && !embedding.signedIn && html`<p class="muted small">${t("Sign in to OpenRouter in Settings > Providers to use one.")}</p>`}
+                        ${!embedding && html`<${Loader} label=${t("Loading OpenRouter's models")} />`}
                         ${
                             embedding?.signedIn &&
                             html`<div class="field">
-                                <div class="label">Embedding model for search</div>
+                                <div class="label">${t("Embedding model for search")}</div>
                                 <select
                                     value=${settings.embeddingModel ?? ""}
                                     disabled=${busy}
                                     onChange=${(event) => save({ embeddingModel: event.currentTarget.value === "" ? null : event.currentTarget.value })}
                                 >
-                                    <option value="">Off: keyword search only</option>
+                                    <option value="">${t("Off: keyword search only")}</option>
                                     ${embedding.models.map((model) => html`<option value=${model.id}>${model.name} · ${price(model)}</option>`)}
                                 </select>
-                                ${chosen && html`<div class="muted small mono">${chosen.id} · ${price(chosen)} · up to ${chosen.context} tokens</div>`}
+                                ${chosen && html`<div class="muted small mono">${chosen.id} · ${price(chosen)} · ${t("up to {n} tokens", { n: chosen.context })}</div>`}
                             </div>`
                         }
                     </div>
                 </div>
                 <div class="provider">
                     <div>
-                        <div>Health checks</div>
-                        <div class="muted small">wiki_lint fixes simple problems by itself, and calls pages stale after ${settings.lintStaleDays} days.</div>
+                        <div>${t("Health checks")}</div>
+                        <div class="muted small">${t("wiki_lint fixes simple problems by itself, and calls pages stale after {days} days.", { days: settings.lintStaleDays })}</div>
                         <div class="field">
-                            <div class="label">Open questions are stale after</div>
+                            <div class="label">${t("Open questions are stale after")}</div>
                             <select
-                                aria-label="Open questions are stale after"
+                                aria-label=${t("Open questions are stale after")}
                                 value=${String(settings.lintQuestionDays)}
                                 disabled=${busy}
                                 onChange=${(event) => save({ lintQuestionDays: Number(event.currentTarget.value) })}
                             >
-                                ${[...new Set([3, 7, 14, 30, settings.lintQuestionDays])].sort((a, b) => a - b).map((days) => html`<option value=${String(days)}>${days} days</option>`)}
+                                ${[...new Set([3, 7, 14, 30, settings.lintQuestionDays])].sort((a, b) => a - b).map((days) => html`<option value=${String(days)}>${t("{n} days", { n: days })}</option>`)}
                             </select>
                         </div>
                         <label class="check wiki-switch">
-                            <${Switch} on=${settings.lintAutoFix} label="Fix simple problems" disabled=${busy} onChange=${() => save({ lintAutoFix: !settings.lintAutoFix })} />
-                            Fix simple problems
+                            <${Switch} on=${settings.lintAutoFix} label=${t("Fix simple problems")} disabled=${busy} onChange=${() => save({ lintAutoFix: !settings.lintAutoFix })} />
+                            ${t("Fix simple problems")}
                         </label>
                     </div>
                 </div>
@@ -549,21 +559,21 @@ export default function wiki(pocket) {
         </div>`;
     }
 
-    pocket.sheet({ id: "settings", title: "Wiki settings", component: Settings, wide: true });
-    pocket.page({ id: "wiki", title: "Wiki", component: WikiPage });
-    pocket.rail({ id: "wiki", title: "Wiki", iconPath: BOOK, page: "wiki" });
+    pocket.sheet({ id: "settings", title: t("Wiki settings"), component: Settings, wide: true });
+    pocket.page({ id: "wiki", title: t("Wiki"), component: WikiPage });
+    pocket.rail({ id: "wiki", title: t("Wiki"), iconPath: BOOK, page: "wiki" });
     pocket.launcher({
         id: "wiki",
-        label: "Wiki",
-        detail: "your PARA knowledge base: browse, search, edit",
+        label: t("Wiki"),
+        detail: t("your PARA knowledge base: browse, search, edit"),
         iconPath: BOOK,
         keywords: ["para", "notes", "knowledge", "pi-para"],
         page: "wiki",
     });
     pocket.launcher({
         id: "wiki-settings",
-        label: "Wiki settings",
-        detail: "capture, search by meaning, prompt context",
+        label: t("Wiki settings"),
+        detail: t("capture, search by meaning, prompt context"),
         iconPath: BOOK,
         keywords: ["para", "embedding", "openrouter", "capture"],
         sheet: "settings",
@@ -571,19 +581,19 @@ export default function wiki(pocket) {
     // In Settings with the app's own: there while the wiki is on, gone with it.
     pocket.menu({
         id: "wiki-settings",
-        label: "Wiki",
-        hint: "search by meaning, capture, prompt context",
+        label: t("Wiki"),
+        hint: t("search by meaning, capture, prompt context"),
         sheet: "settings",
     });
     pocket.menu({
         id: "wiki-capture",
-        label: "Capture to wiki",
-        hint: "what this session learned, into the wiki",
+        label: t("Capture to wiki"),
+        hint: t("what this session learned, into the wiki"),
         run: async () => {
             const session = pocket.conversationId();
 
             if (session === null) {
-                pocket.notify("warning", "Open a session to capture it.");
+                pocket.notify("warning", t("Open a session to capture it."));
 
                 return;
             }
@@ -592,13 +602,13 @@ export default function wiki(pocket) {
 
             pocket.notify(
                 result.sent ? "info" : "warning",
-                result.sent ? "Capturing this session into the wiki, in the Wiki capture session." : `Nothing captured: ${result.why}.`,
+                result.sent ? t("Capturing this session into the wiki, in the Wiki capture session.") : t("Nothing captured: {why}.", { why: result.why }),
             );
         },
     });
     pocket.launcher({
         id: "wiki-new",
-        label: "New wiki page",
+        label: t("New wiki page"),
         iconPath: BOOK,
         keywords: ["para", "note"],
         run: () => open({ kind: "edit", create: true, path: "", raw: TEMPLATE("New page", "resources") }),
@@ -620,13 +630,19 @@ export default function wiki(pocket) {
     // Pi's wiki calls, in words.
     const paths = (args) => (args.pages ?? []).map((page) => `${page.category}/${page.slug}`).join(", ");
 
-    pocket.toolCall({ tool: "wiki_query", iconPath: BOOK, label: (args) => `Searched the wiki: ${args.query ?? ""}` });
-    pocket.toolCall({ tool: "wiki_read", iconPath: BOOK, label: (args) => `Read ${args.path ?? "the wiki"}` });
-    pocket.toolCall({ tool: "wiki_write", iconPath: BOOK, label: (args) => `Wrote ${paths(args) || "the wiki"}` });
-    pocket.toolCall({ tool: "wiki_edit", iconPath: BOOK, label: (args) => `Edited ${args.path ?? "a page"}` });
-    pocket.toolCall({ tool: "wiki_move", iconPath: BOOK, label: (args) => `Moved ${args.path ?? "a page"} to ${args.to ?? ""}` });
-    pocket.toolCall({ tool: "wiki_ingest", iconPath: BOOK, label: (args) => `Added to the wiki: ${String(args.source ?? "").slice(0, 60)}` });
-    pocket.toolCall({ tool: "wiki_lint", iconPath: BOOK, label: () => "Checked the wiki's health" });
-    pocket.toolCall({ tool: "wiki_summarize", iconPath: BOOK, label: (args) => `Summarized ${args.target ?? "the wiki"}` });
-    pocket.toolCall({ tool: "wiki_migrate", iconPath: BOOK, label: () => "Migrated the wiki's pages" });
+    const given = (value) => value !== undefined && value !== null;
+
+    pocket.toolCall({ tool: "wiki_query", iconPath: BOOK, label: (args) => t("Searched the wiki: {query}", { query: args.query ?? "" }) });
+    pocket.toolCall({ tool: "wiki_read", iconPath: BOOK, label: (args) => (given(args.path) ? t("Read {path}", { path: args.path }) : t("Read the wiki")) });
+    pocket.toolCall({ tool: "wiki_write", iconPath: BOOK, label: (args) => (paths(args) ? t("Wrote {paths}", { paths: paths(args) }) : t("Wrote the wiki")) });
+    pocket.toolCall({ tool: "wiki_edit", iconPath: BOOK, label: (args) => (given(args.path) ? t("Edited {path}", { path: args.path }) : t("Edited a page")) });
+    pocket.toolCall({
+        tool: "wiki_move",
+        iconPath: BOOK,
+        label: (args) => (given(args.path) ? t("Moved {path} to {to}", { path: args.path, to: args.to ?? "" }) : t("Moved a page to {to}", { to: args.to ?? "" })),
+    });
+    pocket.toolCall({ tool: "wiki_ingest", iconPath: BOOK, label: (args) => t("Added to the wiki: {source}", { source: String(args.source ?? "").slice(0, 60) }) });
+    pocket.toolCall({ tool: "wiki_lint", iconPath: BOOK, label: () => t("Checked the wiki's health") });
+    pocket.toolCall({ tool: "wiki_summarize", iconPath: BOOK, label: (args) => (given(args.target) ? t("Summarized {target}", { target: args.target }) : t("Summarized the wiki")) });
+    pocket.toolCall({ tool: "wiki_migrate", iconPath: BOOK, label: () => t("Migrated the wiki's pages") });
 }

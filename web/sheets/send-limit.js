@@ -3,9 +3,10 @@
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet, store } from "../store.js";
 import { html, Loader, Sheet } from "../ui.js";
+import { t } from "../i18n.js";
 
-/** A limit as a person reads it. */
-const limitText = (limit) => (limit === null ? "no limit" : `${limit} an hour`);
+/** This session's limit as a person reads it. */
+const limitText = (limit) => (limit === null ? t("This session: no limit") : t("This session: {limit} an hour", { limit }));
 
 /** A limit's editor: a number an hour, or none. */
 function LimitField({ label, value, onSave }) {
@@ -16,7 +17,7 @@ function LimitField({ label, value, onSave }) {
     return html`<div class="field">
         <div class="label">${label}</div>
         <label class="check">
-            <input type="checkbox" checked=${none} onChange=${(event) => setNone(event.currentTarget.checked)} /> No limit
+            <input type="checkbox" checked=${none} onChange=${(event) => setNone(event.currentTarget.checked)} /> ${t("No limit")}
         </label>
         ${
             !none &&
@@ -26,13 +27,13 @@ function LimitField({ label, value, onSave }) {
                 inputmode="numeric"
                 min="1"
                 max="10000"
-                aria-label=${`${label}: an hour`}
+                aria-label=${t("{label}: an hour", { label })}
                 value=${number}
                 onInput=${(event) => setNumber(event.currentTarget.value)}
             />`
         }
         <div class="sheet-actions">
-            <button class="button small primary" disabled=${!changed} onClick=${() => onSave(none ? null : Number(number))}>Save</button>
+            <button class="button small primary" disabled=${!changed} onClick=${() => onSave(none ? null : Number(number))}>${t("Save")}</button>
         </div>
     </div>`;
 }
@@ -57,30 +58,32 @@ export function SendLimitSheet() {
             await load();
         });
 
-    return html`<${Sheet} title="Other sessions" onClose=${closeSheet}>
+    return html`<${Sheet} title=${t("Other sessions")} onClose=${closeSheet}>
         <p class="muted small">
-            Pi in a session can message, start, and stop other sessions for you (the sessions tools). A limit keeps two sessions from messaging each other without end.
+            ${t("Pi in a session can message, start, and stop other sessions for you (the sessions tools). A limit keeps two sessions from messaging each other without end.")}
         </p>
-        ${status === null && html`<${Loader} label="Loading" />`}
+        ${status === null && html`<${Loader} label=${t("Loading")} />`}
         ${
             status &&
             html`<div class="sheet-list">
                 <div class="provider">
                     <div>
-                        <div>This session: ${limitText(status.limit)}</div>
+                        <div>${limitText(status.limit)}</div>
                         <div class="muted small">
-                            ${status.used} sent or started in the last hour · ${status.own ? "its own limit" : "the setting for all sessions"}
+                            ${status.own
+                                ? t("{n} sent or started in the last hour · its own limit", { n: status.used })
+                                : t("{n} sent or started in the last hour · the setting for all sessions", { n: status.used })}
                         </div>
                     </div>
                     <div class="provider-actions">
-                        ${status.own && html`<button class="button small ghost" onClick=${() => setOwn("inherit")}>Use the setting for all</button>`}
+                        ${status.own && html`<button class="button small ghost" onClick=${() => setOwn("inherit")}>${t("Use the setting for all")}</button>`}
                     </div>
                 </div>
                 <div class="provider">
-                    <${LimitField} key=${`own-${String(status.limit)}-${status.own}`} label="This session's own limit" value=${status.limit} onSave=${setOwn} />
+                    <${LimitField} key=${`own-${String(status.limit)}-${status.own}`} label=${t("This session's own limit")} value=${status.limit} onSave=${setOwn} />
                 </div>
                 <div class="provider">
-                    <${LimitField} key=${`all-${String(status.global)}`} label="For all sessions" value=${status.global} onSave=${setGlobal} />
+                    <${LimitField} key=${`all-${String(status.global)}`} label=${t("For all sessions")} value=${status.global} onSave=${setGlobal} />
                 </div>
             </div>`
         }

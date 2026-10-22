@@ -4,6 +4,7 @@
 // as tiles have), for how long, whether its report is on its way, Stop, and a tap to open it.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { nowDoing } from "./agent-now.js";
+import { t, tn } from "./i18n.js";
 import { useOnScreen } from "./peeks.js";
 import { fromServer } from "./seen.js";
 import { api, attempt, canSteer, navigate, openSheet, store } from "./store.js";
@@ -72,21 +73,59 @@ export function openSubagent(id) {
 /** The mark a row starts with, for a subagent that is not working. */
 const MARKS = { done: "✓", stopped: "■", failed: "!" };
 
-const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
+/** "3 subagents working": every one of them in one state. */
+function allIn(status, n) {
+    switch (status) {
+        case "working":
+            return tn(n, "{n} subagent working", "{n} subagents working");
+        case "failed":
+            return tn(n, "{n} subagent failed", "{n} subagents failed");
+        case "stopped":
+            return tn(n, "{n} subagent stopped", "{n} subagents stopped");
+        default:
+            return tn(n, "{n} subagent done", "{n} subagents done");
+    }
+}
+
+/** "2 working": how many are in a state. */
+function countIn(status, n) {
+    switch (status) {
+        case "working":
+            return t("{n} working", { n });
+        case "failed":
+            return t("{n} failed", { n });
+        case "stopped":
+            return t("{n} stopped", { n });
+        default:
+            return t("{n} done", { n });
+    }
+}
+
+/** "failed 3m": a finished subagent's state and how long ago, "· dismissed" for a failure someone dealt with. */
+function endedText(status, when, dealt) {
+    switch (status) {
+        case "failed":
+            return dealt ? t("failed {when} · dismissed", { when }) : t("failed {when}", { when });
+        case "stopped":
+            return t("stopped {when}", { when });
+        default:
+            return t("done {when}", { when });
+    }
+}
 
 /** How long since `ms`, a time the server took: "45s", "3m 05s", "1h 12m". */
 export function elapsed(ms) {
     const seconds = Math.max(0, Math.round((Date.now() - fromServer(ms)) / 1000));
 
     if (seconds < 60) {
-        return `${seconds}s`;
+        return t("{n}s", { n: seconds });
     }
 
     if (seconds < 3600) {
-        return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
+        return t("{m}m {s}s", { m: Math.floor(seconds / 60), s: String(seconds % 60).padStart(2, "0") });
     }
 
-    return `${Math.floor(seconds / 3600)}h ${String(Math.floor(seconds / 60) % 60).padStart(2, "0")}m`;
+    return t("{h}h {m}m", { h: Math.floor(seconds / 3600), m: String(Math.floor(seconds / 60) % 60).padStart(2, "0") });
 }
 
 /** The order of the states, in the dots and the rows: working, then trouble, then done. */
@@ -107,10 +146,10 @@ function AgentRow({ agent }) {
     const stop = () => attempt(() => api(`c/${agent.conversationId}/abort`, {}));
     const status = stateOf(agent);
     // A failure someone dealt with says so, as the board does.
-    const dealt = status === "failed" && agent.dealt ? " · dismissed" : "";
+    const dealt = status === "failed" && agent.dealt;
     const when = agent.busy
         ? agent.askedAt && elapsed(agent.askedAt)
-        : agent.answeredAt && `${status} ${timeAgo(fromServer(agent.answeredAt))}${dealt}`;
+        : agent.answeredAt && endedText(status, timeAgo(fromServer(agent.answeredAt)), dealt);
 
     return html`<div class=${`agent-row ${status}`} data-peek=${agent.conversationId}>
         <button class="agent-open" onClick=${() => openSubagent(agent.conversationId)}>
@@ -121,7 +160,7 @@ function AgentRow({ agent }) {
                 <span class="agent-head">
                     <span class="agent-name">${agent.name}</span>
                     ${when && html`<span class="agent-when">${when}</span>`}
-                    ${agent.reporting && html`<span class="agent-chip">report on its way to Pi</span>`}
+                    ${agent.reporting && html`<span class="agent-chip">${t("report on its way to Pi")}</span>`}
                 </span>
                 ${agent.busy && html`<span class="agent-now">${nowDoing(agent)}</span>`}
                 ${status === "failed" && agent.error && html`<span class="agent-error">${agent.error}</span>`}
@@ -133,8 +172,8 @@ function AgentRow({ agent }) {
             canSteer() &&
             html`<button
                 class="icon-button agent-stop"
-                aria-label=${`Stop ${agent.name}`}
-                title="Stop"
+                aria-label=${t("Stop {name}", { name: agent.name })}
+                title=${t("Stop")}
                 onClick=${stop}
             >
                 <${Icon} name="stop" size=${13} />
@@ -150,13 +189,13 @@ function Held({ why }) {
     const owner = store.state.me?.role === "owner";
 
     return html`<div class="agents-held" role="status">
-        <span>Reports wait: ${why}.</span>
+        <span>${t("Reports wait: {why}.", { why })}</span>
         ${
             owner
                 ? html`<button class="link" onClick=${() => openSheet({ type: "spend" })}>
-                      Raise it
+                      ${t("Raise it")}
                   </button>`
-                : html`<span>They go once the owner raises it.</span>`
+                : html`<span>${t("They go once the owner raises it.")}</span>`
         }
     </div>`;
 }
@@ -173,8 +212,8 @@ function Bar({ agents, active, open, held }) {
     // "3 subagents working" when one kind says it all; "2 working · 1 done · 1 failed", short for a phone, when not.
     const summary =
         kinds.length === 1
-            ? `${plural(agents.length, "subagent")} ${kinds[0]}`
-            : kinds.map((status) => `${count(status)} ${status}`).join(" · ");
+            ? allIn(kinds[0], agents.length)
+            : kinds.map((status) => countIn(status, count(status))).join(" · ");
     const shown = ordered(agents);
 
     // The rows' and the folded line's peeks: what each working subagent does now.
@@ -191,7 +230,10 @@ function Bar({ agents, active, open, held }) {
     }, [working.length]);
 
     // What the button says, the newest one's work too: the label stands for everything in it.
-    const label = `Subagents: ${summary}${lead && !open ? `. ${lead.name}: ${nowDoing(lead)}` : ""}`;
+    const label =
+        lead && !open
+            ? t("Subagents: {summary}. {name}: {doing}", { summary, name: lead.name, doing: nowDoing(lead) })
+            : t("Subagents: {summary}", { summary });
 
     return html`<div
         class=${`agents-bar ${open ? "open" : ""} ${working.length > 0 ? "busy" : ""}`}
@@ -228,8 +270,8 @@ function Bar({ agents, active, open, held }) {
                 !active &&
                 html`<button
                     class="icon-button"
-                    aria-label="Put the subagents bar away"
-                    title="Put away"
+                    aria-label=${t("Put the subagents bar away")}
+                    title=${t("Put away")}
                     onClick=${() => {
                         putAway(store.state.conversationId, agents);
                         store.set({ subagentsOpen: null });

@@ -3,6 +3,25 @@
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet, openSheet } from "../store.js";
 import { Choice, html, Loader, Sheet } from "../ui.js";
+import { t, tx } from "../i18n.js";
+
+/** What a provider's key is: the secret it reads, whether it is optional, and whether it is there. */
+function keyLine(key, missing) {
+    const name = html`<span class="mono">${key.secret}</span>`;
+
+    if (key.optional) {
+        return missing ? tx("Key: the secret {name} (optional).", { name }) : tx("Key: the secret {name} (optional) ✓.", { name });
+    }
+
+    return missing ? tx("Key: the secret {name}.", { name }) : tx("Key: the secret {name} ✓.", { name });
+}
+
+/** What a test search found: how many, how fast, and the first one's title. */
+function testLine(test) {
+    const vars = { n: test.results.length, seconds: (test.ms / 1000).toFixed(1), title: test.results[0]?.title };
+
+    return test.results[0] ? t("{n} results in {seconds} s: {title}", vars) : t("{n} results in {seconds} s", vars);
+}
 
 function KeyField({ provider, onSaved }) {
     const [value, setValue] = useState("");
@@ -29,12 +48,12 @@ function KeyField({ provider, onSaved }) {
             type="password"
             class="mono"
             autocomplete="off"
-            aria-label=${`${provider.name} key`}
-            placeholder=${provider.missing ? "Paste its key" : "Saved; paste to replace it"}
+            aria-label=${t("{provider} key", { provider: provider.name })}
+            placeholder=${provider.missing ? t("Paste its key") : t("Saved; paste to replace it")}
             value=${value}
             onInput=${(event) => setValue(event.currentTarget.value)}
         />
-        <button class="button small primary" disabled=${busy || value.length < 8} onClick=${save}>Save</button>
+        <button class="button small primary" disabled=${busy || value.length < 8} onClick=${save}>${t("Save")}</button>
     </div>`;
 }
 
@@ -56,7 +75,7 @@ function EndpointField({ provider, onSaved }) {
                 value=${value}
                 onInput=${(event) => setValue(event.currentTarget.value)}
             />
-            <button class="button small" disabled=${value.trim() === (provider.endpoint.value ?? "")} onClick=${save}>Save</button>
+            <button class="button small" disabled=${value.trim() === (provider.endpoint.value ?? "")} onClick=${save}>${t("Save")}</button>
         </div>
     </div>`;
 }
@@ -82,26 +101,24 @@ export function WebAccessSheet() {
         });
     const chosen = state?.providers.find((provider) => provider.id === state.provider);
 
-    return html`<${Sheet} title="Web access" onClose=${closeSheet}>
+    return html`<${Sheet} title=${t("Web access")} onClose=${closeSheet}>
         <p class="muted small">
-            The search provider Pi's <span class="mono">web_search</span> uses. Pi reads pages, documents, and GitHub
-            with <span class="mono">fetch_content</span> without one. Model providers use your sign-in from Settings › Providers;
-            the others use a key kept in Settings › Secrets.
+            ${tx("The search provider Pi's {search} uses. Pi reads pages, documents, and GitHub with {fetch} without one. Model providers use your sign-in from Settings › Providers; the others use a key kept in Settings › Secrets.", { search: html`<span class="mono">web_search</span>`, fetch: html`<span class="mono">fetch_content</span>` })}
         </p>
-        ${!state && html`<${Loader} label="Loading providers" />`}
+        ${!state && html`<${Loader} label=${t("Loading providers")} />`}
         ${
             state &&
             html`<div class="field">
-                <div class="label">Search provider</div>
+                <div class="label">${t("Search provider")}</div>
                 <${Choice}
-                    label="Search provider"
+                    label=${t("Search provider")}
                     value=${state.provider ?? ""}
                     options=${[
-                        { value: "", label: "Off: no web search" },
+                        { value: "", label: t("Off: no web search") },
                         ...state.providers.map((provider) => ({
                             value: provider.id,
                             label: provider.name,
-                            detail: [provider.missing ? "not set up" : "", provider.price ?? ""].filter(Boolean).join(" · "),
+                            detail: [provider.missing ? t("not set up") : "", provider.price ?? ""].filter(Boolean).join(" · "),
                         })),
                     ]}
                     onChange=${pick}
@@ -117,16 +134,21 @@ export function WebAccessSheet() {
                     <div class="small">
                         ${
                             chosen.key.kind === "pi"
-                                ? html`Uses your ${chosen.key.provider} sign-in${chosen.missing ? html`, which is missing: <button class="link" onClick=${() => openSheet({ type: "providers" })}>sign in under Providers</button>` : " ✓"}.`
+                                ? chosen.missing
+                                    ? tx("Uses your {provider} sign-in, which is missing: {link}.", {
+                                          provider: chosen.key.provider,
+                                          link: html`<button class="link" onClick=${() => openSheet({ type: "providers" })}>${t("sign in under Providers")}</button>`,
+                                      })
+                                    : t("Uses your {provider} sign-in ✓.", { provider: chosen.key.provider })
                                 : chosen.key.kind === "secret"
-                                  ? html`Key: the secret <span class="mono">${chosen.key.secret}</span>${chosen.key.optional ? " (optional)" : ""}${chosen.missing ? "" : " ✓"}.`
-                                  : "Needs no key."
+                                  ? keyLine(chosen.key, chosen.missing)
+                                  : t("Needs no key.")
                         }
                         ${" "}<a href=${chosen.site} target="_blank" rel="noopener">${new URL(chosen.site).hostname}</a>
                     </div>
                     ${chosen.key.kind === "secret" && html`<${KeyField} provider=${chosen} onSaved=${() => attempt(load)} />`}
                     ${chosen.endpoint && html`<${EndpointField} key=${chosen.id} provider=${chosen} onSaved=${() => attempt(load)} />`}
-                    ${chosen.missing && html`<p class="wiki-problem">Not set up: ${chosen.missing}.</p>`}
+                    ${chosen.missing && html`<p class="wiki-problem">${t("Not set up: {why}.", { why: chosen.missing })}</p>`}
                 </div>
             </div>
             <div class="sheet-actions">
@@ -135,13 +157,13 @@ export function WebAccessSheet() {
                         test === null
                             ? ""
                             : test.running
-                              ? "Searching…"
+                              ? t("Searching…")
                               : test.ok
-                                ? `${test.results.length} results in ${(test.ms / 1000).toFixed(1)} s${test.results[0] ? `: ${test.results[0].title}` : ""}`
+                                ? testLine(test)
                                 : test.error
                     }
                 </span>
-                <button class="button" disabled=${Boolean(chosen.missing) || test?.running} onClick=${runTest}>Test</button>
+                <button class="button" disabled=${Boolean(chosen.missing) || test?.running} onClick=${runTest}>${t("Test")}</button>
             </div>`
         }
     <//>`;

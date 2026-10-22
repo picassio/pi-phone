@@ -65,11 +65,11 @@ function imageSource(src, conversationId) {
 }
 
 /** A tappable image thumbnail that opens full screen, or a chip when the image cannot load. */
-export function Thumb({ src, alt = "image" }) {
+export function Thumb({ src, alt = t("image") }) {
     const [broken, setBroken] = useState(false);
 
     if (broken) {
-        return html`<span class="chip" title="This image could not be loaded">🖼 ${alt}</span>`;
+        return html`<span class="chip" title=${t("This image could not be loaded")}>🖼 ${alt}</span>`;
     }
 
     return html`<button
@@ -223,7 +223,7 @@ function codeBlock(pre, fold) {
     copy.className = "copy";
     copy.type = "button";
     copy.dataset.copy = "";
-    copy.textContent = "Copy";
+    copy.textContent = t("Copy");
     pre.replaceWith(wrap);
 
     if (kind) {
@@ -250,7 +250,7 @@ function codeBlock(pre, fold) {
         more.className = "code-more";
         more.type = "button";
         more.dataset.more = "";
-        more.textContent = `Show all ${lines} lines`;
+        more.textContent = t("Show all {n} lines", { n: lines });
         wrap.append(more);
     }
 }
@@ -300,7 +300,7 @@ function sanitize(html, fold) {
             continue;
         }
 
-        const label = `🖼 ${image.getAttribute("alt") || "image"}`;
+        const label = `🖼 ${image.getAttribute("alt") || t("image")}`;
         let host;
 
         try {
@@ -319,7 +319,7 @@ function sanitize(html, fold) {
 
         link.href = src;
         link.textContent = label;
-        link.title = `Image from ${host}`;
+        link.title = t("Image from {host}", { host });
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         image.replaceWith(link);
@@ -754,7 +754,7 @@ document.addEventListener(
         const note = document.createElement("span");
 
         note.className = "image-missing";
-        note.textContent = `🖼 ${image.alt || "Image"} could not be loaded`;
+        note.textContent = `🖼 ${image.alt ? t("{name} could not be loaded", { name: image.alt }) : t("Image could not be loaded")}`;
         image.after(note);
     },
     true,
@@ -772,10 +772,10 @@ document.addEventListener("click", (event) => {
 
     copyText(pre?.innerText ?? "").then(
         () => {
-            button.textContent = "Copied";
-            setTimeout(() => (button.textContent = "Copy"), 1200);
+            button.textContent = t("Copied");
+            setTimeout(() => (button.textContent = t("Copy")), 1200);
         },
-        () => notify("error", "Could not copy."),
+        () => notify("error", t("Could not copy.")),
     );
 });
 
@@ -791,8 +791,8 @@ document.addEventListener("click", (event) => {
     const open = block.classList.toggle("open");
 
     button.textContent = open
-        ? "Fold"
-        : `Show all ${block.querySelector("pre")?.textContent.split("\n").length ?? ""} lines`;
+        ? t("Fold")
+        : t("Show all {n} lines", { n: block.querySelector("pre")?.textContent.split("\n").length ?? "" });
 });
 
 /** Copy text, with a fallback for plain-http addresses, where the clipboard API does not exist. */
@@ -812,7 +812,7 @@ export async function copyText(text) {
     area.remove();
 
     if (!ok) {
-        throw new Error("Could not copy.");
+        throw new Error(t("Could not copy."));
     }
 }
 
@@ -1106,7 +1106,7 @@ export function Loader({ label = "Loading" }) {
 }
 
 /** The full-screen loader: the app's icon over Omarchy's boot bar, and what is happening under it. */
-export function Boot({ caption = "starting", detail = "", inline = false }) {
+export function Boot({ caption = t("starting"), detail = "", inline = false }) {
     return html`<div
         class=${`boot ${inline ? "inline" : ""}`}
         data-part="boot"
@@ -1507,13 +1507,13 @@ export function Sheet({ title, onClose, children, wide = false, actions = null, 
                 <div class="grip" aria-hidden="true"></div>
                 ${
                     onBack &&
-                    html`<button class="icon-button sheet-back" onClick=${onBack} aria-label="Back">
+                    html`<button class="icon-button sheet-back" onClick=${onBack} aria-label=${t("Back")}>
                         <${Icon} name="back" size=${18} />
                     </button>`
                 }
                 <h2>${title}</h2>
                 ${actions}
-                <button class="icon-button" onClick=${onClose} aria-label="Close">
+                <button class="icon-button" onClick=${onClose} aria-label=${t("Close")}>
                     <${Icon} name="close" />
                 </button>
             </header>
@@ -1632,7 +1632,7 @@ export const anchorStyle = (anchor) =>
 /** The short name of a model for chips: "Claude Opus 5.5" stays, long ids lose their date suffix. */
 export function modelLabel(agent) {
     if (!agent?.model) {
-        return "No model";
+        return t("No model");
     }
 
     return agent.modelName ?? agent.model.modelId.replace(/-\d{8}$/, "");
@@ -1646,7 +1646,7 @@ export function modelLabel(agent) {
  * a scroll, or a new size closes it too. Fixed to the screen, so a sheet's scrolling body does not clip it. With no
  * option chosen, `placeholder` shows.
  */
-export function Choice({ value, options, onChange, label, disabled, placeholder = "Choose…" }) {
+export function Choice({ value, options, onChange, label, disabled, placeholder = t("Choose…") }) {
     const [open, setOpen] = useState(null);
     const [active, setActive] = useState(0);
     const button = useRef(null);

@@ -1,9 +1,10 @@
 // Extensions: the built-in modules the owner can turn on and off (artifacts, subagents, schedules, plan mode, codemode,
 // CI watch, ...), each with its tools, and reload.
 import { useEffect, useState } from "preact/hooks";
-import { leaveSafeMode, safeMode } from "../extension-ui.js";
+import { leaveSafeMode, moduleTitle, safeMode } from "../extension-ui.js";
 import { api, attempt, closeSheet, store } from "../store.js";
 import { html, Loader, Sheet, Switch } from "../ui.js";
+import { t } from "../i18n.js";
 
 /** Safe mode: extensions' browser parts and the theme are off in this tab, after one broke it. */
 function SafeMode() {
@@ -12,8 +13,8 @@ function SafeMode() {
     }
 
     return html`<div class="setting wrap safe-mode">
-        <div class="grow small">Extensions' browser parts are off in this tab, and so is the theme.</div>
-        <button class="button" onClick=${leaveSafeMode}>Turn them back on</button>
+        <div class="grow small">${t("Extensions' browser parts are off in this tab, and so is the theme.")}</div>
+        <button class="button" onClick=${leaveSafeMode}>${t("Turn them back on")}</button>
     </div>`;
 }
 
@@ -45,13 +46,15 @@ export function ExtensionsSheet() {
         });
     };
 
-    return html`<${Sheet} title="Extensions" onClose=${closeSheet} wide=${true}>
+    return html`<${Sheet} title=${t("Extensions")} onClose=${closeSheet} wide=${true}>
         <p class="muted small">
-            Extensions give Pi its tools and checks. A change applies to every session right away and stays after restarts.${owner ? "" : " Only the owner can change them."}
+            ${owner
+                ? t("Extensions give Pi its tools and checks. A change applies to every session right away and stays after restarts.")
+                : t("Extensions give Pi its tools and checks. A change applies to every session right away and stays after restarts. Only the owner can change them.")}
         </p>
         <${SafeMode} />
         ${problem && html`<div class="error-box">${problem}</div>`}
-        ${!data && !problem && html`<${Loader} label="Loading extensions" />`}
+        ${!data && !problem && html`<${Loader} label=${t("Loading extensions")} />`}
         ${
             data &&
             html`<div class="sheet-list">
@@ -61,22 +64,22 @@ export function ExtensionsSheet() {
                     return html`<div class=${`extension ${module.enabled ? "" : "off"}`}>
                         <div class="extension-main">
                             <div class="extension-title">
-                                ${module.title}
-                                ${module.error && html` <span class="warn small">· failed to load</span>`}
+                                ${moduleTitle(module.title)}
+                                ${module.error && html` <span class="warn small">${t("· failed to load")}</span>`}
                             </div>
                             ${module.summary && html`<div class="muted small">${module.summary}</div>`}
                             ${module.error && html`<div class="error-box small">${module.error}</div>`}
                             <div class="muted small mono">
                                 ${module.file}
-                                ${tools.length > 0 ? ` · tools: ${tools.join(", ")}` : ""}
-                                ${module.required ? " · required" : ""}
+                                ${tools.length > 0 ? t(" · tools: {tools}", { tools: tools.join(", ") }) : ""}
+                                ${module.required ? t(" · required") : ""}
                             </div>
                         </div>
                         <div class="extension-actions">
                             <${Switch}
                                 on=${module.enabled}
                                 disabled=${!owner || module.required || busy !== null}
-                                label=${`${module.title}: ${module.enabled ? "on" : "off"}`}
+                                label=${module.enabled ? t("{title}: on", { title: moduleTitle(module.title) }) : t("{title}: off", { title: moduleTitle(module.title) })}
                                 onChange=${() => change(module, "", { enabled: !module.enabled })}
                             />
                             ${
@@ -87,7 +90,7 @@ export function ExtensionsSheet() {
                                     disabled=${busy !== null}
                                     onClick=${() => change(module, "/reload", {})}
                                 >
-                                    Reload
+                                    ${t("Reload")}
                                 </button>`
                             }
                         </div>

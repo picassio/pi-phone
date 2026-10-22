@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { setBrowserOpen } from "./browser-panel.js";
+import { t, tn } from "./i18n.js";
 import { piBrowserState, store } from "./store.js";
 import { html, Icon } from "./ui.js";
 
@@ -43,17 +44,20 @@ export function parseRunReport(text) {
 }
 
 /** Why a run stopped, in words. */
-const REASONS = {
-    needs_value: "needs a value",
-    blocked: "blocked",
-    stuck_loop: "stuck",
-    unverified_done: "not visibly done",
-    budget: "out of steps or time",
-    decision_error: "the run model failed",
-    stale: "the page kept changing",
-};
+const REASONS = () => ({
+    needs_value: t("needs a value"),
+    blocked: t("blocked"),
+    stuck_loop: t("stuck"),
+    unverified_done: t("not visibly done"),
+    budget: t("out of steps or time"),
+    decision_error: t("the run model failed"),
+    stale: t("the page kept changing"),
+});
 
-const duration = (seconds) => (seconds < 60 ? `${Math.round(seconds)} s` : `${Math.floor(seconds / 60)} min ${Math.round(seconds % 60)} s`);
+const duration = (seconds) =>
+    seconds < 60
+        ? t("{s} s", { s: Math.round(seconds) })
+        : t("{m} min {s} s", { m: Math.floor(seconds / 60), s: Math.round(seconds % 60) });
 
 /** While running: the browser's steps as they happen, and the seconds since the card first saw it run. */
 function useLiveRun(running, conversationId) {
@@ -91,16 +95,16 @@ export function BrowserRunCard({ args, status, resultText, conversationId }) {
     const shown = steps.slice(-8);
     const state = report?.done ? "done" : running ? "running" : report || failed ? "stopped" : status;
     const title = running
-        ? "Running in Pi's browser"
+        ? t("Running in Pi's browser")
         : report?.done
-          ? `Done in ${report.steps.length} ${report.steps.length === 1 ? "step" : "steps"}`
+          ? tn(report.steps.length, "Done in {n} step", "Done in {n} steps")
           : report
-            ? `Stopped: ${REASONS[report.reason] ?? report.reason}`
+            ? t("Stopped: {reason}", { reason: REASONS()[report.reason] ?? report.reason })
             : failed
-              ? "The run failed"
-              : "Waiting to run";
+              ? t("The run failed")
+              : t("Waiting to run");
     const meta = running
-        ? `${duration(live.seconds)} · ${live.steps.length} ${live.steps.length === 1 ? "step" : "steps"}`
+        ? tn(live.steps.length, "{time} · {n} step", "{time} · {n} steps", { time: duration(live.seconds) })
         : report
           ? [duration(report.seconds), report.decider, report.cost > 0 ? `$${report.cost.toFixed(5)}` : ""].filter(Boolean).join(" · ")
           : "";
@@ -112,7 +116,7 @@ export function BrowserRunCard({ args, status, resultText, conversationId }) {
             <span class="pr-meta">${meta}</span>
             ${
                 store.state.me?.role === "owner" &&
-                html`<button class="button small" onClick=${() => setBrowserOpen(true)}>Watch</button>`
+                html`<button class="button small" onClick=${() => setBrowserOpen(true)}>${t("Watch")}</button>`
             }
         </div>
         <p class="pr-goal">${args.goal ?? ""}</p>

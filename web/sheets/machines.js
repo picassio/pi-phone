@@ -1,6 +1,7 @@
 // Machines (src/server/machines.ts): other computers sessions can work on, over ssh with one of the app's SSH keys.
 // Add one, accept its host key, approve the daemon install, test it, edit, remove. Laid out as the Providers sheet.
 import { useEffect, useState } from "preact/hooks";
+import { t, tx } from "../i18n.js";
 import { api, attempt, closeSheet, notify, openSheet } from "../store.js";
 import { Choice, copyText, html, Icon, Loader, Sheet, timeAgo } from "../ui.js";
 import { windowsSetupScript } from "../windows-setup.js";
@@ -40,15 +41,15 @@ function MachineForm({ machine, keys, onDone }) {
 
     return html`<div class="machine-form">
         <div class="field">
-            <div class="label">Name</div>
-            <input autofocus aria-label="Machine name" placeholder="laptop" value=${name} onInput=${(event) => setName(event.currentTarget.value)} />
+            <div class="label">${t("Name")}</div>
+            <input autofocus aria-label=${t("Machine name")} placeholder=${t("laptop")} value=${name} onInput=${(event) => setName(event.currentTarget.value)} />
         </div>
         <div class="field">
-            <div class="label">Address</div>
+            <div class="label">${t("Address")}</div>
             <input
                 class="mono"
-                aria-label="Address"
-                placeholder="user@host or user@host:port"
+                aria-label=${t("Address")}
+                placeholder=${t("user@host or user@host:port")}
                 autocapitalize="off"
                 autocomplete="off"
                 spellcheck="false"
@@ -57,14 +58,16 @@ function MachineForm({ machine, keys, onDone }) {
             />
         </div>
         <div class="field">
-            <div class="label">SSH key</div>
+            <div class="label">${t("SSH key")}</div>
             ${
                 keys.length === 0
                     ? html`<p class="muted small">
-                        No keys yet. <button class="link" onClick=${() => openSheet({ type: "ssh-keys" })}>Make one under SSH keys</button>, then come back.
+                        ${tx("No keys yet. {link}, then come back.", {
+                            link: html`<button class="link" onClick=${() => openSheet({ type: "ssh-keys" })}>${t("Make one under SSH keys")}</button>`,
+                        })}
                     </p>`
                     : html`<${Choice}
-                        label="SSH key"
+                        label=${t("SSH key")}
                         value=${keyId}
                         options=${keys.map((key) => ({ value: key.id, label: key.name, detail: `${key.type} · ${key.fingerprint.slice(0, 27)}…` }))}
                         onChange=${setKeyId}
@@ -72,13 +75,13 @@ function MachineForm({ machine, keys, onDone }) {
             }
         </div>
         ${!machine && key && html`<label class="check">
-            <input type="checkbox" checked=${windows} onChange=${(event) => setWindows(event.currentTarget.checked)} /> It's a Windows PC
+            <input type="checkbox" checked=${windows} onChange=${(event) => setWindows(event.currentTarget.checked)} /> ${t("It's a Windows PC")}
         </label>`}
         ${windows && key && html`<${WindowsSetup} publicKey=${key.publicKey} />`}
         <div class="sheet-actions">
-            <button class="button" onClick=${() => onDone(null)}>Cancel</button>
+            <button class="button" onClick=${() => onDone(null)}>${t("Cancel")}</button>
             <button class="button primary" disabled=${busy || name.trim() === "" || where.trim() === "" || keyId === ""} onClick=${save}>
-                ${busy ? "Saving…" : machine ? "Save" : "Add"}
+                ${busy ? t("Saving…") : machine ? t("Save") : t("Add")}
             </button>
         </div>
     </div>`;
@@ -93,47 +96,58 @@ function WindowsSetup({ publicKey }) {
 
     return html`<div class="windows-setup">
         <ol class="small">
-            <li>On the PC, open the Start menu, type <b>PowerShell</b>, and choose <b>Run as administrator</b>, signed in as the account pi-phone will use.</li>
-            <li>Paste this script and press Enter. It turns on OpenSSH Server, lets SSH (port 22) through the firewall, adds this key, and installs Git for Windows if it is missing (Git Bash runs Pi's commands there).</li>
-            <li>It ends with addresses like <span class="mono">you@192.168.1.20</span>: put one in Address above, then Add, and connect.</li>
-            <li>By hand instead: OpenSSH Server (<span class="mono">winget install Microsoft.OpenSSH.Preview</span>), Git for Windows, port 22 open in the firewall, and this key in <span class="mono">~/.ssh/authorized_keys</span>, or for an administrator in <span class="mono">C:\\ProgramData\\ssh\\administrators_authorized_keys</span>.</li>
+            <li>
+                ${tx("On the PC, open the Start menu, type {powershell}, and choose {admin}, signed in as the account pi-phone will use.", {
+                    powershell: html`<b>PowerShell</b>`,
+                    admin: html`<b>${t("Run as administrator")}</b>`,
+                })}
+            </li>
+            <li>${t("Paste this script and press Enter. It turns on OpenSSH Server, lets SSH (port 22) through the firewall, adds this key, and installs Git for Windows if it is missing (Git Bash runs Pi's commands there).")}</li>
+            <li>${tx("It ends with addresses like {example}: put one in Address above, then Add, and connect.", { example: html`<span class="mono">you@192.168.1.20</span>` })}</li>
+            <li>
+                ${tx("By hand instead: OpenSSH Server ({command}), Git for Windows, port 22 open in the firewall, and this key in {file}, or for an administrator in {adminFile}.", {
+                    command: html`<span class="mono">winget install Microsoft.OpenSSH.Preview</span>`,
+                    file: html`<span class="mono">~/.ssh/authorized_keys</span>`,
+                    adminFile: html`<span class="mono">C:\\ProgramData\\ssh\\administrators_authorized_keys</span>`,
+                })}
+            </li>
         </ol>
         <div class="sheet-actions">
             <button
                 class="button"
                 onClick=${() =>
                     copyText(script).then(
-                        () => notify("info", "Script copied: paste it into PowerShell on the PC."),
-                        () => notify("error", "Could not copy."),
+                        () => notify("info", t("Script copied: paste it into PowerShell on the PC.")),
+                        () => notify("error", t("Could not copy.")),
                     )}
             >
-                <${Icon} name="copy" size=${14} /> Copy script
+                <${Icon} name="copy" size=${14} /> ${t("Copy script")}
             </button>
         </div>
         <pre class="ssh-public-key">${script}</pre>
-        <p class="muted small">From another network, put the PC on your Tailscale network too and use its 100.x address.</p>
+        <p class="muted small">${t("From another network, put the PC on your Tailscale network too and use its 100.x address.")}</p>
     </div>`;
 }
 
 /** Where a tool stands on a machine, in a few words. */
 function toolState(tool) {
     if (!tool.supported) {
-        return "no build for this machine";
+        return t("no build for this machine");
     }
 
     if (tool.installed && tool.installed === tool.version) {
-        return `installed, ${tool.installed}`;
+        return t("installed, {version}", { version: tool.installed });
     }
 
     if (tool.installed) {
-        return `installed, ${tool.installed}; ${tool.version} available`;
+        return t("installed, {version}; {latest} available", { version: tool.installed, latest: tool.version });
     }
 
     if (tool.own) {
-        return `the machine's own: ${tool.own}`;
+        return t("the machine's own: {own}", { own: tool.own });
     }
 
-    return `not installed · ${tool.size}`;
+    return t("not installed · {size}", { size: tool.size });
 }
 
 /**
@@ -162,7 +176,12 @@ function MachineToolsPanel({ machine, onClose }) {
                 const done = await api(path, { install: [...ticked] });
 
                 for (const result of done.results) {
-                    notify(result.ok ? "info" : "error", `${machine.name}: ${result.id} ${result.ok ? `${result.version} installed` : `not installed: ${result.said}`}`);
+                    notify(
+                        result.ok ? "info" : "error",
+                        result.ok
+                            ? t("{machine}: {tool} {version} installed", { machine: machine.name, tool: result.id, version: result.version })
+                            : t("{machine}: {tool} not installed: {said}", { machine: machine.name, tool: result.id, said: result.said }),
+                    );
                 }
 
                 show(done.tools);
@@ -172,8 +191,8 @@ function MachineToolsPanel({ machine, onClose }) {
         });
 
     return html`<div class="machine-step">
-        <div class="label">Tools on ${machine.name}</div>
-        ${!tools && html`<${Loader} label="Looking at the machine" />`}
+        <div class="label">${t("Tools on {name}", { name: machine.name })}</div>
+        ${!tools && html`<${Loader} label=${t("Looking at the machine")} />`}
         ${
             tools &&
             tools.map(
@@ -203,11 +222,11 @@ function MachineToolsPanel({ machine, onClose }) {
             )
         }
         <p class="muted small">
-            Each is downloaded by the machine itself, checked against its pinned sha256, into <span class="mono">~/.pi/mobile/tools</span>, and put first on bash's PATH in sessions there.
+            ${tx("Each is downloaded by the machine itself, checked against its pinned sha256, into {path}, and put first on bash's PATH in sessions there.", { path: html`<span class="mono">~/.pi/mobile/tools</span>` })}
         </p>
         <div class="sheet-actions">
-            <button class="button small" disabled=${busy} onClick=${onClose}>Close</button>
-            <button class="button small primary" disabled=${busy || ticked.size === 0} onClick=${install}>${busy ? "Installing…" : "Install"}</button>
+            <button class="button small" disabled=${busy} onClick=${onClose}>${t("Close")}</button>
+            <button class="button small primary" disabled=${busy || ticked.size === 0} onClick=${install}>${busy ? t("Installing…") : t("Install")}</button>
         </div>
     </div>`;
 }
@@ -262,7 +281,15 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 notify("warning", `${machine.name}: ${warning}`);
             }
 
-            notify("info", `${machine.name} is connected: ${connected.remote.platform} ${connected.remote.arch}, pi-env ${connected.daemon}.`);
+            notify(
+                "info",
+                t("{name} is connected: {platform} {arch}, pi-env {daemon}.", {
+                    name: machine.name,
+                    platform: connected.remote.platform,
+                    arch: connected.remote.arch,
+                    daemon: connected.daemon,
+                }),
+            );
 
             // Then the tools ticked: those the machine has a build of and, for rg and fd, has none of its own.
             if (state === "trusted" && wanted.size > 0) {
@@ -271,7 +298,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 const install = status.filter((tool) => tool.offered && wanted.has(tool.id)).map((tool) => tool.id);
 
                 for (const tool of status.filter((each) => wanted.has(each.id) && !each.offered)) {
-                    notify("info", `${machine.name}: ${tool.name} not installed (${toolState(tool)}).`);
+                    notify("info", t("{machine}: {tool} not installed ({state}).", { machine: machine.name, tool: tool.name, state: toolState(tool) }));
                 }
 
                 if (install.length > 0) {
@@ -279,7 +306,12 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                     const done = await api(path, { install });
 
                     for (const result of done.results) {
-                        notify(result.ok ? "info" : "error", `${machine.name}: ${result.id} ${result.ok ? `${result.version} installed` : `not installed: ${result.said}`}`);
+                        notify(
+                            result.ok ? "info" : "error",
+                            result.ok
+                                ? t("{machine}: {tool} {version} installed", { machine: machine.name, tool: result.id, version: result.version })
+                                : t("{machine}: {tool} not installed: {said}", { machine: machine.name, tool: result.id, said: result.said }),
+                        );
                     }
                 }
             }
@@ -290,17 +322,22 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
         call("detect", async () => {
             const remote = await api(`machines/${encodeURIComponent(machine.id)}/detect`, {});
 
-            setChecked(`${remote.platform} ${remote.arch}, home ${remote.home}`);
+            setChecked(t("{platform} {arch}, home {home}", { platform: remote.platform, arch: remote.arch, home: remote.home }));
         });
     const forget = () =>
-        confirm(`Forget ${machine.name}'s host key?\n\nOnly do this when you know why it changed (the machine was reinstalled). You then scan and accept the new key.`) &&
+        confirm(
+            t("Forget {name}'s host key?\n\nOnly do this when you know why it changed (the machine was reinstalled). You then scan and accept the new key.", { name: machine.name }),
+        ) &&
         call("forget", async () => {
             await api(`machines/${encodeURIComponent(machine.id)}/forget`, {});
             onChanged();
         });
     const remove = () =>
         confirm(
-            `Remove ${machine.name}?\n\nThe app forgets it and its host key. The pi-env helper stays in ~/.pi/mobile/tools on the machine until you delete it there, and the key stays in its authorized_keys.`,
+            t(
+                "Remove {name}?\n\nThe app forgets it and its host key. The pi-env helper stays in ~/.pi/mobile/tools on the machine until you delete it there, and the key stays in its authorized_keys.",
+                { name: machine.name },
+            ),
         ) &&
         call("remove", async () => {
             await api(`machines/${encodeURIComponent(machine.id)}`, undefined, { method: "DELETE" });
@@ -309,8 +346,8 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
     const copyKey = () =>
         key &&
         copyText(key.publicKey).then(
-            () => notify("info", "Public key copied."),
-            () => notify("error", "Could not copy."),
+            () => notify("info", t("Public key copied.")),
+            () => notify("error", t("Could not copy.")),
         );
 
     if (editing) {
@@ -339,41 +376,43 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             <div class="muted small">
                 ${
                     state === "connected"
-                        ? `${machine.remote.platform} ${machine.remote.arch} · pi-env ${machine.daemon} · connected ${timeAgo(machine.connectedAt)} ago`
+                        ? `${machine.remote.platform} ${machine.remote.arch} · pi-env ${machine.daemon} · ${t("connected {ago} ago", { ago: timeAgo(machine.connectedAt) })}`
                         : state === "trusted"
-                          ? "host key accepted · not connected yet"
-                          : "not connected yet"
+                          ? t("host key accepted · not connected yet")
+                          : t("not connected yet")
                 }
-                ${key ? ` · key: ${key.name}` : " · key missing"}
+                ${key ? ` · ${t("key: {name}", { name: key.name })}` : ` · ${t("key missing")}`}
             </div>
-            ${checked && html`<div class="muted small">Reached: ${checked}</div>`}
+            ${checked && html`<div class="muted small">${t("Reached: {what}", { what: checked })}</div>`}
             ${
                 state === "connected" &&
                 machine.tools &&
-                html`<div class="muted small">Tools: ${Object.entries(machine.tools).map(([tool, version]) => `${tool} ${version}`).join(", ")}</div>`
+                html`<div class="muted small">${t("Tools: {list}", { list: Object.entries(machine.tools).map(([tool, version]) => `${tool} ${version}`).join(", ") })}</div>`
             }
             ${state === "connected" && toolsOpen && html`<${MachineToolsPanel} machine=${machine} onClose=${() => { setToolsOpen(false); onChanged(); }} />`}
             ${
                 state === "connected" &&
                 health !== undefined &&
                 (health.ok
-                    ? html`<div class="muted small">Answers now (checked ${timeAgo(health.at)} ago)</div>`
+                    ? html`<div class="muted small">${t("Answers now (checked {ago} ago)", { ago: timeAgo(health.at) })}</div>`
                     : html`<div class="machine-problem small">
-                          <strong>Can't connect:</strong> ${health.problem}
+                          <strong>${t("Can't connect:")}</strong> ${health.problem}
                           ${health.said && health.said !== health.problem && html`<div class="muted mono">${health.said}</div>`}
-                          <button class="link small" onClick=${onRecheck}>Check again</button>
+                          <button class="link small" onClick=${onRecheck}>${t("Check again")}</button>
                       </div>`)
             }
             ${
                 scan &&
                 html`<div class="machine-step">
                     <p class="small">
-                        The machine presents this host key. Compare it with <span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span> run on the machine itself, then accept.
+                        ${tx("The machine presents this host key. Compare it with {command} run on the machine itself, then accept.", {
+                            command: html`<span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span>`,
+                        })}
                     </p>
                     <pre class="ssh-public-key">${scan.fingerprints.join("\n")}</pre>
                     <div class="sheet-actions">
-                        <button class="button small" onClick=${() => setScan(null)}>Not now</button>
-                        <button class="button small primary" disabled=${busy !== null} onClick=${accept}>Accept this key</button>
+                        <button class="button small" onClick=${() => setScan(null)}>${t("Not now")}</button>
+                        <button class="button small primary" disabled=${busy !== null} onClick=${accept}>${t("Accept this key")}</button>
                     </div>
                 </div>`
             }
@@ -382,12 +421,15 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 !scan &&
                 html`<div class="machine-step">
                     <p class="small">
-                        Connecting copies the app's helper program (pi-env, about 2 MB) to <span class="mono">~/.pi/mobile/tools</span> on ${machine.name} over ssh and starts it there whenever a session works on this machine. It runs as <span class="mono">${machine.user}</span>, only while connected, and is checked against its hash before every start.
+                        ${tx(
+                            "Connecting copies the app's helper program (pi-env, about 2 MB) to {path} on {name} over ssh and starts it there whenever a session works on this machine. It runs as {user}, only while connected, and is checked against its hash before every start.",
+                            { path: html`<span class="mono">~/.pi/mobile/tools</span>`, name: machine.name, user: html`<span class="mono">${machine.user}</span>` },
+                        )}
                     </p>
                     ${
                         catalog &&
                         html`<div class="machine-tools-pick">
-                            <div class="label">Also install there</div>
+                            <div class="label">${t("Also install there")}</div>
                             ${catalog.map(
                                 (tool) => html`<label class="check machine-tool" key=${tool.id}>
                                     <input
@@ -407,7 +449,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                                         }}
                                     />
                                     <span>
-                                        <strong>${tool.name}</strong> ${tool.version} <span class="muted small">· ${tool.size}${tool.onlyIfMissing ? " · only if the machine has none" : ""}</span>
+                                        <strong>${tool.name}</strong> ${tool.version} <span class="muted small">· ${tool.size}${tool.onlyIfMissing ? ` · ${t("only if the machine has none")}` : ""}</span>
                                         <div class="muted small">${tool.description}</div>
                                     </span>
                                 </label>`,
@@ -415,33 +457,33 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                         </div>`
                     }
                     <button class="button primary" disabled=${busy !== null} onClick=${connect}>
-                        ${busy === "connect" ? "Connecting…" : busy === "tools" ? "Installing tools…" : "Install and connect"}
+                        ${busy === "connect" ? t("Connecting…") : busy === "tools" ? t("Installing tools…") : t("Install and connect")}
                     </button>
                 </div>`
             }
         </div>
         <div class="provider-actions">
             <div class="action-group">
-            ${state === "new" && !scan && html`<button class="button small primary" disabled=${busy !== null} onClick=${doScan}>${busy === "scan" ? "Scanning…" : "Scan host key"}</button>`}
+            ${state === "new" && !scan && html`<button class="button small primary" disabled=${busy !== null} onClick=${doScan}>${busy === "scan" ? t("Scanning…") : t("Scan host key")}</button>`}
             ${
                 state === "connected" &&
                 html`<button
                     class="button small"
                     onClick=${() => openSheet({ type: "terminal", place: `machine:${machine.id}:${machine.remote.home}` })}
                 >
-                    Terminal
+                    ${t("Terminal")}
                 </button>`
             }
-            ${state === "connected" && html`<button class="button small" onClick=${() => openSheet({ type: "forwards", machineId: machine.id })}>Ports</button>`}
-            ${state === "connected" && html`<button class="button small" disabled=${toolsOpen} onClick=${() => setToolsOpen(true)}>Install tools</button>`}
-            ${state === "connected" && html`<button class="button small" disabled=${busy !== null} onClick=${detect}>${busy === "detect" ? "Testing…" : "Test"}</button>`}
+            ${state === "connected" && html`<button class="button small" onClick=${() => openSheet({ type: "forwards", machineId: machine.id })}>${t("Ports")}</button>`}
+            ${state === "connected" && html`<button class="button small" disabled=${toolsOpen} onClick=${() => setToolsOpen(true)}>${t("Install tools")}</button>`}
+            ${state === "connected" && html`<button class="button small" disabled=${busy !== null} onClick=${detect}>${busy === "detect" ? t("Testing…") : t("Test")}</button>`}
             </div>
             <div class="action-group">
-            ${state === "connected" && html`<button class="button small ghost" disabled=${busy !== null} onClick=${connect}>${busy === "connect" ? "Updating…" : "Update helper"}</button>`}
-            ${key && html`<button class="button small ghost" onClick=${copyKey}>Copy public key</button>`}
-            <button class="button small ghost" onClick=${() => setEditing(true)}>Edit</button>
-            ${machine.hostKey && html`<button class="button small ghost" disabled=${busy !== null} onClick=${forget}>Forget host key</button>`}
-            <button class="button small ghost" disabled=${busy !== null} onClick=${remove}>Remove</button>
+            ${state === "connected" && html`<button class="button small ghost" disabled=${busy !== null} onClick=${connect}>${busy === "connect" ? t("Updating…") : t("Update helper")}</button>`}
+            ${key && html`<button class="button small ghost" onClick=${copyKey}>${t("Copy public key")}</button>`}
+            <button class="button small ghost" onClick=${() => setEditing(true)}>${t("Edit")}</button>
+            ${machine.hostKey && html`<button class="button small ghost" disabled=${busy !== null} onClick=${forget}>${t("Forget host key")}</button>`}
+            <button class="button small ghost" disabled=${busy !== null} onClick=${remove}>${t("Remove")}</button>
             </div>
         </div>
     </div>`;
@@ -470,12 +512,14 @@ export function MachinesSheet() {
         recheck();
     }, []);
 
-    return html`<${Sheet} title="Machines" onClose=${closeSheet}>
+    return html`<${Sheet} title=${t("Machines")} onClose=${closeSheet}>
         <p class="muted small">
-            Other computers a session can work on. Pi's tools then run there over ssh; the conversation, its history, and your Claude sign-in stay on this phone. Each machine uses one of your SSH keys; its public half must be in the machine's <span class="mono">~/.ssh/authorized_keys</span>.
+            ${tx("Other computers a session can work on. Pi's tools then run there over ssh; the conversation, its history, and your Claude sign-in stay on this phone. Each machine uses one of your SSH keys; its public half must be in the machine's {file}.", {
+                file: html`<span class="mono">~/.ssh/authorized_keys</span>`,
+            })}
         </p>
-        ${machines === null && html`<${Loader} label="Loading machines" />`}
-        ${machines !== null && machines.length === 0 && !adding && html`<p class="muted">No machines yet.</p>`}
+        ${machines === null && html`<${Loader} label=${t("Loading machines")} />`}
+        ${machines !== null && machines.length === 0 && !adding && html`<p class="muted">${t("No machines yet.")}</p>`}
         ${
             machines !== null &&
             machines.length > 0 &&
@@ -498,7 +542,7 @@ export function MachinesSheet() {
                 : machines !== null &&
                   html`<div class="sheet-actions">
                       <button class="button primary" onClick=${() => setAdding(true)}>
-                          <${Icon} name="plus" size=${14} /> Add a machine
+                          <${Icon} name="plus" size=${14} /> ${t("Add a machine")}
                       </button>
                   </div>`
         }

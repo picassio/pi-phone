@@ -1,6 +1,7 @@
 // Subscription accounts' plan limits (src/server/usage-limits.ts), as the Providers sheet, the model menu, and the top bar
 // show them: each window's share used, a bar colored by how close it is, and when it resets.
 import { useState } from "preact/hooks";
+import { t, tx } from "./i18n.js";
 import { actions, attempt, store } from "./store.js";
 import { html } from "./ui.js";
 
@@ -21,14 +22,14 @@ export function resetText(at) {
     const time = when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     if (when.toDateString() === now.toDateString()) {
-        return `resets ${time}`;
+        return t("resets {time}", { time });
     }
 
     if (at - now.getTime() < 6 * 86_400_000) {
-        return `resets ${when.toLocaleDateString([], { weekday: "short" })} ${time}`;
+        return t("resets {day} {time}", { day: when.toLocaleDateString([], { weekday: "short" }), time });
     }
 
-    return `resets ${when.toLocaleDateString([], { day: "numeric", month: "short" })}`;
+    return t("resets {date}", { date: when.toLocaleDateString([], { day: "numeric", month: "short" }) });
 }
 
 /** An account's figures in one short line, "5h 42% · wk 61%"; undefined without figures. */
@@ -67,7 +68,7 @@ export function UsageBars({ provider }) {
                 <div class="usage-head small">
                     <span>${window.label}</span>
                     <span class="muted">
-                        ${Math.round(window.usedPercent)}% used${window.resetsAt === undefined ? "" : ` · ${resetText(window.resetsAt)}`}${window.detail ? ` · ${window.detail}` : ""}
+                        ${t("{n}% used", { n: Math.round(window.usedPercent) })}${window.resetsAt === undefined ? "" : ` · ${resetText(window.resetsAt)}`}${window.detail ? ` · ${window.detail}` : ""}
                     </span>
                 </div>
                 <div class="usage-track" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(window.usedPercent)} aria-label=${window.label}>
@@ -75,7 +76,7 @@ export function UsageBars({ provider }) {
                 </div>
             </div>`,
         )}
-        ${usage.plan && html`<div class="muted small">${usage.plan} plan</div>`}
+        ${usage.plan && html`<div class="muted small">${t("{plan} plan", { plan: usage.plan })}</div>`}
     </div>`;
 }
 
@@ -101,7 +102,7 @@ export function UsageMeter({ provider }) {
         <button
             class=${`usage-meter ${level(usagePeak(provider))}`}
             aria-expanded=${open ? "true" : "false"}
-            title="Plan usage of this session's account"
+            title=${t("Plan usage of this session's account")}
             onClick=${toggle}
         >
             ${SHORT[first.label] ?? first.label} ${Math.round(first.usedPercent)}%
@@ -173,14 +174,18 @@ export function UsageWarning() {
 
     return html`<div class="watch-bar usage-warning" data-part="usage-warning">
         <span class="grow">
-            <strong>${accountName(provider)}: ${window.label.toLowerCase()} limit at ${Math.round(window.usedPercent)}%</strong>${window.resetsAt === undefined ? "" : `, ${resetText(window.resetsAt)}`}.
+            ${(() => {
+                const limit = html`<strong>${t("{account}: {window} limit at {n}%", { account: accountName(provider), window: window.label.toLowerCase(), n: Math.round(window.usedPercent) })}</strong>`;
+
+                return window.resetsAt === undefined ? tx("{limit}.", { limit }) : tx("{limit}, {reset}.", { limit, reset: resetText(window.resetsAt) });
+            })()}
         </span>
         ${others.map(
             (other) => html`<button class="link small" onClick=${() => attempt(() => switchAccount(other.provider, modelId))}>
-                Switch to ${other.name}${other.peak === undefined ? "" : ` (${Math.round(other.peak)}%)`}
+                ${other.peak === undefined ? t("Switch to {name}", { name: other.name }) : t("Switch to {name} ({n}%)", { name: other.name, n: Math.round(other.peak) })}
             </button>`,
         )}
-        <button class="link small" aria-label="Close" onClick=${close}>Close</button>
+        <button class="link small" aria-label=${t("Close")} onClick=${close}>${t("Close")}</button>
     </div>`;
 }
 
@@ -201,7 +206,7 @@ export function LimitSwitch({ error }) {
         : html`<div class="limit-switch">
               ${others.map(
                   (other) => html`<button class="button small" onClick=${() => attempt(() => switchAccount(other.provider, modelId, true))}>
-                      Continue on ${other.name}${other.peak === undefined ? "" : ` (${Math.round(other.peak)}% used)`}
+                      ${other.peak === undefined ? t("Continue on {name}", { name: other.name }) : t("Continue on {name} ({n}% used)", { name: other.name, n: Math.round(other.peak) })}
                   </button>`,
               )}
           </div>`;

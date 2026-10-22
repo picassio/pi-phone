@@ -40,14 +40,14 @@ function when(ms) {
     return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function ago(ms) {
-    const minutes = Math.max(1, Math.round((Date.now() - ms) / 60_000));
-
-    return minutes < 60 ? `${minutes}m` : minutes < 48 * 60 ? `${Math.round(minutes / 60)}h` : `${Math.round(minutes / 1440)}d`;
-}
-
 export default function documents(pocket) {
-    const { html, useState, useEffect, useRef, Markdown, Loader, Choice } = pocket;
+    const { html, useState, useEffect, useRef, Markdown, Loader, Choice, t, tn, tx } = pocket;
+
+    function ago(ms) {
+        const minutes = Math.max(1, Math.round((Date.now() - ms) / 60_000));
+
+        return minutes < 60 ? t("{n}m", { n: minutes }) : minutes < 48 * 60 ? t("{n}h", { n: Math.round(minutes / 60) }) : t("{n}d", { n: Math.round(minutes / 1440) });
+    }
 
     pocket.style("docs.css");
 
@@ -85,7 +85,7 @@ export default function documents(pocket) {
         }, [scope, text]);
 
         return text.replace(IMAGE_REF, (_whole, alt, id) =>
-            urls[id] ? `![${alt}](${urls[id]})` : urls[id] === null ? `*[${alt || "image"}: could not load]*` : `*[${alt || "image"}…]*`,
+            urls[id] ? `![${alt}](${urls[id]})` : urls[id] === null ? `*[${t("{name}: could not load", { name: alt || t("image") })}]*` : `*[${alt || t("image")}…]*`,
         );
     };
     /** Markdown of a page in `scope`, with its [[links]] and its images. */
@@ -149,7 +149,7 @@ export default function documents(pocket) {
 
             call(scope, "byTitle", title).then((page) => {
                 if (!page) {
-                    pocket.notify("info", `There is no page ${title} there yet.`);
+                    pocket.notify("info", t("There is no page {title} there yet.", { title }));
 
                     return;
                 }
@@ -167,13 +167,13 @@ export default function documents(pocket) {
         }
 
         if (scopes === null) {
-            return html`<${Loader} label="Opening documents" />`;
+            return html`<${Loader} label=${t("Opening documents")} />`;
         }
 
         const current = scopes.find((scope) => scope.id === place) ?? scopes[0];
 
         return html`<div class="pd" onClick=${onClick}>
-            ${view.kind !== "home" && html`<button class="pd-back link" onClick=${back}>‹ Back</button>`}
+            ${view.kind !== "home" && html`<button class="pd-back link" onClick=${back}>${t("‹ Back")}</button>`}
             ${
                 view.kind === "home" &&
                 html`<${Home}
@@ -202,14 +202,14 @@ export default function documents(pocket) {
         const [shut, setShut] = useState({});
 
         const newFolder = (parentId) => {
-            const name = prompt(parentId === null ? "New folder:" : "New folder inside:");
+            const name = prompt(parentId === null ? t("New folder:") : t("New folder inside:"));
 
             if (name) {
                 call(current.id, "makeFolder", parentId, name).then(refresh, failed);
             }
         };
         const folderMenu = (folder) => {
-            const what = prompt(`${folder.name}: type a new name to rename it, or "delete" to delete it and its pages (they can be brought back).`, folder.name);
+            const what = prompt(t('{name}: type a new name to rename it, or "delete" to delete it and its pages (they can be brought back).', { name: folder.name }), folder.name);
 
             if (what === null || what === folder.name) {
                 return;
@@ -230,9 +230,9 @@ export default function documents(pocket) {
                         ${
                             current.write &&
                             html`<span class="pd-row-acts">
-                                <button class="link" title="New page in this folder" onClick=${() => go({ kind: "edit", scope: current.id, folderId: folder.id, title: "", body: "" })}>+ page</button>
-                                <button class="link" title="New folder inside" onClick=${() => newFolder(folder.id)}>+ folder</button>
-                                <button class="link" title="Rename or delete" onClick=${() => folderMenu(folder)}>…</button>
+                                <button class="link" title=${t("New page in this folder")} onClick=${() => go({ kind: "edit", scope: current.id, folderId: folder.id, title: "", body: "" })}>${t("+ page")}</button>
+                                <button class="link" title=${t("New folder inside")} onClick=${() => newFolder(folder.id)}>${t("+ folder")}</button>
+                                <button class="link" title=${t("Rename or delete")} onClick=${() => folderMenu(folder)}>…</button>
                             </span>`
                         }
                     </div>
@@ -260,33 +260,33 @@ export default function documents(pocket) {
             >
                 <div class="pd-place">
                     <${Choice}
-                        label="Where"
+                        label=${t("Where")}
                         value=${current.id}
                         options=${scopes.map((scope) => ({
                             value: scope.id,
                             label: scope.name,
-                            detail: scope.id === "mine" ? "Only you" : scope.id === "team" ? "Everyone on this server" : "A board's documents",
+                            detail: scope.id === "mine" ? t("Only you") : scope.id === "team" ? t("Everyone on this server") : t("A board's documents"),
                         }))}
                         onChange=${choose}
                     />
                 </div>
-                <input type="search" placeholder="Search everywhere" aria-label="Search all your documents" value=${query} onInput=${(event) => setQuery(event.currentTarget.value)} />
+                <input type="search" placeholder=${t("Search everywhere")} aria-label=${t("Search all your documents")} value=${query} onInput=${(event) => setQuery(event.currentTarget.value)} />
             </form>
             ${
                 current.write &&
                 html`<div class="pd-actions">
-                    <button class="button primary small" onClick=${() => go({ kind: "edit", scope: current.id, folderId: null, title: "", body: "" })}>+ Page</button>
-                    <button class="button small" onClick=${() => newFolder(null)}>+ Folder</button>
+                    <button class="button primary small" onClick=${() => go({ kind: "edit", scope: current.id, folderId: null, title: "", body: "" })}>${t("+ Page")}</button>
+                    <button class="button small" onClick=${() => newFolder(null)}>${t("+ Folder")}</button>
                     <span class="pd-sp"></span>
-                    <button class="link small" onClick=${() => go({ kind: "deleted", scope: current.id })}>Deleted pages</button>
+                    <button class="link small" onClick=${() => go({ kind: "deleted", scope: current.id })}>${t("Deleted pages")}</button>
                 </div>`
             }
-            ${!current.write && html`<p class="pd-meta">You can read these; editing them is not part of your role here.</p>`}
+            ${!current.write && html`<p class="pd-meta">${t("You can read these; editing them is not part of your role here.")}</p>`}
             ${
                 tree === null
-                    ? html`<${Loader} label="Opening" />`
+                    ? html`<${Loader} label=${t("Opening")} />`
                     : tree.folders.length === 0 && tree.pages.length === 0
-                      ? html`<p class="pd-meta">No documents here yet.</p>`
+                      ? html`<p class="pd-meta">${t("No documents here yet.")}</p>`
                       : html`<div class="pd-tree">${rows(null, 0)}</div>`
             }
             ${!current.id.startsWith("team") && (current.id === "mine" || !scopes.some((scope) => scope.id === "team")) && html`<${ImageModel} />`}
@@ -308,16 +308,16 @@ export default function documents(pocket) {
         const choose = (model) => pocket.api("image-model", { model: model === "" ? null : model }).then((answer) => setState({ ...state, model: answer.model }), failed);
 
         return html`<details class="pd-image-model">
-            <summary>Image search: ${state.model ?? "by name only"}</summary>
+            <summary>${state.model === null || state.model === undefined ? t("Image search: by name only") : t("Image search: {model}", { model: state.model })}</summary>
             <div class="field">
-            <span class="label">Describe images with</span>
+            <span class="label">${t("Describe images with")}</span>
             <${Choice}
-                label="Describe images with"
+                label=${t("Describe images with")}
                 value=${state.model ?? ""}
-                options=${[{ value: "", label: "No model", detail: "Images are found by name only" }, ...state.models.map((model) => ({ value: model, label: model }))]}
+                options=${[{ value: "", label: t("No model"), detail: t("Images are found by name only") }, ...state.models.map((model) => ({ value: model, label: model }))]}
                 onChange=${choose}
             />
-            <span class="pd-meta">So search finds pictures by what they show${state.team ? " (yours; the team's are set on the server)" : ""}. Each image is sent to this model once; its cost shows in Spend.</span>
+            <span class="pd-meta">${state.team ? t("So search finds pictures by what they show (yours; the team's are set on the server). Each image is sent to this model once; its cost shows in Spend.") : t("So search finds pictures by what they show. Each image is sent to this model once; its cost shows in Spend.")}</span>
             </div>
         </details>`;
     }
@@ -332,23 +332,23 @@ export default function documents(pocket) {
         }, [query]);
 
         if (hits === null) {
-            return html`<${Loader} label="Searching" />`;
+            return html`<${Loader} label=${t("Searching")} />`;
         }
 
         return html`<div>
-            <p class="pd-meta">${hits.length === 0 ? `Nothing matches “${query}”.` : `“${query}”: ${hits.length} ${hits.length === 1 ? "page" : "pages"}`}</p>
+            <p class="pd-meta">${hits.length === 0 ? t("Nothing matches “{query}”.", { query }) : tn(hits.length, "“{query}”: {n} page", "“{query}”: {n} pages", { query })}</p>
             ${
                 meaning &&
                 (!meaning.mine || meaning.team === false) &&
                 html`<p class="pd-meta">
-                    ${!meaning.mine && "Yours are searched by keyword only: choose an embedding model in the wiki's settings (with OpenRouter signed in) to search them by meaning too. "}
-                    ${meaning.team === false && "The team's are searched by keyword only until the server's owner sets search in documents on the Server page."}
+                    ${!meaning.mine && t("Yours are searched by keyword only: choose an embedding model in the wiki's settings (with OpenRouter signed in) to search them by meaning too. ")}
+                    ${meaning.team === false && t("The team's are searched by keyword only until the server's owner sets search in documents on the Server page.")}
                 </p>`
             }
             ${hits.map(
                 (hit) => html`<button class="pd-row pd-hit" key=${`${hit.scope}:${hit.pageId}`} onClick=${() => go({ kind: "page", scope: hit.scope, id: hit.pageId })}>
                     <span class="pd-row-title">${hit.title}</span>
-                    <span class="pd-row-meta">${[hit.scope === "mine" ? "Mine" : hit.scope === "team" ? "Team" : hit.scope.slice("project:".length), ...hit.path].join(" › ")}</span>
+                    <span class="pd-row-meta">${[hit.scope === "mine" ? t("Mine") : hit.scope === "team" ? t("Team") : hit.scope.slice("project:".length), ...hit.path].join(" › ")}</span>
                     <span class="pd-snippet"><${Markdown} text=${hit.snippet} /></span>
                 </button>`,
             )}
@@ -370,29 +370,29 @@ export default function documents(pocket) {
         }
 
         if (page === null) {
-            return html`<${Loader} label="Opening the page" />`;
+            return html`<${Loader} label=${t("Opening the page")} />`;
         }
 
-        const place = scope === "mine" ? "Mine" : scope === "team" ? "Team" : scope.slice("project:".length);
-        const remove = () => confirm(`Delete ${page.title}? It can be brought back from Deleted pages.`) && call(scope, "remove", id).then(done, failed);
-        const ask = () => pocket.compose(`About the document "${page.title}" (${place}${page.path.length > 0 ? ` › ${page.path.join(" › ")}` : ""}): read it first.\n\n`);
+        const place = scope === "mine" ? t("Mine") : scope === "team" ? t("Team") : scope.slice("project:".length);
+        const remove = () => confirm(t("Delete {title}? It can be brought back from Deleted pages.", { title: page.title })) && call(scope, "remove", id).then(done, failed);
+        const ask = () => pocket.compose(`${t('About the document "{title}" ({where}): read it first.', { title: page.title, where: [place, ...page.path].join(" › ") })}\n\n`);
 
         return html`<article class="pd-page">
             <p class="pd-crumb">${[place, ...page.path].join(" › ")}</p>
             <h2>${page.title}</h2>
-            <p class="pd-meta">Last saved by ${page.updatedByName}, ${ago(page.updatedAt)} ago</p>
+            <p class="pd-meta">${t("Last saved by {who}, {when} ago", { who: page.updatedByName, when: ago(page.updatedAt) })}</p>
             <div class="pd-actions pd-page-acts">
-                ${write && html`<button class="button small" onClick=${() => go({ kind: "edit", scope, id, folderId: page.folderId, title: page.title, body: page.body })}>Edit</button>`}
-                <button class="button small" onClick=${() => go({ kind: "history", scope, id })}>History</button>
-                <button class="button primary small" onClick=${ask}>Ask Pi</button>
+                ${write && html`<button class="button small" onClick=${() => go({ kind: "edit", scope, id, folderId: page.folderId, title: page.title, body: page.body })}>${t("Edit")}</button>`}
+                <button class="button small" onClick=${() => go({ kind: "history", scope, id })}>${t("History")}</button>
+                <button class="button primary small" onClick=${ask}>${t("Ask Pi")}</button>
                 <span class="pd-sp"></span>
-                ${write && html`<button class="link danger small" onClick=${remove}>Delete</button>`}
+                ${write && html`<button class="link danger small" onClick=${remove}>${t("Delete")}</button>`}
             </div>
             <${DocMarkdown} scope=${scope} text=${page.body} />
             ${
                 links.length > 0 &&
                 html`<div class="pd-backlinks">
-                    <span>Linked from</span>
+                    <span>${t("Linked from")}</span>
                     ${links.map((link) => html`<button class="link" key=${link.id} onClick=${() => go({ kind: "page", scope, id: link.id })}>${link.title}</button>`)}
                 </div>`
             }
@@ -425,7 +425,7 @@ export default function documents(pocket) {
             for (const file of chosen) {
                 try {
                     if (file.size > 10 * 1024 * 1024) {
-                        throw new Error(`${file.name}: an image may be 10 MB at most.`);
+                        throw new Error(t("{name}: an image may be 10 MB at most.", { name: file.name }));
                     }
 
                     const image = await call(scope, "addImage", { name: file.name.replace(/\.[^.]+$/, "") || "image", data: await base64Of(file) });
@@ -454,17 +454,17 @@ export default function documents(pocket) {
             setProblem(null);
             call(scope, "write", { ...(id === undefined ? {} : { id }), folderId: folder === "" ? null : folder, title, body })
                 .then((page) => {
-                    pocket.notify("info", `Saved ${page.title}.`);
+                    pocket.notify("info", t("Saved {title}.", { title: page.title }));
                     saved(page);
                 }, (error) => setProblem(error.message))
                 .finally(() => setBusy(false));
         };
 
         return html`<div class="pd-editor">
-            <label class="field"><span class="label">Title</span><input value=${title} maxlength="120" onInput=${(event) => setTitle(event.currentTarget.value)} /></label>
+            <label class="field"><span class="label">${t("Title")}</span><input value=${title} maxlength="120" onInput=${(event) => setTitle(event.currentTarget.value)} /></label>
             <div class="field">
-                <span class="label">Folder</span>
-                <${Choice} label="Folder" value=${folder} options=${[{ value: "", label: "(the top)" }, ...folders.map((each) => ({ value: each.id, label: named(each.id) }))]} onChange=${setFolder} />
+                <span class="label">${t("Folder")}</span>
+                <${Choice} label=${t("Folder")} value=${folder} options=${[{ value: "", label: t("(the top)") }, ...folders.map((each) => ({ value: each.id, label: named(each.id) }))]} onChange=${setFolder} />
             </div>
             ${
                 preview
@@ -472,8 +472,8 @@ export default function documents(pocket) {
                     : html`<textarea
                           ref=${text}
                           class="pd-text mono"
-                          aria-label="Page (markdown)"
-                          placeholder="Markdown. [[Another page]] links to a page here; [[team:Page]] or [[PP:Page]] to one elsewhere. Paste an image to add it."
+                          aria-label=${t("Page (markdown)")}
+                          placeholder=${t("Markdown. [[Another page]] links to a page here; [[team:Page]] or [[PP:Page]] to one elsewhere. Paste an image to add it.")}
                           value=${body}
                           onInput=${(event) => setBody(event.currentTarget.value)}
                           onPaste=${(event) => {
@@ -499,10 +499,10 @@ export default function documents(pocket) {
                 }}
             />
             <div class="pd-actions pd-editor-acts">
-                <button class="button small" onClick=${() => setPreview(!preview)}>${preview ? "Edit" : "Preview"}</button>
-                <button class="button small" disabled=${adding > 0} onClick=${() => picker.current?.click()}>${adding > 0 ? "Adding…" : "+ Image"}</button>
+                <button class="button small" onClick=${() => setPreview(!preview)}>${preview ? t("Edit") : t("Preview")}</button>
+                <button class="button small" disabled=${adding > 0} onClick=${() => picker.current?.click()}>${adding > 0 ? t("Adding…") : t("+ Image")}</button>
                 <span class="pd-sp"></span>
-                <button class="button primary small" disabled=${busy || title.trim() === ""} onClick=${save}>${busy ? "Saving…" : "Save"}</button>
+                <button class="button primary small" disabled=${busy || title.trim() === ""} onClick=${save}>${busy ? t("Saving…") : t("Save")}</button>
             </div>
         </div>`;
     }
@@ -517,20 +517,20 @@ export default function documents(pocket) {
         }, [scope, id]);
 
         if (versions === null) {
-            return html`<${Loader} label="Opening its history" />`;
+            return html`<${Loader} label=${t("Opening its history")} />`;
         }
 
-        const restore = (version) => call(scope, "restore", id, version.id).then((page) => (pocket.notify("info", `Brought back the version of ${ago(version.at)} ago.`), saved(page)), failed);
+        const restore = (version) => call(scope, "restore", id, version.id).then((page) => (pocket.notify("info", t("Brought back the version of {when} ago.", { when: ago(version.at) })), saved(page)), failed);
 
         return html`<div class="pd-history">
-            <h3>History</h3>
+            <h3>${t("History")}</h3>
             ${versions.map(
                 (version, index) => html`<div class="pd-version" key=${version.id}>
                     <button class="pd-row" onClick=${() => call(scope, "version", id, version.id).then(setShown, failed)}>
-                        <span class="pd-row-title">${version.title}${index === 0 ? " (now)" : ""}</span>
+                        <span class="pd-row-title">${index === 0 ? t("{title} (now)", { title: version.title }) : version.title}</span>
                         <span class="pd-row-meta">${version.byName} · ${when(version.at)}</span>
                     </button>
-                    ${write && index > 0 && html`<button class="button small" onClick=${() => restore(version)}>Bring back</button>`}
+                    ${write && index > 0 && html`<button class="button small" onClick=${() => restore(version)}>${t("Bring back")}</button>`}
                 </div>`,
             )}
             ${shown && html`<div class="pd-shown"><p class="pd-meta">${shown.title} · ${shown.byName}, ${when(shown.at)}</p><${DocMarkdown} scope=${scope} text=${shown.body} /></div>`}
@@ -546,27 +546,27 @@ export default function documents(pocket) {
         }, [scope]);
 
         if (pages === null) {
-            return html`<${Loader} label="Opening" />`;
+            return html`<${Loader} label=${t("Opening")} />`;
         }
 
         const restore = (page) =>
             call(scope, "history", page.id)
                 .then((versions) => call(scope, "restore", page.id, versions[0].id))
-                .then((back) => (pocket.notify("info", `${back.title} is back.`), saved(back)), failed);
+                .then((back) => (pocket.notify("info", t("{title} is back.", { title: back.title })), saved(back)), failed);
 
         return html`<div>
-            <h3>Deleted pages</h3>
-            ${pages.length === 0 && html`<p class="pd-meta">Nothing deleted here.</p>`}
+            <h3>${t("Deleted pages")}</h3>
+            ${pages.length === 0 && html`<p class="pd-meta">${t("Nothing deleted here.")}</p>`}
             ${pages.map(
                 (page) => html`<div class="pd-version" key=${page.id}>
                     <span class="pd-row"><span class="pd-row-title">${page.title}</span><span class="pd-row-meta">${page.updatedByName} · ${ago(page.updatedAt)}</span></span>
-                    ${write && html`<button class="button small" onClick=${() => restore(page)}>Bring back</button>`}
+                    ${write && html`<button class="button small" onClick=${() => restore(page)}>${t("Bring back")}</button>`}
                 </div>`,
             )}
         </div>`;
     }
 
-    pocket.page({ id: "docs", title: "Documents", component: DocsPage });
-    pocket.rail({ id: "docs", title: "Documents", iconPath: DOCS, page: "docs" });
-    pocket.launcher({ id: "docs", label: "Documents", detail: "yours, the team's, and each board's, in folders", iconPath: DOCS, keywords: ["docs", "documents", "pages", "notes"], page: "docs" });
+    pocket.page({ id: "docs", title: t("Documents"), component: DocsPage });
+    pocket.rail({ id: "docs", title: t("Documents"), iconPath: DOCS, page: "docs" });
+    pocket.launcher({ id: "docs", label: t("Documents"), detail: t("yours, the team's, and each board's, in folders"), iconPath: DOCS, keywords: ["docs", "documents", "pages", "notes"], page: "docs" });
 }

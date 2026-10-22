@@ -4,6 +4,22 @@ import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet, navigate, notify, openSheet, store } from "../store.js";
 import { copyText, html, Loader, Sheet, timeAgo } from "../ui.js";
 import { joinPlace, splitPlace } from "../place.js";
+import { t, tn, tx } from "../i18n.js";
+
+/** Where Pi's side stands: what it added, when it changed, and whether this session went on too. */
+function statusLine(status) {
+    const when = timeAgo(status.modified);
+
+    if (status.added > 0) {
+        return status.sessionWentOn
+            ? tn(status.added, "Pi added {n} message · changed {when} ago · this session went on too", "Pi added {n} messages · changed {when} ago · this session went on too", { when })
+            : tn(status.added, "Pi added {n} message · changed {when} ago", "Pi added {n} messages · changed {when} ago", { when });
+    }
+
+    return status.sessionWentOn
+        ? t("Pi has nothing new · changed {when} ago · this session went on too", { when })
+        : t("Pi has nothing new · changed {when} ago", { when });
+}
 
 /** Quoted for a POSIX shell. */
 const quote = (text) => (/^[\w./~-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`);
@@ -16,7 +32,7 @@ export function pickPiFolder() {
     const start = splitPlace(cwd).machineId !== undefined ? cwd : machine && joinPlace(machine.id, machine.home);
 
     if (!start) {
-        notify("error", "Connect a machine first: Settings > Machines. Pi runs there.");
+        notify("error", t("Connect a machine first: Settings > Machines. Pi runs there."));
 
         return;
     }
@@ -55,7 +71,7 @@ export function PiHandoffSheet() {
     const command = status && `cd ${quote(status.cwd)} && pi --session ${status.piSession}`;
     const bringBack = (asNew) =>
         run(asNew ? "new" : "back", async () => {
-            if (status.settling && !confirm("Pi changed this session in the last seconds. Quit pi there first, or the last turn may be missing.\n\nBring it back anyway?")) {
+            if (status.settling && !confirm(t("Pi changed this session in the last seconds. Quit pi there first, or the last turn may be missing.\n\nBring it back anyway?"))) {
                 return;
             }
 
@@ -68,36 +84,36 @@ export function PiHandoffSheet() {
                 return;
             }
 
-            notify("info", back.added === 0 ? "Nothing new from Pi." : `${back.added} messages from Pi brought back.`);
+            notify("info", back.added === 0 ? t("Nothing new from Pi.") : t("{n} messages from Pi brought back.", { n: back.added }));
             await load();
         });
     const goAgain = () =>
         run("again", async () => {
             await api(`pi-handoff/${id}/continue`, {});
-            notify("info", `Pi's file on ${status.machine} has this session's new messages.`);
+            notify("info", t("Pi's file on {machine} has this session's new messages.", { machine: status.machine }));
             await load();
         });
     const openTerminal = () =>
         openSheet({ type: "terminal", place: joinPlace(status.machineId, status.cwd), run: `pi --session ${status.piSession}` });
     const copy = () =>
         copyText(command).then(
-            () => notify("info", "Command copied."),
-            () => notify("error", "Could not copy."),
+            () => notify("info", t("Command copied.")),
+            () => notify("error", t("Could not copy.")),
         );
 
     // Either side going another way means Pi's part comes back only as a new session.
     const apart = status && status.added > 0 && (status.sessionWentOn || status.branchMoved);
 
-    return html`<${Sheet} title="Continue in Pi" onClose=${closeSheet}>
+    return html`<${Sheet} title=${t("Continue in Pi")} onClose=${closeSheet}>
         <p class="muted small">
-            The session as the model has it now, as a session of Pi's on a machine: <span class="mono">pi -r</span> there lists it. What Pi does there comes back here.
+            ${tx("The session as the model has it now, as a session of Pi's on a machine: {command} there lists it. What Pi does there comes back here.", { command: html`<span class="mono">pi -r</span>` })}
         </p>
-        ${status === undefined && html`<${Loader} label="Looking at Pi's file" />`}
+        ${status === undefined && html`<${Loader} label=${t("Looking at Pi's file")} />`}
         ${
             status === null &&
-            html`<p class="muted">This session has not gone to Pi.</p>
+            html`<p class="muted">${t("This session has not gone to Pi.")}</p>
                 <div class="sheet-actions">
-                    <button class="button primary" onClick=${pickPiFolder}>Pick a folder on a machine</button>
+                    <button class="button primary" onClick=${pickPiFolder}>${t("Pick a folder on a machine")}</button>
                 </div>`
         }
         ${
@@ -105,22 +121,16 @@ export function PiHandoffSheet() {
             html`<div class="sheet-list">
                 <div class="provider">
                     <div>
-                        <div>In Pi on ${status.machine}</div>
+                        <div>${t("In Pi on {machine}", { machine: status.machine })}</div>
                         <div class="muted small mono">${status.cwd}</div>
                         <div class="muted small">
-                            ${
-                                status.added > 0
-                                    ? `Pi added ${status.added} message${status.added === 1 ? "" : "s"}`
-                                    : "Pi has nothing new"
-                            }
-                            · changed ${timeAgo(status.modified)} ago
-                            ${status.sessionWentOn && " · this session went on too"}
+                            ${statusLine(status)}
                         </div>
-                        ${status.branchMoved && html`<div class="muted small">Pi went back to an earlier message there.</div>`}
+                        ${status.branchMoved && html`<div class="muted small">${t("Pi went back to an earlier message there.")}</div>`}
                         ${
                             apart &&
                             html`<div class="muted small">
-                                Both went on, so Pi's part comes back as a new session; this one stays as it is.
+                                ${t("Both went on, so Pi's part comes back as a new session; this one stays as it is.")}
                             </div>`
                         }
                         <pre class="ssh-public-key">${command}</pre>
@@ -130,25 +140,25 @@ export function PiHandoffSheet() {
                             status.added > 0 &&
                             !apart &&
                             html`<button class="button small primary" disabled=${busy !== null} onClick=${() => bringBack(false)}>
-                                ${busy === "back" ? "Bringing back…" : "Bring back"}
+                                ${busy === "back" ? t("Bringing back…") : t("Bring back")}
                             </button>`
                         }
                         ${
                             status.added > 0 &&
                             html`<button class=${`button small ${apart ? "primary" : "ghost"}`} disabled=${busy !== null} onClick=${() => bringBack(true)}>
-                                ${busy === "new" ? "Bringing back…" : "Bring back as a new session"}
+                                ${busy === "new" ? t("Bringing back…") : t("Bring back as a new session")}
                             </button>`
                         }
                         ${
                             status.added === 0 &&
                             status.sessionWentOn &&
                             html`<button class="button small primary" disabled=${busy !== null} onClick=${goAgain}>
-                                ${busy === "again" ? "Sending…" : "Send the new messages to Pi"}
+                                ${busy === "again" ? t("Sending…") : t("Send the new messages to Pi")}
                             </button>`
                         }
-                        <button class="button small" onClick=${openTerminal}>Open Pi in a terminal</button>
-                        <button class="button small ghost" onClick=${copy}>Copy command</button>
-                        <button class="button small ghost" onClick=${pickPiFolder}>Another folder</button>
+                        <button class="button small" onClick=${openTerminal}>${t("Open Pi in a terminal")}</button>
+                        <button class="button small ghost" onClick=${copy}>${t("Copy command")}</button>
+                        <button class="button small ghost" onClick=${pickPiFolder}>${t("Another folder")}</button>
                     </div>
                 </div>
             </div>`
