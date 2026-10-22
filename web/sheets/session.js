@@ -1,4 +1,5 @@
 // A session's actions from its row in the session list, for touch screens, which cannot hover to show them.
+import { t, tn } from "../i18n.js";
 import { groupOf } from "../session-groups.js";
 import { selectFromList, setArchived, setSettled, settledOf } from "../sessions.js";
 import { canSteer, isUnread, openSheet, scoped, setUnread, store, closeSheet } from "../store.js";

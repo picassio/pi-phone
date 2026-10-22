@@ -1,4 +1,5 @@
 // The menu: what can be done in this session and in the app.
+import { t, tn } from "../i18n.js";
 import { dictationLanguage } from "../android-speech.js";
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { chatUnread } from "../chat.js";
@@ -11,7 +12,7 @@ import { modelRefreshAvailable, refreshModels } from "../model-refresh.js";
 import { groupOf } from "../session-groups.js";
 
 /** The Compact context row's hint: when the session compacts by itself (PP-78). */
-const compactHint = (at) => (typeof at === "number" ? `now, or by itself at ${at}%` : "summarize older messages");
+const compactHint = (at) => (typeof at === "number" ? t("now, or by itself at {n}%", { n: at }) : t("summarize older messages"));
 import { setArchived } from "../sessions.js";
 import { isRemotePlace, splitPlace } from "../place.js";
 import { openSubagent } from "../subagents.js";
@@ -47,8 +48,8 @@ function extensionsHint() {
     const { guard } = store.state;
 
     return [
-        safeMode() && "browser parts off here",
-        guard?.enabled ? "Lancet Guard on" : guard?.available ? "Lancet Guard off" : "",
+        safeMode() && t("browser parts off here"),
+        guard?.enabled ? t("Lancet Guard on") : guard?.available ? t("Lancet Guard off") : "",
     ]
         .filter(Boolean)
         .join(" · ");
@@ -85,45 +86,45 @@ function PlacesGrid({ changes = null }) {
         filesAvailable() && {
             id: "files",
             icon: "folder",
-            label: "Files",
+            label: t("Files"),
             on: filesOpen && filesTab === "files",
             run: () => setFilesOpen(true, "files"),
         },
         filesAvailable() && {
             id: "changes",
             icon: "diff",
-            label: "Changes",
+            label: t("Changes"),
             count: changeCount,
-            counted: changeCount === 1 ? "changed file" : "changed files",
+            counted: changeCount === 1 ? t("changed file") : t("changed files"),
             on: filesOpen && filesTab === "changes",
             run: () => setFilesOpen(true, "changes"),
         },
         {
             id: "artifacts",
             icon: "artifact",
-            label: "Artifacts",
+            label: t("Artifacts"),
             count: view.artifacts.length,
             run: () => openSheet({ type: "artifacts" }),
         },
         collab() && {
             id: "chat",
             icon: "chat",
-            label: "Chat",
+            label: t("Chat"),
             count: unread,
             counted: "unread",
             run: () => openSheet({ type: "chat" }),
         },
-        { id: "find", icon: "search", label: "Find", run: () => openSheet({ type: "find" }) },
+        { id: "find", icon: "search", label: t("Find"), run: () => openSheet({ type: "find" }) },
         branchAvailable() && {
             id: "branch",
             icon: "fork",
-            label: "Branch",
+            label: t("Branch"),
             run: () => openSheet({ type: "branch" }),
         },
         server?.peeks === true && {
             id: "peeks",
             icon: "tiles",
-            label: "Peeks",
+            label: t("Peeks"),
             on: peeksOn(),
             run: () => {
                 togglePeeks();
@@ -132,14 +133,14 @@ function PlacesGrid({ changes = null }) {
         },
     ].filter(Boolean);
 
-    return html`<nav class="places" aria-label="Places">
+    return html`<nav class="places" aria-label=${t("Places")}>
         ${places.map(
             (place) => html`<button
                 key=${place.id}
                 type="button"
                 class=${`place ${place.on ? "on" : ""}`}
                 data-place=${place.id}
-                aria-label=${place.count > 0 ? `${place.label}, ${place.count} ${place.counted ?? ""}`.trim() : place.dot ? `${place.label}, ${place.dotLabel ?? "a page open"}` : place.label}
+                aria-label=${place.count > 0 ? `${place.label}, ${place.count} ${place.counted ?? ""}`.trim() : place.dot ? `${place.label}, ${t("a page open")}` : place.label}
                 aria-pressed=${place.on === undefined ? undefined : place.on ? "true" : "false"}
                 onClick=${place.run}
             >
@@ -162,7 +163,7 @@ export function PlacesSheet() {
     const conversation = store.state.view.conversation;
 
     return html`<${Sheet}
-        title=${conversation?.title ?? "Open"}
+        title=${conversation?.title ?? t("Open")}
         onClose=${closeSheet}
         className="places-sheet"
     >
@@ -322,7 +323,7 @@ function trustHint() {
         return "";
     }
 
-    return info.trusted ? "trusted" : "not trusted";
+    return info.trusted ? t("trusted") : t("not trusted");
 }
 
 /** The menu; `places` is false when it opens from the places sheet, which just showed the tiles. */
@@ -337,7 +338,7 @@ export function MenuSheet({ places = true }) {
     const driving = !turns?.on || turns.driver === me?.id;
     const instructions = view.agent?.instructions;
 
-    return html`<${MenuFrame} title=${conversation?.title ?? "Menu"}>
+    return html`<${MenuFrame} title=${conversation?.title ?? t("Menu")}>
         ${places && html`<${Places} />`}
         <div class="menu-session">
             ${
@@ -421,7 +422,7 @@ export function MenuSheet({ places = true }) {
                     () => openSheet({ type: "send-limit" }),
                     (conversation.sendLimit === undefined ? server?.sessionSendLimit : conversation.sendLimit) === null
                         ? "no limit on messages to them"
-                        : `up to ${conversation.sendLimit ?? server?.sessionSendLimit ?? 30} messages an hour to them`,
+                        : t("up to {n} messages an hour to them", { n: conversation.sendLimit ?? server?.sessionSendLimit ?? 30 }),
                 )
             }
             ${
@@ -437,21 +438,21 @@ export function MenuSheet({ places = true }) {
             ${session && steer && driving && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
             ${conversation && steer && driving && item("Compact context", () => openSheet({ type: "compact" }), compactHint(conversation.compactAt ?? store.state.server?.compactAt))}
             ${conversation && steer && driving && item("New context", () => openSheet({ type: "reset" }), "Pi starts fresh; history stays")}
-            ${schedulesAvailable() && item("Scheduled messages", () => openSheet({ type: "schedules" }), view.schedules.length === 0 ? "none" : `${view.schedules.length} coming`)}
+            ${schedulesAvailable() && item("Scheduled messages", () => openSheet({ type: "schedules" }), view.schedules.length === 0 ? "none" : t("{n} coming", { n: view.schedules.length }))}
             ${
                 conversation &&
                 item("Copy link", () =>
                     copyText(location.href).then(
-                        () => notify("info", "Link copied. Other signed-in devices can open it."),
-                        () => notify("error", "Could not copy."),
+                        () => notify("info", t("Link copied. Other signed-in devices can open it.")),
+                        () => notify("error", t("Could not copy.")),
                     ),
                 )
             }
             ${
                 conversation &&
                 html`<a class="list-item" href=${`api/c/${conversation.id}/export`} download>
-                    <span>Export as Markdown</span>
-                    <span class="muted small">the whole history</span>
+                    <span>${t("Export as Markdown")}</span>
+                    <span class="muted small">${t("the whole history")}</span>
                 </a>`
             }
             ${
@@ -473,7 +474,7 @@ export function MenuSheet({ places = true }) {
         ${
             view.subagents.length > 0 &&
             html`<div class="group">
-                <div class="group-title">Subagents</div>
+                <div class="group-title">${t("Subagents")}</div>
                 ${view.subagents.map((agent) =>
                     item(
                         html`${agent.busy ? html`<span class="pulse"></span> ` : ""}${agent.name}`,
@@ -484,7 +485,7 @@ export function MenuSheet({ places = true }) {
             </div>`
         }
         <div class="group">
-            <div class="group-title">App</div>
+            <div class="group-title">${t("App")}</div>
             ${item("Appearance", () => openSheet({ type: "appearance" }), lookLabel())}
             ${voiceAvailable() && item("Dictation", () => openSheet({ type: "dictation" }), dictationLanguage())}
             ${!touch && item("Keyboard shortcuts", () => openSheet({ type: "shortcuts" }), "?")}
@@ -539,12 +540,12 @@ export function MenuSheet({ places = true }) {
                         attempt(async () => {
                             await api("restart", {});
                             closeSheet();
-                            notify("info", "Restarting. Running work continues after the restart.");
+                            notify("info", t("Restarting. Running work continues after the restart."));
                         }),
                     "running work resumes",
                 )
             }
-            ${item(html`<span class="menu-signout">Sign out</span>`, signOut)}
+            ${item(html`<span class="menu-signout">${t("Sign out")}</span>`, signOut)}
         </div>
     <//>`;
 }

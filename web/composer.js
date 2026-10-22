@@ -1,5 +1,6 @@
 // The message box: send, steer or queue while busy, attach files, mention files with @, run commands with !, recall
 // what was sent before (↑, Ctrl+R), fold long pastes, pick the model, stop.
+import { t, tn, tx } from "./i18n.js";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Avatar } from "./avatar.js";
 import { chatUnread, TypingLine } from "./chat.js";
@@ -56,12 +57,12 @@ function ParentSessionButton() {
 
     return html`<button
         class="parent-session"
-        aria-label=${`Back to main session: ${parent.title}`}
-        title=${`Return to ${parent.title}`}
+        aria-label=${t("Back to main session: {title}", { title: parent.title })}
+        title=${t("Return to {title}", { title: parent.title })}
         onClick=${() => navigate(parent.id)}
     >
         <${Icon} name="back" size=${16} />
-        <span>Back to main session</span>
+        <span>${t("Back to main session")}</span>
         <span class="parent-session-title">${parent.title}</span>
     </button>`;
 }
@@ -106,7 +107,7 @@ function savePastes(id, pastes) {
             localStorage.setItem(pasteKey(id), JSON.stringify(pastes));
         }
     } catch {
-        notify("warning", "This browser has no room to keep the paste after a reload.");
+        notify("warning", t("This browser has no room to keep the paste after a reload."));
     }
 }
 
@@ -121,9 +122,9 @@ const queuedReports = (item) => item.reports ?? null;
 
 /** How a message can go while Pi works: the value the server takes, its label, and what it does. */
 const SEND_MODES = [
-    ["steer", "Steer", "Pi reads it now, between steps"],
-    ["followUp", "Queue", "Pi reads it when this run ends"],
-    ["interrupt", "Interrupt", "Stops the run right now (also its tool call), then sends it"],
+    ["steer", t("Steer"), t("Pi reads it now, between steps")],
+    ["followUp", t("Queue"), t("Pi reads it when this run ends")],
+    ["interrupt", t("Interrupt"), t("Stops the run right now (also its tool call), then sends it")],
 ];
 
 /** What kind of message waits for Pi: a steer, one queued for after its answer, a note, or subagents' reports. */
@@ -131,10 +132,10 @@ function queuedMode(item) {
     const names = queuedReports(item);
 
     if (names) {
-        return names.length === 1 ? "Report" : "Reports";
+        return names.length === 1 ? t("Report") : t("Reports");
     }
 
-    return item.mode === "steer" ? "Steer" : item.mode === "followUp" ? "Queue" : "Note";
+    return item.mode === "steer" ? t("Steer") : item.mode === "followUp" ? t("Queue") : t("Note");
 }
 
 /** Who sent a message, as the server writes it at the start when several people use Pi (`FROM_PREFIX`). */
@@ -148,7 +149,7 @@ function queuedText(item) {
         return (item.text ?? "").replace(FROM, "");
     }
 
-    return `from ${names.join(", ")}, on ${names.length === 1 ? "its" : "their"} way to Pi`;
+    return names.length === 1 ? t("from {names}, on its way to Pi", { names: names.join(", ") }) : t("from {names}, on their way to Pi", { names: names.join(", ") });
 }
 
 /** Take turns: who drives, who asked, and the buttons to hand over, ask, or take the wheel. */
@@ -161,7 +162,7 @@ function DriverBar() {
         return null;
     }
 
-    const name = (id) => users.find((user) => user.id === id)?.name ?? "someone";
+    const name = (id) => users.find((user) => user.id === id)?.name ?? t("someone");
     const driving = turns.driver === me?.id;
     const driverHere =
         turns.driver !== undefined && presence.some((person) => person.id === turns.driver);
@@ -174,20 +175,18 @@ function DriverBar() {
         );
 
         return html`<div class="driver-bar mine">
-            <span class="driver-label"><${Icon} name="wheel" size=${14} /> You're driving</span>
+            <span class="driver-label"><${Icon} name="wheel" size=${14} /> ${t("You're driving")}</span>
             ${turns.asks.map(
                 (id) => html`<span class="driver-ask">
-                    ${name(id)} asks to drive <button class="link small" onClick=${() => run("handover", id)}>Hand over</button>
+                    ${tx("{who} asks to drive", { who: name(id) })} <button class="link small" onClick=${() => run("handover", id)}>${t("Hand over")}</button>
                 </span>`,
             )}
             <span class="grow"></span>
             ${
                 others.length > 0 &&
-                html`<button class="link small" onClick=${() => setHanding(!handing)}>
-                    Hand over…
-                </button>`
+                html`<button class="link small" onClick=${() => setHanding(!handing)}>${t("Hand over…")}</button>`
             }
-            <button class="link small" onClick=${() => run("release")}>Let go</button>
+            <button class="link small" onClick=${() => run("release")}>${t("Let go")}</button>
             ${
                 handing &&
                 html`<div class="driver-pick">
@@ -210,21 +209,19 @@ function DriverBar() {
     return html`<div class="driver-bar">
         <span class="driver-label">
             <${Icon} name="wheel" size=${14} />
-            ${turns.driver === undefined ? "No one is driving" : `${name(turns.driver)} is driving${driverHere ? "" : " (away)"}`}
+            ${turns.driver === undefined ? t("No one is driving") : driverHere ? t("{who} is driving", { who: name(turns.driver) }) : t("{who} is driving (away)", { who: name(turns.driver) })}
         </span>
         <span class="grow"></span>
         ${
             turns.driver !== undefined &&
             driverHere &&
             html`<button class="button small" disabled=${asked} onClick=${() => run("ask")}>
-                ${asked ? "Asked ✓" : "Ask to drive"}
+                ${asked ? t("Asked ✓") : t("Ask to drive")}
             </button>`
         }
         ${
             canTake &&
-            html`<button class="button small primary" onClick=${() => run("claim")}>
-                Take the wheel
-            </button>`
+            html`<button class="button small primary" onClick=${() => run("claim")}>${t("Take the wheel")}</button>`
         }
     </div>`;
 }
@@ -277,14 +274,14 @@ function CiWatchBar() {
                     <span class="ci-name">${watch.workflow}</span>
                     <span class="ci-meta">#${watch.number}</span>
                     <span class="ci-branch"><${Icon} name="fork" size=${11} />${watch.branch}</span>
-                    <span class="ci-time" aria-label="watched for">${elapsed(watch.startedAt)}</span>
+                    <span class="ci-time" aria-label=${t("watched for")}>${elapsed(watch.startedAt)}</span>
                 </a>
                 ${
                     canSteer() &&
                     html`<button
                         class="icon-button ci-stop"
-                        aria-label=${`Stop watching ${watch.label}`}
-                        title="Stop watching"
+                        aria-label=${t("Stop watching {name}", { name: watch.label })}
+                        title=${t("Stop watching")}
                         onClick=${() => attempt(() => actions.stopCiWatch(watch))}
                     >
                         <${Icon} name="close" size=${13} />
@@ -308,7 +305,7 @@ function MachineBar() {
     const look = () =>
         api(`c/${conversationId}/machine`).then(
             (answer) => setReach(answer.machine),
-            (error) => setReach({ ok: false, name: "The machine", error: error.message }),
+            (error) => setReach({ ok: false, name: t("The machine"), error: error.message }),
         );
 
     useEffect(() => {
@@ -341,8 +338,8 @@ function MachineBar() {
     };
 
     return html`<div class="watch-bar" data-part="machine-bar">
-        <span class="grow"><strong>${reach.name} does not answer:</strong> ${reach.error}</span>
-        <button class="link small" disabled=${trying} onClick=${retry}>${trying ? "Trying…" : "Retry"}</button>
+        <span class="grow"><strong>${t("{machine} does not answer:", { machine: reach.name })}</strong> ${reach.error}</span>
+        <button class="link small" disabled=${trying} onClick=${retry}>${trying ? t("Trying…") : t("Retry")}</button>
     </div>`;
 }
 
@@ -386,9 +383,9 @@ function PiBar() {
 
     return html`<div class="watch-bar" data-part="pi-bar">
         <span class="grow">
-            <strong>Pi went on</strong> on ${status.machine}: ${status.added} new message${status.added === 1 ? "" : "s"}.
+            ${tx(status.added === 1 ? "{went} on {machine}: {n} new message." : "{went} on {machine}: {n} new messages.", { went: html`<strong>${t("Pi went on")}</strong>`, machine: status.machine, n: status.added })}
         </span>
-        <button class="link small" onClick=${() => openSheet({ type: "pi-handoff" })}>Bring back</button>
+        <button class="link small" onClick=${() => openSheet({ type: "pi-handoff" })}>${t("Bring back")}</button>
     </div>`;
 }
 
@@ -403,17 +400,19 @@ function GoalBar() {
     const command = html`<span class="mono">${goal.command}</span>`;
     const text =
         goal.status === "met"
-            ? html`<strong>Done:</strong> ${command} passes (check ${goal.tries} of ${goal.max}).`
+            ? html`<strong>${t("Done:")}</strong> ${tx("{command} passes (check {n} of {max}).", { command, n: goal.tries, max: goal.max })}`
             : goal.status === "gave-up"
-              ? html`<strong>Stopped:</strong> ${command} still fails after ${goal.max} checks.`
-              : html`<strong>Until</strong> ${command} passes${goal.tries > 0 ? ` · check ${goal.tries} of ${goal.max} failed` : ""}.`;
+              ? html`<strong>${t("Stopped:")}</strong> ${tx("{command} still fails after {max} checks.", { command, max: goal.max })}`
+              : goal.tries > 0
+                ? html`<strong>${t("Until")}</strong> ${tx("{command} passes · check {n} of {max} failed.", { command, n: goal.tries, max: goal.max })}`
+                : html`<strong>${t("Until")}</strong> ${tx("{command} passes.", { command })}`;
 
     return html`<div class=${`goal-bar ${goal.status}`}>
         <span class="grow">${text}</span>
         ${
             canSteer() &&
             html`<button class="link small" onClick=${() => attempt(actions.clearGoal)}>
-                ${goal.status === "working" ? "Drop" : "Dismiss"}
+                ${goal.status === "working" ? t("Drop") : t("Dismiss")}
             </button>`
         }
     </div>`;
@@ -441,45 +440,41 @@ function PlanBar({ blocked }) {
 
     return html`<div class="plan-bar">
         <span class="grow">
-            <strong>Plan mode.</strong> ${subagent ? "This subagent follows its session: it reads, and changes nothing." : "Pi reads and proposes; nothing changes until you approve."}
+            <strong>${t("Plan mode.")}</strong> ${subagent ? "This subagent follows its session: it reads, and changes nothing." : "Pi reads and proposes; nothing changes until you approve."}
         </span>
         ${
             !blocked &&
             !subagent &&
-            html`<button class="link small" onClick=${() => attempt(() => actions.setPlan(false))}>
-                Turn off
-            </button>
+            html`<button class="link small" onClick=${() => attempt(() => actions.setPlan(false))}>${t("Turn off")}</button>
             <button
                 class="button small primary"
                 disabled=${view.live.busy || !proposed}
-                title=${proposed ? undefined : "Pi has not proposed a plan yet."}
+                title=${proposed ? undefined : t("Pi has not proposed a plan yet.")}
                 onClick=${() => attempt(actions.approvePlan)}
-            >
-                Approve plan
-            </button>`
+            >${t("Approve plan")}</button>`
         }
     </div>`;
 }
 
 /** How a watch's last look found the PR's checks, and why a watch ended. */
 const WATCH_CHECKS = {
-    pending: "checks running",
-    passed: "checks pass",
-    failed: "checks failed",
+    pending: t("checks running"),
+    passed: t("checks pass"),
+    failed: t("checks failed"),
 };
 
 function watchEnded(watch) {
     switch (watch.status) {
         case "merged":
-            return "was merged.";
+            return t("was merged.");
         case "closed":
-            return "was closed.";
+            return t("was closed.");
         case "gave-up":
-            return `had more to tell than ${watch.max} messages: watch stopped.`;
+            return t("had more to tell than {n} messages: watch stopped.", { n: watch.max });
         case "expired":
-            return "had nothing new for two weeks: watch stopped.";
+            return t("had nothing new for two weeks: watch stopped.");
         default:
-            return `could not be watched: ${watch.note ?? "something went wrong"}.`;
+            return t("could not be watched: {why}.", { why: watch.note ?? t("something went wrong") });
     }
 }
 
@@ -801,7 +796,7 @@ export function Composer() {
         const command = full.replace(/^!!?/, "").trim();
 
         if (command === "") {
-            return notify("info", "Say which command to run, such as !git status.");
+            return notify("info", t("Say which command to run, such as !git status."));
         }
 
         setSending(true);
@@ -1094,7 +1089,7 @@ export function Composer() {
                         ),
                     ),
                 (error) => {
-                    notify("error", `Upload failed: ${error.message}`);
+                    notify("error", t("Upload failed: {why}", { why: error.message }));
 
                     if (preview) {
                         URL.revokeObjectURL(preview);
@@ -1141,22 +1136,22 @@ export function Composer() {
     };
 
     const placeholder = dictation.listening
-        ? "Listening…"
+        ? t("Listening…")
         : busy
           ? sendMode === "steer"
-              ? "Steer the current run…"
+              ? t("Steer the current run…")
               : sendMode === "interrupt"
-                ? "Stop the run and send this now…"
-                : "Queue a message for after this run…"
-          : "Ask Pi anything…";
+                ? t("Stop the run and send this now…")
+                : t("Queue a message for after this run…")
+          : t("Ask Pi anything…");
     const inbox = view.inbox ?? [];
     const { me, users } = store.state;
     const queuedBy = (item) =>
         item.by === undefined
             ? ""
             : item.by === me?.id
-              ? " · you"
-              : ` · ${users.find((user) => user.id === item.by)?.name ?? "someone"}`;
+              ? t(" · you")
+              : ` · ${users.find((user) => user.id === item.by)?.name ?? t("someone")}`;
 
     useDock(dock);
     // View only now, or someone else took the wheel: the box goes, and dictation with it.
@@ -1177,11 +1172,9 @@ export function Composer() {
             <${ParentSessionButton} />
             <div class="view-only">
                 <span>
-                    <strong>View only.</strong> You can read along, react, and chat with the people here.
-                </span>
+                    <strong>${t("View only.")}</strong> ${t("You can read along, react, and chat with the people here.")}</span>
                 <button class="button small" onClick=${() => openSheet({ type: "chat" })}>
-                    <${Icon} name="chat" size=${15} /> Chat
-                </button>
+                    <${Icon} name="chat" size=${15} /> ${t("Chat")}</button>
             </div>
             <${StatusLine} />
         </footer>`;
@@ -1201,7 +1194,7 @@ export function Composer() {
                 // How many wait: shown when the queue does not show them all (`dock.js`).
                 inbox.length > 0 &&
                 html`<div class="inbox-count">
-                    ${inbox.length} ${inbox.length === 1 ? "message" : "messages"} waiting for Pi
+                    ${tn(inbox.length, "{n} message waiting for Pi", "{n} messages waiting for Pi")}
                 </div>`
             }
             ${
@@ -1225,8 +1218,8 @@ export function Composer() {
                                 (!blocked || item.by === me?.id) &&
                                 html`<button
                                     class="icon-button small queued-remove"
-                                    aria-label=${queuedReports(item) ? "Discard these reports" : "Withdraw"}
-                                    title=${queuedReports(item) ? "Discard these reports: Pi will not get them" : "Withdraw"}
+                                    aria-label=${queuedReports(item) ? t("Discard these reports") : t("Withdraw")}
+                                    title=${queuedReports(item) ? t("Discard these reports: Pi will not get them") : t("Withdraw")}
                                     onClick=${() => attempt(() => actions.withdraw(item.id))}
                                 >
                                     <${Icon} name="close" size=${13} />
@@ -1252,7 +1245,7 @@ export function Composer() {
                 ? html`${
                       busy &&
                       html`<div class="composer-row stop-only">
-                          <span class="muted small grow">Pi is working…</span>
+                          <span class="muted small grow">${t("Pi is working…")}</span>
                           <${StopButton} />
                       </div>`
                   }`
@@ -1261,11 +1254,11 @@ export function Composer() {
                       html`<div
                           class="commands history-options"
                           role="listbox"
-                          aria-label="Sent before"
+                          aria-label=${t("Sent before")}
                           ref=${list}
                       >
                           <div class="file-note">
-                              Sent in this session${text.trim() ? ` with “${text.trim()}”` : ""} · Enter puts it in the box · Esc closes
+                              ${text.trim() ? t("Sent in this session with “{text}” · Enter puts it in the box · Esc closes", { text: text.trim() }) : t("Sent in this session · Enter puts it in the box · Esc closes")}
                           </div>
                           ${recalled.map(
                               (each) => html`<button
@@ -1285,24 +1278,20 @@ export function Composer() {
                           )}
                           ${
                               recalled.length === 0 &&
-                              html`<div class="file-note">
-                                  Nothing you sent from this browser in this session matches.
-                              </div>`
+                              html`<div class="file-note">${t("Nothing you sent from this browser in this session matches.")}</div>`
                           }
                       </div>`
                   }
                 ${
                     shell &&
                     html`<div class="command-hint">
-                        <span class="command-name">${shell.context ? "!" : "!!"}</span> <span class="muted">· runs in this session's folder · ${shell.context ? "Pi sees the output (!! to keep it from Pi)" : "only the people here see the output"}</span>
+                        <span class="command-name">${shell.context ? "!" : "!!"}</span> <span class="muted">${shell.context ? t("· runs in this session's folder · Pi sees the output (!! to keep it from Pi)") : t("· runs in this session's folder · only the people here see the output")}</span>
                     </div>`
                 }
                 ${
                     pasted &&
                     !shell &&
-                    html`<div class="command-hint muted">
-                        Pasted text goes out in full where its placeholder is.
-                    </div>`
+                    html`<div class="command-hint muted">${t("Pasted text goes out in full where its placeholder is.")}</div>`
                 }
                 ${
                     mentionsFiles &&
@@ -1310,7 +1299,7 @@ export function Composer() {
                     !searching &&
                     html`<div class="command-hint wraps">
                         <span class="muted">
-                            ${inlineFiles ? "Mentioned files go with the message." : "Pi reads the files you mention."}
+                            ${inlineFiles ? t("Mentioned files go with the message.") : t("Pi reads the files you mention.")}
                         </span>
                         ${" "}
                         <button
@@ -1321,7 +1310,7 @@ export function Composer() {
                                 setInlineFiles(!inlineFiles);
                             }}
                         >
-                            ${inlineFiles ? "Let Pi read them" : "Send them along"}
+                            ${inlineFiles ? t("Let Pi read them") : t("Send them along")}
                         </button>
                     </div>`
                 }
@@ -1331,7 +1320,7 @@ export function Composer() {
                     html`<div
                         class="commands file-options"
                         role="listbox"
-                        aria-label="Files"
+                        aria-label=${t("Files")}
                         ref=${list}
                     >
                         ${matches.map(
@@ -1357,12 +1346,10 @@ export function Composer() {
                                 </span>
                             </button>`,
                         )}
-                        ${matches.length === 0 && html`<div class="file-note">Finding files…</div>`}
+                        ${matches.length === 0 && html`<div class="file-note">${t("Finding files…")}</div>`}
                         ${
                             found.truncated &&
-                            html`<div class="file-note">
-                                A large folder: only the files nearest its top are listed.
-                            </div>`
+                            html`<div class="file-note">${t("A large folder: only the files nearest its top are listed.")}</div>`
                         }
                     </div>`
                 }
@@ -1395,7 +1382,7 @@ export function Composer() {
                         ${
                             parsed.command.args &&
                             html` <span class="command-args">${parsed.command.args}</span>`
-                        } <span class="muted">· ${parsed.command.description} · not sent to Pi</span>
+                        } <span class="muted">${t("· {description} · not sent to Pi", { description: parsed.command.description })}</span>
                     </div>`
                 }
                 ${
@@ -1406,7 +1393,7 @@ export function Composer() {
                         ${
                             template.args &&
                             html` <span class="command-args">${template.args}</span>`
-                        } <span class="muted">· ${template.skill ? "skill · Pi gets its instructions with your request" : "prompt template · Pi gets it filled in"}</span>
+                        } <span class="muted">${template.skill ? t("· skill · Pi gets its instructions with your request") : t("· prompt template · Pi gets it filled in")}</span>
                     </div>`
                 }
                 <div
@@ -1445,7 +1432,7 @@ export function Composer() {
                                     <span class="muted">${formatBytes(file.size)}</span>
                                     <button
                                         class="icon-button small"
-                                        aria-label=${`Remove ${file.name}`}
+                                        aria-label=${t("Remove {name}", { name: file.name })}
                                         onClick=${() => {
                                             forget([file]);
                                             setFiles((current) =>
@@ -1480,8 +1467,8 @@ export function Composer() {
                         <button
                             class="icon-button attach-button"
                             data-part="composer-button"
-                            aria-label="Attach files"
-                            title="Attach files"
+                            aria-label=${t("Attach files")}
+                            title=${t("Attach files")}
                             onClick=${() => picker.current?.click()}
                         >
                             <${Icon} name="clip" size=${17} />
@@ -1499,8 +1486,8 @@ export function Composer() {
                         <button
                             class=${`model-chip ${agent?.available === false ? "warn" : ""}`}
                             data-part="model-chip"
-                            aria-label=${`Model: ${modelLabel(agent)}${level ? `, thinking ${level}` : ""}`}
-                            title=${`Model and thinking: ${modelLabel(agent)}${level ? `, ${level}` : ""}`}
+                            aria-label=${level ? t("Model: {model}, thinking {level}", { model: modelLabel(agent), level }) : t("Model: {model}", { model: modelLabel(agent) })}
+                            title=${level ? t("Model and thinking: {model}, {level}", { model: modelLabel(agent), level }) : t("Model and thinking: {model}", { model: modelLabel(agent) })}
                             onClick=${() => openSheet({ type: "model" })}
                         >
                             <${Icon} name="sparkle" size=${12} class="model-spark" />
@@ -1515,12 +1502,10 @@ export function Composer() {
                                 class=${`plan-chip ${view.plan?.on ? "on" : ""}`}
                                 data-part="composer-button plan-chip"
                                 aria-pressed=${view.plan?.on === true}
-                                title="Plan mode: Pi reads and proposes, and changes nothing until you approve"
+                                title=${t("Plan mode: Pi reads and proposes, and changes nothing until you approve")}
                                 onMouseDown=${(event) => event.preventDefault()}
                                 onClick=${() => attempt(() => actions.setPlan(!view.plan?.on))}
-                            >
-                                Plan
-                            </button>`
+                            >${t("Plan")}</button>`
                         }
                         <span class="grow"></span>
                         ${
@@ -1529,7 +1514,7 @@ export function Composer() {
                                 class="mode-switch"
                                 data-part="composer-button mode-switch"
                                 role="radiogroup"
-                                aria-label="Send as"
+                                aria-label=${t("Send as")}
                                 onKeyDown=${(event) => {
                                     // Arrows move between them, as in any group of radio buttons.
                                     if (/^Arrow(Left|Right|Up|Down)$/.test(event.key)) {
@@ -1574,8 +1559,8 @@ export function Composer() {
                             class=${`send-button ${canSend ? "ready" : ""}`}
                             data-part="send-button"
                             data-state=${canSend ? "ready" : undefined}
-                            aria-label="Send"
-                            title=${coarse ? "Send" : "Send (Enter)"}
+                            aria-label=${t("Send")}
+                            title=${coarse ? t("Send") : t("Send (Enter)")}
                             disabled=${!canSend}
                             onClick=${send}
                         >
@@ -1619,8 +1604,8 @@ function StopButton() {
     return html`<button
         class="stop-button"
         data-part="composer-button stop-button"
-        aria-label="Stop"
-        title="Stop (Esc twice)"
+        aria-label=${t("Stop")}
+        title=${t("Stop (Esc twice)")}
         onClick=${() => attempt(actions.abort)}
     >
         <span class="stop-square" aria-hidden="true"></span>
@@ -1640,8 +1625,8 @@ function PlacesButton() {
     return html`<button
         class="icon-button places-button badge-host"
         data-part="composer-button"
-        aria-label="Places: Files, Changes, Browser, and more"
-        title="Places (or swipe up here)"
+        aria-label=${t("Places: Files, Changes, Browser, and more")}
+        title=${t("Places (or swipe up here)")}
         onClick=${() => openSheet({ type: "places" })}
     >
         <${Icon} name="grid" />
@@ -1746,28 +1731,28 @@ function SpeedPart({ stats }) {
     }
 
     const title = [
-        rate !== undefined && `${rate.toFixed(1)} tokens a second`,
-        wait !== undefined && `its first token after ${(wait / 1000).toFixed(2)}s`,
+        rate !== undefined && t("{n} tokens a second", { n: rate.toFixed(1) }),
+        wait !== undefined && t("its first token after {s}s", { s: (wait / 1000).toFixed(2) }),
     ]
         .filter(Boolean)
         .join(", ");
 
     return html`<span
         class=${`speed ${rate === undefined ? "wait-only" : ""}`}
-        title=${`How fast the last answer came: ${title}`}
+        title=${t("How fast the last answer came: {what}", { what: title })}
     >
         ${
             rate !== undefined &&
             html`<span class="rate">
                 <span class="num">${rate < 9.95 ? rate.toFixed(1) : Math.round(rate)}</span>${" "}
-                <span class="long">tokens/s</span>
-                <span class="short">tok/s</span>
+                <span class="long">${t("tokens/s")}</span>
+                <span class="short">${t("tok/s")}</span>
             </span>`
         }
         ${
             wait !== undefined &&
             html`<span class="wait">
-                <span class="word">first token${" "}</span>
+                <span class="word">${t("first token")}${" "}</span>
                 <span class="num">${seconds(wait)}</span>
             </span>`
         }
@@ -1790,7 +1775,7 @@ function StatusLine() {
     if (connection !== "open") {
         parts.push(
             html`<span class="warn">
-                ${connection === "connecting" ? "connecting…" : "reconnecting…"}
+                ${connection === "connecting" ? t("connecting…") : t("reconnecting…")}
             </span>`,
         );
     }
@@ -1801,9 +1786,9 @@ function StatusLine() {
     parts.push(
         html`<span
             class=${`here ${here === 1 ? "alone" : ""}`}
-            title=${`${(view.viewers ?? []).join(", ")}${view.clients > here ? ` · ${view.clients} tabs` : ""}`}
+            title=${view.clients > here ? t("{people} · {n} tabs", { people: (view.viewers ?? []).join(", "), n: view.clients }) : (view.viewers ?? []).join(", ")}
         >
-            ${here} here
+            ${t("{n} here", { n: here })}
         </span>`,
     );
 
@@ -1818,13 +1803,14 @@ function StatusLine() {
         const about = stats.contextEstimated ? "~" : "";
         // Where this session compacts by itself (PP-78), marked on the meter.
         const at = view.conversation?.compactAt ?? store.state.server?.compactAt;
-        const title = `${about}${formatTokens(used)} of ${formatTokens(window)} tokens in context${typeof at === "number" ? ` · auto-compacts at ${at}%` : ""}`;
+        const inContext = t("{used} of {window} tokens in context", { used: `${about}${formatTokens(used)}`, window: formatTokens(window) });
+        const title = typeof at === "number" ? t("{context} · auto-compacts at {n}%", { context: inContext, n: at }) : inContext;
 
         details.push(title);
 
         parts.push(
             html`<span class="context" title=${title}>
-                <span class="word">context</span>
+                <span class="word">${t("context")}</span>
                 <span class=${`meter ${contextLevel(percent)}`} aria-hidden="true">
                     <span style=${`width:${percent}%`}></span>
                     ${typeof at === "number" && html`<i class="meter-mark" style=${`left:${at}%`}></i>`}
@@ -1835,9 +1821,8 @@ function StatusLine() {
     }
 
     if (stats.cacheRate !== undefined) {
-        details.push(`${Math.round(stats.cacheRate * 100)}% of the input came from the cache`);
-        parts.push(html`<span class="cache">
-                cache <span class="num">${Math.round(stats.cacheRate * 100)}%</span>
+        details.push(t("{n}% of the input came from the cache", { n: Math.round(stats.cacheRate * 100) }));
+        parts.push(html`<span class="cache">${t("cache")} <span class="num">${Math.round(stats.cacheRate * 100)}%</span>
             </span>`);
     }
 
@@ -1847,7 +1832,7 @@ function StatusLine() {
     const spent = spend?.spent ?? stats.cost ?? 0;
 
     details.push(
-        `$${spent.toFixed(2)} spent${spend?.budget !== undefined ? ` of $${spend.budget.toFixed(2)}` : ""}`,
+        spend?.budget !== undefined ? t("${spent} spent of ${budget}", { spent: spent.toFixed(2), budget: spend.budget.toFixed(2) }) : t("${spent} spent", { spent: spent.toFixed(2) }),
     );
     parts.push(
         html`<span class=${spend?.budget !== undefined && spent >= spend.budget ? "warn" : ""}>
@@ -1862,17 +1847,17 @@ function StatusLine() {
     const failed = guard?.enabled && guard.available === false;
 
     if (guard?.enabled || guard?.available) {
-        const state = failed ? "failed" : guard.enabled ? "on" : "off";
+        const state = failed ? t("failed") : guard.enabled ? t("on") : t("off");
 
         parts.push(
             html`<button
                 class=${`guard ${guard.enabled && !failed ? "" : "off"}`}
-                aria-label=${`Lancet Guard ${state}`}
+                aria-label=${t("Lancet Guard {state}", { state })}
                 title=${guard.detail}
                 onClick=${() => openSheet({ type: "extensions" })}
             >
                 <${Icon} name="shield" size=${11} />
-                <span><span class="word">guard${" "}</span>${state}</span>
+                <span><span class="word">${t("guard")}${" "}</span>${state}</span>
             </button>`,
         );
     }

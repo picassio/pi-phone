@@ -1,6 +1,7 @@
 // Folder groups in the session list (PP-76): the person's own, from the server (`src/server/session-groups.ts`), the same
 // on every device. Each change goes to the server, and its answer (and the `session-groups` event every tab hears)
 // redraws the list.
+import { t } from "./i18n.js";
 import { api, attempt, store } from "./store.js";
 
 /** The group a session is in, or undefined. */
@@ -54,7 +55,14 @@ export function placeGroup(id, before) {
 export function deleteGroup(group) {
     const count = Object.values(store.state.sessionGroups.members).filter((each) => each === group.id).length;
 
-    if (!confirm(`Delete the group “${group.name}”? ${count === 0 ? "It's empty." : `Its ${count === 1 ? "chat goes" : `${count} chats go`} back to Active; nothing is archived.`}`)) {
+    const question =
+        count === 0
+            ? t("Delete the group “{name}”? It's empty.", { name: group.name })
+            : count === 1
+              ? t("Delete the group “{name}”? Its chat goes back to Active; nothing is archived.", { name: group.name })
+              : t("Delete the group “{name}”? Its {n} chats go back to Active; nothing is archived.", { name: group.name, n: count });
+
+    if (!confirm(question)) {
         return undefined;
     }
 

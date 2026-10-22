@@ -3,6 +3,7 @@
 // covers the screen on phones. Alt+E, the menu's Files tile, the launcher, or /files show it (and the top bar's folder
 // button while it is open, or Alt+E, hides it); the top bar's count of changes opens it on Changes.
 
+import { t } from "./i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
 import { DiffReview, KIND_LETTERS, reloadChanges, useChanges, useWidth } from "./diff.js";
@@ -786,9 +787,9 @@ export function FilesButton() {
     // Out of the top bar where its pane is narrow (a phone's): the menu's tiles, Alt+E, and a swipe left open it.
     return html`<button
         class=${`icon-button top-toggle ${filesOpen ? "on" : ""}`}
-        aria-label="Files"
+        aria-label=${t("Files")}
         aria-pressed=${filesOpen}
-        title="Files and changes (Alt+E)"
+        title=${t("Files and changes (Alt+E)")}
         onClick=${() => toggleFiles()}
     >
         <${Icon} name="folder" size=${18} />

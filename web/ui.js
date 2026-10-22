@@ -6,6 +6,7 @@ import { marked } from "marked";
 import { Component, createContext, h } from "preact";
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useDragToClose } from "./gestures.js";
+import { t } from "./i18n.js";
 import { highlight, langOf } from "./highlight.js";
 import { drawMath, mathExtension } from "./math.js";
 import { machineById, splitPlace } from "./place.js";
@@ -873,27 +874,8 @@ export function formatWhen(ms) {
     return `${day} ${time}`;
 }
 
-export function timeAgo(ms) {
-    const seconds = Math.max(0, (Date.now() - ms) / 1000);
-
-    if (seconds < 45) {
-        return "now";
-    }
-
-    if (seconds < 3600) {
-        return `${Math.round(seconds / 60)}m`;
-    }
-
-    if (seconds < 86400) {
-        return `${Math.round(seconds / 3600)}h`;
-    }
-
-    if (seconds < 86400 * 30) {
-        return `${Math.round(seconds / 86400)}d`;
-    }
-
-    return new Date(ms).toLocaleDateString();
-}
+/** How long ago, short, in the person's language (`i18n.js`): "now", "5m", "2h", "3d", then the date. */
+export { timeAgo } from "./i18n.js";
 
 /** Markdown as plain text, for one-line previews such as a quote: no emphasis, code ticks, or markers. */
 export function plainText(markdown) {
@@ -1837,10 +1819,11 @@ export function Switch({ on, disabled, label, onChange }) {
 }
 
 /** A row in a menu: a label, an optional hint on the right, and what a tap does. */
+/** A row of a sheet's list: its label and hint are written in English and shown in the person's language (PP-81). */
 export function item(label, run, hint) {
     return html`<button class="list-item" onClick=${run}>
-        <span>${label}</span>
-        ${hint && html`<span class="muted small">${hint}</span>`}
+        <span>${typeof label === "string" ? t(label) : label}</span>
+        ${hint && html`<span class="muted small">${typeof hint === "string" ? t(hint) : hint}</span>`}
     </button>`;
 }
 

@@ -130,6 +130,13 @@ export default function createPrompt(host: PocketHost) {
                 return machine === undefined ? PREAMBLE : machinePreamble(machine.name);
             }, { tag: false }),
             section("guidelines", () => GUIDELINES),
+            // The app's language for the person Pi works for (PP-81): Pi starts in it, even after a short first message.
+            section("language", (input) => {
+                const id = host.requesterOf(input.conversationId);
+                const language = id === undefined ? undefined : host.person(id).language;
+
+                return language === "zh-CN" ? "The person's app is in Simplified Chinese (简体中文): write to them in Chinese unless they write to you in another language." : undefined;
+            }),
             section("pocket_docs", () => docs(host.dataDir)),
             section("project_context", (input) => {
                 const cwd = localCwd(input);

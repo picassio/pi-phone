@@ -1,5 +1,6 @@
 // The wide home screen, shown beside the session list when no session is open.
 
+import { t, tn } from "./i18n.js";
 import { folderColor } from "./avatar.js";
 import { useEffect, useRef } from "preact/hooks";
 import { sessionMark } from "./sessions.js";
@@ -58,27 +59,32 @@ export function Splash() {
 
         return () => removeEventListener("keydown", onKey);
     }, []);
+    const live = sessions.filter((session) => !session.archived).length;
+    // Like a terminal's system summary: a short key, then what it is, both in the person's language.
     const rows = [
-        ["theme", lookLabel()],
+        [t("theme"), lookLabel()],
         [
-            "layout",
-            `${p.tiling ? "tiled windows" : "flat"}, sidebar ${p.sidebar === "rail" ? "folded" : "open"}`,
+            t("layout"),
+            p.tiling
+                ? p.sidebar === "rail"
+                    ? t("tiled windows, sidebar folded")
+                    : t("tiled windows, sidebar open")
+                : p.sidebar === "rail"
+                  ? t("flat, sidebar folded")
+                  : t("flat, sidebar open"),
         ],
+        [t("sessions"), busy > 0 ? t("{n}, {busy} running", { n: live, busy }) : String(live)],
+        [t("models"), String(models.length)],
+        [t("folder"), shortPath(server?.defaultCwd, server?.home) || "~"],
         [
-            "sessions",
-            `${sessions.filter((session) => !session.archived).length}${busy > 0 ? `, ${busy} running` : ""}`,
-        ],
-        ["models", String(models.length)],
-        ["folder", shortPath(server?.defaultCwd, server?.home) || "~"],
-        [
-            "guard",
+            t("guard"),
             guard?.enabled
                 ? guard.available === false
-                    ? "failed to load"
-                    : "Lancet Guard on"
-                : "off",
+                    ? t("failed to load")
+                    : t("Lancet Guard on")
+                : t("off"),
         ],
-        ["you", `${me?.name ?? "?"} (${me?.role ?? "?"})`],
+        [t("you"), `${me?.name ?? "?"} (${me?.role === undefined ? "?" : t(me.role)})`],
     ];
     const colors = [
         "--o-red",
@@ -98,7 +104,7 @@ export function Splash() {
             ${LOGO}
             <div class="fetch-info">
                 <div class="fetch-title" data-part="home-title" style=${`--i:${line++}`}>
-                    <b>${(me?.name ?? "you").toLowerCase().replace(/\s+/g, "-")}</b>@<b>pi-phone</b>
+                    <b>${(me?.name ?? "you").toLowerCase().replace(/\s+/g, "-")}</b>@<b>${t("pi-phone")}</b>
                 </div>
                 ${rows.map(
                     ([key, value]) => html`<dl
@@ -125,20 +131,19 @@ export function Splash() {
                     class="button primary"
                     onClick=${() => openSheet({ type: "cwd", mode: "new" })}
                 >
-                    <${Icon} name="plus" size=${16} /> New session <${Keys} keys="Alt N" />
+                    <${Icon} name="plus" size=${16} /> ${t("New session")} <${Keys} keys="Alt N" />
                 </button>`
             }
             <button class="button" onClick=${() => store.set({ launcher: true })}>
-                <${Icon} name="command" size=${16} /> Launcher <${Keys} keys="Mod K" />
+                <${Icon} name="command" size=${16} /> ${t("Launcher")} <${Keys} keys="Mod K" />
             </button>
             <button class="button" onClick=${() => openSheet({ type: "appearance" })}>
-                <${Icon} name="palette" size=${16} /> Appearance
-            </button>
+                <${Icon} name="palette" size=${16} /> ${t("Appearance")}</button>
         </div>
         ${
             recent.length > 0 &&
             html`<div class="splash-recent" data-part="home-recent">
-                <div class="splash-heading" data-part="home-heading">Jump back in</div>
+                <div class="splash-heading" data-part="home-heading">${t("Jump back in")}</div>
                 ${recent.map(
                     (session, index) => html`<button
                         class="splash-row"

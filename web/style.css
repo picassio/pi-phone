@@ -190,10 +190,12 @@
 
     /* Ligatures: none, as in a terminal. A theme may turn on a font's own (`contextual`, `normal`). */
     --ligatures: none;
+    /* Chinese (PP-81): Geist and JetBrains Mono have no CJK letters; the device's own Chinese font draws them. */
+    --cjk: "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", "Hiragino Sans GB";
     --mono:
         "Pocket Mono", "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, "SF Mono", Menlo,
-        Consolas, monospace;
-    --sans: "Pocket Sans", "Geist", ui-sans-serif, system-ui, sans-serif;
+        Consolas, var(--cjk), monospace;
+    --sans: "Pocket Sans", "Geist", var(--cjk), ui-sans-serif, system-ui, sans-serif;
     color-scheme: dark;
 }
 

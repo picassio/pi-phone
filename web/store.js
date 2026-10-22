@@ -3,6 +3,7 @@ import { BASE, routeOf } from "./base.js";
 import { onRoute, pushRoute } from "./back.js";
 import { sessionForest } from "./session-tree.js";
 import { liveMessage } from "./live.js";
+import { chooseLanguage } from "./i18n.js";
 
 /** A random id. crypto.randomUUID only exists on https and localhost pages; plain-http network addresses lack it. */
 export function uid() {
@@ -621,7 +622,12 @@ export function loadUsage(fresh = false) {
 }
 
 const handlers = {
-    hello: (data) =>
+    hello: (data) => {
+        // The app's language for this person (PP-81): another one than this page is in loads it again in that.
+        if (chooseLanguage(data.user.language)) {
+            return;
+        }
+
         store.set({
             me: data.user,
             users: data.users,
@@ -636,7 +642,10 @@ const handlers = {
             themeList: Array.isArray(data.themes) ? data.themes : [],
             // This connection's id, which peek lists name (`peeks.js`). `GET /api/me` answers without one.
             ...(data.connection === undefined ? {} : { streamId: data.connection }),
-        }),
+        });
+    },
+    // The person chose another language, on this device or another (PP-81).
+    language: (data) => chooseLanguage(data.language),
     sessions: (sessions) =>
         store.set((state) => ({
             sessions,

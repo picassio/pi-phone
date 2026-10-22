@@ -204,6 +204,10 @@ No Termux, no laptop, no cloud VM.
   restore** of everything.
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
   they finish, so it pushes, ends its turn, and is woken by the result.
+- **In English or Chinese.** Appearance › Language: *Auto* follows the phone or browser, or pick English or 简体中文
+  (Simplified Chinese). The choice is kept with you, so every device of yours follows it, and Pi, told your app is in
+  Chinese, answers in Chinese until you write in another language. The session list, message box, menus, launcher and
+  sign-in are translated now; the other sheets and the conversation's controls follow.
 - **Quick on a phone.** A streaming answer redraws only its last block, and only what changed in it crosses the wire;
   text and the event stream go compressed, and web files are cached (ETag, 304) and fetched at once (modulepreload).
 - **Updates from GitHub.** Every passing build on `master` is a release, with release notes. The app checks it (at
@@ -287,6 +291,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
 | Other devices and people | **Access** (Tailscale), **People** (devices, invites, recovery code) | Yes for listing devices, signing one or all out, or changing a person's role. The recovery code is yours |
 | Notifications, screen off, backup | **This phone** | Yes for making a backup. Restoring one is yours |
+| The app's language (Auto, English, 简体中文) | **Appearance › Language**, kept with you on every device | "Switch my app to Chinese" |
 | Appearance, dictation language | **Appearance** and **Dictation**, per browser tab | Only the theme new browsers start with ("make lantern the default theme") |
 | App updates | **Check for app updates**. New builds also offer themselves in an update sheet. Tap **Install** | No |
 

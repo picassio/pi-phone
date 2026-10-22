@@ -37,6 +37,8 @@ export interface User {
     tunnel?: string;
     /** The most Pi may spend for this person, in dollars; never for the owner. */
     budget?: number;
+    /** The language of the app for them (PP-81): "en", "zh-CN"; absent: their browser's ("auto"). */
+    language?: string;
 }
 
 /** An invite not yet used, kept by its code's sha256 (the code itself is only shown to whoever made it). */
@@ -494,7 +496,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language">>,
     ): void {
         const user = this.userById(id);
 
@@ -523,6 +525,10 @@ export class ConfigStore {
 
         if (user.budget === undefined) {
             delete user.budget;
+        }
+
+        if (user.language === undefined) {
+            delete user.language;
         }
 
         this.save();

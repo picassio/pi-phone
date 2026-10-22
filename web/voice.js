@@ -3,6 +3,7 @@
 // to Google's servers to be recognised; Safari on iOS has it too; Firefox has none, and there the mic does not show.
 // In the Android app, `android-speech.js` stands in Android's own recognizer. The language is the device's, or the one
 // picked in Settings › Dictation.
+import { t } from "./i18n.js";
 import { dictationLanguage } from "./android-speech.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { notify } from "./store.js";
@@ -337,9 +338,9 @@ export function MicButton({ dictation, class: className = "", size = 17, part })
         type="button"
         class=${`icon-button mic-button ${listening ? "listening" : ""} ${className}`}
         data-part=${part}
-        aria-label="Dictate"
+        aria-label=${t("Dictate")}
         aria-pressed=${listening ? "true" : "false"}
-        title=${listening ? "Listening: tap to stop (Alt+V)" : "Dictate (Alt+V)"}
+        title=${listening ? t("Listening: tap to stop (Alt+V)") : t("Dictate (Alt+V)")}
         onMouseDown=${(event) => event.preventDefault()}
         onClick=${toggle}
     >

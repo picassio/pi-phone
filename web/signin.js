@@ -1,5 +1,6 @@
 // The sign-in screen, for a browser that is not signed in.
 
+import { t, tn } from "./i18n.js";
 import { useEffect, useState } from "preact/hooks";
 import { html } from "./ui.js";
 
@@ -34,10 +35,10 @@ export function SignIn() {
                     if (response.ok) {
                         location.href = "/";
                     } else {
-                        setProblem((await response.json().catch(() => ({}))).error ?? "That did not work.");
+                        setProblem((await response.json().catch(() => ({}))).error ?? t("That did not work."));
                     }
                 },
-                () => setProblem("Could not reach pi-phone."),
+                () => setProblem(t("Could not reach pi-phone.")),
             );
 
             return;
@@ -66,14 +67,12 @@ export function SignIn() {
 
     return html`<div class="signin" data-part="sign-in">
         <div class="pi big"><img class="brand-icon" src="icon.svg" alt="" /></div>
-        <h1>pi-phone</h1>
-        <p class="muted">
-            The pi-phone app signs in by itself: close it and open it again. You can also paste a sign-in link, the token, an invite code, or your recovery code here.
-        </p>
+        <h1>${t("pi-phone")}</h1>
+        <p class="muted">${t("The pi-phone app signs in by itself: close it and open it again. You can also paste a sign-in link, the token, an invite code, or your recovery code here.")}</p>
         <div class="row">
             <input
                 value=${value}
-                placeholder="Link, token, invite, or recovery code"
+                placeholder=${t("Link, token, invite, or recovery code")}
                 autocapitalize="none"
                 autocorrect="off"
                 autocomplete="off"
@@ -81,7 +80,7 @@ export function SignIn() {
                 onInput=${(event) => setValue(event.currentTarget.value)}
                 onKeyDown=${(event) => event.key === "Enter" && go()}
             />
-            <button class="button primary" onClick=${go}>Sign in</button>
+            <button class="button primary" onClick=${go}>${t("Sign in")}</button>
         </div>
         ${problem && html`<p class="wiki-problem">${problem}</p>`}
     </div>`;

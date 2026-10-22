@@ -211,7 +211,15 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "me" && method === "POST") {
-            const body = await readJson<{ name?: string }>(request);
+            const body = await readJson<{ name?: string; language?: unknown }>(request);
+
+            // The app's language for them (PP-81).
+            if (body.language !== undefined && body.name === undefined) {
+                await app.setLanguage(user, body.language);
+
+                return json(response, 200, { ok: true });
+            }
+
             const name = String(body.name ?? "")
                 .replace(/\s+/g, " ")
                 .trim()

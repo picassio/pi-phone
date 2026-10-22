@@ -1,5 +1,6 @@
 // The model picker: a menu over the model chip, searchable once there are many models; and the same menu for the model
 // and thinking level new sessions start with.
+import { t, tn } from "../i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { actions, attempt, closeSheet, loadUsage, openSheet, store } from "../store.js";
 import { usageLine } from "../usage.js";
@@ -234,7 +235,7 @@ export function ModelPicker() {
             ref=${box}
             role="dialog"
             aria-modal="true"
-            aria-label=${forDefault ? "Default model" : "Model"}
+            aria-label=${forDefault ? t("Default model") : t("Model")}
             aria-keyshortcuts=${scopedModels.length > 0 ? "Tab" : undefined}
             tabindex="-1"
             onKeyDown=${onKeyDown}
@@ -242,47 +243,42 @@ export function ModelPicker() {
             <div class="grip" aria-hidden="true"></div>
             <header class="pop-menu-head">
                 <span>
-                    ${forDefault ? "Default model" : "Model"}
-                    ${forDefault && html`<span class="pop-menu-head-sub">for new sessions</span>`}
+                    ${forDefault ? t("Default model") : t("Model")}
+                    ${forDefault && html`<span class="pop-menu-head-sub">${t("for new sessions")}</span>`}
                     ${
                         scopedModels.length > 0 &&
                         html`<span
                             class="model-scope"
                             role="group"
-                            aria-label="Model scope"
-                            title="Tab switches between scoped and all models"
+                            aria-label=${t("Model scope")}
+                            title=${t("Tab switches between scoped and all models")}
                         >
                             <span aria-hidden="true">[</span>
                             <button
                                 class=${!showAll ? "on" : ""}
                                 aria-pressed=${!showAll}
-                                title="Models from Pi’s enabledModels setting"
+                                title=${t("Models from Pi’s enabledModels setting")}
                                 onClick=${() => {
                                     setShowAll(false);
                                     setPicked(0);
                                 }}
-                            >
-                                scoped
-                            </button>
+                            >${t("scoped")}</button>
                             <span aria-hidden="true">|</span>
                             <button
                                 class=${showAll ? "on" : ""}
                                 aria-pressed=${showAll}
-                                title="All models with a configured sign-in"
+                                title=${t("All models with a configured sign-in")}
                                 onClick=${() => {
                                     setShowAll(true);
                                     setPicked(0);
                                 }}
-                            >
-                                all
-                            </button>
+                            >${t("all")}</button>
                             <span aria-hidden="true">]</span>
                         </span>`
                     }
                 </span>
                 <button class="pop-menu-link" onClick=${() => openSheet({ type: "providers" })}>
-                    <${Icon} name="key" size=${13} /> Providers
-                </button>
+                    <${Icon} name="key" size=${13} /> ${t("Providers")}</button>
             </header>
             ${
                 searchable &&
@@ -290,7 +286,7 @@ export function ModelPicker() {
                     <${Icon} name="search" size=${15} />
                     <input
                         ref=${search}
-                        placeholder="Search models"
+                        placeholder=${t("Search models")}
                         aria-keyshortcuts=${scopedModels.length > 0 ? "Tab" : undefined}
                         value=${query}
                         onInput=${(event) => {
@@ -300,17 +296,15 @@ export function ModelPicker() {
                     />
                 </label>`
             }
-            <div class="pop-menu-list" ref=${list} role="listbox" aria-label="Models">
+            <div class="pop-menu-list" ref=${list} role="listbox" aria-label=${t("Models")}>
                 ${
                     models.length === 0 &&
-                    html`<p class="muted pop-menu-note">
-                        No models are available. Add a provider first.
-                    </p>`
+                    html`<p class="muted pop-menu-note">${t("No models are available. Add a provider first.")}</p>`
                 }
                 ${
                     models.length > 0 &&
                     shown.length === 0 &&
-                    html`<p class="muted pop-menu-note">No model matches “${query.trim()}”.</p>`
+                    html`<p class="muted pop-menu-note">${t("No model matches “{query}”.", { query: query.trim() })}</p>`
                 }
                 ${shown.map(
                     (model, index) => html`<button
@@ -335,8 +329,8 @@ export function ModelPicker() {
             ${
                 reasoning &&
                 html`<div class="pop-menu-foot">
-                    <div class="label">Thinking</div>
-                    <div class="segmented model-levels" role="radiogroup" aria-label="Thinking">
+                    <div class="label">${t("Thinking")}</div>
+                    <div class="segmented model-levels" role="radiogroup" aria-label=${t("Thinking")}>
                         ${levels.map(
                             (each) =>
                                 html`<button
@@ -356,20 +350,14 @@ export function ModelPicker() {
                     ? null
                     : forDefault
                       ? html`<div class="pop-menu-foot pop-menu-default">
-                          <span class="muted">
-                              The owner default wins over project settings. Clear it to use a trusted project's model and thinking defaults for later new sessions. Existing sessions do not change.
-                          </span>
+                          <span class="muted">${t("The owner default wins over project settings. Clear it to use a trusted project's model and thinking defaults for later new sessions. Existing sessions do not change.")}</span>
                           ${
                               chosen
                                   ? html`<button
                                         class="pop-menu-link"
                                         onClick=${() => attempt(() => actions.setDefaultModel(null))}
-                                    >
-                                        Clear owner default: use project defaults, then last picked
-                                    </button>`
-                                  : html`<span class="muted">
-                                        No owner default: new sessions use trusted project defaults, then the last model picked, then Pi's global default.
-                                    </span>`
+                                    >${t("Clear owner default: use project defaults, then last picked")}</button>`
+                                  : html`<span class="muted">${t("No owner default: new sessions use trusted project defaults, then the last model picked, then Pi's global default.")}</span>`
                           }
                       </div>`
                       : // Only the owner makes a default: no one else gets an empty footer.
@@ -379,15 +367,12 @@ export function ModelPicker() {
                             ${
                                 sessionIsDefault
                                     ? html`<span class="pop-menu-default-mark">
-                                          <${Icon} name="check" size=${13} /> Default
-                                      </span>`
+                                          <${Icon} name="check" size=${13} /> ${t("Default")}</span>`
                                     : html`<button
                                           class="pop-menu-link"
-                                          title="New sessions start with this model and thinking level"
+                                          title=${t("New sessions start with this model and thinking level")}
                                           onClick=${() => setDefault(agent.model, agent.thinkingLevel ?? "off")}
-                                      >
-                                          Make default
-                                      </button>`
+                                      >${t("Make default")}</button>`
                             }
                         </div>`
             }

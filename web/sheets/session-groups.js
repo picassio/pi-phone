@@ -1,13 +1,14 @@
 // Folder groups' sheets (PP-76): moving sessions to a group, and a group's own menu.
+import { t, tn } from "../i18n.js";
 import { useState } from "preact/hooks";
 import { createGroup, deleteGroup, foldAllGroups, foldGroup, groupOf, moveGroup, moveToGroup, pinGroup, renameGroup } from "../session-groups.js";
 import { closeSheet, store } from "../store.js";
 import { html, Icon, item, Sheet } from "../ui.js";
 
 const count = (group) => Object.values(store.state.sessionGroups.members).filter((each) => each === group.id).length;
-const chats = (n) => (n === 1 ? "1 chat" : `${n} chats`);
+const chats = (n) => tn(n, "{n} chat", "{n} chats");
 /** What deleting a group does to its sessions, in words. */
-const goBack = (n) => (n === 0 ? "it's empty" : n === 1 ? "its chat goes back to Active" : `its ${n} chats go back to Active`);
+const goBack = (n) => (n === 0 ? t("it's empty") : tn(n, "its chat goes back to Active", "its {n} chats go back to Active"));
 
 /**
  * Move one session, or a selection, to a group, out of every group, or into a new group named here. One field finds a
@@ -22,7 +23,7 @@ export function MoveSheet({ ids }) {
     const exact = store.state.sessionGroups.groups.find((group) => group.name.toLowerCase() === typed);
     const current = ids.length === 1 ? groupOf(ids[0]) : undefined;
     const done = (promise) => promise.then((answer) => answer !== undefined && closeSheet());
-    const titled = ids.length === 1 ? (store.state.sessions.find((session) => session.id === ids[0])?.title ?? "New session") : `${ids.length} sessions`;
+    const titled = ids.length === 1 ? (store.state.sessions.find((session) => session.id === ids[0])?.title ?? t("New session")) : null;
 
     // Enter takes the group of that name, or the only one found; else it makes the one typed.
     const create = async (event) => {
@@ -42,12 +43,12 @@ export function MoveSheet({ ids }) {
         }
     };
 
-    return html`<${Sheet} title=${`Move ${titled} to a group`} onClose=${closeSheet}>
+    return html`<${Sheet} title=${titled === null ? t("Move {n} sessions to a group", { n: ids.length }) : t("Move {title} to a group", { title: titled })} onClose=${closeSheet}>
         <form class="sg-create sg-find" onSubmit=${create}>
             <input
                 value=${name}
-                placeholder=${store.state.sessionGroups.groups.length === 0 ? "New group's name" : "Find a group, or name a new one"}
-                aria-label="Find a group, or name a new one"
+                placeholder=${store.state.sessionGroups.groups.length === 0 ? t("New group's name") : t("Find a group, or name a new one")}
+                aria-label=${t("Find a group, or name a new one")}
                 maxlength="60"
                 autofocus
                 onInput=${(event) => setName(event.currentTarget.value)}
@@ -55,7 +56,7 @@ export function MoveSheet({ ids }) {
         </form>
         ${
             html`<div class="sheet-list">
-                ${typed !== "" && !exact && html`<button class="list-item sg-new-item" onClick=${makeNew}><span>Create “${name.trim()}”</span><span class="muted small">and move ${ids.length === 1 ? "it" : "them"} there</span></button>`}
+                ${typed !== "" && !exact && html`<button class="list-item sg-new-item" onClick=${makeNew}><span>${t("Create “{name}”", { name: name.trim() })}</span><span class="muted small">${ids.length === 1 ? t("and move it there") : t("and move them there")}</span></button>`}
                 ${groups.map(
                     (group) => html`<button
                         class=${`list-item sg-pick ${current?.id === group.id ? "on" : ""}`}
@@ -98,8 +99,8 @@ export function GroupSheet({ id }) {
         ${
             naming
                 ? html`<form class="sg-create" onSubmit=${rename}>
-                      <input value=${name} aria-label="The group's name" maxlength="60" autofocus onInput=${(event) => setName(event.currentTarget.value)} />
-                      <button class="button primary" disabled=${name.trim() === ""}>Rename</button>
+                      <input value=${name} aria-label=${t("The group's name")} maxlength="60" autofocus onInput=${(event) => setName(event.currentTarget.value)} />
+                      <button class="button primary" disabled=${name.trim() === ""}>${t("Rename")}</button>
                   </form>`
                 : html`<div class="sheet-list">
                       ${item(group.pinned ? "Unpin from the top" : "Pin to the top", then(() => pinGroup(id, !group.pinned)), group.pinned ? "pinned on every device" : "under the pinned chats, on every device")}
@@ -107,8 +108,8 @@ export function GroupSheet({ id }) {
                       ${item(group.folded ? "Unfold" : "Fold", then(() => foldGroup(id, !group.folded)), group.folded ? "show its chats" : "show only its name and count")}
                       ${groups.length > 1 && item("Fold all groups", then(() => foldAllGroups(true)), "every device")}
                       ${groups.length > 1 && item("Unfold all groups", then(() => foldAllGroups(false)), "every device")}
-                      ${at > 0 && item("Move up", then(() => moveGroup(id, near[at - 1].id)), `above ${near[at - 1].name}`)}
-                      ${at < near.length - 1 && item("Move down", then(() => moveGroup(id, near[at + 1].id)), `below ${near[at + 1].name}`)}
+                      ${at > 0 && item("Move up", then(() => moveGroup(id, near[at - 1].id)), t("above {name}", { name: near[at - 1].name }))}
+                      ${at < near.length - 1 && item("Move down", then(() => moveGroup(id, near[at + 1].id)), t("below {name}", { name: near[at + 1].name }))}
                       <button
                           class="list-item sg-danger"
                           onClick=${async () => {
@@ -118,7 +119,7 @@ export function GroupSheet({ id }) {
                               }
                           }}
                       >
-                          <span>Delete the group</span>
+                          <span>${t("Delete the group")}</span>
                           <span class="muted small">${goBack(count(group))}</span>
                       </button>
                   </div>`

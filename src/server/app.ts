@@ -1758,6 +1758,24 @@ export class PocketApp {
     }
 
     /** Change someone's name: shown at once on their messages, in the people lists, and on their avatar. */
+    /** The languages the app speaks (`web/i18n.js`); "auto" follows the person's browser. */
+    static readonly LANGUAGES = ["auto", "en", "zh-CN"] as const;
+
+    /** The app's language for `user` (PP-81), on every device of theirs: their tabs load again in it. */
+    async setLanguage(user: User, language: unknown): Promise<void> {
+        if (typeof language !== "string" || !(PocketApp.LANGUAGES as readonly string[]).includes(language)) {
+            throw new HttpError(400, `The language is one of ${PocketApp.LANGUAGES.join(", ")}.`);
+        }
+
+        this.config.updateUser(user.id, { language: language === "auto" ? undefined : language });
+
+        for (const client of this.#clients) {
+            if (client.user.id === user.id) {
+                client.send("language", { language });
+            }
+        }
+    }
+
     rename(user: User, name: string): void {
         this.config.updateUser(user.id, { name });
         this.#peopleChanged();
@@ -2272,6 +2290,8 @@ export class PocketApp {
                 name: user.name,
                 role: user.role,
                 ...(user.sessions === undefined ? {} : { sessions: user.sessions.map(Number) }),
+                // The app's language for them (PP-81): "auto" follows their browser.
+                language: user.language ?? "auto",
             },
             users: this.people(user),
             // Removed people's names, for what they wrote.
