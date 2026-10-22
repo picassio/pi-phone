@@ -38,6 +38,31 @@ function freePort(): Promise<number> {
     });
 }
 
+/**
+ * ssh's arguments for a forward, from pi-env's (`sshArguments`): its `-o ClearAllForwardings=yes` taken out when it is
+ * there (forwarding is the point; PP-107: only then, so the host after `--` stays), then `-N` and the forward. The
+ * machine's end is `localhost`, which reaches a dev server on `::1` as well as `127.0.0.1` (PP-105); this end listens on
+ * 127.0.0.1 alone.
+ */
+export function forwardArguments(args: readonly string[], localPort: number, remotePort: number): string[] {
+    const out = [...args];
+    const clear = out.indexOf("ClearAllForwardings=yes");
+
+    if (clear > 0 && out[clear - 1] === "-o") {
+        out.splice(clear - 1, 2);
+    }
+
+    const end = out.indexOf("--");
+
+    if (end === -1) {
+        throw new Error("pi-env's ssh arguments have no -- before the host");
+    }
+
+    out.splice(end, 0, "-N", "-o", "ExitOnForwardFailure=yes", "-L", `127.0.0.1:${localPort}:localhost:${remotePort}`);
+
+    return out;
+}
+
 /** Whether something listens on `port` here. */
 function listening(port: number): Promise<boolean> {
     return new Promise((resolve) => {
@@ -51,12 +76,17 @@ function listening(port: number): Promise<boolean> {
     });
 }
 
+/** What the owner's tabs hear: the list changed, and, when a forward's ssh ended by itself, which one and why. */
+export type ForwardsChanged = (ended?: { forward: Forward; reason: string }) => void;
+
 export class Forwards {
     readonly #machines: Machines;
     readonly #open = new Map<string, { forward: Forward; ssh: ChildProcess }>();
+    readonly #changed: ForwardsChanged;
 
-    constructor(machines: Machines) {
+    constructor(machines: Machines, changed: ForwardsChanged = () => {}) {
         this.#machines = machines;
+        this.#changed = changed;
     }
 
     list(): Forward[] {
@@ -77,26 +107,30 @@ export class Forwards {
         }
 
         const localPort = await freePort();
-        const args = sshArguments(this.#machines.target(machine));
-        const clear = args.indexOf("ClearAllForwardings=yes");
-
-        args.splice(clear - 1, 2);
-        args.splice(args.indexOf("--"), 0, "-N", "-o", "ExitOnForwardFailure=yes", "-L", `127.0.0.1:${localPort}:127.0.0.1:${remotePort}`);
+        const args = forwardArguments(sshArguments(this.#machines.target(machine)), localPort, remotePort);
         const ssh = spawn("ssh", args, { stdio: ["ignore", "ignore", "pipe"] });
         let said = "";
         let ended = false;
-
-        ssh.stderr!.on("data", (chunk: Buffer) => {
-            said = (said + chunk.toString()).slice(-2000);
-        });
-        ssh.once("exit", () => {
+        // Ended by itself (not closed here): the owner hears why, and their tabs get the list again (PP-108).
+        const end = (reason: string) => {
             ended = true;
 
             for (const [id, each] of this.#open) {
                 if (each.ssh === ssh) {
                     this.#open.delete(id);
+                    this.#changed({ forward: each.forward, reason });
                 }
             }
+        };
+
+        ssh.stderr!.on("data", (chunk: Buffer) => {
+            said = (said + chunk.toString()).slice(-2000);
+        });
+        ssh.once("exit", (code, signal) => end(said.trim().split("\n").at(-1) || (signal === null ? `ssh ended (exit ${code})` : `ssh ended (${signal})`)));
+        // ssh that cannot start (missing, not runnable) is an error, not a crash of the server (PP-106).
+        ssh.once("error", (error) => {
+            said = `ssh could not start: ${error.message}`;
+            end(said);
         });
 
         const until = Date.now() + START_MS;
@@ -126,6 +160,7 @@ export class Forwards {
         };
 
         this.#open.set(forward.id, { forward, ssh });
+        this.#changed();
 
         return forward;
     }
@@ -139,6 +174,7 @@ export class Forwards {
 
         this.#open.delete(id);
         open.ssh.kill();
+        this.#changed();
     }
 
     closeAll(): void {

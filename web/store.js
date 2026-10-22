@@ -85,6 +85,8 @@ export const store = {
         sessions: [],
         /** This person's favorite folders, in shortcut order, sent by the server to every signed-in device. */
         folderFavorites: [],
+        /** The machines' ports open here (`forwards.ts`), once the Ports sheet loaded them or the server sent a change. */
+        forwards: null,
         /** This person's folder groups in the session list (PP-76), from the server: the same on every device. */
         sessionGroups: { groups: [], members: {} },
         /** False until the server's first session list arrives: an empty list until then means "not here yet". */
@@ -646,6 +648,8 @@ const handlers = {
     },
     // The person chose another language, on this device or another (PP-81).
     language: (data) => chooseLanguage(data.language),
+    // The machines' ports open here changed: one opened, closed, or ended by itself (PP-108). The owner's tabs only.
+    forwards: (data) => store.set({ forwards: data.forwards }),
     sessions: (sessions) =>
         store.set((state) => ({
             sessions,

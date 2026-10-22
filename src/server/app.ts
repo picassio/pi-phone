@@ -508,7 +508,18 @@ export class PocketApp {
         this.officecli = new OfficeCli({ dataDir: options.dataDir, ...options.officecli });
         this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools));
         this.officecli.install();
-        this.forwards = new Forwards(this.machines);
+        // The owner's tabs get the open ports again on every change, and hear why one closed by itself (PP-108).
+        this.forwards = new Forwards(this.machines, (ended) => {
+            if (ended !== undefined) {
+                this.ownerNotice("warning", `Port ${ended.forward.remotePort} of ${ended.forward.machine} closed: ${ended.reason}`);
+            }
+
+            for (const client of this.#clients) {
+                if (client.user.role === "owner") {
+                    client.send("forwards", { forwards: this.forwards.list() });
+                }
+            }
+        });
         this.#phoneEngine = options.browserEngine ?? new PhoneEngine(this.browserRequests);
         this.#tabOwners = new TabOwners(join(options.dataDir, "browser-tabs.json"));
         this.#browserSizes = new BrowserSizes(join(options.dataDir, "browser-sizes.json"));
