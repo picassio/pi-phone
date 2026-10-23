@@ -59,6 +59,62 @@ export function ed25519Blob(key: KeyObject): Buffer {
     return Buffer.concat([sshString("ssh-ed25519"), sshString(raw)]);
 }
 
+/**
+ * Whether `data` is what an SSH client signs to sign in with a public key, for `user` and the key `blob`, and nothing
+ * else (RFC 4252 §7): the session id, SSH_MSG_USERAUTH_REQUEST (50), the user, "ssh-connection", the method, TRUE,
+ * "ssh-ed25519", the key. The method is "publickey", or OpenSSH's "publickey-hostbound-v00@openssh.com" (8.9 and
+ * later), which adds the server's host key: then it must be one of `hostKeys` (the machine's accepted ones), so the
+ * signature signs in to that machine only. The gateway signs only that: a pi-phone can't have it sign anything else.
+ */
+export function isSignIn(data: Buffer, user: string, blob: Buffer, hostKeys: readonly Buffer[] = []): boolean {
+    let at = 0;
+    const field = (): Buffer => {
+        if (at + 4 > data.length) {
+            throw new Error("short");
+        }
+
+        const length = data.readUInt32BE(at);
+
+        at += 4;
+
+        if (at + length > data.length) {
+            throw new Error("short");
+        }
+
+        at += length;
+
+        return data.subarray(at - length, at);
+    };
+    const byte = () => (at < data.length ? data[at++] : -1);
+
+    try {
+        const session = field();
+
+        if (!(session.length > 0 && byte() === 50 && field().toString() === user && field().toString() === "ssh-connection")) {
+            return false;
+        }
+
+        const method = field().toString();
+
+        if (!((method === "publickey" || method === "publickey-hostbound-v00@openssh.com") && byte() === 1 && field().toString() === "ssh-ed25519" && field().equals(blob))) {
+            return false;
+        }
+
+        if (method === "publickey") {
+            return at === data.length;
+        }
+
+        const hostKey = field();
+
+        return at === data.length && hostKeys.some((each) => each.equals(hostKey));
+    } catch {
+        return false;
+    }
+}
+
+/** The ssh alias (and host key alias) of a team machine, the same in every pi-phone. */
+export const teamAlias = (id: string) => `pi-phone-team-${id}`;
+
 function checkName(name: unknown): string {
     const label = typeof name === "string" ? name.trim() : "";
 
@@ -154,7 +210,8 @@ export class TeamMachines {
         const given = Array.isArray(lines) ? lines.map(String) : [];
         const print = typeof fingerprint === "string" ? fingerprint.trim() : "";
 
-        if (given.length === 0 || given.length > 10 || given.some((line) => !/^\S+ (ssh-|ecdsa-|sk-)\S+ [A-Za-z0-9+/=]+$/.test(line))) {
+        // Lines for this machine's own alias: what every pi-phone checks its host key under.
+        if (given.length === 0 || given.length > 10 || given.some((line) => !new RegExp(`^${teamAlias(id)} (ssh-|ecdsa-|sk-)\\S+ [A-Za-z0-9+/=]+$`).test(line))) {
             throw new HttpError(400, "Give the host key lines the scan found.");
         }
 
@@ -211,7 +268,21 @@ export class TeamMachines {
         return ed25519Blob(this.#privateKey(id));
     }
 
-    /** An ed25519 signature of `data` with the machine's key, as SSH carries it (S2 checks what is signed). */
+    /** The signature of a sign-in to the machine (`isSignIn`), as an agent answers it; anything else is refused. */
+    signIn(id: string, data: Buffer): Buffer {
+        const machine = this.#need(id);
+
+        // The machine's accepted host keys, as blobs: a host-bound sign-in must name one of them.
+        const hostKeys = (machine.knownHosts ?? []).map((line) => Buffer.from(line.split(" ")[2] ?? "", "base64"));
+
+        if (!isSignIn(data, machine.user, this.publicBlob(id), hostKeys)) {
+            throw new HttpError(400, "The team server signs only a sign-in to the machine with its key.");
+        }
+
+        return this.signRaw(id, data);
+    }
+
+    /** An ed25519 signature of `data` with the machine's key, as SSH carries it. */
     signRaw(id: string, data: Buffer): Buffer {
         return Buffer.concat([sshString("ssh-ed25519"), sshString(signWith(null, data, this.#privateKey(id)))]);
     }

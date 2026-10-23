@@ -38,6 +38,10 @@ import {
 } from "@earendil-works/pi-env";
 import { HttpError } from "./errors.ts";
 import type { SshKeys } from "./ssh-keys.ts";
+import { relayScript, TEAM_AGENT, TEAM_RELAY, type TeamMachineEntry } from "./team-machines.ts";
+
+/** A team machine's ssh alias and host key alias, the same in every pi-phone (the gateway's `teamAlias`). */
+const teamAlias = (teamId: string) => `pi-phone-team-${teamId}`;
 
 export type Machine = {
     id: string;
@@ -57,6 +61,11 @@ export type Machine = {
     connectedAt?: number;
     /** Tools pi-phone installed there, by id, with their versions, as last seen (`machine-tools.ts`). */
     tools?: Record<string, string>;
+    /**
+     * A team machine (PP-82): the team server's, with its id there, who may change it, which roles use it, and its key's
+     * public half. Its key is the team server's; its connection and sign-in go through it (`team-machines.ts`).
+     */
+    team?: { id: string; manage: boolean; usable: boolean; roles: string[]; publicKey: string; createdBy: string };
 };
 
 const FILE = "machines.json";
@@ -75,6 +84,9 @@ export class Machines {
     readonly piSsh: string;
     readonly #agentSocket: string;
     readonly #home: string;
+    readonly #sshDir: string;
+    /** The team server's machines this person may use (PP-82): in memory, never in `machines.json`. */
+    #team: Machine[] = [];
     /**
      * Told after every change (`#save`), with the machine that changed: its connection and environments go
      * (`Places.forget`), and the app sends its tabs the connected machines again (`hello`).
@@ -97,6 +109,7 @@ export class Machines {
         chmodSync(sshDir, 0o700);
         this.knownHostsFile = join(sshDir, "known_hosts");
         this.configFile = join(sshDir, "config");
+        this.#sshDir = sshDir;
         this.#home = home;
         this.#machines = existsSync(this.#file)
             ? (JSON.parse(readFileSync(this.#file, "utf8")) as { machines: Machine[] }).machines
@@ -121,7 +134,24 @@ export class Machines {
      * `pi-ssh -N -L …`. Whatever runs it can use a key through the agent, never read it.
      */
     #writeConfig(): void {
-        const hosts = this.sshHosts().map(({ machine, alias }) =>
+        const aliases = new Map(this.sshHosts().map(({ machine, alias }) => [machine.id, alias]));
+        const relay = join(this.#sshDir, "bin", "pi-team-relay");
+        // A team machine (PP-82): its own alias (with the short one once its host key is accepted), reached through the
+        // relay, signed for by the agent that asks the team server; never a key here.
+        const team = this.#team.map((machine) =>
+            [
+                `# ${machine.name.replace(/[\r\n]/g, " ")} (the team's)`,
+                `Host ${teamAlias(machine.team!.id)}${aliases.has(machine.id) ? ` ${aliases.get(machine.id)}` : ""}`,
+                `    HostName ${machine.host}`,
+                `    User ${machine.user}`,
+                ...(machine.port === undefined ? [] : [`    Port ${machine.port}`]),
+                `    ProxyCommand ${JSON.stringify(process.execPath)} ${JSON.stringify(relay)} ${JSON.stringify(join(this.#sshDir, TEAM_RELAY))} ${machine.team!.id}`,
+                `    IdentityAgent ${quoteConfigValue(join(this.#sshDir, TEAM_AGENT))}`,
+                `    IdentityFile ${quoteConfigValue(this.#teamKeyFile(machine.team!.id))}`,
+                `    HostKeyAlias ${teamAlias(machine.team!.id)}`,
+            ].join("\n"),
+        );
+        const hosts = this.sshHosts().filter(({ machine }) => machine.team === undefined).map(({ machine, alias }) =>
             [
                 `# ${machine.name.replace(/[\r\n]/g, " ")}`,
                 `Host ${alias}`,
@@ -138,6 +168,7 @@ export class Machines {
             [
                 "# Written by pi-phone: its machines' ssh, signing with its ssh-agent. Changes here are replaced.",
                 ...hosts,
+                ...team,
                 [
                     "Host *",
                     `    IdentityAgent ${quoteConfigValue(this.#agentSocket)}`,
@@ -157,6 +188,86 @@ export class Machines {
 
         writeFileSync(this.piSsh, `#!${shell}\n# pi-phone: ssh with the app's machines and its agent.\nexec ssh -F ${JSON.stringify(this.configFile)} "$@"\n`, { mode: 0o700 });
         chmodSync(this.piSsh, 0o700);
+
+        if (this.#team.length > 0) {
+            writeFileSync(relay, relayScript(process.execPath), { mode: 0o700 });
+            chmodSync(relay, 0o700);
+        }
+    }
+
+    /** A team machine's key, public half: the file ssh's `IdentityFile` names, so the agent's key is the one used. */
+    #teamKeyFile(teamId: string): string {
+        return join(this.#sshDir, "team", `${teamId}.pub`);
+    }
+
+    /**
+     * The team server's machines this person may use (`TeamMachinesClient.sync`): their keys' public halves and host keys
+     * written where ssh reads them, their `Host` blocks, and the tabs told. A machine whose address or host key changed,
+     * or that went, loses its connection (as an own machine's change does).
+     */
+    setTeam(entries: TeamMachineEntry[], manage: boolean): void {
+        const next: Machine[] = entries.map((entry) => ({
+            id: `team-${entry.id}`,
+            name: entry.name,
+            host: entry.host,
+            user: entry.user,
+            ...(entry.port === undefined ? {} : { port: entry.port }),
+            keyId: "",
+            createdAt: entry.createdAt,
+            ...(entry.hostKey === undefined ? {} : { hostKey: entry.hostKey }),
+            ...(entry.remote === undefined ? {} : { remote: entry.remote }),
+            ...(entry.daemon === undefined ? {} : { daemon: entry.daemon }),
+            ...(entry.connectedAt === undefined ? {} : { connectedAt: entry.connectedAt }),
+            // Tools seen there stay as last seen here (`machine-tools.ts`).
+            ...(this.#team.find((each) => each.id === `team-${entry.id}`)?.tools === undefined ? {} : { tools: this.#team.find((each) => each.id === `team-${entry.id}`)!.tools }),
+            team: { id: entry.id, manage, usable: entry.usable, roles: entry.roles, publicKey: entry.publicKey, createdBy: entry.createdBy },
+        }));
+        const reach = (machine: Machine) => JSON.stringify([machine.host, machine.user, machine.port, machine.hostKey]);
+        const changed = this.#team.filter((was) => {
+            const now = next.find((each) => each.id === was.id);
+
+            return now === undefined || reach(now) !== reach(was);
+        });
+        const same = changed.length === 0 && JSON.stringify(next) === JSON.stringify(this.#team);
+
+        this.#team = next;
+
+        mkdirSync(join(this.#sshDir, "team"), { recursive: true, mode: 0o700 });
+
+        for (const machine of next) {
+            writeFileSync(this.#teamKeyFile(machine.team!.id), `${machine.team!.publicKey}\n`, { mode: 0o600 });
+        }
+
+        // The team's host keys, as the team server has them: its lines replace every team line here.
+        const known = existsSync(this.knownHostsFile) ? readFileSync(this.knownHostsFile, "utf8").split("\n") : [];
+        const own = known.filter((line) => line.trim() !== "" && !line.startsWith("pi-phone-team-"));
+        const teams = entries.flatMap((entry) => (entry.knownHosts ?? []).filter((line) => line.startsWith(`${teamAlias(entry.id)} `)));
+
+        writeFileSync(this.knownHostsFile, [...own, ...teams].map((line) => `${line}\n`).join(""), { mode: 0o600 });
+        this.#writeConfig();
+
+        if (same) {
+            return;
+        }
+
+        for (const machine of changed) {
+            this.#changed(machine.id);
+        }
+
+        if (changed.length === 0) {
+            this.#changed(undefined);
+        }
+    }
+
+    /** A team machine is the team server's to change: its row in Machines does that, through it (PP-82, S3). */
+    #own(id: string): Machine {
+        const machine = this.get(id);
+
+        if (machine.team !== undefined) {
+            throw new HttpError(409, `${machine.name} is the team's: change it in Machines' team section.`);
+        }
+
+        return machine;
     }
 
     /**
@@ -200,17 +311,18 @@ export class Machines {
 
     /** The machines with an accepted host key, each with a short alias: how Pi names them (machine_run, machine_copy, pi-ssh). */
     sshHosts(): { machine: Machine; alias: string }[] {
-        const trusted = this.#machines.filter((machine) => machine.hostKey !== undefined);
+        const trusted = [...this.#machines, ...this.#team].filter((machine) => machine.hostKey !== undefined);
 
         return trusted.map((machine) => ({ machine, alias: sshAlias(machine, trusted) }));
     }
 
+    /** Own machines, then the team's this person may use (PP-82). */
     list(): Machine[] {
-        return this.#machines.map((machine) => ({ ...machine }));
+        return [...this.#machines, ...this.#team].map((machine) => ({ ...machine }));
     }
 
     get(id: string): Machine {
-        const machine = this.#machines.find((each) => each.id === id);
+        const machine = this.#machines.find((each) => each.id === id) ?? this.#team.find((each) => each.id === id);
 
         if (machine === undefined) {
             throw new HttpError(404, "There is no such machine.");
@@ -234,7 +346,10 @@ export class Machines {
             machine.tools = next;
         }
 
-        this.#save();
+        // A team machine's are kept in memory here: it is the team server's, not this pi-phone's file.
+        if (machine.team === undefined) {
+            this.#save();
+        }
     }
 
     /** Which machines use a key: for the key's row, and to refuse removing a key in use. */
@@ -245,6 +360,17 @@ export class Machines {
     /** How `ssh` reaches a machine: its key only, the app's known hosts, one alias per machine. */
     target(machine: Machine): SshTarget {
         mkdirSync(join(this.knownHostsFile, ".."), { recursive: true, mode: 0o700 });
+
+        // A team machine by its alias: its `Host` block has the relay, the agent, its address and its key (PP-82).
+        if (machine.team !== undefined) {
+            return {
+                host: teamAlias(machine.team.id),
+                identityFile: this.#teamKeyFile(machine.team.id),
+                knownHostsFile: this.knownHostsFile,
+                configFile: this.configFile,
+                hostKeyAlias: teamAlias(machine.team.id),
+            };
+        }
 
         return {
             host: machine.host,
@@ -299,7 +425,7 @@ export class Machines {
 
     /** Change the name, address, or key. A new address or key forgets the host key and the connection: scan again. */
     async edit(id: string, body: { name?: unknown; address?: unknown; keyId?: unknown }): Promise<Machine> {
-        const machine = this.get(id);
+        const machine = this.#own(id);
 
         if (body.name !== undefined) {
             machine.name = checkName(body.name);
@@ -341,7 +467,7 @@ export class Machines {
 
     /** Forgets the machine and its host key. The daemon on the machine stays unless `remove` on it was done first. */
     async remove(id: string): Promise<void> {
-        const machine = this.get(id);
+        const machine = this.#own(id);
 
         await forgetHostKey(this.target(machine));
         this.#machines = this.#machines.filter((each) => each.id !== id);
@@ -374,7 +500,7 @@ export class Machines {
 
     /** Trust the key `scan` showed. A key that differs from one accepted before is refused: the owner forgets it first. */
     async accept(id: string, lines: unknown, fingerprint: unknown): Promise<Machine> {
-        const machine = this.get(id);
+        const machine = this.#own(id);
 
         if (!Array.isArray(lines) || !lines.every((line) => typeof line === "string") || typeof fingerprint !== "string") {
             throw new HttpError(400, "Scan the machine first.");
@@ -401,7 +527,7 @@ export class Machines {
 
     /** Stop trusting the machine's host key, after the owner confirmed it changed for a known reason. */
     async forget(id: string): Promise<void> {
-        const machine = this.get(id);
+        const machine = this.#own(id);
 
         await forgetHostKey(this.target(machine));
         delete machine.hostKey;

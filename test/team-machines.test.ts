@@ -14,7 +14,7 @@ import { makeAuth } from "../src/gateway/auth.ts";
 import { checkRole } from "../src/gateway/roles.ts";
 import { type ControllerClient, Gateway } from "../src/gateway/server.ts";
 import { GatewayStore } from "../src/gateway/store.ts";
-import { TeamMachines } from "../src/gateway/team-machines.ts";
+import { isSignIn, sshString, TeamMachines } from "../src/gateway/team-machines.ts";
 import { served } from "./gateway-served.ts";
 
 after(() => cleanUp());
@@ -137,7 +137,10 @@ test("a member sees only the machines their role lists, with the public half; ne
 test("the host key and system found from a manager's pi-phone are kept for everyone; bad ones refused", async () => {
     assert.equal((await call("Ana", { action: "accept", id, lines: ["not a line"], fingerprint: "SHA256:x" })).status, 400);
 
-    const line = "pi-phone-team-x ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOV0Zm9vYmFyYmF6cXV4cXV1eHF1dXhxdXV4cXV1eA==";
+    // A line for another alias is refused: every pi-phone checks the machine's key under its own alias.
+    assert.equal((await call("Ana", { action: "accept", id, lines: ["other ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOV0"], fingerprint: "SHA256:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG" })).status, 400);
+
+    const line = `pi-phone-team-${id} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOV0Zm9vYmFyYmF6cXV4cXV1eHF1dXhxdXV4cXV1eA==`;
     const accepted = await call("Ana", { action: "accept", id, lines: [line], fingerprint: "SHA256:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG" });
 
     assert.equal(accepted.status, 200, accepted.error);
@@ -174,6 +177,23 @@ test("renamed and removed, each in the Audit log; removed, its key file and ever
         "team machine removed · ci-box",
     ]);
     assert.ok(!answers.some((text) => /PRIVATE KEY|BEGIN/.test(text)), "no private key in any answer");
+});
+
+test("what the gateway signs: a sign-in for the machine's user and key, host-bound to one of its accepted host keys", () => {
+    const blob = Buffer.from("the key blob");
+    const host = Buffer.from("the machine's host key");
+    const signIn = (method: string, user = "ci", key = blob, extra: Buffer[] = []) =>
+        Buffer.concat([sshString("session id"), Buffer.from([50]), sshString(user), sshString("ssh-connection"), sshString(method), Buffer.from([1]), sshString("ssh-ed25519"), sshString(key), ...extra]);
+
+    assert.equal(isSignIn(signIn("publickey"), "ci", blob), true);
+    assert.equal(isSignIn(signIn("publickey-hostbound-v00@openssh.com", "ci", blob, [sshString(host)]), "ci", blob, [host]), true);
+    // Another machine's host key, another user, another key, another method, or anything after: refused.
+    assert.equal(isSignIn(signIn("publickey-hostbound-v00@openssh.com", "ci", blob, [sshString(Buffer.from("elsewhere"))]), "ci", blob, [host]), false);
+    assert.equal(isSignIn(signIn("publickey", "root"), "ci", blob), false);
+    assert.equal(isSignIn(signIn("publickey", "ci", Buffer.from("other key")), "ci", blob), false);
+    assert.equal(isSignIn(signIn("password"), "ci", blob), false);
+    assert.equal(isSignIn(signIn("publickey", "ci", blob, [Buffer.from("x")]), "ci", blob), false);
+    assert.equal(isSignIn(Buffer.from("anything at all"), "ci", blob), false);
 });
 
 test("a role's team machines are checked as given", () => {

@@ -9,6 +9,7 @@
 import { randomUUID } from "node:crypto";
 import { Accounts } from "./accounts.ts";
 import { TeamAccountsClient } from "./team-accounts.ts";
+import { TeamMachinesClient } from "./team-machines.ts";
 import { PhoneSettingsFile } from "./phone-settings.ts";
 import { UsageLimits } from "./usage-limits.ts";
 import { rmSync } from "node:fs";
@@ -394,6 +395,7 @@ export class PocketApp {
     readonly accounts: Accounts;
     /** The team's provider accounts on the team server (`team-accounts.ts`, PP-69). */
     readonly teamAccounts: TeamAccountsClient;
+    readonly teamMachines: TeamMachinesClient;
     /** The subscription accounts' plan limits (`usage-limits.ts`). */
     readonly usageLimits: UsageLimits;
     /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
@@ -481,6 +483,8 @@ export class PocketApp {
             void this.#refreshClients().catch((error: unknown) => this.log(`machines not sent to the tabs: ${describe(error)}`));
         });
         this.places = new Places(this.machines, () => this.#toolPath());
+        // The team server's machines this person may use (PP-82): into Machines, reached through its relay and agent.
+        this.teamMachines = new TeamMachinesClient(this.#teamServer, sshDir, (line) => this.log(line), (entries, manage) => this.machines.setTeam(entries, manage));
         this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
         // A team account's sign-in steps go to this pi-phone's person, as their own sign-ins' do (not to teammates).
         const phoneSettings = new PhoneSettingsFile(options.dataDir);
@@ -658,6 +662,9 @@ export class PocketApp {
         this.accounts.registerAll();
         // And the team's accounts this person may use, on the team server (PP-69): before sessions on them resume too.
         await this.syncTeamAccounts(false);
+        // The team's machines (PP-82): their relay and agent, then the list, before sessions on them resume.
+        await this.teamMachines.start();
+        await this.syncTeamMachines();
         measureModelStreams(this.models);
         await this.models.getAvailable().catch(() => []);
 
@@ -3434,8 +3441,9 @@ export class PocketApp {
         const policy = checkPolicy(given);
 
         this.policy.set(policy);
-        // The team accounts the role may use come with the policy's change (PP-69).
+        // The team accounts and machines the role may use come with the policy's change (PP-69, PP-82).
         await this.syncTeamAccounts();
+        await this.syncTeamMachines();
 
         for (const [file, permission] of Object.entries(POLICY_EXTENSIONS)) {
             if (this.loader.list().some((each) => each.file === file)) {
@@ -3463,6 +3471,18 @@ export class PocketApp {
         // Tabs get the models again; not while the app opens (nothing is drawn yet).
         if (tell) {
             this.providers.modelsChanged();
+        }
+    }
+
+    /**
+     * The team machines this person may use (PP-82): at start, with the role's policy, and when Machines opens. A team
+     * server that does not answer leaves them as they were, and says so in the log.
+     */
+    async syncTeamMachines(): Promise<void> {
+        try {
+            await this.teamMachines.sync();
+        } catch (error) {
+            this.log(`Team machines not listed: ${describe(error)}`);
         }
     }
 
@@ -4090,6 +4110,7 @@ export class PocketApp {
                 this.forwards.closeAll();
                 await this.para.close();
                 await this.places.close(context);
+                await this.teamMachines.close();
                 this.sshAgent.stop();
                 this.sshKeys.close();
             } finally {

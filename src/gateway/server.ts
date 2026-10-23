@@ -10,7 +10,7 @@
  */
 import { createReadStream, createWriteStream, existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
+import { request as httpRequest, type IncomingMessage, type ServerResponse, STATUS_CODES } from "node:http";
 import { connect as netConnect } from "node:net";
 import { type Duplex, Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -90,6 +90,10 @@ export class Gateway {
     readonly #authHandler: ReturnType<typeof toNodeHandler>;
     /** People whose pi-phone the controller said is running, and when. */
     readonly #ready = new Map<string, { host: string; port: number; at: number }>();
+    /** Open team-machine connections (PP-82): by person and machine, closed when access goes. */
+    readonly #teamPipes = new Set<{ userId: string; machineId: string; close: () => void }>();
+    /** When each person's connection to each team machine was last written to the audit log: once an hour at most. */
+    readonly #teamAudited = new Map<string, number>();
     readonly #starting = new Map<string, Promise<{ host: string; port: number }>>();
     /** The policy each person's pi-phone has from this gateway, as JSON, by key (PP-22). */
     readonly #applied = new Map<string, string>();
@@ -764,6 +768,17 @@ export class Gateway {
             };
         }
 
+        // A sign-in to the machine, for this pi-phone's agent (S2): checked against the role every time, and only a sign-in.
+        if (action === "sign") {
+            const refused = this.#mayReach(me.id, id);
+
+            if (refused !== undefined) {
+                throw new HttpError(403, refused);
+            }
+
+            return { signature: machines.signIn(id, Buffer.from(String(asked.data ?? ""), "base64")).toString("base64") };
+        }
+
         if (!manage) {
             throw new HttpError(403, `${role.name} does not include managing the team's machines: ask your team's owner.`);
         }
@@ -807,12 +822,127 @@ export class Gateway {
 
                 machines.remove(id);
                 store.audit(actor, "team machine removed", name);
+                this.#recheckTeamPipes();
 
                 return { ok: true };
             }
             default:
                 throw new HttpError(400, "No such action on team machines.");
         }
+    }
+
+    /**
+     * Why a person may not reach a team machine now, or undefined when they may: a pi-phone of their own, machines, and
+     * the machine in their role's list; or machines.manage (to scan, accept and install it before anyone uses it).
+     */
+    #mayReach(userId: string, machineId: string): string | undefined {
+        const store = this.#options.store;
+        const me = store.users().find((each) => each.id === userId);
+        const machine = this.#options.teamMachines.get(machineId);
+
+        if (me === undefined || me.banned || !store.can(me.id, me.role, "pi.use")) {
+            return "This pi-phone's person can't use the team's machines.";
+        }
+
+        if (machine === undefined) {
+            return "No such team machine.";
+        }
+
+        const role = store.roleOf(me.id, me.role);
+        const listed = store.can(me.id, me.role, "machines.use") && (role.builtin || (role.teamMachines ?? []).includes(machineId));
+
+        return listed || store.can(me.id, me.role, "machines.manage") ? undefined : `${role.name} may not use ${machine.name}: ask your team's owner.`;
+    }
+
+    /** Every open team-machine connection whose person may no longer reach its machine: closed now (PP-82). */
+    #recheckTeamPipes(): void {
+        for (const pipe of this.#teamPipes) {
+            if (this.#mayReach(pipe.userId, pipe.machineId) !== undefined) {
+                pipe.close();
+            }
+        }
+    }
+
+    /**
+     * A connection to a team machine for a person's pi-phone (PP-82, S2), on the internal port: an HTTP upgrade to a raw
+     * TCP pipe to the machine's own address, and nowhere else. Checked against their role when it opens, and closed when
+     * their access goes; written to the audit log (once an hour per person and machine). A refusal answers with its
+     * reason as text, which the pi-phone's ssh shows.
+     */
+    async internalUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
+        const store = this.#options.store;
+        const refuse = (status: number, message: string): void => {
+            socket.end(`HTTP/1.1 ${status} ${STATUS_CODES[status] ?? "Refused"}\r\ncontent-type: text/plain; charset=utf-8\r\nconnection: close\r\n\r\n${message}`);
+        };
+        const given = /^Bearer (.+)$/.exec(request.headers.authorization ?? "")?.[1] ?? "";
+        const box = store.boxByToken(given);
+        const id = /^\/internal\/team-machines\/([a-z0-9]{12})\/connect$/.exec((request.url ?? "").split("?")[0]!)?.[1];
+
+        socket.on("error", () => socket.destroy());
+
+        if (box === undefined) {
+            return refuse(401, "Not a pi-phone of this server.");
+        }
+
+        if (id === undefined) {
+            return refuse(404, "No such route.");
+        }
+
+        const refused = this.#mayReach(box.userId, id);
+
+        if (refused !== undefined) {
+            return refuse(403, refused);
+        }
+
+        const machine = this.#options.teamMachines.get(id)!;
+        const tcp = netConnect({ host: machine.host, port: machine.port ?? 22 });
+
+        tcp.setTimeout(15_000);
+        tcp.once("timeout", () => tcp.destroy(new Error("it does not answer")));
+        tcp.once("error", (error) => {
+            if (!socket.destroyed) {
+                refuse(502, `Could not reach ${machine.name} (${machine.user}@${machine.host}): ${error.message}`);
+            }
+        });
+        tcp.once("connect", () => {
+            tcp.setTimeout(0);
+            socket.write("HTTP/1.1 101 Switching Protocols\r\nupgrade: pi-team-tcp\r\nconnection: Upgrade\r\n\r\n");
+
+            if (head.length > 0) {
+                tcp.write(head);
+            }
+
+            const pipe = {
+                userId: box.userId,
+                machineId: id,
+                close: () => {
+                    tcp.destroy();
+                    socket.destroy();
+                },
+            };
+
+            this.#teamPipes.add(pipe);
+            tcp.removeAllListeners("error");
+            tcp.on("error", () => pipe.close());
+            tcp.on("close", () => {
+                socket.destroy();
+                this.#teamPipes.delete(pipe);
+            });
+            socket.on("close", () => {
+                tcp.destroy();
+                this.#teamPipes.delete(pipe);
+            });
+            socket.pipe(tcp);
+            tcp.pipe(socket);
+
+            const key = `${box.userId}:${id}`;
+            const now = this.#now();
+
+            if (now - (this.#teamAudited.get(key) ?? 0) > 3_600_000) {
+                this.#teamAudited.set(key, now);
+                store.audit(box.userId, "team machine connected", machine.name);
+            }
+        });
     }
 
     /**
@@ -1756,6 +1886,7 @@ export class Gateway {
                 store.setRoleOf(id, roleId);
                 store.audit(actor, "role given", id, { from: targetRole.id, to: roleId });
                 this.#forgetReady(id);
+                this.#recheckTeamPipes();
 
                 return json(response, 200, { ok: true });
             }
@@ -1810,6 +1941,8 @@ export class Gateway {
             }
 
             store.audit(actor, action, id);
+            // Disabled or removed: their team-machine connections close.
+            this.#recheckTeamPipes();
 
             return json(response, 200, { ok: true });
         }
@@ -1831,11 +1964,13 @@ export class Gateway {
         }
     }
 
-    /** Everyone with role `roleId` gets its caps on their next request. */
+    /** Everyone with role `roleId` gets its caps on their next request; team machines it no longer lists close. */
     #recap(roleId: string): void {
         for (const [userId] of this.#options.store.peopleWithRole(roleId)) {
             this.#forgetReady(userId);
         }
+
+        this.#recheckTeamPipes();
     }
 }
 

@@ -91,6 +91,9 @@ const server = createServer(
 // The internal port: only people's pi-phones reach it, on their own networks (PP-39). Caddy sends nothing there.
 const internal = createServer((request, response) => void gateway.internal(request, response));
 
+// Team machines' connections (PP-82): an upgrade to a raw pipe to the machine, for pi-phones only.
+internal.on("upgrade", (request, socket, head) => void gateway.internalUpgrade(request, socket, head));
+
 internal.listen(Number(process.env.PP_GATEWAY_INTERNAL_PORT ?? 8081), "0.0.0.0");
 
 // Idle pi-phones stop (PP-33).
