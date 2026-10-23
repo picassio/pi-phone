@@ -827,7 +827,10 @@ export class PiBrowser {
      * What is in view, as a JPEG (or a PNG, to keep); with `index`, only the dialog, menu or list that control is in, or
      * the control (PP-118). `whole` says which.
      */
-    screenshot(session: number, { png = false, index, marks = [] }: { png?: boolean; index?: number; marks?: PageMark[] } = {}): Promise<{ data: string; whole?: string }> {
+    screenshot(
+        session: number,
+        { png = false, index, marks = [] }: { png?: boolean; index?: number; marks?: PageMark[] } = {},
+    ): Promise<{ data: string; whole?: string; title: string; url: string; viewport: { width: number; height: number } }> {
         return this.#run(session, index === undefined ? "Looking at the page" : this.#doing("Looking at", index), async ({ id, page }) => {
             let clip: PictureClip | undefined;
             let whole: string | undefined;
@@ -841,14 +844,18 @@ export class PiBrowser {
             // Where each mark goes, read just before the picture (PP-119).
             const placed = marks.length === 0 ? [] : await this.#place(page, marks, clip);
             const data = await this.#options.engine.picture(id, page, placed.length === 0 ? (index === undefined ? 70 : 80) : 92, undefined, { png, ...(clip === undefined ? {} : { clip }) });
+            // The page the picture is of, read in the same step (PP-129): the caption says what the picture shows, even
+            // when other calls change the page right after.
+            const [title, url] = await page.evaluate<[string, string]>("[document.title, location.href]").catch(() => [this.#state.title, this.#state.url] as [string, string]);
+            const about = { title, url, viewport: { ...this.#state.viewport }, ...(whole === undefined ? {} : { whole }) };
 
             if (placed.length === 0) {
-                return { data, ...(whole === undefined ? {} : { whole }) };
+                return { data, ...about };
             }
 
             const marked = markUp(Buffer.from(data, "base64"), placed, { png, cssWidth: clip?.width ?? this.#state.viewport.width });
 
-            return { data: Buffer.from(marked.bytes).toString("base64"), ...(whole === undefined ? {} : { whole }) };
+            return { data: Buffer.from(marked.bytes).toString("base64"), ...about };
         });
     }
 

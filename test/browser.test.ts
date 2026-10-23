@@ -488,6 +488,28 @@ test("with Chrome: after switching between phone and desktop sizes, clicks and t
     }
 });
 
+test("with Chrome: a picture's caption is of the page pictured, though another call changes the page right after (PP-129)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    const browser = new PiBrowser({
+        engine: new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]),
+        changed: () => {},
+        frame: () => {},
+        log: () => {},
+    });
+
+    try {
+        await browser.open(1, "http://pi.test/aim");
+
+        // As two calls in one batch: the picture first, then an open that the browser takes right after it.
+        const [shot] = await Promise.all([browser.screenshot(1), browser.open(1, "http://pi.test/two")]);
+
+        assert.equal(browser.state().url, "http://pi.test/two");
+        assert.deepEqual([shot.title, shot.url], ["Aim", "http://pi.test/aim"], "the caption of the page in the picture");
+        assert.deepEqual(shot.viewport, { width: 412, height: 860 });
+    } finally {
+        await browser.close();
+    }
+});
+
 test("with Chrome: a tab still listed while it closes does not fail the next open (PP-126)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
     const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
     // A tab that closed after the list was read, as a slow page leaves it just after browser_close: Chrome answers 500.

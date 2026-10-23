@@ -323,7 +323,7 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_screenshot",
             description:
-                `See what is in view in Pi's browser as a picture (for models that take images). With path, also save it to a file where this session works (.png or .jpg), for documents (doc_image) or reports. With index, picture only the dialog, menu or list that control is in, or else the control. The picture is what is in view: scroll first for more. ${MARKS_NOTE} Each mark is on a control (index), on every place a text shows (text: for a secret that is not a control), or on an area of the view in CSS pixels; a control out of view or a text not shown is an error, never a picture with it left showing.`,
+                `See what is in view in Pi's browser as a picture (for models that take images). With path, also save it to a file where this session works (.png or .jpg), for documents (doc_image) or reports. With index, picture only the dialog, menu or list that control is in, or else the control. The picture is what is in view: scroll first for more. Pi's browser takes calls in the order they come: one made in the same batch as other browser calls (or a codemode script that uses the browser) may land between their steps, so take the picture after them. ${MARKS_NOTE} Each mark is on a control (index), on every place a text shows (text: for a secret that is not a control), or on an area of the view in CSS pixels; a control out of view or a text not shown is an error, never a picture with it left showing.`,
             parameters: Type.Object({
                 path: Type.Optional(Type.String({ description: "Save it here too, ending in .png or .jpg: absolute or relative to this session's folder" })),
                 index: Type.Optional(Type.Integer({ minimum: 1, description: "A control: the picture is of the dialog, menu or list it is in, or of the control" })),
@@ -356,8 +356,9 @@ export default function createBrowser(host: PocketHost) {
                 const browser = await browserOf(api, context);
 
                 try {
+                    // The caption is of the page as pictured, read with it (PP-129), not the browser's state afterwards.
                     const shot = await browser.screenshot(Number(api.conversationId), { png: kind === "png", index: args.index, marks: args.marks ?? [] });
-                    const state = browser.state();
+                    const state = shot;
                     const what = shot.whole === undefined ? "" : shot.whole === "control" ? `, only [${args.index}]` : `, only the ${shot.whole} that [${args.index}] is in`;
                     let saved = "";
 
