@@ -2,8 +2,9 @@
 // never finishes, and who hears about it all.
 import { cleanUp, root, until } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { after, test } from "node:test";
 import { createRegistry } from "@earendil-works/pi-durable";
 import { ExtensionWebs } from "../src/server/extension-web.ts";
@@ -11,6 +12,19 @@ import type { PocketHost } from "../src/server/host.ts";
 import { ExtensionLoader } from "../src/server/reload.ts";
 
 after(cleanUp);
+
+// The loader loads every file in the built-in extensions' folder: a shared module there (no default export) fails to
+// load on every start, so shared code lives beside the folder, not in it.
+test("every module in the built-in extensions' folder is an extension", async () => {
+    const folder = join(import.meta.dirname, "../src/server/extensions");
+    const files = readdirSync(folder).filter((name) => name.endsWith(".ts"));
+    assert.ok(files.length > 10);
+
+    for (const file of files) {
+        const loaded = (await import(pathToFileURL(join(folder, file)).href)) as { default?: unknown };
+        assert.equal(typeof loaded.default, "function", `${file} has no default export function`);
+    }
+});
 
 /** What the test modules reach on `globalThis`: gates to hold their import, and counts of their cleanups. */
 const shared = globalThis as unknown as {

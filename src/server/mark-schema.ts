@@ -3,7 +3,7 @@
  * view) and `image_markup` (on areas of a picture file).
  */
 import { Type } from "@earendil-works/pi-ai";
-import { MARK_COLORS } from "../markup.ts";
+import { MARK_COLORS } from "./markup.ts";
 
 export const MARK_STYLE = {
     box: Type.Optional(Type.Boolean({ description: "An outline around it (default true, unless hidden)" })),

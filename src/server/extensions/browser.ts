@@ -11,7 +11,7 @@ import { addressOf, PRESSABLE, StalePage } from "../browser/page.ts";
 import { MAX_TABS, type PiBrowser } from "../browser/pi-browser.ts";
 import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
-import { AREA, MARK_STYLE, MARKS_NOTE } from "./mark-schema.ts";
+import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 /** How much of a whole page `browser_text` gives at once. */

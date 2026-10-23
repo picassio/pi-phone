@@ -9,7 +9,7 @@ import { defineExtension, defineTool, section } from "@earendil-works/pi-durable
 import type { PocketHost } from "../host.ts";
 import { describeLayout } from "../layout-check.ts";
 import { isPng, markUp } from "../markup.ts";
-import { AREA, MARK_STYLE, MARKS_NOTE } from "./mark-schema.ts";
+import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 
