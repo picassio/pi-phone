@@ -44,7 +44,15 @@ async function inPage<T>(expression: string): Promise<T> {
 }
 
 const sheetText = () => inPage<string>(`document.querySelector(".sheet")?.innerText ?? ""`);
-const click = (label: string) => inPage<boolean>(`(() => { const b = [...document.querySelectorAll(".sheet button")].find((e) => e.textContent.trim() === ${JSON.stringify(label)}); b?.click(); return b !== undefined; })()`);
+/** Click the sheet's button `label` once it is there and enabled (the sheet's buttons wait while a step of it runs). */
+const click = async (label: string) => {
+    await until(
+        () => inPage<boolean>(`(() => { const b = [...document.querySelectorAll(".sheet button")].find((e) => e.textContent.trim() === ${JSON.stringify(label)}); if (!b || b.disabled) return false; b.click(); return true; })()`),
+        `the ${label} button`,
+    );
+
+    return true;
+};
 
 before(async () => {
     if (chrome === undefined) {
