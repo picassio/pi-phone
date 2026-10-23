@@ -93,6 +93,9 @@ What changes from the phone:
 - **OfficeCLI, ripgrep, fd, git, gh and ssh** are in the image.
 - **Phone-only parts are off:** app updates (pull a new image instead), Downloads to the phone, Android notifications,
   and Tailscale serving (Caddy serves it).
+- **Push notifications** instead, in each person's browsers (Menu › Notifications): each pi-phone makes its own VAPID
+  key pair (`/data/pocket/web-push.json`, mode 600) and sends to the push services itself (outbound HTTPS from its
+  container); nothing to configure. Browsers need the HTTPS address; an iPhone needs pi-phone on its Home Screen.
 - **Everything is under `/data`, a volume:**
   - the app's data in `/data/pocket`;
   - the home folder Pi works in, `/data/home`, with sessions starting in `/data/home/work`;

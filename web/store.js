@@ -1377,27 +1377,33 @@ export function discuss(entryId, text) {
     }));
 }
 
-// Tell the server when this tab is hidden or shown: others see "away", and push notifications only reach hidden tabs.
+/** Where this browser keeps its push subscription's id while notifications are on here (`web/push.js`, PP-127). */
+export const PUSH_KEY = "pocket.pushId";
+
+// Tell the server when this tab is hidden or shown: others see "away", and push notifications only reach a browser with
+// no pi-phone tab in front (the tab names its browser's subscription).
 let lastVisible = null;
 
-function reportVisibility() {
+export function reportVisibility(force = false) {
     const visible = document.visibilityState === "visible";
+    const push = localStorage.getItem(PUSH_KEY);
 
-    if (visible === lastVisible || !collab()) {
+    if ((visible === lastVisible && !force) || (!collab() && push === null)) {
         return;
     }
 
     lastVisible = visible;
-    api("visibility", { tab: TAB, visible }).catch(() => {});
+    api("visibility", { tab: TAB, visible, ...(push === null ? {} : { push }) }).catch(() => {});
 }
 
-document.addEventListener("visibilitychange", reportVisibility);
+document.addEventListener("visibilitychange", () => reportVisibility());
 store.subscribe((state) => {
-    // Report again after each (re)connect: the server starts every new connection as visible.
+    // Report again after each (re)connect: the server starts every new connection as visible, and without its browser's
+    // push subscription.
     if (state.connection !== "open") {
         lastVisible = null;
-    } else if (lastVisible === null && document.visibilityState !== "visible") {
-        reportVisibility();
+    } else if (lastVisible === null && (document.visibilityState !== "visible" || localStorage.getItem(PUSH_KEY) !== null)) {
+        reportVisibility(true);
     }
 });
 

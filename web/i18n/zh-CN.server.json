@@ -532,5 +532,9 @@
     "{1} is a broken link, or inside one.": "{1} 是一个失效的链接，或位于其中。",
     "Could not make {1}: {2}": "无法创建 {1}：{2}",
     "Editing team documents is not part of your role.": "你的角色不能编辑团队文档。",
-    "You are a viewer on {1}: its documents are its members' to write.": "你在 {1} 中是查看者：它的文档由成员编写。"
+    "You are a viewer on {1}: its documents are its members' to write.": "你在 {1} 中是查看者：它的文档由成员编写。",
+    "Turn notifications on from the app's page.": "请在应用的页面上开启通知。",
+    "Notifications are not on for that device.": "该设备未开启通知。",
+    "That device's notifications ended: turn them on there again.": "该设备的通知已失效：请在那台设备上重新开启。",
+    "The notification did not go: {why}": "通知未能发出：{why}"
 }

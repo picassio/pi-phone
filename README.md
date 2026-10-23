@@ -218,7 +218,10 @@ No Termux, no laptop, no cloud VM.
 - **A terminal.** A real shell inside the app, on the phone or on a machine, with Esc, Tab, Ctrl, and arrow keys
   above the keyboard.
 - **Changes** of the session's folder (only its own, even inside a bigger repository), with diffs and undo.
-- **Notifications** when a session finishes, fails, or asks for approval; **downloads** of any file Pi made or
+- **Notifications** when a session finishes, fails, or asks for approval: from the app on the phone, and as push
+  notifications in a browser at an HTTPS address (the team server, a desktop, an iPhone with pi-phone on its Home Screen),
+  even with no tab open. Menu › **Notifications** turns them on for that browser, lists the others, and sends a test;
+  a browser with pi-phone open in front gets none. **Downloads** of any file Pi made or
   named (tap its path, then Download), and of any image in a conversation (tap it, then Download): to the phone's Downloads in the app, or as the browser's download elsewhere; **backup and
   restore** of everything.
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
@@ -323,6 +326,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
 | Other devices and people | **Access** (Tailscale), **People** (devices, invites, recovery code) | Yes for listing devices, signing one or all out, or changing a person's role. The recovery code is yours |
+| Push notifications in a browser | **Notifications**: Turn on, Send a test, Remove another browser's | No: a browser asks you itself, on that device |
 | Notifications, screen off, backup | **This phone** | Yes for making a backup. Restoring one is yours |
 | The app's language (Auto, English, 简体中文) | **Appearance › Language**, kept with you on every device | "Switch my app to Chinese" |
 | Appearance, dictation language | **Appearance** and **Dictation**, per browser tab | Only the theme new browsers start with ("make lantern the default theme") |

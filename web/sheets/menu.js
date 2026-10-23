@@ -17,6 +17,7 @@ const compactHint = (at) => (typeof at === "number" ? t("now, or by itself at {n
 import { setArchived } from "../sessions.js";
 import { isRemotePlace, splitPlace } from "../place.js";
 import { openSubagent } from "../subagents.js";
+import { pushId, pushSupport } from "../push.js";
 import {
     actions,
     api,
@@ -488,6 +489,7 @@ export function MenuSheet({ places = true }) {
         <div class="group">
             <div class="group-title">${t("App")}</div>
             ${item("Appearance", () => openSheet({ type: "appearance" }), lookLabel())}
+            ${me?.role === "owner" && !["app", "space"].includes(pushSupport()) && item("Notifications", () => openSheet({ type: "notifications" }), pushId() === null ? "off on this device" : "on on this device")}
             ${voiceAvailable() && item("Dictation", () => openSheet({ type: "dictation" }), dictationLanguage())}
             ${!touch && item("Keyboard shortcuts", () => openSheet({ type: "shortcuts" }), "?")}
             ${

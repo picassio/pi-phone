@@ -27,7 +27,7 @@ import {
 } from "../auth.ts";
 import type { User } from "../config.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
-import { addressOf } from "../devices.ts";
+import { addressOf, deviceName } from "../devices.ts";
 import { HttpError } from "../errors.ts";
 import { resolveLanguage, translator } from "../i18n.ts";
 import { inLanguage } from "../phone-events.ts";
@@ -322,9 +322,9 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "visibility" && method === "POST") {
-            const body = await readJson<{ tab?: unknown; visible?: unknown }>(request);
+            const body = await readJson<{ tab?: unknown; visible?: unknown; push?: unknown }>(request);
 
-            app.setVisible(user, String(body.tab ?? ""), body.visible !== false);
+            app.setVisible(user, String(body.tab ?? ""), body.visible !== false, typeof body.push === "string" ? body.push.slice(0, 64) : undefined);
 
             return json(response, 200, { ok: true });
         }
@@ -525,6 +525,67 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
                 return json(response, 200, { ok: true });
             }
+        }
+
+        // Push notifications for the web UI (PP-127, `web-push.ts`): the key to subscribe with, and the browsers that did.
+        if (first === "push" && second === undefined && method === "GET") {
+            requireOwner(user);
+
+            return json(response, 200, {
+                publicKey: app.webPush.publicKey(),
+                subscriptions: app.webPush.list().map((each) => ({ id: each.id, name: each.name, createdAt: each.createdAt, ...(each.lastSentAt === undefined ? {} : { lastSentAt: each.lastSentAt }), ...(each.lastError === undefined ? {} : { lastError: each.lastError }) })),
+            });
+        }
+
+        // This browser turned notifications on: its subscription, named after the browser, at the app's address it uses.
+        if (first === "push" && second === undefined && method === "POST") {
+            requireOwner(user);
+
+            const body = await readJson<{ subscription?: unknown; language?: unknown }>(request);
+            const origin = request.headers.origin;
+
+            if (typeof origin !== "string" || origin === "null") {
+                throw new HttpError(400, "Turn notifications on from the app's page.");
+            }
+
+            try {
+                const record = app.webPush.subscribe(body.subscription, {
+                    name: deviceName(String(request.headers["user-agent"] ?? ""), addressOf(request)),
+                    ...(typeof body.language === "string" ? { language: body.language } : {}),
+                    origin,
+                });
+
+                return json(response, 200, { id: record.id, name: record.name });
+            } catch (error) {
+                throw new HttpError(400, error instanceof Error ? error.message : String(error));
+            }
+        }
+
+        if (first === "push" && second !== undefined && third === undefined && method === "DELETE") {
+            requireOwner(user);
+            app.webPush.remove(second);
+
+            return json(response, 200, { ok: true });
+        }
+
+        // A test notification to one browser, in its language (or the owner's choice).
+        if (first === "push" && second !== undefined && third === "test" && method === "POST") {
+            requireOwner(user);
+
+            const record = app.webPush.list().find((each) => each.id === second);
+
+            if (record === undefined) {
+                throw new HttpError(404, "Notifications are not on for that device.");
+            }
+
+            const t = translator(resolveLanguage(user.language, record.language));
+            const outcome = await app.webPush.send(record, { title: "pi-phone", body: t("Notifications work on {device}.", { device: record.name }), url: "/", tag: "pi-phone-test" });
+
+            if (outcome !== "sent") {
+                throw new HttpError(502, outcome === "gone" ? t("That device's notifications ended: turn them on there again.") : t("The notification did not go: {why}", { why: app.webPush.list().find((each) => each.id === second)?.lastError ?? "" }));
+            }
+
+            return json(response, 200, { ok: true });
         }
 
         // What the app's background service notifies the owner of (`phone-events.ts`): a long poll.

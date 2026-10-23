@@ -21,6 +21,7 @@ import { TerminalSheet } from "./terminal.js";
 import { PiHandoffSheet } from "./sheets/pi-handoff.js";
 import { ForwardsSheet } from "./sheets/forwards.js";
 import { PhoneSheet } from "./sheets/phone.js";
+import { NotificationsSheet } from "./sheets/notifications.js";
 import { SendLimitSheet } from "./sheets/send-limit.js";
 import { BrowserSheet } from "./sheets/browser.js";
 import { UpdateSheet } from "./sheets/update.js";
@@ -250,6 +251,9 @@ function sheetBody(sheet) {
             break;
         case "phone":
             body = html`<${PhoneSheet} />`;
+            break;
+        case "notifications":
+            body = store.state.me?.role === "owner" ? html`<${NotificationsSheet} />` : null;
             break;
         case "forwards":
             body = html`<${ForwardsSheet} machineId=${sheet.machineId} />`;

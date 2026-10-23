@@ -839,6 +839,7 @@ const LINKED_SHEETS = new Set([
     "dictation",
     "github",
     "machines",
+    "notifications",
     "people",
     "phone",
     "providers",

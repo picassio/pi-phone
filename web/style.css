@@ -6656,6 +6656,20 @@ pre.diff .del {
     justify-content: flex-end;
 }
 
+/* Notifications (PP-127): the other browsers that have them, one row each with its Remove. */
+.provider .push-device {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.4rem 0;
+    border-top: 1px solid var(--hair);
+}
+
+.provider .push-device:first-of-type {
+    border-top: 0;
+}
+
 /* A provider that may have more accounts, and each account (accounts.ts): several buttons, so they go under the row. */
 .provider.family {
     flex-direction: column;

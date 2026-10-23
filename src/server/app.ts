@@ -84,8 +84,9 @@ import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
-import { PhoneEvents, type Said, said } from "./phone-events.ts";
-import { translator } from "./i18n.ts";
+import { inLanguage, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
+import { resolveLanguage, translator } from "./i18n.ts";
+import { WebPush } from "./web-push.ts";
 import { Forwards } from "./forwards.ts";
 import { SessionControl } from "./session-control.ts";
 import { Para } from "./para.ts";
@@ -312,6 +313,8 @@ export class PocketApp {
     readonly approvals = new Approvals((id) => this.attribution.requesterOf(id));
     /** What the app's background service notifies the owner of (`phone-events.ts`). */
     readonly phoneEvents = new PhoneEvents();
+    /** The same, as push notifications to the browsers that turned them on (`web-push.ts`, PP-127). */
+    readonly webPush: WebPush;
     /** Pictures of pages, rendered by the app's service on the phone (`screenshots.ts`). */
     readonly screenshots = new Screenshots();
     /** Keys to the files beside a session's HTML page, for the page (`file-pages.ts`). */
@@ -465,6 +468,8 @@ export class PocketApp {
         this.gateway = options.gateway === true;
         this.#teamServer = options.gatewayUrl !== undefined && options.ownerToken !== undefined ? { url: options.gatewayUrl.replace(/\/+$/, ""), token: options.ownerToken } : undefined;
         this.config = new ConfigStore(options.dataDir, options.ownerToken === undefined ? {} : { ownerToken: options.ownerToken });
+        this.webPush = new WebPush({ file: join(options.dataDir, "web-push.json"), log: (line) => this.log(line) });
+        this.phoneEvents.onPosted((event) => void this.#pushEvent(event));
         // The app's own ssh (`ssh/` in the data folder): its agent holds the keys, which the database keeps.
         const sshDir = join(options.dataDir, "ssh");
 
@@ -1760,10 +1765,21 @@ export class PocketApp {
         );
     }
 
-    /** A tab was hidden or shown: hidden tabs show their person as away, and let push notifications through. */
-    setVisible(user: User, tab: string, visible: boolean): void {
+    /**
+     * A tab was hidden or shown: hidden tabs show their person as away, and let push notifications through. `pushId`: the
+     * push subscription of the tab's browser (PP-127), which gets no push while one of its tabs is visible.
+     */
+    setVisible(user: User, tab: string, visible: boolean, pushId?: string): void {
         for (const client of this.#clients) {
-            if (client.user.id !== user.id || client.id !== tab || client.visible === visible) {
+            if (client.user.id !== user.id || client.id !== tab) {
+                continue;
+            }
+
+            if (pushId !== undefined) {
+                client.pushId = pushId;
+            }
+
+            if (client.visible === visible) {
                 continue;
             }
 
@@ -1776,6 +1792,32 @@ export class PocketApp {
                     () => {},
                 );
             }
+        }
+    }
+
+    /**
+     * What the phone is told (`phone-events.ts`), as a push to each browser that turned notifications on (PP-127): in the
+     * owner's language, or the browser's with Auto; not to a browser with a pi-phone tab visible now, which shows it.
+     */
+    async #pushEvent(event: PhoneEvent): Promise<void> {
+        const owner = this.config.users.find((user) => user.role === "owner");
+
+        for (const record of this.webPush.list()) {
+            if ([...this.#clients].some((client) => client.pushId === record.id && client.visible !== false)) {
+                continue;
+            }
+
+            const shown = inLanguage(event, translator(resolveLanguage(owner?.language, record.language)));
+            const security = event.kind === "security";
+
+            await this.webPush.send(record, {
+                title: shown.heading,
+                body: shown.text,
+                url: security ? "/" : `/s/${event.session}`,
+                // One per session: its newest says where it is. Security notices each their own.
+                tag: security ? `pi-phone-security-${event.seq}` : `pi-phone-s${event.session}`,
+                urgency: event.kind === "approval" || security ? "high" : "normal",
+            });
         }
     }
 

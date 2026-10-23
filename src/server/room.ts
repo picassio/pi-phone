@@ -131,6 +131,8 @@ export interface Client {
     close?(): void;
     /** False while the tab is hidden: the person is away, and push notifications may reach them. */
     visible?: boolean;
+    /** The push subscription of this tab's browser (`web-push.ts`), as the tab says: no push to it while the tab is visible. */
+    pushId?: string;
     /** Entries this client has, so updates carry only new ones. */
     readonly sentEntries: Set<number>;
     orderKey: string;

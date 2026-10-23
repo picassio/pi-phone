@@ -57,6 +57,15 @@ export class PhoneEvents {
     readonly #listeners = new Set<(event: Omit<PhoneEvent, "seq" | "at">) => void>();
     /** Sessions whose ends the phone does not hear (task and main sessions: the board says it); approvals it always does. */
     readonly #quiet = new Set<(session: number) => boolean>();
+    /** Who hears what the phone is told, after the quiet rules: push notifications for the web UI (PP-127). */
+    readonly #posted = new Set<(event: PhoneEvent) => void>();
+
+    /** Hear each event the phone is told (not the quiet ones), as it is; returns how to stop. */
+    onPosted(listener: (event: PhoneEvent) => void): () => void {
+        this.#posted.add(listener);
+
+        return () => this.#posted.delete(listener);
+    }
 
     /** Hear every event, quiet or not; returns how to stop. */
     subscribe(listener: (event: Omit<PhoneEvent, "seq" | "at">) => void): () => void {
@@ -85,10 +94,20 @@ export class PhoneEvents {
             return;
         }
 
-        this.#events.push({ ...event, seq: ++this.#seq, at: Date.now() });
+        const posted = { ...event, seq: ++this.#seq, at: Date.now() };
+
+        this.#events.push(posted);
 
         if (this.#events.length > KEPT) {
             this.#events.shift();
+        }
+
+        for (const listener of this.#posted) {
+            try {
+                listener(posted);
+            } catch {
+                // A listener's trouble is its own: the phone still hears.
+            }
         }
 
         for (const wake of [...this.#waiting]) {

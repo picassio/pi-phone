@@ -96,8 +96,8 @@ export function createHandler(options: HttpOptions) {
                 return await joinPage(app, auth, request, response, parts[1]);
             }
 
-            // Shares from other apps go to the service worker (web/sw.js). One that reaches the server came before the
-            // worker was installed on this device; nothing here knows where it should go.
+            // Shares from other apps (the manifest's share target): pi-phone's service worker (web/sw.js) is for push
+            // notifications only and does not take them, so they reach the server, which knows nowhere to put them.
             if (parts[0] === "share" && request.method === "POST") {
                 return sharePage(response);
             }
