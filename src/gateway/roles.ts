@@ -32,6 +32,13 @@ export const CATALOGUE = [
         },
     },
     {
+        group: "Team machines",
+        enforced: "gateway",
+        permissions: {
+            "machines.manage": "Add, change and remove the team's machines (computers whose sessions people's roles let them run, with a key kept on the team server)",
+        },
+    },
+    {
         group: "Documents",
         enforced: "gateway",
         permissions: {
@@ -87,6 +94,8 @@ export type Role = {
     teamAccounts?: string[];
     /** Dollars a month each of its people may spend on the team's accounts (PP-73), apart from spendLimit; null: no limit. */
     teamSpendLimit?: number | null;
+    /** The team machines (by id) its people may use (PP-82); the owner's role: every one. */
+    teamMachines?: string[];
     /** The owner's role: everything, not editable. */
     builtin: boolean;
 };
@@ -113,6 +122,7 @@ export function checkRole(given: Record<string, unknown>, id: string): Role {
     const spendLimit = given.spendLimit === null || given.spendLimit === undefined || given.spendLimit === "" ? null : Number(given.spendLimit);
     const teamSpendLimit = given.teamSpendLimit === null || given.teamSpendLimit === undefined || given.teamSpendLimit === "" ? null : Number(given.teamSpendLimit);
     const teamAccounts = Array.isArray(given.teamAccounts) ? [...new Set(given.teamAccounts.map((each) => String(each).trim()).filter((each) => each !== ""))] : [];
+    const teamMachines = Array.isArray(given.teamMachines) ? [...new Set(given.teamMachines.map((each) => String(each).trim()).filter((each) => each !== ""))] : [];
 
     if (name === "" || name.length > 40) {
         throw new Error("A role's name is 1 to 40 characters.");
@@ -148,5 +158,9 @@ export function checkRole(given: Record<string, unknown>, id: string): Role {
         throw new Error("Team accounts are given by their ids (provider~team-name).");
     }
 
-    return { id, name, permissions: permissions as Permission[], memoryMb, cpus, models, spendLimit, teamAccounts, teamSpendLimit, builtin: false };
+    if (teamMachines.some((each) => !/^[a-z0-9]{12}$/.test(each)) || teamMachines.length > 100) {
+        throw new Error("Team machines are given by their ids.");
+    }
+
+    return { id, name, permissions: permissions as Permission[], memoryMb, cpus, models, spendLimit, teamAccounts, teamSpendLimit, teamMachines, builtin: false };
 }

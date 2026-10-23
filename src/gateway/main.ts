@@ -18,6 +18,7 @@ import { SocketController } from "./controller-client.ts";
 import { Gateway } from "./server.ts";
 import { GatewayStore } from "./store.ts";
 import { TeamAccounts } from "./team-accounts.ts";
+import { TeamMachines } from "./team-machines.ts";
 import { trustedProxy } from "./proxy-guard.ts";
 
 const env = (name: string): string => {
@@ -57,6 +58,8 @@ const boards = new BoardService(store, boardsDir);
 const teamAccounts = new TeamAccounts(store, data);
 
 await teamAccounts.open();
+// The team's machines (PP-82): their keys in the gateway's data, never in people's pi-phones.
+const teamMachines = new TeamMachines(store, data);
 const docs = new DocService(store, boards, boardsDir, Date.now, (line) => console.error(line));
 const gateway = new Gateway({
     auth,
@@ -64,6 +67,7 @@ const gateway = new Gateway({
     boards,
     docs,
     teamAccounts,
+    teamMachines,
     controller: new SocketController(env("PP_CONTROLLER_SOCKET"), readFileSync(env("PP_CONTROLLER_SECRET_FILE"), "utf8").trim()),
     origin,
     log: (line) => console.error(line),

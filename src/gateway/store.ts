@@ -8,6 +8,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import type { DatabaseSync } from "node:sqlite";
 import { OWNER_ROLE, type Permission, type Role, SEEDED } from "./roles.ts";
 import type { TeamAccount } from "./team-accounts.ts";
+import type { TeamMachine } from "./team-machines.ts";
 
 export type Invite = { code: string; role: string; createdBy: string; createdAt: number; expiresAt: number; usedBy: string | null; usedAt: number | null };
 export type PersonBox = { userId: string; key: string; token: string; createdAt: number };
@@ -46,6 +47,7 @@ export class GatewayStore {
                 target TEXT, details TEXT
             );
             CREATE TABLE IF NOT EXISTS pp_team_account (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS pp_team_machine (id TEXT PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS pp_team_spend (
                 month TEXT NOT NULL, user_id TEXT NOT NULL, account TEXT NOT NULL, cost REAL NOT NULL, tokens INTEGER NOT NULL,
                 PRIMARY KEY (month, user_id, account)
@@ -229,6 +231,29 @@ export class GatewayStore {
         for (const role of this.roles()) {
             if (!role.builtin && (role.teamAccounts ?? []).includes(id)) {
                 this.saveRole({ ...role, teamAccounts: (role.teamAccounts ?? []).filter((each) => each !== id) });
+            }
+        }
+    }
+
+    // ─── Team machines (PP-82): their rows; their keys are files of the gateway's own ───
+
+    teamMachines(): TeamMachine[] {
+        const rows = this.#db.prepare("SELECT body FROM pp_team_machine ORDER BY id").all() as { body: string }[];
+
+        return rows.map((row) => JSON.parse(row.body) as TeamMachine).sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    saveTeamMachine(machine: TeamMachine): void {
+        this.#db.prepare("INSERT INTO pp_team_machine (id, body) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body").run(machine.id, JSON.stringify(machine));
+    }
+
+    /** Gone, and from every role that listed it. */
+    deleteTeamMachine(id: string): void {
+        this.#db.prepare("DELETE FROM pp_team_machine WHERE id = ?").run(id);
+
+        for (const role of this.roles()) {
+            if (!role.builtin && (role.teamMachines ?? []).includes(id)) {
+                this.saveRole({ ...role, teamMachines: (role.teamMachines ?? []).filter((each) => each !== id) });
             }
         }
     }

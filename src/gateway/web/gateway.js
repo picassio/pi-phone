@@ -628,7 +628,7 @@ async function renderPeople(box, me, roles) {
 // ─── Roles (roles.manage) ───
 
 async function rolesPage(me) {
-    const { roles, counts, catalogue, teamAccounts } = await gw("roles");
+    const { roles, counts, catalogue, teamAccounts, teamMachines = [] } = await gw("roles");
     const editor = (role) => {
         const fields = [
             field(t("Name"), "name", "text", { value: role?.name ?? "", maxlength: 40 }),
@@ -658,6 +658,22 @@ async function rolesPage(me) {
                           ),
                       ),
                   ),
+            // The team machines its people may run sessions on (PP-82); the owner's role uses every one.
+            teamMachines.length === 0
+                ? null
+                : h(
+                      "fieldset",
+                      { class: "card" },
+                      h("legend", {}, t("Team machines they may use")),
+                      ...teamMachines.map((machine) =>
+                          h(
+                              "label",
+                              { class: "check" },
+                              h("input", { type: "checkbox", name: `m:${machine.id}`, checked: role?.teamMachines?.includes(machine.id) ?? false }),
+                              h("span", {}, machine.name, " ", h("span", { class: "muted" }, machine.address), machine.connected ? null : h("span", { class: "muted" }, " ", t("not installed yet"))),
+                          ),
+                      ),
+                  ),
             h("div", { class: "row" }, field(t("Memory (MB)"), "memoryMb", "number", { value: role?.memoryMb ?? 2048, min: 256, max: 16384, step: 256 }), field(t("CPUs"), "cpus", "number", { value: role?.cpus ?? 1, min: 0.25, max: 8, step: 0.25 })),
             h("label", {}, t("Models they may use: one provider/model per line, none for any"), h("textarea", { name: "models", rows: 3 }, (role?.models ?? []).join("\n"))),
             h("label", {}, t("Spend limit, dollars a month: empty for none"), h("input", { name: "spendLimit", type: "number", min: 0, step: "any", value: role?.spendLimit ?? "" })),
@@ -670,6 +686,7 @@ async function rolesPage(me) {
             name: values.name,
             permissions: Object.keys(values).filter((key) => key.startsWith("p:")).map((key) => key.slice(2)),
             teamAccounts: Object.keys(values).filter((key) => key.startsWith("t:")).map((key) => key.slice(2)),
+            teamMachines: Object.keys(values).filter((key) => key.startsWith("m:")).map((key) => key.slice(2)),
             memoryMb: Number(values.memoryMb),
             cpus: Number(values.cpus),
             models: String(values.models ?? "").split("\n"),

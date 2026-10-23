@@ -25,6 +25,7 @@ import { type TarEntry, tarStream } from "./tar.ts";
 import type { BoardService } from "./boards.ts";
 import type { DocService } from "./docs.ts";
 import type { TeamAccounts } from "./team-accounts.ts";
+import type { TeamMachines } from "./team-machines.ts";
 import type { Task } from "../server/projects.ts";
 import { HttpError } from "../server/errors.ts";
 
@@ -52,6 +53,8 @@ export type GatewayOptions = {
     docs: DocService;
     /** The team's provider accounts (PP-69), opened. */
     teamAccounts: TeamAccounts;
+    /** The team's machines (PP-82): their keys stay here. */
+    teamMachines: TeamMachines;
     /** The address people open: `https://…`. */
     origin: string;
     log: (line: string) => void;
@@ -502,6 +505,11 @@ export class Gateway {
                 return json(response, 200, { value: await this.#teamAccounts(box, (await readBody(request)) as Record<string, unknown>) });
             }
 
+            // The team's machines (PP-82): listed by what this person may use, managed with machines.manage.
+            if (path === "/internal/team-machines" && request.method === "POST") {
+                return json(response, 200, { value: this.#teamMachines(box, (await readBody(request)) as Record<string, unknown>) });
+            }
+
             if (path === "/internal/boards" && request.method === "POST") {
                 const body = await readBody(request);
 
@@ -713,6 +721,97 @@ export class Gateway {
             }
             default:
                 throw new HttpError(400, "No such action on team accounts.");
+        }
+    }
+
+    /**
+     * The team's machines (PP-82), as `box`'s person may see and change them. Everyone sees the ones their role may use
+     * (machines.use, and the machine in its list; the owner's role: all), with what their pi-phone needs to reach them: the
+     * key's public half and the accepted host key lines, never the key. Someone with machines.manage sees all, adds,
+     * renames and removes them, and saves what their pi-phone found scanning, accepting and connecting (through the
+     * relays, S2).
+     */
+    #teamMachines(box: PersonBox, asked: Record<string, unknown>): unknown {
+        const store = this.#options.store;
+        const machines = this.#options.teamMachines;
+        const me = store.users().find((each) => each.id === box.userId);
+
+        if (me === undefined || me.banned || !store.can(me.id, me.role, "pi.use")) {
+            throw new HttpError(403, "This pi-phone's person can't use the team's machines.");
+        }
+
+        const manage = store.can(me.id, me.role, "machines.manage");
+        const role = store.roleOf(me.id, me.role);
+        const mayUse = (id: string) => store.can(me.id, me.role, "machines.use") && (role.builtin || (role.teamMachines ?? []).includes(id));
+        const action = String(asked.action ?? "");
+        const id = String(asked.id ?? "");
+
+        if (action === "list") {
+            // Which roles use each, by name: for whoever manages them.
+            const roles = store.roles().filter((each) => !each.builtin);
+
+            return {
+                manage,
+                machines: machines
+                    .list()
+                    .filter((machine) => manage || mayUse(machine.id))
+                    .map((machine) => ({
+                        ...machine,
+                        publicKey: machines.publicKey(machine.id),
+                        usable: mayUse(machine.id),
+                        roles: roles.filter((each) => (each.teamMachines ?? []).includes(machine.id)).map((each) => each.name),
+                    })),
+            };
+        }
+
+        if (!manage) {
+            throw new HttpError(403, `${role.name} does not include managing the team's machines: ask your team's owner.`);
+        }
+
+        // Pi's tools (team_machine_*) as this person: the audit log says it was Pi.
+        const actor = asked.pi === true ? `pi:${me.id}` : me.id;
+        const named = (machineId: string) => machines.get(machineId)?.name ?? machineId;
+
+        switch (action) {
+            case "add": {
+                const made = machines.add(asked.name, asked.address, me.id);
+
+                store.audit(actor, "team machine added", made.machine.name, { address: `${made.machine.user}@${made.machine.host}${made.machine.port === undefined ? "" : `:${made.machine.port}`}` });
+
+                return made;
+            }
+            case "rename": {
+                const before = named(id);
+                const machine = machines.rename(id, asked.name);
+
+                store.audit(actor, "team machine renamed", machine.name, { from: before });
+
+                return { machine };
+            }
+            case "accept": {
+                const machine = machines.accept(id, asked.lines, asked.fingerprint);
+
+                store.audit(actor, "team machine host key accepted", machine.name, { fingerprint: machine.hostKey });
+
+                return { machine };
+            }
+            case "connected": {
+                const machine = machines.connected(id, asked.remote, asked.daemon);
+
+                store.audit(actor, "team machine installed", machine.name, { system: `${machine.remote?.platform} ${machine.remote?.arch}` });
+
+                return { machine };
+            }
+            case "remove": {
+                const name = named(id);
+
+                machines.remove(id);
+                store.audit(actor, "team machine removed", name);
+
+                return { ok: true };
+            }
+            default:
+                throw new HttpError(400, "No such action on team machines.");
         }
     }
 
@@ -1273,8 +1372,10 @@ export class Gateway {
 
             // The team accounts (PP-69) a role may be given, by name: "OpenRouter · Team Work".
             const teamAccounts = this.#options.teamAccounts.list().map((account) => ({ id: account.id, name: `${account.providerName} · Team ${account.name}`, configured: account.configured }));
+            // The team machines (PP-82) a role may be given, by name.
+            const teamMachines = this.#options.teamMachines.list().map((machine) => ({ id: machine.id, name: machine.name, address: `${machine.user}@${machine.host}`, connected: machine.connectedAt !== undefined }));
 
-            return json(response, 200, { roles: store.roles(), counts, catalogue: CATALOGUE, teamAccounts });
+            return json(response, 200, { roles: store.roles(), counts, catalogue: CATALOGUE, teamAccounts, teamMachines });
         }
 
         if (route === "roles" && method === "POST") {

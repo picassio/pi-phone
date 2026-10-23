@@ -14,7 +14,7 @@ const LASTS: Record<string, number> = { "1 hour": 60, "1 day": 24 * 60, "7 days"
 const ACTIONS = ["role", "reset-two-factor", "disable", "enable", "remove", "always-on", "not-always-on"] as const;
 
 type Person = { id: string; name: string; email: string; role: string; roleName: string; banned: boolean; twoFactor: boolean; alwaysOn: boolean };
-type Role = { id: string; name: string; permissions: string[]; memoryMb: number; cpus: number; models: string[]; spendLimit: number | null; teamAccounts?: string[]; teamSpendLimit?: number | null; builtin: boolean };
+type Role = { id: string; name: string; permissions: string[]; memoryMb: number; cpus: number; models: string[]; spendLimit: number | null; teamAccounts?: string[]; teamSpendLimit?: number | null; teamMachines?: string[]; builtin: boolean };
 type TeamAccount = { id: string; provider: string; name: string; providerName: string; configured: boolean; usable: boolean; roles: string[] };
 type Usage = { provider: string; windows?: { label: string; usedPercent: number; resetsAt?: number }[]; plan?: string; error?: string };
 /** Providers a team account can be of: those with a key or a subscription sign-in (src/server/accounts.ts). */
@@ -233,6 +233,8 @@ export default function createTeam(host: PocketHost) {
                     spendLimit: args.spendLimit ?? null,
                     teamAccounts: args.teamAccounts ?? was?.teamAccounts ?? [],
                     teamSpendLimit: args.teamSpendLimit === undefined ? (was?.teamSpendLimit ?? null) : args.teamSpendLimit,
+                    // Team machines (PP-82) are kept as they are; team_machine_access changes them.
+                    teamMachines: was?.teamMachines ?? [],
                 };
 
                 await ask(

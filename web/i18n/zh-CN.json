@@ -2527,6 +2527,8 @@
     "Disable": "停用",
     "Remove {name}'s account? Their data is kept.": "移除 {name} 的账号？其数据会保留。",
     "Team accounts they may use": "可使用的团队账号",
+    "Team machines they may use": "可使用的团队机器",
+    "not installed yet": "尚未安装",
     "Memory (MB)": "内存（MB）",
     "CPUs": "CPU 数",
     "Models they may use: one provider/model per line, none for any": "可使用的模型：每行一个 provider/model，留空则不限",
