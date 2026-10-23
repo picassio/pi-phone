@@ -16,7 +16,7 @@
  * or removed once, as the app starts; the owner's own files there stay as they are.
  */
 import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -236,6 +236,15 @@ export class Machines {
 
         for (const machine of next) {
             writeFileSync(this.#teamKeyFile(machine.team!.id), `${machine.team!.publicKey}\n`, { mode: 0o600 });
+        }
+
+        // Public halves of machines no longer listed (removed, or off this person's role) go too.
+        const listed = new Set(next.map((machine) => `${machine.team!.id}.pub`));
+
+        for (const file of readdirSync(join(this.#sshDir, "team"))) {
+            if (file.endsWith(".pub") && !listed.has(file)) {
+                rmSync(join(this.#sshDir, "team", file), { force: true });
+            }
         }
 
         // The team's host keys, as the team server has them: its lines replace every team line here.

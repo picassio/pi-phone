@@ -268,4 +268,10 @@ test("a role without the machine is refused with the reason; a removed machine's
     const after = await env.exec("true", undefined, context);
 
     assert.equal(after.ok, false, "the connection is gone");
+
+    // Listed again, it is gone from his pi-phone: its entry, and its public half.
+    assert.ok(existsSync(join(binh.dir, "ssh", "team", `${teamId}.pub`)));
+    await binh.client.sync();
+    assert.ok(!binh.machines.list().some((machine) => machine.id === `team-${teamId}`));
+    assert.deepEqual(readdirSync(join(binh.dir, "ssh", "team")), []);
 });
