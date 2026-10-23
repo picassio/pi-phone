@@ -10,6 +10,7 @@ import { after, before, test } from "node:test";
 import { addressOf, describe, elementsOf, isLocalAddress, type Observed } from "../src/server/browser/page.ts";
 import { blockedInPlanMode } from "../src/server/extensions/plan.ts";
 import { type BrowserFrame, type BrowserState, ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
+import { SessionEngine, TabOwners } from "../src/server/browser/session-engine.ts";
 
 after(() => cleanUp());
 
@@ -150,6 +151,13 @@ const PAGES: Record<string, string> = {
             // As react-remove-scroll does under an open Radix list: the wheel scrolls nothing outside the list.
             addEventListener('wheel', (event) => { if (!list.hidden && !list.contains(event.target)) event.preventDefault(); }, { passive: false });
         </script>`,
+    // A field and a button, and a trap at half their places (PP-126): a click at half the coordinates lands on the trap.
+    "/aim": `<!doctype html><title>Aim</title><meta name="viewport" content="width=device-width">
+        <style>body{margin:0} .at{position:fixed}</style>
+        <p id="out" class="at" style="left:8px;top:8px">Nothing yet</p>
+        <a href="#trap" class="at" style="left:150px;top:140px;width:120px;height:70px;background:#fdd" onclick="out.textContent='Trap'">Trap</a>
+        <input id="name" aria-label="Signer" class="at" style="left:300px;top:300px;width:200px;height:40px">
+        <button class="at" style="left:300px;top:360px;width:120px;height:40px" onclick="out.textContent='Hit '+innerWidth+' '+devicePixelRatio+' '+visualViewport.scale">Hit</button>`,
     "/two": `<!doctype html><title>Two</title><p>Page two</p><article>${"A long article. ".repeat(400)}</article>`,
 };
 
@@ -437,5 +445,78 @@ test("with Chrome: a list with its own scroll area (Radix's select): every optio
         assert.match(await browser.snapshot(1), /List at [1-9]\d*/);
     } finally {
         await browser.close();
+    }
+});
+
+test("with Chrome: after switching between phone and desktop sizes, clicks and typing land on their target (PP-126)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    // One Chrome for two sessions, as a place's engine is in the app: the other session's tab stays at the desktop size.
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+    const owners = new TabOwners(undefined);
+    const browser = new PiBrowser({ engine: new SessionEngine(engine, "phone", 1, owners), session: 1, changed: () => {}, frame: () => {}, log: () => {} });
+    const other = new PiBrowser({ engine: new SessionEngine(engine, "phone", 2, owners), session: 2, size: "desktop", changed: () => {}, frame: () => {}, log: () => {} });
+    const number = (page: string, pattern: RegExp) => Number(pattern.exec(page)?.[1] ?? assert.fail(`${pattern} not in:\n${page}`));
+    /** Click Hit and type into the field, on the page as it is now: each must land on its own target. */
+    const aim = async (page: string, where: string) => {
+        const hit = await browser.click(1, number(page, /\[(\d+)\] button "Hit"/));
+
+        // What the page says first: "Hit …" from the button, "Trap" from the link at half its place.
+        assert.match(hit, /Visible text:\nHit \d+/, `${where}: the click reached the button, not the trap at half its place`);
+
+        const typed = await browser.type(1, number(hit, /\[(\d+)\] textbox "Signer"/), `typed ${where}`, {});
+
+        assert.match(typed, new RegExp(`textbox "Signer" value "typed ${where}"`), `${where}: typing reached the field`);
+    };
+
+    // Someone watches the panel all along, as the owner did: frames come through each switch.
+    const unwatch = browser.watch();
+
+    try {
+        await other.open(2, "http://pi.test/two");
+        await aim(await browser.open(1, "http://pi.test/aim"), "phone");
+
+        for (const [step, size] of ["desktop", "phone", "desktop", "phone", "desktop"].entries()) {
+            await browser.resize(1, size as "phone" | "desktop");
+            // As #71257 did: pages opened again between the switches.
+            await browser.open(1, "http://pi.test/aim");
+            await aim(await browser.open(1, "http://pi.test/aim"), `${size} ${step}`);
+        }
+    } finally {
+        unwatch();
+        await browser.close();
+        await other.close();
+        await engine.close();
+    }
+});
+
+test("with Chrome: a tab still listed while it closes does not fail the next open (PP-126)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+    // A tab that closed after the list was read, as a slow page leaves it just after browser_close: Chrome answers 500.
+    const gone = await engine.newTab();
+
+    await engine.closeTab(gone);
+
+    const session = new SessionEngine(engine, "phone", 1, new TabOwners(undefined));
+    const listing = new Proxy(session, {
+        get: (target, name) => {
+            if (name === "tabs") {
+                return async () => [...(await target.tabs()), gone];
+            }
+
+            const value = Reflect.get(target, name) as unknown;
+
+            return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+        },
+    });
+    const logged: string[] = [];
+    const browser = new PiBrowser({ engine: listing, session: 1, changed: () => {}, frame: () => {}, log: (line) => logged.push(line) });
+
+    try {
+        assert.match(await browser.open(1, "http://pi.test/aim"), /button "Hit"/);
+        assert.ok(logged.some((line) => /tab is gone: .*500/.test(line)), logged.join("\n"));
+        // Nor the actions after it, which take in tabs a page opened from the same list.
+        assert.match(await browser.click(1, Number(/\[(\d+)\] button "Hit"/.exec(await browser.snapshot(1))![1])), /Visible text:\nHit/);
+    } finally {
+        await browser.close();
+        await engine.close();
     }
 });

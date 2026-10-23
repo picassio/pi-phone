@@ -207,7 +207,12 @@ export const PRESSABLE = Object.keys(KEYS);
 /** A part of the view, in CSS pixels. */
 export type PictureClip = { x: number; y: number; width: number; height: number };
 /** How to take a picture of a page: PNG instead of JPEG, and only a part of the view. */
-export type PictureOptions = { png?: boolean; clip?: PictureClip };
+/**
+ * `surface: false`: not from a desktop Chrome's surface (the CSS pixels, not twice them). The panel's first picture before
+ * its screencast is taken so (PP-126): one from the surface just before a screencast left that Chrome's input at half
+ * the coordinates, once another tab was open in it.
+ */
+export type PictureOptions = { png?: boolean; clip?: PictureClip; surface?: boolean };
 
 /**
  * A key to press: a named one, or one printable character (a list's type-ahead: "G" goes to Global Payments). Keys
@@ -913,11 +918,11 @@ export class BrowserPage {
      * of the view in CSS pixels. The phone's WebView answers a capture only every other time (PP-114): its pictures come
      * from its display's frames instead.
      */
-    async screenshot(quality = 70, timeoutMs?: number, { png = false, clip }: PictureOptions = {}): Promise<string> {
+    async screenshot(quality = 70, timeoutMs?: number, { png = false, clip, surface = true }: PictureOptions = {}): Promise<string> {
         // A desktop Chrome from its surface, which alone has the device scale (twice the CSS pixels: sharp text).
         const shot = await this.cdp.send<{ data: string }>(
             "Page.captureScreenshot",
-            { format: png ? "png" : "jpeg", ...(png ? {} : { quality }), fromSurface: this.#fromSurface, ...(clip === undefined ? {} : { clip: { ...clip, scale: 1 } }) },
+            { format: png ? "png" : "jpeg", ...(png ? {} : { quality }), fromSurface: this.#fromSurface && surface, ...(clip === undefined ? {} : { clip: { ...clip, scale: 1 } }) },
             timeoutMs,
         );
 

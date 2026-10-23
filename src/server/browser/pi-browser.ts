@@ -531,12 +531,19 @@ export class PiBrowser {
 
         this.#opening ??= (async () => {
             const engine = this.#options.engine;
-            const kept = await engine.tabs();
 
-            for (const id of kept.length === 0 ? [await engine.newTab(SIZES[this.#state.size])] : kept) {
+            for (const id of await engine.tabs()) {
                 if (!this.#tabs.some((tab) => tab.id === id)) {
-                    await this.#attach(id);
+                    // A tab still listed while it closes (a slow page, just after browser_close) is gone by the time it
+                    // is reached: Chrome answers 500 (PP-126). It is left out, not the whole open failed.
+                    await this.#attach(id).catch((error: unknown) => {
+                        this.#options.log(`browser: a kept tab is gone: ${String(error)}`);
+                    });
                 }
+            }
+
+            if (this.#tabs.length === 0) {
+                await this.#attach(await engine.newTab(SIZES[this.#state.size]));
             }
 
             this.#front(this.#tabs.at(-1));
@@ -559,10 +566,21 @@ export class PiBrowser {
             return "";
         }
 
-        const fresh = (await this.#options.engine.tabs()).filter((id) => !this.#tabs.some((tab) => tab.id === id));
+        const listed = (await this.#options.engine.tabs()).filter((id) => !this.#tabs.some((tab) => tab.id === id));
+        const fresh: string[] = [];
 
-        for (const id of fresh) {
-            this.#front(await this.#attach(id));
+        for (const id of listed) {
+            // One gone by the time it is reached (closing, PP-126) is no tab the page opened.
+            const tab = await this.#attach(id).catch((error: unknown) => {
+                this.#options.log(`browser: a listed tab is gone: ${String(error)}`);
+
+                return undefined;
+            });
+
+            if (tab !== undefined) {
+                fresh.push(id);
+                this.#front(tab);
+            }
         }
 
         return fresh.length === 0 ? "" : `The page opened ${fresh.length === 1 ? "a new tab" : `${fresh.length} new tabs`}; now on tab ${this.#tabs.length} of ${this.#tabs.length}.\n`;
@@ -1122,7 +1140,9 @@ export class PiBrowser {
         // phone's WebView does not answer a capture while it casts (the panel opened again showed nothing, 30 s later
         // an error). A capture that does not come in 5 s is left out; the cast's frames follow.
         try {
-            this.#options.frame({ jpeg: await this.#options.engine.picture(tab.id, page, 60, 5000), width: this.#state.viewport.width, height: this.#state.viewport.height });
+            // Not from a desktop Chrome's surface: one from there just before the screencast left its clicks and typing at
+            // half the coordinates, once another session's tab was open in it (PP-126).
+            this.#options.frame({ jpeg: await this.#options.engine.picture(tab.id, page, 60, 5000, { surface: false }), width: this.#state.viewport.width, height: this.#state.viewport.height });
         } catch (error) {
             this.#options.log(`browser frames: the first picture: ${String(error)}`);
         }
