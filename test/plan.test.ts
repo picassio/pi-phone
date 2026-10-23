@@ -85,11 +85,11 @@ test("in plan mode only reading tools pass", () => {
     }
     assert.equal(blockedInPlanMode("board_settings", {}), undefined, "board settings, read");
     // The team server's people, roles, audit log and settings, read (PP-45); changes wait for the plan.
-    for (const tool of ["team_people", "team_roles", "team_audit", "team_providers", "project_wiki_search", "project_wiki_read"]) {
+    for (const tool of ["team_people", "team_roles", "team_audit", "team_providers", "team_machines", "project_wiki_search", "project_wiki_read"]) {
         assert.equal(blockedInPlanMode(tool, {}), undefined, tool);
     }
     assert.equal(blockedInPlanMode("team_server", {}), undefined, "team settings, read");
-    for (const [tool, args] of [["team_server", { idleMinutes: 5 }], ["team_invite", {}], ["team_person", {}], ["team_role_save", {}], ["team_role_delete", {}], ["team_provider_add", {}], ["team_provider_access", {}], ["team_provider_remove", {}], ["project_wiki_write", {}]] as const) {
+    for (const [tool, args] of [["team_server", { idleMinutes: 5 }], ["team_invite", {}], ["team_person", {}], ["team_role_save", {}], ["team_role_delete", {}], ["team_provider_add", {}], ["team_provider_access", {}], ["team_provider_remove", {}], ["team_machine_add", {}], ["team_machine_access", {}], ["team_machine_remove", {}], ["project_wiki_write", {}]] as const) {
         assert.match(blockedInPlanMode(tool, args) ?? "", /Plan mode is on/, tool);
     }
     assert.match(blockedInPlanMode("board_settings", { closer: "pi" }) ?? "", /Plan mode is on/, "board settings, changed");

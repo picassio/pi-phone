@@ -936,6 +936,7 @@ export class PocketApp {
             web: this.web,
             envOf: (cwd) => this.places.env(cwd),
             teamServer: this.#teamServer,
+            syncTeamMachines: () => this.syncTeamMachines(),
             wikiCapture: this.paraCapture,
             goals: this.goals,
             text: Object.freeze({ quoted, defang }),

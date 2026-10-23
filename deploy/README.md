@@ -76,6 +76,10 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
     it, closes open pipes at once.
   - Everyone uses the machine's one account; each starts in `~/team/<their name>`. Added, accepted, renamed and removed
     machines, and role changes, are in the Audit log.
+  - **Pi's tools:** `team_machines` lists them (address, host key accepted, set up, which roles use them, one's own
+    folder); `team_machine_add` (answers the public half), `team_machine_access` (the roles that may use one) and
+    `team_machine_remove` ask the person on a card and show as "Pi for" them in the Audit log. `team_role_save` keeps
+    a role's team machines. Never through Pi: the key, and accepting a host key.
 - **Updates roll out by themselves:** after `docker compose ... up -d --build` makes a new image, people's running
   pi-phones are made again from it one at a time, each when Pi isn't at work there. Stopped ones are made again when they
   next start. Their data (the volume) is kept, and an open page reconnects in a few seconds. The Server page shows how

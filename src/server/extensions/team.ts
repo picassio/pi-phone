@@ -1,5 +1,5 @@
 /**
- * The team server's people, roles, invites, audit log and server settings, for Pi (PP-45): what the gateway's pages do,
+ * The team server's people, roles, invites, audit log, server settings, provider accounts and machines, for Pi (PP-45): what the gateway's pages do,
  * as tools, with the rights of the person this pi-phone is theirs: the gateway checks their role on every call, as on its
  * pages, and its audit log says the change was Pi's. Reads run freely; every change asks that person first, on a card.
  * Never here: passwords, people's data and the server's backups (only people, on the gateway's pages). Only on the team
@@ -16,6 +16,19 @@ const ACTIONS = ["role", "reset-two-factor", "disable", "enable", "remove", "alw
 type Person = { id: string; name: string; email: string; role: string; roleName: string; banned: boolean; twoFactor: boolean; alwaysOn: boolean };
 type Role = { id: string; name: string; permissions: string[]; memoryMb: number; cpus: number; models: string[]; spendLimit: number | null; teamAccounts?: string[]; teamSpendLimit?: number | null; teamMachines?: string[]; builtin: boolean };
 type TeamAccount = { id: string; provider: string; name: string; providerName: string; configured: boolean; usable: boolean; roles: string[] };
+type TeamMachine = {
+    id: string;
+    name: string;
+    host: string;
+    user: string;
+    port?: number;
+    hostKey?: string;
+    remote?: { platform: string; arch: string };
+    publicKey: string;
+    usable: boolean;
+    roles: string[];
+    folder: string;
+};
 type Usage = { provider: string; windows?: { label: string; usedPercent: number; resetsAt?: number }[]; plan?: string; error?: string };
 /** Providers a team account can be of: those with a key or a subscription sign-in (src/server/accounts.ts). */
 const PROVIDER_HINT = "a provider's id, like anthropic, openai, openrouter, openai-codex, github-copilot, google";
@@ -112,6 +125,35 @@ export default function createTeam(host: PocketHost) {
 
         return found[0]!;
     };
+    /** The team machines' own route (PP-82), as this pi-phone's person; Pi's changes are logged as Pi's. */
+    const machinesCall = async (body: Record<string, unknown>): Promise<unknown> => {
+        const response = await fetch(`${server.url}/internal/team-machines`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${server.token}`, "content-type": "application/json" },
+            body: JSON.stringify({ ...body, pi: true }),
+            signal: AbortSignal.timeout(20_000),
+        });
+        const answer = (await response.json()) as { value?: unknown; error?: string };
+
+        if (!response.ok) {
+            throw new Error(answer.error ?? `The team server answered ${response.status}.`);
+        }
+
+        return answer.value;
+    };
+    const teamMachines = async () => (await machinesCall({ action: "list" })) as { manage: boolean; machines: TeamMachine[] };
+    /** A team machine by id, or by its name. */
+    const findMachine = async (which: string) => {
+        const wanted = which.trim().toLowerCase();
+        const found = (await teamMachines()).machines.filter((machine) => machine.id === which.trim() || `team-${machine.id}` === which.trim() || machine.name.toLowerCase() === wanted);
+
+        if (found.length !== 1) {
+            throw new Error(found.length === 0 ? `No team machine is called ${which}: team_machines lists them.` : `More than one team machine is called ${which}: give its id.`);
+        }
+
+        return found[0]!;
+    };
+    const address = (machine: TeamMachine) => `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`;
     const roles = async () => (await call("roles", "GET")) as { roles: Role[]; counts: Record<string, number>; catalogue: { group: string; permissions: Record<string, string> }[] };
     const tool = <P extends Parameters<typeof defineTool>[0]["parameters"]>(name: string, description: string, parameters: P, run: (args: never, api: { conversationId: unknown; taskId: unknown; callId?: string }, context: unknown) => Promise<string>) =>
         defineTool({
@@ -396,6 +438,112 @@ export default function createTeam(host: PocketHost) {
                 await accounts({ action: "remove", id: account.id });
 
                 return `Removed ${account.id}.`;
+            },
+        ),
+        // The team's machines (PP-82): added once, used by roles. Their keys stay on the team server; a person accepts a
+        // machine's host key on its row in Machines.
+        tool(
+            "team_machines",
+            "The team server's machines (computers added once for the team, their key kept on the team server) you can see: each one's address, whether its host key is accepted and it is set up, which roles may use it, and your own folder there. A session or machine_run reaches one by the name host.machines gives it once set up.",
+            Type.Object({}),
+            async () => {
+                const { manage, machines } = await teamMachines();
+
+                if (machines.length === 0) {
+                    return `No team machines${manage ? " yet: team_machine_add adds one." : " you may use."}`;
+                }
+
+                const aliases = new Map(host.machines().map((machine) => [machine.id, machine.alias]));
+
+                return [
+                    ...machines.map((machine) => {
+                        const state =
+                            machine.hostKey === undefined
+                                ? "its host key isn't accepted yet (a person accepts it on its row in Machines)"
+                                : machine.remote === undefined
+                                  ? "host key accepted, not set up yet (Install on its row in Machines)"
+                                  : `${machine.remote.platform} ${machine.remote.arch}, set up${aliases.has(`team-${machine.id}`) ? `, machine_run name ${aliases.get(`team-${machine.id}`)}` : ""}`;
+                        const who = manage ? `${machine.roles.length === 0 ? "no role uses it" : `used by ${machine.roles.join(", ")}`} (and the owner's)` : machine.usable ? "you may use it" : "your role may not use it";
+
+                        return `- ${machine.name} (${machine.id}): ${address(machine)}; ${state}; ${who}; your folder there: ~/${machine.folder}`;
+                    }),
+                    manage ? "You manage them: team_machine_add, team_machine_access, team_machine_remove." : "",
+                ]
+                    .filter((line) => line !== "")
+                    .join("\n");
+            },
+        ),
+        tool(
+            "team_machine_add",
+            "Add a team machine on the team server (asks the person first): a name and its address, user@host or user@host:port, reached from the team server's network. The team server makes its key and keeps it; the answer has the public half for the machine's authorized_keys. The person then accepts its host key and sets it up on its row in Machines (yours never). Then team_machine_access says which roles may use it. Needs machines.manage.",
+            Type.Object({ name: Type.String(), address: Type.String({ description: "user@host or user@host:port" }), reason: Type.String() }),
+            async (args: { name: string; address: string; reason: string }, api, context) => {
+                await ask(api, context, "team_machine_add", `Add a team machine called ${args.name} at ${args.address}`, args.reason);
+                const made = (await machinesCall({ action: "add", name: args.name, address: args.address })) as { machine: TeamMachine; publicKey: string };
+
+                await host.syncTeamMachines();
+
+                return [
+                    `Added ${made.machine.name} (${made.machine.id}). Its key is on the team server only. Next, for the person:`,
+                    `1. On ${made.machine.host}, add this line to ~${made.machine.user}/.ssh/authorized_keys:`,
+                    made.publicKey,
+                    `2. Menu › Machines, on ${made.machine.name}'s row under Team machines: check and accept its host key, then set it up.`,
+                    "No role uses it yet: team_machine_access.",
+                ].join("\n");
+            },
+        ),
+        tool(
+            "team_machine_access",
+            "Say which roles may use a team machine (asks the person first): the whole list of role ids (team_roles lists them; the owner's role always may). Their people see it in Machines and the folder picker; a role taken off loses its open connections at once. Needs roles.manage.",
+            Type.Object({ machine: Type.String({ description: "Its id, or its name" }), roles: Type.Array(Type.String({ description: "A role's id" })), reason: Type.String() }),
+            async (args: { machine: string; roles: string[]; reason: string }, api, context) => {
+                const machine = await findMachine(args.machine);
+                const all = (await roles()).roles.filter((role) => !role.builtin);
+                const unknown = args.roles.filter((id) => !all.some((role) => role.id === id));
+
+                if (unknown.length > 0) {
+                    throw new Error(`No role ${unknown.join(", ")}: team_roles lists them.`);
+                }
+
+                const changed = all
+                    .map((role) => {
+                        const has = (role.teamMachines ?? []).includes(machine.id);
+                        const wants = args.roles.includes(role.id);
+
+                        return has === wants ? undefined : { role, teamMachines: wants ? [...(role.teamMachines ?? []), machine.id] : (role.teamMachines ?? []).filter((id) => id !== machine.id) };
+                    })
+                    .filter((each) => each !== undefined);
+
+                if (changed.length === 0) {
+                    return `Nothing to change: ${args.roles.length === 0 ? "no role uses it" : `${args.roles.join(", ")} already use it, and no other role`}.`;
+                }
+
+                const words = changed.map(({ role, teamMachines: next }) => `${next.includes(machine.id) ? "let" : "stop"} ${role.name}`).join(", ");
+
+                await ask(api, context, "team_machine_access", `${words.charAt(0).toUpperCase() + words.slice(1)} use the team machine ${machine.name}`, args.reason);
+
+                for (const { role, teamMachines: next } of changed) {
+                    const { id, builtin, ...body } = role;
+
+                    void builtin;
+                    await call(`roles/${id}`, "POST", { ...body, teamMachines: next });
+                }
+
+                return `Done: ${words} use ${machine.name}.`;
+            },
+        ),
+        tool(
+            "team_machine_remove",
+            "Remove a team machine from the team server (asks the person first): everyone's sessions there stop and the team server deletes its key. The machine's files stay, and so does the key's public half in its authorized_keys (a person takes it out there). Needs machines.manage.",
+            Type.Object({ machine: Type.String({ description: "Its id, or its name" }), reason: Type.String() }),
+            async (args: { machine: string; reason: string }, api, context) => {
+                const machine = await findMachine(args.machine);
+
+                await ask(api, context, "team_machine_remove", `Remove the team machine ${machine.name} (${address(machine)}) for the whole team: everyone's sessions there stop and its key is deleted${machine.roles.length === 0 ? "" : `; ${machine.roles.join(", ")} can no longer use it`}`, args.reason);
+                await machinesCall({ action: "remove", id: machine.id });
+                await host.syncTeamMachines();
+
+                return `Removed ${machine.name}. If its key's public half went into ${address(machine)}'s ~/.ssh/authorized_keys, it is still there: take the line ending "pi-phone team ${machine.name.replace(/\s+/g, "-")}" out.`;
             },
         ),
     ];

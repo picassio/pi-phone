@@ -279,7 +279,8 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
     key. Roles say who may use it (Roles › Team machines they may use). It shows under Team machines in their Machines
     sheet and in the folder picker, with everything a machine has: sessions, the terminal, ports, `machine_run`. Each
     person starts in a folder of their own there (`~/team/<name>`), on the machine's one account. Taking a machine off
-    a role closes its people's connections at once.
+    a role closes its people's connections at once. Pi lists them, and adds one (giving you its public half), says
+    which roles use it or removes it on a card; accepting its host key stays yours, on its row.
   - **Hardened:** only ports 80 and 443 open, sign-in limits that people's containers can't get around, no
     cross-site changes, and security headers. See deploy/README.md › Security.
 

@@ -73,6 +73,8 @@ const ALWAYS_ALLOWED = new Set([
     "team_audit",
     // The team's provider accounts (PP-69), read.
     "team_providers",
+    // The team's machines (PP-82), read.
+    "team_machines",
     // Folder groups in the session list (PP-76), read.
     "session_groups",
     // People's documents (PP-48), read.

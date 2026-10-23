@@ -328,6 +328,8 @@ export interface PocketHost {
      * pi-phones share (the team's boards). Undefined on the phone and a single-owner server.
      */
     readonly teamServer: { url: string; token: string } | undefined;
+    /** The team machines this person may use, asked of the team server again (PP-82): after Pi changed them. */
+    syncTeamMachines(): Promise<void>;
     /** Where commands run for a session in `cwd`, its output not redacted: for `secret_save` to read a value. */
     envOf(cwd: string): ExecutionEnv;
     /** Capture of idle sessions into the wiki (`para-capture.ts`). */
