@@ -335,6 +335,8 @@
     "A session here failed": "这里有会话失败",
     "Pin, rename, fold, move or delete the group": "置顶、重命名、折叠、移动或删除此分组",
     "Hide empty groups": "隐藏空分组",
+    "Hide empty": "隐藏空分组",
+    "Show {n} empty": "显示 {n} 个空分组",
     "Selected sessions": "已选的会话",
     "selected": "已选",
     "Move them to a folder group": "将它们移到文件夹分组",

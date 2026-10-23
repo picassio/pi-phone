@@ -1638,12 +1638,12 @@ function AllSessions({ compact = false }) {
                 ${
                     lastFolder &&
                     html`<div class="sg-foot">
-                        <button class="sg-new" data-part="session-group-new" onClick=${newGroup}><${Icon} name="plus" size=${12} />${t("New group")}</button>
+                        <button class="sg-new" data-part="session-group-new" onClick=${newGroup}><${Icon} name="plus" size=${12} /><span>${t("New group")}</span></button>
                         ${
                             empties > 0 &&
                             !closed.has("groups") &&
-                            html`<button class="sg-new sg-empties" onClick=${() => setShowEmpty(!showEmpty)}>
-                                ${showEmpty ? t("Hide empty groups") : tn(empties, "Show {n} empty group", "Show {n} empty groups")}
+                            html`<button class="sg-new sg-empties" title=${showEmpty ? t("Hide empty groups") : tn(empties, "Show {n} empty group", "Show {n} empty groups")} onClick=${() => setShowEmpty(!showEmpty)}>
+                                <span>${showEmpty ? t("Hide empty") : t("Show {n} empty", { n: empties })}</span>
                             </button>`
                         }
                     </div>`

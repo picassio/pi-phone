@@ -16627,14 +16627,27 @@ pre.gallery-code {
     display: flex;
     align-items: center;
     gap: 4px;
+    padding: 0 6px;
 }
 
+/* One line each, however narrow the sidebar (PP-115): the second gives way first, with an ellipsis. */
 .sg-foot .sg-new {
+    flex: none;
     width: auto;
+    padding: 6px 4px;
+    white-space: nowrap;
 }
 
 .sg-foot .sg-empties {
+    flex: 0 1 auto;
+    min-width: 0;
     margin-left: auto;
+}
+
+.sg-foot .sg-new > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .sg-create input {
