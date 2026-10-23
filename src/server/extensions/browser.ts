@@ -11,6 +11,7 @@ import { addressOf, PRESSABLE, StalePage } from "../browser/page.ts";
 import { MAX_TABS, type PiBrowser } from "../browser/pi-browser.ts";
 import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
+import { AREA, MARK_STYLE, MARKS_NOTE } from "./mark-schema.ts";
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 /** How much of a whole page `browser_text` gives at once. */
@@ -322,10 +323,21 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_screenshot",
             description:
-                "See what is in view in Pi's browser as a picture (for models that take images). With path, also save it to a file where this session works (.png or .jpg), for documents (doc_image) or reports. With index, picture only the dialog, menu or list that control is in, or else the control. The picture is what is in view: scroll first for more.",
+                `See what is in view in Pi's browser as a picture (for models that take images). With path, also save it to a file where this session works (.png or .jpg), for documents (doc_image) or reports. With index, picture only the dialog, menu or list that control is in, or else the control. The picture is what is in view: scroll first for more. ${MARKS_NOTE} Each mark is on a control (index), on every place a text shows (text: for a secret that is not a control), or on an area of the view in CSS pixels; a control out of view or a text not shown is an error, never a picture with it left showing.`,
             parameters: Type.Object({
                 path: Type.Optional(Type.String({ description: "Save it here too, ending in .png or .jpg: absolute or relative to this session's folder" })),
                 index: Type.Optional(Type.Integer({ minimum: 1, description: "A control: the picture is of the dialog, menu or list it is in, or of the control" })),
+                marks: Type.Optional(
+                    Type.Array(
+                        Type.Object({
+                            index: Type.Optional(Type.Integer({ minimum: 1, description: "A control, by its number" })),
+                            text: Type.Optional(Type.String({ minLength: 1, description: "A text on the page: every place it shows" })),
+                            area: Type.Optional(AREA),
+                            ...MARK_STYLE,
+                        }),
+                        { maxItems: 40, description: "Marks drawn on the picture" },
+                    ),
+                ),
             }),
             replay: "safe",
             execute: async (args, api, context) => {
@@ -344,7 +356,7 @@ export default function createBrowser(host: PocketHost) {
                 const browser = await browserOf(api, context);
 
                 try {
-                    const shot = await browser.screenshot(Number(api.conversationId), { png: kind === "png", index: args.index });
+                    const shot = await browser.screenshot(Number(api.conversationId), { png: kind === "png", index: args.index, marks: args.marks ?? [] });
                     const state = browser.state();
                     const what = shot.whole === undefined ? "" : shot.whole === "control" ? `, only [${args.index}]` : `, only the ${shot.whole} that [${args.index}] is in`;
                     let saved = "";

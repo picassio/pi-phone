@@ -925,6 +925,41 @@ export class BrowserPage {
     }
 
     /**
+     * Where things are in the view now, in CSS pixels (PP-119): a control by its node, or every place a text shows
+     * (in view, case as written). Null for a control that is gone or out of view; an empty list for a text not shown.
+     */
+    async areasOf(targets: ({ node: number } | { text: string })[]): Promise<({ x: number; y: number; width: number; height: number }[] | null)[]> {
+        return this.evaluate(`(targets => targets.map(t => {
+            const seen = r => r.width>0 && r.height>0 && r.bottom>0 && r.right>0 && r.top<innerHeight && r.left<innerWidth;
+            const box = r => ({x:r.left, y:r.top, width:r.width, height:r.height});
+            if ('node' in t) {
+              const e=window.__piBrowser?.nodes.get(t.node);
+              if (!e?.isConnected) return null;
+              const r=e.getBoundingClientRect();
+              return seen(r) ? [box(r)] : null;
+            }
+            const found=[], walker=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), range=document.createRange();
+            let n;
+            while ((n=walker.nextNode()) && found.length<50) {
+              const s=n.textContent;
+              for (let at=s.indexOf(t.text); at>=0 && found.length<50; at=s.indexOf(t.text, at+t.text.length)) {
+                range.setStart(n, at); range.setEnd(n, at+t.text.length);
+                for (const r of range.getClientRects()) if (seen(r)) found.push(box(r));
+              }
+            }
+            // A value in a field (an input's text is no text node).
+            for (const f of document.querySelectorAll('input,textarea')) {
+              if (found.length>=50) break;
+              if (f.type!=='password' && typeof f.value==='string' && t.text && f.value.includes(t.text)) {
+                const r=f.getBoundingClientRect();
+                if (seen(r)) found.push(box(r));
+              }
+            }
+            return found;
+          }))(${JSON.stringify(targets)})`);
+    }
+
+    /**
      * The part of the view to picture for a control (PP-118): the dialog, menu or list it is in, or else the control,
      * scrolled into view, with a little room around it, within the window (CSS pixels).
      */

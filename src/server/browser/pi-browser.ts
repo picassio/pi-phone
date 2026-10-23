@@ -11,7 +11,11 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type { PhoneRequests } from "../phone-requests.ts";
 import { Cdp } from "./cdp.ts";
-import { BrowserPage, type Element, type Observed, type PictureOptions, describe, elementsOf, StalePage } from "./page.ts";
+import { BrowserPage, type Element, type Observed, type PictureClip, type PictureOptions, describe, elementsOf, StalePage } from "./page.ts";
+import { type Mark, type MarkArea, markUp } from "../markup.ts";
+
+/** A mark on a page's picture (PP-119): on a control by its number, on a text shown, or on an area of the view (CSS pixels). */
+export type PageMark = Omit<Mark, "area"> & { index?: number; text?: string; area?: MarkArea };
 import { type Decider, type RunResult, runGoal } from "./run.ts";
 
 /** The page's size in CSS pixels: a phone's, as the WebView is a phone's browser. */
@@ -805,17 +809,79 @@ export class PiBrowser {
      * What is in view, as a JPEG (or a PNG, to keep); with `index`, only the dialog, menu or list that control is in, or
      * the control (PP-118). `whole` says which.
      */
-    screenshot(session: number, { png = false, index }: { png?: boolean; index?: number } = {}): Promise<{ data: string; whole?: string }> {
+    screenshot(session: number, { png = false, index, marks = [] }: { png?: boolean; index?: number; marks?: PageMark[] } = {}): Promise<{ data: string; whole?: string }> {
         return this.#run(session, index === undefined ? "Looking at the page" : this.#doing("Looking at", index), async ({ id, page }) => {
-            if (index === undefined) {
-                return { data: await this.#options.engine.picture(id, page, 70, undefined, { png }) };
+            let clip: PictureClip | undefined;
+            let whole: string | undefined;
+
+            if (index !== undefined) {
+                const { observed, element } = this.#element(index);
+
+                ({ clip, whole } = await page.area(observed, element));
             }
 
-            const { observed, element } = this.#element(index);
-            const { clip, whole } = await page.area(observed, element);
+            // Where each mark goes, read just before the picture (PP-119).
+            const placed = marks.length === 0 ? [] : await this.#place(page, marks, clip);
+            const data = await this.#options.engine.picture(id, page, placed.length === 0 ? (index === undefined ? 70 : 80) : 92, undefined, { png, ...(clip === undefined ? {} : { clip }) });
 
-            return { data: await this.#options.engine.picture(id, page, 80, undefined, { png, clip }), whole };
+            if (placed.length === 0) {
+                return { data, ...(whole === undefined ? {} : { whole }) };
+            }
+
+            const marked = markUp(Buffer.from(data, "base64"), placed, { png, cssWidth: clip?.width ?? this.#state.viewport.width });
+
+            return { data: Buffer.from(marked.bytes).toString("base64"), ...(whole === undefined ? {} : { whole }) };
         });
+    }
+
+    /**
+     * Marks by control number, by a text shown, or by an area of the view (CSS pixels), as areas of the picture: of the
+     * view, or of `clip`. A control out of view, or a text not shown, is an error: a secret left showing must not pass.
+     */
+    async #place(page: BrowserPage, marks: PageMark[], clip: PictureClip | undefined): Promise<Mark[]> {
+        const targets = marks.map((mark) => {
+            const named = [mark.index, mark.text, mark.area].filter((each) => each !== undefined).length;
+
+            if (named !== 1) {
+                throw new Error("Each mark names one of index, text, or area.");
+            }
+
+            return mark.index !== undefined ? { node: this.#element(mark.index).element.node } : mark.text !== undefined ? { text: mark.text } : undefined;
+        });
+        const asked = targets.filter((each) => each !== undefined);
+        const found = asked.length === 0 ? [] : await page.areasOf(asked);
+        const placed: Mark[] = [];
+        let next = 0;
+
+        marks.forEach((mark, at) => {
+            const { index, text, area, ...style } = mark;
+            let areas: MarkArea[];
+
+            if (targets[at] === undefined) {
+                areas = [area!];
+            } else {
+                const where = found[next++];
+
+                if (where === null || where === undefined) {
+                    throw new StalePage(`[${index}] is gone or out of view: scroll to it, read the page, and try again.`);
+                }
+
+                if (where.length === 0) {
+                    throw new Error(`${JSON.stringify(text)} does not show in view: scroll to it first (or give its area).`);
+                }
+
+                areas = where;
+            }
+
+            areas.forEach((each, n) => {
+                const shifted = clip === undefined ? each : { ...each, x: each.x - clip.x, y: each.y - clip.y };
+
+                // A text shown in several places: all hidden or boxed; its number, label and arrow on the first.
+                placed.push(n === 0 ? { ...style, area: shifted } : { box: style.box, hide: style.hide, spotlight: style.spotlight, color: style.color, area: shifted });
+            });
+        });
+
+        return placed;
     }
 
     /** The page in front as a PDF. */

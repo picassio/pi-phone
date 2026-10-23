@@ -3,19 +3,35 @@
 // pictures, which reach Pi as images. A page the service is not there to render fails, saying so.
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, scriptedModel, work } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { Screenshots } from "../src/server/screenshots.ts";
+import { isPng } from "../src/server/markup.ts";
 
-// The smallest JPEG: one white pixel.
-const JPEG = Buffer.from(
-    "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
-    "base64",
-);
+/** A white picture, as a PNG or a JPEG. */
+const white = (width: number, height: number, png: boolean) => {
+    const photon = createRequire(import.meta.url)("@silvia-odwyer/photon-node") as {
+        PhotonImage: new (raw: Uint8Array, width: number, height: number) => { get_bytes(): Uint8Array; get_bytes_jpeg(quality: number): Uint8Array; free(): void };
+    };
+    const image = new photon.PhotonImage(new Uint8Array(width * height * 4).fill(255), width, height);
+
+    try {
+        return Buffer.from(png ? image.get_bytes() : image.get_bytes_jpeg(80));
+    } finally {
+        image.free();
+    }
+};
+/** A 400×200 white PNG, to mark up. */
+const WHITE_PNG = white(400, 200, true);
+
+
+// The phone's picture: a small white JPEG.
+const JPEG = white(8, 8, false);
 let lastImages = 0;
 const route: FauxResponseStep = (request) => {
     const { role, text } = lastText(request as never);
@@ -32,6 +48,17 @@ const route: FauxResponseStep = (request) => {
 
     if (role === "user" && text.endsWith("look at the file")) {
         return fauxAssistantMessage([fauxToolCall("screenshot", { path: join(work, "page.html"), widths: [390], fullPage: false })], { stopReason: "toolUse" });
+    }
+
+    if (role === "user" && text.endsWith("save the file")) {
+        return fauxAssistantMessage([fauxToolCall("screenshot", { path: join(work, "page.html"), widths: [390, 1280], save: join(work, "shots", "page.png") })], { stopReason: "toolUse" });
+    }
+
+    if (role === "user" && text.endsWith("mark the picture")) {
+        return fauxAssistantMessage(
+            [fauxToolCall("image_markup", { path: join(work, "big.png"), marks: [{ area: { x: 40, y: 20, width: 100, height: 40 }, number: 1, label: "Here" }, { area: { x: 200, y: 20, width: 100, height: 40 }, hide: "solid" }] })],
+            { stopReason: "toolUse" },
+        );
     }
 
     if (role === "user" && text.endsWith("look badly")) {
@@ -152,6 +179,21 @@ test("Pi's screenshot: an artifact and a file, at the widths asked, as images it
         assert.equal(seen[1]!.fullPage, false);
 
         assert.match(await ask("look badly"), /path is a \.html, \.htm, \.svg, \.docx, \.xlsx, or \.pptx file/);
+
+        // Saved too, one file per width, as PNGs (the phone's JPEGs turned to PNG): for image_markup and documents (PP-119).
+        const saved = await ask("save the file");
+
+        assert.match(saved, /Saved as .*shots\/page-390\.png, .*shots\/page-1280\.png\./);
+        assert.ok(isPng(readFileSync(join(work, "shots", "page-390.png"))));
+
+        // A picture file marked up and saved beside it; the model sees the result.
+        writeFileSync(join(work, "big.png"), WHITE_PNG);
+        const marked = await ask("mark the picture");
+
+        assert.match(marked, /Marked 2 on a 400×200 px picture; saved as .*big-marked\.png/);
+        assert.equal(lastImages, 1);
+        assert.ok(isPng(readFileSync(join(work, "big-marked.png"))));
+        assert.notDeepEqual(readFileSync(join(work, "big-marked.png")), WHITE_PNG);
     } finally {
         await stop();
     }

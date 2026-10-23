@@ -227,6 +227,17 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
         assert.ok(Buffer.from(picture.data, "base64").subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])), "a JPEG");
         assert.ok(Buffer.from((await browser.screenshot(1, { png: true })).data, "base64").subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])), "a PNG, to keep (PP-118)");
 
+        // Marks (PP-119): a text hidden wherever it shows, a control boxed with a badge; what is not in view is refused.
+        await browser.open(1, "http://pi.test/");
+        const goButton = Number(/\[(\d+)\] button "Go"/.exec(await browser.snapshot(1))![1]);
+        const marked = Buffer.from((await browser.screenshot(1, { png: true, marks: [{ text: "Nothing yet", hide: "solid" }, { index: goButton, number: 1, label: "Search" }] })).data, "base64");
+        const shown = await browser.screenshot(1, { png: true });
+
+        assert.ok(marked.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])));
+        assert.notDeepEqual(marked, Buffer.from(shown.data, "base64"));
+        await assert.rejects(browser.screenshot(1, { marks: [{ text: "not on this page", hide: "solid" }] }), /does not show in view/);
+        await assert.rejects(browser.screenshot(1, { marks: [{ text: "x", index: goButton }] }), /one of index, text, or area/);
+
         // Frames while someone watches: one at once, so the panel has a picture.
         const stop = browser.watch();
 

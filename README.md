@@ -110,7 +110,10 @@ No Termux, no laptop, no cloud VM.
   (a select with its own scroll area) work too: every option is listed, a click scrolls it into view, `browser_select`
   opens the list and picks by name, `browser_scroll` scrolls the list, and a letter jumps by type-ahead.
   `browser_screenshot` can save its picture as a PNG or JPEG in the session's folder (for `doc_image` or a report),
-  and picture only the dialog, menu or list a control is in. It uploads files from where
+  and picture only the dialog, menu or list a control is in. It marks pictures up for runbooks: a box, a numbered
+  badge, a label and an arrow on a control or a text, the rest dimmed, and secrets hidden (a solid box for keys and
+  passwords, a heavy blur for names); `image_markup` does the same on any picture file, and `screenshot` saves its
+  pictures with `save`. It uploads files from where
   the session works (`browser_upload`, to a file field or its Upload button), saves a page as a PDF there
   (`browser_save_pdf`), and keeps up to six tabs (`browser_new_tab`, `browser_tabs`; the panel shows them as a strip).
   **Each session has its own tabs**, and its panel shows only those; sign-ins are shared by every session on the phone
