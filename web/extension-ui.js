@@ -1821,11 +1821,15 @@ export function ExtensionPage() {
     </section>`;
 }
 
-/** An extension's sheet (`{ type: "ext", module, sheetId, props }`). */
+/**
+ * An extension's sheet (`{ type: "ext", module, sheetId, props }`). Its title is its spec's, or one it was opened with
+ * (`pocket.openSheet(id, { title })`: a folder's sheet named after the folder).
+ */
 export function ExtensionSheet({ sheet }) {
     const record = modules.get(sheet.module);
     const spec = record?.adds.sheet.get(sheet.sheetId);
-    const title = spec?.title ?? record?.title ?? t("Extension");
+    const title =
+        typeof sheet.props?.title === "string" && sheet.props.title.trim() !== "" ? sheet.props.title : (spec?.title ?? record?.title ?? t("Extension"));
     const close = useMemo(() => sheetCloser(record, sheet.sheetId), [record, sheet.sheetId]);
 
     return html`<${Sheet} title=${title} onClose=${closeSheet} wide=${spec?.wide === true} bare=${spec?.bare === true}>

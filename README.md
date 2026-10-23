@@ -153,6 +153,9 @@ No Termux, no laptop, no cloud VM.
 - **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
   search, tracks its open questions until they are answered, and captures idle sessions into it.
 - **Documents** (rail › Documents): your documents in folders, as markdown pages rendered like the wiki.
+  - **The page:** the place (Mine, Team, a board) is its header, with **+ Page** and a ⋯ for a new folder, deleted
+    pages and the settings; search has a row of its own. Folders are sections with their page count, each with a ⋯
+    (a page or folder in it, rename, delete). On a wide screen the folders and the open page sit side by side.
   - **Pages:** `[[links]]` between pages, the pages that link back, every saved version to look at and restore,
     deleted pages to bring back, and search across all of them.
   - **Where:** Mine, and each board's (a board's **Docs** opens them). On the team server there are Team documents
@@ -161,8 +164,8 @@ No Termux, no laptop, no cloud VM.
     Yours use the wiki's embedding model with your OpenRouter sign-in; the team's use a model and an OpenRouter key
     the owner sets on the gateway's Server page. Its cost shows in Spend (or on the Server page).
   - **Images:** add PNG, JPEG, WebP or GIF (10 MB at most) with the editor's **Image** button or by pasting. Location,
-    camera and other metadata are removed (a photo keeps its orientation). A vision model you choose on the Documents
-    page describes each image once, so search finds pages by what their pictures show; on the team server the owner
+    camera and other metadata are removed (a photo keeps its orientation). A vision model you choose in Menu › Settings ›
+    Documents describes each image once, so search finds pages by what their pictures show; on the team server the owner
     sets the team's on the Server page.
   - **Pi** searches, reads, writes, edits and moves documents for you, adds images from files, and deletes or restores them on a card.
 

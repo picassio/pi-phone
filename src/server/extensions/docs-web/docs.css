@@ -1,4 +1,5 @@
-/* The Documents page (index.js, PP-47), in the app's own tokens (web/style.css), as the Wiki page looks. */
+/* The Documents page (index.js, PP-47; redesigned in PP-110), in the app's own tokens (web/style.css), as the Wiki and
+   Projects pages look. */
 .pd {
     max-width: 820px;
     margin: 0 auto;
@@ -9,30 +10,161 @@
     margin: 2px 0 8px;
 }
 
+/* ─── The top: the place as the header, + Page, and ⋯ ─── */
+
+.pd-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 0 8px;
+}
+
+/* The place: the app's own dropdown, drawn as a heading (as the Projects board's name), one line, its detail only in
+   the list. */
+.pd-place {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+/* + Page on one line however narrow the row: the place gives way first. */
+.pd-top .button {
+    flex: none;
+    white-space: nowrap;
+}
+
+.pd-place .choice {
+    /* As wide as the place's name (the app's dropdown fills its row), cut with … only when the row is full. */
+    width: auto;
+    max-width: 100%;
+    border-color: transparent;
+    background: none;
+    padding-left: 6px;
+    font-size: 16.5px;
+    font-weight: 650;
+}
+
+.pd-place .choice:hover:not(:disabled) {
+    background: var(--hover);
+}
+
+.pd-place .choice-detail {
+    display: none;
+}
+
+.pd-place .choice-text {
+    flex: 0 1 auto;
+}
+
+/* Its list may be wider than the button, so board names show whole. */
+.pd-place .choice-menu {
+    min-width: min(300px, calc(100vw - 32px));
+    font-size: 14.5px;
+    font-weight: 400;
+}
+
+.pd-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: var(--r-row);
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.pd-icon:hover,
+.pd-icon[aria-expanded="true"] {
+    background: var(--hover);
+    color: var(--text);
+}
+
+.pd-more {
+    position: relative;
+    flex: none;
+}
+
+.pd-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-width: 220px;
+    padding: 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-card);
+    background: var(--raised);
+    box-shadow: 0 12px 30px rgb(0 0 0 / 0.35);
+}
+
+.pd-menu button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: var(--r-row);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pd-menu button:hover {
+    background: var(--hover);
+}
+
+.pd-menu small {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.pd-menu hr {
+    width: 100%;
+    margin: 4px 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+}
+
+/* ─── Search: a row of its own ─── */
+
 .pd-search {
     display: flex;
+    align-items: center;
     gap: 8px;
-    margin: 4px 0 8px;
+    margin: 0 0 8px;
+    padding: 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--card);
+    color: var(--faint);
 }
 
 .pd-search input {
     flex: 1;
     min-width: 0;
+    border: 0;
+    background: none;
+    padding-left: 0;
+    padding-right: 0;
+    box-shadow: none;
 }
 
-/* Where (Mine, Team, a board): a drop-down beside the search, at most a third of the row on a phone. */
-.pd-place {
-    flex: 0 1 46%;
-    min-width: 0;
+.pd-search input:focus {
+    outline: none;
 }
 
-/* The dropdown as tall as the search beside it: one line, its detail only in the list. */
-.pd-place .choice {
-    height: 100%;
+.pd-search:focus-within {
+    border-color: var(--accent-line);
 }
 
-.pd-place .choice-detail {
-    display: none;
+.pd-sp {
+    flex: 1;
 }
 
 .pd-actions {
@@ -41,10 +173,6 @@
     align-items: center;
     gap: 8px;
     margin: 10px 0;
-}
-
-.pd-sp {
-    flex: 1;
 }
 
 .pd-meta,
@@ -58,12 +186,70 @@
     margin-bottom: 2px;
 }
 
+.pd-readonly {
+    padding: 8px 10px;
+    border-radius: var(--r-row);
+    background: var(--card);
+}
+
 .pd-problem {
     color: var(--err);
 }
 
-.pd-tree {
-    border-top: 1px solid var(--hair);
+/* ─── The folders: sections with their count, as the Wiki's categories ─── */
+
+.pd-section {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 44px;
+    padding-left: calc(var(--depth, 0) * 18px);
+    border-bottom: 1px solid var(--hair);
+}
+
+.pd-fold {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    padding: 0 2px;
+}
+
+.pd-fold svg {
+    flex: none;
+    color: var(--muted);
+}
+
+.pd-section-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 650;
+}
+
+.pd-count {
+    flex: none;
+    color: var(--faint);
+    font: 12px var(--mono);
+}
+
+.pd-loose {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 2px 6px;
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 600;
 }
 
 .pd-row {
@@ -86,20 +272,30 @@
     background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
-.pd-fold {
+/* A page: its title, and who saved it and when under it. */
+.pd-page-row {
+    align-items: flex-start;
+    gap: 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.pd-page-row > svg {
+    flex: none;
+    margin-top: 3px;
+    color: var(--muted);
+}
+
+.pd-page-text {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
+    flex-direction: column;
     min-width: 0;
-    border: 0;
-    background: none;
-    color: inherit;
-    font: inherit;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-    padding: 0;
+    flex: 1;
+}
+
+.pd-page-row.selected {
+    border-radius: var(--r-row);
+    background: var(--accent-soft);
 }
 
 .pd-row-title {
@@ -116,12 +312,150 @@
     font-size: 12px;
 }
 
-.pd-row-acts {
+/* ─── Nothing here yet ─── */
+
+.pd-empty {
     display: flex;
-    gap: 10px;
-    flex: none;
-    font-size: 12.5px;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 48px 16px 20px;
+    color: var(--muted);
+    text-align: center;
 }
+
+.pd-empty-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 6px;
+    border-radius: 16px;
+    background: var(--card);
+    color: var(--accent);
+}
+
+.pd-empty h3 {
+    margin: 0;
+    color: var(--text);
+    font-size: 16px;
+}
+
+.pd-empty p {
+    margin: 0;
+    max-width: 34ch;
+}
+
+.pd-empty-acts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px 0 4px;
+}
+
+/* ─── Wide: the folders beside the open page ─── */
+
+.pd.pd-wide {
+    display: grid;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    max-width: 1280px;
+    height: 100%;
+    padding: 0;
+}
+
+.pd-side {
+    min-height: 0;
+    overflow: auto;
+    padding: 8px 14px 40px;
+    border-right: 1px solid var(--line);
+}
+
+.pd-main {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    padding: 14px 32px 40px;
+}
+
+.pd-pick {
+    margin-top: 18px;
+}
+
+.pd-wide .pd-menu {
+    left: auto;
+}
+
+/* ─── Sheets: a folder's actions, a new folder, the settings ─── */
+
+.pd-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pd-sheet-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.pd-sheet-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 0 4px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pd-sheet-row:last-child {
+    border-bottom: 0;
+}
+
+.pd-sheet-row:hover {
+    background: var(--hover);
+}
+
+.pd-sheet-row.danger {
+    color: var(--err);
+}
+
+.pd-sheet-row small {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: right;
+}
+
+.pd-settings .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pd-settings .pd-meta {
+    margin: 0;
+}
+
+.pd-settings-head {
+    margin: 4px 0 8px;
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.pd-settings-head:not(:first-child) {
+    margin-top: 22px;
+}
+
+/* ─── Search results, a page, the editor, history ─── */
 
 .pd-hit {
     flex-wrap: wrap;
@@ -172,11 +506,13 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    border-bottom: 1px solid var(--hair);
 }
 
 .pd-version .pd-row {
     flex: 1;
     min-width: 0;
+    border-bottom: 0;
 }
 
 .pd-shown {
@@ -186,22 +522,15 @@
     border-radius: var(--r-card, 10px);
 }
 
-/* On a phone, who saved a page and when goes under its title rather than away (History needs it most). */
+/* On a phone, who saved a version and when goes under its title rather than away (History needs it most). */
 @media (max-width: 520px) {
-    .pd-page-row,
     .pd-version .pd-row {
         flex-wrap: wrap;
         row-gap: 0;
     }
 
-    .pd-page-row .pd-row-meta,
     .pd-version .pd-row-meta {
         flex-basis: 100%;
-        padding-left: 21px;
-    }
-
-    .pd-version .pd-row-meta {
-        padding-left: 0;
     }
 }
 
@@ -210,27 +539,6 @@
     max-width: 100%;
     height: auto;
     border-radius: 6px;
-}
-
-.pd-image-model {
-    margin-top: 18px;
-    color: var(--muted);
-    font-size: 12.5px;
-}
-
-.pd-image-model summary {
-    cursor: pointer;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.pd-image-model .field {
-    margin-top: 10px;
-}
-
-.pd-image-model .pd-meta {
-    margin: 4px 0 0;
 }
 
 /* A page's actions sit under its title. */
@@ -251,17 +559,4 @@
 
 .pd-history h3 {
     margin: 2px 0 8px;
-}
-
-.pd-version {
-    border-bottom: 1px solid var(--hair);
-}
-
-.pd-version .pd-row {
-    border-bottom: 0;
-}
-
-/* Its list may be wider than the button, so board names show whole. */
-.pd-place .choice-menu {
-    min-width: min(300px, calc(100vw - 32px));
 }
