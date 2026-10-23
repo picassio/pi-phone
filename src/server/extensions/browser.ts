@@ -346,7 +346,7 @@ export default function createBrowser(host: PocketHost) {
                 try {
                     const shot = await browser.screenshot(Number(api.conversationId), { png: kind === "png", index: args.index });
                     const state = browser.state();
-                    const what = shot.whole === undefined ? "" : shot.whole === "control" ? `, only [${args.index}]` : `, only the ${shot.whole} [${args.index}] is in`;
+                    const what = shot.whole === undefined ? "" : shot.whole === "control" ? `, only [${args.index}]` : `, only the ${shot.whole} that [${args.index}] is in`;
                     let saved = "";
 
                     if (args.path !== undefined) {
