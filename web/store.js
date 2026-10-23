@@ -3,7 +3,7 @@ import { BASE, routeOf } from "./base.js";
 import { onRoute, pushRoute } from "./back.js";
 import { sessionForest } from "./session-tree.js";
 import { liveMessage } from "./live.js";
-import { chooseLanguage } from "./i18n.js";
+import { chooseLanguage, tServer } from "./i18n.js";
 
 /** A random id. crypto.randomUUID only exists on https and localhost pages; plain-http network addresses lack it. */
 export function uid() {
@@ -362,10 +362,15 @@ export function typing(where) {
     api(`c/${id}/typing`, { where }).catch(() => {});
 }
 
+/**
+ * The server refused: its message in the person's language (`tServer`, PP-85), and as the server wrote it (`english`),
+ * for the code that tells failures apart by their words.
+ */
 class ApiError extends Error {
     constructor(status, message) {
-        super(message);
+        super(tServer(message));
         this.status = status;
+        this.english = message;
     }
 }
 
@@ -697,7 +702,7 @@ const handlers = {
     notice: (data) => {
         const id = notify(
             data.level,
-            data.message,
+            tServer(data.message),
             data.link
                 ? () =>
                       navigate(data.link.conversationId, {

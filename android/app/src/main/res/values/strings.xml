@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the app's Android side says itself (PP-85): notifications, the start screen, updates and downloads. In the
+     phone's language (values-zh-rCN for Chinese); the web app and the server's notifications follow the person's choice. -->
+<resources>
+    <string name="channel_sessions">Sessions</string>
+    <string name="channel_runtime">pi runtime</string>
+    <string name="runtime_running">agent runtime running</string>
+    <string name="saved_to_downloads">Saved to Downloads</string>
+    <string name="saved_name_to_downloads">Saved %1$s to Downloads.</string>
+    <string name="could_not_save">Could not save %1$s</string>
+    <string name="downloads_need_android_10">Saving to Downloads needs Android 10 or later.</string>
+    <string name="page_not_signed_in">This page is not signed in.</string>
+    <string name="downloads_no_file">Android did not make the file in Downloads.</string>
+    <string name="starting">Starting…</string>
+    <string name="starting_server">Starting the server…</string>
+    <string name="unpacking">Unpacking the runtime…</string>
+    <string name="unpacking_note">First start after an install or update; this takes a minute.</string>
+    <string name="updating">Updating…</string>
+    <string name="updating_note">Swapping in the new version.</string>
+    <string name="runtime_failed">The runtime failed</string>
+    <string name="cannot_sign_in">Cannot sign in</string>
+    <string name="update_not_installed">The update did not install</string>
+    <string name="could_not_check_updates">Could not check for updates</string>
+    <string name="up_to_date">pi is up to date.</string>
+    <string name="downloading_update">Downloading the update</string>
+    <string name="downloading_app_update">Downloading the app update</string>
+    <string name="version">Version %1$s</string>
+    <string name="installing_update">Installing the update</string>
+    <string name="installing_update_note">Android asks you to confirm. Your sessions and sign-ins stay.</string>
+    <string name="update_failed">The update failed</string>
+    <string name="update_failed_note">%1$s\n\nThe version before it is still installed: close and open the app.</string>
+    <string name="allow_installs_title">Allow pi to install updates</string>
+    <string name="allow_installs_message">Turn on \"Allow from this source\" for pi, then come back and install the update.</string>
+    <string name="open_settings">Open settings</string>
+    <string name="later">Later</string>
+    <string name="ok">OK</string>
+    <string name="megabytes">%1$.1f of %2$.1f MB</string>
+</resources>

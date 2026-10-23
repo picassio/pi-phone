@@ -82,7 +82,8 @@ import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
-import { PhoneEvents } from "./phone-events.ts";
+import { PhoneEvents, type Said, said } from "./phone-events.ts";
+import { translator } from "./i18n.ts";
 import { Forwards } from "./forwards.ts";
 import { SessionControl } from "./session-control.ts";
 import { Para } from "./para.ts";
@@ -984,16 +985,23 @@ export class PocketApp {
                     this.#toldApprovals.add(request.id);
                     const session = this.rootOf(request.conversationId);
 
+                    // Said in the owner's language when the phone fetches it (`inLanguage`, PP-85).
+                    const asked: Said =
+                        request.form?.type === "secret"
+                            ? said("Pi asks for a secret: {name}", { name: request.form.name })
+                            : request.form?.type === "interview"
+                              ? request.form.count === 1
+                                  ? said("Pi has a question: {title}", { title: request.form.title })
+                                  : said("Pi has {n} questions: {title}", { n: request.form.count, title: request.form.title })
+                              : said("Pi asks to run {tool}: {subject}", { tool: request.tool, subject: request.subject.slice(0, 280) });
+                    const title = this.#sessions[String(session)]?.title;
+
                     this.phoneEvents.add({
                         kind: "approval",
                         session: Number(session),
-                        title: this.#sessions[String(session)]?.title ?? "Session",
-                        text: (request.form?.type === "secret"
-                            ? `Pi asks for a secret: ${request.form.name}`
-                            : request.form?.type === "interview"
-                              ? `Pi has ${request.form.count === 1 ? "a question" : `${request.form.count} questions`}: ${request.form.title}`
-                              : `Pi asks to run ${request.tool}: ${request.subject}`
-                        ).slice(0, 300),
+                        title: title ?? "Session",
+                        text: translator("en")(asked.text, asked.vars).slice(0, 300),
+                        say: { text: asked, ...(title === undefined ? { title: said("Session") } : {}) },
                     });
                 }
             }
@@ -1443,17 +1451,28 @@ export class PocketApp {
     #tellPhone(id: ConversationId): void {
         setImmediate(() => {
             void (async () => {
-                const title = this.#sessions[String(id)]?.title ?? "Session";
+                const named = this.#sessions[String(id)]?.title;
+                const title = named ?? "Session";
+                // The app's own words are said in the owner's language when the phone fetches them (PP-85); Pi's are Pi's.
+                const sayTitle = named === undefined ? { title: said("Session") } : {};
 
                 if (this.#failed.has(id)) {
-                    this.phoneEvents.add({ kind: "failed", session: Number(id), title, text: "The run failed. Open it to see why." });
+                    const failed = said("The run failed. Open it to see why.");
+
+                    this.phoneEvents.add({ kind: "failed", session: Number(id), title, text: failed.text, say: { text: failed, ...sayTitle } });
 
                     return;
                 }
 
-                const text = await this.lastAnswer(id);
+                const text = (await this.lastAnswer(id)).slice(0, 300);
 
-                this.phoneEvents.add({ kind: "done", session: Number(id), title, text: text.slice(0, 300) || "Done." });
+                this.phoneEvents.add({
+                    kind: "done",
+                    session: Number(id),
+                    title,
+                    text: text || "Done.",
+                    say: { ...(text === "" ? { text: said("Done.") } : {}), ...sayTitle },
+                });
             })().catch((error: unknown) => this.log(`phone not told: ${describe(error)}`));
         });
     }

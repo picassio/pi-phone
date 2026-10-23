@@ -75,7 +75,7 @@ public final class MainActivity extends Activity {
                 if (confirm != null) startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             } else if (status != PackageInstaller.STATUS_SUCCESS) {
                 String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
-                alert("The update did not install", message == null ? "status " + status : message);
+                alert(getString(R.string.update_not_installed), message == null ? "status " + status : message);
             }
         }
     };
@@ -89,7 +89,7 @@ public final class MainActivity extends Activity {
                 String url = BASE + "/login?token=" + Uri.encode(PiService.ownerToken(MainActivity.this));
                 runOnUiThread(() -> web.loadUrl(url));
             } catch (Exception e) {
-                runOnUiThread(() -> failure("Cannot sign in", e.toString()));
+                runOnUiThread(() -> failure(getString(R.string.cannot_sign_in), e.toString()));
             }
         }
 
@@ -225,7 +225,7 @@ public final class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "PiPhoneApp");
         setContentView(web);
         registerReceiver(installStatus, new IntentFilter(Updater.INSTALL_STATUS));
-        status("Starting…", null);
+        status(getString(R.string.starting), null);
 
         startForegroundService(new Intent(this, PiService.class));
         pendingSession = getIntent().getIntExtra(PiService.EXTRA_SESSION, -1);
@@ -271,14 +271,14 @@ public final class MainActivity extends Activity {
         while (!loaded) {
             PiService.State state = PiService.state();
             if (state == PiService.State.FAILED) {
-                failure("The runtime failed", PiService.failure() + "\n\n" + logTail());
+                failure(getString(R.string.runtime_failed), PiService.failure() + "\n\n" + logTail());
                 return;
             }
             if (state != last) {
                 last = state;
-                if (state == PiService.State.INSTALLING) status("Unpacking the runtime…", "First start after an install or update; this takes a minute.");
-                if (state == PiService.State.UPDATING) status("Updating…", "Swapping in the new version.");
-                if (state == PiService.State.STARTING) status("Starting the server…", null);
+                if (state == PiService.State.INSTALLING) status(getString(R.string.unpacking), getString(R.string.unpacking_note));
+                if (state == PiService.State.UPDATING) status(getString(R.string.updating), getString(R.string.updating_note));
+                if (state == PiService.State.STARTING) status(getString(R.string.starting_server), null);
             }
             if ((state == PiService.State.STARTING || state == PiService.State.RUNNING) && answers()) {
                 PiService.markRunning();
@@ -295,7 +295,7 @@ public final class MainActivity extends Activity {
                         runOnUiThread(() -> checkForUpdates(false));
                     }
                 } catch (Exception e) {
-                    failure("Cannot sign in", e + "\n\n" + logTail());
+                    failure(getString(R.string.cannot_sign_in), e + "\n\n" + logTail());
                 }
                 return;
             }
@@ -329,10 +329,10 @@ public final class MainActivity extends Activity {
     @android.annotation.TargetApi(29)
     private void download(String url, String name) {
         try {
-            if (Build.VERSION.SDK_INT < 29) throw new IOException("Saving to Downloads needs Android 10 or later.");
+            if (Build.VERSION.SDK_INT < 29) throw new IOException(getString(R.string.downloads_need_android_10));
             HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
             String cookie = CookieManager.getInstance().getCookie(url);
-            if (cookie == null) throw new IOException("This page is not signed in.");
+            if (cookie == null) throw new IOException(getString(R.string.page_not_signed_in));
             connection.setRequestProperty("Cookie", cookie);
             connection.setReadTimeout(120_000);
             int code = connection.getResponseCode();
@@ -350,7 +350,7 @@ public final class MainActivity extends Activity {
             values.put(MediaStore.Downloads.MIME_TYPE, type.split(";")[0].trim());
             values.put(MediaStore.Downloads.IS_PENDING, 1);
             Uri saved = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
-            if (saved == null) throw new IOException("Android did not make the file in Downloads.");
+            if (saved == null) throw new IOException(getString(R.string.downloads_no_file));
             try (InputStream in = connection.getInputStream(); OutputStream out = resolver.openOutputStream(saved)) {
                 byte[] buffer = new byte[64 * 1024];
                 int read;
@@ -360,21 +360,21 @@ public final class MainActivity extends Activity {
             values.put(MediaStore.Downloads.IS_PENDING, 0);
             resolver.update(saved, values, null, null);
             savedNotification(name, saved, type.split(";")[0].trim());
-            runOnUiThread(() -> Toast.makeText(this, "Saved " + name + " to Downloads.", Toast.LENGTH_SHORT).show());
+            runOnUiThread(() -> Toast.makeText(this, getString(R.string.saved_name_to_downloads, name), Toast.LENGTH_SHORT).show());
         } catch (Exception e) {
-            runOnUiThread(() -> alert("Could not save " + name, e.getMessage() == null ? e.toString() : e.getMessage()));
+            runOnUiThread(() -> alert(getString(R.string.could_not_save, name), e.getMessage() == null ? e.toString() : e.getMessage()));
         }
     }
 
     private void savedNotification(String name, Uri saved, String type) {
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.createNotificationChannel(new NotificationChannel(
-                PiService.EVENTS_CHANNEL, "Sessions", NotificationManager.IMPORTANCE_DEFAULT));
+                PiService.EVENTS_CHANNEL, getString(R.string.channel_sessions), NotificationManager.IMPORTANCE_DEFAULT));
         PendingIntent open = PendingIntent.getActivity(this, saved.hashCode(),
                 new Intent(Intent.ACTION_VIEW).setDataAndType(saved, type).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
                 PendingIntent.FLAG_IMMUTABLE);
         manager.notify(saved.hashCode(), new Notification.Builder(this, PiService.EVENTS_CHANNEL)
-                .setContentTitle("Saved to Downloads")
+                .setContentTitle(getString(R.string.saved_to_downloads))
                 .setContentText(name)
                 .setSmallIcon(android.R.drawable.stat_sys_download_done)
                 .setContentIntent(open)
@@ -488,14 +488,14 @@ public final class MainActivity extends Activity {
                 runOnUiThread(() -> offer(plan, asked));
             } catch (Exception e) {
                 Log.w("pi-phone", "update check failed", e);
-                if (asked) runOnUiThread(() -> alert("Could not check for updates", e.toString()));
+                if (asked) runOnUiThread(() -> alert(getString(R.string.could_not_check_updates), e.toString()));
             }
         }, "pi-update-check").start();
     }
 
     private void offer(Updater.Plan plan, boolean asked) {
         if (plan.kind == Updater.Kind.NONE) {
-            if (asked) Toast.makeText(this, "pi is up to date.", Toast.LENGTH_SHORT).show();
+            if (asked) Toast.makeText(this, getString(R.string.up_to_date), Toast.LENGTH_SHORT).show();
             return;
         }
         // Offered in the web app's own sheet (web/sheets/update.js): handed over now, and kept for a page that starts
@@ -521,7 +521,7 @@ public final class MainActivity extends Activity {
 
     private void updateRuntime(Updater.Plan plan) {
         loaded = false;
-        downloading("Downloading the update", "", 0, 0);
+        downloading(getString(R.string.downloading_update), "", 0, 0);
         new Thread(() -> {
             try {
                 File into = new File(getFilesDir(), "updates");
@@ -532,7 +532,7 @@ public final class MainActivity extends Activity {
                         runtime, plan.manifest.getString("runtimeVersion")));
                 waitForServer();
             } catch (Exception e) {
-                failure("The update failed", e + "\n\nThe version before it is still installed: close and open the app.");
+                failure(getString(R.string.update_failed), getString(R.string.update_failed_note, e.toString()));
             }
         }, "pi-update").start();
     }
@@ -540,18 +540,18 @@ public final class MainActivity extends Activity {
     private void updateApk(Updater.Plan plan) {
         if (!getPackageManager().canRequestPackageInstalls()) {
             new AlertDialog.Builder(this)
-                    .setTitle("Allow pi to install updates")
-                    .setMessage("Turn on \"Allow from this source\" for pi, then come back and install the update.")
-                    .setPositiveButton("Open settings", (dialog, which) -> startActivity(new Intent(
+                    .setTitle(getString(R.string.allow_installs_title))
+                    .setMessage(getString(R.string.allow_installs_message))
+                    .setPositiveButton(getString(R.string.open_settings), (dialog, which) -> startActivity(new Intent(
                             Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName()))))
-                    .setNegativeButton("Later", null)
+                    .setNegativeButton(getString(R.string.later), null)
                     .show();
             return;
         }
         // The status screen, with a bar, while the APK downloads; then Android's installer, over the app again.
         loaded = false;
-        String version = "Version " + plan.shortVersion();
-        downloading("Downloading the app update", version, 0, 0);
+        String version = getString(R.string.version, plan.shortVersion());
+        downloading(getString(R.string.downloading_app_update), version, 0, 0);
         new Thread(() -> {
             try {
                 File apk = Updater.download(plan.manifest.getJSONObject("apk"), new File(getCacheDir(), "updates"),
@@ -559,12 +559,12 @@ public final class MainActivity extends Activity {
                             long now = System.currentTimeMillis();
                             if (now - lastProgress < 250 && done < total) return;
                             lastProgress = now;
-                            downloading("Downloading the app update", version, done, total);
+                            downloading(getString(R.string.downloading_app_update), version, done, total);
                         });
-                status("Installing the update", "Android asks you to confirm. Your sessions and sign-ins stay.");
+                status(getString(R.string.installing_update), getString(R.string.installing_update_note));
                 Updater.installApk(this, apk);
             } catch (Exception e) {
-                alert("The update failed", e.toString());
+                alert(getString(R.string.update_failed), e.toString());
             }
             waitForServer();
         }, "pi-update").start();
@@ -576,18 +576,18 @@ public final class MainActivity extends Activity {
         long now = System.currentTimeMillis();
         if (now - lastProgress < 500 && done < total) return;
         lastProgress = now;
-        downloading("Downloading the update", name, done, total);
+        downloading(getString(R.string.downloading_update), name, done, total);
     }
 
-    private static String megabytes(long done, long total) {
-        return String.format(java.util.Locale.ROOT, "%.1f of %.1f MB", done / 1e6, total / 1e6);
+    private String megabytes(long done, long total) {
+        return String.format(java.util.Locale.ROOT, getString(R.string.megabytes), done / 1e6, total / 1e6);
     }
 
     private void alert(String title, String message) {
         runOnUiThread(() -> new AlertDialog.Builder(this)
                 .setTitle(title)
                 .setMessage(message)
-                .setPositiveButton("OK", null)
+                .setPositiveButton(getString(R.string.ok), null)
                 .show());
     }
 

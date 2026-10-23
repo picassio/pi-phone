@@ -29,6 +29,8 @@ import type { User } from "../config.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { addressOf } from "../devices.ts";
 import { HttpError } from "../errors.ts";
+import { resolveLanguage, translator } from "../i18n.ts";
+import { inLanguage } from "../phone-events.ts";
 import { machinePaths } from "../machine-paths.ts";
 import { formatPlace, isRemote, parsePlace } from "../places.ts";
 import { activity, runningNow } from "../running.ts";
@@ -534,8 +536,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
             const abort = new AbortController();
 
             request.on("close", () => abort.abort());
+            const found = await app.phoneEvents.after(Number(url.searchParams.get("after") ?? -1), abort.signal);
+            // In the owner's language: their choice, or with "auto" the phone's own (`lang`, Android's locale) (PP-85).
+            const t = translator(resolveLanguage(user.language, url.searchParams.get("lang") ?? undefined));
 
-            return json(response, 200, await app.phoneEvents.after(Number(url.searchParams.get("after") ?? -1), abort.signal));
+            return json(response, 200, { ...found, events: found.events.map((event) => inLanguage(event, t)) });
         }
 
         // Screenshots (`screenshots.ts`): the app's service takes what to render (a long poll), and answers with pictures.

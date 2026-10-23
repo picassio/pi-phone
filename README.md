@@ -1,3 +1,5 @@
+English | [简体中文](README.zh-CN.md)
+
 # pi-phone
 
 A coding agent that lives on your Android phone. pi-phone is one app: it carries its own Linux userland (Node.js,
@@ -212,8 +214,9 @@ No Termux, no laptop, no cloud VM.
 - **In English or Chinese.** Appearance › Language: *Auto* follows the phone or browser, or pick English or 简体中文
   (Simplified Chinese). The choice is kept with you, so every device of yours follows it, and Pi, told your app is in
   Chinese, answers in Chinese until you write in another language. The whole app is translated: the session list,
-  conversation, menus, launcher, every sheet, and the Projects, Wiki, Documents and Sharing pages (extensions get
-  `pocket.t` for theirs). The team server's own pages and the server's messages follow.
+  conversation, menus, launcher, every sheet, the Projects, Wiki, Documents and Sharing pages (extensions get
+  `pocket.t` for theirs), the team server's sign-in and admin pages, the server's errors and notices, and the phone's
+  notifications (with Auto, in the phone's language). This README is in Chinese too: [README.zh-CN.md](README.zh-CN.md).
 - **Quick on a phone.** A streaming answer redraws only its last block, and only what changed in it crosses the wire;
   text and the event stream go compressed, and web files are cached (ETag, 304) and fetched at once (modulepreload).
 - **Updates from GitHub.** Every passing build on `master` is a release, with release notes. The app checks it (at

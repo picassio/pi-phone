@@ -7,16 +7,43 @@
  * Sessions only (the app's list), not subagents: their parent's run says when the work is done.
  */
 import type { ConversationId } from "@earendil-works/pi-durable";
+import type { Translate } from "./i18n.ts";
+
+/** An English sentence with `{name}` placeholders, and their values: said in the owner's language when sent (PP-85). */
+export type Said = { text: string; vars?: Record<string, string | number> };
+
+/** A sentence to say in the owner's language: `scripts/i18n-check.ts` finds it, as it finds a `t` call's. */
+export const said = (text: string, vars?: Record<string, string | number>): Said => (vars === undefined ? { text } : { text, vars });
 
 export type PhoneEvent = {
     seq: number;
     /** `security`: about the owner's sign-in (a recovery code was used); `session` is 0, and it opens the app. */
     kind: "done" | "failed" | "approval" | "security";
     session: number;
+    /** The session's title (data), or for `security` what happened. */
     title: string;
+    /** What to say, in English: Pi's last words (data), or the app's own sentence. */
     text: string;
+    /** The app's own words of `title` and `text`, to say in a language; without them, they are said as they are. */
+    say?: { title?: Said; text?: Said };
     at: number;
 };
+
+/** An event as the phone shows it: its heading and text in a language (`t`), the heading saying what happened. */
+export function inLanguage(event: PhoneEvent, t: Translate): PhoneEvent & { heading: string } {
+    const title = event.say?.title === undefined ? event.title : t(event.say.title.text, event.say.title.vars);
+    const text = event.say?.text === undefined ? event.text : t(event.say.text.text, event.say.text.vars);
+    const heading =
+        event.kind === "security"
+            ? title
+            : event.kind === "approval"
+              ? t("Waiting for you: {title}", { title })
+              : event.kind === "failed"
+                ? t("Failed: {title}", { title })
+                : t("Done: {title}", { title });
+
+    return { ...event, title, text, heading };
+}
 
 const KEPT = 100;
 /** How long a poll waits for an event before it answers with none. */

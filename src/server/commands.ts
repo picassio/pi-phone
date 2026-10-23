@@ -1640,7 +1640,10 @@ export class Commands {
         const message = messages.at(-nth);
 
         if (message === undefined) {
-            throw new HttpError(404, `The session has ${messages.length} message${messages.length === 1 ? "" : "s"} from people.`);
+            throw new HttpError(
+                404,
+                messages.length === 1 ? "The session has 1 message from people." : `The session has ${messages.length} messages from people.`,
+            );
         }
 
         const previous = (

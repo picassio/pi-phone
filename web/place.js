@@ -25,7 +25,7 @@ export const isRemotePlace = (cwd) => typeof cwd === "string" && cwd.startsWith(
  * `/`), or any folder on a machine (`machine:<id>:C:/…` too), whose server says "There is no folder …" (PP-103).
  */
 export const missingFolder = (error, target) =>
-    error.status === 404 && /isn't there|There is no folder/.test(error.message) && (/^\s*[~/]/.test(target) || isRemotePlace(target));
+    error.status === 404 && /isn't there|There is no folder/.test(error.english ?? error.message) && (/^\s*[~/]/.test(target) || isRemotePlace(target));
 
 /** The machines `hello` listed (connected ones only), by id. */
 export const machineById = (id) => (store.state.server?.machines ?? []).find((each) => each.id === id);

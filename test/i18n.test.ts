@@ -5,10 +5,10 @@ import { type App, cleanUp, fakeTab, openApp, owner, scriptedModel } from "./hel
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
-import { sentences } from "../scripts/i18n-check.ts";
+import { sentences, serverMessages, templatePattern } from "../scripts/i18n-check.ts";
 import { scan, wrap } from "../scripts/i18n-scan.ts";
 // @ts-expect-error: plain JS, no types.
-import { resolveLanguage, t, timeAgo, tn, tx, useCatalog } from "../web/i18n.js";
+import { resolveLanguage, t, timeAgo, tn, tServer, tx, useCatalog } from "../web/i18n.js";
 
 let app: App;
 
@@ -59,6 +59,47 @@ test("what a group of calls did reads as whole phrases in Chinese, joined as Chi
     } finally {
         useCatalog("en", {});
     }
+});
+
+test("the server's messages: found in its source, and shown in the person's language, a reason inside one too (PP-85)", () => {
+    const source = [
+        'throw new HttpError(404, `There is no folder ${absolute.value} on ${machine.name}.`);',
+        'throw new HttpError(502, `${machine.name} does not answer: ${sshProblem(reached.error)}`);',
+        'throw new HttpError(400, "Name the machine.");',
+        'app.ownerNotice("warning", `Port ${ended.forward.remotePort} of ${`${ended.forward.machine}`} closed: ${ended.reason}`);',
+        'throw new HttpError(500, error.message);',
+        'throw new HttpError(400, `${what}`);',
+    ].join("\n");
+
+    assert.deepEqual(serverMessages(source), [
+        "There is no folder {1} on {2}.",
+        "{1} does not answer: {2}",
+        "Name the machine.",
+        "Port {1} of {2} closed: {3}",
+    ]);
+    assert.equal(templatePattern("a ${b ? `c ${d}` : e} f\\n"), "a {1} f\n");
+
+    useCatalog("zh-CN", {}, {
+        "Name the machine.": "给机器起个名字。",
+        "There is no folder {1} on {2}.": "{2} 上没有文件夹 {1}。",
+        "{1} does not answer: {2}": "{1} 没有响应：{2}",
+        "the machine is not reachable from the phone (off, asleep, or another network)": "手机连不上这台机器（关机、休眠或不在同一网络）",
+    });
+
+    try {
+        assert.equal(tServer("Name the machine."), "给机器起个名字。");
+        assert.equal(tServer("There is no folder /srv/app on box."), "box 上没有文件夹 /srv/app。");
+        assert.equal(
+            tServer("laptop does not answer: the machine is not reachable from the phone (off, asleep, or another network)"),
+            "laptop 没有响应：手机连不上这台机器（关机、休眠或不在同一网络）",
+            "the reason inside is a message of its own",
+        );
+        assert.equal(tServer("Something the catalog lacks."), "Something the catalog lacks.");
+    } finally {
+        useCatalog("en", {});
+    }
+
+    assert.equal(tServer("There is no folder /srv/app on box."), "There is no folder /srv/app on box.", "English as it came");
 });
 
 test("the language: a choice, else the browser's when the app speaks it, else English", () => {

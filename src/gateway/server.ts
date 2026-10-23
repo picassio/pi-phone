@@ -65,7 +65,16 @@ const WEB = resolve(import.meta.dirname, "web");
 const WEBAUTHN = resolve(import.meta.dirname, "..", "..", "node_modules", "@simplewebauthn", "browser", "esm");
 /** pi-phone's own icon (web/icon.svg). */
 const ICON_DIR = resolve(import.meta.dirname, "..", "..", "web");
-const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png" };
+const TYPES: Record<string, string> = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".json": "application/json; charset=utf-8",
+};
+/** The app's language layer and its catalogs (PP-85), served to the gateway's page as they are to the app's. */
+const APP_I18N = /^(?:i18n\.js|i18n\/[A-Za-z-]+(?:\.server)?\.json)$/;
 
 /** pi-phone's routes for signing in and managing people: the gateway does these, so they never reach a container. */
 const REFUSED = [/^\/api\/x\/projects\/changed(\/|$|\?)/, /^\/login(\/|$|\?)/, /^\/recover(\/|$|\?)/, /^\/api\/(invite|recovery-code|devices|users|sign-out-everywhere|logout|access|tailscale|policy|activity)(\/|$|\?)/];
@@ -1135,7 +1144,7 @@ export class Gateway {
 
     #static(response: ServerResponse, file: string): void {
         const swa = file.startsWith("webauthn/");
-        const root = file === "icon.svg" ? ICON_DIR : swa ? WEBAUTHN : WEB;
+        const root = file === "icon.svg" || APP_I18N.test(file) ? ICON_DIR : swa ? WEBAUTHN : WEB;
         const path = normalize(join(root, swa ? file.slice("webauthn/".length) : file));
 
         if (!(path === root || path.startsWith(root + sep)) || !existsSync(path) || !statSync(path).isFile()) {

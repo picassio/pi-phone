@@ -4,6 +4,8 @@ import type { PocketApp } from "../app.ts";
 import { type Auth, quickTunnelHost, setAuthCookie } from "../auth.ts";
 import { addressOf, deviceName } from "../devices.ts";
 import { HttpError } from "../errors.ts";
+import { translator } from "../i18n.ts";
+import { said } from "../phone-events.ts";
 import { conversationId, escapeHtml, readBody, send } from "./io.ts";
 
 /** A form posted from another site, as browsers report it. Such a post must not sign this browser in or out. */
@@ -219,12 +221,14 @@ export async function recover(app: PocketApp, auth: Auth, request: IncomingMessa
     setAuthCookie(request, response, auth.signIn(owner, request));
     const device = String(request.headers["user-agent"] ?? "");
 
-    app.phoneEvents.add({
-        kind: "security",
-        session: 0,
-        title: "Your recovery code was used",
-        text: `A browser signed in as you with it (${deviceName(device, addressOf(request))}, from ${addressOf(request)}). If it was not you, sign it out in People › Devices and sign out every device.`,
+    const what = said("A browser signed in as you with it ({device}, from {address}). If it was not you, sign it out in People › Devices and sign out every device.", {
+        device: deviceName(device, addressOf(request)),
+        address: addressOf(request),
     });
+    const title = said("Your recovery code was used");
+
+    // Said in the owner's language when the phone fetches it (PP-85).
+    app.phoneEvents.add({ kind: "security", session: 0, title: title.text, text: translator("en")(what.text, what.vars), say: { title, text: what } });
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify({ ok: true }));
 }

@@ -36,6 +36,9 @@ export function resolveLanguage(choice, preferred = []) {
 
 let language = "en";
 let catalog = {};
+/** The server's messages in the language (web/i18n/<locale>.server.json): exact ones, and patterns with {1}, {2}… */
+let serverCatalog = {};
+let serverPatterns = null;
 
 /** Put `text`'s placeholders in: `{name}` from `vars`; one with no value stays as written. */
 function fill(text, vars) {
@@ -74,10 +77,57 @@ export const currentLanguage = () => language;
 /** The person's choice as this browser remembers it ("auto" when none). */
 export const storedChoice = () => globalThis.localStorage?.getItem(KEY) ?? "auto";
 
-/** Use `id` with `entries` (its catalog): for tests, and for the start below. */
-export function useCatalog(id, entries) {
+/** Use `id` with `entries` (its catalog) and `server` (its server messages): for tests, and for the start below. */
+export function useCatalog(id, entries, server = {}) {
     language = id;
     catalog = entries;
+    serverCatalog = server;
+    serverPatterns = null;
+}
+
+const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * A message from the server (an error, a notice) in the person's language (PP-85): the server writes them in English,
+ * and the catalog has each, those with parts that change as patterns ("There is no folder {1} on {2}."). The parts
+ * are put back as they came, each translated too when it is a message of its own (a reason inside a message). A
+ * message the catalog lacks stays in English.
+ */
+export function tServer(message, depth = 0) {
+    if (typeof message !== "string" || message === "" || language === "en") {
+        return message;
+    }
+
+    const exact = serverCatalog[message];
+
+    if (typeof exact === "string" && exact !== "") {
+        return exact;
+    }
+
+    // The most specific first: more fixed words, fewer parts that change.
+    serverPatterns ??= Object.entries(serverCatalog)
+        .filter(([english, translated]) => /\{\d+\}/.test(english) && typeof translated === "string" && translated !== "")
+        .map(([english, translated]) => ({
+            regex: new RegExp(`^${english.split(/\{\d+\}/).map(escaped).join("([\\s\\S]+?)")}$`),
+            names: [...english.matchAll(/\{(\d+)\}/g)].map((match) => match[1]),
+            translated,
+            fixed: english.replace(/\{\d+\}/g, "").length,
+        }))
+        .sort((a, b) => b.fixed - a.fixed);
+
+    for (const pattern of serverPatterns) {
+        const match = pattern.regex.exec(message);
+
+        if (match !== null) {
+            return pattern.translated.replace(/\{(\d+)\}/g, (whole, name) => {
+                const part = match[pattern.names.indexOf(name) + 1];
+
+                return part === undefined ? whole : depth < 2 ? tServer(part, depth + 1) : part;
+            });
+        }
+    }
+
+    return message;
 }
 
 /**
@@ -141,13 +191,19 @@ if (globalThis.document !== undefined) {
     document.documentElement.lang = id;
 
     if (id !== "en") {
-        try {
-            const response = await fetch(`i18n/${id}.json`);
+        // Beside this module, wherever it is served: the app's root, a shared space's, or the gateway's /auth/static/.
+        const load = async (name) => {
+            try {
+                const response = await fetch(new URL(`i18n/${name}.json`, import.meta.url));
 
-            useCatalog(id, response.ok ? await response.json() : {});
-        } catch {
-            // Offline with no copy: English, as every text is written.
-            useCatalog(id, {});
-        }
+                return response.ok ? await response.json() : {};
+            } catch {
+                // Offline with no copy: English, as every text is written.
+                return {};
+            }
+        };
+        const [entries, server] = await Promise.all([load(id), load(`${id}.server`)]);
+
+        useCatalog(id, entries, server);
     }
 }

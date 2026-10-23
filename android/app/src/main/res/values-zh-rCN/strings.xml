@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- values/strings.xml in Simplified Chinese (PP-85). -->
+<resources>
+    <string name="channel_sessions">会话</string>
+    <string name="channel_runtime">pi 运行时</string>
+    <string name="runtime_running">代理运行时正在运行</string>
+    <string name="saved_to_downloads">已保存到“下载”</string>
+    <string name="saved_name_to_downloads">已将 %1$s 保存到“下载”。</string>
+    <string name="could_not_save">无法保存 %1$s</string>
+    <string name="downloads_need_android_10">保存到“下载”需要 Android 10 或更高版本。</string>
+    <string name="page_not_signed_in">此页面未登录。</string>
+    <string name="downloads_no_file">Android 未能在“下载”中创建文件。</string>
+    <string name="starting">正在启动…</string>
+    <string name="starting_server">正在启动服务器…</string>
+    <string name="unpacking">正在解压运行时…</string>
+    <string name="unpacking_note">安装或更新后的首次启动，需要大约一分钟。</string>
+    <string name="updating">正在更新…</string>
+    <string name="updating_note">正在换上新版本。</string>
+    <string name="runtime_failed">运行时出错</string>
+    <string name="cannot_sign_in">无法登录</string>
+    <string name="update_not_installed">更新未能安装</string>
+    <string name="could_not_check_updates">无法检查更新</string>
+    <string name="up_to_date">pi 已是最新版本。</string>
+    <string name="downloading_update">正在下载更新</string>
+    <string name="downloading_app_update">正在下载应用更新</string>
+    <string name="version">版本 %1$s</string>
+    <string name="installing_update">正在安装更新</string>
+    <string name="installing_update_note">Android 会请你确认。你的会话和登录信息都会保留。</string>
+    <string name="update_failed">更新失败</string>
+    <string name="update_failed_note">%1$s\n\n之前的版本仍已安装：关闭并重新打开应用即可。</string>
+    <string name="allow_installs_title">允许 pi 安装更新</string>
+    <string name="allow_installs_message">请为 pi 开启“允许来自此来源的应用”，然后回到这里安装更新。</string>
+    <string name="open_settings">打开设置</string>
+    <string name="later">稍后</string>
+    <string name="ok">确定</string>
+    <string name="megabytes">%1$.1f / %2$.1f MB</string>
+</resources>

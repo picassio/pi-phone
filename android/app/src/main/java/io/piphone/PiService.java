@@ -226,8 +226,10 @@ public final class PiService extends Service {
                     Thread.sleep(2000);
                     continue;
                 }
+                // The phone's language: the server says the events in it when the owner's choice is Auto (PP-85).
                 HttpURLConnection connection = (HttpURLConnection) new URL(
-                        "http://127.0.0.1:" + PORT + "/api/phone/events?after=" + after).openConnection();
+                        "http://127.0.0.1:" + PORT + "/api/phone/events?after=" + after
+                                + "&lang=" + java.net.URLEncoder.encode(java.util.Locale.getDefault().toLanguageTag(), "UTF-8")).openConnection();
                 connection.setConnectTimeout(3000);
                 connection.setReadTimeout(70_000);
                 connection.setRequestProperty("Authorization", "Bearer " + ownerToken(this));
@@ -265,19 +267,18 @@ public final class PiService extends Service {
     private void post(JSONObject event) throws Exception {
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.createNotificationChannel(
-                new NotificationChannel(EVENTS_CHANNEL, "Sessions", NotificationManager.IMPORTANCE_DEFAULT));
+                new NotificationChannel(EVENTS_CHANNEL, getString(R.string.channel_sessions), NotificationManager.IMPORTANCE_DEFAULT));
         int session = event.getInt("session");
         String kind = event.getString("kind");
-        String title = event.getString("title");
         boolean security = "security".equals(kind);
-        String what = security ? "" : "approval".equals(kind) ? "Waiting for you: " : "failed".equals(kind) ? "Failed: " : "Done: ";
         // A security notice opens the app, not a session.
         Intent target = new Intent(this, MainActivity.class);
         if (!security) target.putExtra(EXTRA_SESSION, session);
         PendingIntent open = PendingIntent.getActivity(this, session, target,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        // The server says what happened, in the owner's language (`heading`: "Done: <title>", …).
         Notification notification = new Notification.Builder(this, EVENTS_CHANNEL)
-                .setContentTitle(what + title)
+                .setContentTitle(event.getString("heading"))
                 .setContentText(event.getString("text"))
                 .setStyle(new Notification.BigTextStyle().bigText(event.getString("text")))
                 .setSmallIcon(R.drawable.ic_notification)
@@ -296,12 +297,12 @@ public final class PiService extends Service {
     private Notification notification() {
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.createNotificationChannel(
-                new NotificationChannel(CHANNEL, "pi runtime", NotificationManager.IMPORTANCE_LOW));
+                new NotificationChannel(CHANNEL, getString(R.string.channel_runtime), NotificationManager.IMPORTANCE_LOW));
         PendingIntent open = PendingIntent.getActivity(
                 this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this, CHANNEL)
                 .setContentTitle("pi")
-                .setContentText("agent runtime running")
+                .setContentText(getString(R.string.runtime_running))
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentIntent(open)
                 .setOngoing(true)
