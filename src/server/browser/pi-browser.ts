@@ -342,12 +342,19 @@ export class ChromeEngine implements BrowserEngine {
         this.#child = undefined;
         this.#port = undefined;
 
-        // Chrome writes to its profile until it has gone: wait for it (5 s at most), then remove the profile.
-        if (child !== undefined && child.exitCode === null) {
+        // Chrome writes to its profile until it has gone: wait for it (5 s at most), then remove the profile. One that
+        // does not stop is killed: a Chrome left running keeps this process alive (a CI job hung on it for 20 minutes).
+        if (child !== undefined && child.exitCode === null && child.signalCode === null) {
             const gone = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+            const wait = (ms: number) => Promise.race([gone, new Promise((resolve) => setTimeout(resolve, ms))]);
 
             child.kill();
-            await Promise.race([gone, new Promise((resolve) => setTimeout(resolve, 5000))]);
+            await wait(5000);
+
+            if (child.exitCode === null && child.signalCode === null) {
+                child.kill("SIGKILL");
+                await wait(2000);
+            }
         }
 
         if (this.#profile !== undefined && this.#profile !== this.#kept) {

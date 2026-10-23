@@ -195,9 +195,27 @@ test("a saved secret is typed into a password field by name; plain text into one
         const after = await browser.typeSecret(11, password, "LOGIN_PASSWORD", "s3cret-value-123", {});
 
         assert.ok(!after.includes("s3cret-value-123"), "the page as read back does not hold the value");
-        assert.equal(await (await engine.connect((await engine.tabs())[0]!)).send<{ result: { value: string } }>("Runtime.evaluate", { expression: "document.getElementById('pass').value", returnByValue: true }).then((answer) => answer.result.value), "s3cret-value-123", "the page got it");
+
+        // The login page's own tab: Chrome lists its tabs by when each was last in front, with the one it started with.
+        const values: unknown[] = [];
+
+        for (const tab of await engine.tabs()) {
+            const cdp = await engine.connect(tab);
+
+            try {
+                values.push((await cdp.send<{ result: { value?: unknown } }>("Runtime.evaluate", { expression: "document.getElementById('pass')?.value", returnByValue: true })).result.value);
+            } finally {
+                cdp.close();
+            }
+        }
+
+        assert.ok(values.includes("s3cret-value-123"), `the page got it: ${JSON.stringify(values)}`);
     } finally {
-        await browser.close();
-        await engine.close();
+        // Chrome stops even when closing the tabs fails: a Chrome left running keeps the test process from ending.
+        try {
+            await browser.close();
+        } finally {
+            await engine.close();
+        }
     }
 });
