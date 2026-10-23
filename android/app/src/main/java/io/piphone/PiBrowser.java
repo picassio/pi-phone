@@ -2,8 +2,12 @@ package io.piphone;
 
 import android.app.Presentation;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.Image;
@@ -13,6 +17,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
 import android.print.PiPdf;
+import android.util.Base64;
 import android.util.Log;
 import android.view.ViewGroup;
 import android.webkit.WebResourceRequest;
@@ -53,7 +58,9 @@ import java.util.function.Supplier;
  * `about:blank#<marker>` it first loads.
  *
  * Each WebView lives in a Presentation on a private virtual display the size of the page, so its compositor draws every
- * frame (DevTools' screencast and screenshots come from there) with the app in the background or the screen off. Every
+ * frame (DevTools' screencast comes from there) with the app in the background or the screen off. The display's latest
+ * frame is kept: Pi's pictures of the page are taken from it (`shot`), as DevTools' capture of the view hangs on every
+ * other call (PP-114). Every
  * tab is in the WebView profile PROFILE: its cookies, storage, and sign-ins are its own, apart from the app's (whose
  * sign-in to this server a page must never ride on), and they stay across restarts. It never
  * loads this device or its local network: the app's own server is there, and a page could act as the owner.
@@ -69,11 +76,15 @@ final class PiBrowser {
     private final Supplier<String> token;
     private final BooleanSupplier serving;
     private final Handler main = new Handler(Looper.getMainLooper());
-    /** A tab: its WebView, and the display and window it draws on. */
+    /** The longest side of a picture of a page, in pixels: models take none larger once a conversation holds many. */
+    private static final int PICTURE_MAX = 2000;
+
+    /** A tab: its WebView, the display and window it draws on, and the display's latest frame (main thread). */
     private static final class Tab {
         WebView page;
         VirtualDisplay display;
         ImageReader frames;
+        Image latest;
         Presentation window;
     }
 
@@ -152,6 +163,21 @@ final class PiBrowser {
                     } else if (op.equals("close")) {
                         if (request.has("marker")) close(request.getString("marker"));
                         else for (String marker : tabs.keySet().toArray(new String[0])) close(marker);
+                    } else if (op.equals("shot")) {
+                        Tab tab = tabs.get(request.getString("marker"));
+                        if (tab == null) throw new IllegalArgumentException("there is no such tab");
+                        int quality = request.optInt("quality", 70);
+                        // A draw the page still owes comes in first; a still page draws nothing new, and its last frame is it.
+                        tab.page.invalidate();
+                        main.postDelayed(() -> {
+                            try {
+                                reply.put("jpeg", picture(tab, quality));
+                            } catch (Exception e) {
+                                failed[0] = e;
+                            }
+                            done.countDown();
+                        }, 250);
+                        return;
                     } else if (op.equals("pdf")) {
                         Tab tab = tabs.get(request.getString("marker"));
                         if (tab == null) throw new IllegalArgumentException("there is no such tab");
@@ -188,10 +214,13 @@ final class PiBrowser {
         int dpi = context.getResources().getDisplayMetrics().densityDpi;
         int widthPx = Math.round(width * density);
         int heightPx = Math.round(height * density);
+        // Two images: the one kept, and the next one coming in.
         ImageReader frames = ImageReader.newInstance(widthPx, heightPx, PixelFormat.RGBA_8888, 2);
         frames.setOnImageAvailableListener((reader) -> {
             Image frame = reader.acquireLatestImage();
-            if (frame != null) frame.close();
+            if (frame == null) return;
+            if (tab.latest != null) tab.latest.close();
+            tab.latest = frame;
         }, main);
         VirtualDisplay display = context.getSystemService(DisplayManager.class)
                 .createVirtualDisplay("pi-phone-browser", widthPx, heightPx, dpi, frames.getSurface(), 0);
@@ -265,7 +294,41 @@ final class PiBrowser {
         tab.page.destroy();
         tab.window.dismiss();
         tab.display.release();
+        if (tab.latest != null) tab.latest.close();
+        tab.latest = null;
         tab.frames.close();
+    }
+
+    /**
+     * The tab's latest frame as a JPEG (base64), at most twice its CSS pixels and PICTURE_MAX on its longest side (main
+     * thread).
+     */
+    private String picture(Tab tab, int quality) throws IOException {
+        Image frame = tab.latest;
+        if (frame == null) throw new IOException("the page has not been drawn yet");
+        int width = frame.getWidth();
+        int height = frame.getHeight();
+        Image.Plane plane = frame.getPlanes()[0];
+        int stride = plane.getRowStride() / plane.getPixelStride();
+        float density = context.getResources().getDisplayMetrics().density;
+        float scale = Math.min(1f, Math.min(2f / density, PICTURE_MAX / (float) Math.max(width, height)));
+        int outWidth = Math.max(1, Math.round(width * scale));
+        int outHeight = Math.max(1, Math.round(height * scale));
+        Bitmap whole = Bitmap.createBitmap(stride, height, Bitmap.Config.ARGB_8888);
+        Bitmap out = null;
+        try {
+            whole.copyPixelsFromBuffer(plane.getBuffer().rewind());
+            out = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(out);
+            canvas.drawColor(Color.WHITE);
+            canvas.drawBitmap(whole, new Rect(0, 0, width, height), new Rect(0, 0, outWidth, outHeight), new Paint(Paint.FILTER_BITMAP_FLAG));
+            ByteArrayOutputStream jpeg = new ByteArrayOutputStream();
+            out.compress(Bitmap.CompressFormat.JPEG, quality, jpeg);
+            return Base64.encodeToString(jpeg.toByteArray(), Base64.NO_WRAP);
+        } finally {
+            whole.recycle();
+            if (out != null) out.recycle();
+        }
     }
 
     private void post(String id, JSONObject reply) throws IOException {

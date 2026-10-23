@@ -198,6 +198,10 @@ export class SessionEngine implements BrowserEngine {
         return this.#engine.pdf(id, page);
     }
 
+    picture(id: string, page: BrowserPage, quality: number, timeoutMs?: number): Promise<string> {
+        return this.#engine.picture(id, page, quality, timeoutMs);
+    }
+
     stage(name: string, bytes: Uint8Array): Promise<string> {
         return this.#engine.stage(name, bytes);
     }

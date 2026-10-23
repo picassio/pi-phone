@@ -829,11 +829,12 @@ export class BrowserPage {
         return { title: this.hideTyped(page.title), url: this.hideTyped(page.url), text: text.slice(0, max), cut: text.length > max };
     }
 
-    /** What is in view now, as a JPEG (base64). */
+    /**
+     * What is in view now, as a JPEG (base64), by DevTools: a Chrome's (`BrowserEngine.picture`). The phone's WebView
+     * answers a capture only every other time (PP-114): its pictures come from its display's frames instead.
+     */
     async screenshot(quality = 70, timeoutMs?: number): Promise<string> {
-        // The phone's WebView from the view, not the GPU surface: it sits on an off-screen display whose surface never
-        // answers a capture (it waits forever); from the view it takes a tenth of a second. A desktop Chrome from its
-        // surface, which alone has the device scale (twice the CSS pixels: sharp text).
+        // A desktop Chrome from its surface, which alone has the device scale (twice the CSS pixels: sharp text).
         const shot = await this.cdp.send<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality, fromSurface: this.#fromSurface }, timeoutMs);
 
         return shot.data;

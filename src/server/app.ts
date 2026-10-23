@@ -92,6 +92,7 @@ import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
 import { Screenshots } from "./screenshots.ts";
+import { FilePages } from "./file-pages.ts";
 import { MachineEngine } from "./browser/machine-engine.ts";
 import { BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine.ts";
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
@@ -311,6 +312,8 @@ export class PocketApp {
     readonly phoneEvents = new PhoneEvents();
     /** Pictures of pages, rendered by the app's service on the phone (`screenshots.ts`). */
     readonly screenshots = new Screenshots();
+    /** Keys to the files beside a session's HTML page, for the page (`file-pages.ts`). */
+    readonly filePages = new FilePages();
     /** What the app's service does for Pi's browser: make and remove its WebView (`PiBrowser.java`). */
     readonly browserRequests = new PhoneRequests("Pi's browser");
     /** Pi's browser on the phone (`browser/pi-browser.ts`): the pages Pi uses, that the owner watches and can take over. */

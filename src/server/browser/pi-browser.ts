@@ -60,6 +60,8 @@ export interface BrowserEngine {
     close(): Promise<void>;
     /** The tab's page as a PDF, as printing it would make. */
     pdf(id: string, page: BrowserPage): Promise<Buffer>;
+    /** What is in view in the tab now, as a JPEG (base64). */
+    picture(id: string, page: BrowserPage, quality: number, timeoutMs?: number): Promise<string>;
     /** Put a file where the browser can read it, for an upload: its path there. */
     stage(name: string, bytes: Uint8Array): Promise<string>;
 }
@@ -215,6 +217,20 @@ export class PhoneEngine implements BrowserEngine {
         }
     }
 
+    /**
+     * From the frames of the tab's own display (PiBrowser.java's `shot`): DevTools' capture of the phone's WebView hangs on
+     * every other call (PP-114).
+     */
+    async picture(id: string, _page: BrowserPage, quality: number, timeoutMs = 30_000): Promise<string> {
+        const answer = await this.#requests.request({ op: "shot", marker: id, quality }, timeoutMs);
+
+        if (typeof answer.jpeg !== "string" || answer.jpeg === "") {
+            throw new Error("The phone answered no picture of the page.");
+        }
+
+        return answer.jpeg;
+    }
+
     async stage(name: string, bytes: Uint8Array): Promise<string> {
         return stageLocally(name, bytes);
     }
@@ -344,6 +360,10 @@ export class ChromeEngine implements BrowserEngine {
         const printed = await page.cdp.send<{ data: string }>("Page.printToPDF", { printBackground: true });
 
         return Buffer.from(printed.data, "base64");
+    }
+
+    picture(_id: string, page: BrowserPage, quality: number, timeoutMs?: number): Promise<string> {
+        return page.screenshot(quality, timeoutMs);
     }
 
     async stage(name: string, bytes: Uint8Array): Promise<string> {
@@ -732,7 +752,7 @@ export class PiBrowser {
     }
 
     screenshot(session: number): Promise<string> {
-        return this.#run(session, "Looking at the page", ({ page }) => page.screenshot());
+        return this.#run(session, "Looking at the page", ({ id, page }) => this.#options.engine.picture(id, page, 70));
     }
 
     /** The page in front as a PDF. */
@@ -959,9 +979,10 @@ export class PiBrowser {
     }
 
     async #startFrames(): Promise<void> {
-        const page = this.#tab?.page;
+        const tab = this.#tab;
+        const page = tab?.page;
 
-        if (page === undefined || this.#casting === page) {
+        if (tab === undefined || page === undefined || this.#casting === page) {
             return;
         }
 
@@ -972,7 +993,7 @@ export class PiBrowser {
         // phone's WebView does not answer a capture while it casts (the panel opened again showed nothing, 30 s later
         // an error). A capture that does not come in 5 s is left out; the cast's frames follow.
         try {
-            this.#options.frame({ jpeg: await page.screenshot(60, 5000), width: this.#state.viewport.width, height: this.#state.viewport.height });
+            this.#options.frame({ jpeg: await this.#options.engine.picture(tab.id, page, 60, 5000), width: this.#state.viewport.width, height: this.#state.viewport.height });
         } catch (error) {
             this.#options.log(`browser frames: the first picture: ${String(error)}`);
         }

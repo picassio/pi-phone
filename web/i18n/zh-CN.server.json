@@ -199,6 +199,8 @@
     "OfficeCLI is not available on this device.": "此设备上没有 OfficeCLI。",
     "{1} is not a .docx, .xlsx, or .pptx file.": "{1} 不是 .docx、.xlsx 或 .pptx 文件。",
     "Files up to {1} MB can be downloaded.": "只能下载不超过 {1} MB 的文件。",
+    "This page's files are no longer there: open the page again.": "此页面的文件已失效：请重新打开页面。",
+    "Only files in the page's folder, or under it.": "只能读取页面所在文件夹及其子文件夹中的文件。",
     "{1} is not a file there.": "{1} 在那里不是文件。",
     "{1} is not a file.": "{1} 不是文件。",
     "Files go into the session's folder, or a folder in it.": "文件只能放在会话的文件夹或其子文件夹中。",

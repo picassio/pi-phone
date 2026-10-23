@@ -182,3 +182,52 @@ test("an HTML file of a session as its own page, in the artifacts' sandbox", asy
         await new Promise<void>((resolve) => server.close(() => resolve()));
     }
 });
+
+test("the files beside an HTML page load for it, from its folder and under it only, with no cookie (PP-113)", async () => {
+    const { createHandler } = await import("../src/server/http.ts");
+    const server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const id = await newSession(app);
+    const site = join(work, "site");
+
+    mkdirSync(join(site, "css"), { recursive: true });
+    writeFileSync(join(work, "secret.txt"), "not for the page");
+    writeFileSync(join(site, "page.html"), '<!doctype html><html><head><link rel="stylesheet" href="css/style.css"></head><body><h1>Hi</h1></body></html>');
+    writeFileSync(join(site, "css", "style.css"), "h1{color:green}");
+    writeFileSync(join(site, "based.html"), '<html><head><base href="https://example.com/"></head></html>');
+
+    try {
+        const page = await fetch(`${base}/a/file/${String(id)}?path=${encodeURIComponent(join(site, "page.html"))}`, { headers: { authorization: `Bearer ${app.config.ownerToken}` } });
+        const html = await page.text();
+        const href = /<head><base href="(\/a\/file\/g\/[\w-]+\/)"><link/.exec(html)?.[1];
+
+        assert.ok(href, html);
+
+        // As the sandboxed page asks: no cookie, no token.
+        const css = await fetch(`${base}${href}css/style.css`);
+
+        assert.equal(css.status, 200);
+        assert.equal(css.headers.get("content-type"), "text/css; charset=utf-8");
+        assert.equal(css.headers.get("access-control-allow-origin"), "*");
+        assert.equal(await css.text(), "h1{color:green}");
+
+        // Not above its folder, however it is written; not with a key it was not given.
+        for (const above of [`${href}%2E%2E/secret.txt`, `${href}..%2Fsecret.txt`, `${href}css/..%2F..%2Fsecret.txt`]) {
+            const answer = await fetch(`${base}${above}`);
+
+            assert.ok(answer.status === 400 || answer.status === 404, `${above}: ${answer.status}`);
+            assert.doesNotMatch(await answer.text(), /not for the page/);
+        }
+        assert.equal((await fetch(`${base}/a/file/g/made-up/css/style.css`)).status, 404);
+
+        // A page with a base of its own keeps it.
+        const based = await fetch(`${base}/a/file/${String(id)}?path=${encodeURIComponent(join(site, "based.html"))}`, { headers: { authorization: `Bearer ${app.config.ownerToken}` } });
+
+        assert.equal(await based.text(), '<html><head><base href="https://example.com/"></head></html>');
+    } finally {
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+});

@@ -195,6 +195,10 @@ export class MachineEngine implements BrowserEngine {
         return Buffer.from(printed.data, "base64");
     }
 
+    picture(_id: string, page: BrowserPage, quality: number, timeoutMs?: number): Promise<string> {
+        return page.screenshot(quality, timeoutMs);
+    }
+
     /** On the machine, where its Chrome reads it. */
     async stage(name: string, bytes: Uint8Array): Promise<string> {
         const path = `${this.#machine.home}/${BROWSER_DIR}/uploads/${crypto.randomUUID()}/${name.replace(/[/\\]/g, "_")}`;

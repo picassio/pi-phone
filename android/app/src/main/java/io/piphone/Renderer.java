@@ -231,9 +231,10 @@ final class Renderer {
         view.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView page, String loaded) {
-                if (settled[0]) return;
+                // The WebView's first, empty page finishing is not the page's (PP-112: a picture of nothing, 0 elements).
+                if (settled[0] || loaded == null || !(loaded.startsWith("http:") || loaded.startsWith("https:"))) return;
                 settled[0] = true;
-                main.postDelayed(() -> {
+                whenLoaded(page, System.currentTimeMillis() + LOAD_MS, () -> main.postDelayed(() -> {
                     try {
                         int content = Math.max(viewport, page.getContentHeight());
                         int height = fullPage ? Math.min(content, maxHeight) : viewport;
@@ -272,7 +273,7 @@ final class Renderer {
                     } catch (Exception e) {
                         done.accept(e);
                     }
-                }, settleMs);
+                }, settleMs));
             }
 
             @Override
@@ -287,6 +288,21 @@ final class Renderer {
         if (url.startsWith(BASE + "/")) headers.put("Authorization", "Bearer " + token.get());
         view.loadUrl(url, headers);
         return stage;
+    }
+
+    /** How long a finished page may take to say its document is complete. */
+    private static final long LOAD_MS = 10_000;
+
+    /**
+     * Then, once the page's document is complete at a web address (main thread): onPageFinished may come before the
+     * document is there, and a page measured then has no elements and draws white (PP-112). Past `until`, then anyway.
+     */
+    private void whenLoaded(WebView page, long until, Runnable then) {
+        // An SVG file's document has no body.
+        page.evaluateJavascript("document.readyState === 'complete' && /^https?:/.test(location.href) && (document.body !== null || !(document instanceof HTMLDocument))", (ready) -> {
+            if ("true".equals(ready) || System.currentTimeMillis() > until) then.run();
+            else main.postDelayed(() -> whenLoaded(page, until, then), 100);
+        });
     }
 
     /** Lays each page WebView out at its own size, however small the window: what is not on it is drawn anyway. */

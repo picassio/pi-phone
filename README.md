@@ -143,7 +143,8 @@ No Termux, no laptop, no cloud VM.
   [effective-html](https://github.com/plannotator/effective-html)'s design skills), and **interactive answers**: a
   trip with a map, a calculator, a checklist, drawn as a working UI that keeps its state.
 - **Pi sees its work.** `screenshot` renders an artifact, an HTML or Office file, or a web page in the phone's own
-  WebView, at phone and desktop widths, even with the screen off, so Pi checks a page before calling it done.
+  WebView, at phone and desktop widths, even with the screen off, so Pi checks a page before calling it done. An HTML
+  file loads its stylesheets, scripts and pictures from its own folder, so a page linking the app's CSS shows styled.
 - **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
   out of its box or its parent, and whether the page is wider than the screen, with sizes. Pi goes by the numbers.
 

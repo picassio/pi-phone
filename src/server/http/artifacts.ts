@@ -8,6 +8,7 @@ import { marked } from "marked";
 import type { PocketApp } from "../app.ts";
 import type { User } from "../config.ts";
 import { HttpError } from "../errors.ts";
+import { fileType, folderOf, withBase } from "../file-pages.ts";
 import { wholeWorkbookPage } from "../officecli.ts";
 import { conversationId, escapeHtml, send } from "./io.ts";
 
@@ -117,6 +118,11 @@ export async function artifact(
     user: User | undefined,
     query = new URLSearchParams(),
 ): Promise<void> {
+    // A file beside a session's HTML page, for the page (`file-pages.ts`): its key, not a cookie, lets it in.
+    if (parts[0] === "file" && parts[1] === "g") {
+        return fileBesidePage(app, response, parts.slice(2));
+    }
+
     if (user === undefined) {
         throw new HttpError(401, "Sign in first");
     }
@@ -155,9 +161,12 @@ export async function artifact(
             throw new HttpError(400, `${path} is not an .html, .htm, or .svg file.`);
         }
 
-        const { data } = await app.workspace.downloadFile(conversationId(parts[1]), user, path);
+        const conversation = conversationId(parts[1]);
+        const { data } = await app.workspace.downloadFile(conversation, user, path);
+        // Its stylesheets, scripts, and pictures beside it come from its folder (PP-113).
+        const body = svg ? data : withBase(data.toString("utf8"), `/a/file/g/${app.filePages.grant(conversation, user.id, folderOf(path))}/`);
 
-        return send(response, 200, data, svg ? "image/svg+xml" : "text/html; charset=utf-8", {
+        return send(response, 200, body, svg ? "image/svg+xml" : "text/html; charset=utf-8", {
             "content-security-policy": ARTIFACT_CSP,
             "x-content-type-options": "nosniff",
             "referrer-policy": "no-referrer",
@@ -208,4 +217,34 @@ export async function artifact(
     }
 
     return send(response, 200, found.content, "text/html; charset=utf-8", headers);
+}
+
+/**
+ * `/a/file/g/<key>/<path>`: a file in the folder a key grants (`file-pages.ts`), or under it, read as the person it was
+ * granted to: never above it. Anyone may load it with the key (the page's module scripts and fonts ask with an origin of
+ * null), and it stays in the sandbox.
+ */
+async function fileBesidePage(app: PocketApp, response: ServerResponse, parts: string[]): Promise<void> {
+    const [key, ...rest] = parts;
+    const page = key === undefined ? undefined : app.filePages.find(key);
+    const user = page === undefined ? undefined : app.config.userById(page.userId);
+
+    if (page === undefined || user === undefined) {
+        throw new HttpError(404, "This page's files are no longer there: open the page again.");
+    }
+
+    if (rest.length === 0 || rest.some((part) => part === "." || part === ".." || part.includes("\\"))) {
+        throw new HttpError(400, "Only files in the page's folder, or under it.");
+    }
+
+    const path = page.folder === "" ? rest.join("/") : `${page.folder.replace(/[/\\]+$/, "")}/${rest.join("/")}`;
+    const { data } = await app.workspace.downloadFile(page.conversation, user, path);
+
+    return send(response, 200, data, fileType(path), {
+        "content-security-policy": ARTIFACT_CSP,
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer",
+        "cache-control": "no-store",
+        "access-control-allow-origin": "*",
+    });
 }
