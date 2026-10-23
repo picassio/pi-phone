@@ -1,5 +1,9 @@
-/* The gateway's page (PP-21): pi-phone's look (Pocket · Tokyo Night), plain CSS. */
-:root {
+/*
+ * The gateway's pages (PP-21): pi-phone's look, plain CSS. Every rule is inside `.gw`, so the same pages can draw
+ * inside the app's People & account panel (PP-80) without touching the app: `.gw-page` is the gateway's own page, with
+ * its own colors (Pocket · Tokyo Night); `.gw-embed` is the panel, whose colors come from the app's theme.
+ */
+.gw-page {
     --bg: #1a1b26;
     --card: #1f2335;
     --card-2: #24283b;
@@ -9,19 +13,32 @@
     --accent: #7aa2f7;
     --ok: #9ece6a;
     --bad: #f7768e;
+    --accent-ink: #16161e;
     --r: 12px;
     color-scheme: dark;
-}
-
-* {
-    box-sizing: border-box;
-}
-
-body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
     font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* In the app: --bg, --card, --hair, --text, --muted and --accent are the theme's own; these few are mapped. */
+.gw-embed {
+    --card-2: var(--raised);
+    --ok: var(--o-green);
+    --bad: var(--o-red);
+    --r: 12px;
+    max-width: 680px;
+    padding: 2px 20px 40px;
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.gw {
+
+* {
+    box-sizing: border-box;
 }
 
 main {
@@ -115,7 +132,7 @@ button.primary,
 .button.primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: #16161e;
+    color: var(--accent-ink);
 }
 
 button.danger {
@@ -554,7 +571,8 @@ main.solo > .button {
 
 /* On a wide screen a form's button is as wide as its words, at the left; a phone keeps it full width. */
 @media (min-width: 600px) {
-    main:not(.solo) form > button[type="submit"] {
+    main:not(.solo) form > button[type="submit"],
+    &.gw-embed form > button[type="submit"] {
         justify-self: start;
         min-width: 120px;
     }
@@ -675,4 +693,49 @@ main.solo > .button {
     min-width: 120px;
     min-height: 34px;
     padding: 4px 10px;
+}
+
+/* The invite link just made, under its form (PP-80). */
+.made-link {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--hair);
+}
+
+.made-link[hidden] {
+    display: none;
+}
+
+.made-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.made-row input {
+    flex: 1;
+    min-width: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+}
+
+.made-row button {
+    flex: none;
+}
+
+/* In the app's panel (PP-80): the tabs right under the panel's title; a checkbox drawn as the app draws them. */
+&.gw-embed > .tabs {
+    margin-top: 0;
+}
+
+&.gw-embed label.check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 4px;
+}
+
 }

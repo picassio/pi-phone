@@ -13,7 +13,9 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
   gateway reaches it through a Unix socket with a shared secret.
 - **The owner's pages:** the People page (`/auth/people`) has invites, roles, password and 2FA resets, and disabling or
   removing someone (their data is kept). Everyone has an Account page (`/auth/account`) for their password, two-factor and
-  passkeys.
+  passkeys. Inside the app, the rail's **People & account** (and ⋯ › Your account) opens these pages in the main panel,
+  with the rail and sessions kept, in the app's theme; the `/auth/…` pages stay for signing in and direct links. A new
+  invite's link shows under its form, copied.
 - **Custom roles** (`/auth/roles`): a role is a set of permissions from a catalogue, plus the memory and CPUs of its people's
   pi-phones, the models they may use, and a monthly spend limit. Owner is built in. Admin, Member and Viewer are seeded,
   and you edit, add and delete roles.

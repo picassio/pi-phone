@@ -17,6 +17,7 @@ import {
 } from "./files-panel.js";
 import { BrowserButton, BrowserPanel, BrowserPreview, BrowserWatcher, browserShown } from "./browser-panel.js";
 import { ExtensionPage, openPageWhenReady, openSheetWhenReady } from "./extension-ui.js";
+import { GATEWAY_PAGE, GatewayPage } from "./gateway-panel.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
 import { Splash } from "./home.js";
 import { UsageMeter } from "./usage.js";
@@ -478,7 +479,9 @@ function App() {
                 board
                     ? html`<${SubagentsBoard} />`
                     : page
-                      ? html`<${ExtensionPage} key=${`${state.page.module}:${state.page.id}`} />`
+                      ? state.page.module === GATEWAY_PAGE
+                          ? html`<${GatewayPage} key=${state.page.id} tab=${state.page.id} />`
+                          : html`<${ExtensionPage} key=${`${state.page.module}:${state.page.id}`} />`
                       : inConversation
                         ? html`<${Topbar} />
                     ${

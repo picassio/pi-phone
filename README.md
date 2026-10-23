@@ -253,6 +253,8 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
   - **A pi-phone per person**, each in its own container.
   - **Custom roles**, which set features, models, monthly spend, memory and CPU.
   - **An audit log**, failed and blocked sign-ins included.
+  - **People & account in the app:** the rail's People & account opens the team pages (Account, Shared with me, People,
+    Roles, Audit log, Server) in the main panel, in the app's theme; a new invite's link shows in place, copied.
   - **Idle pi-phones stop**, with **Always on** per person.
   - **Rolling updates**, with data kept.
   - **Downloads:** each person's data, and a whole-server backup.

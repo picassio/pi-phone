@@ -11,7 +11,15 @@ const pieces = (sentence, vars) =>
         .map((part, index) => (index % 2 === 1 ? (Object.hasOwn(vars, part) ? vars[part] : `{${part}}`) : part))
         .filter((part) => part !== "");
 
-const app = document.getElementById("app");
+/**
+ * Where the pages draw: the gateway's own page (`main#app[data-gateway]`), or the app's People & account panel
+ * (`mount`, PP-80). In the panel there is no address of its own: `embedded.path` is the page shown.
+ */
+let app = null;
+let embedded = null;
+const here = () => (embedded === null ? location.pathname : embedded.path);
+/** The pages the panel shows as tabs; any other (signing in or out) is the gateway's own page, whole. */
+const TABS = ["/auth/account", "/auth/shared", "/auth/people", "/auth/roles", "/auth/audit", "/auth/server"];
 
 /** An element: tag, properties (on* are listeners), children (strings become text). */
 function h(tag, props = {}, ...children) {
@@ -62,9 +70,10 @@ const authApi = (path, body, method) => call(`/auth/api/${path}`, body, method);
 const gw = (path, body, method) => call(`/auth/gw/${path}`, body, method);
 
 function page(title, lede, ...content) {
-    // A signed-in page starts with its tabs (`nav`): they go under the top bar, which then leads to your pi-phone.
+    // A signed-in page starts with its tabs (`nav`): they go under the top bar, which then leads to your pi-phone. In the
+    // app's panel there is no top bar: the panel has its title and its ×, and you are in your pi-phone already.
     const tabs = content[0] instanceof Node && content[0].classList?.contains("tabs") ? content.shift() : null;
-    const top = h(
+    const top = embedded !== null ? null : h(
         "header",
         { class: "top" },
         h("a", { class: "brand", href: "/auth/account", onclick: (event) => (event.preventDefault(), go("/auth/account")) }, h("img", { src: "/auth/static/icon.svg", alt: "" }), h("b", {}, "pi-phone")),
@@ -72,12 +81,15 @@ function page(title, lede, ...content) {
     );
 
     // Signed out (sign in, set up, an invite): one narrow card in the middle of the screen (PP-62).
-    app.classList.toggle("solo", tabs === null);
+    app.classList.toggle("solo", tabs === null && embedded === null);
     // Leaving out what is not there (a passkey button where the browser can't make one): replaceChildren would write "null".
     app.replaceChildren(
         ...[top, tabs, h("h1", {}, title), lede ? h("p", { class: "lede muted" }, lede) : null, ...content].filter((each) => each !== null && each !== undefined && each !== false),
     );
-    document.title = `${title} · pi-phone`;
+    if (embedded === null) {
+        document.title = `${title} · pi-phone`;
+    }
+
     // On a phone the tabs scroll sideways: the one you are on comes into view.
     tabs?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
@@ -190,6 +202,20 @@ function form(fields, submit, action) {
 const field = (label, name, type = "text", extra = {}) => h("label", {}, label, h("input", { name, type, required: true, ...extra }));
 const next = () => new URLSearchParams(location.search).get("next") || "/";
 const go = (path) => {
+    if (embedded !== null) {
+        // Signing in or out leaves the panel for the gateway's own page.
+        if (!TABS.includes(path)) {
+            location.href = path;
+
+            return;
+        }
+
+        embedded.path = path;
+        void route();
+
+        return;
+    }
+
     history.pushState({}, "", path);
     void route();
 };
@@ -422,7 +448,7 @@ const has = (me, permission) => (me.permissions ?? []).includes(permission);
 /** The gateway's pages, as tabs (one row, scrolled sideways on a phone), the one shown marked. */
 const nav = (me) => {
     const tab = (path, label) =>
-        h("a", { class: "tab", href: path, "aria-current": location.pathname === path ? "page" : null, onclick: (event) => (event.preventDefault(), go(path)) }, label);
+        h("a", { class: "tab", href: path, "aria-current": here() === path ? "page" : null, onclick: (event) => (event.preventDefault(), go(path)) }, label);
 
     return h(
         "nav",
@@ -439,6 +465,8 @@ const nav = (me) => {
 async function people(me) {
     const listBox = h("div", { class: "list" });
     const invitesBox = h("div", { class: "list" });
+    // The link just made, in place (PP-80): no dialog, so it reads the same on the page and in the app's panel.
+    const madeBox = h("div", { class: "made-link", hidden: true });
     const { roles } = await gw("roles");
     const offered = roles.filter((role) => role.id !== "owner" || me.role === "owner");
 
@@ -478,11 +506,18 @@ async function people(me) {
                       async ({ role, minutes }) => {
                           const made = await gw("invites", { role, minutes: Number(minutes) });
 
-                          await navigator.clipboard?.writeText(made.url).catch(() => {});
+                          const copied = await navigator.clipboard?.writeText(made.url).then(() => true, () => false);
+                          const copy = h("button", { type: "button", class: "small" }, copied ? t("Copied") : t("Copy"));
+
+                          copy.addEventListener("click", async () => {
+                              copy.textContent = (await navigator.clipboard?.writeText(made.url).then(() => true, () => false)) ? t("Copied") : t("Copy it from the box");
+                          });
+                          madeBox.replaceChildren(h("span", { class: "muted" }, t("Invite link: send it to them; it works once.")), h("div", { class: "made-row" }, h("input", { readonly: true, value: made.url, "aria-label": t("Invite link"), onfocus: (event) => event.target.select() }), copy));
+                          madeBox.hidden = false;
                           void renderInvites(invitesBox, roles);
-                          alert(t("Invite link (copied):\n{url}", { url: made.url }));
                       },
                   ),
+                  madeBox,
               )
             : null,
         has(me, "people.invite") ? h("h2", {}, t("Invites")) : null,
@@ -908,13 +943,20 @@ async function serverPage(me) {
 // ─── Routes ───
 
 async function route() {
-    const path = location.pathname;
+    const path = here();
     let state;
 
     try {
         state = await gw("state");
     } catch (failed) {
         return page("pi-phone", failed.message);
+    }
+
+    // The panel is for someone signed in: signing in is the gateway's own page.
+    if (embedded !== null && (state.setup || !state.me)) {
+        location.href = "/auth/sign-in";
+
+        return;
     }
 
     const invited = /^\/auth\/invite\/([A-Za-z0-9_-]+)$/.exec(path);
@@ -957,8 +999,31 @@ async function route() {
         return;
     }
 
+    // A tab this role may not open shows Account, marked as such.
+    if (embedded !== null) {
+        embedded.path = "/auth/account";
+    }
+
     return account(state.me);
 }
 
-addEventListener("popstate", () => void route());
-void route();
+/**
+ * Draw the pages in `box` (the app's People & account panel, PP-80) at `path` (one of the tabs; Account by default),
+ * with the app's theme. Tabs change the page inside the box; signing out leaves for the gateway's own page.
+ */
+export function mount(box, path = "/auth/account") {
+    app = box;
+    embedded = { path: TABS.includes(path) ? path : "/auth/account" };
+    box.classList.add("gw", "gw-embed");
+    void route();
+}
+
+// The gateway's own page: its root is marked, so importing this module into the app (whose root is #app too) draws
+// nothing until `mount`.
+const own = document.querySelector("main#app[data-gateway]");
+
+if (own !== null) {
+    app = own;
+    addEventListener("popstate", () => void route());
+    void route();
+}

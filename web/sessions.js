@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Avatar, folderColor, initials } from "./avatar.js";
 import { goHome, useBack } from "./back.js";
 import { ExtensionRailButtons } from "./extension-ui.js";
+import { GATEWAY_PAGE, openGatewayPage } from "./gateway-panel.js";
 import { useDragToClose } from "./gestures.js";
 import { PeeksRailButton } from "./peeks.js";
 import { sessionForest } from "./session-tree.js";
@@ -1856,14 +1857,15 @@ function Rail({ foldable = false, folded = false }) {
         </button>
         <${ExtensionRailButtons} />
         ${
-            // Behind the server edition's gateway, people and devices are its (PP-21): the rail opens its account page.
+            // Behind the server edition's gateway, people and devices are its (PP-21): the rail opens its pages in the
+            // People & account panel (PP-80), on People (Account for a role that may not see people).
             store.state.server?.gateway
                 ? html`<button
-                    class="rail-button"
+                    class=${`rail-button rail-ext ${store.state.page?.module === GATEWAY_PAGE ? "open" : ""}`}
                     data-part="rail-button"
                     title=${t("Your account and people")}
-                    aria-label=${t("Your account")}
-                    onClick=${() => (location.href = "/auth/account")}
+                    aria-label=${t("People & account")}
+                    onClick=${() => openGatewayPage("people")}
                 >
                     <${Icon} name="users" size=${19} />
                 </button>`

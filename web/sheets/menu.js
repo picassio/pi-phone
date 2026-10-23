@@ -5,6 +5,7 @@ import { useLayoutEffect, useRef } from "preact/hooks";
 import { chatUnread } from "../chat.js";
 import { schedulesAvailable, webAvailable } from "../commands.js";
 import { extensionMenuItems, safeMode } from "../extension-ui.js";
+import { openGatewayPage } from "../gateway-panel.js";
 import { useChanges } from "../diff.js";
 import { filesAvailable, setFilesOpen } from "../files-panel.js";
 import { peeksOn, togglePeeks } from "../peeks.js";
@@ -503,7 +504,7 @@ export function MenuSheet({ places = true }) {
             ${
                 // Behind the server edition's gateway, accounts, people and devices are its (PP-21).
                 server?.gateway
-                    ? item("Your account", () => (location.href = "/auth/account"), "password, two-factor, passkeys, people")
+                    ? item("Your account", () => openGatewayPage("account"), "password, two-factor, passkeys, people")
                     : collab()
                       ? item("People", () => openSheet({ type: "people" }), me?.role === "viewer" ? "you can view" : "")
                       : item("Sign in another device", () => openSheet({ type: "invite" }))
