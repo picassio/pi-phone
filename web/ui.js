@@ -795,6 +795,15 @@ document.addEventListener("click", (event) => {
         : t("Show all {n} lines", { n: block.querySelector("pre")?.textContent.split("\n").length ?? "" });
 });
 
+/**
+ * Whether Enter sends (issue #2): Enter without Shift, not mid-composition, on a computer, or from a physical keyboard on a
+ * phone or tablet (a Bluetooth one). On a touch screen the on-screen keyboard's Enter makes a new line; its key events
+ * have no `code` (no scan code), while a physical keyboard's say "Enter".
+ */
+export function enterSends(event) {
+    return event.key === "Enter" && !event.shiftKey && !event.isComposing && (!matchMedia("(pointer: coarse)").matches || (event.code ?? "") !== "");
+}
+
 /** Copy text, with a fallback for plain-http addresses, where the clipboard API does not exist. */
 export async function copyText(text) {
     if (navigator.clipboard?.writeText) {

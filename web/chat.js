@@ -24,7 +24,7 @@ import {
     typing,
 } from "./store.js";
 import { t } from "./i18n.js";
-import { copyText, html, Icon, Loader, Sheet, Spinner, timeAgo } from "./ui.js";
+import { copyText, enterSends, html, Icon, Loader, Sheet, Spinner, timeAgo } from "./ui.js";
 
 const coarse = matchMedia("(pointer: coarse)").matches;
 
@@ -545,7 +545,7 @@ function ChatTab({ highlight, focus }) {
                     return;
                 }
 
-                if (event.key === "Enter" && !event.shiftKey && !coarse && !event.isComposing) {
+                if (enterSends(event)) {
                     event.preventDefault();
                     send();
                 }

@@ -37,6 +37,7 @@ import { MicButton, useDictation } from "./voice.js";
 import {
     APPLE,
     contextLevel,
+    enterSends,
     formatBytes,
     formatTokens,
     html,
@@ -1006,10 +1007,7 @@ export function Composer() {
             // Tab completes; Enter completes too, unless the file's path is typed out already, which sends.
             const typedOut = !chosenFile.dir && mention.query === chosenFile.path;
 
-            if (
-                event.key === "Tab" ||
-                (event.key === "Enter" && !event.shiftKey && !coarse && !typedOut)
-            ) {
+            if (event.key === "Tab" || (enterSends(event) && !typedOut)) {
                 event.preventDefault();
                 chooseFile(chosenFile);
 
@@ -1040,10 +1038,7 @@ export function Composer() {
             // Tab completes; Enter completes too, unless the name is typed out already, which runs it.
             const typedOut = parsed && text.trim() === `/${chosen.name}`;
 
-            if (
-                event.key === "Tab" ||
-                (event.key === "Enter" && !event.shiftKey && !coarse && !typedOut)
-            ) {
+            if (event.key === "Tab" || (enterSends(event) && !typedOut)) {
                 event.preventDefault();
                 choose(chosen);
 
@@ -1066,7 +1061,7 @@ export function Composer() {
             return;
         }
 
-        if (event.key === "Enter" && !event.shiftKey && !coarse && !event.isComposing) {
+        if (enterSends(event)) {
             event.preventDefault();
             send();
         }

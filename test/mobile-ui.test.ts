@@ -182,6 +182,47 @@ test("back closes the open file, then the Files tile, then leaves the session", 
     await reach({ path: "/" }, "back to the list");
 });
 
+// Issue #2: on a phone, Enter from the on-screen keyboard makes a new line; from a physical keyboard (Bluetooth) it sends,
+// and Shift+Enter makes a new line. The on-screen keyboard's key events have no `code`; a physical keyboard's say "Enter".
+test("on a phone, Enter from a physical keyboard sends, from the on-screen keyboard it makes a new line", real, async () => {
+    await fresh();
+    await tap(row(first));
+    await reach({ path: `/s/${first}` }, "the session");
+    await until(async () => await inPage<boolean>(`return JSON.stringify(document.querySelector(".composer textarea") !== null)`), "the message box");
+
+    /** Type `text` into the message box, then press Enter as `code` and `shift` say: whether the page took the key. */
+    const enter = (text: string, code: string, shift = false) =>
+        inPage<{ coarse: boolean; taken: boolean; left: string }>(`
+            const box = document.querySelector(".composer textarea");
+            box.focus();
+            box.value = ${JSON.stringify(text)};
+            box.dispatchEvent(new Event("input", { bubbles: true }));
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            const taken = !box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: ${JSON.stringify(code)}, shiftKey: ${shift}, bubbles: true, cancelable: true }));
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            return JSON.stringify({ coarse: matchMedia("(pointer: coarse)").matches, taken, left: document.querySelector(".composer textarea").value });
+        `);
+
+    const onScreen = await enter("from the on-screen keyboard", "");
+
+    assert.equal(onScreen.coarse, true, "a touch screen");
+    assert.equal(onScreen.taken, false, "the on-screen keyboard's Enter is left to make a new line");
+    assert.equal(onScreen.left, "from the on-screen keyboard", "nothing sent");
+
+    const shifted = await enter("two lines", "Enter", true);
+
+    assert.equal(shifted.taken, false, "Shift+Enter on a physical keyboard makes a new line");
+    assert.equal(shifted.left, "two lines", "nothing sent");
+
+    const physical = await enter("sent from a Bluetooth keyboard", "Enter");
+
+    assert.equal(physical.taken, true, "a physical keyboard's Enter sends");
+    await until(
+        async () => await inPage<boolean>(`return JSON.stringify(document.body.innerText.includes("sent from a Bluetooth keyboard") && document.querySelector(".composer textarea").value === "")`),
+        "the message sent and the box emptied",
+    );
+});
+
 test("local Markdown file links use the viewer", real, async () => {
     const linked = await newSession(app);
 
