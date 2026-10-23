@@ -8,7 +8,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import type { Cdp } from "./cdp.ts";
-import type { BrowserPage } from "./page.ts";
+import type { BrowserPage, PictureOptions } from "./page.ts";
 import type { BrowserEngine, BrowserSize } from "./pi-browser.ts";
 
 /** Which session owns each tab, by place and tab id, kept in a JSON file. */
@@ -198,8 +198,8 @@ export class SessionEngine implements BrowserEngine {
         return this.#engine.pdf(id, page);
     }
 
-    picture(id: string, page: BrowserPage, quality: number, timeoutMs?: number): Promise<string> {
-        return this.#engine.picture(id, page, quality, timeoutMs);
+    picture(id: string, page: BrowserPage, quality: number, timeoutMs?: number, options?: PictureOptions): Promise<string> {
+        return this.#engine.picture(id, page, quality, timeoutMs, options);
     }
 
     stage(name: string, bytes: Uint8Array): Promise<string> {

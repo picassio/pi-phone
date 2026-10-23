@@ -321,26 +321,56 @@ export default function createBrowser(host: PocketHost) {
         }),
         defineTool({
             name: "browser_screenshot",
-            description: "See what is in view in Pi's browser as a picture (for models that take images).",
-            parameters: Type.Object({}),
+            description:
+                "See what is in view in Pi's browser as a picture (for models that take images). With path, also save it to a file where this session works (.png or .jpg), for documents (doc_image) or reports. With index, picture only the dialog, menu or list that control is in, or else the control. The picture is what is in view: scroll first for more.",
+            parameters: Type.Object({
+                path: Type.Optional(Type.String({ description: "Save it here too, ending in .png or .jpg: absolute or relative to this session's folder" })),
+                index: Type.Optional(Type.Integer({ minimum: 1, description: "A control: the picture is of the dialog, menu or list it is in, or of the control" })),
+            }),
             replay: "safe",
-            execute: async (_args, api, context) => {
+            execute: async (args, api, context) => {
                 const owner = mayBrowse(api.conversationId);
 
                 if (owner !== true) {
                     return reply(owner, true);
                 }
 
+                const kind = args.path === undefined ? "jpeg" : /\.png$/i.test(args.path) ? "png" : /\.jpe?g$/i.test(args.path) ? "jpeg" : undefined;
+
+                if (kind === undefined) {
+                    return reply("Give a path ending in .png or .jpg.", true);
+                }
+
                 const browser = await browserOf(api, context);
 
                 try {
-                    const jpeg = await browser.screenshot(Number(api.conversationId));
+                    const shot = await browser.screenshot(Number(api.conversationId), { png: kind === "png", index: args.index });
                     const state = browser.state();
+                    const what = shot.whole === undefined ? "" : shot.whole === "control" ? `, only [${args.index}]` : `, only the ${shot.whole} [${args.index}] is in`;
+                    let saved = "";
+
+                    if (args.path !== undefined) {
+                        const env = host.envOf((await api.agent(context)).cwd ?? "");
+                        const absolute = await env.absolutePath(args.path, context);
+
+                        if (!absolute.ok) {
+                            throw new Error(`Cannot save to ${args.path}: ${absolute.error.message}`);
+                        }
+
+                        const bytes = Buffer.from(shot.data, "base64");
+                        const written = await env.writeFile(absolute.value, bytes, context);
+
+                        if (!written.ok) {
+                            throw new Error(`Could not save ${absolute.value}: ${written.error.message}`);
+                        }
+
+                        saved = ` Saved as ${absolute.value} (${Math.max(1, Math.round(bytes.length / 1024))} KB).`;
+                    }
 
                     return {
                         output: [
-                            { type: "text" as const, text: `${state.title || "(no title)"} — ${state.url}, as Pi's browser shows it (${state.viewport.width}×${state.viewport.height} CSS pixels).` },
-                            { type: "image" as const, data: jpeg, mimeType: "image/jpeg" },
+                            { type: "text" as const, text: `${state.title || "(no title)"} — ${state.url}, as Pi's browser shows it (${state.viewport.width}×${state.viewport.height} CSS pixels${what}).${saved}` },
+                            { type: "image" as const, data: shot.data, mimeType: kind === "png" ? "image/png" : "image/jpeg" },
                         ],
                     };
                 } catch (error) {

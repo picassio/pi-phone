@@ -204,6 +204,11 @@ const KEYS: Record<string, { code: string; keyCode: number; text?: string }> = {
 
 export const PRESSABLE = Object.keys(KEYS);
 
+/** A part of the view, in CSS pixels. */
+export type PictureClip = { x: number; y: number; width: number; height: number };
+/** How to take a picture of a page: PNG instead of JPEG, and only a part of the view. */
+export type PictureOptions = { png?: boolean; clip?: PictureClip };
+
 /**
  * A key to press: a named one, or one printable character (a list's type-ahead: "G" goes to Global Payments). Keys
  * without text go down raw, as a keyboard's do, so a page's own key handlers see them (PP-116).
@@ -904,14 +909,57 @@ export class BrowserPage {
     }
 
     /**
-     * What is in view now, as a JPEG (base64), by DevTools: a Chrome's (`BrowserEngine.picture`). The phone's WebView
-     * answers a capture only every other time (PP-114): its pictures come from its display's frames instead.
+     * What is in view now, as a JPEG or PNG (base64), by DevTools: a Chrome's (`BrowserEngine.picture`); `clip`, a part
+     * of the view in CSS pixels. The phone's WebView answers a capture only every other time (PP-114): its pictures come
+     * from its display's frames instead.
      */
-    async screenshot(quality = 70, timeoutMs?: number): Promise<string> {
+    async screenshot(quality = 70, timeoutMs?: number, { png = false, clip }: PictureOptions = {}): Promise<string> {
         // A desktop Chrome from its surface, which alone has the device scale (twice the CSS pixels: sharp text).
-        const shot = await this.cdp.send<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality, fromSurface: this.#fromSurface }, timeoutMs);
+        const shot = await this.cdp.send<{ data: string }>(
+            "Page.captureScreenshot",
+            { format: png ? "png" : "jpeg", ...(png ? {} : { quality }), fromSurface: this.#fromSurface, ...(clip === undefined ? {} : { clip: { ...clip, scale: 1 } }) },
+            timeoutMs,
+        );
 
         return shot.data;
+    }
+
+    /**
+     * The part of the view to picture for a control (PP-118): the dialog, menu or list it is in, or else the control,
+     * scrolled into view, with a little room around it, within the window (CSS pixels).
+     */
+    async area(observed: Observed, element: Element): Promise<{ clip: PictureClip; whole: string }> {
+        if (!(await this.#fresh(observed, element.node))) {
+            throw new StalePage("The page changed since it was read: read it again.");
+        }
+
+        const found = await this.evaluate<{ x: number; y: number; width: number; height: number; whole: string } | null>(
+            `(async node => {
+            const c=window.__piBrowser?.nodes.get(node);
+            if (!c?.isConnected) return null;
+            const e=c.closest('dialog,[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]') || c;
+            const r0=e.getBoundingClientRect();
+            if (r0.top<0 || r0.left<0 || r0.bottom>innerHeight || r0.right>innerWidth) {
+              e.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+              await new Promise(done=>{ requestAnimationFrame(()=>requestAnimationFrame(done)); setTimeout(done,150); });
+            }
+            const r=e.getBoundingClientRect(), pad=8;
+            const x=Math.max(0,r.left-pad), y=Math.max(0,r.top-pad);
+            const width=Math.min(innerWidth,r.right+pad)-x, height=Math.min(innerHeight,r.bottom+pad)-y;
+            if (width<4 || height<4) return null;
+            const role=e===c ? 'control' : (e.getAttribute('role') || e.tagName.toLowerCase());
+            return {x:Math.floor(x),y:Math.floor(y),width:Math.ceil(width),height:Math.ceil(height),whole:role};
+          })(${element.node})`,
+            true,
+        );
+
+        if (found === null || found === undefined) {
+            throw new StalePage(`[${element.index}] ${element.label} is gone or not in view: read the page again.`);
+        }
+
+        const { whole, ...clip } = found;
+
+        return { clip, whole };
     }
 
     /** Wait until the text shows (up to 30 s), or for some seconds (up to 10); true when the text showed. */

@@ -8,7 +8,7 @@
  */
 import http from "node:http";
 import { Cdp } from "./cdp.ts";
-import type { BrowserPage } from "./page.ts";
+import type { BrowserPage, PictureOptions } from "./page.ts";
 import type { BrowserEngine } from "./pi-browser.ts";
 
 /** What the engine needs of the machine: run a script there, write a file there, and open one of its ports here. */
@@ -195,8 +195,8 @@ export class MachineEngine implements BrowserEngine {
         return Buffer.from(printed.data, "base64");
     }
 
-    picture(_id: string, page: BrowserPage, quality: number, timeoutMs?: number): Promise<string> {
-        return page.screenshot(quality, timeoutMs);
+    picture(_id: string, page: BrowserPage, quality: number, timeoutMs?: number, options?: PictureOptions): Promise<string> {
+        return page.screenshot(quality, timeoutMs, options);
     }
 
     /** On the machine, where its Chrome reads it. */

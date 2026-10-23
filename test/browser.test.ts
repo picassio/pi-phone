@@ -224,7 +224,8 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
 
         const picture = await browser.screenshot(1);
 
-        assert.ok(Buffer.from(picture, "base64").subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])), "a JPEG");
+        assert.ok(Buffer.from(picture.data, "base64").subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])), "a JPEG");
+        assert.ok(Buffer.from((await browser.screenshot(1, { png: true })).data, "base64").subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])), "a PNG, to keep (PP-118)");
 
         // Frames while someone watches: one at once, so the panel has a picture.
         const stop = browser.watch();
@@ -315,7 +316,7 @@ test("with Chrome: icons get names, hover, uploads to a field and through its bu
         // A desktop Chrome presents itself as a phone's, at the phone's width, with pictures at twice its CSS pixels.
         assert.match(await browser.open(1, "http://pi.test/ua"), /phone 412 touch 5/);
 
-        const picture = Buffer.from(await browser.screenshot(1), "base64");
+        const picture = Buffer.from((await browser.screenshot(1)).data, "base64");
 
         assert.equal(picture.readUInt16BE(picture.indexOf(Buffer.from([0xff, 0xc0])) + 7), 824, "824 pixels wide");
         await browser.open(1, "http://pi.test/tools");
@@ -382,6 +383,14 @@ test("with Chrome: a list with its own scroll area (Radix's select): every optio
 
         // All 40, though 6 show in the list and the rest run below it, past the window too.
         assert.equal(open.match(/\] option "/g)?.length, 40, open);
+
+        // A picture of the open list alone, from one of its options (PP-118): 240 CSS pixels and its border, 8 around
+        // each side, at twice the CSS pixels.
+        const list = await browser.screenshot(1, { png: true, index: number(open, /\[(\d+)\] option "Org 2"/) });
+        const png = Buffer.from(list.data, "base64");
+
+        assert.equal(list.whole, "listbox");
+        assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [(242 + 16) * 2, (218 + 16) * 2]);
 
         // The 30th, far below the fold of the list: scrolled into view in it, then clicked.
         assert.match(await browser.click(1, number(open, /\[(\d+)\] option "Global Payments"/)), /Chose Global Payments/);

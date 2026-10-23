@@ -31,4 +31,13 @@ test("the phone's browser takes a tab's picture from the app's service (its disp
 
     requests.answer(next[0]!.id, { pid: 7 });
     await assert.rejects(none, /no picture/);
+
+    // A PNG of a part of the view, to keep (PP-118): the phone is told both.
+    const part = engine.picture("pi-browser-1", page, 80, 5000, { png: true, clip: { x: 8, y: 40, width: 258, height: 234 } });
+    const { requests: last } = await requests.after(next[0]!.seq, polling.signal);
+
+    assert.equal(last[0]!.png, true);
+    assert.deepEqual(last[0]!.clip, { x: 8, y: 40, width: 258, height: 234 });
+    requests.answer(last[0]!.id, { pid: 7, jpeg: "iVBORw0K" });
+    assert.equal(await part, "iVBORw0K");
 });

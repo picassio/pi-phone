@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type { PhoneRequests } from "../phone-requests.ts";
 import { Cdp } from "./cdp.ts";
-import { BrowserPage, type Element, type Observed, describe, elementsOf, StalePage } from "./page.ts";
+import { BrowserPage, type Element, type Observed, type PictureOptions, describe, elementsOf, StalePage } from "./page.ts";
 import { type Decider, type RunResult, runGoal } from "./run.ts";
 
 /** The page's size in CSS pixels: a phone's, as the WebView is a phone's browser. */
@@ -60,8 +60,8 @@ export interface BrowserEngine {
     close(): Promise<void>;
     /** The tab's page as a PDF, as printing it would make. */
     pdf(id: string, page: BrowserPage): Promise<Buffer>;
-    /** What is in view in the tab now, as a JPEG (base64). */
-    picture(id: string, page: BrowserPage, quality: number, timeoutMs?: number): Promise<string>;
+    /** What is in view in the tab now, as a JPEG (base64), or a PNG; or a part of it. */
+    picture(id: string, page: BrowserPage, quality: number, timeoutMs?: number, options?: PictureOptions): Promise<string>;
     /** Put a file where the browser can read it, for an upload: its path there. */
     stage(name: string, bytes: Uint8Array): Promise<string>;
 }
@@ -221,8 +221,8 @@ export class PhoneEngine implements BrowserEngine {
      * From the frames of the tab's own display (PiBrowser.java's `shot`): DevTools' capture of the phone's WebView hangs on
      * every other call (PP-114).
      */
-    async picture(id: string, _page: BrowserPage, quality: number, timeoutMs = 30_000): Promise<string> {
-        const answer = await this.#requests.request({ op: "shot", marker: id, quality }, timeoutMs);
+    async picture(id: string, _page: BrowserPage, quality: number, timeoutMs = 30_000, { png = false, clip }: PictureOptions = {}): Promise<string> {
+        const answer = await this.#requests.request({ op: "shot", marker: id, quality, png, ...(clip === undefined ? {} : { clip }) }, timeoutMs);
 
         if (typeof answer.jpeg !== "string" || answer.jpeg === "") {
             throw new Error("The phone answered no picture of the page.");
@@ -369,8 +369,8 @@ export class ChromeEngine implements BrowserEngine {
         return Buffer.from(printed.data, "base64");
     }
 
-    picture(_id: string, page: BrowserPage, quality: number, timeoutMs?: number): Promise<string> {
-        return page.screenshot(quality, timeoutMs);
+    picture(_id: string, page: BrowserPage, quality: number, timeoutMs?: number, options?: PictureOptions): Promise<string> {
+        return page.screenshot(quality, timeoutMs, options);
     }
 
     async stage(name: string, bytes: Uint8Array): Promise<string> {
@@ -801,8 +801,21 @@ export class PiBrowser {
         return this.#run(session, "Reading the whole page", ({ page }) => page.text(max));
     }
 
-    screenshot(session: number): Promise<string> {
-        return this.#run(session, "Looking at the page", ({ id, page }) => this.#options.engine.picture(id, page, 70));
+    /**
+     * What is in view, as a JPEG (or a PNG, to keep); with `index`, only the dialog, menu or list that control is in, or
+     * the control (PP-118). `whole` says which.
+     */
+    screenshot(session: number, { png = false, index }: { png?: boolean; index?: number } = {}): Promise<{ data: string; whole?: string }> {
+        return this.#run(session, index === undefined ? "Looking at the page" : this.#doing("Looking at", index), async ({ id, page }) => {
+            if (index === undefined) {
+                return { data: await this.#options.engine.picture(id, page, 70, undefined, { png }) };
+            }
+
+            const { observed, element } = this.#element(index);
+            const { clip, whole } = await page.area(observed, element);
+
+            return { data: await this.#options.engine.picture(id, page, 80, undefined, { png, clip }), whole };
+        });
     }
 
     /** The page in front as a PDF. */

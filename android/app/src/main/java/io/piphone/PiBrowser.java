@@ -167,11 +167,14 @@ final class PiBrowser {
                         Tab tab = tabs.get(request.getString("marker"));
                         if (tab == null) throw new IllegalArgumentException("there is no such tab");
                         int quality = request.optInt("quality", 70);
+                        boolean png = request.optBoolean("png", false);
+                        // A part of the view, in CSS pixels (PP-118); none: all of it.
+                        JSONObject clip = request.optJSONObject("clip");
                         // A draw the page still owes comes in first; a still page draws nothing new, and its last frame is it.
                         tab.page.invalidate();
                         main.postDelayed(() -> {
                             try {
-                                reply.put("jpeg", picture(tab, quality));
+                                reply.put("jpeg", picture(tab, quality, png, clip));
                             } catch (Exception e) {
                                 failed[0] = e;
                             }
@@ -300,31 +303,42 @@ final class PiBrowser {
     }
 
     /**
-     * The tab's latest frame as a JPEG (base64), at most twice its CSS pixels and PICTURE_MAX on its longest side (main
-     * thread).
+     * The tab's latest frame, or the part `clip` names (CSS pixels), as a JPEG or PNG (base64), at most twice its CSS
+     * pixels and PICTURE_MAX on its longest side (main thread).
      */
-    private String picture(Tab tab, int quality) throws IOException {
+    private String picture(Tab tab, int quality, boolean png, JSONObject clip) throws Exception {
         Image frame = tab.latest;
         if (frame == null) throw new IOException("the page has not been drawn yet");
-        int width = frame.getWidth();
-        int height = frame.getHeight();
+        int frameWidth = frame.getWidth();
+        int frameHeight = frame.getHeight();
+        float density = context.getResources().getDisplayMetrics().density;
+        Rect part = new Rect(0, 0, frameWidth, frameHeight);
+        if (clip != null) {
+            int left = Math.max(0, Math.round((float) clip.getDouble("x") * density));
+            int top = Math.max(0, Math.round((float) clip.getDouble("y") * density));
+            part = new Rect(left, top,
+                    Math.min(frameWidth, left + Math.round((float) clip.getDouble("width") * density)),
+                    Math.min(frameHeight, top + Math.round((float) clip.getDouble("height") * density)));
+            if (part.width() < 1 || part.height() < 1) throw new IOException("that part of the page is not in view");
+        }
+        int width = part.width();
+        int height = part.height();
         Image.Plane plane = frame.getPlanes()[0];
         int stride = plane.getRowStride() / plane.getPixelStride();
-        float density = context.getResources().getDisplayMetrics().density;
         float scale = Math.min(1f, Math.min(2f / density, PICTURE_MAX / (float) Math.max(width, height)));
         int outWidth = Math.max(1, Math.round(width * scale));
         int outHeight = Math.max(1, Math.round(height * scale));
-        Bitmap whole = Bitmap.createBitmap(stride, height, Bitmap.Config.ARGB_8888);
+        Bitmap whole = Bitmap.createBitmap(stride, frameHeight, Bitmap.Config.ARGB_8888);
         Bitmap out = null;
         try {
             whole.copyPixelsFromBuffer(plane.getBuffer().rewind());
             out = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(out);
             canvas.drawColor(Color.WHITE);
-            canvas.drawBitmap(whole, new Rect(0, 0, width, height), new Rect(0, 0, outWidth, outHeight), new Paint(Paint.FILTER_BITMAP_FLAG));
-            ByteArrayOutputStream jpeg = new ByteArrayOutputStream();
-            out.compress(Bitmap.CompressFormat.JPEG, quality, jpeg);
-            return Base64.encodeToString(jpeg.toByteArray(), Base64.NO_WRAP);
+            canvas.drawBitmap(whole, part, new Rect(0, 0, outWidth, outHeight), new Paint(Paint.FILTER_BITMAP_FLAG));
+            ByteArrayOutputStream encoded = new ByteArrayOutputStream();
+            out.compress(png ? Bitmap.CompressFormat.PNG : Bitmap.CompressFormat.JPEG, quality, encoded);
+            return Base64.encodeToString(encoded.toByteArray(), Base64.NO_WRAP);
         } finally {
             whole.recycle();
             if (out != null) out.recycle();
