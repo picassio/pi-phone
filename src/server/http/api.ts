@@ -1027,7 +1027,8 @@ export function createApi(options: HttpOptions, auth: Auth) {
                         }
 
                         for (const entry of page.value.entries) {
-                            if ((showHidden || !entry.name.startsWith(".")) && entry.kind === "directory") {
+                            // What the machine's system hides: on Windows, its hidden and system folders too (PP-117).
+                            if ((showHidden || !paths.hidden(path, entry.name)) && entry.kind === "directory") {
                                 remoteDirs.push({ name: entry.name, path: formatPlace({ machineId: machine.id, path: paths.onDrive(paths.normal(entry.path), home) }) });
                             }
                         }

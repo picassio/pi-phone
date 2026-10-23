@@ -39,3 +39,25 @@ test("POSIX machines, and machines not yet connected, keep their paths as they a
         assert.ok(paths.isAbsolute("/x") && !paths.isAbsolute("C:/x"));
     }
 });
+
+test("what the folder picker hides: dot names everywhere; on Windows, its hidden and system folders where Windows puts them (PP-117)", () => {
+    const windows = machinePaths({ platform: "windows" });
+    const shown = (folder: string, names: string[]) => names.filter((name) => !windows.hidden(folder, name));
+
+    // A drive's root, as tualh-laptop's C:/ lists it.
+    assert.deepEqual(
+        shown("C:/", ["$Recycle.Bin", "$WinREAgent", "Config.Msi", "Documents and Settings", "PerfLogs", "Program Files", "ProgramData", "Recovery", "System Volume Information", "Users", "Windows", ".git"]),
+        ["PerfLogs", "Program Files", "Users", "Windows"],
+    );
+    assert.deepEqual(shown("D:", ["$RECYCLE.BIN", "System Volume Information", "Games"]), ["Games"]);
+    assert.deepEqual(shown("C:/Users", ["All Users", "Default", "Default User", "Public", "tuan"]), ["Public", "tuan"]);
+    assert.deepEqual(shown("C:\\Users\\tuan", ["AppData", "Application Data", "Cookies", "Desktop", "My Documents", "Start Menu", "Templates", "projects"]), ["Desktop", "projects"]);
+
+    // The same names elsewhere are a person's own folders.
+    assert.deepEqual(shown("C:/Users/tuan/projects", ["Recovery", "Templates", "Default", "Boot"]), ["Recovery", "Templates", "Default", "Boot"]);
+
+    // POSIX hides dot names only.
+    const posix = machinePaths({ platform: "linux" });
+
+    assert.deepEqual([".cache", "$x", "Recovery"].filter((name) => !posix.hidden("/", name)), ["$x", "Recovery"]);
+});

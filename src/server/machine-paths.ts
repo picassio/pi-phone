@@ -24,7 +24,31 @@ export type MachinePaths = {
     expandHome(path: string, home: string): string;
     /** On Windows, a path from `/` (no drive: Windows reads it on the current one) on `home`'s drive; others as they are. */
     onDrive(path: string, home: string): string;
+    /** Whether the folder `name` in `folder` is one the system hides (the picker shows it only with Show hidden). */
+    hidden(folder: string, name: string): boolean;
 };
+
+/**
+ * Folders Windows hides (the Hidden or System attribute), by name and where they are: pi-env's listing has no
+ * attributes. Names starting with `$` anywhere (`$Recycle.Bin`, `$WinREAgent`, `$SysReset`, `$Windows.~BT`); these at
+ * a drive's root; these in `Users`; and the old names a user's folder keeps as junctions (`Application Data`, …).
+ */
+const WINDOWS_ROOT = new Set(["system volume information", "config.msi", "recovery", "documents and settings", "programdata", "msocache", "boot", "onedrivetemp"]);
+const WINDOWS_USERS = new Set(["all users", "default", "default user"]);
+const WINDOWS_PROFILE = new Set(["appdata", "application data", "cookies", "local settings", "my documents", "nethood", "printhood", "recent", "sendto", "start menu", "templates"]);
+
+function hiddenOnWindows(folder: string, name: string): boolean {
+    const lower = name.toLowerCase();
+    const at = slashes(folder).replace(/\/+$/, "").toLowerCase();
+
+    return (
+        lower.startsWith(".") ||
+        lower.startsWith("$") ||
+        (/^[a-z]:$/.test(at) && WINDOWS_ROOT.has(lower)) ||
+        (/^[a-z]:\/users$/.test(at) && WINDOWS_USERS.has(lower)) ||
+        (/^[a-z]:\/users\/[^/]+$/.test(at) && WINDOWS_PROFILE.has(lower))
+    );
+}
 
 const slashes = (path: string) => path.replaceAll("\\", "/");
 
@@ -39,6 +63,7 @@ const POSIX: MachinePaths = {
     within: (root, path) => path === root || path.startsWith(root.endsWith("/") ? root : `${root}/`),
     expandHome: (path, home) => (path === "~" ? home : path.startsWith("~/") ? `${home}${path.slice(1)}` : path),
     onDrive: (path) => path,
+    hidden: (_folder, name) => name.startsWith("."),
 };
 
 const WINDOWS: MachinePaths = {
@@ -57,6 +82,7 @@ const WINDOWS: MachinePaths = {
     },
     expandHome: (path, home) => (path === "~" ? home : /^~[\\/]/.test(path) ? `${home}/${slashes(path.slice(2))}` : path),
     onDrive: (path, home) => (/^[\\/](?![\\/])/.test(path) && /^[a-zA-Z]:/.test(home) ? `${home.slice(0, 2)}${slashes(path)}` : path),
+    hidden: hiddenOnWindows,
 };
 
 /** The paths of a machine with this system; POSIX until it is known. */
