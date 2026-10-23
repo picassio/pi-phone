@@ -181,7 +181,7 @@ export default function createBrowser(host: PocketHost) {
         }),
         defineTool({
             name: "browser_select",
-            description: "Choose an option, by its text or value, in the drop-down list with this number.",
+            description: "Choose an option, by its text or value, in the drop-down list with this number: a native one, or one the page draws (a button that opens a list of options), which it opens and picks from.",
             parameters: Type.Object({ index, option: Type.String() }),
             execute: async (args, api, context) => act(api, context, (browser, session) => browser.select(session, args.index, args.option)),
         }),
@@ -281,16 +281,17 @@ export default function createBrowser(host: PocketHost) {
         }),
         defineTool({
             name: "browser_scroll",
-            description: "Scroll the page up or down by screens.",
+            description: "Scroll the page up or down by screens; with index, what scrolls around that control instead (an open list or panel with its own scroll area), by its height. Clicking a control out of view scrolls it into view by itself.",
             parameters: Type.Object({
                 direction: Type.Union([Type.Literal("up"), Type.Literal("down")]),
                 screens: Type.Optional(Type.Number({ minimum: 0.25, maximum: 10, description: "How many screens (default 1)" })),
+                index: Type.Optional(Type.Integer({ minimum: 1, description: "A control inside the area to scroll, like an option of an open list" })),
             }),
-            execute: async (args, api, context) => act(api, context, (browser, session) => browser.scroll(session, args.direction, args.screens ?? 1)),
+            execute: async (args, api, context) => act(api, context, (browser, session) => browser.scroll(session, args.direction, args.screens ?? 1, args.index)),
         }),
         defineTool({
             name: "browser_press",
-            description: `Press a key on the focused control: ${PRESSABLE.join(", ")}. For text, use browser_type.`,
+            description: `Press a key on the focused control: ${PRESSABLE.join(", ")}, or one character (a list's type-ahead: "G" jumps to the first option starting with G). For text, use browser_type.`,
             parameters: Type.Object({ key: Type.String(), accept_dialog: acceptDialog }),
             execute: async (args, api, context) => act(api, context, (browser, session) => browser.press(session, args.key, args.accept_dialog ?? false)),
         }),

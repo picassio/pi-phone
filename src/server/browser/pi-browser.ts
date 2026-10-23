@@ -691,12 +691,54 @@ export class PiBrowser {
     }
 
     select(session: number, index: number, option: string): Promise<string> {
-        return this.#run(session, this.#doing(`Choosing ${JSON.stringify(option)} in`, index), async ({ page }) => {
+        return this.#run(session, this.#doing(`Choosing ${JSON.stringify(option)} in`, index), async (tab) => {
             const { observed, element } = this.#element(index);
-            const chosen = await page.select(observed, element, option);
+
+            if (element.options === undefined && ["combobox", "button", "listbox"].includes(element.role)) {
+                return this.#chooseOption(tab, observed, element, option);
+            }
+
+            const chosen = await tab.page.select(observed, element, option);
 
             return `Chose ${JSON.stringify(chosen)}.\n${await this.#read()}`;
         });
+    }
+
+    /**
+     * A list a page draws itself (a Radix or ARIA select: a button that opens options): open it unless it is open, then
+     * click the option, scrolled into view in the list (PP-116).
+     */
+    async #chooseOption(tab: Tab, observed: Observed, element: Element, option: string): Promise<string> {
+        const wanted = option.trim().toLowerCase();
+        const find = (elements: Element[]) => {
+            const options = elements.filter((each) => each.role === "option");
+
+            return {
+                options,
+                match: options.find((each) => each.label.trim().toLowerCase() === wanted) ?? options.find((each) => each.label.toLowerCase().includes(wanted)),
+            };
+        };
+        let found = find(tab.elements);
+
+        if (found.match === undefined && element.expanded !== "true") {
+            await tab.page.click(observed, element);
+            await this.#read();
+            found = find(tab.elements);
+        }
+
+        if (found.match === undefined) {
+            throw new Error(
+                found.options.length === 0
+                    ? `[${element.index}] ${element.label} showed no options to choose from: read the page, and click the option itself.`
+                    : `[${element.index}] ${element.label} has no option ${JSON.stringify(option)}: its options are ${found.options.map((each) => JSON.stringify(each.label)).join(", ")}.`,
+            );
+        }
+
+        const target = this.#element(found.match.index);
+
+        await tab.page.click(target.observed, target.element);
+
+        return `Chose ${JSON.stringify(found.match.label)}.\n${await this.#read()}`;
     }
 
     /** Files (name and bytes, from wherever the session works) into a file field or the button that opens one. */
@@ -715,9 +757,10 @@ export class PiBrowser {
         });
     }
 
-    scroll(session: number, direction: "up" | "down", screens: number): Promise<string> {
-        return this.#run(session, `Scrolling ${direction}`, async ({ page }) => {
-            await page.scroll(direction, screens);
+    /** Scroll the page, or with `index`, what scrolls around that control (an open list). */
+    scroll(session: number, direction: "up" | "down", screens: number, index?: number): Promise<string> {
+        return this.#run(session, index === undefined ? `Scrolling ${direction}` : this.#doing(`Scrolling ${direction} at`, index), async ({ page }) => {
+            await page.scroll(direction, screens, index === undefined ? undefined : this.#element(index));
 
             return this.#read();
         });

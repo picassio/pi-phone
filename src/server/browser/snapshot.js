@@ -86,11 +86,25 @@
       e.getAttribute('aria-expanded'),e.getAttribute('aria-checked'),e.getAttribute('aria-selected'),
       e.getAttribute('href'),scope?.innerText?.slice(0,6000)||''];
   };
+  // An option or menu item out of the window inside a list with its own scroll area that is in it (a Radix select of
+  // 40 options): listed, as a click scrolls it into view (PP-116).
+  const inList = e => {
+    if (!['option','menuitem','menuitemradio'].includes(role(e))) return false;
+    for (let s=e.parentElement; s && s!==document.body && s!==document.documentElement; s=s.parentElement) {
+      if (s.scrollHeight<=s.clientHeight+1 && s.scrollWidth<=s.clientWidth+1) continue;
+      const o=getComputedStyle(s);
+      if (!/(auto|scroll|overlay|hidden)/.test(o.overflowY+' '+o.overflowX)) continue;
+      const q=s.getBoundingClientRect();
+      return q.bottom>0 && q.top<innerHeight && q.right>0 && q.left<innerWidth;
+    }
+    return false;
+  };
   const actions=[];
   for (const e of document.querySelectorAll(selector)) {
     if (!listed(e) || !visible(e) || e.matches(':disabled') || e.closest('[aria-disabled="true"]')) continue;
     const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2, rname=role(e);
-    if (!rname || r.width<=0 || r.height<=0 || x<0 || y<0 || x>=innerWidth || y>=innerHeight) continue;
+    if (!rname || r.width<=0 || r.height<=0) continue;
+    if ((x<0 || y<0 || x>=innerWidth || y>=innerHeight) && !inList(e)) continue;
     if (rname==='gridcell' && e.querySelector('button,[role="button"]')) continue;
     const base={node:identity(e),role:rname,label:(name(e)||hint(e)||rname).replace(/\s+/g,' ').trim().slice(0,200),
       rect:{x:r.x,y:r.y,w:r.width,h:r.height}};

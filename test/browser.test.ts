@@ -123,6 +123,33 @@ const PAGES: Record<string, string> = {
     "/dialogs": `<!doctype html><title>Dialogs</title><p id="out">Nothing yet</p>
         <button onclick="out.textContent = confirm('Delete the group?') ? 'Deleted' : 'Kept'">Delete</button>
         <button onclick="out.textContent = 'Name: ' + prompt('Name it', 'Work')">Name</button>`,
+    // A list the page draws itself, as Radix's Select does (PP-116): a button that opens 40 options in a box with its own
+    // scroll area, which shows 6; the page itself does not scroll while it is open; arrows, letters and Enter work in it.
+    "/list": `<!doctype html><title>List</title><meta name="viewport" content="width=device-width">
+        <style>body{margin:0;height:3000px} [role=option]{height:36px;line-height:36px;padding:0 8px} [role=option]:focus{background:#def}</style>
+        <button id="pick" role="combobox" aria-expanded="false" style="margin:8px">Select workspace</button>
+        <p id="out">Nothing chosen</p><p id="pos">List at 0</p>
+        <div id="list" role="listbox" tabindex="-1" hidden style="position:fixed;top:48px;left:8px;width:240px;height:216px;overflow-y:auto;border:1px solid #888;background:#fff"></div>
+        <script>
+            const names = Array.from({ length: 40 }, (_, i) => i === 29 ? 'Global Payments' : 'Org ' + (i + 1));
+            for (const name of names) { const o = document.createElement('div'); o.setAttribute('role', 'option'); o.tabIndex = -1; o.textContent = name; list.append(o); }
+            const options = [...list.children];
+            const close = (name) => { list.hidden = true; pick.setAttribute('aria-expanded', 'false'); if (name) out.textContent = 'Chose ' + name; };
+            pick.addEventListener('click', () => { list.hidden = false; pick.setAttribute('aria-expanded', 'true'); options[0].focus(); });
+            list.addEventListener('click', (event) => { if (event.target.getAttribute('role') === 'option') close(event.target.textContent); });
+            list.addEventListener('scroll', () => { pos.textContent = 'List at ' + list.scrollTop; });
+            list.addEventListener('keydown', (event) => {
+                const at = options.indexOf(document.activeElement);
+                if (event.key === 'ArrowDown') options[Math.min(at + 1, 39)].focus();
+                else if (event.key === 'ArrowUp') options[Math.max(at - 1, 0)].focus();
+                else if (event.key === 'Enter') close(document.activeElement.textContent);
+                else if (event.key.length === 1) options.find((o) => o.textContent.toLowerCase().startsWith(event.key.toLowerCase()))?.focus();
+                else return;
+                event.preventDefault();
+            });
+            // As react-remove-scroll does under an open Radix list: the wheel scrolls nothing outside the list.
+            addEventListener('wheel', (event) => { if (!list.hidden && !list.contains(event.target)) event.preventDefault(); }, { passive: false });
+        </script>`,
     "/two": `<!doctype html><title>Two</title><p>Page two</p><article>${"A long article. ".repeat(400)}</article>`,
 };
 
@@ -334,6 +361,51 @@ test("with Chrome: icons get names, hover, uploads to a field and through its bu
         assert.match(await browser.closeTab(1, 1), /^Closed tab 1\.\nShop — /);
         assert.match(await browser.closeTab(1, 1), /last tab/);
         assert.equal(states.at(-1)?.open, false);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("with Chrome: a list with its own scroll area (Radix's select): every option listed, the 30th clicked, chosen by name, scrolled, and by keys (PP-116)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    const browser = new PiBrowser({
+        engine: new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]),
+        changed: () => {},
+        frame: () => {},
+        log: () => {},
+    });
+    const number = (page: string, pattern: RegExp) => Number(pattern.exec(page)?.[1] ?? assert.fail(`${pattern} not in:\n${page}`));
+    const pick = (page: string) => number(page, /\[(\d+)\] combobox "Select workspace"/);
+
+    try {
+        const page = await browser.open(1, "http://pi.test/list");
+        const open = await browser.click(1, pick(page));
+
+        // All 40, though 6 show in the list and the rest run below it, past the window too.
+        assert.equal(open.match(/\] option "/g)?.length, 40, open);
+
+        // The 30th, far below the fold of the list: scrolled into view in it, then clicked.
+        assert.match(await browser.click(1, number(open, /\[(\d+)\] option "Global Payments"/)), /Chose Global Payments/);
+
+        // By name with browser_select on the button: it opens the list and picks.
+        const chosen = await browser.select(1, pick(await browser.snapshot(1)), "Org 37");
+
+        assert.match(chosen, /^Chose "Org 37"/);
+        assert.match(chosen, /Chose Org 37/);
+
+        // The wheel over the list scrolls the list (the page does not scroll while it is open).
+        const again = await browser.click(1, pick(chosen));
+        const scrolled = await browser.scroll(1, "down", 1, number(again, /\[(\d+)\] option "Org 1"/));
+
+        assert.match(scrolled, /List at [1-9]\d*/);
+
+        // Keys reach the list: arrows and Enter, and a letter's type-ahead.
+        await browser.press(1, "ArrowDown");
+        await browser.press(1, "ArrowDown");
+        assert.match(await browser.press(1, "Enter"), /Chose Org 3\b/);
+        await browser.click(1, pick(await browser.snapshot(1)));
+        await browser.press(1, "G");
+        assert.match(await browser.press(1, "Enter"), /Chose Global Payments/);
+        await assert.rejects(browser.press(1, "Ctrl"), /one character/);
     } finally {
         await browser.close();
     }

@@ -204,6 +204,34 @@ const KEYS: Record<string, { code: string; keyCode: number; text?: string }> = {
 
 export const PRESSABLE = Object.keys(KEYS);
 
+/**
+ * A key to press: a named one, or one printable character (a list's type-ahead: "G" goes to Global Payments). Keys
+ * without text go down raw, as a keyboard's do, so a page's own key handlers see them (PP-116).
+ */
+export function keyOf(key: string): { key: string; code: string; keyCode: number; text?: string } | undefined {
+    const known = KEYS[key];
+
+    if (known !== undefined) {
+        return { key, ...known };
+    }
+
+    if ([...key].length !== 1 || /[\p{C}]/u.test(key)) {
+        return undefined;
+    }
+
+    const upper = key.toUpperCase();
+
+    if (/^[A-Z]$/.test(upper)) {
+        return { key, code: `Key${upper}`, keyCode: upper.charCodeAt(0), text: key };
+    }
+
+    if (/^[0-9]$/.test(key)) {
+        return { key, code: `Digit${key}`, keyCode: key.charCodeAt(0), text: key };
+    }
+
+    return key === " " ? { key, code: "Space", keyCode: 32, text: key } : { key, code: "", keyCode: 0, text: key };
+}
+
 /** An address as typed: words become a search, a bare name gets https. Only http and https pages. */
 export function addressOf(input: string): string {
     const typed = input.trim();
@@ -556,18 +584,30 @@ export class BrowserPage {
         return JSON.stringify(now) === JSON.stringify([observed.page_key, observed.guards[String(node)] ?? null]);
     }
 
-    /** The element's centre now, if it is still there, in view, enabled, and not covered. */
+    /**
+     * The element's centre now, if it is still there, in view, enabled, and not covered. One out of view (below the fold
+     * of a list with its own scroll area, PP-116) is scrolled into view first, as a person would, and as Playwright does.
+     */
     async #point(element: Element, fill: boolean): Promise<{ x: number; y: number }> {
-        const point = await this.evaluate<{ x: number; y: number } | null>(`(node => {
+        const point = await this.evaluate<{ x: number; y: number } | null>(
+            `(async node => {
             const e=window.__piBrowser?.nodes.get(node);
             if (!e?.isConnected || e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]') ||
                 !e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return null;
             ${fill ? `if (e.readOnly || e.getAttribute('aria-readonly')==='true') return null;` : ""}
-            const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
-            if (!r.width || !r.height || x<0 || y<0 || x>=innerWidth || y>=innerHeight) return null;
-            if (!e.contains(document.elementFromPoint(x,y))) return null;
-            return {x,y};
-          })(${element.node})`);
+            const at=()=>{
+              const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
+              if (!r.width || !r.height || x<0 || y<0 || x>=innerWidth || y>=innerHeight) return null;
+              return e.contains(document.elementFromPoint(x,y)) ? {x,y} : null;
+            };
+            const now=at();
+            if (now) return now;
+            e.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+            await new Promise(done=>{ requestAnimationFrame(()=>requestAnimationFrame(done)); setTimeout(done,150); });
+            return at();
+          })(${element.node})`,
+            true,
+        );
 
         if (point === null || point === undefined) {
             throw new StalePage(`[${element.index}] ${element.label} changed, moved out of view, or is covered: read the page again.`);
@@ -781,26 +821,60 @@ export class BrowserPage {
         return match.label;
     }
 
-    /** Scroll by screens, down or up (a wheel over the middle of the page). */
-    async scroll(direction: "up" | "down", screens: number): Promise<void> {
-        const size = await this.evaluate<{ w: number; h: number }>("({w: innerWidth, h: innerHeight})");
-        const delta = Math.round(size.h * 0.85 * screens) * (direction === "down" ? 1 : -1);
+    /**
+     * Scroll by screens, down or up: a wheel over the middle of the page, or, given a control, over the part in view of
+     * what scrolls around it (an open list's own scroll area, PP-116), by its height.
+     */
+    async scroll(direction: "up" | "down", screens: number, within?: { observed: Observed; element: Element }): Promise<void> {
+        let area: { x: number; y: number; h: number } | null;
 
-        await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: Math.round(size.w / 2), y: Math.round(size.h / 2), deltaX: 0, deltaY: delta });
+        if (within === undefined) {
+            area = await this.evaluate<{ x: number; y: number; h: number }>("({x: innerWidth/2, y: innerHeight/2, h: innerHeight})");
+        } else {
+            const { observed, element } = within;
+
+            if (!(await this.#fresh(observed, element.node))) {
+                throw new StalePage("The page changed since it was read: read it again.");
+            }
+
+            area = await this.evaluate<{ x: number; y: number; h: number } | null>(`((node, down) => {
+                const e=window.__piBrowser?.nodes.get(node);
+                if (!e?.isConnected) return null;
+                for (let s=e; s && s!==document.body && s!==document.documentElement; s=s.parentElement) {
+                  const style=getComputedStyle(s);
+                  if (!/(auto|scroll|overlay)/.test(style.overflowY) || s.scrollHeight<=s.clientHeight+1) continue;
+                  if (down ? s.scrollTop+s.clientHeight>=s.scrollHeight-1 : s.scrollTop<=0) continue;
+                  const r=s.getBoundingClientRect(), top=Math.max(0,r.top), bottom=Math.min(innerHeight,r.bottom);
+                  const left=Math.max(0,r.left), right=Math.min(innerWidth,r.right);
+                  if (bottom-top<4 || right-left<4) continue;
+                  return {x:(left+right)/2, y:(top+bottom)/2, h:s.clientHeight};
+                }
+                return {x: innerWidth/2, y: innerHeight/2, h: innerHeight};
+              })(${element.node}, ${direction === "down"})`);
+
+            if (area === null || area === undefined) {
+                throw new StalePage(`[${element.index}] ${element.label} is gone: read the page again.`);
+            }
+        }
+
+        const delta = Math.round(area.h * 0.85 * screens) * (direction === "down" ? 1 : -1);
+
+        await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: Math.round(area.x), y: Math.round(area.y), deltaX: 0, deltaY: delta });
         await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
     async press(key: string): Promise<void> {
-        const known = KEYS[key];
+        const known = keyOf(key);
 
         if (known === undefined) {
-            throw new Error(`Pi's browser presses ${PRESSABLE.join(", ")}; for text, type it.`);
+            throw new Error(`Pi's browser presses ${PRESSABLE.join(", ")}, or one character (a list's type-ahead); for text, type it.`);
         }
 
         const before = this.#loads;
+        const keys = { key: known.key, code: known.code, windowsVirtualKeyCode: known.keyCode };
 
-        await this.cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key, code: known.code, windowsVirtualKeyCode: known.keyCode, ...(known.text === undefined ? {} : { text: known.text }) });
-        await this.cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key, code: known.code, windowsVirtualKeyCode: known.keyCode });
+        await this.cdp.send("Input.dispatchKeyEvent", known.text === undefined ? { type: "rawKeyDown", ...keys } : { type: "keyDown", ...keys, text: known.text });
+        await this.cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...keys });
         await this.#followNavigation(before);
     }
 

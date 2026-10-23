@@ -106,7 +106,9 @@ No Termux, no laptop, no cloud VM.
 - **Pi's browser.** Pi opens pages in a browser of its own (a WebView of the app, driven over its DevTools socket) and
   reads them as numbered controls and visible text (icons named by their tooltip, sprite, picture, or where they go;
   things clickable only by their look, like a pop-up's buttons, too); it clicks, types, chooses, hovers, scrolls, presses
-  keys, goes back, reads a whole page, or looks at it (`browser_open`, `browser_click`, …). It uploads files from where
+  keys, goes back, reads a whole page, or looks at it (`browser_open`, `browser_click`, …). Lists a page draws itself
+  (a select with its own scroll area) work too: every option is listed, a click scrolls it into view, `browser_select`
+  opens the list and picks by name, `browser_scroll` scrolls the list, and a letter jumps by type-ahead. It uploads files from where
   the session works (`browser_upload`, to a file field or its Upload button), saves a page as a PDF there
   (`browser_save_pdf`), and keeps up to six tabs (`browser_new_tab`, `browser_tabs`; the panel shows them as a strip).
   **Each session has its own tabs**, and its panel shows only those; sign-ins are shared by every session on the phone
