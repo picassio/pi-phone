@@ -333,34 +333,31 @@ export function markUp(
         }
 
         if (mark.arrow === true) {
-            // From open space beside it, up-left first, to the edge of the box.
-            const length = Math.round(70 * unit);
+            // From open space beside it, at a shallow angle, to the middle of its nearest side (the badge is on a
+            // corner), stopping short of the edge so the head stands clear: left first, then right, below, above.
+            const length = Math.round(110 * unit);
+            const gap = Math.max(8, Math.round(thickness * 3));
             const cx = outer.x + outer.width / 2;
             const cy = outer.y + outer.height / 2;
-            const starts: [number, number][] = [
-                [outer.x - length, outer.y - length * 0.6],
-                [outer.x + outer.width + length, outer.y - length * 0.6],
-                [outer.x - length, outer.y + outer.height + length * 0.6],
-                [outer.x + outer.width + length, outer.y + outer.height + length * 0.6],
-                [outer.x - length, cy],
-                [outer.x + outer.width + length, cy],
+            const rise = length * 0.35;
+            const ways: { start: [number, number]; end: [number, number] }[] = [
+                { start: [outer.x - gap - length, cy - rise], end: [outer.x - gap, cy] },
+                { start: [outer.x + outer.width + gap + length, cy - rise], end: [outer.x + outer.width + gap, cy] },
+                { start: [cx - rise, outer.y + outer.height + gap + length], end: [cx, outer.y + outer.height + gap] },
+                { start: [cx - rise, outer.y - gap - length], end: [cx, outer.y - gap] },
             ];
-            const start = starts.find(([x, y]) => x >= thickness && y >= thickness && x < width - thickness && y < height - thickness) ?? [Math.max(thickness, Math.min(width - thickness, outer.x - length)), Math.max(thickness, outer.y - length)];
-            // Where the line from the start to the box's middle meets the box.
-            const dx = cx - start[0];
-            const dy = cy - start[1];
-            const t = Math.min(dx === 0 ? Infinity : Math.abs((outer.width / 2) / dx), dy === 0 ? Infinity : Math.abs((outer.height / 2) / dy));
-            const end: [number, number] = [cx - dx * t, cy - dy * t];
+            const inside = ([x, y]: [number, number]) => x >= thickness && y >= thickness && x < width - thickness && y < height - thickness;
+            const { start, end } = ways.find((way) => inside(way.start) && inside(way.end)) ?? ways[0]!;
             const angle = Math.atan2(end[1] - start[1], end[0] - start[0]);
-            const head = thickness * 4.5;
+            const head = thickness * 5.5;
             const base: [number, number] = [end[0] - Math.cos(angle) * head, end[1] - Math.sin(angle) * head];
 
             pixels.line(start[0], start[1], base[0], base[1], color, thickness * 1.4);
             pixels.triangle(
                 [
                     end,
-                    [base[0] + Math.cos(angle + Math.PI / 2) * head * 0.6, base[1] + Math.sin(angle + Math.PI / 2) * head * 0.6],
-                    [base[0] + Math.cos(angle - Math.PI / 2) * head * 0.6, base[1] + Math.sin(angle - Math.PI / 2) * head * 0.6],
+                    [base[0] + Math.cos(angle + Math.PI / 2) * head * 0.65, base[1] + Math.sin(angle + Math.PI / 2) * head * 0.65],
+                    [base[0] + Math.cos(angle - Math.PI / 2) * head * 0.65, base[1] + Math.sin(angle - Math.PI / 2) * head * 0.65],
                 ],
                 color,
             );
