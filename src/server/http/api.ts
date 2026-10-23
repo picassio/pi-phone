@@ -656,7 +656,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
 
             if (second === "input" && method === "POST") {
-                const body = await readJson<{ type?: unknown; x?: unknown; y?: unknown; dy?: unknown; text?: unknown; key?: unknown }>(request);
+                const body = await readJson<{ type?: unknown; x?: unknown; y?: unknown; dx?: unknown; dy?: unknown; text?: unknown; key?: unknown }>(request);
                 const number = (value: unknown, name: string) => {
                     if (typeof value !== "number" || !Number.isFinite(value)) {
                         throw new HttpError(400, `${name} must be a number`);
@@ -671,7 +671,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                         body.type === "tap"
                             ? await browser().input({ type: "tap", x: number(body.x, "x"), y: number(body.y, "y") })
                             : body.type === "scroll"
-                              ? await browser().input({ type: "scroll", x: number(body.x, "x"), y: number(body.y, "y"), dy: number(body.dy, "dy") })
+                              ? await browser().input({ type: "scroll", x: number(body.x, "x"), y: number(body.y, "y"), dx: body.dx === undefined ? 0 : number(body.dx, "dx"), dy: number(body.dy, "dy") })
                               : body.type === "text" && typeof body.text === "string"
                                 ? await browser().input({ type: "text", text: body.text })
                                 : body.type === "key" && typeof body.key === "string"
@@ -1278,16 +1278,83 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { health: await app.places.health(url.searchParams.get("fresh") === "1") });
         }
 
+        // The team server's machines (PP-82) are in the list too, fresh from it as the sheet opens: `team` says whether
+        // there are any here, and whether this person manages them.
         if (first === "machines" && method === "GET" && second === undefined) {
             requireOwner(user);
+            await app.syncTeamMachines();
 
-            return json(response, 200, { machines: app.machines.list() });
+            return json(response, 200, { machines: app.machines.list(), team: { available: app.teamMachines.available, manage: app.teamMachines.manage } });
         }
 
+        // A team machine (`team: true`), added on the team server, which makes and keeps its key: its public half comes back.
         if (first === "machines" && method === "POST" && second === undefined) {
             requireOwner(user);
 
-            return json(response, 200, app.machines.add(await readJson(request)));
+            const body = await readJson<{ team?: unknown; name?: unknown; address?: unknown; keyId?: unknown }>(request);
+
+            if (body.team === true) {
+                const made = await app.teamMachines.call<{ machine: { id: string }; publicKey: string }>({ action: "add", name: body.name, address: body.address });
+
+                await app.syncTeamMachines();
+
+                return json(response, 200, { machine: app.machines.get(`team-${made.machine.id}`), publicKey: made.publicKey });
+            }
+
+            return json(response, 200, app.machines.add(body));
+        }
+
+        // A team machine's changes go to the team server (machines.manage there); then the list again.
+        const teamId = second?.startsWith("team-") === true ? second.slice(5) : undefined;
+
+        if (first === "machines" && teamId !== undefined && method === "POST" && (third === undefined || third === "accept" || third === "connect" || third === "folder")) {
+            requireOwner(user);
+
+            if (third === undefined) {
+                await app.teamMachines.call({ action: "rename", id: teamId, name: (await readJson<{ name?: unknown }>(request)).name });
+                await app.syncTeamMachines();
+
+                return json(response, 200, app.machines.get(second!));
+            }
+
+            // The host key this person scanned through the team server, for everyone: its fingerprint without "(ED25519)".
+            if (third === "accept") {
+                const body = await readJson<{ lines?: unknown; fingerprint?: unknown }>(request);
+
+                await app.teamMachines.call({ action: "accept", id: teamId, lines: body.lines, fingerprint: String(body.fingerprint ?? "").split(" ")[0] });
+                await app.syncTeamMachines();
+
+                return json(response, 200, app.machines.get(second!));
+            }
+
+            // Installed and connected from here, through the team server; what it found is kept there for everyone.
+            if (third === "connect") {
+                const connected = await app.machines.connect(second!);
+
+                await app.teamMachines.call({ action: "connected", id: teamId, remote: connected.remote, daemon: connected.daemon });
+                await app.syncTeamMachines();
+
+                return json(response, 200, connected);
+            }
+
+            // This person's own folder there (`~/team/<name>`), made on first use: where the folder picker starts.
+            const machine = app.machines.ready(second!);
+            const path = machinePaths(machine.remote).join(machine.remote!.home, machine.team!.folder);
+            const made = await app.places.env(formatPlace({ machineId: machine.id, path: machine.remote!.home })).createDir(path, { recursive: true }, BACKGROUND_CONTEXT);
+
+            if (!made.ok) {
+                throw new HttpError(502, `Could not make ${path} on ${machine.name}: ${made.error.message}`);
+            }
+
+            return json(response, 200, { path: formatPlace({ machineId: machine.id, path }) });
+        }
+
+        if (first === "machines" && teamId !== undefined && method === "DELETE") {
+            requireOwner(user);
+            await app.teamMachines.call({ action: "remove", id: teamId });
+            await app.syncTeamMachines();
+
+            return json(response, 200, { ok: true });
         }
 
         if (first === "machines" && second !== undefined && method === "POST") {

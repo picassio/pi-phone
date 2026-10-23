@@ -197,6 +197,72 @@ function Frame({ interactive, onWheel }) {
         };
     };
 
+    /**
+     * A finger dragged on the picture (PP-124): scrolls the page as a wheel at the point where it went down, so what is
+     * under the finger scrolls (an open panel's own list before the page), as in a browser. The page's pixels a finger
+     * moved, one request at a time, the movement meanwhile added up. A drag is no tap: the click after it is dropped.
+     */
+    const drag = useRef(null);
+    const scroll = () => {
+        const now = drag.current;
+
+        if (now === null || now.sending || (Math.round(now.dx) === 0 && Math.round(now.dy) === 0)) {
+            return;
+        }
+
+        const [dx, dy] = [Math.round(now.dx), Math.round(now.dy)];
+
+        now.dx -= dx;
+        now.dy -= dy;
+        now.sending = true;
+        void send({ type: "scroll", ...now.at, dx, dy }).finally(() => {
+            now.sending = false;
+            scroll();
+        });
+    };
+    const down = (event) => {
+        if (!interactive || event.pointerType === "mouse") {
+            return;
+        }
+
+        drag.current = { x: event.clientX, y: event.clientY, lastX: event.clientX, lastY: event.clientY, at: at(event), moved: false, dx: 0, dy: 0, sending: false, dropClick: false };
+    };
+    const move = (event) => {
+        const now = drag.current;
+
+        if (now === null) {
+            return;
+        }
+
+        if (!now.moved && Math.hypot(event.clientX - now.x, event.clientY - now.y) > 8) {
+            now.moved = true;
+        }
+
+        if (now.moved) {
+            const box = image.current.parentElement.getBoundingClientRect();
+            const scale = viewport.width / box.width;
+
+            // Dragging up shows what is below: the page scrolls down, as a finger does.
+            now.dx += (now.lastX - event.clientX) * scale;
+            now.dy += (now.lastY - event.clientY) * scale;
+            scroll();
+        }
+
+        now.lastX = event.clientX;
+        now.lastY = event.clientY;
+    };
+    const up = () => {
+        if (drag.current?.moved) {
+            drag.current.dropClick = true;
+            // Kept until the click that follows (if any) has come and gone.
+            const was = drag.current;
+
+            setTimeout(() => drag.current === was && (drag.current = null), 400);
+        } else {
+            drag.current = null;
+        }
+    };
+
     return html`<div
         class=${`pb-frame ${interactive ? "live" : ""}`}
         style=${`aspect-ratio:${viewport.width}/${viewport.height};--ratio:${viewport.width / viewport.height};--frame-max:${state?.size === "desktop" ? "100cqw" : "460px"}`}
@@ -206,7 +272,22 @@ function Frame({ interactive, onWheel }) {
             src=${lastFrames.get(key)}
             alt=${has ? t("Pi's browser, live") : ""}
             draggable="false"
-            onClick=${(event) => interactive && tap(event)}
+            data-no-swipe=${interactive ? "" : undefined}
+            onPointerDown=${down}
+            onPointerMove=${move}
+            onPointerUp=${up}
+            onPointerCancel=${up}
+            onClick=${(event) => {
+                if (drag.current?.dropClick) {
+                    drag.current = null;
+
+                    return;
+                }
+
+                if (interactive) {
+                    tap(event);
+                }
+            }}
             onWheel=${(event) => {
                 if (interactive) {
                     event.preventDefault();

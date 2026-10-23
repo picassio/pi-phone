@@ -44,6 +44,8 @@ export type TeamMachineEntry = {
     usable: boolean;
     /** The roles that list it, by name. */
     roles: string[];
+    /** Where this person starts there, from the machine's home: `team/<name>`. */
+    folder: string;
 };
 
 // ssh-agent's messages (draft-miller-ssh-agent): the two a client needs, and a failure for the rest.

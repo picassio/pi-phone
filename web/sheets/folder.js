@@ -612,11 +612,15 @@ export function CwdSheet({ mode, start, title }) {
                         key=${machine.id}
                         type="button"
                         class=${`fp-place ${onMachine === machine.id ? "on" : ""}`}
-                        title=${health[machine.id]?.ok === false ? t("{machine}: can't connect, {problem}", { machine: machine.name, problem: health[machine.id].problem }) : t("{machine}: its home folder", { machine: machine.name })}
+                        title=${health[machine.id]?.ok === false ? t("{machine}: can't connect, {problem}", { machine: machine.name, problem: health[machine.id].problem }) : machine.team ? t("{machine}, the team's: your folder there", { machine: machine.name }) : t("{machine}: its home folder", { machine: machine.name })}
                         aria-current=${onMachine === machine.id ? "location" : undefined}
-                        onClick=${() => load(joinPlace(machine.id, machine.home))}
+                        onClick=${() =>
+                            // A team machine (PP-82): your own folder there, made the first time.
+                            machine.team
+                                ? attempt(async () => load((await api(`machines/${encodeURIComponent(machine.id)}/folder`, {})).path))
+                                : load(joinPlace(machine.id, machine.home))}
                     >
-                        <${Icon} name="monitor" size=${15} />
+                        <${Icon} name=${machine.team ? "users" : "monitor"} size=${15} />
                         <span>${machine.name}</span>
                         ${health[machine.id]?.ok === false && html`<span class="warn" aria-label=${t("Can't connect")}>⚠</span>`}
                     </button>`,

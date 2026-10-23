@@ -65,7 +65,7 @@ export type Machine = {
      * A team machine (PP-82): the team server's, with its id there, who may change it, which roles use it, and its key's
      * public half. Its key is the team server's; its connection and sign-in go through it (`team-machines.ts`).
      */
-    team?: { id: string; manage: boolean; usable: boolean; roles: string[]; publicKey: string; createdBy: string };
+    team?: { id: string; manage: boolean; usable: boolean; roles: string[]; publicKey: string; createdBy: string; folder: string };
 };
 
 const FILE = "machines.json";
@@ -220,7 +220,7 @@ export class Machines {
             ...(entry.connectedAt === undefined ? {} : { connectedAt: entry.connectedAt }),
             // Tools seen there stay as last seen here (`machine-tools.ts`).
             ...(this.#team.find((each) => each.id === `team-${entry.id}`)?.tools === undefined ? {} : { tools: this.#team.find((each) => each.id === `team-${entry.id}`)!.tools }),
-            team: { id: entry.id, manage, usable: entry.usable, roles: entry.roles, publicKey: entry.publicKey, createdBy: entry.createdBy },
+            team: { id: entry.id, manage, usable: entry.usable, roles: entry.roles, publicKey: entry.publicKey, createdBy: entry.createdBy, folder: entry.folder },
         }));
         const reach = (machine: Machine) => JSON.stringify([machine.host, machine.user, machine.port, machine.hostKey]);
         const changed = this.#team.filter((was) => {

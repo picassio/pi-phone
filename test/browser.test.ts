@@ -426,6 +426,15 @@ test("with Chrome: a list with its own scroll area (Radix's select): every optio
         await browser.press(1, "G");
         assert.match(await browser.press(1, "Enter"), /Chose Global Payments/);
         await assert.rejects(browser.press(1, "Ctrl"), /one character/);
+
+        // Taken over (PP-124): the person's scroll at a point in the open list scrolls the list, as a finger would.
+        await browser.click(1, pick(await browser.snapshot(1)));
+        assert.match(await browser.snapshot(1), /List at 0\b/);
+        browser.takeOver(true);
+        await browser.input({ type: "scroll", x: 100, y: 120, dx: 0, dy: 300 });
+        browser.takeOver(false);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        assert.match(await browser.snapshot(1), /List at [1-9]\d*/);
     } finally {
         await browser.close();
     }

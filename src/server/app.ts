@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { Accounts } from "./accounts.ts";
 import { TeamAccountsClient } from "./team-accounts.ts";
 import { TeamMachinesClient } from "./team-machines.ts";
+import { machinePaths } from "./machine-paths.ts";
 import { PhoneSettingsFile } from "./phone-settings.ts";
 import { UsageLimits } from "./usage-limits.ts";
 import { rmSync } from "node:fs";
@@ -2353,10 +2354,16 @@ export class PocketApp {
                 home: homedir(),
                 defaultCwd: this.defaultCwd,
                 // Connected machines (`machines.ts`): the folder picker offers them, and places on them show their names.
+                // A team machine (PP-82) is marked so, with this person's own folder there, where the picker starts.
                 machines: this.machines
                     .list()
                     .filter((machine) => machine.remote !== undefined)
-                    .map((machine) => ({ id: machine.id, name: machine.name, home: machine.remote!.home })),
+                    .map((machine) => ({
+                        id: machine.id,
+                        name: machine.name,
+                        home: machine.remote!.home,
+                        ...(machine.team === undefined ? {} : { team: true, folder: machinePaths(machine.remote).join(machine.remote!.home, machine.team.folder) }),
+                    })),
                 extensions: this.loader.extensionNames(),
                 // OfficeCLI runs here (`officecli.ts`): the Files viewer shows Word, Excel, and PowerPoint files.
                 officecli: this.officecli.available(),

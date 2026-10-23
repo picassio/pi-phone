@@ -183,6 +183,18 @@ export function timeAgo(ms) {
     return formatDate(ms, { month: "short", day: "numeric" });
 }
 
+/** "5m ago" for a sentence ("connected {when}"): "just now" when it was, never "now ago". */
+export function agoText(ms) {
+    const seconds = Math.max(0, (Date.now() - ms) / 1000);
+
+    if (seconds < 45) {
+        return t("just now");
+    }
+
+    // A date (past a month) reads as it is.
+    return seconds < 86400 * 30 ? t("{ago} ago", { ago: timeAgo(ms) }) : timeAgo(ms);
+}
+
 // ─── The start: the language this page is in, and its catalog, before anything draws ───
 
 if (globalThis.document !== undefined) {

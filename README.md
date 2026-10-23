@@ -122,7 +122,8 @@ No Termux, no laptop, no cloud VM.
   desktop Chrome, no touch) with **Phone / Desktop** in the panel or `browser_size`.
   Each click is checked first: the element as read, still in view, nothing over it. You watch it live in the Browser panel (beside the conversation on wide screens, where
   it opens by itself when Pi starts browsing; on a phone, a small live preview above the message box opens it), and can
-  **Take over** and **Hand back**: taken over, tap the page and type on your keyboard, and your keys go straight to it.
+  **Take over** and **Hand back**: taken over, tap the page and type on your keyboard, and your keys go straight to it;
+  swipe (or use the wheel) to scroll what is under your finger, an open list's own scroll area included.
   Nothing you type stays in the panel, and over a password field the keyboard is in password mode, so it does not
   learn what you type. It never opens this phone or its local network,
   keeps its cookies and sign-ins in a WebView profile of its own (apart from the app's), and only works for what the owner asks.
@@ -272,6 +273,13 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
     subscription shows its plan's usage bars to everyone who can use it, and Claude requests get the Claude Code
     billing patch on the team server, as each person's setting says. Pi lists them, and adds one, says which roles
     use it or removes it on a card; signing in stays a person's, on the account's row.
+  - **Team machines** (Machines › Add team machine, with "Add, change and remove the team's machines" in one's role):
+    a computer added once for the team, reached from the server's own network. Its SSH key is made and kept on the team
+    server, never in anyone's pi-phone; you put its public half in the machine's `authorized_keys` and accept its host
+    key. Roles say who may use it (Roles › Team machines they may use). It shows under Team machines in their Machines
+    sheet and in the folder picker, with everything a machine has: sessions, the terminal, ports, `machine_run`. Each
+    person starts in a folder of their own there (`~/team/<name>`), on the machine's one account. Taking a machine off
+    a role closes its people's connections at once.
   - **Hardened:** only ports 80 and 443 open, sign-in limits that people's containers can't get around, no
     cross-site changes, and security headers. See deploy/README.md › Security.
 

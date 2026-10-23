@@ -65,6 +65,17 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
     `team_provider_add`, `team_provider_access` (the roles that may use one) and `team_provider_remove` ask the person
     on a card and show as "Pi for" them in the Audit log. `team_role_save` keeps a role's team accounts and team spend
     limit unless given. Never through Pi: keys and sign-ins.
+- **Team machines** (Machines › Add team machine, in a pi-phone of someone with `machines.manage`):
+  - A computer the team's sessions work on, reached from the gateway's network (its container must reach the machine's
+    SSH port). The gateway makes an ed25519 key for it, kept only in its volume (`team-machines/<id>.key`, mode 600);
+    the manager puts the public half in the machine's `authorized_keys` and accepts its host key, scanned by the gateway.
+  - **Using them:** the Roles page lists the team machines a role's people may use (the owner's role: all). A person's
+    pi-phone reaches one through the gateway (`/internal/team-machines/<id>/connect`, a pipe to the machine's SSH port)
+    with an agent that holds no key: the gateway signs only the sign-in to that machine (`SSH_MSG_USERAUTH_REQUEST`,
+    naming its accepted host key), and checks the role at every connection. Taking a machine off a role, or removing
+    it, closes open pipes at once.
+  - Everyone uses the machine's one account; each starts in `~/team/<their name>`. Added, accepted, renamed and removed
+    machines, and role changes, are in the Audit log.
 - **Updates roll out by themselves:** after `docker compose ... up -d --build` makes a new image, people's running
   pi-phones are made again from it one at a time, each when Pi isn't at work there. Stopped ones are made again when they
   next start. Their data (the volume) is kept, and an open page reconnects in a few seconds. The Server page shows how

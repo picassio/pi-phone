@@ -1238,7 +1238,9 @@ export class PiBrowser {
      * is then (PP-14): whether it takes text, and whether it is a password, so the panel raises the keyboard in that mode.
      * Nothing typed is kept or logged.
      */
-    async input(event: { type: "tap"; x: number; y: number } | { type: "scroll"; x: number; y: number; dy: number } | { type: "text"; text: string } | { type: "key"; key: string }): Promise<{ editable: boolean; password: boolean }> {
+    async input(
+        event: { type: "tap"; x: number; y: number } | { type: "scroll"; x: number; y: number; dx?: number; dy: number } | { type: "text"; text: string } | { type: "key"; key: string },
+    ): Promise<{ editable: boolean; password: boolean }> {
         if (!this.#state.takenOver) {
             throw new Error("Take over Pi's browser first.");
         }
@@ -1252,7 +1254,8 @@ export class PiBrowser {
                 await page.cdp.send("Input.dispatchMouseEvent", { type, x: event.x, y: event.y, button: "left", clickCount: 1 });
             }
         } else if (event.type === "scroll") {
-            await page.cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: event.x, y: event.y, deltaX: 0, deltaY: event.dy });
+            // A wheel at the point: the page scrolls what is under it (an open panel's own list first), as a browser does.
+            await page.cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: event.x, y: event.y, deltaX: event.dx ?? 0, deltaY: event.dy });
         } else if (event.type === "text") {
             await page.cdp.send("Input.insertText", { text: event.text });
         } else {

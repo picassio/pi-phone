@@ -16801,6 +16801,11 @@ pre.gallery-code {
     cursor: pointer;
 }
 
+/* Taken over (PP-124): a finger's drag on the picture is the page's scroll, never the panel's pan or a swipe back. */
+.pb-frame.live img {
+    touch-action: none;
+}
+
 .pb-wait {
     position: absolute;
     inset: 0;
@@ -17093,6 +17098,11 @@ pre.gallery-code {
         flex-basis: 100%;
         white-space: normal;
     }
+}
+
+/* Team machines in Machines (PP-82): their own section after the person's machines. */
+.machines-team-title {
+    margin: 18px 0 8px;
 }
 
 /* A team account in Providers (PP-69): marked TEAM, as the mockup shows, under its provider like an account. */

@@ -1,9 +1,9 @@
 // Machines (src/server/machines.ts): other computers sessions can work on, over ssh with one of the app's SSH keys.
 // Add one, accept its host key, approve the daemon install, test it, edit, remove. Laid out as the Providers sheet.
 import { useEffect, useState } from "preact/hooks";
-import { t, tx } from "../i18n.js";
+import { agoText, t, tx } from "../i18n.js";
 import { api, attempt, closeSheet, notify, openSheet } from "../store.js";
-import { Choice, copyText, html, Icon, Loader, Sheet, timeAgo } from "../ui.js";
+import { Choice, copyText, html, Icon, Loader, Sheet } from "../ui.js";
 import { windowsSetupScript } from "../windows-setup.js";
 
 const address = (machine) => `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`;
@@ -81,6 +81,57 @@ function MachineForm({ machine, keys, onDone }) {
         <div class="sheet-actions">
             <button class="button" onClick=${() => onDone(null)}>${t("Cancel")}</button>
             <button class="button primary" disabled=${busy || name.trim() === "" || where.trim() === "" || keyId === ""} onClick=${save}>
+                ${busy ? t("Saving…") : machine ? t("Save") : t("Add")}
+            </button>
+        </div>
+    </div>`;
+}
+
+/**
+ * A new team machine (PP-82), or a team machine's new name: on the team server, which makes and keeps its key. Its
+ * public half then shows on its row, to put in the machine's authorized_keys.
+ */
+function TeamMachineForm({ machine, onDone }) {
+    const [name, setName] = useState(machine?.name ?? "");
+    const [where, setWhere] = useState("");
+    const [busy, setBusy] = useState(false);
+    const save = () =>
+        attempt(async () => {
+            setBusy(true);
+
+            try {
+                onDone(await api(machine ? `machines/${encodeURIComponent(machine.id)}` : "machines", machine ? { name } : { team: true, name, address: where }));
+            } finally {
+                setBusy(false);
+            }
+        });
+
+    return html`<div class="machine-form">
+        ${!machine && html`<div class="label">${t("Add team machine")}</div>`}
+        <div class="field">
+            <div class="label">${t("Name")}</div>
+            <input autofocus aria-label=${t("Machine name")} placeholder=${t("build-box")} value=${name} onInput=${(event) => setName(event.currentTarget.value)} />
+        </div>
+        ${
+            !machine &&
+            html`<div class="field">
+                <div class="label">${t("Address")}</div>
+                <input
+                    class="mono"
+                    aria-label=${t("Address")}
+                    placeholder=${t("user@host or user@host:port")}
+                    autocapitalize="off"
+                    autocomplete="off"
+                    spellcheck="false"
+                    value=${where}
+                    onInput=${(event) => setWhere(event.currentTarget.value)}
+                />
+            </div>
+            <p class="muted small">${t("The team server makes a key for it and keeps it; nobody's pi-phone gets it. Everyone it's shared with works in this one account, and can read each other's files there.")}</p>`
+        }
+        <div class="sheet-actions">
+            <button class="button" onClick=${() => onDone(null)}>${t("Cancel")}</button>
+            <button class="button primary" disabled=${busy || name.trim() === "" || (!machine && where.trim() === "")} onClick=${save}>
                 ${busy ? t("Saving…") : machine ? t("Save") : t("Add")}
             </button>
         </div>
@@ -255,7 +306,10 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             });
         }
     }, [machine.hostKey, machine.remote]);
-    const key = keys.find((each) => each.id === machine.keyId);
+    // A team machine (PP-82): the team server's key (its public half here), and what this person may do with it.
+    const team = machine.team;
+    const manage = team?.manage === true;
+    const key = team ? { name: t("the team's"), publicKey: team.publicKey } : keys.find((each) => each.id === machine.keyId);
     const call = (what, run) =>
         attempt(async () => {
             setBusy(what);
@@ -334,10 +388,12 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
         });
     const remove = () =>
         confirm(
-            t(
-                "Remove {name}?\n\nThe app forgets it and its host key. The pi-env helper stays in ~/.pi/mobile/tools on the machine until you delete it there, and the key stays in its authorized_keys.",
-                { name: machine.name },
-            ),
+            team
+                ? t("Remove {name} for the whole team?\n\nEveryone's sessions there stop, and the team server deletes its key. The files on the machine stay, and the key's public half stays in its authorized_keys.", { name: machine.name })
+                : t(
+                      "Remove {name}?\n\nThe app forgets it and its host key. The pi-env helper stays in ~/.pi/mobile/tools on the machine until you delete it there, and the key stays in its authorized_keys.",
+                      { name: machine.name },
+                  ),
         ) &&
         call("remove", async () => {
             await api(`machines/${encodeURIComponent(machine.id)}`, undefined, { method: "DELETE" });
@@ -351,15 +407,13 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
         );
 
     if (editing) {
+        const done = () => {
+            setEditing(false);
+            onChanged();
+        };
+
         return html`<div class="provider machine">
-            <${MachineForm}
-                machine=${machine}
-                keys=${keys}
-                onDone=${() => {
-                    setEditing(false);
-                    onChanged();
-                }}
-            />
+            ${team ? html`<${TeamMachineForm} machine=${machine} onDone=${done} />` : html`<${MachineForm} machine=${machine} keys=${keys} onDone=${done} />`}
         </div>`;
     }
 
@@ -369,6 +423,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
         <div>
             <div>
                 ${machine.name}
+                ${team && html` <span class="pv-team-tag">${t("Team")}</span>`}
                 ${state === "connected" && health?.ok !== false && html` <span class="ok">✓</span>`}
                 ${state === "connected" && health?.ok === false && html` <span class="warn">⚠</span>`}
             </div>
@@ -376,13 +431,36 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             <div class="muted small">
                 ${
                     state === "connected"
-                        ? `${machine.remote.platform} ${machine.remote.arch} · pi-env ${machine.daemon} · ${t("connected {ago} ago", { ago: timeAgo(machine.connectedAt) })}`
+                        ? `${machine.remote.platform} ${machine.remote.arch} · pi-env ${machine.daemon} · ${t("connected {when}", { when: agoText(machine.connectedAt) })}`
                         : state === "trusted"
                           ? t("host key accepted · not connected yet")
                           : t("not connected yet")
                 }
-                ${key ? ` · ${t("key: {name}", { name: key.name })}` : ` · ${t("key missing")}`}
+                ${team ? ` · ${t("the team's key")}` : key ? ` · ${t("key: {name}", { name: key.name })}` : ` · ${t("key missing")}`}
             </div>
+            ${
+                team &&
+                html`<div class="muted small">
+                    ${
+                        manage
+                            ? team.roles.length > 0
+                                ? t("Roles that may use it: {roles}", { roles: team.roles.join(", ") })
+                                : t("No role may use it yet: choose them in People & account › Roles.")
+                            : t("The team's: set up by someone who manages the team's machines.")
+                    }
+                </div>`
+            }
+            ${team && state === "connected" && html`<div class="muted small">${tx("Your folder there: {path}", { path: html`<span class="mono">~/${team.folder}</span>` })}</div>`}
+            ${
+                team &&
+                state === "new" &&
+                (manage
+                    ? html`<div class="machine-step">
+                          <p class="small">${tx("Put the team's key for it in {file} of {user} on the machine, then scan its host key:", { file: html`<span class="mono">~/.ssh/authorized_keys</span>`, user: html`<span class="mono">${machine.user}</span>` })}</p>
+                          <pre class="ssh-public-key">${team.publicKey}</pre>
+                      </div>`
+                    : html`<p class="muted small">${t("Not set up yet: someone who manages the team's machines sets it up.")}</p>`)
+            }
             ${checked && html`<div class="muted small">${t("Reached: {what}", { what: checked })}</div>`}
             ${
                 state === "connected" &&
@@ -394,7 +472,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 state === "connected" &&
                 health !== undefined &&
                 (health.ok
-                    ? html`<div class="muted small">${t("Answers now (checked {ago} ago)", { ago: timeAgo(health.at) })}</div>`
+                    ? html`<div class="muted small">${t("Answers now (checked {when})", { when: agoText(health.at) })}</div>`
                     : html`<div class="machine-problem small">
                           <strong>${t("Can't connect:")}</strong> ${health.problem}
                           ${health.said && health.said !== health.problem && html`<div class="muted mono">${health.said}</div>`}
@@ -419,6 +497,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             ${
                 state === "trusted" &&
                 !scan &&
+                (!team || manage) &&
                 html`<div class="machine-step">
                     <p class="small">
                         ${tx(
@@ -464,7 +543,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
         </div>
         <div class="provider-actions">
             <div class="action-group">
-            ${state === "new" && !scan && html`<button class="button small primary" disabled=${busy !== null} onClick=${doScan}>${busy === "scan" ? t("Scanning…") : t("Scan host key")}</button>`}
+            ${state === "new" && !scan && (!team || manage) && html`<button class="button small primary" disabled=${busy !== null} onClick=${doScan}>${busy === "scan" ? t("Scanning…") : t("Scan host key")}</button>`}
             ${
                 state === "connected" &&
                 html`<button
@@ -475,16 +554,19 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 </button>`
             }
             ${state === "connected" && html`<button class="button small" onClick=${() => openSheet({ type: "forwards", machineId: machine.id })}>${t("Ports")}</button>`}
-            ${state === "connected" && html`<button class="button small" disabled=${toolsOpen} onClick=${() => setToolsOpen(true)}>${t("Install tools")}</button>`}
+            ${state === "connected" && (!team || manage) && html`<button class="button small" disabled=${toolsOpen} onClick=${() => setToolsOpen(true)}>${t("Install tools")}</button>`}
             ${state === "connected" && html`<button class="button small" disabled=${busy !== null} onClick=${detect}>${busy === "detect" ? t("Testing…") : t("Test")}</button>`}
             </div>
-            <div class="action-group">
-            ${state === "connected" && html`<button class="button small ghost" disabled=${busy !== null} onClick=${connect}>${busy === "connect" ? t("Updating…") : t("Update helper")}</button>`}
-            ${key && html`<button class="button small ghost" onClick=${copyKey}>${t("Copy public key")}</button>`}
-            <button class="button small ghost" onClick=${() => setEditing(true)}>${t("Edit")}</button>
-            ${machine.hostKey && html`<button class="button small ghost" disabled=${busy !== null} onClick=${forget}>${t("Forget host key")}</button>`}
-            <button class="button small ghost" disabled=${busy !== null} onClick=${remove}>${t("Remove")}</button>
-            </div>
+            ${
+                (!team || manage) &&
+                html`<div class="action-group">
+                    ${state === "connected" && html`<button class="button small ghost" disabled=${busy !== null} onClick=${connect}>${busy === "connect" ? t("Updating…") : t("Update helper")}</button>`}
+                    ${key && html`<button class="button small ghost" onClick=${copyKey}>${t("Copy public key")}</button>`}
+                    <button class="button small ghost" onClick=${() => setEditing(true)}>${team ? t("Rename") : t("Edit")}</button>
+                    ${machine.hostKey && !team && html`<button class="button small ghost" disabled=${busy !== null} onClick=${forget}>${t("Forget host key")}</button>`}
+                    <button class="button small ghost" disabled=${busy !== null} onClick=${remove}>${t("Remove")}</button>
+                </div>`
+            }
         </div>
     </div>`;
 }
@@ -493,6 +575,9 @@ export function MachinesSheet() {
     const [machines, setMachines] = useState(null);
     const [keys, setKeys] = useState([]);
     const [adding, setAdding] = useState(false);
+    // The team server's machines (PP-82): whether there are any here, and whether this person manages them.
+    const [team, setTeam] = useState({ available: false, manage: false });
+    const [addingTeam, setAddingTeam] = useState(false);
     // Whether each set-up machine answers now: asked fresh as the sheet opens, and again on Check again.
     const [health, setHealth] = useState({});
     const recheck = () =>
@@ -504,8 +589,12 @@ export function MachinesSheet() {
         const [list, keyList] = await Promise.all([api("machines"), api("ssh-keys")]);
 
         setMachines(list.machines);
+        setTeam(list.team ?? { available: false, manage: false });
         setKeys(keyList.keys);
     };
+    const own = (machines ?? []).filter((machine) => !machine.team);
+    const teams = (machines ?? []).filter((machine) => machine.team);
+    const row = (machine) => html`<${MachineRow} key=${machine.id} machine=${machine} keys=${keys} health=${health[machine.id]} onRecheck=${recheck} onChanged=${() => attempt(load)} />`;
 
     useEffect(() => {
         attempt(load);
@@ -519,28 +608,46 @@ export function MachinesSheet() {
             })}
         </p>
         ${machines === null && html`<${Loader} label=${t("Loading machines")} />`}
-        ${machines !== null && machines.length === 0 && !adding && html`<p class="muted">${t("No machines yet.")}</p>`}
+        ${machines !== null && own.length === 0 && !adding && html`<p class="muted">${teams.length > 0 ? t("No machines of your own yet.") : t("No machines yet.")}</p>`}
+        ${machines !== null && own.length > 0 && html`<div class="sheet-list">${own.map(row)}</div>`}
         ${
             machines !== null &&
-            machines.length > 0 &&
-            html`<div class="sheet-list">
-                ${machines.map((machine) => html`<${MachineRow} key=${machine.id} machine=${machine} keys=${keys} health=${health[machine.id]} onRecheck=${recheck} onChanged=${() => attempt(load)} />`)}
-            </div>`
+            team.available &&
+            (teams.length > 0 || team.manage) &&
+            html`<div class="label machines-team-title">${t("Team machines")}</div>
+                ${teams.length > 0 ? html`<div class="sheet-list">${teams.map(row)}</div>` : html`<p class="muted small">${t("None yet. A team machine is added once for everyone, and roles say who may use it.")}</p>`}`
         }
         ${
-            adding
-                ? html`<${MachineForm}
-                    keys=${keys}
-                    onDone=${(saved) => {
-                        setAdding(false);
+            adding || addingTeam
+                ? adding
+                    ? html`<${MachineForm}
+                          keys=${keys}
+                          onDone=${(saved) => {
+                              setAdding(false);
 
-                        if (saved) {
-                            attempt(load);
-                        }
-                    }}
-                />`
+                              if (saved) {
+                                  attempt(load);
+                              }
+                          }}
+                      />`
+                    : html`<${TeamMachineForm}
+                          onDone=${(saved) => {
+                              setAddingTeam(false);
+
+                              if (saved) {
+                                  attempt(load);
+                              }
+                          }}
+                      />`
                 : machines !== null &&
                   html`<div class="sheet-actions">
+                      ${
+                          team.available &&
+                          team.manage &&
+                          html`<button class="button" onClick=${() => setAddingTeam(true)}>
+                              <${Icon} name="plus" size=${14} /> ${t("Add team machine")}
+                          </button>`
+                      }
                       <button class="button primary" onClick=${() => setAdding(true)}>
                           <${Icon} name="plus" size=${14} /> ${t("Add a machine")}
                       </button>

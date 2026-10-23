@@ -753,6 +753,21 @@ export class Gateway {
         if (action === "list") {
             // Which roles use each, by name: for whoever manages them.
             const roles = store.roles().filter((each) => !each.builtin);
+            // Where this person starts on a team machine (the owner's decision: each their own folder in the one account),
+            // from their account's name; a name another person's makes too gets a piece of their id.
+            const slug = (name: string) =>
+                name
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .replace(/đ/g, "d")
+                    .replace(/Đ/g, "D")
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/^-+|-+$/g, "")
+                    .slice(0, 40) || "person";
+            const mine = slug(me.name);
+            const shared = store.users().some((each) => each.id !== me.id && slug(each.name) === mine);
+            const folder = `team/${shared ? `${mine}-${me.id.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 6)}` : mine}`;
 
             return {
                 manage,
@@ -763,6 +778,7 @@ export class Gateway {
                         ...machine,
                         publicKey: machines.publicKey(machine.id),
                         usable: mayUse(machine.id),
+                        folder,
                         roles: roles.filter((each) => (each.teamMachines ?? []).includes(machine.id)).map((each) => each.name),
                     })),
             };
