@@ -2685,5 +2685,6 @@
     "Weekly Sonnet": "每周 Sonnet",
     "Premium requests": "高级请求",
     "Window": "窗口",
+    "{name} (team)": "{name}（团队）",
     "{provider}'s {n}-hour limit · goes on by itself at {time}": "{provider} 的 {n} 小时额度上限 · 将于 {time} 自动继续"
 }

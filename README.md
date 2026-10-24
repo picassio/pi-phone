@@ -63,8 +63,9 @@ No Termux, no laptop, no cloud VM.
 - **Wait out provider limits.** A run that hits a 429, an overload, or a Claude or ChatGPT plan window waits inside
   its request until the provider's own reset (its headers, else the account's usage bars, else growing gaps), then goes
   on by itself, a restart included. The live line says whose limit and when it tries again, with **Retry now** and
-  **Stop**; the session's row, peek tile, and the subagents board show an amber square. When another of your own
-  accounts of the same provider has room (never a team server's shared account), a card asks: **Wait until** the
+  **Stop**; the session's row, peek tile, and the subagents board show an amber square. When another account of the
+  same provider has room (your own first, the emptiest; a team server's shared account, marked *(team)*, only when none
+  of yours has room, as it spends the team's subscription), a card asks: **Wait until** the
   reset, or **Move to** that account (the waiting request goes there, and the session uses it from then on; a
   subagent's card moves the subagent and its session). While the card is up, the usage banner over the message box
   steps aside. A reset further away (a weekly window), billing, or an expired sign-in fails at once, with the reset time.

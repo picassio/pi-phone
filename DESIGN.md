@@ -588,8 +588,9 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   long-wait notices sent (`told`) in `provider-limits.json` with the gate. Move sets the waiting conversation's model
   (`conversation.configure`) and sends the same request through the other account's provider id in the same stream;
   a subagent's move sets its root session's model too (the session's own model id under that account). The card
-  offers only the person's own accounts, never a team account (`isTeamAccount`, `~team-` in its id, or registered from
-  the team server), and the older usage banner over the composer hides while a card is up. The notice's "at HH:MM" is
+  offers the person's own accounts first (the emptiest), and a team account (`isTeamAccount`, `~team-` in its id, or
+  registered from the team server) only when none of theirs has room, marked `toTeam` ("(team)" on its name and Move)
+  as it spends the team's subscription; the older usage banner over the composer hides while a card is up. The notice's "at HH:MM" is
   in the server's zone (the phone's own for the app's notification) and, for a web push, in the zone the browser told
   when it turned notifications on (`PushSubscriptionRecord.zone`). The team server never waits: `/internal/llm/stream` adds the provider's status and limit headers to an error line
   (`facts`), and the pi-phone marks the failed message with them (`withFacts`) for its gate.

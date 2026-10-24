@@ -1726,7 +1726,9 @@ export class PocketApp {
     async #makeOffer(wait: Waiting): Promise<LimitOffer | undefined> {
         const { view, modelId } = wait;
         const base = baseProvider(view.provider);
-        let best: { to: string; used: number; window: string } | undefined;
+        // The emptiest of the person's own accounts with room, and of the team's: a team account (it spends the team's
+        // subscription) only when none of their own has room (owner's decision of 2026-10-24).
+        const best: Record<"own" | "team", { to: string; used: number; window: string } | undefined> = { own: undefined, team: undefined };
 
         for (const provider of this.models.getProviders()) {
             const to = provider.id;
@@ -1734,8 +1736,6 @@ export class PocketApp {
             if (
                 to === view.provider ||
                 baseProvider(to) !== base ||
-                // Only the person's own accounts (owner's decision of 2026-10-24): never the team server's shared ones.
-                this.#teamAccount(to) ||
                 this.models.getModel(to, modelId) === undefined ||
                 !this.policy.modelAllowed(to, modelId) ||
                 !this.models.hasConfiguredAuth(to) ||
@@ -1754,12 +1754,17 @@ export class PocketApp {
 
             const shown = windows.find((window) => window.label === view.window) ?? windows.reduce((a, b) => (b.usedPercent > a.usedPercent ? b : a));
 
-            if (best === undefined || shown.usedPercent < best.used) {
-                best = { to, used: Math.round(shown.usedPercent), window: shown.label };
+            const kind = this.#teamAccount(to) ? "team" : "own";
+            const kept = best[kind];
+
+            if (kept === undefined || shown.usedPercent < kept.used) {
+                best[kind] = { to, used: shown.usedPercent, window: shown.label };
             }
         }
 
-        if (best === undefined || view.resetAt === undefined) {
+        const chosen = best.own ?? best.team;
+
+        if (chosen === undefined || view.resetAt === undefined) {
             return undefined;
         }
 
@@ -1774,10 +1779,11 @@ export class PocketApp {
             resetAt: view.resetAt,
             until: view.until,
             modelId,
-            to: best.to,
-            toName: this.models.getProvider(best.to)?.name ?? best.to,
-            toUsed: best.used,
-            toWindow: best.window,
+            to: chosen.to,
+            toName: this.models.getProvider(chosen.to)?.name ?? chosen.to,
+            ...(best.own === undefined ? { toTeam: true as const } : {}),
+            toUsed: Math.round(chosen.used),
+            toWindow: chosen.window,
         };
     }
 

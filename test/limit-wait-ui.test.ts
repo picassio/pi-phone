@@ -9,6 +9,7 @@ import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { ConversationId } from "@earendil-works/pi-durable";
+import { accountProvider } from "../src/server/accounts.ts";
 import { createHandler } from "../src/server/http.ts";
 import { Browsers } from "./support/browser.ts";
 import { findBrowser } from "./support/browser/discovery.ts";
@@ -51,7 +52,7 @@ before(async () => {
     const agent = join(root, "agent");
 
     mkdirSync(agent, { recursive: true });
-    writeFileSync(join(agent, "auth.json"), signIns({ anthropic: "tok-default", "anthropic~work": "tok-work" }));
+    writeFileSync(join(agent, "auth.json"), signIns({ anthropic: "tok-default", "anthropic~work": "tok-work", "anthropic~team-x": "tok-team" }));
     app = await PocketApp.open({
         dataDir: join(root, "limit-ui-data"),
         defaultCwd: work,
@@ -215,4 +216,25 @@ test("Retry now sends the request; the phone's list shows the square; Providers 
     behave = () => ({ text: "answered" });
     await page.click({ selector: ".live-retry" });
     await until(() => !app.isBusy(id), "the answer after Retry now");
+});
+
+test("with none of the person's own accounts left, the card offers the team's, marked team on its name and Move", real, async () => {
+    await app.accounts.remove("anthropic~work");
+    // A team account's provider, as the team server's sync registers one here.
+    app.models.registerNativeProvider(accountProvider(localAnthropic(provider.url), "anthropic~team-x", "Team X"));
+    behave = (token) => (token === "tok-team" ? { text: "Answered on the team's account." } : fiveHourLimit(reset));
+
+    const id = await session("tidy the docs");
+
+    await page.setViewport(VIEWPORTS.desktop);
+    await page.navigate(`${base}/s/${id}`);
+    await until(async () => /Move to Anthropic · Team X \(team\)/.test(await text(".limit-card")), "the team account's card");
+    assert.match(await text(".limit-card"), /Anthropic · Team X \(team\) has room: 18% of its 5-hour used\./);
+    await shot("limit-team-1280");
+    await page.setViewport(VIEWPORTS.mobile);
+    await page.navigate(`${base}/s/${id}`);
+    await until(async () => (await text(".limit-card")) !== "", "the phone's card");
+    await shot("limit-team-390");
+    await page.click({ selector: ".limit-card .button.primary" });
+    await until(async () => (await app.agentState(id))?.model?.provider === "anthropic~team-x" && !app.isBusy(id), "the move and the answer");
 });

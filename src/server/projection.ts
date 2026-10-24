@@ -124,6 +124,8 @@ export type LimitOffer = {
     /** The account it may move to, by provider id, and how much of its plan window is used. */
     to: string;
     toName: string;
+    /** It is a team server's shared account: offered only when none of the person's own has room, and marked so. */
+    toTeam?: true;
     toUsed: number;
     toWindow: string;
 };

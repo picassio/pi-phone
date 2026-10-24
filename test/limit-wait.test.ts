@@ -369,7 +369,7 @@ test("another account with room: the card offers it; Wait keeps waiting, Move se
     usage = {};
 });
 
-test("the card never offers a team account, however much room it has: only the person's own", async () => {
+test("the person's own account with room comes first, before an emptier team account", async () => {
     const app = await open();
 
     app.accounts.add("anthropic", "Work");
@@ -381,7 +381,7 @@ test("the card never offers a team account, however much room it has: only the p
     const reset = Date.now() + 3_600_000;
 
     await app.attach(tab.client);
-    // The team account is the emptiest: the card used to pick it.
+    // The team account is the emptiest, but Work has room: Work first.
     usage = { "tok-default": { five: 100, fiveReset: reset }, "tok-work": { five: 40, fiveReset: reset }, "tok-team": { five: 5, fiveReset: reset } };
     behave = (token) => (token === "tok-default" ? fiveHourLimit(reset) : { text: "answered" });
     await send(app, id);
@@ -390,7 +390,43 @@ test("the card never offers a team account, however much room it has: only the p
         ((tab.field("limitOffers") ?? []) as { to: string; toUsed: number }[]).map((offer) => [offer.to, offer.toUsed]),
         [["anthropic~work", 40]],
     );
+    assert.equal(((tab.field("limitOffers") ?? []) as { toTeam?: true }[])[0]?.toTeam, undefined, "not marked team");
     await app.commands.abort(id, owner(app));
+    usage = {};
+});
+
+test("with no own account that has room, the card offers the team account, marked, and Move goes through it", async () => {
+    const app = await open();
+    const call = await http(app);
+
+    // No other account of the person's own; a team account's provider, as the team server's sync registers one here.
+    app.models.registerNativeProvider(accountProvider(localAnthropic(provider.url), "anthropic~team-x", "Team X"));
+
+    const id = await session(app);
+    const tab = fakeTab(id, owner(app));
+    const reset = Date.now() + 3_600_000;
+    const from = provider.calls.length;
+
+    await app.attach(tab.client);
+    usage = { "tok-default": { five: 100, fiveReset: reset }, "tok-team": { five: 5, fiveReset: reset } };
+    behave = (token) => (token === "tok-team" ? { text: "answered on the team's account" } : fiveHourLimit(reset));
+
+    type Offer = { to: string; toName: string; toTeam?: true; toUsed: number };
+    const offers = () => (tab.field("limitOffers") ?? []) as Offer[];
+
+    await send(app, id);
+    await until(() => offers().length === 1, "the card");
+    assert.deepEqual(
+        offers().map((offer) => [offer.to, offer.toName, offer.toTeam, offer.toUsed]),
+        [["anthropic~team-x", "Anthropic · Team X", true, 5]],
+    );
+    assert.equal((await call(`c/${id}/limit/answer`, { choice: "move", to: "anthropic~team-x" })).status, 200);
+    await until(() => answered(app, id), "the answer through the team account");
+    assert.deepEqual(
+        callsSince(from).map((each) => each.token),
+        ["tok-default", "tok-team"],
+    );
+    assert.equal((await app.agentState(id))?.model?.provider, "anthropic~team-x");
     usage = {};
 });
 

@@ -57,7 +57,9 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
   - **Limits:** the gateway never waits for a provider's limit. A refusal (a 429, an overload, a Claude or ChatGPT plan
     window) goes back to the person's pi-phone with the provider's status and its limit headers only (`retry-after`,
     `anthropic-ratelimit-*`, `x-ratelimit-*`, `x-codex-*`; never a key), and that pi-phone waits for the reset as it
-    does for its own accounts (Providers › Wait for a limit), its usage bars included.
+    does for its own accounts (Providers › Wait for a limit), its usage bars included. When one of a person's own
+    accounts hits its limit and none of their others has room, the card may offer a team account of the same provider
+    (marked "(team)": moving there spends the team's subscription).
   - **Spend:** each answer's cost is counted on the gateway per person, account and month (`pp_team_spend`). A role's
     **team spend limit** (dollars a month each; empty for none) refuses further calls once reached, apart from the
     role's own spend limit, which leaves team spend out. The Server page's "Team accounts' spend" lists this month's,

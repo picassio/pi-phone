@@ -2633,6 +2633,8 @@ function LimitOfferCard({ offer }) {
     }, []);
 
     const resets = clock(offer.resetAt);
+    // A team server's shared account says so: moving there spends the team's subscription.
+    const other = offer.toTeam ? t("{name} (team)", { name: offer.toName }) : offer.toName;
     const answer = (choice) => {
         setBusy(true);
         attempt(() => actions.answerLimit(offer.conversationId, choice, choice === "move" ? offer.to : undefined)).finally(() => setBusy(false));
@@ -2651,14 +2653,14 @@ function LimitOfferCard({ offer }) {
                     }
                     ${" "}${t("It resets at {time} (in {left}).", { time: resets, left: span(fromServer(offer.resetAt) - Date.now()) })}
                 </span>
-                <span class="muted">${t("{account} has room: {n}% of its {window} used.", { account: offer.toName, n: offer.toUsed, window: windowName(offer.toWindow) })}</span>
+                <span class="muted">${t("{account} has room: {n}% of its {window} used.", { account: other, n: offer.toUsed, window: windowName(offer.toWindow) })}</span>
             </div>
         </div>
         ${
             canSteer()
                 ? html`<div class="limit-card-actions">
                       <button class="button" disabled=${busy} onClick=${() => answer("wait")}>${t("Wait until {time}", { time: resets })}</button>
-                      <button class="button primary" disabled=${busy} onClick=${() => answer("move")}>${t("Move to {account}", { account: offer.toName })}</button>
+                      <button class="button primary" disabled=${busy} onClick=${() => answer("move")}>${t("Move to {account}", { account: other })}</button>
                   </div>`
                 : html`<div class="muted small">${t("Waiting for someone who can steer to answer.")}</div>`
         }
