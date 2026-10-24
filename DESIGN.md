@@ -571,7 +571,24 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
 - **Notifications** (`src/server/phone-events.ts`, PiService): a session's run ending (with the end of its answer),
   failing, or waiting for an approval becomes an event; PiService long-polls `GET /api/phone/events` with the owner
   token and posts a notification per session while the app is not in front. Tapping one opens the session
-  (`/login?next=/s/<id>`, or `navigate` when the app is up).
+  (`/login?next=/s/<id>`, or `navigate` when the app is up). A `limit` event: a run began to wait 10 minutes or more
+  for a provider's limit (once for the wait, Providers' switch).
+- **Waiting out provider limits** (PP-135, from pi-pocket 0.21.0; owner's decisions of 2026-10-24): `limits.ts`
+  classifies a failed request (status and limit headers from a recording `fetch`, or the text); `limit-gate.ts` wraps
+  `models.streamSimple` between `timing.ts` (inside) and the image guard (outside) and waits inside the request, keyed
+  by provider id for an account's limit (each account `anthropic~work` waits alone) or `provider/model`. The time is the
+  provider's reset, else the account's usage bars (`usage-limits.ts`, a full window's reset), else growing gaps; the
+  owner's hours (default 6) are a ceiling only, and a weekly window, billing or a sign-in fails at once. pi-phone never
+  switches by itself; side requests (titles, interview helpers, image descriptions) pass `noWait`. **The account card**
+  is not a Pi Durable approval (those belong to a tool call, and a request inside a generation phase has none): it is
+  derived from the gate's in-memory wait and the other accounts' usage bars, shown in the waiting conversation's root
+  session (`limitOffers` in the view), and answered by `POST /api/c/<id>/limit/answer`. It is durable through the
+  replay: after a restart the replayed request waits again and the card comes back, unless the answer was given; the
+  gate keeps the answers (Wait: `declined`; Move: `moved`, so the replay goes to the new account at once) and the
+  long-wait notices sent (`told`) in `provider-limits.json` with the gate. Move sets the waiting conversation's model
+  (`conversation.configure`) and sends the same request through the other account's provider id in the same stream.
+  The team server never waits: `/internal/llm/stream` adds the provider's status and limit headers to an error line
+  (`facts`), and the pi-phone marks the failed message with them (`withFacts`) for its gate.
 - **Downloads**: the viewer's Download asks `GET /api/c/<id>/download` (here or on the machine, up to 200 MB); in the
   app the bridge's `download` saves it to Downloads through MediaStore and notifies, elsewhere it is a browser download.
 - **Ports** (`src/server/forwards.ts`, `web/sheets/forwards.js`): `ssh -N -L 127.0.0.1:<free>:127.0.0.1:<port>`

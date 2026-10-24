@@ -27,6 +27,7 @@ import type { DocService } from "./docs.ts";
 import type { TeamAccounts } from "./team-accounts.ts";
 import type { TeamMachines } from "./team-machines.ts";
 import type { Task } from "../server/projects.ts";
+import type { ResponseFacts } from "../server/limits.ts";
 import { HttpError } from "../server/errors.ts";
 
 /** What the gateway asks the controller (`src/controller/`): a person's pi-phone, by key. */
@@ -569,6 +570,9 @@ export class Gateway {
 
         const stop = new AbortController();
         const billing = typeof asked.billing === "object" && asked.billing !== null ? (asked.billing as { enabled?: unknown; version?: unknown }) : undefined;
+        // The provider's last response: a refusal goes on with its status and limit headers, so the person's pi-phone
+        // decides whether to wait for the limit (PP-135). The gateway does not wait.
+        let facts: ResponseFacts | undefined;
         const events = this.#options.teamAccounts.stream(
             id,
             modelId,
@@ -576,6 +580,9 @@ export class Gateway {
             (asked.options ?? {}) as Record<string, unknown>,
             stop.signal,
             billing === undefined ? undefined : { enabled: billing.enabled === true, version: String(billing.version ?? "") },
+            (seen) => {
+                facts = seen;
+            },
         );
         let usage: { cost?: { total?: number }; totalTokens?: number } | undefined;
 
@@ -590,7 +597,7 @@ export class Gateway {
                 }
 
                 if (!response.destroyed) {
-                    response.write(`${JSON.stringify(event)}\n`);
+                    response.write(`${JSON.stringify(event.type === "error" && facts !== undefined && facts.status >= 400 ? { ...event, facts } : event)}\n`);
                 }
             }
         } finally {

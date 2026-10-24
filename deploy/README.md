@@ -54,6 +54,10 @@ The server edition runs the same app as the phone, in Docker, behind Caddy for H
     show in those people's model menus; each call goes from their pi-phone to the gateway's internal port
     (`/internal/llm/stream`), which checks the role (the account and the role's model list) every time, answers with
     the account's sign-in, and streams the answer back. Stop and Interrupt end the call there too.
+  - **Limits:** the gateway never waits for a provider's limit. A refusal (a 429, an overload, a Claude or ChatGPT plan
+    window) goes back to the person's pi-phone with the provider's status and its limit headers only (`retry-after`,
+    `anthropic-ratelimit-*`, `x-ratelimit-*`, `x-codex-*`; never a key), and that pi-phone waits for the reset as it
+    does for its own accounts (Providers › Wait for a limit), its usage bars included.
   - **Spend:** each answer's cost is counted on the gateway per person, account and month (`pp_team_spend`). A role's
     **team spend limit** (dollars a month each; empty for none) refuses further calls once reached, apart from the
     role's own spend limit, which leaves team spend out. The Server page's "Team accounts' spend" lists this month's,

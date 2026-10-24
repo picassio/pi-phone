@@ -18,6 +18,7 @@ import {
 } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { HttpError } from "./errors.ts";
+import { checkedFacts, withFacts } from "./limits.ts";
 import type { AccountUsage } from "./usage-limits.ts";
 
 /** The options sent along with a request: how the model answers (the gateway takes only these too). */
@@ -300,7 +301,16 @@ export class TeamAccountsClient {
                         pending = pending.slice(end + 1);
 
                         if (line.trim() !== "") {
-                            const event = JSON.parse(line) as AssistantMessageEvent;
+                            const event = JSON.parse(line) as AssistantMessageEvent & { facts?: unknown };
+                            const seen = checkedFacts(event.facts);
+
+                            delete event.facts;
+
+                            // A provider's refusal, as the team server saw it: the limit gate here reads its status and
+                            // limit headers, as it does for a request this pi-phone makes itself (PP-135).
+                            if (event.type === "error" && seen !== undefined) {
+                                withFacts(event.error, seen);
+                            }
 
                             events.push(event);
                             ended ||= event.type === "done" || event.type === "error";

@@ -18,6 +18,8 @@ import { patchClaudeCodePayload } from "../server/cc-patch.ts";
 import { DEFAULT_SETTINGS } from "../server/phone-settings.ts";
 import { type AccountUsage, UsageLimits } from "../server/usage-limits.ts";
 import { HttpError } from "../server/errors.ts";
+import { recording } from "../server/limit-gate.ts";
+import type { ResponseFacts } from "../server/limits.ts";
 
 export type TeamAccount = {
     /** `<provider>~team-<slug>`. */
@@ -267,7 +269,15 @@ export class TeamAccounts {
      * One answer of a team account's model. `billing` is the caller's Claude Code billing setting: a Claude subscription's
      * requests get the patch here, where they are made (the caller's own `onPayload` can't come along).
      */
-    stream(id: string, modelId: string, context: Context, given: Record<string, unknown>, signal: AbortSignal, billing?: { enabled: boolean; version: string }): AssistantMessageEventStream {
+    stream(
+        id: string,
+        modelId: string,
+        context: Context,
+        given: Record<string, unknown>,
+        signal: AbortSignal,
+        billing?: { enabled: boolean; version: string },
+        onFacts?: (facts: ResponseFacts) => void,
+    ): AssistantMessageEventStream {
         this.#need(id);
         const model = this.runtime.getModel(id, modelId);
 
@@ -290,7 +300,9 @@ export class TeamAccounts {
             options.onPayload = (payload, requestModel) => patchClaudeCodePayload(payload, baseProvider(requestModel.provider), { version });
         }
 
-        return this.runtime.streamSimple(model, context, options);
+        // The provider's response (its status and limit headers) is seen here, so a refusal can go on to the pi-phone that
+        // asked: its limit gate decides whether to wait (PP-135). The gateway itself never waits.
+        return this.runtime.streamSimple(model, context, onFacts === undefined ? options : recording(model.api, options, onFacts));
     }
 
     // ─── Signing in, from a person's Providers sheet ───
