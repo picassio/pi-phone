@@ -843,7 +843,8 @@ export default function createSubagents(host: PocketHost) {
             };
 
             if (action === "status") {
-                const names = name === undefined ? Object.keys(registry.agents) : [name];
+                // "all", as the tool's description offers, as well as no name (pi-pocket 0.21.0, PP-132).
+                const names = name === undefined || name === "all" ? Object.keys(registry.agents) : [name];
                 const lines: string[] = [];
 
                 for (const each of names) {

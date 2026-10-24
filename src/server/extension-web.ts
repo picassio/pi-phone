@@ -29,9 +29,12 @@ import type {
 
 /**
  * The version of the extension API: the server's `web` and the app's `pocket`. It goes up only when something modules
- * use changes in a way that breaks them; additions keep it.
+ * use changes in a way that breaks them; additions keep it. 2 since pi-pocket 0.19.0 (pi-phone PP-132): Pi Durable 1.2
+ * renamed a tool result's `content` to `output`, which breaks a hook or a wrap that returns `content`.
  */
-export const POCKET_API = 1;
+export const POCKET_API = 2;
+/** The oldest version modules can still be written for: they load (pi-pocket's api-stability rule A9). */
+export const OLDEST_POCKET_API = 1;
 
 const METHODS: ReadonlySet<string> = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 const ACCESS: ReadonlySet<string> = new Set(["owner", "steer", "view"]);

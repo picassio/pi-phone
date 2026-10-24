@@ -185,3 +185,32 @@ export default (_host, web) => {
     await loader.reload("tooled.ts");
     assert.equal(told, 2);
 });
+
+// Extension API v2 (pi-pocket 0.21.0, PP-132): a module says which version it was written for.
+test("a module for API 2, 1, or none loads; a newer, older or broken version is refused with its reason", async () => {
+    const { dropIn, loader, installed } = setUp();
+    const versioned = (name: string, api: string) =>
+        `/** ${name}. */\n${api}\nexport default () => ({ name: "t-${name}", v: 1 });\n`;
+
+    for (const [name, api] of [
+        ["api-two", "export const pocketApi = 2;"],
+        ["api-one", "export const pocketApi = 1;"],
+        ["api-none", ""],
+    ] as const) {
+        writeFileSync(join(dropIn, `${name}.ts`), versioned(name, api));
+        await loader.reload(`${name}.ts`);
+    }
+
+    assert.deepEqual(installed().sort(), ["t-api-none@1", "t-api-one@1", "t-api-two@1"]);
+
+    for (const [name, api, why] of [
+        ["api-three", "export const pocketApi = 3;", /needs version 3 of pi-phone's extension API, and this pi-phone has 2: update pi-phone/],
+        ["api-zero", "export const pocketApi = 0;", /written for version 0 of pi-phone's extension API, and this pi-phone loads 1 to 2: update the module/],
+        ["api-half", "export const pocketApi = 1.5;", /needs version 1\.5 of pi-phone's extension API/],
+    ] as const) {
+        writeFileSync(join(dropIn, `${name}.ts`), versioned(name, api));
+        await assert.rejects(loader.reload(`${name}.ts`), why);
+    }
+
+    assert.equal(installed().length, 3, "the refused ones installed nothing");
+});

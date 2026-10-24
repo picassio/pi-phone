@@ -68,6 +68,10 @@ const route: FauxResponseStep = (request) => {
         );
     }
 
+    if (text === "status all") {
+        return fauxAssistantMessage([call("subagent", { action: "status", name: "all" })], { stopReason: "toolUse" });
+    }
+
     const nudge = /^nudge (\S+)$/.exec(text);
 
     if (nudge !== null) {
@@ -185,6 +189,24 @@ test("reports reach a working parent at its next pause, together, each once, at 
     assert.equal(doc?.courier, undefined, "the courier is done");
     assert.deepEqual(doc?.outbox ?? [], []);
     assert.equal(doc?.sending, undefined);
+});
+
+test("status with the name all lists every subagent", async () => {
+    const id = await orchestrate({ spawn: ["st1", "st2"], rounds: 0, sleep: 0 });
+
+    await until(async () => Object.keys(await delivered(id)).length === 2 && !app.isBusy(id), "both reports");
+    const results = async () =>
+        JSON.stringify(
+            (await (await app.harness.conversation(id, context))!.context(context)).messages.filter(
+                (message) => message.role === "toolResult",
+            ),
+        );
+    const before = await results();
+
+    await app.commands.submit(id, owner(app), { text: "status all", requestId: `status-${id}` });
+    await until(async () => !app.isBusy(id) && (await results()) !== before, "the status");
+
+    assert.match(await results(), /st1: idle\\nst2: idle/);
 });
 
 test("a report reaches an idle parent at once, and the parent answers it", async () => {
