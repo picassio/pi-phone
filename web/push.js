@@ -52,7 +52,12 @@ export async function turnPushOn() {
     const subscription =
         (await registration.pushManager.getSubscription()) ??
         (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }));
-    const { id } = await api("push", { subscription: subscription.toJSON(), language: navigator.language });
+    // Its language and time zone: what a notification says, and the clock a time in it is on.
+    const { id } = await api("push", {
+        subscription: subscription.toJSON(),
+        language: navigator.language,
+        zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
 
     localStorage.setItem(PUSH_KEY, id);
     reportVisibility(true);

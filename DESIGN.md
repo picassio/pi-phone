@@ -586,8 +586,12 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   replay: after a restart the replayed request waits again and the card comes back, unless the answer was given; the
   gate keeps the answers (Wait: `declined`; Move: `moved`, so the replay goes to the new account at once) and the
   long-wait notices sent (`told`) in `provider-limits.json` with the gate. Move sets the waiting conversation's model
-  (`conversation.configure`) and sends the same request through the other account's provider id in the same stream.
-  The team server never waits: `/internal/llm/stream` adds the provider's status and limit headers to an error line
+  (`conversation.configure`) and sends the same request through the other account's provider id in the same stream;
+  a subagent's move sets its root session's model too (the session's own model id under that account). The card
+  offers only the person's own accounts, never a team account (`isTeamAccount`, `~team-` in its id, or registered from
+  the team server), and the older usage banner over the composer hides while a card is up. The notice's "at HH:MM" is
+  in the server's zone (the phone's own for the app's notification) and, for a web push, in the zone the browser told
+  when it turned notifications on (`PushSubscriptionRecord.zone`). The team server never waits: `/internal/llm/stream` adds the provider's status and limit headers to an error line
   (`facts`), and the pi-phone marks the failed message with them (`withFacts`) for its gate.
 - **Downloads**: the viewer's Download asks `GET /api/c/<id>/download` (here or on the machine, up to 200 MB); in the
   app the bridge's `download` saves it to Downloads through MediaStore and notifies, elsewhere it is a browser download.

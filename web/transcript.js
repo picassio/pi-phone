@@ -60,7 +60,7 @@ import {
     splitAttachments,
     Thumb,
 } from "./ui.js";
-import { LimitSwitch } from "./usage.js";
+import { LimitSwitch, windowName } from "./usage.js";
 import { t, tn, tx } from "./i18n.js";
 
 const REPORT = /^\[subagent (\S+) (answered|failed)([^\]]*)\]\s?([\s\S]*)$/;
@@ -2607,7 +2607,7 @@ function limitWords(limit) {
     const provider = limit.providerName;
 
     if (limit.window) {
-        return t("Waiting for {provider}'s {window} limit", { provider, window: limit.window });
+        return t("Waiting for {provider}'s {window} limit", { provider, window: windowName(limit.window) });
     }
 
     if (limit.scope === "account") {
@@ -2646,12 +2646,12 @@ function LimitOfferCard({ offer }) {
                 <span>
                     ${
                         offer.window
-                            ? t("{account} hit its {window} limit.", { account: offer.providerName, window: offer.window })
+                            ? t("{account} hit its {window} limit.", { account: offer.providerName, window: windowName(offer.window) })
                             : t("{account} hit its usage limit.", { account: offer.providerName })
                     }
                     ${" "}${t("It resets at {time} (in {left}).", { time: resets, left: span(fromServer(offer.resetAt) - Date.now()) })}
                 </span>
-                <span class="muted">${t("{account} has room: {n}% of its {window} used.", { account: offer.toName, n: offer.toUsed, window: offer.toWindow })}</span>
+                <span class="muted">${t("{account} has room: {n}% of its {window} used.", { account: offer.toName, n: offer.toUsed, window: windowName(offer.toWindow) })}</span>
             </div>
         </div>
         ${

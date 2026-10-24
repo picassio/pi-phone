@@ -63,11 +63,14 @@ No Termux, no laptop, no cloud VM.
 - **Wait out provider limits.** A run that hits a 429, an overload, or a Claude or ChatGPT plan window waits inside
   its request until the provider's own reset (its headers, else the account's usage bars, else growing gaps), then goes
   on by itself, a restart included. The live line says whose limit and when it tries again, with **Retry now** and
-  **Stop**; the session's row, peek tile, and the subagents board show an amber square. When another account of the
-  same provider has room, a card asks: **Wait until** the reset, or **Move to** that account (the waiting request goes
-  there, and the session uses it from then on). A reset further away (a weekly window), billing, or an expired sign-in
-  fails at once, with the reset time. **Providers › Wait for a limit**: off, 1, 6 (the default), 12, or 24 hours at
-  most, and one phone notification for a wait of 10 minutes or more (on unless you turn it off). Titles never wait.
+  **Stop**; the session's row, peek tile, and the subagents board show an amber square. When another of your own
+  accounts of the same provider has room (never a team server's shared account), a card asks: **Wait until** the
+  reset, or **Move to** that account (the waiting request goes there, and the session uses it from then on; a
+  subagent's card moves the subagent and its session). While the card is up, the usage banner over the message box
+  steps aside. A reset further away (a weekly window), billing, or an expired sign-in fails at once, with the reset time.
+  **Providers › Wait for a limit**: off, 1, 6 (the default), 12, or 24 hours at most, and one phone notification for a
+  wait of 10 minutes or more (on unless you turn it off; a browser's push says the time on that browser's clock).
+  Titles never wait.
   From pi-pocket 0.21.0 (named windows: #128 by @piromagnus).
 - **Spend.** What Pi spent, by person and by session, with limits the owner sets (past one, Pi takes no new
   messages there). The wiki's search by meaning has a line of its own: its remote embeddings (indexing and queries),

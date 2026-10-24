@@ -37,6 +37,12 @@ export const ACCOUNT_PROVIDERS: Readonly<Record<string, () => Provider>> = {
 };
 
 const SEPARATOR = "~";
+
+/** What a team account's id has after its provider's (`anthropic~team-work`): the team server's shared accounts (PP-69). */
+export const TEAM_SEPARATOR = "~team-";
+
+/** Whether a provider id is a team account's, on the team server or on a pi-phone that uses it. */
+export const isTeamAccount = (id: string) => id.includes(TEAM_SEPARATOR);
 const FILE = "accounts.json";
 const MAX_NAME = 40;
 

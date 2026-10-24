@@ -95,6 +95,8 @@ async function until(check: () => Promise<boolean> | boolean, what: string, time
 }
 
 const inPage = async <T>(script: string): Promise<T> => JSON.parse(await page.evaluate(script)) as T;
+/** The older usage banner over the composer (`usage.js`, UsageWarning) is on screen. */
+const banner = () => inPage<boolean>(`return JSON.stringify(document.querySelector(".usage-warning") !== null)`);
 const text = (selector: string) => inPage<string>(`return JSON.stringify(document.querySelector(${JSON.stringify(selector)})?.innerText ?? "")`);
 
 async function shot(name: string): Promise<void> {
@@ -144,6 +146,7 @@ test("the live line, the limited square, the account card, and Move, at 1280 and
     assert.match(await text(".limit-card"), /Anthropic · Work has room: 18% of its 5-hour used\./);
     assert.ok(await inPage<boolean>(`return JSON.stringify(document.querySelector('.sidebar .session-row[data-id="${id}"] .status-limit') !== null)`), "the row's limited square");
     assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector('.sidebar .session-row[data-id="${id}"]').dataset.state)`), "limited");
+    assert.equal(await banner(), false, "the usage banner over the composer is hidden while the card is up");
     await shot("limit-wait-1280");
 
     await page.setViewport(VIEWPORTS.mobile);
@@ -159,6 +162,7 @@ test("the live line, the limited square, the account card, and Move, at 1280 and
     `);
 
     assert.ok(answers.widths.every((width) => width === answers.row), JSON.stringify(answers));
+    assert.equal(await banner(), false);
     await shot("limit-wait-390");
 
     // Move: the request goes through Work, and the session answers.
@@ -185,15 +189,29 @@ test("Retry now sends the request; the phone's list shows the square; Providers 
     await page.setViewport(VIEWPORTS.mobile);
     await shot("limit-providers-390");
 
-    // The notice switch, as the owner turns it off and on.
-    await page.click({ selector: ".limit-wait .switch" });
-    await until(() => !app.config.limitNotice, "the notice off");
-    await page.click({ selector: ".limit-wait .switch" });
-    await until(() => app.config.limitNotice, "the notice on");
+    // The notice switch, as the owner turns it off and on. On a loaded machine the sheet may still slide in when the first
+    // tap lands: tap again until it takes.
+    const flip = async (on: boolean) => {
+        for (let tries = 0; tries < 5 && app.config.limitNotice !== on; tries++) {
+            await page.click({ selector: ".limit-wait .switch" });
+            await until(() => app.config.limitNotice === on, `the notice ${on ? "on" : "off"}`, 3000).catch(() => undefined);
+        }
+
+        assert.equal(app.config.limitNotice, on);
+    };
+
+    await flip(false);
+    await flip(true);
 
     await page.press("Escape");
     await page.navigate(`${base}/s/${id}`);
-    await until(async () => /Retry now/.test(await text(".live-line")), "the live line");
+    await until(async () => /Retry now/.test(await text(".live-line")) && (await text(".limit-card")) !== "", "the live line and the card");
+    assert.equal(await banner(), false, "no banner while the card is up");
+
+    // Wait puts the card away: the banner of the full window shows again.
+    await page.click({ selector: ".limit-card .button:not(.primary)" });
+    await until(async () => (await text(".limit-card")) === "" && (await banner()), "the card gone, the banner back");
+    assert.match(await text(".usage-warning"), /Default: 5-hour limit at 100%/);
     behave = () => ({ text: "answered" });
     await page.click({ selector: ".live-retry" });
     await until(() => !app.isBusy(id), "the answer after Retry now");

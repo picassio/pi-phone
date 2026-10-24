@@ -543,5 +543,6 @@
     "That wait is over, or already answered.": "这次等待已结束，或已经回答过。",
     "choice is wait or move": "choice 必须是 wait 或 move",
     "That account is not offered any more.": "已不再提供该账户。",
-    "That wait is over.": "这次等待已结束。"
+    "That wait is over.": "这次等待已结束。",
+    "{1} has no {2} for this session to move to.": "{1} 没有可供本会话改用的 {2}。"
 }

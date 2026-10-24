@@ -13,7 +13,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Api, AssistantMessageEventStream, AuthPrompt, Context, Model, Provider, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { ACCOUNT_PROVIDERS, accountProvider, baseProvider } from "../server/accounts.ts";
+import { ACCOUNT_PROVIDERS, accountProvider, baseProvider, isTeamAccount, TEAM_SEPARATOR } from "../server/accounts.ts";
 import { patchClaudeCodePayload } from "../server/cc-patch.ts";
 import { DEFAULT_SETTINGS } from "../server/phone-settings.ts";
 import { type AccountUsage, UsageLimits } from "../server/usage-limits.ts";
@@ -64,10 +64,8 @@ const RELAYED = ["temperature", "samplingParams", "maxTokens", "cacheRetention",
 /** How long a finished sign-in's steps wait to be fetched. */
 const FLOW_KEPT_MS = 10 * 60_000;
 
-export const TEAM_SEPARATOR = "~team-";
-
-/** Whether a provider id is a team account's. */
-export const isTeamAccount = (id: string) => id.includes(TEAM_SEPARATOR);
+// A team account's id, `<provider>~team-<slug>`: in `accounts.ts`, as each pi-phone tells team accounts apart by it too.
+export { isTeamAccount, TEAM_SEPARATOR } from "../server/accounts.ts";
 
 function checkName(name: unknown): string {
     const label = typeof name === "string" ? name.trim() : "";

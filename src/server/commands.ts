@@ -30,6 +30,7 @@ import {
     type Task,
     type TaskRuntime,
 } from "@earendil-works/pi-durable";
+import { baseProvider } from "./accounts.ts";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import {
@@ -1192,7 +1193,8 @@ export class Commands {
      * Answer the account card of a wait for a limit (PP-135), shown in session `id` for it or one of its subagents
      * (`waiting`): `wait` keeps waiting and puts the card away; `move` sends the waiting request through the other account
      * (`to`) in the same stream, and sets the waiting conversation's model to the same model there, so what follows uses
-     * that account too.
+     * that account too. A subagent's move moves its session too (owner's decision of 2026-10-24): the session's own model
+     * id under the other account, when the session is on an account of the same provider and that account has it.
      */
     async answerLimit(id: ConversationId, user: User, body: { conversationId?: unknown; choice?: unknown; to?: unknown }): Promise<void> {
         const app = this.#app;
@@ -1227,9 +1229,21 @@ export class Commands {
             throw new HttpError(409, "That account is not offered any more.");
         }
 
+        // A subagent's session goes to the other account too: checked before anything moves.
+        const own = waiting === Number(id) ? undefined : (await app.agentState(id))?.model;
+        const session = own !== undefined && own.provider !== offer.to && baseProvider(own.provider) === baseProvider(offer.to) ? own.modelId : undefined;
+
+        if (session !== undefined && (app.models.getModel(offer.to, session) === undefined || !app.policy.modelAllowed(offer.to, session))) {
+            throw new HttpError(409, `${offer.toName} has no ${session} for this session to move to.`);
+        }
+
         const conversation = await app.conversation(waiting as unknown as ConversationId);
 
         await conversation.configure({ model: { provider: offer.to, modelId: offer.modelId } }, context);
+
+        if (session !== undefined) {
+            await (await app.conversation(id)).configure({ model: { provider: offer.to, modelId: session } }, context);
+        }
 
         if (!app.limits.move(waiting, offer.to)) {
             throw new HttpError(409, "That wait is over.");

@@ -29,8 +29,26 @@ export type PhoneEvent = {
     text: string;
     /** The app's own words of `title` and `text`, to say in a language; without them, they are said as they are. */
     say?: { title?: Said; text?: Said };
+    /** A moment the text names as `{time}` (HH:MM): said in each browser's own time zone when its push knows it. */
+    clock?: number;
     at: number;
 };
+
+/** A moment as HH:MM on a 24-hour clock, in `zone` (an IANA name), or this server's own zone without one. */
+export function clockText(ms: number, zone?: string): string {
+    return new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, ...(zone === undefined ? {} : { timeZone: zone }) });
+}
+
+/** An event whose text names a moment (`clock`), with that moment said in `zone`: a browser's own, for its push. */
+export function inZone<T extends Omit<PhoneEvent, "seq" | "at">>(event: T, zone: string | undefined): T {
+    const text = event.say?.text;
+
+    if (event.clock === undefined || zone === undefined || text?.vars?.time === undefined) {
+        return event;
+    }
+
+    return { ...event, say: { ...event.say, text: { ...text, vars: { ...text.vars, time: clockText(event.clock, zone) } } } };
+}
 
 /** An event as the phone shows it: its heading and text in a language (`t`), the heading saying what happened. */
 export function inLanguage(event: PhoneEvent, t: Translate): PhoneEvent & { heading: string } {

@@ -541,7 +541,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
         if (first === "push" && second === undefined && method === "POST") {
             requireOwner(user);
 
-            const body = await readJson<{ subscription?: unknown; language?: unknown }>(request);
+            const body = await readJson<{ subscription?: unknown; language?: unknown; zone?: unknown }>(request);
             const origin = request.headers.origin;
 
             if (typeof origin !== "string" || origin === "null") {
@@ -552,6 +552,8 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 const record = app.webPush.subscribe(body.subscription, {
                     name: deviceName(String(request.headers["user-agent"] ?? ""), addressOf(request)),
                     ...(typeof body.language === "string" ? { language: body.language } : {}),
+                    // Its time zone: a time in a notification is said in it (the limit notice's "at HH:MM").
+                    ...(typeof body.zone === "string" ? { zone: body.zone } : {}),
                     origin,
                 });
 

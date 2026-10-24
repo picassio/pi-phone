@@ -2678,5 +2678,12 @@
     "{provider}'s {window} limit · goes on by itself at {time}": "{provider} 的 {window} 额度上限 · 将于 {time} 自动继续",
     "{provider}'s usage limit · goes on by itself at {time}": "{provider} 的用量上限 · 将于 {time} 自动继续",
     "{provider}'s rate limit · goes on by itself at {time}": "{provider} 的速率限制 · 将于 {time} 自动继续",
-    "Waiting for a limit: {title}": "等待额度恢复：{title}"
+    "Waiting for a limit: {title}": "等待额度恢复：{title}",
+    "{n}-hour": "{n} 小时",
+    "Weekly": "每周",
+    "Weekly Opus": "每周 Opus",
+    "Weekly Sonnet": "每周 Sonnet",
+    "Premium requests": "高级请求",
+    "Window": "窗口",
+    "{provider}'s {n}-hour limit · goes on by itself at {time}": "{provider} 的 {n} 小时额度上限 · 将于 {time} 自动继续"
 }

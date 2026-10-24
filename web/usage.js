@@ -8,6 +8,28 @@ import { html } from "./ui.js";
 const SHORT = { "5-hour": "5h", Weekly: "wk", "Weekly Opus": "wk Opus", "Weekly Sonnet": "wk Sonnet", "Premium requests": "premium" };
 const OPEN_KEY = "pi-phone.usage-meter-open";
 
+/**
+ * A plan window's name in the person's language: the server names them in English ("5-hour", "Weekly", `usage-limits.ts`
+ * and `limits.ts`); one it names otherwise shows as it is.
+ */
+export function windowName(label) {
+    const hours = /^(\d+)-hour$/.exec(label ?? "");
+
+    if (hours !== null) {
+        return t("{n}-hour", { n: Number(hours[1]) });
+    }
+
+    const names = {
+        Weekly: t("Weekly"),
+        "Weekly Opus": t("Weekly Opus"),
+        "Weekly Sonnet": t("Weekly Sonnet"),
+        "Premium requests": t("Premium requests"),
+        Window: t("Window"),
+    };
+
+    return names[label] ?? label;
+}
+
 /** How close to the limit: under 70% fine, under 90% near, else at it. */
 const level = (percent) => (percent >= 90 ? "high" : percent >= 70 ? "near" : "low");
 
@@ -66,12 +88,12 @@ export function UsageBars({ provider }) {
         ${usage.windows.map(
             (window) => html`<div class="usage-window">
                 <div class="usage-head small">
-                    <span>${window.label}</span>
+                    <span>${windowName(window.label)}</span>
                     <span class="muted">
                         ${t("{n}% used", { n: Math.round(window.usedPercent) })}${window.resetsAt === undefined ? "" : ` · ${resetText(window.resetsAt)}`}${window.detail ? ` · ${window.detail}` : ""}
                     </span>
                 </div>
-                <div class="usage-track" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(window.usedPercent)} aria-label=${window.label}>
+                <div class="usage-track" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(window.usedPercent)} aria-label=${windowName(window.label)}>
                     <div class=${`usage-fill ${level(window.usedPercent)}`} style=${`width:${Math.max(2, window.usedPercent)}%`}></div>
                 </div>
             </div>`,
@@ -162,7 +184,8 @@ export function UsageWarning() {
     const key = window === undefined ? "" : `pi-phone.usage-warned:${provider}:${window.label}:${window.resetsAt ?? ""}`;
     const [, redraw] = useState(0);
 
-    if (window === undefined || localStorage.getItem(key) === "1") {
+    // A limit's account card is up here (PP-135): it says it, and offers the other account.
+    if (window === undefined || localStorage.getItem(key) === "1" || (view.limitOffers ?? []).length > 0) {
         return null;
     }
 
@@ -175,7 +198,7 @@ export function UsageWarning() {
     return html`<div class="watch-bar usage-warning" data-part="usage-warning">
         <span class="grow">
             ${(() => {
-                const limit = html`<strong>${t("{account}: {window} limit at {n}%", { account: accountName(provider), window: window.label.toLowerCase(), n: Math.round(window.usedPercent) })}</strong>`;
+                const limit = html`<strong>${t("{account}: {window} limit at {n}%", { account: accountName(provider), window: windowName(window.label).toLowerCase(), n: Math.round(window.usedPercent) })}</strong>`;
 
                 return window.resetsAt === undefined ? tx("{limit}.", { limit }) : tx("{limit}, {reset}.", { limit, reset: resetText(window.resetsAt) });
             })()}

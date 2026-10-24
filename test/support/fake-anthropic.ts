@@ -6,7 +6,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { Api, Model, OAuthCredential, Provider } from "@earendil-works/pi-ai";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 
-export type FakeReply = { text: string } | { status: number; headers?: Record<string, string>; type?: string; message?: string };
+export type FakeReply =
+    | { text: string }
+    /** A tool call, as Claude streams one. */
+    | { tool: string; input: Record<string, unknown> }
+    | { status: number; headers?: Record<string, string>; type?: string; message?: string };
 
 /** A request the fake provider got: which sign-in it came with (its token), and its path. */
 export type FakeCall = { token: string; path: string; at: number };
@@ -42,7 +46,9 @@ export const overloaded: FakeReply = { status: 529, type: "overloaded_error", me
 /** A 429 with nothing that says when. */
 export const plainLimit: FakeReply = { status: 429, type: "rate_limit_error", message: "Rate limited." };
 
-function sse(response: ServerResponse, text: string): void {
+let tools = 0;
+
+function sse(response: ServerResponse, answer: { text: string } | { tool: string; input: Record<string, unknown> }): void {
     const send = (event: string, data: unknown) => response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
     response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
@@ -50,16 +56,23 @@ function sse(response: ServerResponse, text: string): void {
         type: "message_start",
         message: { id: "msg_test", type: "message", role: "assistant", model: MODEL_ID, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 5, output_tokens: 1 } },
     });
-    send("content_block_start", { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } });
-    send("content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } });
+
+    if ("tool" in answer) {
+        send("content_block_start", { type: "content_block_start", index: 0, content_block: { type: "tool_use", id: `toolu_${++tools}`, name: answer.tool, input: {} } });
+        send("content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: JSON.stringify(answer.input) } });
+    } else {
+        send("content_block_start", { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } });
+        send("content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: answer.text } });
+    }
+
     send("content_block_stop", { type: "content_block_stop", index: 0 });
-    send("message_delta", { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 3 } });
+    send("message_delta", { type: "message_delta", delta: { stop_reason: "tool" in answer ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 3 } });
     send("message_stop", { type: "message_stop" });
     response.end();
 }
 
-/** The fake provider's server: `reply` answers each request (its token, and how many came before). */
-export async function fakeAnthropic(reply: (token: string, call: number) => FakeReply) {
+/** The fake provider's server: `reply` answers each request (its token, how many came before, and its body). */
+export async function fakeAnthropic(reply: (token: string, call: number, body: string) => FakeReply) {
     const calls: FakeCall[] = [];
     const server = createServer((request: IncomingMessage, response: ServerResponse) => {
         let body = "";
@@ -70,10 +83,10 @@ export async function fakeAnthropic(reply: (token: string, call: number) => Fake
 
             calls.push({ token, path: request.url ?? "", at: Date.now() });
 
-            const answer = reply(token, calls.length - 1);
+            const answer = reply(token, calls.length - 1, body);
 
-            if ("text" in answer) {
-                sse(response, answer.text);
+            if (!("status" in answer)) {
+                sse(response, answer);
 
                 return;
             }

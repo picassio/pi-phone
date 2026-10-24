@@ -7,7 +7,7 @@
  * `alerts.ts`, provider sign-ins in `providers.ts`, and each conversation's shared live view in `room.ts`.
  */
 import { randomUUID } from "node:crypto";
-import { Accounts, baseProvider } from "./accounts.ts";
+import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
 import { TeamAccountsClient } from "./team-accounts.ts";
 import { TeamMachinesClient } from "./team-machines.ts";
 import { machinePaths } from "./machine-paths.ts";
@@ -85,7 +85,7 @@ import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
-import { inLanguage, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
+import { clockText, inLanguage, inZone, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
 import { resolveLanguage, translator } from "./i18n.ts";
 import { WebPush } from "./web-push.ts";
 import { Forwards } from "./forwards.ts";
@@ -1734,6 +1734,8 @@ export class PocketApp {
             if (
                 to === view.provider ||
                 baseProvider(to) !== base ||
+                // Only the person's own accounts (owner's decision of 2026-10-24): never the team server's shared ones.
+                this.#teamAccount(to) ||
                 this.models.getModel(to, modelId) === undefined ||
                 !this.policy.modelAllowed(to, modelId) ||
                 !this.models.hasConfiguredAuth(to) ||
@@ -1777,6 +1779,11 @@ export class PocketApp {
             toUsed: best.used,
             toWindow: best.window,
         };
+    }
+
+    /** Whether a provider is one of the team server's shared accounts: registered from there, or by its id (not one of the person's own). */
+    #teamAccount(provider: string): boolean {
+        return this.teamAccounts.label(provider) !== undefined || (isTeamAccount(provider) && this.accounts.get(provider) === undefined);
     }
 
     /** The name a subagent conversation has in its parent's subagents, if it is one. */
@@ -1827,9 +1834,13 @@ export class PocketApp {
 
         const named = this.#sessions[String(root)]?.title;
         const provider = this.models.getProvider(view.provider)?.name ?? view.provider;
-        const time = new Date(view.until).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+        // In this server's zone (on the phone, the owner's); each browser's push says it in that browser's own (`#pushEvent`).
+        const time = clockText(view.until);
+        const hours = view.window === undefined ? undefined : /^(\d+)-hour$/.exec(view.window)?.[1];
         const text =
-            view.window !== undefined
+            hours !== undefined
+                ? said("{provider}'s {n}-hour limit · goes on by itself at {time}", { provider, n: Number(hours), time })
+                : view.window !== undefined
                 ? said("{provider}'s {window} limit · goes on by itself at {time}", { provider, window: view.window, time })
                 : view.scope === "account"
                   ? said("{provider}'s usage limit · goes on by itself at {time}", { provider, time })
@@ -1841,6 +1852,7 @@ export class PocketApp {
             title: named ?? "Session",
             text: text.text.replace(/\{(\w+)\}/g, (_, name: string) => String(text.vars?.[name] ?? "")),
             say: { text, ...(named === undefined ? { title: said("Session") } : {}) },
+            clock: view.until,
         });
     }
 
@@ -2150,7 +2162,8 @@ export class PocketApp {
                 continue;
             }
 
-            const shown = inLanguage(event, translator(resolveLanguage(owner?.language, record.language)));
+            // A moment in the text in the browser's own time zone, when it told it (the limit notice's "at HH:MM").
+            const shown = inLanguage(inZone(event, record.zone), translator(resolveLanguage(owner?.language, record.language)));
             const security = event.kind === "security";
 
             await this.webPush.send(record, {

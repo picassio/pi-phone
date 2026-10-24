@@ -22,6 +22,8 @@ export type PushSubscriptionRecord = {
     name: string;
     /** The browser's language (`navigator.language`): what is said in it when its person's choice is Auto. */
     language?: string;
+    /** The browser's time zone (IANA, as `Intl` reports it): a time in a notification is said in it (PP-135). */
+    zone?: string;
     /** The app's address it was turned on at (`https://host`): the VAPID token's `sub`. */
     origin: string;
     createdAt: number;
@@ -114,6 +116,15 @@ export function vapidAuthorization(endpoint: string, subject: string, keys: { pu
 }
 
 /** Where a push service may be: HTTPS, or this machine (tests' own push service). */
+/** A time zone `Intl` knows (`Asia/Saigon`); any other is refused, as the browser's own always is one. */
+function knownZone(zone: string): string {
+    try {
+        return new Intl.DateTimeFormat("en", { timeZone: zone }).resolvedOptions().timeZone;
+    } catch {
+        throw new Error(`The time zone ${zone.slice(0, 60)} is not one this server knows.`);
+    }
+}
+
 function pushAddress(endpoint: unknown): string {
     if (typeof endpoint !== "string" || endpoint.length > 2000) {
         throw new Error("The subscription has no push service address.");
@@ -179,7 +190,7 @@ export class WebPush {
     }
 
     /** A browser turned notifications on (or again): kept by its endpoint. */
-    subscribe(subscription: unknown, about: { name: string; language?: string; origin: string }): PushSubscriptionRecord {
+    subscribe(subscription: unknown, about: { name: string; language?: string; zone?: string; origin: string }): PushSubscriptionRecord {
         const given = (subscription ?? {}) as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
         const endpoint = pushAddress(given.endpoint);
         const p256dh = typeof given.keys?.p256dh === "string" ? fromB64u(given.keys.p256dh) : Buffer.alloc(0);
@@ -202,6 +213,7 @@ export class WebPush {
             auth: b64u(auth),
             name: about.name,
             ...(about.language === undefined || about.language === "" ? {} : { language: about.language.slice(0, 35) }),
+            ...(about.zone === undefined ? {} : { zone: knownZone(about.zone) }),
             origin: new URL(about.origin).origin,
             createdAt: this.#now(),
         };

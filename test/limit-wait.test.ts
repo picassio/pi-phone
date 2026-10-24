@@ -3,6 +3,7 @@
 // to a fake Anthropic API over real HTTP, so the limit's status and headers come the way a real provider sends them.
 import { type App, cleanUp, fakeTab, home, owner, root, work } from "./helpers.ts";
 import assert from "node:assert/strict";
+import { createECDH, randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
@@ -10,7 +11,8 @@ import { after, before, test } from "node:test";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { createHandler } from "../src/server/http.ts";
 import type { LimitTuning } from "../src/server/limit-gate.ts";
-import { inLanguage, type PhoneEvent } from "../src/server/phone-events.ts";
+import { accountProvider } from "../src/server/accounts.ts";
+import { clockText, inLanguage, inZone, type PhoneEvent } from "../src/server/phone-events.ts";
 import { translator } from "../src/server/i18n.ts";
 import { type FakeReply, fakeAnthropic, fiveHourLimit, localAnthropic, MODEL_ID, overloaded, plainLimit, signIns, weeklyLimit } from "./support/fake-anthropic.ts";
 
@@ -19,8 +21,8 @@ const { PocketApp } = await import("../src/server/app.ts");
 const TUNING: Partial<LimitTuning> = { minWaitMs: 50, resetJitterMs: [0, 0], backoffMs: [300], spacingMs: [10, 20] };
 const agentDir = join(root, "agent");
 
-/** What the fake provider answers now: by the request's token (the account), and its number. */
-let behave: (token: string, call: number) => FakeReply = () => ({ text: "answered" });
+/** What the fake provider answers now: by the request's token (the account), its number, and its body. */
+let behave: (token: string, call: number, body: string) => FakeReply = () => ({ text: "answered" });
 /** Each account's usage bars, by token, as Claude's usage endpoint answers them. */
 let usage: Record<string, { five: number; fiveReset: number; week?: number }> = {};
 
@@ -30,9 +32,10 @@ let server: Server | undefined;
 let port = 0;
 
 before(async () => {
-    provider = await fakeAnthropic((token, call) => behave(token, call));
+    provider = await fakeAnthropic((token, call, body) => behave(token, call, body));
     mkdirSync(agentDir, { recursive: true });
-    writeFileSync(join(agentDir, "auth.json"), signIns({ anthropic: "tok-default", "anthropic~work": "tok-work" }));
+    // `anthropic~team-x`: a team account's id, as the team server's shared accounts have (`accounts.ts`).
+    writeFileSync(join(agentDir, "auth.json"), signIns({ anthropic: "tok-default", "anthropic~work": "tok-work", "anthropic~team-x": "tok-team" }));
     // Pi Durable's own short retries, quick: a refusal the gate gives fails the run in a moment.
     writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ retry: { baseDelayMs: 20 } }));
 });
@@ -108,6 +111,15 @@ async function session(app: App, account = "anthropic"): Promise<ConversationId>
     return id;
 }
 
+/** A browser's push subscription: a P-256 key and a secret, at a push service address. */
+function browserSubscription() {
+    const key = createECDH("prime256v1");
+
+    key.generateKeys();
+
+    return { subscription: { endpoint: "https://push.example.test/one", keys: { p256dh: key.getPublicKey().toString("base64url"), auth: randomBytes(16).toString("base64url") } } };
+}
+
 const send = (app: App, id: ConversationId, text = "hello") => app.commands.submit(id, owner(app), { text, requestId: crypto.randomUUID() });
 
 async function until(check: () => Promise<boolean> | boolean, what: string, timeoutMs = 15_000): Promise<void> {
@@ -171,6 +183,32 @@ test("a 429 with Claude's 5-hour reset waits until that time, shows the wait, te
     assert.equal(english.heading, "Waiting for a limit: hello");
     assert.match(english.text, /^Anthropic's 5-hour limit · goes on by itself at \d\d:\d\d$/);
     assert.match(inLanguage({ ...told[0]!, seq: 1, at: 0 }, translator("zh-CN")).heading, /^等待额度恢复：hello$/);
+    assert.match(inLanguage({ ...told[0]!, seq: 1, at: 0 }, translator("zh-CN")).text, /^Anthropic 的 5 小时额度上限 · 将于 \d\d:\d\d 自动继续$/, "the window's name in Chinese");
+
+    // A browser's push says the time on its own clock, when it told its zone.
+    const tokyo = inLanguage({ ...inZone(told[0]!, "Asia/Tokyo"), seq: 1, at: 0 }, translator("en"));
+    const expected = new Date(told[0]!.clock!).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Tokyo" });
+
+    assert.equal(tokyo.text, `Anthropic's 5-hour limit · goes on by itself at ${expected}`);
+    assert.equal(clockText(told[0]!.clock!, "Asia/Tokyo"), expected);
+});
+
+test("a browser that turns notifications on tells its time zone, and one no server knows is refused", async () => {
+    const app = await open();
+
+    await http(app);
+
+    const { subscription } = browserSubscription();
+    const subscribe = (zone: string) =>
+        fetch(`http://127.0.0.1:${port}/api/push`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${app.config.ownerToken}`, "x-pocket": "1", "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
+            body: JSON.stringify({ subscription, language: "en", zone }),
+        });
+
+    assert.equal((await subscribe("Asia/Saigon")).status, 200);
+    assert.equal(app.webPush.list()[0]?.zone, "Asia/Saigon");
+    assert.equal((await subscribe("Mars/Olympus")).status, 400);
 });
 
 test("an overload with no time waits growing gaps, and the notice stays off when the owner turned it off", async () => {
@@ -328,5 +366,68 @@ test("another account with room: the card offers it; Wait keeps waiting, Move se
     assert.equal((await app.agentState(moves))?.model?.provider, "anthropic~work");
     assert.ok(app.limits.waitFor(Number(waits)), "the session that chose to wait still waits");
     await app.commands.abort(waits, owner(app));
+    usage = {};
+});
+
+test("the card never offers a team account, however much room it has: only the person's own", async () => {
+    const app = await open();
+
+    app.accounts.add("anthropic", "Work");
+    // A team account's provider, as the team server's sync registers one here.
+    app.models.registerNativeProvider(accountProvider(localAnthropic(provider.url), "anthropic~team-x", "Team X"));
+
+    const id = await session(app);
+    const tab = fakeTab(id, owner(app));
+    const reset = Date.now() + 3_600_000;
+
+    await app.attach(tab.client);
+    // The team account is the emptiest: the card used to pick it.
+    usage = { "tok-default": { five: 100, fiveReset: reset }, "tok-work": { five: 40, fiveReset: reset }, "tok-team": { five: 5, fiveReset: reset } };
+    behave = (token) => (token === "tok-default" ? fiveHourLimit(reset) : { text: "answered" });
+    await send(app, id);
+    await until(() => ((tab.field("limitOffers") ?? []) as unknown[]).length === 1, "the card");
+    assert.deepEqual(
+        ((tab.field("limitOffers") ?? []) as { to: string; toUsed: number }[]).map((offer) => [offer.to, offer.toUsed]),
+        [["anthropic~work", 40]],
+    );
+    await app.commands.abort(id, owner(app));
+    usage = {};
+});
+
+test("a subagent's wait moved from its session's card: the subagent and its session both end on the other account", async () => {
+    const app = await open();
+    const call = await http(app);
+
+    app.accounts.add("anthropic", "Work");
+
+    const id = await session(app);
+    const tab = fakeTab(id, owner(app));
+    const reset = Date.now() + 3_600_000;
+
+    await app.attach(tab.client);
+    usage = { "tok-default": { five: 100, fiveReset: reset }, "tok-work": { five: 20, fiveReset: reset } };
+    // The session starts a subagent; on the default account everything after meets its 5-hour limit.
+    behave = (token, _call, body) =>
+        token === "tok-work"
+            ? { text: "done at work" }
+            : !body.includes("You are the subagent") && !body.includes("tool_result")
+              ? { tool: "subagent", input: { action: "spawn", name: "helper", message: "Check it." } }
+              : fiveHourLimit(reset);
+
+    type Offer = { conversationId: number; subagent?: string; to: string };
+    const helper = () => ((tab.field("limitOffers") ?? []) as Offer[]).find((offer) => offer.subagent === "helper");
+
+    await send(app, id, "start a helper");
+    await until(() => helper() !== undefined, "the subagent's card in its session");
+
+    const sub = helper()!.conversationId as unknown as ConversationId;
+
+    assert.notEqual(Number(sub), Number(id));
+    assert.equal((await call(`c/${id}/limit/answer`, { conversationId: Number(sub), choice: "move", to: "anthropic~work" })).status, 200);
+    await until(() => answered(app, sub), "the subagent's answer through Work");
+    assert.equal((await app.agentState(sub))?.model?.provider, "anthropic~work");
+    assert.equal((await app.agentState(id))?.model?.provider, "anthropic~work", "its session moved too");
+    assert.equal((await app.agentState(id))?.model?.modelId, MODEL_ID);
+    await app.commands.abort(id, owner(app));
     usage = {};
 });
