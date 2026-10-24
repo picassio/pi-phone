@@ -3,6 +3,7 @@ import {
     type App,
     cleanUp,
     fakeTab,
+    home,
     lastText,
     modelTexts,
     openApp,
@@ -15,13 +16,14 @@ import {
     work,
 } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 import { after, before, mock, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ConversationId } from "@earendil-works/pi-durable";
+import { PocketApp } from "../src/server/app.ts";
 import type { Attachment } from "../src/server/commands.ts";
 
 /** The provider session id each request carried, with the message it answered. */
@@ -743,7 +745,7 @@ test("requests with the wrong types are refused, and nothing odd is stored", asy
     assert.equal(app.sessions().find((each) => each.id === Number(id))?.archived, undefined);
 });
 
-test("a lock left by a process that is gone, or is not Node, is taken over; a running server's is not", async () => {
+test("a lock left by a process that is gone, or whose pid a later Node process reuses, is taken over; a running one's is not", async () => {
     const { spawn } = await import("node:child_process");
     const { once } = await import("node:events");
     const dataDir = join(root, "locks");
@@ -751,31 +753,57 @@ test("a lock left by a process that is gone, or is not Node, is taken over; a ru
     mkdirSync(dataDir, { recursive: true });
     const lock = join(dataDir, "harness.lock");
     const openHere = () => openApp(faux, dataDir);
-    // Something running that is not Node; only Linux (and Android) can tell, through /proc.
-    const other = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], {
-        argv0: "not-node",
-    });
+    // A live Node process, as Pi's own commands start on the phone.
     const node = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"]);
+
+    await once(node, "spawn");
 
     try {
         writeFileSync(lock, "999999999\n");
         await (await openHere()).close();
+        assert.equal(existsSync(lock), false);
+        assert.equal(existsSync(`${lock}.identity`), false);
+
+        // Written after the process started: it may be the holder, whatever its name.
+        writeFileSync(lock, `${node.pid}\n`);
+        await assert.rejects(openHere(), new RegExp(`already running on this data directory \\(pid ${node.pid}\\)`));
 
         if (process.platform === "linux" || process.platform === "android") {
-            writeFileSync(lock, `${other.pid}\n`);
-            await (await openHere()).close();
-        }
+            // Written a minute before the process started: a crash's lock whose pid came round again (/proc tells).
+            const before = new Date(Date.now() - 60_000);
 
-        writeFileSync(lock, `${node.pid}\n`);
-        await assert.rejects(
-            openHere(),
-            new RegExp(`already running on this data directory \\(pid ${node.pid}\\)`),
-        );
+            utimesSync(lock, before, before);
+            await (await openHere()).close();
+            assert.equal(existsSync(lock), false);
+        }
     } finally {
-        other.kill();
         node.kill();
-        await Promise.all([once(other, "exit"), once(node, "exit")]);
+        await once(node, "exit");
     }
+});
+
+test("a start that fails lets go of the lock, after closing what it opened", async () => {
+    const dataDir = join(root, "failed-start");
+
+    mkdirSync(dataDir, { recursive: true });
+
+    // After the lock and the keys: the models' setup fails.
+    await assert.rejects(
+        PocketApp.open({
+            dataDir,
+            defaultCwd: work,
+            supervised: false,
+            log: () => {},
+            configureModels: () => {
+                throw new Error("models refused");
+            },
+            home,
+            officecli: { runs: false },
+        }),
+        /models refused/,
+    );
+    assert.equal(existsSync(join(dataDir, "harness.lock")), false);
+    assert.equal(existsSync(join(dataDir, "harness.lock.identity")), false);
 });
 
 test("notes refuse a stale edit, and a mention reaches the person in another session", async () => {

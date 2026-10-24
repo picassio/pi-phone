@@ -55,6 +55,7 @@ export async function makeBackup(home: string, dataDir: string, tmp: string): Pr
             `--exclude=${data}/${DATABASE}-wal`,
             `--exclude=${data}/${DATABASE}-shm`,
             `--exclude=${data}/harness.lock`,
+            `--exclude=${data}/harness.lock.identity`,
             `--transform=s,^${data.replace(/\./g, "\\.")}\\(/\\|$\\),.pi-pocket\\1,`,
             "-C",
             dirname(dataDir),

@@ -13,7 +13,6 @@ import { TeamMachinesClient } from "./team-machines.ts";
 import { machinePaths } from "./machine-paths.ts";
 import { PhoneSettingsFile } from "./phone-settings.ts";
 import { UsageLimits } from "./usage-limits.ts";
-import { rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -452,6 +451,10 @@ export class PocketApp {
     #unsubscribeApprovals: (() => void) | undefined;
     #lockFile: string;
     #closing: Promise<void> | undefined;
+    /** This process's data lock, once taken: released last, when the storage is closed (`lock.ts`). */
+    #releaseLock: (() => void) | undefined;
+    /** The storage between opening it and the harness taking it: closed by `close` if the harness never opened. */
+    #openingStorage: Awaited<ReturnType<typeof openNodeSqliteStorage>> | undefined;
     readonly #log: (line: string) => void;
     readonly #configureModels: ((models: ModelRuntime) => void) | undefined;
     readonly #home: string;
@@ -633,7 +636,18 @@ export class PocketApp {
     static async open(options: OpenOptions): Promise<PocketApp> {
         const app = new PocketApp(options);
 
-        await app.#open();
+        try {
+            await app.#open();
+        } catch (error) {
+            // What it opened (the keys, the storage, modules) closes before the lock goes, so the next start finds
+            // nothing of this one held.
+            if (app.#releaseLock !== undefined) {
+                await app.close();
+            }
+
+            throw error;
+        }
+
         app.#markReady();
 
         return app;
@@ -646,7 +660,7 @@ export class PocketApp {
     });
 
     async #open(): Promise<void> {
-        takeLock(this.#lockFile);
+        this.#releaseLock = takeLock(this.#lockFile);
         // The keys into the agent (moved into the database first, from files, once): before anything connects.
         await this.sshKeys.open();
 
@@ -965,6 +979,8 @@ export class PocketApp {
         await this.loader.loadAll();
 
         const storage = await openNodeSqliteStorage(join(this.dataDir, "pocket.sqlite"));
+
+        this.#openingStorage = storage;
 
         this.harness = await Harness.open(
             storage,
@@ -4153,9 +4169,17 @@ export class PocketApp {
             ]);
             clearTimeout(limit);
 
+            let storageClosed = false;
+
             try {
                 // Close writes no outcome: running work resumes when the next process opens the storage.
-                await this.harness?.close(context);
+                if (this.harness !== undefined) {
+                    await this.harness.close(context);
+                } else {
+                    await this.#openingStorage?.close(context);
+                }
+
+                storageClosed = true;
                 this.paraCapture.stop();
                 this.forwards.closeAll();
                 await this.para.close();
@@ -4164,7 +4188,10 @@ export class PocketApp {
                 this.sshAgent.stop();
                 this.sshKeys.close();
             } finally {
-                rmSync(this.#lockFile, { force: true });
+                // Never while the storage may still be open: another process would open it beside this one.
+                if (storageClosed) {
+                    this.#releaseLock?.();
+                }
             }
         })();
 

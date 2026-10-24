@@ -28,7 +28,10 @@ test("a backup restores on another phone: sessions, keys, and sign-ins, with wha
     assert.ok(members.includes(".pi-pocket/config.json"));
     assert.ok(members.includes(".ssh/keys/k1"));
     assert.ok(members.includes(".pi/agent/auth.json"));
-    assert.ok(!members.some((member) => member.endsWith("harness.lock") || member.endsWith("-wal")));
+    assert.ok(
+        !members.some((member) => /harness\.lock(\.identity)?$/.test(member) || member.endsWith("-wal")),
+        members.join("\n"),
+    );
 
     // Another phone: something there already, which the restore sets aside.
     const other = join(root, "other-home");
