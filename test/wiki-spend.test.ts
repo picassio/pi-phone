@@ -25,6 +25,8 @@ test("the wiki's embeddings are counted in Spend, kept across a restart, and cha
 
     // Stored with the next count, then read back after a restart.
     await until(async () => (await app.harness.snapshot(SpendDoc, context))?.wiki?.requests === 2, "stored", 15_000);
+    // Read again once stored: what the count kept must outlive its transaction ("Cannot use a settled overlay").
+    assert.equal(app.spend.summary(owner(app)).wiki?.tokens, 1500, "read after the count");
     await app.close();
     app = await openApp(scriptedModel(), dataDir);
     await until(() => app.spend.summary(owner(app)).wiki?.requests === 2, "read back");

@@ -189,8 +189,12 @@ export class Spend {
                 const doc = await tx.doc(SpendDoc);
 
                 if (wiki !== undefined) {
-                    doc.wiki = addWiki(doc.wiki, wiki);
-                    this.#wiki = doc.wiki;
+                    const counted = addWiki(doc.wiki, wiki);
+
+                    doc.wiki = counted;
+                    // The plain value, never `doc.wiki`: that is the transaction's view, which throws "Cannot use a
+                    // settled overlay" once it ends (Pi Durable 1.4 hands back a view of what was just set).
+                    this.#wiki = counted === undefined ? undefined : { ...counted };
                 }
 
                 for (const [id, payers] of owed) {
