@@ -10,6 +10,7 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.os.Build;
 import android.os.PowerManager;
+import android.view.InputDevice;
 import android.provider.MediaStore;
 import android.webkit.CookieManager;
 import java.io.OutputStream;
@@ -96,6 +97,29 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public void checkForUpdates() {
             runOnUiThread(() -> MainActivity.this.checkForUpdates(true));
+        }
+
+        /**
+         * Whether a physical keyboard with letters is connected (a Bluetooth or USB one): then Enter sends in the message
+         * box (GitHub issue #2). Some input methods (Sogou) pass its plain Enter on as the on-screen keyboard's, with no
+         * `KeyboardEvent.code`, so the page cannot tell from the key itself.
+         */
+        @JavascriptInterface
+        public boolean hardKeyboard() {
+            for (int id : InputDevice.getDeviceIds()) {
+                InputDevice device = InputDevice.getDevice(id);
+
+                if (device == null || device.isVirtual() || device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC) {
+                    continue;
+                }
+
+                // A phone's own buttons are never alphabetic, but some report so: only one plugged in or paired counts.
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || device.isExternal()) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /** The update found and not yet taken or put off, as `sheets/update.js` shows it; "" for none. */

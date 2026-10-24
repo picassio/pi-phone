@@ -24,7 +24,7 @@ import {
     typing,
 } from "./store.js";
 import { t } from "./i18n.js";
-import { copyText, enterSends, html, Icon, Loader, Sheet, Spinner, timeAgo } from "./ui.js";
+import { copyText, enterMakesLine, enterSends, html, Icon, Loader, Sheet, Spinner, timeAgo } from "./ui.js";
 
 const coarse = matchMedia("(pointer: coarse)").matches;
 
@@ -528,6 +528,10 @@ function ChatTab({ highlight, focus }) {
             placeholder=${collab() ? t("Message… @ to mention") : t("Message the people here…")}
             onInput=${(event) => update(event.currentTarget.value, event.currentTarget.selectionStart)}
             onKeyDown=${(event) => {
+                if (enterMakesLine(event)) {
+                    return;
+                }
+
                 if (
                     candidates.length > 0 &&
                     (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey))

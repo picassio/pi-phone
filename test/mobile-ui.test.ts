@@ -190,15 +190,16 @@ test("on a phone, Enter from a physical keyboard sends, from the on-screen keybo
     await reach({ path: `/s/${first}` }, "the session");
     await until(async () => await inPage<boolean>(`return JSON.stringify(document.querySelector(".composer textarea") !== null)`), "the message box");
 
-    /** Type `text` into the message box, then press Enter as `code` and `shift` say: whether the page took the key. */
-    const enter = (text: string, code: string, shift = false) =>
+    /** Type `text` into the message box, then press Enter as `code` and the modifiers say: whether the page took the key. */
+    const enter = (text: string, code: string, shift = false, ctrl = false) =>
         inPage<{ coarse: boolean; taken: boolean; left: string }>(`
             const box = document.querySelector(".composer textarea");
             box.focus();
             box.value = ${JSON.stringify(text)};
             box.dispatchEvent(new Event("input", { bubbles: true }));
+            box.setSelectionRange(box.value.length, box.value.length);
             await new Promise((resolve) => requestAnimationFrame(resolve));
-            const taken = !box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: ${JSON.stringify(code)}, shiftKey: ${shift}, bubbles: true, cancelable: true }));
+            const taken = !box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: ${JSON.stringify(code)}, shiftKey: ${shift}, ctrlKey: ${ctrl}, bubbles: true, cancelable: true }));
             await new Promise((resolve) => setTimeout(resolve, 300));
             return JSON.stringify({ coarse: matchMedia("(pointer: coarse)").matches, taken, left: document.querySelector(".composer textarea").value });
         `);
@@ -221,6 +222,32 @@ test("on a phone, Enter from a physical keyboard sends, from the on-screen keybo
         async () => await inPage<boolean>(`return JSON.stringify(document.body.innerText.includes("sent from a Bluetooth keyboard") && document.querySelector(".composer textarea").value === "")`),
         "the message sent and the box emptied",
     );
+
+    // In the app with a physical keyboard connected (it says so), whatever an input method does to its keys (Sogou: a
+    // plain Enter with no code, Shift kept for itself): Enter sends; Ctrl+Enter makes a new line; Shift+Enter too.
+    await page.evaluate(`window.PiPhoneApp = { hardKeyboard: () => true }`);
+
+    try {
+        const viaInputMethod = await enter("sent through Sogou", "");
+
+        assert.equal(viaInputMethod.taken, true, "Enter with no code sends when a keyboard is connected");
+        await until(
+            async () => await inPage<boolean>(`return JSON.stringify(document.body.innerText.includes("sent through Sogou") && document.querySelector(".composer textarea").value === "")`),
+            "the message through the input method sent",
+        );
+
+        const ctrl = await enter("line one", "Enter", false, true);
+
+        assert.equal(ctrl.taken, true, "Ctrl+Enter is the page's");
+        assert.equal(ctrl.left, "line one\n", "a new line, nothing sent");
+
+        const shifted = await enter("line two", "", true);
+
+        assert.equal(shifted.taken, false, "Shift+Enter is left to make a new line");
+        assert.equal(shifted.left, "line two");
+    } finally {
+        await page.evaluate(`delete window.PiPhoneApp`);
+    }
 });
 
 test("local Markdown file links use the viewer", real, async () => {

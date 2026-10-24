@@ -801,7 +801,36 @@ document.addEventListener("click", (event) => {
  * have no `code` (no scan code), while a physical keyboard's say "Enter".
  */
 export function enterSends(event) {
-    return event.key === "Enter" && !event.shiftKey && !event.isComposing && (!matchMedia("(pointer: coarse)").matches || (event.code ?? "") !== "");
+    if (event.key !== "Enter" || event.isComposing) {
+        return false;
+    }
+
+    if (!matchMedia("(pointer: coarse)").matches) {
+        return !event.shiftKey;
+    }
+
+    // The app knows a physical keyboard is connected (issue #2): its Enter sends, however the input method passes it on
+    // (Sogou gives it no `code`); with Shift, Ctrl or Alt it makes a new line (Sogou keeps Shift for itself).
+    if (window.PiPhoneApp?.hardKeyboard?.() === true) {
+        return !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
+    }
+
+    return !event.shiftKey && (event.code ?? "") !== "";
+}
+
+/**
+ * Ctrl+Enter or Alt+Enter from a physical keyboard on a phone (issue #2): a new line, which a text box does not make by
+ * itself, typed at the caret as a key would (undo and the box's input events follow). Whether it did.
+ */
+export function enterMakesLine(event) {
+    if (event.key !== "Enter" || event.isComposing || !(event.ctrlKey || event.altKey) || window.PiPhoneApp?.hardKeyboard?.() !== true) {
+        return false;
+    }
+
+    event.preventDefault();
+    document.execCommand("insertText", false, "\n");
+
+    return true;
 }
 
 /** Copy text, with a fallback for plain-http addresses, where the clipboard API does not exist. */

@@ -37,6 +37,7 @@ import { MicButton, useDictation } from "./voice.js";
 import {
     APPLE,
     contextLevel,
+    enterMakesLine,
     enterSends,
     formatBytes,
     formatTokens,
@@ -933,6 +934,11 @@ export function Composer() {
     };
 
     const onKey = (event) => {
+        // Ctrl+Enter or Alt+Enter on a phone's physical keyboard: a new line (issue #2).
+        if (enterMakesLine(event)) {
+            return;
+        }
+
         if (
             event.ctrlKey &&
             !event.metaKey &&
