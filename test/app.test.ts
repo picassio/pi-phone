@@ -782,6 +782,31 @@ test("a lock left by a process that is gone, or whose pid a later Node process r
     }
 });
 
+test("every built-in module that is on loads without an error on a phone's pi-phone", () => {
+    const failed = app.loader
+        .list()
+        .filter((module) => module.source === "built-in" && module.error !== undefined)
+        .map((module) => `${module.file}: ${module.error}`);
+
+    assert.deepEqual(failed, []);
+});
+
+test("the harness never parks a task cut off again and again (Android stops the app often)", async () => {
+    const { Harness } = await import("@earendil-works/pi-durable");
+    const opened = mock.method(Harness, "open");
+    let isolated: App | undefined;
+
+    try {
+        isolated = await openApp(faux, join(root, "restart-settings"));
+        const settings = opened.mock.calls[0]!.arguments[1].settings;
+
+        assert.equal((typeof settings === "function" ? settings() : settings)?.restartLimit, Infinity);
+    } finally {
+        opened.mock.restore();
+        await isolated?.close();
+    }
+});
+
 test("a start that fails lets go of the lock, after closing what it opened", async () => {
     const dataDir = join(root, "failed-start");
 

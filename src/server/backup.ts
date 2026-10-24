@@ -56,6 +56,9 @@ export async function makeBackup(home: string, dataDir: string, tmp: string): Pr
             `--exclude=${data}/${DATABASE}-shm`,
             `--exclude=${data}/harness.lock`,
             `--exclude=${data}/harness.lock.identity`,
+            // The copy from before Pi 1.4's upgrade (`storage-upgrade.ts`): the database above is newer and whole.
+            `--exclude=${data}/${DATABASE}.before-pi-1.4`,
+            `--exclude=${data}/${DATABASE}.before-pi-1.4.partial`,
             `--transform=s,^${data.replace(/\./g, "\\.")}\\(/\\|$\\),.pi-pocket\\1,`,
             "-C",
             dirname(dataDir),

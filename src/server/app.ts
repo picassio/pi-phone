@@ -116,6 +116,7 @@ import type { JsonValue } from "@earendil-works/chord";
 import { ANSWER_KEY, MAX_ANSWER_STATE_BYTES, MAX_ANSWER_STATES, OpenUiStateDoc } from "./openui.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { takeLock } from "./lock.ts";
+import { SAFETY_COPY_DAYS, safetyCopyBeforeUpgrade } from "./storage-upgrade.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
 import { configureHttp } from "./net.ts";
 import { snippet } from "./projection.ts";
@@ -978,6 +979,15 @@ export class PocketApp {
         await this.#themeDefaultStillHere();
         await this.loader.loadAll();
 
+        // Pi Durable 1.4 upgrades the database as it opens, one way: a checked copy first, or no start (PP-134).
+        const copied = await safetyCopyBeforeUpgrade(this.dataDir);
+
+        if (copied.made) {
+            this.#log(`Kept a copy of the database before Pi 1.4's upgrade: ${copied.file} (${copied.bytes} bytes, removed after ${SAFETY_COPY_DAYS} days).`);
+        } else if (copied.removed !== undefined) {
+            this.#log(`Removed the database's copy from before Pi 1.4's upgrade (${SAFETY_COPY_DAYS} days old): ${copied.removed}.`);
+        }
+
         const storage = await openNodeSqliteStorage(join(this.dataDir, "pocket.sqlite"));
 
         this.#openingStorage = storage;
@@ -1410,6 +1420,9 @@ export class PocketApp {
         const stream = () => this.streamSettings();
 
         return {
+            // Pi Durable 1.4 parks a task cut off 5 times in a row without a change. Android stops the app often, and a
+            // phase may wait for hours (a provider's limit, PP-135) without changing: such kills must not park it.
+            restartLimit: Infinity,
             // Every installed extension, in install order, but the wiki capture session's own: only it selects that.
             get extensions() {
                 return registry()

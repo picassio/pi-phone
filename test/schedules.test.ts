@@ -180,8 +180,18 @@ test("a scheduled message goes out at its time, also after a restart, once; a re
         zone: "UTC",
     });
 
-    // Eleven minutes on, after a restart: the first goes out, the repeat waits.
-    await restartLater(11);
+    // A durable sleep (Pi Durable 1.4): stored with its time, kept across a restart, nothing sent early.
+    const sleeping = async () => (await app.harness.getTask(once.taskId as never, context))?.state;
+
+    await until(async () => (await sleeping())?.status === "sleeping", "the durable sleep");
+    assert.deepEqual(await sleeping(), { status: "sleeping", until: once.next, checkpoint: { phase: "send" } });
+    await restartLater(1);
+    assert.deepEqual(await sleeping(), { status: "sleeping", until: once.next, checkpoint: { phase: "send" } });
+    assert.equal((await userTexts(id)).length, 0, "no early message after a restart");
+    assert.equal((await activity(app, owner(app))).busy, true, "a sleeping schedule still keeps it up");
+
+    // Eleven minutes on, after another restart: the first goes out, the repeat waits.
+    await restartLater(10);
     await until(
         async () =>
             (await userTexts(id)).some((text) => text.includes("[scheduled] check the build")),

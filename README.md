@@ -223,7 +223,13 @@ No Termux, no laptop, no cloud VM.
   even with no tab open. Menu › **Notifications** turns them on for that browser, lists the others, and sends a test;
   a browser with pi-phone open in front gets none. **Downloads** of any file Pi made or
   named (tap its path, then Download), and of any image in a conversation (tap it, then Download): to the phone's Downloads in the app, or as the browser's download elsewhere; **backup and
-  restore** of everything.
+  restore** of everything. Scheduled messages and CI watches sleep durably: they hold nothing while they wait, and a
+  restart keeps their time.
+- **A safety copy before a one-way upgrade.** Pi 1.4 moves the database to a new format that older builds cannot
+  open. On the first start of a build with it, pi-phone first copies the database whole to
+  `pocket.sqlite.before-pi-1.4` in its data folder and checks the copy; without a good copy (not enough space, a write
+  that fails), it does not start and says why, with your data unchanged. The copy is removed after 14 days and left
+  out of backups.
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
   they finish, so it pushes, ends its turn, and is woken by the result.
 - **In English or Chinese.** Appearance › Language: *Auto* follows the phone or browser, or pick English or 简体中文

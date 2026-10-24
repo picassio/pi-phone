@@ -84,11 +84,8 @@ export class Schedules {
                         return runtime.commit(() => finished, context);
                     }
 
-                    await runtime.sleep(schedule.next, context);
-                    await runtime.commit(
-                        () => ({ status: "running", checkpoint: { phase: "send" } }),
-                        context,
-                    );
+                    // A durable sleep (Pi Durable 1.4): the task holds nothing until then, and a restart keeps the time.
+                    return runtime.sleepUntil(schedule.next, { phase: "send" }, context);
                 },
                 send: (task, runtime, context) =>
                     this.#send(task.input.scheduleId, runtime, context),

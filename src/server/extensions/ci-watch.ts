@@ -170,11 +170,8 @@ function createWatchTask(host: PocketHost) {
             wait: async (task, runtime, context) => {
                 const state = task.state.checkpoint as Extract<WatchState, { phase: "wait" }>;
 
-                await runtime.sleep(state.next, context);
-                await runtime.commit(
-                    () => ({ status: "running", checkpoint: { phase: "look", failures: state.failures } }),
-                    context,
-                );
+                // A durable sleep (Pi Durable 1.4): the task holds nothing until then, and a restart keeps the time.
+                return runtime.sleepUntil(state.next, { phase: "look", failures: state.failures }, context);
             },
             look: async (task, runtime, context) => {
                 const { input } = task;
