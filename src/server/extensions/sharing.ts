@@ -238,8 +238,9 @@ export class Sharing {
 }
 
 export default function createSharing(host: PocketHost, web: ExtensionWeb) {
+    // Off the team server it has nothing to add: an empty list says so (nothing returned reads as a module that failed).
     if (host.teamServer === undefined) {
-        return;
+        return [];
     }
 
     const sharing = new Sharing(host);
