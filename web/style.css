@@ -2544,6 +2544,143 @@ pre.diff .del {
     color: var(--faint);
 }
 
+/* Waiting for a provider's limit (PP-135): the warning color, when it tries again, Retry now and Stop. */
+.live-line.limited .live-dot {
+    background: var(--warn);
+    box-shadow: 0 0 0 4px var(--warn-soft);
+    animation: none;
+}
+
+.live-line.limited .live-state {
+    min-width: 0;
+    flex: 0 1 auto;
+    color: var(--warn);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.live-line .live-limit {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.live-acts {
+    flex: none;
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.live-retry {
+    flex: none;
+    padding: 1px 9px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--accent);
+    background: transparent;
+    border: 1px solid var(--hair-2);
+    border-radius: var(--r-control);
+    cursor: pointer;
+}
+
+.live-retry.stop {
+    color: var(--muted);
+}
+
+@media (hover: hover) {
+    .live-retry:hover {
+        background: var(--accent-soft);
+    }
+
+    .live-retry.stop:hover {
+        color: var(--err);
+        background: transparent;
+    }
+}
+
+/* Narrow: the line wraps, so the wait's facts and its buttons stay inside the column. */
+@media (max-width: 600px) {
+    .live-line.limited {
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+
+    .live-line.limited .live-state {
+        flex: 1 1 calc(100% - 30px);
+        white-space: normal;
+    }
+
+    .live-line.limited .live-limit {
+        flex: 1 1 auto;
+        padding-left: 25px;
+    }
+}
+
+/* The account card of a wait (PP-135): this account hit its limit, another has room. Wait, or Move. */
+.limit-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    padding: 14px 16px;
+    border: 1px solid var(--warn-line);
+    border-radius: calc(var(--r-window) + 2px);
+    background: var(--warn-soft);
+    animation: pop 0.35s var(--ease-out);
+}
+
+.limit-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.limit-card-head .state-mark {
+    margin-top: 6px;
+}
+
+.limit-card-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    font-size: 13.5px;
+    line-height: 1.45;
+}
+
+.limit-card-who {
+    font-size: 12px;
+    color: var(--warn);
+}
+
+.limit-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.limit-card-actions .button {
+    height: 36px;
+    padding: 0 16px;
+    border-radius: var(--r-control);
+    font-size: 13.5px;
+}
+
+@media not (pointer: coarse) {
+    .limit-card-actions .button {
+        min-height: 0;
+    }
+}
+
+/* Narrow: the two answers one above the other, each the card's width. */
+@media (max-width: 600px) {
+    .limit-card-actions .button {
+        flex: 1 1 100%;
+    }
+}
+
 /*
  * Show thinking adds the timeline's bare chevron before the dot. It turns up when open, toward the thought above the
  * line. Its hit area reaches past the glyph without drawing a box, and the gap after it stays the line's own.
@@ -4480,6 +4617,13 @@ pre.diff .del {
 
 .state-mark.waiting {
     background: linear-gradient(90deg, currentColor 0 3px, transparent 0 5px, currentColor 0);
+}
+
+/* Waiting for a provider's limit to clear: amber, hollow, with a dot at its center (PP-135). */
+.state-mark.limited {
+    color: var(--warn);
+    box-shadow: inset 0 0 0 var(--line-w) currentColor;
+    background: radial-gradient(circle at center, currentColor 0 1.25px, transparent 1.5px);
 }
 
 .state-mark.failed {
@@ -6741,6 +6885,33 @@ pre.diff .del {
     padding: 0.6rem 0 0.8rem;
     margin-bottom: 0.4rem;
     border-bottom: 1px solid var(--line);
+}
+
+/* The owner's choice of how long a run waits for a provider's limit, and the notice of a long wait (PP-135). */
+.limit-wait {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.6rem 0 0.8rem;
+    margin-bottom: 0.4rem;
+    border-bottom: 1px solid var(--hair);
+}
+
+.limit-wait p {
+    margin: 0;
+}
+
+.limit-wait .segmented {
+    flex-wrap: wrap;
+    align-self: flex-start;
+}
+
+.limit-wait-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 0.2rem;
 }
 
 .subagent-models p {
@@ -9657,6 +9828,10 @@ textarea.notes {
 .peek-line.err,
 .peek-line .err {
     color: var(--err);
+}
+
+.peek-line.limit {
+    color: var(--warn);
 }
 
 .peek-line.faint {
@@ -13885,6 +14060,19 @@ textarea.notes {
 :is(.board-mark, .board-cell, .board-detail-state).waiting {
     --state: var(--warn);
 }
+:is(.board-mark, .board-cell, .board-detail-state).limited {
+    --state: var(--warn);
+}
+
+/* Waiting for a limit: amber like an approval, but hollow, as it needs nobody (PP-135). */
+:is(.board-mark, .board-cell).limited {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--state);
+}
+
+.board-state.limited {
+    background: color-mix(in srgb, var(--warn) 45%, transparent);
+}
 :is(.board-mark, .board-cell, .board-detail-state).failed {
     --state: var(--err);
 }
@@ -16265,8 +16453,18 @@ pre.gallery-code {
     color: var(--o-cyan, var(--accent));
 }
 
-.session-time.need {
+.session-time.need,
+.session-time.limit {
     color: var(--warn);
+}
+
+/* Waiting for a provider's limit to clear (PP-135): an amber square, hollow, with a dot. It goes on by itself. */
+.status-limit {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1.5px var(--warn);
+    background: radial-gradient(circle at center, var(--warn) 0 1.5px, transparent 2px);
 }
 
 .session-title {

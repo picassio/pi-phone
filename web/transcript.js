@@ -2504,10 +2504,14 @@ function LiveLine({ live, approvals, start, entries, conversationId }) {
     const working = (live.tools ?? []).some((slot) => slot.status !== "done");
     const waiting = approvals.length > 0;
     const seconds = retry ? Math.ceil((fromServer(retry.at) - Date.now()) / 1000) : 0;
+    // Its request waits for the provider's limit to clear (PP-135): the line says whose, and when it tries again.
+    const limit = waiting ? undefined : live.limit;
     let state;
 
     if (waiting) {
         state = canAnswer(approvals) ? t("Waiting for your approval") : t("Waiting for approval");
+    } else if (limit) {
+        state = limitWords(limit);
     } else if (retry) {
         state = t("Retrying");
     } else if ((live.compactions ?? []).length > 0) {
@@ -2526,7 +2530,7 @@ function LiveLine({ live, approvals, start, entries, conversationId }) {
             <${LiveThought} generation=${live.generation} entries=${entries} id=${thoughtId} />
         <//>`
     }
-        <div class=${`live-line ${waiting ? "waiting" : ""}`} data-part="live-line" ref=${line}>
+        <div class=${`live-line ${waiting ? "waiting" : ""} ${limit ? "limited" : ""}`} data-part="live-line" ref=${line}>
         ${
             thinking &&
             html`<button
@@ -2542,10 +2546,45 @@ function LiveLine({ live, approvals, start, entries, conversationId }) {
         <span class="live-state" role="status">
             ${state}${retry && !waiting && seconds > 0 && html`<span aria-hidden="true"> ${t("in {n}s", { n: seconds })}</span>`}
         </span>
-        ${start !== undefined && html`<span class="live-time" aria-hidden="true">${span(Date.now() - start)}</span>`}
+        ${
+            limit &&
+            html`<span class="live-limit" data-part="live-limit">
+                ${limit.probing ? t("trying now") : t("next try in {time}", { time: span(fromServer(limit.until) - Date.now()) })}${
+                    limit.resetAt !== undefined && ` · ${t("resets {time}", { time: clock(limit.resetAt) })}`
+                }
+            </span>`
+        }
+        ${start !== undefined && !limit && html`<span class="live-time" aria-hidden="true">${span(Date.now() - start)}</span>`}
+        ${
+            limit &&
+            canSteer() &&
+            html`<span class="live-acts">
+                ${
+                    !limit.probing &&
+                    html`<button
+                        class="live-retry"
+                        data-part="live-retry"
+                        title=${t("Send the request now. Stop ends the wait.")}
+                        onClick=${() =>
+                            attempt(async () => {
+                                // The gate takes one try each 30 seconds: a press it ignores says so.
+                                if ((await actions.retryLimit(conversationId))?.ok === false) {
+                                    notify("info", t("Already trying: wait a moment."));
+                                }
+                            })}
+                    >
+                        ${t("Retry now")}
+                    </button>`
+                }
+                <button class="live-retry stop" data-part="live-stop" title=${t("Stop the run")} onClick=${() => attempt(() => actions.abort())}>
+                    ${t("Stop")}
+                </button>
+            </span>`
+        }
         ${
             retry &&
             !waiting &&
+            !limit &&
             html`<span
                 class="live-why"
                 title=${t("Attempt {n}, after: {error}", { n: live.generation.attempt + 1, error: retry.error })}
@@ -2557,7 +2596,71 @@ function LiveLine({ live, approvals, start, entries, conversationId }) {
             live.busy &&
             canSteer() &&
             !COARSE.matches &&
+            !limit &&
             html`<span class="live-esc" title=${t("Press Esc twice")}>${t("Esc stops")}</span>`
+        }
+    </div>`;
+}
+
+/** What a run waits for, in words: "Waiting for Anthropic · Work's 5-hour limit". */
+function limitWords(limit) {
+    const provider = limit.providerName;
+
+    if (limit.window) {
+        return t("Waiting for {provider}'s {window} limit", { provider, window: limit.window });
+    }
+
+    if (limit.scope === "account") {
+        return t("Waiting for {provider}'s usage limit", { provider });
+    }
+
+    return limit.overloaded ? t("Waiting: {provider} is overloaded", { provider }) : t("Waiting for {provider}'s rate limit", { provider });
+}
+
+/**
+ * The account card of a wait (PP-135): this account hit a plan window's limit, and another account of the same provider
+ * has room. Wait keeps waiting and puts the card away; Move sends the waiting request through the other account, which
+ * the session (or the subagent) then uses. Until it is answered, the run waits as it would without it.
+ */
+function LimitOfferCard({ offer }) {
+    const [busy, setBusy] = useState(false);
+    const [, tick] = useState(0);
+
+    useEffect(() => {
+        const timer = setInterval(() => tick((n) => n + 1), 30_000);
+
+        return () => clearInterval(timer);
+    }, []);
+
+    const resets = clock(offer.resetAt);
+    const answer = (choice) => {
+        setBusy(true);
+        attempt(() => actions.answerLimit(offer.conversationId, choice, choice === "move" ? offer.to : undefined)).finally(() => setBusy(false));
+    };
+
+    return html`<div class="limit-card" data-part="limit-card">
+        <div class="limit-card-head">
+            <span class="state-mark limited" aria-hidden="true"></span>
+            <div class="limit-card-text">
+                ${offer.subagent && html`<span class="limit-card-who">${t("Subagent {name}", { name: offer.subagent })}</span>`}
+                <span>
+                    ${
+                        offer.window
+                            ? t("{account} hit its {window} limit.", { account: offer.providerName, window: offer.window })
+                            : t("{account} hit its usage limit.", { account: offer.providerName })
+                    }
+                    ${" "}${t("It resets at {time} (in {left}).", { time: resets, left: span(fromServer(offer.resetAt) - Date.now()) })}
+                </span>
+                <span class="muted">${t("{account} has room: {n}% of its {window} used.", { account: offer.toName, n: offer.toUsed, window: offer.toWindow })}</span>
+            </div>
+        </div>
+        ${
+            canSteer()
+                ? html`<div class="limit-card-actions">
+                      <button class="button" disabled=${busy} onClick=${() => answer("wait")}>${t("Wait until {time}", { time: resets })}</button>
+                      <button class="button primary" disabled=${busy} onClick=${() => answer("move")}>${t("Move to {account}", { account: offer.toName })}</button>
+                  </div>`
+                : html`<div class="muted small">${t("Waiting for someone who can steer to answer.")}</div>`
         }
     </div>`;
 }
@@ -2941,6 +3044,7 @@ export function Transcript() {
             ${approvals.map(
                 (approval) => html`<${ApprovalCard} key=${approval.id} approval=${approval} />`,
             )}
+            ${(view.limitOffers ?? []).map((offer) => html`<${LimitOfferCard} key=${`${offer.conversationId}-${offer.to}`} offer=${offer} />`)}
             ${
                 (busy || compacting) &&
                 html`<${LiveLine}

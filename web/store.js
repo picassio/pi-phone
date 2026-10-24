@@ -90,6 +90,7 @@ const emptyView = () => ({
     ciWatches: [],
     branch: null,
     subagentsHeld: null,
+    limitOffers: [],
 });
 
 export const store = {
@@ -618,6 +619,8 @@ function mergeView(current, data) {
         subagentsHeld: data.subagentsHeld === undefined ? base.subagentsHeld : data.subagentsHeld,
         // What the folder has checked out: `{ branch }` or `{ detached }`, and null outside a repository.
         branch: data.branch === undefined ? base.branch : data.branch,
+        // The account cards of waits for a limit here, its subagents' too (PP-135).
+        limitOffers: data.limitOffers ?? base.limitOffers,
     };
 }
 
@@ -1281,6 +1284,10 @@ export const actions = {
     /** Undo the uncommitted changes to one file. */
     revert: (path) => api(`c/${current()}/changes/revert`, { path }),
     abort: () => api(`c/${current()}/abort`, {}),
+    /** Send the request of a run that waits for its provider's limit now, not at its time (PP-135). */
+    retryLimit: (id = current()) => api(`c/${id}/limit/retry`, {}),
+    /** Answer a limit's account card: keep waiting, or move the waiting request to the other account. */
+    answerLimit: (conversationId, choice, to) => api(`c/${current()}/limit/answer`, { conversationId, choice, ...(to === undefined ? {} : { to }) }),
     chat: (text, quote) =>
         api(`c/${current()}/chat`, {
             text,

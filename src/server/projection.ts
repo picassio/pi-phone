@@ -16,6 +16,7 @@ import {
     type ShellData,
     splitAttachments,
 } from "./entry-format.ts";
+import type { WaitView } from "./limit-gate.ts";
 import type { StreamTiming } from "./timing.ts";
 
 /** Shortest first-to-last-token window, in ms, that reads as a genuine stream rather than one buffered flush. */
@@ -83,8 +84,53 @@ export type ClientToolSlot = {
     details?: unknown;
 };
 
+/** A run waiting for a provider's limit to clear (`limit-gate.ts`), as a tab shows it. Times are the server's clock. */
+export type ClientLimit = {
+    provider: string;
+    /** The provider's name as the model menu has it (an account's with its name: "Anthropic · Work"). */
+    providerName: string;
+    modelId?: string;
+    /** `account`: every model of the provider waits. `model`: this one does. */
+    scope: "account" | "model";
+    /** `reset`: until a time the provider (or its usage bars) gave. `backoff`: no time is known, so it tries at intervals. */
+    kind: "reset" | "backoff";
+    /** The plan window that is full: "5-hour", "Weekly". */
+    window?: string;
+    /** An overload rather than a rate limit, for the words (`model` scope with no time). */
+    overloaded?: true;
+    /** When the next request goes out. */
+    until: number;
+    /** The reset the provider gave, when it gave one. */
+    resetAt?: number;
+    tries: number;
+    /** The request that finds out is out now. */
+    probing: boolean;
+};
+
+/**
+ * The account card (PP-135): the waiting conversation's account hit a plan window's limit, and another account of the
+ * same provider has room by its usage bars. Shown in its session, a subagent's too; Wait or Move answers it.
+ */
+export type LimitOffer = {
+    /** The waiting conversation: the session's own, or one of its subagents'. */
+    conversationId: number;
+    subagent?: string;
+    provider: string;
+    providerName: string;
+    window?: string;
+    resetAt: number;
+    until: number;
+    modelId: string;
+    /** The account it may move to, by provider id, and how much of its plan window is used. */
+    to: string;
+    toName: string;
+    toUsed: number;
+    toWindow: string;
+};
+
 export type ClientLive = {
     busy: boolean;
+    limit?: ClientLimit;
     generation?: {
         attempt: number;
         message?: { blocks: ClientBlock[] };
@@ -741,7 +787,9 @@ export type PeekLine =
     | { kind: "shell"; command: string; status: "done" | "error" }
     | { kind: "note"; text: string; name: string }
     | { kind: "error"; text: string }
-    | { kind: "event"; text: string };
+    | { kind: "event"; text: string }
+    /** Waiting for a provider's limit: the tile says whose, and when the next try is. */
+    | { kind: "limit"; text: string; provider: string; until: number };
 
 /** How many lines a peek tile gets, and how long each text may run. */
 export const PEEK_LINES = 8;
@@ -864,5 +912,26 @@ export function peekLines(
         blocks(live.generation.message.blocks, true);
     }
 
+    if (live.limit !== undefined) {
+        lines.push({ kind: "limit", text: `Waiting for ${live.limit.providerName}'s limit`, provider: live.limit.providerName, until: live.limit.until });
+    }
+
     return lines.slice(-count);
+}
+
+/** A wait for a limit as a tab gets it: no gate key, and no provider's own text, which names the sign-in. */
+export function projectLimit(wait: WaitView, providerName: string): ClientLimit {
+    return {
+        provider: wait.provider,
+        providerName,
+        ...(wait.modelId === undefined ? {} : { modelId: wait.modelId }),
+        scope: wait.scope,
+        kind: wait.kind,
+        ...(wait.window === undefined ? {} : { window: wait.window }),
+        ...(/ is overloaded$/.test(wait.reason) ? { overloaded: true as const } : {}),
+        until: wait.until,
+        ...(wait.resetAt === undefined ? {} : { resetAt: wait.resetAt }),
+        tries: wait.tries,
+        probing: wait.probing,
+    };
 }

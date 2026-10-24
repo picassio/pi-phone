@@ -34,3 +34,9 @@ is skipped on purpose.
   groups, settled, a second tick while one works), 216fcf7, 8dbc20f, cfe9932 for the session list only (the rail keeps
   `apartFromViews`: its extension and peek buttons read keys of their own), 848bf3e and c6c9662's tests. Skipped: b68f775
   (PiP), the session-list-extensions test (pi-phone has no session chips). `scripts/bench-open.ts` measures both.
+- Wait out provider limits from 0.21.0 (PP-135): a5909b7 (feat/rate-limit-wait), 2795c40 (gate review), cd69115 (the
+  named Claude and ChatGPT windows, #128 by @piromagnus), 01a6381 and the limit parts of 83acd94, 4314fee (the vital
+  tests, ported), 45982fb (ChatGPT Business admin caps fail fast). Rewritten by hand into `limits.ts`, `limit-gate.ts`
+  and pi-phone's views; pi-phone adds the usage bars as a source of the reset, the account card (Wait or Move), the
+  team server's pass-through, and the notice as a phone event and web push. Not taken: pi-pocket's push kinds and
+  `alerts.ts` (pi-phone's phone events instead), PiP's summaries, the theme surface docs.

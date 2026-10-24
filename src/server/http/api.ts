@@ -1174,6 +1174,8 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 sessionSendLimit?: unknown;
                 wikiCaptureMinutes?: unknown;
                 compactAt?: unknown;
+                limitWaitHours?: unknown;
+                limitNotice?: unknown;
             }>(request);
 
             // One at a time: a second that fails must not leave the first changed.
@@ -1185,6 +1187,8 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.sessionSendLimit,
                     body.wikiCaptureMinutes,
                     body.compactAt,
+                    body.limitWaitHours,
+                    body.limitNotice,
                 ].filter((value) => value !== undefined).length > 1
             ) {
                 throw new HttpError(400, "Change one setting at a time.");
@@ -1210,6 +1214,15 @@ export function createApi(options: HttpOptions, auth: Auth) {
             // When sessions compact by themselves (PP-78).
             if (body.compactAt !== undefined) {
                 await app.setCompactAt(user, body.compactAt);
+            }
+
+            // How long a run waits for a provider's limit to clear, and whether the phone hears of a long wait (PP-135).
+            if (body.limitWaitHours !== undefined) {
+                await app.setLimitWaitHours(user, body.limitWaitHours);
+            }
+
+            if (body.limitNotice !== undefined) {
+                await app.setLimitNotice(user, body.limitNotice);
             }
 
             // Null clears it: new sessions start with the last model picked again.

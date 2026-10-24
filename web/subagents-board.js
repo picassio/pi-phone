@@ -13,13 +13,14 @@ import { useOnScreen } from "./peeks.js";
 import { fromServer } from "./seen.js";
 import { api, attempt, canSteer, navigate, notify, store } from "./store.js";
 import { dismiss, elapsed, ordered, seeFailure, stateOf, unresolved } from "./subagents.js";
-import { html, Icon, timeAgo } from "./ui.js";
+import { formatWhen, html, Icon, timeAgo } from "./ui.js";
 
 /** The states, most urgent first: the order of the bar, the legend, the squares, and the sessions' summaries. */
-const STATES = ["waiting", "failed", "working", "stopped", "done"];
+const STATES = ["waiting", "limited", "failed", "working", "stopped", "done"];
 
 const LABELS = () => ({
     waiting: t("Needs approval"),
+    limited: t("Waiting for a limit"),
     failed: t("Failed"),
     working: t("Working"),
     stopped: t("Stopped"),
@@ -31,6 +32,8 @@ function countPhrase(state, n, short = false) {
     switch (state) {
         case "waiting":
             return short ? t("{n} approve", { n }) : t("{n} need approval", { n });
+        case "limited":
+            return t("{n} waiting for a limit", { n });
         case "failed":
             return t("{n} failed", { n });
         case "working":
@@ -42,10 +45,13 @@ function countPhrase(state, n, short = false) {
     }
 }
 
-/** Where a subagent is on the board: waiting for an approval comes first, as it is working but held up. */
-const boardState = (agent) => (agent.waiting ? "waiting" : stateOf(agent));
+/**
+ * Where a subagent is on the board: waiting for an approval comes first, as it is working but held up; then waiting
+ * for its provider's limit to clear (PP-135), held up too, but it goes on by itself.
+ */
+const boardState = (agent) => (agent.waiting ? "waiting" : agent.limited !== undefined ? "limited" : stateOf(agent));
 
-const live = (state) => state === "working" || state === "waiting";
+const live = (state) => state === "working" || state === "waiting" || state === "limited";
 
 /** What needs you: an approval it waits for, or a failure nobody has dealt with (seen or dismissed). */
 const needsYou = (agent) => boardState(agent) === "waiting" || unresolved(agent);
@@ -164,6 +170,10 @@ function ago(server) {
 function nowOf(agent) {
     if (agent.waiting && agent.approval) {
         return t("Waiting for approval: {tool} {subject}", { tool: agent.approval.tool, subject: agent.approval.subject }).trim();
+    }
+
+    if (agent.limited !== undefined) {
+        return t("Waiting for a limit · next try {time}", { time: formatWhen(fromServer(agent.limited)) });
     }
 
     return nowDoing(agent);

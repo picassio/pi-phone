@@ -9,6 +9,7 @@ import type { Usage } from "@earendil-works/pi-ai";
 import { type ConversationId, ProviderDoc, UsageDoc } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import { HttpError } from "./errors.ts";
+import { noWait } from "./limit-gate.ts";
 
 const context = BACKGROUND_CONTEXT;
 
@@ -78,10 +79,11 @@ export async function askSessionModel(
     const sessionId =
         (await app.harness.snapshot(ProviderDoc, id, context))?.sessionId ??
         (await app.harness.commit(async (tx) => (await tx.doc(ProviderDoc, id)).sessionId, context));
+    // A title or a helper's answer never waits hours for a provider's limit (`limit-gate.ts`): it fails as it would.
     const reply = await app.models.completeSimple(
         model,
         { messages: [{ role: "user", content: [{ type: "text", text: prompt }], timestamp: Date.now() }] },
-        { maxTokens, cacheRetention: "none", sessionId },
+        noWait({ maxTokens, cacheRetention: "none" as const, sessionId }),
     );
 
     await app.harness.commit(async (tx) => {

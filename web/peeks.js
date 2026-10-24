@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { AgentTile } from "./agent-tile.js";
 import { folderColor } from "./avatar.js";
 import { describeCall } from "./calls.js";
-import { finishedUnseen, markSeen, seenSince } from "./seen.js";
+import { finishedUnseen, fromServer, markSeen, seenSince } from "./seen.js";
 import {
     actions,
     api,
@@ -24,7 +24,7 @@ import {
     workspaceOrder,
 } from "./store.js";
 import { prefs, setPrefs } from "./theme.js";
-import { html, Icon, railState, shortPath, usePresence } from "./ui.js";
+import { formatWhen, html, Icon, railState, shortPath, usePresence } from "./ui.js";
 
 /** Wide enough for the column beside the conversation: where People and the Browser panel dock too. */
 export const PEEK_WIDE = matchMedia("(min-width: 1100px)");
@@ -468,6 +468,11 @@ function PeekLine({ line }) {
                 <span class="peek-mark">×</span>
                 <span class="peek-text">${line.text}</span>
             </div>`;
+        case "limit":
+            return html`<div class="peek-line limit">
+                <span class="peek-mark">⧗</span>
+                <span class="peek-text">${t("Waiting for {provider}'s limit · next try {time}", { provider: line.provider, time: formatWhen(fromServer(line.until)) })}</span>
+            </div>`;
         default:
             return html`<div class="peek-line faint">
                 <span class="peek-mark"></span>
@@ -625,7 +630,7 @@ function AgentRows({ agents, compact }) {
 /**
  * A tile's square, in the shape the session list gives the same state: its folder's color.
  */
-const SHAPES = { waiting: "waiting", working: "working", done: "fresh", idle: "seen" };
+const SHAPES = { waiting: "waiting", limited: "limited", working: "working", done: "fresh", idle: "seen" };
 
 /**
  * One tile. The whole app renders on every update while a session streams; a tile renders again only when what it
@@ -764,11 +769,13 @@ function tileProps(tiles, compact) {
         const status =
             session.waiting || (session.subagents?.waiting ?? 0) > 0
                 ? "waiting"
-                : session.busy || (session.subagents?.working ?? 0) > 0
-                  ? "working"
-                  : finishedUnseen(session, state)
-                    ? "done"
-                    : "idle";
+                : session.limited !== undefined
+                  ? "limited"
+                  : session.busy || (session.subagents?.working ?? 0) > 0
+                    ? "working"
+                    : finishedUnseen(session, state)
+                      ? "done"
+                      : "idle";
         // Where only its subagents keep a session waiting or working, the column's label says so. A session waits
         // while one of its subagents does too: its peek says whose calls wait.
         const waitingAgents = session.subagents?.waiting ?? 0;
@@ -788,7 +795,9 @@ function tileProps(tiles, compact) {
                     : steer
                       ? `${someAgents(waitingAgents)} ${waitingAgents === 1 ? "needs" : "need"} you`
                       : `${someAgents(waitingAgents)} waiting`
-                : status === "working"
+                : status === "limited"
+                  ? t("waiting for a limit")
+                  : status === "working"
                   ? session.busy || compact
                       ? "working"
                       : `${someAgents(workingAgents)} working`

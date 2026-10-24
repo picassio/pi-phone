@@ -17,8 +17,11 @@ export const said = (text: string, vars?: Record<string, string | number>): Said
 
 export type PhoneEvent = {
     seq: number;
-    /** `security`: about the owner's sign-in (a recovery code was used); `session` is 0, and it opens the app. */
-    kind: "done" | "failed" | "approval" | "security";
+    /**
+     * `security`: about the owner's sign-in (a recovery code was used); `session` is 0, and it opens the app. `limit`: a
+     * run began to wait 10 minutes or more for a provider's limit (`limit-gate.ts`), once for the wait.
+     */
+    kind: "done" | "failed" | "approval" | "security" | "limit";
     session: number;
     /** The session's title (data), or for `security` what happened. */
     title: string;
@@ -38,9 +41,11 @@ export function inLanguage(event: PhoneEvent, t: Translate): PhoneEvent & { head
             ? title
             : event.kind === "approval"
               ? t("Waiting for you: {title}", { title })
-              : event.kind === "failed"
-                ? t("Failed: {title}", { title })
-                : t("Done: {title}", { title });
+              : event.kind === "limit"
+                ? t("Waiting for a limit: {title}", { title })
+                : event.kind === "failed"
+                  ? t("Failed: {title}", { title })
+                  : t("Done: {title}", { title });
 
     return { ...event, title, text, heading };
 }

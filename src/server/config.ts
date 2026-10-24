@@ -86,6 +86,9 @@ export interface ModelChoice {
     thinkingLevel?: string;
 }
 
+/** The hours a run waits for a model's limit to clear, until the owner says otherwise. */
+export const DEFAULT_LIMIT_WAIT_HOURS = 6;
+
 interface PocketConfig {
     version: 1;
     /** Printed in the login URL at every start. Keep this file private. */
@@ -127,6 +130,10 @@ interface PocketConfig {
     sessionSendLimit?: number | null;
     /** When sessions compact by themselves (`auto-compact.ts`): a percentage of the context. Absent: only when nearly full. */
     compactAt?: number;
+    /** The most hours a run waits for a model's limit to clear (`limit-gate.ts`); 0: it does not wait. Absent: 6. */
+    limitWaitHours?: number;
+    /** False: no phone notice when a run begins to wait 10 minutes or more for a limit. Absent: on. */
+    limitNotice?: boolean;
     /** Minutes a session is idle before what it learned goes to the wiki (`para-capture.ts`); null: never by itself. */
     wikiCaptureMinutes?: number | null;
     /**
@@ -374,6 +381,38 @@ export class ConfigStore {
             delete this.#config.compactAt;
         } else {
             this.#config.compactAt = at;
+        }
+
+        this.save();
+    }
+
+    /** How many hours a run waits for a limit to clear, at most; 0: not at all. */
+    get limitWaitHours(): number {
+        const hours = this.#config.limitWaitHours;
+
+        return typeof hours === "number" && Number.isFinite(hours) && hours >= 0 ? Math.min(hours, 24) : DEFAULT_LIMIT_WAIT_HOURS;
+    }
+
+    set limitWaitHours(hours: number) {
+        if (hours === DEFAULT_LIMIT_WAIT_HOURS) {
+            delete this.#config.limitWaitHours;
+        } else {
+            this.#config.limitWaitHours = Math.min(Math.max(hours, 0), 24);
+        }
+
+        this.save();
+    }
+
+    /** Whether the phone hears of a long wait for a limit (on until the owner turns it off). */
+    get limitNotice(): boolean {
+        return this.#config.limitNotice !== false;
+    }
+
+    set limitNotice(on: boolean) {
+        if (on) {
+            delete this.#config.limitNotice;
+        } else {
+            this.#config.limitNotice = false;
         }
 
         this.save();

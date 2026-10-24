@@ -194,6 +194,18 @@ export async function conversationRoutes(
         return json(response, 200, { ok: true });
     }
 
+    // A run waiting for its provider's limit tries now, rather than at its time.
+    if (third === "limit" && fourth === "retry" && method === "POST") {
+        return json(response, 200, { ok: await app.commands.retryLimit(id, user) });
+    }
+
+    // The account card of a wait: keep waiting, or move the request to the other account (PP-135).
+    if (third === "limit" && fourth === "answer" && method === "POST") {
+        await app.commands.answerLimit(id, user, await readJson<{ conversationId?: unknown; choice?: unknown; to?: unknown }>(request));
+
+        return json(response, 200, { ok: true });
+    }
+
     // A failed subagent dealt with: `at` says which failure the person saw.
     if (third === "dismiss" && method === "POST") {
         const body = await readJson<{ at?: unknown }>(request);

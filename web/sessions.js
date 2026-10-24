@@ -25,13 +25,14 @@ import {
     workspaceOrder,
     roleAllows,
 } from "./store.js";
-import { finishedUnseen } from "./seen.js";
+import { finishedUnseen, fromServer } from "./seen.js";
 import { createGroup, foldGroup, groupOf, moveToGroup, pinGroup, placeGroup, renameGroup } from "./session-groups.js";
 import { isPinned, prefs, setPrefs, togglePin } from "./theme.js";
 import {
     APPLE,
     apartFromViews,
     drawnFor,
+    formatWhen,
     html,
     Icon,
     memo,
@@ -52,6 +53,9 @@ import {
  * phone's back would go, or to it in this session's place when history does not lead there.
  */
 export const toSessions = () => goHome(() => navigate(null, { replace: true }));
+
+/** A time ahead from the server's clock, on this device's: when a waiting request tries again ("14:30"). */
+const clockAt = (ms) => formatWhen(fromServer(ms));
 
 /** The session list on its way: rows shaped like sessions, lit in turn. */
 function LoadingSessions() {
@@ -270,14 +274,20 @@ export function selectFromList(id) {
 
 /**
  * The square at the start of a session's row: its folder's color, in the shape of where the session is. The first that
- * holds wins: a call waiting for you, Pi or its subagents at work, a failed run (solid while new, drawn once seen),
- * finished since this browser last looked or marked unread (solid), and read or never run (hollow).
+ * holds wins: a call waiting for you, a request waiting for its provider's limit to clear, Pi or its subagents at
+ * work, a failed run (solid while new, drawn once seen), finished since this browser last looked or marked unread
+ * (solid), and read or never run (hollow).
  */
 function stateMark(session, working, marked, unseen = finishedUnseen(session)) {
     const fresh = marked || unseen;
 
     if (session.waiting) {
         return { shape: "waiting", label: t("Waiting for approval") };
+    }
+
+    // Pi's request waits for the provider's limit to clear: at work, held up, until a time or a try (PP-135).
+    if (session.limited !== undefined) {
+        return { shape: "limited", label: t("Waiting for a limit") };
     }
 
     if (session.busy || working) {
@@ -296,6 +306,7 @@ function stateMark(session, working, marked, unseen = finishedUnseen(session)) {
 /** A row's state for themes (`data-state`), by its square's shape: a documented name that stays when the squares change. */
 const ROW_STATES = {
     waiting: "waiting",
+    limited: "limited",
     working: "working",
     failed: "failed",
     fresh: "done",
@@ -403,7 +414,7 @@ function SessionRow({
     const shortWhere = machine ? `${machine[1]} · ${machine[2].split("/").filter((part) => part !== "" && part !== "~").slice(-2).join("/") || machine[2]}` : path;
     const place = team ? "task session" : session.group ? session.group.title : shortWhere;
     const branch = session.worktree?.branch ?? session.branch ?? (task ? `task/${task[1]}` : null);
-    const when = session.waiting ? "waits" : session.busy && session.busySince ? workingFor(session.busySince) : timeAgo(session.updatedAt);
+    const when = session.waiting ? "waits" : session.limited !== undefined ? clockAt(session.limited) : session.busy && session.busySince ? workingFor(session.busySince) : timeAgo(session.updatedAt);
 
     return html`<div
         class=${`session-row ${arrival === null ? "" : "arriving"} ${open ? "active" : ""} ${selected ? "selected" : ""} ${pressing ? "pressing" : ""} ${moving ? "moving" : ""} ${marked ? "marked-unread" : ""} ${unseen ? "unseen" : ""} ${team ? "team" : ""} ${settled ? "settled" : ""} ${["no-acts", "one-act", "", "three-acts", "four-acts", "five-acts"][acts]}`}
@@ -455,7 +466,7 @@ function SessionRow({
                                 title=${marked ? t("Marked unread") : t("New chat messages")}
                             ></span>`
                         }
-                        <span class=${`session-time ${session.waiting ? "need" : session.busy ? "work" : ""}`}>${when}</span>
+                        <span class=${`session-time ${session.waiting ? "need" : session.limited !== undefined ? "limit" : session.busy ? "work" : ""}`}>${when}</span>
                         ${
                             number !== undefined &&
                             number < 9 &&
@@ -488,7 +499,9 @@ function SessionRow({
                         ? html`<span class="state-check" role="img" aria-label=${t("Selected")}><${Icon} name="check" size=${9} /></span>`
                         : session.waiting
                           ? html`<span class="status-need" role="img" aria-label=${steers ? t("Needs you") : t("Waiting")} title=${steers ? t("Needs you") : t("Waiting for approval")}></span>`
-                          : session.busy
+                          : session.limited !== undefined
+                            ? html`<span class="status-limit" role="img" aria-label=${t("Waiting for a limit")} title=${t("Waiting for a limit: next try at {time}", { time: clockAt(session.limited) })}></span>`
+                            : session.busy
                             ? html`<span class="status-work" role="img" aria-label=${t("Working")} title=${t("Working")}></span>`
                             : session.failed
                               ? html`<span class="status-fail" role="img" aria-label=${t("Failed")} title=${t("Its last run failed")}></span>`

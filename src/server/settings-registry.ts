@@ -186,6 +186,26 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 ),
         },
         {
+            id: "providers.limitWait",
+            area: "providers",
+            title: "Wait for a limit",
+            help: "When a provider's limit stops a run, it waits until the provider's reset and goes on by itself, up to this many hours: 0 (off), 1, 6, 12 or 24. A reset further away, billing, or an expired sign-in fails at once.",
+            owner: true,
+            read: () => String(app.config.limitWaitHours),
+            choices: () => ["0", "1", "6", "12", "24"],
+            apply: (user, value) => app.setLimitWaitHours(user, NONE.test(value.trim()) ? 0 : Number(value.trim().replace(/\s*h(ours?)?$/i, ""))),
+        },
+        {
+            id: "providers.limitNotice",
+            area: "providers",
+            title: "Tell me of a long wait for a limit",
+            help: "on or off: one phone notification (and web push) when a run begins to wait 10 minutes or more for a provider's limit.",
+            owner: true,
+            read: () => (app.config.limitNotice ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (user, value) => app.setLimitNotice(user, onOff(value)),
+        },
+        {
             id: "approvals.rule",
             area: "approvals",
             title: "Who may allow risky calls",
@@ -806,6 +826,34 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 }
 
                 return `Deleted ${args.name}.`;
+            },
+        },
+        {
+            id: "limits.retryNow",
+            area: "limits",
+            title: "Retry a waiting request now",
+            help: "A session waiting for a provider's limit (it or its subagents) sends its request now rather than at its time: once each 30 seconds.",
+            owner: true,
+            args: { session: "The session's number" },
+            describe: (args) => `Send session ${args.session ?? ""}'s waiting request now`,
+            run: async (user, args) => ((await app.commands.retryLimit(session(args.session), user)) ? `Session ${args.session} tried again.` : `Session ${args.session} is in no wait, or tried less than 30 seconds ago.`),
+        },
+        {
+            id: "limits.answer",
+            area: "limits",
+            title: "Answer a limit's account card",
+            help: "A session whose request waits for one account's limit, with another account of the provider offered: choice wait (keep waiting) or move (send the request through the offered account, and use it from now on). conversation: the waiting subagent's number, when it is a subagent's.",
+            owner: true,
+            args: { session: "The session's number", choice: "wait or move", account: "For move: the offered account's provider id", conversation: "Optional: the waiting subagent's conversation number" },
+            describe: (args) => (args.choice === "move" ? `Move session ${args.session ?? ""}'s waiting request to ${args.account ?? ""}` : `Keep session ${args.session ?? ""} waiting for its limit`),
+            run: async (user, args) => {
+                await app.commands.answerLimit(session(args.session), user, {
+                    choice: args.choice,
+                    ...(args.account === undefined ? {} : { to: args.account }),
+                    ...(args.conversation === undefined || args.conversation === "" ? {} : { conversationId: Number(args.conversation) }),
+                });
+
+                return args.choice === "move" ? `Moved to ${args.account}.` : "It keeps waiting.";
             },
         },
         {

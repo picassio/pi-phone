@@ -4,8 +4,48 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { t, tn, tx } from "../i18n.js";
 import { api, attempt, closeSheet, closeSignIn, loadUsage, signInAnswered, store } from "../store.js";
 import { UsageBars } from "../usage.js";
-import { html, Icon, Loader, Sheet } from "../ui.js";
+import { html, Icon, Loader, Sheet, Switch } from "../ui.js";
 import { RefreshModels } from "../model-refresh.js";
+
+/** How long a run waits for a provider's limit to clear, at most (`limit-gate.ts`, PP-135): hours, 0 is off. */
+const LIMIT_WAIT = [0, 1, 6, 12, 24];
+
+/**
+ * The owner's choice of how long a run waits for a provider's limit rather than failing: until the provider's own reset,
+ * up to this long. And whether the phone hears of a wait of 10 minutes or more.
+ */
+function LimitWait() {
+    const hours = store.state.server?.limitWaitHours;
+    const notice = store.state.server?.limitNotice;
+
+    // A server that does not wait for limits sends none.
+    if (typeof hours !== "number") {
+        return null;
+    }
+
+    return html`<div class="limit-wait" data-part="limit-wait">
+        <div class="small">${t("Wait for a limit")}</div>
+        <p class="muted small">
+            ${t("When a provider's limit stops a run, it waits until the provider's reset and goes on by itself, up to this long. A reset further away, billing, or an expired sign-in fails at once, with the reset time.")}
+        </p>
+        <div class="segmented" role="group" aria-label=${t("How long to wait for a limit")}>
+            ${LIMIT_WAIT.map(
+                (value) => html`<button class=${hours === value ? "on" : ""} aria-pressed=${hours === value} onClick=${() => attempt(() => api("settings", { limitWaitHours: value }))}>
+                    ${value === 0 ? t("Off") : t("{n} h", { n: value })}
+                </button>`,
+            )}
+        </div>
+        <div class="limit-wait-notice">
+            <span class="small">${t("Tell me when a run waits 10 minutes or more")}</span>
+            <${Switch}
+                on=${notice !== false}
+                disabled=${hours === 0}
+                label=${t("Tell me when a run waits 10 minutes or more")}
+                onChange=${() => attempt(() => api("settings", { limitNotice: notice === false }))}
+            />
+        </div>
+    </div>`;
+}
 
 /** Models past this many get a box to find them by. */
 const MODEL_SEARCH_AT = 8;
@@ -275,6 +315,7 @@ export function ProvidersSheet() {
             ${tx("pi-phone shares Pi's sign-ins ({file}).", { file: html`<span class="mono">~/.pi/agent/auth.json</span>` })} ${owner ? "" : t("Only the owner can change them.")}
         </p>
         <${RefreshModels} />
+        ${owner && html`<${LimitWait} />`}
         ${
             owner &&
             html`<${SubagentModels}

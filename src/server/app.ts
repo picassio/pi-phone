@@ -7,12 +7,13 @@
  * `alerts.ts`, provider sign-ins in `providers.ts`, and each conversation's shared live view in `room.ts`.
  */
 import { randomUUID } from "node:crypto";
-import { Accounts } from "./accounts.ts";
+import { Accounts, baseProvider } from "./accounts.ts";
 import { TeamAccountsClient } from "./team-accounts.ts";
 import { TeamMachinesClient } from "./team-machines.ts";
 import { machinePaths } from "./machine-paths.ts";
 import { PhoneSettingsFile } from "./phone-settings.ts";
-import { UsageLimits } from "./usage-limits.ts";
+import { UsageLimits, type UsageWindow } from "./usage-limits.ts";
+import { LimitGate, type LimitTuning, noWait, type WaitView, type Waiting } from "./limit-gate.ts";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -39,6 +40,7 @@ import {
     type HarnessSettings,
     LiveDoc,
     type LiveState,
+    ProviderDoc,
     type Registry,
     type Storage,
     UsageDoc,
@@ -119,7 +121,7 @@ import { takeLock } from "./lock.ts";
 import { SAFETY_COPY_DAYS, safetyCopyBeforeUpgrade } from "./storage-upgrade.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
 import { configureHttp } from "./net.ts";
-import { snippet } from "./projection.ts";
+import { type LimitOffer, snippet } from "./projection.ts";
 import { loadPromptTemplates, type PromptTemplate, type SkillCommand } from "./prompts.ts";
 import { BASE_THEME, Themes } from "./themes.ts";
 import { THEME_ID } from "./themes/format.ts";
@@ -165,6 +167,8 @@ const BROWSER_SWEEP_MS = 60_000;
 const SUBAGENTS_FILE = "subagents.ts";
 /** The most models the owner may allow subagents besides their session's own. */
 const MAX_SUBAGENT_MODELS = 50;
+/** The hours a run may wait for a provider's limit, as the owner may choose them (0: not at all). */
+const LIMIT_WAIT_CHOICES = [0, 1, 6, 12, 24];
 
 /**
  * The most conversations a tab gets live peeks for at once: the sessions on its screen, and the subagents working
@@ -269,6 +273,8 @@ export interface OpenOptions {
     log?: (line: string) => void;
     /** Tests register scripted providers here. */
     configureModels?: (models: ModelRuntime) => void;
+    /** Tests shorten the limit gate's waits (`limit-gate.ts`). */
+    limits?: Partial<LimitTuning>;
     /** How plan limits are asked (`usage-limits.ts`); tests answer for the providers. */
     usageFetch?: typeof fetch;
     /** The providers that may have more accounts, and how to make each (`accounts.ts`); tests use their scripted one. */
@@ -366,6 +372,8 @@ export class PocketApp {
     readonly collab = new Collab(this);
     readonly interviewHelpers = new InterviewHelpers(this);
     readonly providers = new Providers(this);
+    /** Model requests that hit a limit wait for it to clear, then go on (`limit-gate.ts`, PP-135). */
+    readonly limits: LimitGate;
     readonly schedules = new Schedules(this);
     readonly goals = new Goals(this);
     readonly shell = new Shell(this);
@@ -427,6 +435,12 @@ export class PocketApp {
     readonly #clients = new Set<Client>();
     readonly #rooms = new Map<ConversationId, Promise<Room>>();
     readonly #busy = new Set<ConversationId>();
+    /** Conversations with a compaction going: its request may wait for a limit too. */
+    readonly #compacting = new Set<ConversationId>();
+    /** Conversations that were in a wait for a limit, or are now: their views and the session list show the change. */
+    #limitWaiting = new Set<number>();
+    /** The account card of each waiting conversation (`limitOffer`), by the wait it was made for. */
+    readonly #limitOffers = new Map<number, { key: string; offer: LimitOffer | undefined }>();
     /** When each busy session's run began: the list says how long it has been working. */
     readonly #busySince = new Map<ConversationId, number>();
     /** When each conversation's last run ended, since this server started: peek tiles show sessions done since a look. */
@@ -558,6 +572,19 @@ export class PocketApp {
         });
         this.#lockFile = join(options.dataDir, "harness.lock");
         this.#log = options.log ?? ((line) => console.log(line));
+        // After the log: reading the gates kept by the last run may say why it ignored them.
+        this.limits = new LimitGate({
+            hours: () => this.config.limitWaitHours,
+            epoch: (provider) => this.providers.signInEpoch(provider),
+            conversationOf: (sessionId) => this.#conversationOfSession(sessionId),
+            usage: (provider) => this.#usageWindows(provider),
+            modelOf: (provider, modelId) => this.models.getModel(provider, modelId),
+            changed: () => this.#limitsChanged(),
+            started: (conversationId, view) => this.#limitNotice(conversationId, view),
+            log: (line) => this.#log(line),
+            file: join(options.dataDir, "provider-limits.json"),
+            ...(options.limits === undefined ? {} : { tuning: options.limits }),
+        });
         this.themes = new Themes({
             builtIn: join(APP_ROOT, "web", "themes"),
             dataDir: options.dataDir,
@@ -687,6 +714,9 @@ export class PocketApp {
         await this.teamMachines.start();
         await this.syncTeamMachines();
         measureModelStreams(this.models);
+        // Outside the timing wrapper, so each attempt is timed on its own, not the wait before it; inside the image guard,
+        // so a request's images are shrunk once, not at every try.
+        this.limits.install(this.models);
         await this.models.getAvailable().catch(() => []);
 
         const registry = createRegistry();
@@ -1133,6 +1163,11 @@ export class PocketApp {
                     this.#busySince.set(id, Date.now());
                 }
 
+                // A compaction that resumes asks the model too: it may wait for a limit.
+                if ((live?.compactions?.length ?? 0) > 0) {
+                    this.#compacting.add(id);
+                }
+
                 const agent = await this.harness.snapshot(AgentDoc, id, context);
 
                 if (agent !== undefined) {
@@ -1280,6 +1315,13 @@ export class PocketApp {
 
         if (kind === "pi.live" && id !== undefined) {
             const busy = (change.value as LiveState | null)?.run !== undefined;
+
+            // A compaction asks the model too (an idle session's manual one has no run): it may wait for a limit.
+            if (((change.value as LiveState | null)?.compactions?.length ?? 0) > 0) {
+                this.#compacting.add(id);
+            } else {
+                this.#compacting.delete(id);
+            }
 
             if (busy !== this.#busy.has(id)) {
                 if (busy) {
@@ -1570,6 +1612,278 @@ export class PocketApp {
                 () => {},
             );
         }
+    }
+
+    // ─── Waiting for a provider's limit (`limit-gate.ts`, PP-135) ───
+
+    /** The conversation whose generation or compaction sends requests under a provider session id: only those wait. */
+    async #conversationOfSession(sessionId: string): Promise<number | undefined> {
+        for (const id of new Set([...this.#busy, ...this.#compacting])) {
+            const mine = await this.harness.snapshot(ProviderDoc, id, context).catch(() => undefined);
+
+            if (mine?.sessionId === sessionId) {
+                return Number(id);
+            }
+        }
+
+        return undefined;
+    }
+
+    /** An account's plan windows now (its usage bars), asked afresh: a team account's of the team server. */
+    async #usageWindows(provider: string): Promise<UsageWindow[] | undefined> {
+        const usage =
+            this.teamAccounts.label(provider) !== undefined
+                ? (await this.teamAccounts.usage(true)).find((each) => each.provider === provider)
+                : await this.usageLimits.get(provider, true);
+
+        return usage === undefined || "error" in usage ? undefined : usage.windows;
+    }
+
+    /** The usage bars known now, without asking anyone new: kept ones, and the team's kept a minute on the team server. */
+    async #usageKnown(provider: string): Promise<UsageWindow[] | undefined> {
+        const usage =
+            this.teamAccounts.label(provider) !== undefined
+                ? (await this.teamAccounts.usage(false)).find((each) => each.provider === provider)
+                : await this.usageLimits.get(provider);
+
+        return usage === undefined || "error" in usage ? undefined : usage.windows;
+    }
+
+    /** A wait began, changed, or ended: views, the session list, and the account cards follow. */
+    #limitsChanged(): void {
+        const waits = this.limits.waits();
+        const now = new Set(waits.map((wait) => wait.conversationId));
+        const changed = new Set([...this.#limitWaiting, ...now]);
+
+        this.#limitWaiting = now;
+
+        for (const id of this.#limitOffers.keys()) {
+            if (!now.has(id)) {
+                this.#limitOffers.delete(id);
+            }
+        }
+
+        for (const wait of waits) {
+            this.#considerOffer(wait);
+        }
+
+        for (const id of changed) {
+            const conversation = id as unknown as ConversationId;
+
+            // A subagent's wait shows in its session too: its subagents bar, and its account card.
+            for (const room of new Set([conversation, this.rootOf(conversation)])) {
+                void this.#rooms.get(room)?.then(
+                    (open) => open.schedule(),
+                    () => {},
+                );
+            }
+        }
+
+        if (changed.size > 0) {
+            this.#scheduleSessions();
+        }
+    }
+
+    /**
+     * The account card of a waiting conversation (owner's decision of 2026-10-24): its account hit a plan window's limit,
+     * and another account of the same provider has room by its usage bars. Made once for each wait (and again when a
+     * person said to wait: then none), from the bars known now; the view shows it when it is ready.
+     */
+    #considerOffer(wait: Waiting): void {
+        const { view } = wait;
+        const key = `${view.key}|${view.since}|${view.resetAt ?? ""}|${wait.declined}|${wait.modelId}`;
+
+        if (this.#limitOffers.get(wait.conversationId)?.key === key) {
+            return;
+        }
+
+        this.#limitOffers.set(wait.conversationId, { key, offer: undefined });
+
+        if (wait.declined || view.scope !== "account" || view.kind !== "reset" || view.resetAt === undefined) {
+            return;
+        }
+
+        void this.#makeOffer(wait)
+            .then((offer) => {
+                const kept = this.#limitOffers.get(wait.conversationId);
+
+                if (kept?.key !== key || offer === undefined) {
+                    return;
+                }
+
+                kept.offer = offer;
+
+                const id = wait.conversationId as unknown as ConversationId;
+
+                void this.#rooms.get(this.rootOf(id))?.then(
+                    (room) => room.schedule(),
+                    () => {},
+                );
+            })
+            .catch((error: unknown) => this.log(`limit card not made: ${describe(error)}`));
+    }
+
+    async #makeOffer(wait: Waiting): Promise<LimitOffer | undefined> {
+        const { view, modelId } = wait;
+        const base = baseProvider(view.provider);
+        let best: { to: string; used: number; window: string } | undefined;
+
+        for (const provider of this.models.getProviders()) {
+            const to = provider.id;
+
+            if (
+                to === view.provider ||
+                baseProvider(to) !== base ||
+                this.models.getModel(to, modelId) === undefined ||
+                !this.policy.modelAllowed(to, modelId) ||
+                !this.models.hasConfiguredAuth(to) ||
+                this.providers.needsSignIn(to) !== undefined ||
+                this.limits.closed(to, modelId)
+            ) {
+                continue;
+            }
+
+            const windows = await this.#usageKnown(to).catch(() => undefined);
+
+            // Room: every window of its plan has some left. The bar shown is the one that is full here, or its fullest.
+            if (windows === undefined || windows.length === 0 || windows.some((window) => window.usedPercent >= 100)) {
+                continue;
+            }
+
+            const shown = windows.find((window) => window.label === view.window) ?? windows.reduce((a, b) => (b.usedPercent > a.usedPercent ? b : a));
+
+            if (best === undefined || shown.usedPercent < best.used) {
+                best = { to, used: Math.round(shown.usedPercent), window: shown.label };
+            }
+        }
+
+        if (best === undefined || view.resetAt === undefined) {
+            return undefined;
+        }
+
+        const subagent = this.#subagentName(wait.conversationId as unknown as ConversationId);
+
+        return {
+            conversationId: wait.conversationId,
+            ...(subagent === undefined ? {} : { subagent }),
+            provider: view.provider,
+            providerName: this.models.getProvider(view.provider)?.name ?? view.provider,
+            ...(view.window === undefined ? {} : { window: view.window }),
+            resetAt: view.resetAt,
+            until: view.until,
+            modelId,
+            to: best.to,
+            toName: this.models.getProvider(best.to)?.name ?? best.to,
+            toUsed: best.used,
+            toWindow: best.window,
+        };
+    }
+
+    /** The name a subagent conversation has in its parent's subagents, if it is one. */
+    #subagentName(id: ConversationId): string | undefined {
+        for (const { agents } of this.#subagents.values()) {
+            for (const [name, record] of Object.entries(agents)) {
+                if (record.conversationId === id) {
+                    return name;
+                }
+            }
+        }
+
+        return undefined;
+    }
+
+    /** The account cards a session shows: its own wait's, and its subagents' (as their approvals show there). */
+    limitOffersFor(root: ConversationId): LimitOffer[] {
+        const offers: LimitOffer[] = [];
+
+        for (const [id, { offer }] of this.#limitOffers) {
+            if (offer !== undefined && this.rootOf(id as unknown as ConversationId) === root && this.limits.waiting(id)?.declined === false) {
+                offers.push(offer);
+            }
+        }
+
+        return offers;
+    }
+
+    /** The account card a waiting conversation shows now, if any. */
+    limitOffer(id: number): LimitOffer | undefined {
+        return this.limits.waiting(id)?.declined === false ? this.#limitOffers.get(id)?.offer : undefined;
+    }
+
+    /**
+     * A run began to wait a long while for its provider's limit (10 minutes or more): the phone hears it once for the
+     * wait, as an app event and a web push, unless the owner turned the notice off (Providers).
+     */
+    #limitNotice(conversationId: number, view: WaitView): void {
+        if (!this.config.limitNotice) {
+            return;
+        }
+
+        const root = this.rootOf(conversationId as unknown as ConversationId);
+
+        if (this.#sessions[String(root)] === undefined) {
+            return;
+        }
+
+        const named = this.#sessions[String(root)]?.title;
+        const provider = this.models.getProvider(view.provider)?.name ?? view.provider;
+        const time = new Date(view.until).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+        const text =
+            view.window !== undefined
+                ? said("{provider}'s {window} limit · goes on by itself at {time}", { provider, window: view.window, time })
+                : view.scope === "account"
+                  ? said("{provider}'s usage limit · goes on by itself at {time}", { provider, time })
+                  : said("{provider}'s rate limit · goes on by itself at {time}", { provider, time });
+
+        this.phoneEvents.add({
+            kind: "limit",
+            session: Number(root),
+            title: named ?? "Session",
+            text: text.text.replace(/\{(\w+)\}/g, (_, name: string) => String(text.vars?.[name] ?? "")),
+            say: { text, ...(named === undefined ? { title: said("Session") } : {}) },
+        });
+    }
+
+    /**
+     * The owner chooses how many hours a run waits for a provider's limit to clear, at most; 0 turns waiting off, and
+     * runs that wait now go on at once. Another time cuts each wait to the new longest.
+     */
+    async setLimitWaitHours(user: User, hours: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (typeof hours !== "number" || !LIMIT_WAIT_CHOICES.includes(hours)) {
+            throw new HttpError(400, `limitWaitHours must be one of ${LIMIT_WAIT_CHOICES.join(", ")}`);
+        }
+
+        if (hours === this.config.limitWaitHours) {
+            return;
+        }
+
+        this.config.limitWaitHours = hours;
+
+        if (hours === 0) {
+            this.limits.releaseAll();
+        } else {
+            this.limits.reconsider();
+        }
+
+        await this.#refreshClients();
+    }
+
+    /** The owner turns the phone notice of a long wait for a limit on or off. */
+    async setLimitNotice(user: User, on: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (typeof on !== "boolean") {
+            throw new HttpError(400, "limitNotice is true or false");
+        }
+
+        this.config.limitNotice = on;
+        await this.#refreshClients();
     }
 
     /** Every connected tab. */
@@ -2083,6 +2397,7 @@ export class PocketApp {
         }
 
         const sessions = new Map<string, SubagentEntry[]>();
+        const limited = new Map(this.limits.waits().map((wait) => [wait.conversationId, wait.view.until]));
 
         for (const [parent, { agents, reporting }] of this.#subagents) {
             const session = String(this.rootOf(parent));
@@ -2103,6 +2418,7 @@ export class PocketApp {
                         record,
                         this.#busy.has(record.conversationId),
                         reporting.has(name),
+                        limited.get(Number(record.conversationId)),
                     ),
                     ...(ask === undefined
                         ? {}
@@ -2468,6 +2784,10 @@ export class PocketApp {
                 compactAt: this.config.compactAt,
                 // Minutes idle before a session is captured into the wiki, or null (`para-capture.ts`).
                 wikiCaptureMinutes: this.config.wikiCaptureMinutes,
+                // The most hours a run waits for a provider's limit to clear; 0: it does not wait (`limit-gate.ts`).
+                limitWaitHours: this.config.limitWaitHours,
+                // Whether the phone hears of a wait of 10 minutes or more.
+                limitNotice: this.config.limitNotice,
                 // The model and thinking level new sessions start with, or null for the last one picked.
                 defaultModel: this.config.defaultModel ?? null,
                 // The theme and colors of browsers that have not chosen their own, or null for the app's own.
@@ -2564,6 +2884,14 @@ export class PocketApp {
         );
         const people = new Map<string, Map<string, string>>();
         const subagents = this.#subagentsBySession();
+        // The sessions in a wait for a provider's limit, their subagents' included: when the next request goes out.
+        const limited = new Map<string, number>();
+
+        for (const wait of this.limits.waits()) {
+            const session = String(this.rootOf(wait.conversationId as unknown as ConversationId));
+
+            limited.set(session, Math.min(limited.get(session) ?? Infinity, wait.view.until));
+        }
 
         for (const client of this.#clients) {
             if (client.conversationId === undefined) {
@@ -2625,6 +2953,7 @@ export class PocketApp {
                     ...(busy && busySince !== undefined ? { busySince } : {}),
                     ...(branch === undefined ? {} : { branch }),
                     waiting: waiting.has(id),
+                    ...(limited.has(id) ? { limited: limited.get(id)! } : {}),
                     ...(endedAt === undefined ? {} : { endedAt }),
                     ...(this.#failed.has(Number(id) as unknown as ConversationId)
                         ? { failed: true }
@@ -3719,7 +4048,8 @@ export class PocketApp {
         const reply = await this.models.completeSimple(
             model,
             { messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image", data, mimeType: mime }], timestamp: Date.now() }] },
-            { maxTokens: 400, cacheRetention: "none" },
+            // A picture's description for search never waits for a provider's limit (`limit-gate.ts`).
+            noWait({ maxTokens: 400, cacheRetention: "none" as const }),
         );
 
         this.spend.wikiUsed({ model: chosen, tokens: reply.usage.totalTokens, cost: reply.usage.cost.total });
@@ -4148,6 +4478,7 @@ export class PocketApp {
             clearInterval(this.#browserSweep);
             this.themes.close();
             this.spend.close();
+            this.limits.close();
             this.#unsubscribeCommits?.();
             this.#unsubscribeApprovals?.();
 

@@ -92,6 +92,11 @@ export class Providers {
         this.modelRefresh = new ModelRefresh(app);
     }
 
+    /** How many sign-ins and sign-outs here a provider has had: a limit that one account hit is not the next one's. */
+    signInEpoch(providerId: string): number {
+        return this.#signIns.get(providerId) ?? 0;
+    }
+
     /** Why a provider's sign-in needs a person to sign in again, as last asked; undefined when it does not. */
     needsSignIn(providerId: string): string | undefined {
         return this.#expired.get(providerId);
@@ -223,6 +228,8 @@ export class Providers {
     #signedInOrOut(providerId: string): void {
         this.#signIns.set(providerId, (this.#signIns.get(providerId) ?? 0) + 1);
         this.#expired.delete(providerId);
+        // What a gate knew of a limit was about the account that is gone (`limit-gate.ts`).
+        this.#app.limits.reset(providerId);
     }
 
     /** A mark came or went: tabs get the models marked again, and sessions' views their model's state. */

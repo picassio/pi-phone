@@ -536,5 +536,12 @@
     "Turn notifications on from the app's page.": "请在应用的页面上开启通知。",
     "Notifications are not on for that device.": "该设备未开启通知。",
     "That device's notifications ended: turn them on there again.": "该设备的通知已失效：请在那台设备上重新开启。",
-    "The notification did not go: {why}": "通知未能发出：{why}"
+    "The notification did not go: {why}": "通知未能发出：{why}",
+    "limitWaitHours must be one of {1}": "limitWaitHours 必须是以下之一：{1}",
+    "limitNotice is true or false": "limitNotice 必须是 true 或 false",
+    "That wait is not this session's.": "这次等待不属于本会话。",
+    "That wait is over, or already answered.": "这次等待已结束，或已经回答过。",
+    "choice is wait or move": "choice 必须是 wait 或 move",
+    "That account is not offered any more.": "已不再提供该账户。",
+    "That wait is over.": "这次等待已结束。"
 }

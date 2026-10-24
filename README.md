@@ -60,6 +60,15 @@ No Termux, no laptop, no cloud VM.
   windows (Copilot: the month's premium requests), with reset times, as bars in Providers, in the model menu, and as a
   meter in the session's top bar that opens to every window. At 90% of a window the session says so, with **Switch to** your other
   accounts; a request that fails on the limit offers **Continue on** another account. pi-phone never switches by itself.
+- **Wait out provider limits.** A run that hits a 429, an overload, or a Claude or ChatGPT plan window waits inside
+  its request until the provider's own reset (its headers, else the account's usage bars, else growing gaps), then goes
+  on by itself, a restart included. The live line says whose limit and when it tries again, with **Retry now** and
+  **Stop**; the session's row, peek tile, and the subagents board show an amber square. When another account of the
+  same provider has room, a card asks: **Wait until** the reset, or **Move to** that account (the waiting request goes
+  there, and the session uses it from then on). A reset further away (a weekly window), billing, or an expired sign-in
+  fails at once, with the reset time. **Providers › Wait for a limit**: off, 1, 6 (the default), 12, or 24 hours at
+  most, and one phone notification for a wait of 10 minutes or more (on unless you turn it off). Titles never wait.
+  From pi-pocket 0.21.0 (named windows: #128 by @piromagnus).
 - **Spend.** What Pi spent, by person and by session, with limits the owner sets (past one, Pi takes no new
   messages there). The wiki's search by meaning has a line of its own: its remote embeddings (indexing and queries),
   with requests and tokens, in the total and in nobody's limit.
@@ -321,6 +330,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 |---|---|---|
 | Model providers (Claude, Codex, Copilot, OpenRouter, …) | **Providers**: sign in, or **API key**; **Add account** for a second one | No for signing in, which is yours. Yes for removing an extra account or signing out |
 | Default model for new sessions | **Default model** | "Set the default model to anthropic/claude-opus-… high" |
+| Waiting for a provider's limit | **Providers › Wait for a limit**: the longest wait, and the notice of a long one; a waiting session's **Retry now**, **Stop**, and its account card | "Wait at most 12 hours for limits", "Retry session 12 now", "Move session 12 to the Work account" |
 | GitHub for Pi's `git` and `gh` | **GitHub**: a device code | No for signing in. Yes for signing out |
 | **OpenRouter** (needed for Jev, the wiki's search by meaning, and OpenRouter web search) | **Providers › OpenRouter**: sign in, or **API key** | No, signing in is yours |
 | **Jev** as the model for `browser_run` | **Pi's browser › Run model**: *Jev*, id `typesafe/jev-1.13`, for every session or only this one (*Session model* uses each session's own model) | "Use Jev for browser runs" (or "…in this session only") |

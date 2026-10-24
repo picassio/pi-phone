@@ -1161,6 +1161,83 @@ export class Commands {
         );
     }
 
+    /**
+     * Send the request of a run that waits for a provider's limit now, rather than at its time (`limit-gate.ts`): of
+     * this conversation, or of its subagents. The request goes whether or not the limit has cleared: the provider
+     * rejects it at no cost, or answers. Who may see and steer the session may. False: nothing there waits, or a try
+     * went less than 30 seconds ago.
+     */
+    async retryLimit(id: ConversationId, user: User): Promise<boolean> {
+        const app = this.#app;
+
+        app.requireSee(user, id);
+        app.requireSteer(user);
+
+        let sent = app.limits.retryNow(Number(id));
+
+        for (const wait of app.limits.waits()) {
+            if (wait.conversationId !== Number(id) && app.rootOf(wait.conversationId as unknown as ConversationId) === id) {
+                sent = app.limits.retryNow(wait.conversationId) || sent;
+            }
+        }
+
+        if (sent) {
+            await app.collab.activity(id, user, "tried again without waiting for the limit");
+        }
+
+        return sent;
+    }
+
+    /**
+     * Answer the account card of a wait for a limit (PP-135), shown in session `id` for it or one of its subagents
+     * (`waiting`): `wait` keeps waiting and puts the card away; `move` sends the waiting request through the other account
+     * (`to`) in the same stream, and sets the waiting conversation's model to the same model there, so what follows uses
+     * that account too.
+     */
+    async answerLimit(id: ConversationId, user: User, body: { conversationId?: unknown; choice?: unknown; to?: unknown }): Promise<void> {
+        const app = this.#app;
+
+        app.requireSee(user, id);
+        app.requireSteer(user);
+
+        const waiting = body.conversationId === undefined ? Number(id) : Number(body.conversationId);
+
+        if (!Number.isInteger(waiting) || app.rootOf(waiting as unknown as ConversationId) !== id) {
+            throw new HttpError(400, "That wait is not this session's.");
+        }
+
+        const offer = app.limitOffer(waiting);
+
+        if (offer === undefined) {
+            throw new HttpError(409, "That wait is over, or already answered.");
+        }
+
+        if (body.choice === "wait") {
+            app.limits.decline(waiting);
+            await app.collab.activity(id, user, "chose to wait for the limit");
+
+            return;
+        }
+
+        if (body.choice !== "move") {
+            throw new HttpError(400, "choice is wait or move");
+        }
+
+        if (body.to !== offer.to) {
+            throw new HttpError(409, "That account is not offered any more.");
+        }
+
+        const conversation = await app.conversation(waiting as unknown as ConversationId);
+
+        await conversation.configure({ model: { provider: offer.to, modelId: offer.modelId } }, context);
+
+        if (!app.limits.move(waiting, offer.to)) {
+            throw new HttpError(409, "That wait is over.");
+        }
+
+        await app.collab.activity(id, user, `moved the waiting request to ${offer.toName}`);
+    }
+
     /** Stop the run. Anyone who can steer may, even while someone else drives: stopping is the safe direction. */
     async abort(id: ConversationId, user: User): Promise<void> {
         const app = this.#app;
