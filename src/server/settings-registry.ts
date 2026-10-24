@@ -842,9 +842,9 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "limits.answer",
             area: "limits",
             title: "Answer a limit's account card",
-            help: "A session whose request waits for one account's limit, with another account of the provider offered: choice wait (keep waiting) or move (send the request through the offered account, and use it from now on). conversation: the waiting subagent's number, when it is a subagent's.",
+            help: "A session whose request waits for one account's limit, with other accounts of the provider listed on its card (the person's own first, then team accounts): choice wait (keep waiting) or move (send the request through the account you name, checked again now, and use it from now on; a subagent's move moves its session too). conversation: the waiting subagent's number, when it is a subagent's.",
             owner: true,
-            args: { session: "The session's number", choice: "wait or move", account: "For move: the offered account's provider id", conversation: "Optional: the waiting subagent's conversation number" },
+            args: { session: "The session's number", choice: "wait or move", account: "For move: the chosen account's provider id, one the card lists", conversation: "Optional: the waiting subagent's conversation number" },
             describe: (args) => (args.choice === "move" ? `Move session ${args.session ?? ""}'s waiting request to ${args.account ?? ""}` : `Keep session ${args.session ?? ""} waiting for its limit`),
             run: async (user, args) => {
                 await app.commands.answerLimit(session(args.session), user, {

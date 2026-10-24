@@ -63,11 +63,13 @@ No Termux, no laptop, no cloud VM.
 - **Wait out provider limits.** A run that hits a 429, an overload, or a Claude or ChatGPT plan window waits inside
   its request until the provider's own reset (its headers, else the account's usage bars, else growing gaps), then goes
   on by itself, a restart included. The live line says whose limit and when it tries again, with **Retry now** and
-  **Stop**; the session's row, peek tile, and the subagents board show an amber square. When another account of the
-  same provider has room (your own first, the emptiest; a team server's shared account, marked *(team)*, only when none
-  of yours has room, as it spends the team's subscription), a card asks: **Wait until** the
-  reset, or **Move to** that account (the waiting request goes there, and the session uses it from then on; a
-  subagent's card moves the subagent and its session). While the card is up, the usage banner over the message box
+  **Stop**; the session's row, peek tile, and the subagents board show an amber square. When other accounts of the
+  same provider have room, the card's dropdown lists every one, with how much of the window that ran out it has used:
+  yours first, then a team server's shared accounts, marked *(team)* as they spend the team's subscription, each the
+  emptiest first (the first is picked until you pick another). You choose: **Move** sends the waiting request to the
+  account picked (checked again
+  at that moment; one that filled up meanwhile is refused, with why, and the card refreshes), and the session uses it
+  from then on; a subagent's card moves the subagent and its session. Or **Wait until** the reset. While the card is up, the usage banner over the message box
   steps aside. A reset further away (a weekly window), billing, or an expired sign-in fails at once, with the reset time.
   **Providers › Wait for a limit**: off, 1, 6 (the default), 12, or 24 hours at most, and one phone notification for a
   wait of 10 minutes or more (on unless you turn it off; a browser's push says the time on that browser's clock).

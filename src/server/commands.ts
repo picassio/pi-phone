@@ -1191,8 +1191,8 @@ export class Commands {
 
     /**
      * Answer the account card of a wait for a limit (PP-135), shown in session `id` for it or one of its subagents
-     * (`waiting`): `wait` keeps waiting and puts the card away; `move` sends the waiting request through the other account
-     * (`to`) in the same stream, and sets the waiting conversation's model to the same model there, so what follows uses
+     * (`waiting`): `wait` keeps waiting and puts the card away; `move` sends the waiting request through the account the
+     * person chose (`to`, any the card lists, checked again now) in the same stream, and sets the waiting conversation's model to the same model there, so what follows uses
      * that account too. A subagent's move moves its session too (owner's decision of 2026-10-24): the session's own model
      * id under the other account, when the session is on an account of the same provider and that account has it.
      */
@@ -1225,31 +1225,38 @@ export class Commands {
             throw new HttpError(400, "choice is wait or move");
         }
 
-        if (body.to !== offer.to) {
-            throw new HttpError(409, "That account is not offered any more.");
+        if (typeof body.to !== "string" || body.to === "") {
+            throw new HttpError(400, "Name the account to move to (to: its provider id).");
         }
 
+        // The person chose it (owner's decision of 2026-10-24): it must still qualify now, its usage asked afresh. If not,
+        // the card is made again, and the refusal says why.
+        const to = body.to;
+
+        await app.recheckLimitAccount(waiting, to);
+
+        const name = app.models.getProvider(to)?.name ?? to;
         // A subagent's session goes to the other account too: checked before anything moves.
         const own = waiting === Number(id) ? undefined : (await app.agentState(id))?.model;
-        const session = own !== undefined && own.provider !== offer.to && baseProvider(own.provider) === baseProvider(offer.to) ? own.modelId : undefined;
+        const session = own !== undefined && own.provider !== to && baseProvider(own.provider) === baseProvider(to) ? own.modelId : undefined;
 
-        if (session !== undefined && (app.models.getModel(offer.to, session) === undefined || !app.policy.modelAllowed(offer.to, session))) {
-            throw new HttpError(409, `${offer.toName} has no ${session} for this session to move to.`);
+        if (session !== undefined && (app.models.getModel(to, session) === undefined || !app.policy.modelAllowed(to, session))) {
+            throw new HttpError(409, `${name} has no ${session} for this session to move to.`);
         }
 
         const conversation = await app.conversation(waiting as unknown as ConversationId);
 
-        await conversation.configure({ model: { provider: offer.to, modelId: offer.modelId } }, context);
+        await conversation.configure({ model: { provider: to, modelId: offer.modelId } }, context);
 
         if (session !== undefined) {
-            await (await app.conversation(id)).configure({ model: { provider: offer.to, modelId: session } }, context);
+            await (await app.conversation(id)).configure({ model: { provider: to, modelId: session } }, context);
         }
 
-        if (!app.limits.move(waiting, offer.to)) {
+        if (!app.limits.move(waiting, to)) {
             throw new HttpError(409, "That wait is over.");
         }
 
-        await app.collab.activity(id, user, `moved the waiting request to ${offer.toName}`);
+        await app.collab.activity(id, user, `moved the waiting request to ${name}`);
     }
 
     /** Stop the run. Anyone who can steer may, even while someone else drives: stopping is the safe direction. */

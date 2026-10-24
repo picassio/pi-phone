@@ -542,7 +542,13 @@
     "That wait is not this session's.": "这次等待不属于本会话。",
     "That wait is over, or already answered.": "这次等待已结束，或已经回答过。",
     "choice is wait or move": "choice 必须是 wait 或 move",
-    "That account is not offered any more.": "已不再提供该账户。",
+    "{1} is not an account this request can move to.": "{1} 不是这个请求可以改用的账号。",
+    "{1} has no {2} you may use.": "{1} 没有你可以使用的 {2}。",
+    "{1} is not signed in: sign in to it in Providers, or pick another account.": "{1} 未登录：请在提供方中登录，或选择其他账号。",
+    "{1} is waiting for a limit of its own: pick another account, or wait.": "{1} 自己也在等待额度恢复：请选择其他账号，或继续等待。",
+    "{1}'s usage is not known now: pick another account, or wait.": "目前不知道 {1} 的用量：请选择其他账号，或继续等待。",
+    "{1} has no room now: its {2} window is full. Pick another account, or wait.": "{1} 现在没有余量：它的 {2} 窗口已用满。请选择其他账号，或继续等待。",
+    "Name the account to move to (to: its provider id).": "请指明要改用的账号（to：它的提供方 id）。",
     "That wait is over.": "这次等待已结束。",
     "{1} has no {2} for this session to move to.": "{1} 没有可供本会话改用的 {2}。"
 }

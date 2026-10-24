@@ -28,21 +28,24 @@ let usage: Record<string, { five: number; fiveReset: number; week?: number }> = 
 
 let provider: Awaited<ReturnType<typeof fakeAnthropic>>;
 const apps: App[] = [];
-let server: Server | undefined;
+/** Every app's HTTP server, open until the end: a port closed and given out again would meet fetch's kept connection to it. */
+const servers: Server[] = [];
 let port = 0;
 
 before(async () => {
     provider = await fakeAnthropic((token, call, body) => behave(token, call, body));
     mkdirSync(agentDir, { recursive: true });
     // `anthropic~team-x`: a team account's id, as the team server's shared accounts have (`accounts.ts`).
-    writeFileSync(join(agentDir, "auth.json"), signIns({ anthropic: "tok-default", "anthropic~work": "tok-work", "anthropic~team-x": "tok-team" }));
+    writeFileSync(join(agentDir, "auth.json"), signIns({ anthropic: "tok-default", "anthropic~work": "tok-work", "anthropic~home": "tok-home", "anthropic~team-x": "tok-team" }));
     // Pi Durable's own short retries, quick: a refusal the gate gives fails the run in a moment.
     writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ retry: { baseDelayMs: 20 } }));
 });
 
 after(async () => {
-    server?.closeAllConnections();
-    server?.close();
+    for (const server of servers) {
+        server.closeAllConnections();
+        server.close();
+    }
 
     for (const app of apps) {
         await app.close();
@@ -88,14 +91,17 @@ async function open(dir = join(root, `limits-${apps.length}`), tuning: Partial<L
 
 /** The app's HTTP API, as a browser calls it. */
 async function http(app: App) {
-    server?.closeAllConnections();
-    server?.close();
-    server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
-    await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
-    port = (server.address() as { port: number }).port;
+    const server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
+
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+    const at = (server.address() as { port: number }).port;
+
+    port = at;
 
     return (route: string, body: unknown = {}, token = app.config.ownerToken) =>
-        fetch(`http://127.0.0.1:${port}/api/${route}`, {
+        fetch(`http://127.0.0.1:${at}/api/${route}`, {
             method: "POST",
             headers: { authorization: `Bearer ${token}`, "x-pocket": "1", "content-type": "application/json" },
             body: JSON.stringify(body),
@@ -110,6 +116,9 @@ async function session(app: App, account = "anthropic"): Promise<ConversationId>
 
     return id;
 }
+
+/** An account card as a tab gets it. */
+type Offer = { conversationId: number; subagent?: string; window: string; providerName: string; accounts: { to: string; name: string; team?: true; used: number; window: string }[] };
 
 /** A browser's push subscription: a P-256 key and a secret, at a push service address. */
 function browserSubscription() {
@@ -334,7 +343,6 @@ test("another account with room: the card offers it; Wait keeps waiting, Move se
     usage = { "tok-default": { five: 100, fiveReset: reset }, "tok-work": { five: 20, fiveReset: reset + 60_000, week: 30 } };
     behave = (token) => (token === "tok-work" ? { text: "answered at work" } : fiveHourLimit(reset));
 
-    type Offer = { conversationId: number; to: string; toName: string; toUsed: number; toWindow: string; window: string; providerName: string };
     const offers = (tab: ReturnType<typeof fakeTab>) => (tab.field("limitOffers") ?? []) as Offer[];
 
     await send(app, waits);
@@ -342,10 +350,8 @@ test("another account with room: the card offers it; Wait keeps waiting, Move se
 
     const [offer] = offers(waitTab);
 
-    assert.deepEqual(
-        [offer!.conversationId, offer!.to, offer!.toUsed, offer!.toWindow, offer!.window, offer!.providerName, offer!.toName],
-        [Number(waits), "anthropic~work", 20, "5-hour", "5-hour", "Anthropic", "Anthropic · Work"],
-    );
+    assert.deepEqual([offer!.conversationId, offer!.window, offer!.providerName], [Number(waits), "5-hour", "Anthropic"]);
+    assert.deepEqual(offer!.accounts, [{ to: "anthropic~work", name: "Anthropic · Work", used: 20, window: "5-hour" }]);
 
     // Wait: the card goes, and the run keeps waiting.
     assert.equal((await call(`c/${waits}/limit/answer`, { choice: "wait" })).status, 200);
@@ -355,7 +361,7 @@ test("another account with room: the card offers it; Wait keeps waiting, Move se
     // Move: the other session's waiting request goes through the Work account, and the session uses it from now on.
     await send(app, moves);
     await until(() => offers(moveTab).length === 1, "the second card");
-    assert.equal((await call(`c/${moves}/limit/answer`, { choice: "move", to: "anthropic~other" })).status, 409, "only the account offered");
+    assert.equal((await call(`c/${moves}/limit/answer`, { choice: "move", to: "anthropic~other" })).status, 409, "only an account that qualifies");
     assert.equal((await call(`c/${moves}/limit/answer`, { choice: "move", to: "anthropic~work" })).status, 200);
     await until(() => answered(app, moves), "the answer through the other account");
     assert.deepEqual(
@@ -369,37 +375,13 @@ test("another account with room: the card offers it; Wait keeps waiting, Move se
     usage = {};
 });
 
-test("the person's own account with room comes first, before an emptier team account", async () => {
-    const app = await open();
-
-    app.accounts.add("anthropic", "Work");
-    // A team account's provider, as the team server's sync registers one here.
-    app.models.registerNativeProvider(accountProvider(localAnthropic(provider.url), "anthropic~team-x", "Team X"));
-
-    const id = await session(app);
-    const tab = fakeTab(id, owner(app));
-    const reset = Date.now() + 3_600_000;
-
-    await app.attach(tab.client);
-    // The team account is the emptiest, but Work has room: Work first.
-    usage = { "tok-default": { five: 100, fiveReset: reset }, "tok-work": { five: 40, fiveReset: reset }, "tok-team": { five: 5, fiveReset: reset } };
-    behave = (token) => (token === "tok-default" ? fiveHourLimit(reset) : { text: "answered" });
-    await send(app, id);
-    await until(() => ((tab.field("limitOffers") ?? []) as unknown[]).length === 1, "the card");
-    assert.deepEqual(
-        ((tab.field("limitOffers") ?? []) as { to: string; toUsed: number }[]).map((offer) => [offer.to, offer.toUsed]),
-        [["anthropic~work", 40]],
-    );
-    assert.equal(((tab.field("limitOffers") ?? []) as { toTeam?: true }[])[0]?.toTeam, undefined, "not marked team");
-    await app.commands.abort(id, owner(app));
-    usage = {};
-});
-
-test("with no own account that has room, the card offers the team account, marked, and Move goes through it", async () => {
+test("the card lists every account with room, own first then the team's, each the emptiest first; Move on the second goes there", async () => {
     const app = await open();
     const call = await http(app);
 
-    // No other account of the person's own; a team account's provider, as the team server's sync registers one here.
+    app.accounts.add("anthropic", "Work");
+    app.accounts.add("anthropic", "Home");
+    // A team account's provider, as the team server's sync registers one here.
     app.models.registerNativeProvider(accountProvider(localAnthropic(provider.url), "anthropic~team-x", "Team X"));
 
     const id = await session(app);
@@ -408,20 +390,65 @@ test("with no own account that has room, the card offers the team account, marke
     const from = provider.calls.length;
 
     await app.attach(tab.client);
-    usage = { "tok-default": { five: 100, fiveReset: reset }, "tok-team": { five: 5, fiveReset: reset } };
-    behave = (token) => (token === "tok-team" ? { text: "answered on the team's account" } : fiveHourLimit(reset));
+    // The team account is the emptiest, and still listed last: it spends the team's subscription.
+    usage = { "tok-default": { five: 100, fiveReset: reset }, "tok-work": { five: 40, fiveReset: reset }, "tok-home": { five: 10, fiveReset: reset }, "tok-team": { five: 5, fiveReset: reset } };
+    behave = (token) => (token === "tok-default" ? fiveHourLimit(reset) : { text: `answered with ${token}` });
 
-    type Offer = { to: string; toName: string; toTeam?: true; toUsed: number };
     const offers = () => (tab.field("limitOffers") ?? []) as Offer[];
 
     await send(app, id);
     await until(() => offers().length === 1, "the card");
+    assert.deepEqual(offers()[0]!.accounts, [
+        { to: "anthropic~home", name: "Anthropic · Home", used: 10, window: "5-hour" },
+        { to: "anthropic~work", name: "Anthropic · Work", used: 40, window: "5-hour" },
+        { to: "anthropic~team-x", name: "Anthropic · Team X", team: true, used: 5, window: "5-hour" },
+    ]);
+
+    // The person picks the second, not the emptiest.
+    assert.equal((await call(`c/${id}/limit/answer`, { choice: "move", to: "anthropic~work" })).status, 200);
+    await until(() => answered(app, id), "the answer through Work");
     assert.deepEqual(
-        offers().map((offer) => [offer.to, offer.toName, offer.toTeam, offer.toUsed]),
-        [["anthropic~team-x", "Anthropic · Team X", true, 5]],
+        callsSince(from).map((each) => each.token),
+        ["tok-default", "tok-work"],
     );
+    assert.equal((await app.agentState(id))?.model?.provider, "anthropic~work");
+    usage = {};
+});
+
+test("a chosen account that filled up meanwhile is refused with why, the card refreshes, and the team's account takes the request", async () => {
+    const app = await open();
+    const call = await http(app);
+
+    app.accounts.add("anthropic", "Work");
+    app.models.registerNativeProvider(accountProvider(localAnthropic(provider.url), "anthropic~team-x", "Team X"));
+
+    const id = await session(app);
+    const tab = fakeTab(id, owner(app));
+    const reset = Date.now() + 3_600_000;
+    const from = provider.calls.length;
+
+    await app.attach(tab.client);
+    usage = { "tok-default": { five: 100, fiveReset: reset }, "tok-work": { five: 20, fiveReset: reset }, "tok-team": { five: 5, fiveReset: reset } };
+    behave = (token) => (token === "tok-default" ? fiveHourLimit(reset) : { text: `answered with ${token}` });
+
+    const listed = () => ((tab.field("limitOffers") ?? []) as Offer[])[0]?.accounts.map((account) => account.to) ?? [];
+
+    await send(app, id);
+    await until(() => listed().length === 2, "the card");
+    assert.deepEqual(listed(), ["anthropic~work", "anthropic~team-x"]);
+
+    // Work fills up while the card is open: the answer checks again, refuses, and the card lists what is left.
+    usage["tok-work"] = { five: 100, fiveReset: reset };
+
+    const refused = await call(`c/${id}/limit/answer`, { choice: "move", to: "anthropic~work" });
+
+    assert.equal(refused.status, 409);
+    assert.match(((await refused.json()) as { error: string }).error, /Anthropic · Work has no room now: its 5-hour window is full\. Pick another account, or wait\./);
+    await until(() => JSON.stringify(listed()) === JSON.stringify(["anthropic~team-x"]), "the card made again");
+    assert.ok(app.limits.waitFor(Number(id)), "still waiting");
+
     assert.equal((await call(`c/${id}/limit/answer`, { choice: "move", to: "anthropic~team-x" })).status, 200);
-    await until(() => answered(app, id), "the answer through the team account");
+    await until(() => answered(app, id), "the answer through the team's account");
     assert.deepEqual(
         callsSince(from).map((each) => each.token),
         ["tok-default", "tok-team"],

@@ -31,10 +31,11 @@ let page: BrowserPage;
 let base = "";
 const reset = Date.now() + 2 * 3_600_000 + 15 * 60_000;
 
-/** Claude's usage endpoint: the default account's 5-hour window is full, Work has room. */
+/** Claude's usage endpoint: the default account's 5-hour window is full; Work, Home and the team's have room. */
+const USED: Record<string, number> = { "tok-default": 100, "tok-work": 18, "tok-home": 42, "tok-team": 7 };
 const usageFetch = (async (_url: string | URL | Request, init?: RequestInit) => {
     const token = String(new Headers(init?.headers).get("authorization") ?? "").replace(/^Bearer /, "");
-    const five = token === "tok-default" ? 100 : 18;
+    const five = USED[token] ?? 0;
 
     return Response.json({
         five_hour: { utilization: five, resets_at: new Date(reset).toISOString() },
@@ -52,7 +53,7 @@ before(async () => {
     const agent = join(root, "agent");
 
     mkdirSync(agent, { recursive: true });
-    writeFileSync(join(agent, "auth.json"), signIns({ anthropic: "tok-default", "anthropic~work": "tok-work", "anthropic~team-x": "tok-team" }));
+    writeFileSync(join(agent, "auth.json"), signIns({ anthropic: "tok-default", "anthropic~work": "tok-work", "anthropic~home": "tok-home", "anthropic~team-x": "tok-team" }));
     app = await PocketApp.open({
         dataDir: join(root, "limit-ui-data"),
         defaultCwd: work,
@@ -66,6 +67,9 @@ before(async () => {
         officecli: { runs: false },
     });
     app.accounts.add("anthropic", "Work");
+    app.accounts.add("anthropic", "Home");
+    // A team account's provider, as the team server's sync registers one here.
+    app.models.registerNativeProvider(accountProvider(localAnthropic(provider.url), "anthropic~team-x", "Team X"));
     server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -96,6 +100,31 @@ async function until(check: () => Promise<boolean> | boolean, what: string, time
 }
 
 const inPage = async <T>(script: string): Promise<T> => JSON.parse(await page.evaluate(script)) as T;
+/** The card's dropdown and Move: the account picked, what the dropdown shows, and Move's name for a screen reader. */
+const picked = () =>
+    inPage<{ to: string; shown: string; label: string } | null>(`
+        const move = document.querySelector(".limit-card-move");
+
+        return JSON.stringify(move === null ? null : {
+            to: move.dataset.to,
+            shown: move.querySelector(".choice").innerText.trim().split(/\\s*\\n\\s*/).join("\\n"),
+            label: move.querySelector(".button")?.getAttribute("aria-label") ?? "",
+        });
+    `);
+
+/** The dropdown's list, opened: each account's name and its window's use, in order. */
+async function choices(): Promise<string[][]> {
+    await page.click({ selector: ".limit-card-move .choice" });
+    await until(async () => await inPage<boolean>(`return JSON.stringify(document.querySelector(".choice-menu .pop-menu-row") !== null)`), "the dropdown's list");
+
+    return await inPage<string[][]>(`
+        return JSON.stringify([...document.querySelectorAll(".choice-menu .pop-menu-row")].map((row) => [
+            row.querySelector(".pop-menu-row-name").innerText.trim(),
+            row.querySelector(".pop-menu-row-sub")?.innerText.trim() ?? "",
+        ]));
+    `);
+}
+
 /** The older usage banner over the composer (`usage.js`, UsageWarning) is on screen. */
 const banner = () => inPage<boolean>(`return JSON.stringify(document.querySelector(".usage-warning") !== null)`);
 const text = (selector: string) => inPage<string>(`return JSON.stringify(document.querySelector(${JSON.stringify(selector)})?.innerText ?? "")`);
@@ -134,17 +163,19 @@ const fits = (selectors: string[]) =>
         return JSON.stringify(inside && scroller.scrollWidth <= scroller.clientWidth);
     `);
 
-test("the live line, the limited square, the account card, and Move, at 1280 and 390 px", real, async () => {
-    behave = (token) => (token === "tok-work" ? { text: "Answered through the Work account." } : fiveHourLimit(reset));
+test("the live line, the limited square, the account card with every account, and Move on the one chosen, at 1280 and 390 px", real, async () => {
+    behave = (token) => (token === "tok-default" ? fiveHourLimit(reset) : { text: `Answered with ${token}.` });
 
     const id = await session("refactor the parser");
 
     await page.setViewport(VIEWPORTS.desktop);
     await page.navigate(`${base}/s/${id}`);
     await until(async () => /Waiting for Anthropic's 5-hour limit.*next try in.*resets.*Retry now.*Stop/s.test(await text(".live-line")), "the live line");
-    await until(async () => /Move to Anthropic · Work/.test(await text(".limit-card")), "the account card");
+    await until(async () => (await picked()) !== null, "the account card");
     assert.match(await text(".limit-card"), /Anthropic hit its 5-hour limit\. It resets at .+\(in 2h 1\dm\)\./);
-    assert.match(await text(".limit-card"), /Anthropic · Work has room: 18% of its 5-hour used\./);
+    // The first listed is picked: the person's own emptiest.
+    assert.deepEqual(await picked(), { to: "anthropic~work", shown: "Anthropic · Work\n18% of 5-hour used", label: "Move to Anthropic · Work" });
+    assert.match(await text(".limit-card-actions"), /^Wait until .+$/);
     assert.ok(await inPage<boolean>(`return JSON.stringify(document.querySelector('.sidebar .session-row[data-id="${id}"] .status-limit') !== null)`), "the row's limited square");
     assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector('.sidebar .session-row[data-id="${id}"]').dataset.state)`), "limited");
     assert.equal(await banner(), false, "the usage banner over the composer is hidden while the card is up");
@@ -152,9 +183,12 @@ test("the live line, the limited square, the account card, and Move, at 1280 and
 
     await page.setViewport(VIEWPORTS.mobile);
     await page.navigate(`${base}/s/${id}`);
-    await until(async () => /Retry now/.test(await text(".live-line")) && (await text(".limit-card")) !== "", "the phone's view");
-    assert.equal(await fits([".live-retry", ".live-line .stop", ".limit-card", ".limit-card .button.primary"]), true, "inside the column, no sideways scroll");
-    // The card's two answers, one above the other, each as wide as the card's row.
+    await until(async () => /Retry now/.test(await text(".live-line")) && (await picked()) !== null, "the phone's view");
+    assert.equal(await fits([".live-retry", ".live-line .stop", ".limit-card", ".limit-card-move .choice", ".limit-card-move .button", ".limit-card-actions .button"]), true, "inside the column, no sideways scroll");
+    // The dropdown and Move are touch-sized, and Wait is as wide as the card.
+    const heights = await inPage<number[]>(`return JSON.stringify([".limit-card-move .choice", ".limit-card-move .button"].map((selector) => Math.round(document.querySelector(selector).getBoundingClientRect().height)))`);
+
+    assert.ok(heights.every((height) => height >= 44), JSON.stringify(heights));
     const answers = await inPage<{ widths: number[]; row: number; flex: string }>(`
         const row = document.querySelector(".limit-card-actions");
         const buttons = [...row.querySelectorAll(".button")];
@@ -166,9 +200,20 @@ test("the live line, the limited square, the account card, and Move, at 1280 and
     assert.equal(await banner(), false);
     await shot("limit-wait-390");
 
-    // Move: the request goes through Work, and the session answers.
-    await page.click({ selector: ".limit-card .button.primary" });
-    await until(async () => (await app.agentState(id))?.model?.provider === "anthropic~work" && !app.isBusy(id), "the move and the answer");
+    // The dropdown lists every account: the person's own first, then the team's, marked, each the emptiest first.
+    assert.deepEqual(await choices(), [
+        ["Anthropic · Work", "18% of 5-hour used"],
+        ["Anthropic · Home", "42% of 5-hour used"],
+        ["Anthropic · Team X (team)", "7% of 5-hour used"],
+    ]);
+    await shot("limit-wait-390-open");
+
+    // The person picks the second, not the emptiest, and moves: the request goes through Home, and the session answers.
+    await page.click({ selector: ".choice-menu .pop-menu-row:nth-child(2)" });
+    await until(async () => (await picked())?.to === "anthropic~home", "Home picked");
+    assert.equal((await picked())?.label, "Move to Anthropic · Home");
+    await page.click({ selector: ".limit-card-move .button" });
+    await until(async () => (await app.agentState(id))?.model?.provider === "anthropic~home" && !app.isBusy(id), "the move and the answer");
     await until(async () => (await text(".limit-card")) === "", "the card to go");
 });
 
@@ -210,7 +255,7 @@ test("Retry now sends the request; the phone's list shows the square; Providers 
     assert.equal(await banner(), false, "no banner while the card is up");
 
     // Wait puts the card away: the banner of the full window shows again.
-    await page.click({ selector: ".limit-card .button:not(.primary)" });
+    await page.click({ selector: ".limit-card-actions .button" });
     await until(async () => (await text(".limit-card")) === "" && (await banner()), "the card gone, the banner back");
     assert.match(await text(".usage-warning"), /Default: 5-hour limit at 100%/);
     behave = () => ({ text: "answered" });
@@ -218,23 +263,24 @@ test("Retry now sends the request; the phone's list shows the square; Providers 
     await until(() => !app.isBusy(id), "the answer after Retry now");
 });
 
-test("with none of the person's own accounts left, the card offers the team's, marked team on its name and Move", real, async () => {
+test("with none of the person's own accounts left, the card lists the team's, marked team, and Move goes there", real, async () => {
     await app.accounts.remove("anthropic~work");
-    // A team account's provider, as the team server's sync registers one here.
-    app.models.registerNativeProvider(accountProvider(localAnthropic(provider.url), "anthropic~team-x", "Team X"));
+    await app.accounts.remove("anthropic~home");
     behave = (token) => (token === "tok-team" ? { text: "Answered on the team's account." } : fiveHourLimit(reset));
 
     const id = await session("tidy the docs");
 
     await page.setViewport(VIEWPORTS.desktop);
     await page.navigate(`${base}/s/${id}`);
-    await until(async () => /Move to Anthropic · Team X \(team\)/.test(await text(".limit-card")), "the team account's card");
-    assert.match(await text(".limit-card"), /Anthropic · Team X \(team\) has room: 18% of its 5-hour used\./);
+    await until(async () => (await picked()) !== null, "the team account's card");
+    assert.deepEqual(await picked(), { to: "anthropic~team-x", shown: "Anthropic · Team X (team)\n7% of 5-hour used", label: "Move to Anthropic · Team X (team)" });
+    assert.deepEqual(await choices(), [["Anthropic · Team X (team)", "7% of 5-hour used"]]);
+    await page.press("Escape");
     await shot("limit-team-1280");
     await page.setViewport(VIEWPORTS.mobile);
     await page.navigate(`${base}/s/${id}`);
     await until(async () => (await text(".limit-card")) !== "", "the phone's card");
     await shot("limit-team-390");
-    await page.click({ selector: ".limit-card .button.primary" });
+    await page.click({ selector: ".limit-card-move .button" });
     await until(async () => (await app.agentState(id))?.model?.provider === "anthropic~team-x" && !app.isBusy(id), "the move and the answer");
 });

@@ -121,13 +121,11 @@ export type LimitOffer = {
     resetAt: number;
     until: number;
     modelId: string;
-    /** The account it may move to, by provider id, and how much of its plan window is used. */
-    to: string;
-    toName: string;
-    /** It is a team server's shared account: offered only when none of the person's own has room, and marked so. */
-    toTeam?: true;
-    toUsed: number;
-    toWindow: string;
+    /**
+     * Every account it may move to, the person's own first and then the team server's (`team`: marked, as it spends the
+     * team's subscription), each the emptiest first: by provider id, with how much of the window that ran out it used.
+     */
+    accounts: { to: string; name: string; team?: true; used: number; window: string }[];
 };
 
 export type ClientLive = {

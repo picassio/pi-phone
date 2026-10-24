@@ -2654,6 +2654,26 @@ pre.diff .del {
     color: var(--warn);
 }
 
+/* The account to move to, picked in a dropdown (every one with room, with its window's use), and Move beside it. */
+.limit-card-move {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.limit-card-move .choice {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 44px;
+}
+
+.limit-card-move .button {
+    flex: none;
+    min-width: 84px;
+    min-height: 44px;
+    border-radius: var(--r-control);
+}
+
 .limit-card-actions {
     display: flex;
     flex-wrap: wrap;

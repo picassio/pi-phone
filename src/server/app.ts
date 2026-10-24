@@ -440,7 +440,7 @@ export class PocketApp {
     /** Conversations that were in a wait for a limit, or are now: their views and the session list show the change. */
     #limitWaiting = new Set<number>();
     /** The account card of each waiting conversation (`limitOffer`), by the wait it was made for. */
-    readonly #limitOffers = new Map<number, { key: string; offer: LimitOffer | undefined }>();
+    readonly #limitOffers = new Map<number, { key: string; offer?: LimitOffer }>();
     /** When each busy session's run began: the list says how long it has been working. */
     readonly #busySince = new Map<ConversationId, number>();
     /** When each conversation's last run ended, since this server started: peek tiles show sessions done since a look. */
@@ -1697,7 +1697,7 @@ export class PocketApp {
             return;
         }
 
-        this.#limitOffers.set(wait.conversationId, { key, offer: undefined });
+        this.#limitOffers.set(wait.conversationId, { key });
 
         if (wait.declined || view.scope !== "account" || view.kind !== "reset" || view.resetAt === undefined) {
             return;
@@ -1707,11 +1707,16 @@ export class PocketApp {
             .then((offer) => {
                 const kept = this.#limitOffers.get(wait.conversationId);
 
-                if (kept?.key !== key || offer === undefined) {
+                if (kept?.key !== key) {
                     return;
                 }
 
-                kept.offer = offer;
+                // None qualifies any more (made again after a refused answer): the view drops the card.
+                if (offer === undefined) {
+                    delete kept.offer;
+                } else {
+                    kept.offer = offer;
+                }
 
                 const id = wait.conversationId as unknown as ConversationId;
 
@@ -1723,50 +1728,38 @@ export class PocketApp {
             .catch((error: unknown) => this.log(`limit card not made: ${describe(error)}`));
     }
 
+    /**
+     * Every account the waiting request may move to (owner's decision of 2026-10-24: the person chooses): the person's own
+     * first, then the team server's shared ones (marked, as they spend the team's subscription), each the emptiest first.
+     */
     async #makeOffer(wait: Waiting): Promise<LimitOffer | undefined> {
         const { view, modelId } = wait;
-        const base = baseProvider(view.provider);
-        // The emptiest of the person's own accounts with room, and of the team's: a team account (it spends the team's
-        // subscription) only when none of their own has room (owner's decision of 2026-10-24).
-        const best: Record<"own" | "team", { to: string; used: number; window: string } | undefined> = { own: undefined, team: undefined };
 
-        for (const provider of this.models.getProviders()) {
-            const to = provider.id;
-
-            if (
-                to === view.provider ||
-                baseProvider(to) !== base ||
-                this.models.getModel(to, modelId) === undefined ||
-                !this.policy.modelAllowed(to, modelId) ||
-                !this.models.hasConfiguredAuth(to) ||
-                this.providers.needsSignIn(to) !== undefined ||
-                this.limits.closed(to, modelId)
-            ) {
-                continue;
-            }
-
-            const windows = await this.#usageKnown(to).catch(() => undefined);
-
-            // Room: every window of its plan has some left. The bar shown is the one that is full here, or its fullest.
-            if (windows === undefined || windows.length === 0 || windows.some((window) => window.usedPercent >= 100)) {
-                continue;
-            }
-
-            const shown = windows.find((window) => window.label === view.window) ?? windows.reduce((a, b) => (b.usedPercent > a.usedPercent ? b : a));
-
-            const kind = this.#teamAccount(to) ? "team" : "own";
-            const kept = best[kind];
-
-            if (kept === undefined || shown.usedPercent < kept.used) {
-                best[kind] = { to, used: shown.usedPercent, window: shown.label };
-            }
-        }
-
-        const chosen = best.own ?? best.team;
-
-        if (chosen === undefined || view.resetAt === undefined) {
+        if (view.resetAt === undefined) {
             return undefined;
         }
+
+        const accounts: LimitOffer["accounts"] = [];
+
+        for (const provider of this.models.getProviders()) {
+            const room = await this.#qualifies(view, modelId, provider.id, false);
+
+            if (!(room instanceof HttpError)) {
+                accounts.push({
+                    to: provider.id,
+                    name: provider.name,
+                    ...(this.#teamAccount(provider.id) ? { team: true as const } : {}),
+                    used: Math.round(room.used),
+                    window: room.window,
+                });
+            }
+        }
+
+        if (accounts.length === 0) {
+            return undefined;
+        }
+
+        accounts.sort((a, b) => Number(a.team === true) - Number(b.team === true) || a.used - b.used);
 
         const subagent = this.#subagentName(wait.conversationId as unknown as ConversationId);
 
@@ -1779,12 +1772,71 @@ export class PocketApp {
             resetAt: view.resetAt,
             until: view.until,
             modelId,
-            to: chosen.to,
-            toName: this.models.getProvider(chosen.to)?.name ?? chosen.to,
-            ...(best.own === undefined ? { toTeam: true as const } : {}),
-            toUsed: Math.round(chosen.used),
-            toWindow: chosen.window,
+            accounts,
         };
+    }
+
+    /**
+     * Whether account `to` may take a request that waits at `view`'s limit, for `modelId`: the same base provider, the
+     * same model, allowed by the role, signed in, no closed gate of its own, and every plan window under 100% (asked
+     * afresh with `fresh`). Its room (the window that ran out here, or its fullest), or why not, as the answer's refusal.
+     */
+    async #qualifies(view: WaitView, modelId: string, to: string, fresh: boolean): Promise<{ used: number; window: string } | HttpError> {
+        const name = this.models.getProvider(to)?.name ?? to;
+
+        if (to === view.provider || baseProvider(to) !== baseProvider(view.provider) || this.models.getProvider(to) === undefined) {
+            return new HttpError(409, `${name} is not an account this request can move to.`);
+        }
+
+        if (this.models.getModel(to, modelId) === undefined || !this.policy.modelAllowed(to, modelId)) {
+            return new HttpError(409, `${name} has no ${modelId} you may use.`);
+        }
+
+        if (!this.models.hasConfiguredAuth(to) || this.providers.needsSignIn(to) !== undefined) {
+            return new HttpError(409, `${name} is not signed in: sign in to it in Providers, or pick another account.`);
+        }
+
+        if (this.limits.closed(to, modelId)) {
+            return new HttpError(409, `${name} is waiting for a limit of its own: pick another account, or wait.`);
+        }
+
+        const windows = await (fresh ? this.#usageWindows(to) : this.#usageKnown(to)).catch(() => undefined);
+
+        if (windows === undefined || windows.length === 0) {
+            return new HttpError(409, `${name}'s usage is not known now: pick another account, or wait.`);
+        }
+
+        const full = windows.find((window) => window.usedPercent >= 100);
+
+        if (full !== undefined) {
+            return new HttpError(409, `${name} has no room now: its ${full.label} window is full. Pick another account, or wait.`);
+        }
+
+        // The bar shown is the one that ran out here, or its fullest.
+        const shown = windows.find((window) => window.label === view.window) ?? windows.reduce((a, b) => (b.usedPercent > a.usedPercent ? b : a));
+
+        return { used: shown.usedPercent, window: shown.label };
+    }
+
+    /**
+     * Check, at the moment a person answers the card, that account `to` still qualifies for the waiting conversation's
+     * request (its usage asked afresh). Refused: the card is made again from what is known now, and the refusal says why.
+     */
+    async recheckLimitAccount(conversationId: number, to: string): Promise<void> {
+        const wait = this.limits.waiting(conversationId);
+
+        if (wait === undefined) {
+            throw new HttpError(409, "That wait is over, or already answered.");
+        }
+
+        const room = await this.#qualifies(wait.view, wait.modelId, to, true);
+
+        if (room instanceof HttpError) {
+            this.#limitOffers.delete(conversationId);
+            this.#considerOffer(wait);
+
+            throw room;
+        }
     }
 
     /** Whether a provider is one of the team server's shared accounts: registered from there, or by its id (not one of the person's own). */
