@@ -24,3 +24,13 @@ is skipped on purpose.
   shared space's <base>), cfe0ddc (a new document base every 64 changes: done by hand for pi-phone's documents, those in
   docs.ts and its own in para-capture.ts, interviews.ts and openui.ts), e4bc3a4 (Changes reads only new entries; editFacts
   keeps pi-phone codemode's `args` path).
+- Web speed from 0.21.0 (PP-133, by nohj). #139 (merge 52c7eb8), opening a session: 2e9b153, 8e1bba3 (with pi-pocket's
+  `jumping` guard, which pi-phone lacked, so a jump is not pulled back down), d137e2e, 53f0379, 669a7a1, bda7809, 7dfab21,
+  4bb8e21, 1e38d48 (the app's own DOMPurify; `rich.js` keeps the global one), 417bff6, 6e87d03, 930853b, 1988f67,
+  2a485d3, 8012abb (History keyed on the history alone: pi-phone's has no `loadEarlier`), 94b87b3, test/open-fast-ui.
+  Skipped: 0222db3 (pi-phone has no wide code blocks), 532e538 (no `slots.js`), ceb1881 and d492ce5 (PiP and font tests
+  pi-phone does not have). #138 (merge ac7332f), Back to the list: 5794030 (hello's `former`, `sessionGroups` and `usage`
+  kept too), 47b35fc, 6c89ea1, 55b01d5 (no badge in pi-phone), 3c6fa73, f957a3d and d782be6 (pi-phone's rows: folder
+  groups, settled, a second tick while one works), 216fcf7, 8dbc20f, cfe9932 for the session list only (the rail keeps
+  `apartFromViews`: its extension and peek buttons read keys of their own), 848bf3e and c6c9662's tests. Skipped: b68f775
+  (PiP), the session-list-extensions test (pi-phone has no session chips). `scripts/bench-open.ts` measures both.
