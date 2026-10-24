@@ -382,6 +382,8 @@ test(
     real,
     async () => {
         await fresh();
+        // Wide, where the sidebar's list shows beside the session: a phone in a session draws no list at all.
+        await page.setViewport(VIEWPORTS.desktop);
         await goTo(first);
         await reach({ path: `/s/${first}` }, "the session");
         await until(
@@ -395,7 +397,8 @@ test(
             kept: boolean;
             text: string;
             quiet: number;
-            listed: number;
+            same: number;
+            listed: string[];
             image: string | null;
         }>(`
         const { h, options, render } = await import("preact");
@@ -408,27 +411,41 @@ test(
         const first = box.querySelector("p");
 
         render(h(Markdown, { text: "First block.\\n\\n![x](a.png)\\n\\nSecond, longer", cache: false }), box);
-        let rows = 0;
+        let rows = [];
         const diffed = options.diffed;
 
         let quiet;
+        let same;
 
         options.diffed = (vnode) => {
-            rows += vnode.type?.name === "SessionRow" ? 1 : 0;
+            if (vnode.type?.name === "SessionRow") {
+                rows.push(vnode.props.session.title ?? "");
+            }
+
             diffed?.(vnode);
         };
 
         try {
             store.set((state) => ({ view: { ...state.view } }));
             await settle();
-            quiet = rows;
+            quiet = rows.length;
+            // The same sessions in a new list: no row has anything new to show.
             store.set((state) => ({ sessions: [...state.sessions] }));
+            await settle();
+            same = rows.length - quiet;
+            rows = [];
+            // One session renamed: its row, and no other.
+            store.set((state) => ({
+                sessions: state.sessions.map((session) =>
+                    session.id === ${Number(first)} ? { ...session, title: "Renamed here" } : session,
+                ),
+            }));
             await settle();
         } finally {
             options.diffed = diffed;
         }
 
-        return JSON.stringify({ kept: box.querySelector("p") === first, text: box.textContent, quiet, listed: rows, image: box.querySelector("img")?.getAttribute("src") ?? null });
+        return JSON.stringify({ kept: box.querySelector("p") === first, text: box.textContent, quiet, same, listed: rows, image: box.querySelector("img")?.getAttribute("src") ?? null });
     `);
 
         assert.ok(drawn.kept, "the first block stays as it was drawn");
@@ -436,6 +453,257 @@ test(
         // Relative in pi-phone, so it resolves under a shared space's <base> too (PP-54).
         assert.match(drawn.image ?? "", /^api\/c\/\d+\/file\?path=/, "an image path points at the server");
         assert.equal(drawn.quiet, 0, "a new view leaves the session list alone");
-        assert.ok(drawn.listed > 0, "a new session list draws it");
+        assert.equal(drawn.same, 0, "the same sessions again draw no row");
+        assert.deepEqual(drawn.listed, ["Renamed here"], "a changed session draws its row alone");
     },
 );
+
+// From pi-pocket 0.21.0 (#138, by nohj), adapted to pi-phone (PP-133): Back to the list draws only what changed.
+test("a reconnect that brings the same data keeps it, and draws no session row", real, async () => {
+    await fresh();
+
+    const after = await inPage<{ same: string[]; rows: number }>(`
+        const { options } = await import("preact");
+        const { connect, store } = await import("/store.js");
+        const settle = () => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
+        // Not users: the server tells everyone when this person was last here, which a reconnect changes.
+        const keys = ["me", "models", "guard", "server", "themeList", "folderFavorites", "former", "sessionGroups", "sessions", "moving"];
+        const before = Object.fromEntries(keys.map((key) => [key, store.state[key]]));
+        const stream = store.state.streamId;
+        const Source = window.EventSource;
+        let rows = 0;
+        let received;
+        const listed = new Promise((resolve) => (received = resolve));
+        const diffed = options.diffed;
+
+        options.diffed = (vnode) => {
+            rows += vnode.type?.name === "SessionRow" ? 1 : 0;
+            diffed?.(vnode);
+        };
+        // The reconnect's own list must arrive before identity and draws are checked.
+        window.EventSource = class extends Source {
+            constructor(url) {
+                super(url);
+                this.addEventListener("sessions", received, { once: true });
+            }
+        };
+
+        try {
+            connect();
+            await listed;
+            await settle();
+        } finally {
+            window.EventSource = Source;
+            options.diffed = diffed;
+        }
+
+        if (store.state.streamId === stream) {
+            throw new Error("the reconnect did not receive a new stream");
+        }
+
+        return JSON.stringify({ same: keys.filter((key) => store.state[key] !== before[key]), rows });
+    `);
+
+    assert.deepEqual(after.same, [], "every equal value keeps its identity");
+    assert.equal(after.rows, 0, "no session row draws again");
+});
+
+test("back to the list slides it in whole, and its rows do not rise in again", real, async () => {
+    await fresh();
+    await tap(row(first));
+    await reach({ path: `/s/${first}` }, "the session");
+    await page.evaluate(`
+        window.listRoutes = [];
+        window.listRouteObserver = new MutationObserver((records) => {
+            window.listRoutes.push(...records.flatMap((record) =>
+                [record.target.dataset.route, record.oldValue]));
+        });
+        window.listRouteObserver.observe(document.documentElement, {
+            attributes: true, subtree: true, attributeFilter: ["data-route"], attributeOldValue: true,
+        });
+    `);
+    await back();
+    await reach({ path: "/" }, "back to the list");
+
+    const shown = await inPage<{ rows: number; animating: number; slide: boolean }>(`
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const rows = [...document.querySelectorAll(".home-list .session-row")];
+
+        window.listRouteObserver.disconnect();
+
+        return JSON.stringify({
+            rows: rows.length,
+            animating: rows.filter((each) => each.classList.contains("arriving") || each.getAnimations().length).length,
+            slide: window.listRoutes.includes("back"),
+        });
+    `);
+
+    assert.ok(shown.rows > 0, "the list shows its rows");
+    assert.equal(shown.animating, 0, "no row rises in again");
+    assert.ok(shown.slide, "the list slides in from the left");
+});
+
+test("a phone draws no sidebar, no splash, and no row buttons it would hide", real, async () => {
+    await fresh();
+    const phone = await inPage<Record<string, number>>(`
+        return JSON.stringify({
+            width: innerWidth,
+            sidebarLists: document.querySelectorAll(".sidebar .sessions, .sidebar .rail").length,
+            homeLists: document.querySelectorAll(".home-list .sessions").length,
+            splash: document.querySelectorAll(".splash").length,
+            rowButtons: document.querySelectorAll(".session-actions").length,
+        });
+    `);
+
+    assert.deepEqual(phone, {
+        width: 390,
+        sidebarLists: 0,
+        homeLists: 1,
+        splash: 0,
+        rowButtons: 0,
+    });
+
+    // Widened, the sidebar and the splash come back at once.
+    await page.setViewport(VIEWPORTS.desktop);
+    await until(
+        () =>
+            inPage<boolean>(`
+                return JSON.stringify(document.querySelector(".sidebar .sessions") !== null &&
+                    document.querySelector(".splash") !== null);
+            `),
+        "the sidebar's list and the splash, on a wide screen",
+    );
+});
+
+test("replayed data keeps equal items but applies changed facts and a fresh clock", real, async () => {
+    await fresh();
+    const result = await inPage<Record<string, boolean>>(`
+        const { connect, serverClockOffset, store } = await import("/store.js");
+        const Source = window.EventSource;
+        let source;
+
+        window.EventSource = class extends EventTarget {
+            constructor() { super(); source = this; }
+            close() {}
+        };
+        connect();
+        const send = (name, data) => source.dispatchEvent(new MessageEvent(name, {
+            data: JSON.stringify(data),
+        }));
+        const before = store.state;
+        let changes = 0;
+        const stop = store.subscribe(() => changes++);
+        const hello = {
+            user: before.me, users: before.users, models: before.models, guard: before.guard,
+            server: { ...before.server, now: Date.now() + 120_000 },
+            themes: before.themeList, folderFavorites: before.folderFavorites,
+            former: before.former, sessionGroups: before.sessionGroups,
+        };
+        let result;
+
+        try {
+            send("hello", hello);
+            send("sessions", before.sessions);
+            send("users", before.users);
+            const equalIsQuiet = changes === 0;
+            const clockIsFresh = Math.abs(serverClockOffset() - 120_000) < 1000;
+            const serverIsKept = store.state.server === before.server;
+            const changed = before.sessions.map((session) => session.id === ${Number(first)}
+                ? { ...session, title: "A changed server title" } : session).reverse();
+
+            send("sessions", changed);
+            const list = store.state.sessions;
+            const changedSession = list.find((session) => session.id === ${Number(first)});
+            const changedIsNew = changedSession !== before.sessions.find((session) => session.id === ${Number(first)}) &&
+                changedSession.title === "A changed server title";
+            const othersAreKept = list.filter((session) => session.id !== ${Number(first)})
+                .every((session) => before.sessions.includes(session));
+            const orderIsNew = list.every((session, index) => session.id === changed[index].id);
+            const count = changes;
+
+            send("sessions", changed);
+            const replayIsQuiet = store.state.sessions === list && changes === count;
+
+            send("hello", { ...hello, user: { ...hello.user, name: "A changed person" },
+                server: { ...hello.server, home: "/a/changed/home" } });
+            result = {
+                equalIsQuiet, clockIsFresh, serverIsKept, changedIsNew, othersAreKept, orderIsNew, replayIsQuiet,
+                factsAreFresh: store.state.me.name === "A changed person" &&
+                    store.state.server.home === "/a/changed/home",
+            };
+        } finally {
+            stop();
+            window.EventSource = Source;
+            connect();
+        }
+
+        return JSON.stringify(result);
+    `);
+
+    assert.deepEqual(
+        Object.entries(result).filter(([, passed]) => !passed),
+        [],
+        "equal events are quiet, but changed values, order, and the clock still update",
+    );
+});
+
+test("the session list reads only the store keys it declares", real, async () => {
+    await fresh();
+    const reads = await inPage<Record<string, { observed: string[]; declared: string[] }>>(`
+        const { h, options, render } = await import("preact");
+        const { SessionList } = await import("/sessions.js");
+        const { store } = await import("/store.js");
+        const state = store.state;
+        const result = {};
+        const box = document.createElement("div");
+        const diffed = options.diffed;
+        const features = { ...state, server: { ...state.server, collab: 2 } };
+
+        document.body.append(box);
+
+        try {
+            // This observes these branches, not every possible interaction state.
+            for (const [name, props, data] of [
+                ["list", {}, state],
+                ["list-features", { compact: true }, features],
+            ]) {
+                const keys = new Set();
+                let declared = [];
+
+                options.diffed = (vnode) => {
+                    if (vnode.type?.name === "DrawnFor") {
+                        declared = [...vnode.props.keys];
+                    }
+                    diffed?.(vnode);
+                };
+                store.state = new Proxy(data, { get(target, key) {
+                    if (typeof key === "string") { keys.add(key); }
+                    return target[key];
+                } });
+                render(h(SessionList, props), box);
+                result[name] = { observed: [...keys].sort(), declared };
+                store.state = state;
+                render(null, box);
+            }
+        } finally {
+            options.diffed = diffed;
+            store.state = state;
+            render(null, box);
+            box.remove();
+        }
+
+        return JSON.stringify(result);
+    `);
+
+    assert.equal(Object.keys(reads).length, 2, "all audit cases ran");
+
+    for (const [name, { observed, declared }] of Object.entries(reads)) {
+        assert.ok(declared.length > 0, "the audit captured the wrapper's actual dependencies");
+        assert.deepEqual(
+            observed.filter((key) => !declared.includes(key)),
+            [],
+            `${name} must invalidate every store key it reads`,
+        );
+        assert.ok(observed.includes("sessions"), "the audit observed a real draw");
+    }
+});

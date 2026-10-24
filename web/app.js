@@ -72,6 +72,7 @@ import {
     shortPath,
     useEdge,
     usePresence,
+    WIDE,
 } from "./ui.js";
 
 /** What changed in the session's folder: lines added and removed, and how many files. It opens Changes. */
@@ -457,6 +458,9 @@ function App() {
 
     const inConversation = state.conversationId !== null;
     const rail = prefs().sidebar === "rail";
+    // The sidebar and the splash show only on wide screens (style.css): narrower, they are not drawn at all. A phone
+    // drew the sidebar's session list beside its own, hidden, on each change and each Back.
+    const sidebar = WIDE.matches;
     // The subagents board, or an extension's page, takes the conversation's place, and the panels beside it give it
     // their room.
     const board = state.board;
@@ -477,11 +481,14 @@ function App() {
         data-part="app"
     >
         <aside class="sidebar window" data-part="sidebar">
-            <div class="sidebar-clip">
-                <${RailNav} foldable=${true} folded=${rail} />
-                ${!rail && html`<${SessionList} />`}
-            </div>
-            ${!rail && html`<${ResizeHandle} />`}
+            ${
+                sidebar &&
+                html`<div class="sidebar-clip">
+                        <${RailNav} foldable=${true} folded=${rail} />
+                        ${!rail && html`<${SessionList} />`}
+                    </div>
+                    ${!rail && html`<${ResizeHandle} />`}`
+            }
         </aside>
         <div class=${`pane window ${placed ? "boarded" : ""}`} data-part="pane">
             ${
@@ -509,7 +516,7 @@ function App() {
                           <${RailNav} />
                           <${SessionList} />
                       </div>
-                      <${Splash} />`
+                      ${sidebar && html`<${Splash} />`}`
             }
         </div>
         ${
@@ -565,7 +572,7 @@ document.addEventListener("focusin", focusWindow, true);
 const typingIn = (target) =>
     target instanceof HTMLElement &&
     (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
-const wide = () => matchMedia("(min-width: 960px)").matches;
+const wide = () => WIDE.matches;
 
 /** Go to the session `by` places away in workspace order, wrapping around. */
 function step(by) {

@@ -37,6 +37,30 @@ function unreadOf() {
     }
 }
 
+/** How far this browser has read a session's chat: the time of the newest message seen, in `pocket.chatRead.<id>`. */
+const CHAT_READ_PREFIX = "pocket.chatRead.";
+
+/**
+ * Every session's read time, by id, from local storage. Read once at load and kept in the store (`chatReads`): the list
+ * asks for each row as it draws, and storage is slow to ask.
+ */
+function readChatReads() {
+    const reads = {};
+
+    for (let index = 0; index < localStorage.length; index++) {
+        const key = localStorage.key(index);
+        const at = key?.startsWith(CHAT_READ_PREFIX) ? Number(localStorage.getItem(key)) : 0;
+
+        if (at > 0) {
+            reads[key.slice(CHAT_READ_PREFIX.length)] = at;
+        }
+    }
+
+    return reads;
+}
+
+const firstReads = readChatReads();
+
 const TAB = sessionStorage.getItem(TAB_KEY) ?? uid();
 
 sessionStorage.setItem(TAB_KEY, TAB);
@@ -97,7 +121,9 @@ export const store = {
         unread: unreadOf(),
         conversationId: routeConversation(),
         view: emptyView(),
-        ...peopleFor(routeConversation()),
+        /** How far this browser has read each session's chat, by id: what `pocket.chatRead.<id>` keeps. */
+        chatReads: firstReads,
+        ...peopleFor(routeConversation(), firstReads),
         history: null,
         /** The id of the oldest transcript entry shown, or null for the newest `TRANSCRIPT_ROWS` rows. */
         transcriptFrom: null,
@@ -177,7 +203,18 @@ export const store = {
 
 // ─── Marked-unread sessions (this browser) ──────────────────────────────────────
 
-export const isUnread = (id) => store.state.unread.includes(id);
+/** The marked-unread ids as a set, made again only when the list changes: rows ask for each session as they draw. */
+let unreadSet = { list: null, set: new Set() };
+
+export function isUnread(id) {
+    const list = store.state.unread;
+
+    if (unreadSet.list !== list) {
+        unreadSet = { list, set: new Set(list) };
+    }
+
+    return unreadSet.set.has(id);
+}
 
 /** Mark a session unread, or clear it again, in this browser only. Opening the session clears it (`opened`). */
 export function setUnread(id, unread) {
@@ -208,30 +245,31 @@ function routeConversation() {
 
 const CHAT_LIMIT = 500;
 
-// A function declaration, not a const: the store's initial state calls it before this line runs.
-function readKey(id) {
-    return `pocket.chatRead.${id}`;
-}
-
-/** Fresh people state for a conversation: no one known yet, and how far this browser has read its chat. */
-function peopleFor(id) {
+/**
+ * Fresh people state for a conversation: no one known yet, and how far this browser has read its chat. A function
+ * declaration, not a const: the store's initial state calls it before this line runs, with `reads` given.
+ */
+function peopleFor(id, reads = store.state.chatReads) {
     return {
         chat: [],
         presence: [],
         notes: null,
         chatQuote: null,
-        chatRead: id === null ? 0 : chatReadOf(id),
+        chatRead: id === null ? 0 : (reads[id] ?? 0),
     };
 }
 
-/** How far this browser has read a conversation's chat: the time of the newest message seen. */
-function chatReadOf(id) {
-    return Number(localStorage.getItem(readKey(id)) ?? 0);
-}
+// Another tab of this browser read a chat (or the storage was cleared): the list's marks follow.
+addEventListener("storage", (event) => {
+    if (event.key === null || event.key.startsWith(CHAT_READ_PREFIX)) {
+        setChanged({ chatReads: kept(store.state.chatReads, readChatReads()) });
+    }
+});
 
 /** Someone else chatted in a session after this browser last read its chat. */
 export function sessionUnread(session, state = store.state) {
-    const read = session.id === state.conversationId ? state.chatRead : chatReadOf(session.id);
+    const read =
+        session.id === state.conversationId ? state.chatRead : (state.chatReads[session.id] ?? 0);
 
     return session.chatAt !== undefined && session.chatBy !== state.me?.id && session.chatAt > read;
 }
@@ -242,16 +280,32 @@ export function sessionUnread(session, state = store.state) {
  * (`session-tree.js`). Archived sessions are left out.
  */
 export function workspaceOrder(state = store.state) {
-    const active = state.sessions.filter((session) => !session.archived);
-    const { roots, rows } = sessionForest(active, { pinned: state.pinned });
-    const family = (root) => rows.get(root.id).map((row) => row.session);
-    const pinned = state.pinned.map((id) => roots.find((root) => root.id === id)).filter(Boolean);
+    const { sessions, pinned: pins } = state;
 
-    return [
+    // The list, the rail, the home screen, and peek tiles all ask as they draw: the order is made once for each list.
+    if (ordered.sessions === sessions && ordered.pinned === pins) {
+        return ordered.order;
+    }
+
+    const active = sessions.filter((session) => !session.archived);
+    const { roots, rows } = sessionForest(active, { pinned: pins });
+    const family = (root) => rows.get(root.id).map((row) => row.session);
+    const byId = new Map(roots.map((root) => [root.id, root]));
+    const pinned = pins.map((id) => byId.get(id)).filter(Boolean);
+    const first = new Set(pinned);
+    // Shared by every caller until the next list: frozen, so none changes it for the others.
+    const order = Object.freeze([
         ...pinned.flatMap(family),
-        ...roots.filter((root) => !pinned.includes(root)).flatMap(family),
-    ];
+        ...roots.filter((root) => !first.has(root)).flatMap(family),
+    ]);
+
+    ordered = { sessions, pinned: pins, order };
+
+    return order;
 }
+
+/** The last workspace order, and the lists it was made from. */
+let ordered = { sessions: null, pinned: null, order: [] };
 
 /** Server features the web app may use. `collab` 2 adds roles, take turns, reactions, pins, notes, mentions, push. */
 export const collab = () => (store.state.server?.collab ?? 0) >= 2;
@@ -299,8 +353,11 @@ export function markChatRead() {
         return;
     }
 
-    localStorage.setItem(readKey(conversationId), String(last));
-    store.set({ chatRead: last });
+    localStorage.setItem(CHAT_READ_PREFIX + conversationId, String(last));
+    store.set((state) => ({
+        chatRead: last,
+        chatReads: { ...state.chatReads, [conversationId]: last },
+    }));
 }
 
 function applyChat(data) {
@@ -607,6 +664,76 @@ export function stillMoving(moving, sessions) {
     return next;
 }
 
+/** Whether two values the server sent as JSON are the same: the same plain values, arrays, and objects, all the way down. */
+function sameJson(a, b) {
+    if (a === b) {
+        return true;
+    }
+
+    if (
+        typeof a !== "object" ||
+        typeof b !== "object" ||
+        a === null ||
+        b === null ||
+        Array.isArray(a) !== Array.isArray(b)
+    ) {
+        return false;
+    }
+
+    const keys = Object.keys(a);
+
+    return (
+        keys.length === Object.keys(b).length &&
+        keys.every((key) => Object.hasOwn(b, key) && sameJson(a[key], b[key]))
+    );
+}
+
+/**
+ * What the server sent, or what the store has when it is the same. Each connect sends hello and the lists again, mostly
+ * as they were: what did not change keeps its identity, so memos hold and identity checks (`theme.js`) see no change.
+ */
+const kept = (had, next) => (sameJson(had, next) ? had : next);
+
+/** A list of items with ids, each item kept where it is the same, and the list itself when all are: one session changed draws one row again. */
+function keptEach(had, next) {
+    if (!Array.isArray(had) || !Array.isArray(next)) {
+        return next;
+    }
+
+    const byId = new Map(had.map((item) => [item?.id, item]));
+    const items = next.map((item) => kept(byId.get(item?.id), item));
+
+    return items.length === had.length && items.every((item, index) => item === had[index])
+        ? had
+        : items;
+}
+
+/** How far the server's clock is ahead of this browser's, from its last hello (`seen.js`). */
+let clockOffset = 0;
+
+export const serverClockOffset = () => clockOffset;
+
+/**
+ * The server's facts from a hello. Its clock (`now`) is new in each one and is no change to them: the clock goes to
+ * `clockOffset`, and the facts keep the clock of the hello that brought them.
+ */
+function keptServer(had, next) {
+    if (typeof next?.now === "number") {
+        clockOffset = next.now - Date.now();
+    }
+
+    return had && next && sameJson({ ...had, now: 0 }, { ...next, now: 0 }) ? had : next;
+}
+
+/** Set only what changed, and nothing when nothing did: data sent again as it was draws nothing again. */
+function setChanged(change) {
+    const changed = Object.entries(change).filter(([key, value]) => store.state[key] !== value);
+
+    if (changed.length > 0) {
+        store.set(Object.fromEntries(changed));
+    }
+}
+
 /** Who hears extensions' events: `extension-ui.js`, which imports this module and so cannot be imported here. */
 const extensionListeners = new Set();
 const browserFrameListeners = new Set();
@@ -646,18 +773,21 @@ const handlers = {
             return;
         }
 
-        store.set({
-            me: data.user,
-            users: data.users,
-            former: data.former ?? {},
-            folderFavorites: data.folderFavorites ?? [],
-            sessionGroups: data.sessionGroups,
-            models: data.models,
-            ...(Array.isArray(data.usage) ? { usage: usageMap(data.usage) } : {}),
-            guard: data.guard,
-            server: data.server,
+        // Sent again on each connect, mostly as it was: what is the same keeps its identity (`kept`).
+        const state = store.state;
+
+        setChanged({
+            me: kept(state.me, data.user),
+            users: keptEach(state.users, data.users),
+            former: kept(state.former, data.former ?? {}),
+            folderFavorites: kept(state.folderFavorites, data.folderFavorites ?? []),
+            sessionGroups: kept(state.sessionGroups, data.sessionGroups),
+            models: kept(state.models, data.models),
+            ...(Array.isArray(data.usage) ? { usage: kept(state.usage, usageMap(data.usage)) } : {}),
+            guard: kept(state.guard, data.guard),
+            server: keptServer(state.server, data.server),
             // Every theme folder (`theme.js`): an older server lists none.
-            themeList: Array.isArray(data.themes) ? data.themes : [],
+            themeList: kept(state.themeList, Array.isArray(data.themes) ? data.themes : []),
             // This connection's id, which peek lists name (`peeks.js`). `GET /api/me` answers without one.
             ...(data.connection === undefined ? {} : { streamId: data.connection }),
         });
@@ -666,18 +796,24 @@ const handlers = {
     language: (data) => chooseLanguage(data.language),
     // The machines' ports open here changed: one opened, closed, or ended by itself (PP-108). The owner's tabs only.
     forwards: (data) => store.set({ forwards: data.forwards }),
-    sessions: (sessions) =>
-        store.set((state) => ({
+    sessions: (list) => {
+        const state = store.state;
+        const sessions = keptEach(state.sessions, list);
+
+        setChanged({
             sessions,
             sessionsLoaded: true,
-            moving: stillMoving(state.moving, sessions),
-        })),
-    "folder-favorites": (folderFavorites) => store.set({ folderFavorites }),
-    "session-groups": (sessionGroups) => store.set({ sessionGroups }),
-    models: (models) => store.set({ models }),
+            moving: kept(state.moving, stillMoving(state.moving, sessions)),
+        });
+    },
+    "folder-favorites": (folderFavorites) =>
+        setChanged({ folderFavorites: kept(store.state.folderFavorites, folderFavorites) }),
+    "session-groups": (sessionGroups) =>
+        setChanged({ sessionGroups: kept(store.state.sessionGroups, sessionGroups) }),
+    models: (models) => setChanged({ models: kept(store.state.models, models) }),
     usage: (usage) => store.set((state) => ({ usage: { ...state.usage, [usage.provider]: usage } })),
     // A theme folder came, went, or changed (`theme.js` loads its new version).
-    themes: (themeList) => store.set({ themeList }),
+    themes: (themeList) => setChanged({ themeList: kept(store.state.themeList, themeList) }),
     // Every subagent in every session, while this tab shows the subagents board (`subagents-board.js`).
     subagents: (agents) => store.state.board && store.set({ boardAgents: agents }),
     view: applyView,
@@ -692,7 +828,7 @@ const handlers = {
     // Another session as its peek tile shows it (`peeks.js`): kept after it scrolls away, as the tile's last look.
     peek: (data) =>
         store.set((state) => ({ peeks: { ...state.peeks, [data.conversationId]: data } })),
-    users: (users) => store.set({ users }),
+    users: (users) => setChanged({ users: keptEach(store.state.users, users) }),
     // Pi's lessons changed somewhere: a Memory sheet or menu that shows them fetches them again (`sheets/memory.js`).
     memory: () => store.set((state) => ({ memoryRev: (state.memoryRev ?? 0) + 1 })),
     missing: (data) => store.set({ missing: data.message }),
@@ -1101,7 +1237,7 @@ export async function start() {
             former: hello.former ?? {},
             models: hello.models,
             guard: hello.guard,
-            server: hello.server,
+            server: keptServer(store.state.server, hello.server),
             themeList: Array.isArray(hello.themes) ? hello.themes : [],
         });
         connect();
