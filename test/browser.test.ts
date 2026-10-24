@@ -452,8 +452,10 @@ test("with Chrome: after switching between phone and desktop sizes, clicks and t
     // One Chrome for two sessions, as a place's engine is in the app: the other session's tab stays at the desktop size.
     const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
     const owners = new TabOwners(undefined);
-    const browser = new PiBrowser({ engine: new SessionEngine(engine, "phone", 1, owners), session: 1, changed: () => {}, frame: () => {}, log: () => {} });
-    const other = new PiBrowser({ engine: new SessionEngine(engine, "phone", 2, owners), session: 2, size: "desktop", changed: () => {}, frame: () => {}, log: () => {} });
+    // What the panel's frames log: a first picture that does not come, a screencast that does not start.
+    const logged: string[] = [];
+    const browser = new PiBrowser({ engine: new SessionEngine(engine, "phone", 1, owners), session: 1, changed: () => {}, frame: () => {}, log: (line) => logged.push(line) });
+    const other = new PiBrowser({ engine: new SessionEngine(engine, "phone", 2, owners), session: 2, size: "desktop", changed: () => {}, frame: () => {}, log: (line) => logged.push(line) });
     const number = (page: string, pattern: RegExp) => Number(pattern.exec(page)?.[1] ?? assert.fail(`${pattern} not in:\n${page}`));
     /** Click Hit and type into the field, on the page as it is now: each must land on its own target. */
     const aim = async (page: string, where: string) => {
@@ -480,6 +482,8 @@ test("with Chrome: after switching between phone and desktop sizes, clicks and t
             await browser.open(1, "http://pi.test/aim");
             await aim(await browser.open(1, "http://pi.test/aim"), `${size} ${step}`);
         }
+
+        assert.deepEqual(logged.filter((line) => line.startsWith("browser frames")), [], "every first picture came, every screencast started");
     } finally {
         unwatch();
         await browser.close();
