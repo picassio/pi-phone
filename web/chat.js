@@ -24,7 +24,18 @@ import {
     typing,
 } from "./store.js";
 import { t } from "./i18n.js";
-import { copyText, enterMakesLine, enterSends, html, Icon, Loader, Sheet, Spinner, timeAgo } from "./ui.js";
+import {
+    clockTime,
+    copyText,
+    enterMakesLine,
+    enterSends,
+    html,
+    Icon,
+    Loader,
+    Sheet,
+    Spinner,
+    timeAgo,
+} from "./ui.js";
 
 const coarse = matchMedia("(pointer: coarse)").matches;
 
@@ -124,14 +135,7 @@ export function TypingLine({ where }) {
     </div>`;
 }
 
-function clock(at) {
-    const date = new Date(at);
-    const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-
-    return date.toDateString() === new Date().toDateString()
-        ? time
-        : `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
-}
+const clock = (at) => clockTime(new Date(at));
 
 /** Close the sheet and scroll the transcript to a message, briefly highlighted. The docked People panel stays. */
 export function jumpToEntry(entryId) {

@@ -3,6 +3,7 @@
 import { Component } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { initials, personColor } from "./avatar.js";
+import { routeSliding } from "./back.js";
 import { describeCall, describersRevision } from "./calls.js";
 import { DiffBlock } from "./diff.js";
 import { fromServer } from "./seen.js";
@@ -44,6 +45,7 @@ import {
 } from "./turns.js";
 import {
     Boot,
+    clockTime,
     copyText,
     entryImageUrl,
     fileUrl,
@@ -248,14 +250,7 @@ function span(ms) {
 }
 
 /** When a message was sent, from the server's time: "10:42" today, "Oct 3 10:42" before. */
-function clock(at) {
-    const date = new Date(fromServer(at));
-    const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-
-    return date.toDateString() === new Date().toDateString()
-        ? time
-        : `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
-}
+const clock = (at) => clockTime(new Date(fromServer(at)));
 
 /**
  * A person's message: a filled row with a prompt mark, the accent's for your own and the author's color for someone
@@ -725,10 +720,18 @@ function callStatus({ result, slot, approval, decision, streaming, canRun, busy 
     return streaming || (busy && canRun) ? "running" : "stopped";
 }
 
+/**
+ * `unrolling` for what a person opened just now (`unrolled`, when they tapped it): it unrolls (style.css). What opens by
+ * itself, as a session opens or a group goes live, shows at once. Never tapped is -Infinity, not 0: the page's clock
+ * starts at 0 as it loads, so 0 would read as a tap just now.
+ */
+const unrolling = (unrolled) => (performance.now() - unrolled.current < 600 ? "unrolling" : "");
+
 /** A thought, on the timeline: open it to read it. */
 function ThoughtStep({ block, streaming, reading }) {
     // With Show thinking on, a thought once written shows its words (the live line shows the one being written).
     const [chosen, setChosen] = useState(null);
+    const unrolled = useRef(-Infinity);
     const open = chosen ?? (reading && !streaming && Boolean(block.text?.trim()));
 
     return html`<div
@@ -741,7 +744,10 @@ function ThoughtStep({ block, streaming, reading }) {
                 class="step-head"
                 data-part="step-head"
                 aria-expanded=${open}
-                onClick=${() => setChosen(!open)}
+                onClick=${() => {
+                    unrolled.current = open ? -Infinity : performance.now();
+                    setChosen(!open);
+                }}
             >
                 <${StepMark} status=${streaming ? "running" : "done"} kind="thought" />
                 <span class="step-label" data-part="step-label">
@@ -753,7 +759,7 @@ function ThoughtStep({ block, streaming, reading }) {
         </div>
         ${
             open &&
-            html`<div class="step-body" data-part="step-detail">
+            html`<div class=${`step-body ${unrolling(unrolled)}`} data-part="step-detail">
                 <div class="thought-body">${block.text}</div>
             </div>`
         }
@@ -773,6 +779,7 @@ function ToolStep({
     conversationId,
 }) {
     const [open, setOpen] = useState(false);
+    const unrolled = useRef(-Infinity);
     const [full, setFull] = useState(null);
     const view = store.state.view;
     const decision = decisionOf(view.decisions, call, result);
@@ -949,7 +956,9 @@ function ToolStep({
             parts.push(html`<button class="link" onClick=${loadFull}>${t("Load everything")}</button>`);
         }
 
-        body = html`<div class="step-body" data-part="step-detail">${parts}</div>`;
+        body = html`<div class=${`step-body ${unrolling(unrolled)}`} data-part="step-detail">
+            ${parts}
+        </div>`;
     }
 
     const child =
@@ -986,7 +995,10 @@ function ToolStep({
                 class="step-head"
                 data-part="step-head"
                 aria-expanded=${open}
-                onClick=${() => setOpen(!open)}
+                onClick=${() => {
+                    unrolled.current = open ? -Infinity : performance.now();
+                    setOpen(!open);
+                }}
             >
                 <${StepMark} status=${status} kind=${call.name === "subagent" ? "agent" : ""} />
                 <span class="step-label" data-part="step-label">${label}</span>
@@ -1145,6 +1157,8 @@ function ActivityGroup({
     const id = `${conversationId}:${item.key}`;
     const [, redraw] = useState(0);
     const [fresh] = useState(() => settledFor !== null && settledFor === conversationId);
+    // When a click opened it: it unrolls (style.css).
+    const unrolled = useRef(-Infinity);
 
     if (
         revealing.entryId !== null &&
@@ -1239,6 +1253,7 @@ function ActivityGroup({
             data-part="activity-head"
             aria-expanded=${open}
             onClick=${() => {
+                unrolled.current = open ? -Infinity : performance.now();
                 keep(openedGroups, id, !open);
                 redraw((n) => n + 1);
             }}
@@ -1251,14 +1266,14 @@ function ActivityGroup({
         ${
             open &&
             lone &&
-            html`<div class="activity-thought">
+            html`<div class=${`activity-thought ${unrolling(unrolled)}`}>
                 <div class="thought-body">${lone.block.text}</div>
             </div>`
         }
         ${
             open &&
             !lone &&
-            html`<div class="timeline" data-part="timeline">
+            html`<div class=${`timeline ${unrolling(unrolled)}`} data-part="timeline">
                 ${item.steps.map(({ block, entry, streaming, canRun }, index) => {
                     // A call is named by its id, the same streamed and stored; a thought by the call before it. Not by
                     // place: earlier steps join the front when earlier messages show.
@@ -1771,6 +1786,13 @@ function Divider({ entry }) {
 
 function History({ firstId, results, keepPlace, conversationId }) {
     const history = store.state.history;
+    const talk = collab();
+    // Built again only when the history changes, not on each draw of the transcript.
+    const items = useMemo(
+        () =>
+            history === null ? [] : itemsOf(history.filter(isRow), null, { prefix: "h", talk }),
+        [history, talk],
+    );
 
     if (history === null) {
         return html`<div class="divider">
@@ -1791,7 +1813,7 @@ function History({ firstId, results, keepPlace, conversationId }) {
 
     return html`<div class="history">
         <${Items}
-            items=${itemsOf(history.filter(isRow), null, { prefix: "h", talk: collab() })}
+            items=${items}
             results=${results}
             slots=${NO_SLOTS}
             approvals=${NO_APPROVALS}
@@ -1921,6 +1943,9 @@ const PENDING_MS = 11 * 60_000;
 /** How long a scroller may glide on after a finger lets go of it, at most. */
 const GLIDE_MS = 3000;
 
+/** How long after a tap or a key in the conversation what grows there is what the reader opened, not new rows. */
+const OPENED_MS = 1000;
+
 /** A touch screen, where scrollers glide on after a flick and their scroll bars take no room. */
 const COARSE = matchMedia("(pointer: coarse)");
 
@@ -2003,14 +2028,28 @@ const NO_SLOTS = new Map();
 
 const NO_APPROVALS = [];
 
+/** `agentsKey` for each list of subagents the server sent: every report and subagent call asks, on every draw. */
+const agentsKeys = new WeakMap();
+const NO_AGENTS = [];
+
 /** The subagents as their rows and lines show them: who, where, and how they stand. */
-const agentsKey = (view) =>
-    (view.subagents ?? [])
-        .map(
-            (agent) =>
-                `${agent.name}:${agent.conversationId}:${stateOf(agent)}:${agent.askedAt ?? ""}:${agent.answeredAt ?? ""}`,
-        )
-        .join();
+function agentsKey(view) {
+    const agents = view.subagents ?? NO_AGENTS;
+
+    if (!agentsKeys.has(agents)) {
+        agentsKeys.set(
+            agents,
+            agents
+                .map(
+                    (agent) =>
+                        `${agent.name}:${agent.conversationId}:${stateOf(agent)}:${agent.askedAt ?? ""}:${agent.answeredAt ?? ""}`,
+                )
+                .join(),
+        );
+    }
+
+    return agentsKeys.get(agents);
+}
 
 /**
  * Everything a row shows besides its entry, as values that compare with Object.is. Each update from the server builds
@@ -2537,20 +2576,57 @@ function windowStart(rows, from) {
 export function Transcript() {
     const { view, missing, history, transcriptFrom } = store.state;
     const scroller = useRef(null);
+    /** The column of rows in the scroller, whose growth keeps it at the bottom (below). */
+    const column = useRef(null);
     const stick = useRef(true);
+    /** A jump to a message is under way: the reader has not scrolled or tapped since. */
+    const jumping = useRef(false);
     /** Distance from the bottom to restore after rows are added above, so the reader stays in place. */
     const keep = useRef(null);
     const counted = useRef(0);
     const [showJump, setShowJump] = useState(false);
+    // Opened by a route on a phone, the scroller slides in with it: the column does not rise in as well, unless it comes
+    // after the slide (a slow connection). Chosen as the column first draws, so a draw after does not start it.
+    const entrance = useRef(null);
+
+    if (entrance.current === null && view.conversation && !missing) {
+        entrance.current = routeSliding() ? "" : "rising";
+    }
 
     // Keep the snapshot's rows stable across unrelated UI updates, including scrolling the thought reading area.
     const entries = useMemo(
         () => view.order.map((id) => view.entries.get(id)).filter(Boolean),
         [view.order, view.entries],
     );
-    const rows = entries.filter(isRow);
-    const start = windowStart(rows, transcriptFrom);
+    // Built again only when the entries change: the app draws for every change to the store, and a streamed answer's
+    // updates bring no new entries (`mergeView`).
+    const rows = useMemo(() => entries.filter(isRow), [entries]);
+    const start = useMemo(() => windowStart(rows, transcriptFrom), [rows, transcriptFrom]);
+    const talk = collab();
+    const from = useMemo(() => rowsBefore(rows, start, talk), [rows, start, talk]);
+    const partial = partialEntry(view.live.generation?.message?.blocks ?? []);
+    const items = useMemo(
+        () => itemsOf(rows.slice(start), partial, { from, talk }),
+        [rows, start, partial, from, talk],
+    );
+    const results = useMemo(() => {
+        const map = new Map();
 
+        for (const entry of [...(history ?? []), ...entries]) {
+            if (entry.kind === "toolResult") {
+                map.set(entry.callId, entry);
+            }
+        }
+
+        return map;
+    }, [history, entries]);
+    const slots = useMemo(
+        () => new Map((view.live.tools ?? []).map((slot) => [slot.callId, slot])),
+        [view.live.tools],
+    );
+
+    // After a draw that can change the rows, not after every change to the store (each draws the app): to the bottom, or
+    // back to where the reader was, before the draw shows. What grows between such draws is the ResizeObserver's below.
     useLayoutEffect(() => {
         const element = scroller.current;
 
@@ -2587,14 +2663,15 @@ export function Transcript() {
             return;
         }
 
-        // Fix the first row shown, so rows arriving below never push the ones being read off the top. While the reader
-        // follows along at the bottom, drop the oldest once there are twice as many as a fresh open shows.
+        // Fix the first row shown, so rows arriving below never push the ones being read off the top: noted without a
+        // draw, as this draw began there already ("Show earlier messages" reads it). While the reader follows along at
+        // the bottom, drop the oldest once there are twice as many as a fresh open shows.
         if (rows[start].id !== transcriptFrom) {
-            store.set({ transcriptFrom: rows[start].id });
+            store.note({ transcriptFrom: rows[start].id });
         } else if (grew && stick.current && rows.length - start > 2 * TRANSCRIPT_ROWS) {
             store.set({ transcriptFrom: rows[rows.length - TRANSCRIPT_ROWS].id });
         }
-    });
+    }, [view, history, start]);
 
     // Once the rows a session opens with are on screen, rows that mount later are new and animate in.
     const conversationId = view.conversation?.id;
@@ -2613,7 +2690,8 @@ export function Transcript() {
     }, [conversationId, hasRows]);
 
     // The conversation gets shorter or taller as what is above the message box changes (the queue, the subagents' list,
-    // a message box that grows): stay at the bottom if we were there, before the change shows.
+    // a message box that grows), and its rows grow between draws (a card that draws late, a font that loads, a line
+    // under a reply): stay at the bottom if we were there, before the change shows.
     useEffect(() => {
         const element = scroller.current;
 
@@ -2644,8 +2722,19 @@ export function Transcript() {
         const gliding = () =>
             touching ||
             (performance.now() - released < GLIDE_MS && performance.now() - moved < 100);
-        const observer = new ResizeObserver(() => {
-            if (stick.current && !gliding()) {
+        // Nor what a tap or a key there opened (a group, a step): it unrolls in place, where the reader looks. The next
+        // draw of new rows takes them down again.
+        let pressed = -Infinity;
+
+        const press = () => {
+            pressed = performance.now();
+        };
+
+        const opened = (changes) =>
+            performance.now() - pressed < OPENED_MS &&
+            changes.every((change) => change.target !== element);
+        const observer = new ResizeObserver((changes) => {
+            if (stick.current && !gliding() && !opened(changes)) {
                 element.scrollTop = element.scrollHeight;
             }
         });
@@ -2654,7 +2743,13 @@ export function Transcript() {
         element.addEventListener("touchend", up, { passive: true });
         element.addEventListener("touchcancel", up, { passive: true });
         element.addEventListener("scroll", scrolled, { passive: true });
+        element.addEventListener("pointerdown", press, { capture: true, passive: true });
+        element.addEventListener("keydown", press, { capture: true, passive: true });
         observer.observe(element);
+
+        if (column.current) {
+            observer.observe(column.current);
+        }
 
         return () => {
             observer.disconnect();
@@ -2662,8 +2757,38 @@ export function Transcript() {
             element.removeEventListener("touchend", up);
             element.removeEventListener("touchcancel", up);
             element.removeEventListener("scroll", scrolled);
+            element.removeEventListener("pointerdown", press, { capture: true });
+            element.removeEventListener("keydown", press, { capture: true });
         };
     }, [view.conversation?.id]);
+
+    // A jump to a message (`jumpToEntry`) leaves the bottom, until the reader scrolls or taps: its smooth scroll starts
+    // near the bottom, where `onScroll` would follow along again, and what grows next (the earlier rows drawn for it,
+    // which the ResizeObserver above sees) would take them back down.
+    useEffect(() => {
+        const away = () => {
+            jumping.current = true;
+            stick.current = false;
+            keep.current = null;
+        };
+
+        const back = () => (jumping.current = false);
+        const takes = ["wheel", "touchstart", "pointerdown", "keydown"];
+
+        document.addEventListener("pocket:reveal", away);
+
+        for (const name of takes) {
+            document.addEventListener(name, back, { capture: true, passive: true });
+        }
+
+        return () => {
+            document.removeEventListener("pocket:reveal", away);
+
+            for (const name of takes) {
+                document.removeEventListener(name, back, { capture: true });
+            }
+        };
+    }, []);
 
     // Images finish loading after the transcript renders and make it taller: stay at the bottom if we were there.
     useEffect(() => {
@@ -2685,7 +2810,7 @@ export function Transcript() {
     }, [view.conversation?.id]);
 
     // A `!` command whose entry arrived is no longer pending.
-    const shells = rows.filter((row) => row.kind === "shell").length;
+    const shells = useMemo(() => rows.filter((row) => row.kind === "shell").length, [rows]);
 
     useEffect(() => {
         const pending = store.state.pendingShells;
@@ -2704,7 +2829,7 @@ export function Transcript() {
         const element = scroller.current;
         const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 60;
 
-        stick.current = atBottom;
+        stick.current = atBottom && !jumping.current;
 
         if (showJump === atBottom) {
             setShowJump(!atBottom);
@@ -2756,18 +2881,8 @@ export function Transcript() {
         store.set({ transcriptFrom: rows[Math.max(0, start - TRANSCRIPT_ROWS)].id });
     };
 
-    const results = new Map();
-
-    for (const entry of [...(history ?? []), ...entries]) {
-        if (entry.kind === "toolResult") {
-            results.set(entry.callId, entry);
-        }
-    }
-
-    const slots = new Map((view.live.tools ?? []).map((slot) => [slot.callId, slot]));
     const approvals = view.approvals ?? [];
     const first = entries[0];
-    const partial = partialEntry(view.live.generation?.message?.blocks ?? []);
     const busy = view.live.busy;
     const compacting = (view.live.compactions ?? []).length > 0;
     const conversation = view.conversation;
@@ -2778,7 +2893,7 @@ export function Transcript() {
         conversation.forkedFrom && sessions.find((each) => each.id === conversation.forkedFrom.id);
 
     return html`<main class="scroller" ref=${scroller} onScroll=${onScroll}>
-        <div class="transcript" data-part="transcript">
+        <div class=${`transcript ${entrance.current}`} data-part="transcript" ref=${column}>
             ${
                 conversation.forkedFrom &&
                 sessionsLoaded &&
@@ -2815,10 +2930,7 @@ export function Transcript() {
                 </div>`
             }
             <${Items}
-                items=${itemsOf(rows.slice(start), partial, {
-                    from: rowsBefore(rows, start, collab()),
-                    talk: collab(),
-                })}
+                items=${items}
                 results=${results}
                 slots=${slots}
                 approvals=${approvals}

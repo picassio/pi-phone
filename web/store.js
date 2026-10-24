@@ -160,6 +160,14 @@ export const store = {
             listener(this.state);
         }
     },
+    /**
+     * Change the state without drawing anything again: for what the last draw already showed, so a draw for it would
+     * change nothing on screen. Kept in the same state object, which `apartFromViews` compares, so the next change draws
+     * as if this one was always there.
+     */
+    note(patch) {
+        Object.assign(this.state, patch);
+    },
     subscribe(listener) {
         this.listeners.add(listener);
 
@@ -501,9 +509,12 @@ function applyView(data) {
 
 /** A view after an update from the server: the full view, or what changed since the last one. */
 function mergeView(current, data) {
-    const base =
-        data.full || current.conversation?.id !== data.conversation.id ? emptyView() : current;
-    const entries = new Map(base.entries);
+    const same = current.conversation?.id === data.conversation.id;
+    const base = data.full || !same ? emptyView() : current;
+    // Most updates while Pi writes bring no entries: the same Map then, so what is built from it (the transcript's rows)
+    // is not built again for each of them.
+    const unchanged = !data.full && same && data.entries.length === 0 && !data.order;
+    const entries = unchanged ? current.entries : new Map(base.entries);
 
     for (const entry of data.entries) {
         entries.set(entry.id, entry);
@@ -1200,11 +1211,20 @@ export const actions = {
     history: (before) => api(`c/${current()}/history?before=${before}`),
 };
 
+/** The kinds of entries that show as transcript rows. */
+const ROW_KINDS = new Set([
+    "user",
+    "assistant",
+    "compaction",
+    "reset",
+    "shell",
+    "command",
+    "note",
+    "fromPi",
+]);
+
 /** Entries that show as transcript rows. Tool results show inside their call's card instead. */
-export const isRow = (entry) =>
-    ["user", "assistant", "compaction", "reset", "shell", "command", "note", "fromPi"].includes(
-        entry.kind,
-    );
+export const isRow = (entry) => ROW_KINDS.has(entry.kind);
 
 /**
  * Show the transcript from this entry down when it is above the rows shown now, as for a jump to a pinned or quoted

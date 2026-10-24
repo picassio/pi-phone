@@ -154,6 +154,15 @@ const PURIFY = {
     RETURN_DOM_FRAGMENT: true,
 };
 
+/**
+ * The app's own sanitizer, with its settings read once (`setConfig`): given them on each call, it reads them again for
+ * each reply. Its own instance, so what it is set to and its hooks (below) change nothing for the global one, which
+ * `rich.js` and extensions' modules that import `dompurify` use.
+ */
+const purify = DOMPurify(window);
+
+purify.setConfig(PURIFY);
+
 /** Images the app serves for a conversation (files, stored images, artifacts), or inline data. Nothing else loads. */
 const localImage = (src) => APP_IMAGE.test(src) || /^data:image\//i.test(src);
 
@@ -261,7 +270,7 @@ function codeBlock(pre, fold) {
  * it loads, and code blocks are drawn by `codeBlock` (folded when long, if `fold`). Returns the element holding it.
  */
 function sanitize(html, fold) {
-    const fragment = DOMPurify.sanitize(html, PURIFY);
+    const fragment = purify.sanitize(html);
 
     // `src/app.ts` in a reply opens the file: inline code that is a path, not code blocks.
     // Math's placeholders are not code: `drawMath` draws them.
@@ -384,19 +393,35 @@ function fencePage(text) {
 /** The conversation whose markdown is being sanitized, for image paths relative to its folder. */
 let rendering = null;
 
-DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
-    // Before the URL check, so file:// and plain paths become app URLs instead of being dropped.
-    if (node.nodeName === "IMG" && data.attrName === "src") {
-        data.attrValue = imageSource(data.attrValue, rendering);
-    } else if (node.nodeName === "A" && data.attrName === "href") {
-        // `app.ts:42` looks like a URL scheme to the sanitizer; `./app.ts:42` is the same local file.
-        if (/^[a-z][a-z0-9+.-]*:/i.test(data.attrValue) && linkedPath(data.attrValue) !== null) {
-            data.attrValue = `./${data.attrValue}`;
+/**
+ * An element's attribute as the sanitizer reads it next. Before any of its checks (the URL check too), and before the
+ * attributes are read: a hook on each attribute would make it copy its lists of allowed names on each call.
+ */
+function rewrite(node, name, change) {
+    const value = node.getAttribute(name);
+
+    if (value !== null) {
+        const next = change(value.trim());
+
+        if (next !== value) {
+            node.setAttribute(name, next);
         }
+    }
+}
+
+purify.addHook("beforeSanitizeAttributes", (node) => {
+    // Before the URL check, so file:// and plain paths become app URLs instead of being dropped.
+    if (node.nodeName === "IMG") {
+        rewrite(node, "src", (src) => imageSource(src, rendering));
+    } else if (node.nodeName === "A") {
+        // `app.ts:42` looks like a URL scheme to the sanitizer; `./app.ts:42` is the same local file.
+        rewrite(node, "href", (href) =>
+            /^[a-z][a-z0-9+.-]*:/i.test(href) && linkedPath(href) !== null ? `./${href}` : href,
+        );
     }
 });
 
-DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+purify.addHook("afterSanitizeAttributes", (node) => {
     if (node.tagName === "A") {
         node.setAttribute("target", "_blank");
         node.setAttribute("rel", "noopener noreferrer");
@@ -895,19 +920,40 @@ export function formatBytes(bytes) {
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+// Times as this device writes them, each format made once: making one costs more than using it, and a transcript
+// writes a time for each message.
+const TIME = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+const DAY = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+const WEEKDAY = new Intl.DateTimeFormat([], { weekday: "short" });
+
+/** Whether a date is today, on this device's clock. */
+function isToday(date) {
+    const now = new Date();
+
+    return (
+        date.getDate() === now.getDate() &&
+        date.getMonth() === now.getMonth() &&
+        date.getFullYear() === now.getFullYear()
+    );
+}
+
+/** When something happened, on this device's clock: "10:42" today, "Oct 3 10:42" before. */
+export function clockTime(date) {
+    const time = TIME.format(date);
+
+    return isToday(date) ? time : `${DAY.format(date)} ${time}`;
+}
+
 /** A time ahead, on this device's clock: "14:30" today, "Mon 09:00" this week, "Oct 20 09:00" later. */
 export function formatWhen(ms) {
     const at = new Date(ms);
-    const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const time = TIME.format(at);
 
-    if (at.toDateString() === new Date().toDateString()) {
+    if (isToday(at)) {
         return time;
     }
 
-    const day =
-        ms - Date.now() < 6 * 86_400_000
-            ? at.toLocaleDateString([], { weekday: "short" })
-            : at.toLocaleDateString([], { month: "short", day: "numeric" });
+    const day = ms - Date.now() < 6 * 86_400_000 ? WEEKDAY.format(at) : DAY.format(at);
 
     return `${day} ${time}`;
 }
@@ -1188,12 +1234,18 @@ export function useEdge(name, measure) {
                 }
             };
 
+            // Its first measure too, once the page is laid out and before it paints: measured as it mounts, it would lay
+            // out the page in the middle of a draw.
             const observer = new ResizeObserver(update);
             // A pane popping in (`popin` scales it) moves the element without resizing it: measured again as an
-            // animation around it ends.
+            // animation around it ends. Not for the others (a row that rose in, a group that unrolled).
             let frame = 0;
 
-            const settled = () => {
+            const settled = (event) => {
+                if (!(event.target instanceof Node) || !event.target.contains(element)) {
+                    return;
+                }
+
                 cancelAnimationFrame(frame);
                 frame = requestAnimationFrame(update);
             };
@@ -1202,7 +1254,6 @@ export function useEdge(name, measure) {
             observer.observe(element);
             addEventListener("resize", update);
             document.addEventListener("animationend", settled);
-            update();
 
             return () => {
                 observer.disconnect();
