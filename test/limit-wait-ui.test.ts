@@ -68,6 +68,8 @@ before(async () => {
     });
     app.accounts.add("anthropic", "Work");
     app.accounts.add("anthropic", "Home");
+    // As the API does after adding an account: the tabs' model lists get them.
+    app.providers.modelsChanged();
     // A team account's provider, as the team server's sync registers one here.
     app.models.registerNativeProvider(accountProvider(localAnthropic(provider.url), "anthropic~team-x", "Team X"));
     server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
@@ -261,6 +263,39 @@ test("Retry now sends the request; the phone's list shows the square; Providers 
     behave = () => ({ text: "answered" });
     await page.click({ selector: ".live-retry" });
     await until(() => !app.isBusy(id), "the answer after Retry now");
+});
+
+test("with two or more other accounts, the usage warning offers them in a dropdown, emptiest first, and Switch moves the session", real, async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "anthropic", modelId: MODEL_ID }, thinkingLevel: "off" });
+    await page.setViewport(VIEWPORTS.mobile);
+    await page.navigate(`${base}/s/${id}`);
+    await until(banner, "the usage warning");
+    const offered = () =>
+        inPage<{ links: string[]; choice: string | null; to: string | null }>(`
+            const bar = document.querySelector(".usage-warning");
+
+            return JSON.stringify({
+                links: [...bar.querySelectorAll(":scope > .link")].map((each) => each.innerText.trim()),
+                choice: bar.querySelector(".usage-warning-switch .choice")?.innerText.trim().split(/\\s*\\n\\s*/).join(" | ") ?? null,
+                to: bar.querySelector(".usage-warning-switch .button")?.getAttribute("aria-label") ?? null,
+            });
+        `);
+
+    await until(async () => (await offered()).choice !== null, "the dropdown");
+    const shown = await offered();
+
+    // No row of Switch links: the dropdown and Close. Emptiest first: Work, whose fullest window is the week's 31%.
+    assert.deepEqual(shown.links, ["Close"], JSON.stringify(shown));
+    assert.match(shown.choice ?? "", /\| 31% used$/, JSON.stringify(shown));
+    await shot("usage-warning-choice-390");
+    const to = /^Switch to (.+)$/.exec(shown.to ?? "")?.[1];
+
+    assert.ok(to !== undefined, JSON.stringify(shown));
+    await page.evaluate(`document.querySelector(".usage-warning-switch .button").click()`);
+    await until(async () => (await app.agentState(id))?.model?.provider !== "anthropic", "the session moved");
+    assert.ok(shown.choice?.startsWith(to!), `${to} is the one shown`);
 });
 
 test("with none of the person's own accounts left, the card lists the team's, marked team, and Move goes there", real, async () => {

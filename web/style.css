@@ -8282,8 +8282,22 @@ textarea.notes {
     flex: 1 1 15rem;
 }
 
-.usage-warning > .grow + .link {
+.usage-warning > .grow + .link,
+.usage-warning > .grow + .usage-warning-switch {
     margin-left: auto;
+}
+
+/* More than one other account: the dropdown (as the limit card's) and Switch, side by side. */
+.usage-warning-switch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.usage-warning-switch .choice {
+    min-width: 0;
+    max-width: 15rem;
 }
 
 .plan-bar > .link {

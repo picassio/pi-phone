@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { t, tx } from "./i18n.js";
 import { actions, attempt, store } from "./store.js";
-import { html } from "./ui.js";
+import { Choice, html } from "./ui.js";
 
 const SHORT = { "5-hour": "5h", Weekly: "wk", "Weekly Opus": "wk Opus", "Weekly Sonnet": "wk Sonnet", "Premium requests": "premium" };
 
@@ -208,6 +208,8 @@ export function UsageWarning() {
     const window = usage?.windows?.filter((each) => each.usedPercent >= 90).sort((a, b) => b.usedPercent - a.usedPercent)[0];
     const key = window === undefined ? "" : `pi-phone.usage-warned:${provider}:${window.label}:${window.resetsAt ?? ""}`;
     const [, redraw] = useState(0);
+    // With two or more other accounts: the one picked in the dropdown (the emptiest until another is picked).
+    const [picked, setPicked] = useState(null);
 
     // A limit's account card is up here (PP-135): it says it, and offers the other account.
     if (window === undefined || localStorage.getItem(key) === "1" || (view.limitOffers ?? []).length > 0) {
@@ -228,11 +230,33 @@ export function UsageWarning() {
                 return window.resetsAt === undefined ? tx("{limit}.", { limit }) : tx("{limit}, {reset}.", { limit, reset: resetText(window.resetsAt) });
             })()}
         </span>
-        ${others.map(
-            (other) => html`<button class="link small" onClick=${() => attempt(() => switchAccount(other.provider, modelId))}>
-                ${other.peak === undefined ? t("Switch to {name}", { name: other.name }) : t("Switch to {name} ({n}%)", { name: other.name, n: Math.round(other.peak) })}
-            </button>`,
-        )}
+        ${
+            // One other account: a link to it. More: a dropdown of them, as the limit card's (emptiest first), and Switch.
+            others.length === 1
+                ? html`<button class="link small" onClick=${() => attempt(() => switchAccount(others[0].provider, modelId))}>
+                      ${others[0].peak === undefined ? t("Switch to {name}", { name: others[0].name }) : t("Switch to {name} ({n}%)", { name: others[0].name, n: Math.round(others[0].peak) })}
+                  </button>`
+                : others.length > 1 &&
+                  (() => {
+                      const chosen = others.find((other) => other.provider === picked) ?? others[0];
+
+                      return html`<div class="usage-warning-switch">
+                          <${Choice}
+                              value=${chosen.provider}
+                              label=${t("Account to switch to")}
+                              options=${others.map((other) => ({
+                                  value: other.provider,
+                                  label: other.name,
+                                  ...(other.peak === undefined ? {} : { detail: t("{n}% used", { n: Math.round(other.peak) }) }),
+                              }))}
+                              onChange=${setPicked}
+                          />
+                          <button class="button small" aria-label=${t("Switch to {name}", { name: chosen.name })} onClick=${() => attempt(() => switchAccount(chosen.provider, modelId))}>
+                              ${t("Switch")}
+                          </button>
+                      </div>`;
+                  })()
+        }
         <button class="link small" aria-label=${t("Close")} onClick=${close}>${t("Close")}</button>
     </div>`;
 }

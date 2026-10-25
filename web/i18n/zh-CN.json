@@ -2734,5 +2734,7 @@
     "Controlling the phone is the owner's: waiting for them.": "控制手机由所有者决定：正在等待他们。",
     "Approve and start": "同意并开始",
     "Using {device}": "正在使用{device}",
-    "{n} min left": "还剩 {n} 分钟"
+    "{n} min left": "还剩 {n} 分钟",
+    "Account to switch to": "要切换到的账号",
+    "Switch": "切换"
 }
