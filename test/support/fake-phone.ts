@@ -77,7 +77,6 @@ export const APPS = [
     { label: "Grab", package: "com.grabtaxi.passenger" },
     { label: "Notes", package: "com.example.notes" },
     { label: "Settings", package: "com.android.settings" },
-    { label: "Device care", package: "com.example.devicecare" },
     { label: "Vietcombank", package: "com.VCB" },
     { label: "Bitwarden", package: "com.x8bit.bitwarden" },
     { label: "pi", package: "io.piphone" },
@@ -188,6 +187,17 @@ export class FakePhone {
                 return { foreground: this.foreground };
             case "apps":
                 return { apps: APPS };
+            case "label": {
+                // Any installed app's name: Device care has no icon of its own, so it is not among `apps`.
+                const name = String(request.package);
+                const label = name === "com.example.devicecare" ? "Device care" : APPS.find((each) => each.package === name)?.label;
+
+                if (label === undefined) {
+                    throw new Error(`${name} is not installed`);
+                }
+
+                return { label };
+            }
             case "banner":
                 this.banner = request.show === true ? { until: Number(request.until), apps: String(request.apps) } : undefined;
 

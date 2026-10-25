@@ -165,6 +165,7 @@ final class PhoneControl {
         String op = request.getString("op");
         if (op.equals("status")) return status();
         if (op.equals("apps")) return apps();
+        if (op.equals("label")) return label(request.getString("package"));
         if (op.equals("banner")) return banner(request);
         PiAccessibility service = PiAccessibility.get();
         if (service == null) throw new IllegalStateException("pi-phone's accessibility service is off: turn it on in Android's Accessibility settings");
@@ -323,6 +324,15 @@ final class PhoneControl {
                 new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY);
         if (home == null || home.activityInfo == null || "android".equals(home.activityInfo.packageName)) return null;
         return home.activityInfo.packageName;
+    }
+
+    /**
+     * An installed app's name, launchable or not: an app a session follows into may have no icon of its own (Samsung's
+     * Device care, which Settings' Battery opens). An app not installed answers with an error.
+     */
+    private JSONObject label(String name) throws Exception {
+        PackageManager packages = context.getPackageManager();
+        return new JSONObject().put("label", String.valueOf(packages.getApplicationLabel(packages.getApplicationInfo(name, 0))));
     }
 
     private JSONObject apps() throws JSONException {

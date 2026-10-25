@@ -437,7 +437,8 @@ export class PhoneControl {
             return false;
         }
 
-        const label = (await this.apps(session.device).catch(() => [])).find((each) => each.package === foreground)?.label ?? foreground;
+        // Its name from Android, launchable or not (Device care has no icon of its own).
+        const { label } = (await this.#ask(session.device, { op: "label", package: foreground })) as { label: string };
 
         session.followed = [...(session.followed ?? []), { label, package: foreground }];
         this.#save();
