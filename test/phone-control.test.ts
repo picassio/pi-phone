@@ -308,7 +308,7 @@ test("one card for the apps, only the owner approves; then only those apps and t
         await until(() => app.approvals.forConversation(id).length > 0, "the card");
         const card = app.approvals.forConversation(id)[0]!;
 
-        assert.deepEqual(card.form, { type: "phone", device: "phone", deviceName: "This phone", apps: [{ label: "Grab", package: "com.grabtaxi.passenger" }], minutes: 20 });
+        assert.deepEqual(card.form, { type: "phone", device: "phone", deviceName: "This phone", apps: [{ label: "Grab", package: "com.grabtaxi.passenger" }], minutes: 20, follow: false });
         assert.equal(card.reason, "Order lunch");
         await assert.rejects(app.answerApproval(card.id, true, guest), /Controlling the phone is the owner's/);
         assert.equal(app.phoneControl.active(), undefined, "nothing started");
@@ -416,6 +416,47 @@ test("Stop on the phone (the app's service, with the owner's sign-in) ends it; P
     const { said } = await call(id, "phone_act", { action: "button", button: "back" });
 
     assert.match(said, /No phone control session is active on this phone \(the last one ended at \d\d:\d\d: Stop on the phone\)/);
+});
+
+test("strict, an app a named one opens is refused; following along, it joins, but not an app it opens in turn, nor one opened from the home screen", async () => {
+    const id = await newSession(app);
+
+    // Strict: Settings' Battery opens Device care, an app of its own (as on a Samsung): not in the session.
+    await startSettings(id);
+    let { said } = await call(id, "phone_act", { action: "open_app", app: "Settings" });
+
+    assert.match(said, /Settings \(com\.android\.settings\)/);
+    ({ said } = await call(id, "phone_act", { action: "tap", x: 540, y: 1370 }));
+    assert.match(said, /com\.example\.devicecare is in front, and it is not in this session \(Settings, and the home screen\).*follow: true lets apps the named ones open join/);
+    assert.ok(!said.includes("Battery health"), "not read");
+    await call(id, "phone_act", { action: "button", button: "home" });
+    await call(id, "phone_control", { action: "stop" });
+
+    // Following along: the card says so; Device care joins as Settings opens it, and is read.
+    ({ said } = await call(id, "phone_control", { action: "start", apps: ["Settings"], follow: true, reason: "Check the battery" }, { answer: true }));
+    assert.match(said, /and the home screen, and apps these open while you act in them/);
+    ({ said } = await call(id, "phone_act", { action: "open_app", app: "Settings" }));
+    ({ said } = await call(id, "phone_act", { action: "tap", x: 540, y: 1370 }));
+    assert.match(said, /Device care \(com\.example\.devicecare\)[\s\S]*Battery health: Good/);
+    assert.deepEqual(
+        app.phoneControl.view()[0]?.apps.map((each) => each.label),
+        ["Settings", "Device care"],
+        "the session's apps, as the live line shows them",
+    );
+    assert.equal(phone.ops("tap").at(-1)?.apps, "Settings", "the tap was sent with the card's apps");
+
+    // One step only: Notes, which Device care opens, does not join.
+    ({ said } = await call(id, "phone_act", { action: "tap", x: 540, y: 550 }));
+    assert.match(said, /com\.example\.notes is in front, and it is not in this session \(Settings, Device care, and the home screen; apps the named ones open join it, but not this one/);
+    assert.ok(!said.includes("My private note"), "not read");
+
+    // Nor an app opened from the home screen.
+    ({ said } = await call(id, "phone_act", { action: "button", button: "home" }));
+    ({ said } = await call(id, "phone_act", { action: "tap", x: 450, y: 1900 }));
+    assert.match(said, /com\.example\.notes is in front, and it is not in this session/);
+    assert.ok(!said.includes("My private note"), "not read");
+    await call(id, "phone_act", { action: "button", button: "home" });
+    await call(id, "phone_control", { action: "stop" });
 });
 
 test("a restart keeps a session; at its time it ends", async () => {

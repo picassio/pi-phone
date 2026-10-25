@@ -638,7 +638,12 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   Top/Content/Bottom and toolbars, lists with their row count, clickable wrappers folded into their label, skeleton and
   dividers left out, a popup over the app listed alone, the keyboard; unlike sim-use a full-screen scrollable list stays,
   so Pi can scroll it by number).
-  - **Scope:** a session touches only the apps on its card and the home screen; another app needs another card. Never:
+  - **Scope:** a session touches only the apps on its card and the home screen; another app needs another card, unless
+    the card follows along (`follow`, the owner's choice of 2026-10-25, after Samsung's Settings › Battery turned out to
+    be another package): an app that comes to the front right after Pi's tap, long press or typing in one of the named
+    apps joins (`followed`, saved, shown in the live line). One step only: not from a followed app, nor after back, home
+    or recents, nor from the home screen. `screen()` reads again once an app joins, as the service held its nodes back.
+    Never:
   `io.piphone` (Pi must not tap its own cards), the built-in lists (`NEVER_GROUPS`: banks and wallets, global and
   Vietnamese, crypto; password managers and authenticators) and the owner's own list, which only the owner changes, in
   Menu › Phone control (no tool: the owner's decision, an exception to "a tool for everything"). The server checks the app

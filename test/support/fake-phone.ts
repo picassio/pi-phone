@@ -77,6 +77,7 @@ export const APPS = [
     { label: "Grab", package: "com.grabtaxi.passenger" },
     { label: "Notes", package: "com.example.notes" },
     { label: "Settings", package: "com.android.settings" },
+    { label: "Device care", package: "com.example.devicecare" },
     { label: "Vietcombank", package: "com.VCB" },
     { label: "Bitwarden", package: "com.x8bit.bitwarden" },
     { label: "pi", package: "io.piphone" },
@@ -87,6 +88,11 @@ const TREES: Record<string, PhoneNode> = {
     "com.android.settings": SETTINGS,
     "com.grabtaxi.passenger": GRAB,
     "com.example.notes": node("android.widget.FrameLayout", [0, 0, 1080, 2400], {}, [node("android.widget.TextView", [0, 300, 1080, 400], { t: "My private note" })]),
+    // What Settings' Battery opens on a Samsung: an app of its own (as Device care is), with a button that opens Notes.
+    "com.example.devicecare": node("android.widget.FrameLayout", [0, 0, 1080, 2400], {}, [
+        node("android.widget.TextView", [0, 300, 1080, 400], { t: "Battery health: Good" }),
+        node("android.widget.Button", [0, 500, 1080, 600], { t: "Open Notes", f: CLICK | FOCUSABLE }),
+    ]),
 };
 
 const matches = (pattern: string, name: string) => (pattern.endsWith("*") ? name.startsWith(pattern.slice(0, -1)) : name === pattern);
@@ -209,6 +215,13 @@ export class FakePhone {
 
                 if (this.foreground === "com.grabtaxi.passenger" && y < 300) {
                     this.keyboard = true;
+                }
+
+                // Settings' Battery row opens Device care; Device care's button opens Notes.
+                if (this.foreground === "com.android.settings" && y >= 1270 && y < 1470) {
+                    this.foreground = "com.example.devicecare";
+                } else if (this.foreground === "com.example.devicecare" && y >= 500 && y < 600) {
+                    this.foreground = "com.example.notes";
                 }
 
                 return {};

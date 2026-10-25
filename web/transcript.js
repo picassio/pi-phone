@@ -1652,6 +1652,10 @@ function PhoneControlCard({ approval }) {
             <dd>
                 ${form.apps.map((app) => html`<div><span>${app.label}</span> <span class="muted mono small">${app.package}</span></div>`)}
                 <div class="muted small">${t("and the home screen, to open them")}</div>
+                ${
+                    form.follow &&
+                    html`<div class="phone-control-follow">${t("and the apps these open while Pi works in them (Settings' Battery opening Device care), added as they come")}</div>`
+                }
             </dd>
             <dt>${t("For")}</dt>
             <dd>${t("{n} minutes, from when you approve", { n: form.minutes })}</dd>

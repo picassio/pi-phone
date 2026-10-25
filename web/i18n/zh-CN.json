@@ -2736,5 +2736,6 @@
     "Using {device}": "正在使用{device}",
     "{n} min left": "还剩 {n} 分钟",
     "Account to switch to": "要切换到的账号",
-    "Switch": "切换"
+    "Switch": "切换",
+    "and the apps these open while Pi works in them (Settings' Battery opening Device care), added as they come": "以及 Pi 在这些应用中操作时它们打开的应用（如设置里的电池打开设备维护），打开时加入"
 }

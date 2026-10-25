@@ -25,7 +25,7 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const PACKAGE = /^[A-Za-z][\w]*(\.[A-Za-z_][\w]*)+$/;
 
 /** In every prompt while the module is on. */
-export const PHONE = `Phone control: you can see and operate Android apps on the owner's phone, in a control session the owner approves on a card. phone_control start names the apps (and minutes, 15 by default); only those apps and the home screen may be read or touched, so ask with a new card for another app. Then phone_act open_app opens one, phone_screen reads the screen as numbered elements ([3] Button "Send"), phone_act taps, types, swipes, scrolls, presses back or home, and answers with the screen after it (use the newest numbers); phone_screenshot shows it as a picture. Never type into a password field: ask the owner to type a password or code on the phone himself. pi-phone itself, banking and payment apps, password managers and apps on the owner's Never list are never read or controlled. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with phone_control stop when you are done.`;
+export const PHONE = `Phone control: you can see and operate Android apps on the owner's phone, in a control session the owner approves on a card. phone_control start names the apps (and minutes, 15 by default); only those apps and the home screen may be read or touched, so ask with a new card for another app; or, when the work will lead into screens of other apps (on a Samsung, Settings' Battery is Device care, an app of its own), ask with follow: true, so an app the named ones open while you act in them joins (one step). Then phone_act open_app opens one, phone_screen reads the screen as numbered elements ([3] Button "Send"), phone_act taps, types, swipes, scrolls, presses back or home, and answers with the screen after it (use the newest numbers); phone_screenshot shows it as a picture. Never type into a password field: ask the owner to type a password or code on the phone himself. pi-phone itself, banking and payment apps, password managers and apps on the owner's Never list are never read or controlled. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with phone_control stop when you are done.`;
 
 export default function createPhone(host: PocketHost) {
     const control = host.phone;
@@ -87,12 +87,13 @@ export default function createPhone(host: PocketHost) {
         description:
             "Start, stop, or check a phone control session: Pi reads and operates Android apps on the owner's phone through pi-phone's accessibility service. " +
             "start shows the owner one card with the apps (names or packages) and the minutes (default 15, 5 to 60); on Approve, a banner and a notification on the phone say Pi is using it, with Stop. " +
-            "Only those apps and the home screen may be read or touched; another app needs a new card. pi-phone itself, banking and payment apps, password managers and the owner's Never list are refused. " +
+            "Only those apps and the home screen may be read or touched; another app needs a new card, unless you ask with follow: true, which lets an app the named ones open while you act in them (Settings' Battery opening Device care) join the session (one step: not apps those open, nor apps opened from the home screen). pi-phone itself, banking and payment apps, password managers and the owner's Never list are refused either way. " +
             "It ends at its time, on Stop (the phone's banner or notification, the app's live line), or with stop. Owner only.",
         parameters: Type.Object({
             action: Type.Union([Type.Literal("start"), Type.Literal("stop"), Type.Literal("status")]),
             apps: Type.Optional(Type.Array(Type.String(), { description: "start: the apps, by name as the launcher shows it or by package (com.grab.food)" })),
             minutes: Type.Optional(Type.Integer({ minimum: MINUTES.min, maximum: MINUTES.max, description: "start: how long (default 15)" })),
+            follow: Type.Optional(Type.Boolean({ description: "start: also the apps the named ones open while you act in them (default false: only the named apps)" })),
             reason: Type.Optional(Type.String({ description: "start: what you will do, in a sentence: shown on the card" })),
             device,
         }),
@@ -117,7 +118,7 @@ export default function createPhone(host: PocketHost) {
                         `${phone.name}: Android ${status.android}, accessibility service ${status.enabled ? "on" : "off (Menu › Phone control › Set up this phone)"}, screenshots ${status.screenshot ? "supported" : "need Android 11"}.`,
                         mine === undefined
                             ? control.noSession(phone.id)
-                            : `Session #${mine.session} controls it: ${mine.apps.map((each) => `${each.label} (${each.package})`).join(", ")}, and the home screen; ${left(mine)}.`,
+                            : `Session #${mine.session} controls it: ${[...mine.apps, ...(mine.followed ?? [])].map((each) => `${each.label} (${each.package})`).join(", ")}, and the home screen${mine.follow === true ? "; apps these open join it" : ""}; ${left(mine)}.`,
                     ];
 
                     return reply(lines.join("\n"));
@@ -189,6 +190,7 @@ export default function createPhone(host: PocketHost) {
                 }
 
                 const conversationId = Number(api.conversationId);
+                const follow = args.follow === true;
                 const answer = await host.approvals.request(
                     {
                         id: `phone_control-${String(api.conversationId)}-${String(api.callId)}`,
@@ -196,9 +198,9 @@ export default function createPhone(host: PocketHost) {
                         taskId: api.taskId as never,
                         ...(api.callId === undefined ? {} : { callId: api.callId }),
                         tool: "phone_control",
-                        subject: `Control ${phone.name.toLowerCase()} for ${minutes} min: ${apps.map((each) => each.label).join(", ")}`,
+                        subject: `Control ${phone.name.toLowerCase()} for ${minutes} min: ${apps.map((each) => each.label).join(", ")}${follow ? ", and the apps these open" : ""}`,
                         reason: args.reason ?? "",
-                        form: { type: "phone", device: phone.id, deviceName: phone.name, apps, minutes },
+                        form: { type: "phone", device: phone.id, deviceName: phone.name, apps, minutes, follow },
                         createdAt: Date.now(),
                     },
                     context as never,
@@ -214,12 +216,13 @@ export default function createPhone(host: PocketHost) {
                     session: host.rootOf(conversationId),
                     approvedBy: host.requesterOf(conversationId as never) ?? "",
                     apps,
+                    follow,
                     reason: args.reason ?? "",
                     minutes,
                 });
 
                 return reply(
-                    `Phone control is on for ${minutes} minutes (until ${clockText(session.until)}): ${apps.map((each) => `${each.label} (${each.package})`).join(", ")}, and the home screen. The phone shows a banner with Stop. Open an app with phone_act open_app, then read the screen with phone_screen.`,
+                    `Phone control is on for ${minutes} minutes (until ${clockText(session.until)}): ${apps.map((each) => `${each.label} (${each.package})`).join(", ")}, and the home screen${follow ? ", and apps these open while you act in them" : ""}. The phone shows a banner with Stop. Open an app with phone_act open_app, then read the screen with phone_screen.`,
                 );
             } catch (error) {
                 return reply(message(error), true);

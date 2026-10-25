@@ -61,7 +61,7 @@ export interface ApprovalRequest {
          * Pi asks to control a phone (`phone_control`, PP-141): the device, the apps the session may touch (with the home
          * screen), and for how long. Approve starts it, and only the owner approves.
          */
-        | { type: "phone"; device: string; deviceName: string; apps: PhoneApp[]; minutes: number }
+        | { type: "phone"; device: string; deviceName: string; apps: PhoneApp[]; minutes: number; follow: boolean }
         /**
          * Pi's browser asks the person (`extensions/browser.ts`): to sign in (a username and a password, typed into the
          * page's fields `fields` name), for a one-time code, or to do something on the page themselves. What they type

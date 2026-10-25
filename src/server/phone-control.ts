@@ -80,6 +80,14 @@ export type ControlSession = {
     /** Who said yes (the owner's id). */
     approvedBy: string;
     apps: PhoneApp[];
+    /**
+     * Follow along (the owner's choice on the card): an app one of `apps` opens while Pi acts in it (Settings' Battery,
+     * which on a Samsung is Device care) joins the session, in `followed`. Only from the named apps, one step: not an app
+     * a followed one opens, nor one reached by back, home or recents, nor one opened from the home screen. The Never list
+     * and pi-phone itself stay out. Off: only `apps` and the home screen.
+     */
+    follow?: boolean;
+    followed?: PhoneApp[];
     /** The home screen's package, allowed with the apps to open them. */
     launcher: string | undefined;
     reason: string;
@@ -104,6 +112,9 @@ export type PhoneStatus = {
 
 const matches = (pattern: string, name: string) => (pattern.endsWith("*") ? name.startsWith(pattern.slice(0, -1)) : name === pattern);
 
+/** The actions that may open another app, for following along: a tap, a long press, typing (with Enter). */
+const OPENING = new Set(["tap", "press", "type"]);
+
 export class PhoneControl {
     /** The channel the app's service polls (`PhoneControl.java`). */
     readonly requests = new PhoneRequests("phone control");
@@ -114,6 +125,8 @@ export class PhoneControl {
     readonly #log: (line: string) => void;
     readonly #timers = new Map<string, NodeJS.Timeout>();
     readonly #listeners = new Set<() => void>();
+    /** The named app Pi last acted in by a tap, a long press or typing, per device: what a followed app came from. */
+    readonly #opener = new Map<string, string>();
     /** The newest outline read on each device: `[n]` in an action is from it. */
     readonly #outlines = new Map<string, Outline & { foreground: string }>();
 
@@ -389,17 +402,49 @@ export class PhoneControl {
      * the apps' names, for the banner it shows again when it is not up (pi-phone's process started again in a session).
      */
     #scope(session: ControlSession): { allowed: string[]; never: string[]; until: number; apps: string } {
+        const apps = [...session.apps, ...(session.followed ?? [])];
+
         return {
-            allowed: [...session.apps.map((each) => each.package), ...(session.launcher === undefined ? [] : [session.launcher])],
+            allowed: [...apps.map((each) => each.package), ...(session.launcher === undefined ? [] : [session.launcher])],
             never: this.#neverPatterns(),
             until: session.until,
-            apps: session.apps.map((each) => each.label).join(", "),
+            apps: apps.map((each) => each.label).join(", "),
         };
     }
 
     /** The app's name in a session's words: its label on the card, "the home screen", or its package. */
     #name(session: ControlSession, name: string): string {
-        return name === session.launcher ? "the home screen" : (session.apps.find((each) => each.package === name)?.label ?? name);
+        return name === session.launcher
+            ? "the home screen"
+            : ([...session.apps, ...(session.followed ?? [])].find((each) => each.package === name)?.label ?? name);
+    }
+
+    /**
+     * In a session that follows along: when the app in front came up from an action Pi took in one of the named apps (its
+     * `#opener`), it joins the session. Answers whether it did.
+     */
+    async #follow(session: ControlSession, foreground: string | null): Promise<boolean> {
+        if (
+            session.follow !== true ||
+            foreground === null ||
+            foreground === "" ||
+            foreground === PI_PHONE_PACKAGE ||
+            foreground === session.launcher ||
+            this.#opener.get(session.device) === undefined ||
+            this.neverReason(foreground) !== undefined ||
+            [...session.apps, ...(session.followed ?? [])].some((each) => each.package === foreground)
+        ) {
+            return false;
+        }
+
+        const label = (await this.apps(session.device).catch(() => [])).find((each) => each.package === foreground)?.label ?? foreground;
+
+        session.followed = [...(session.followed ?? []), { label, package: foreground }];
+        this.#save();
+        this.#log(`Phone control on ${session.device} follows into ${foreground}, opened from ${this.#opener.get(session.device)}.`);
+        this.#changed();
+
+        return true;
     }
 
     /** Why Pi may not read or touch the app in front, or undefined when it may. */
@@ -418,8 +463,10 @@ export class PhoneControl {
             return `${foreground} is in front, ${never}: Pi never reads or controls it. Go back or home with phone_act button.`;
         }
 
-        if (foreground !== session.launcher && !session.apps.some((each) => each.package === foreground)) {
-            return `${foreground} is in front, and it is not in this session (${session.apps.map((each) => each.label).join(", ")}, and the home screen): Pi does not read or touch it. Go back or home with phone_act button, or ask for it with phone_control start.`;
+        const apps = [...session.apps, ...(session.followed ?? [])];
+
+        if (foreground !== session.launcher && !apps.some((each) => each.package === foreground)) {
+            return `${foreground} is in front, and it is not in this session (${apps.map((each) => each.label).join(", ")}, and the home screen${session.follow === true ? "; apps the named ones open join it, but not this one: it was not opened from them" : ""}): Pi does not read or touch it. Go back or home with phone_act button, or ask for it with phone_control start${session.follow === true ? "" : " (follow: true lets apps the named ones open join)"}.`;
         }
 
         return undefined;
@@ -428,6 +475,8 @@ export class PhoneControl {
     /** The app in front now, checked against the session: or why Pi may not act there. */
     async front(session: ControlSession): Promise<string> {
         const { foreground } = (await this.#ask(session.device, { op: "front" })) as { foreground?: string | null };
+
+        await this.#follow(session, foreground ?? null);
         const refused = this.refusal(session, foreground ?? null);
 
         if (refused !== undefined) {
@@ -439,7 +488,13 @@ export class PhoneControl {
 
     /** The screen as an outline: the app in front, when the session may read it. */
     async screen(session: ControlSession): Promise<Outline & { foreground: string }> {
-        const screen = (await this.#ask(session.device, { op: "tree", ...this.#scope(session) })) as unknown as PhoneScreen;
+        let screen = (await this.#ask(session.device, { op: "tree", ...this.#scope(session) })) as unknown as PhoneScreen;
+
+        // An app the session follows into: the phone held its nodes back (it was not in the scope sent), so again.
+        if (await this.#follow(session, screen.foreground)) {
+            screen = (await this.#ask(session.device, { op: "tree", ...this.#scope(session) })) as unknown as PhoneScreen;
+        }
+
         const refused = this.refusal(session, screen.foreground);
 
         if (refused !== undefined) {
@@ -480,7 +535,16 @@ export class PhoneControl {
     /** An action in the app in front (checked first), or a scoped one that needs no app in front (`anywhere`). */
     async act(session: ControlSession, payload: Record<string, unknown>, anywhere = false): Promise<Record<string, unknown>> {
         if (!anywhere) {
-            await this.front(session);
+            const front = await this.front(session);
+
+            // What may open an app the session then follows into: a tap, a long press or typing, in a named app.
+            if (OPENING.has(String(payload.op)) && session.apps.some((each) => each.package === front)) {
+                this.#opener.set(session.device, front);
+            } else {
+                this.#opener.delete(session.device);
+            }
+        } else {
+            this.#opener.delete(session.device);
         }
 
         return this.#ask(session.device, { ...payload, ...this.#scope(session) });
@@ -507,13 +571,14 @@ export class PhoneControl {
     }
 
     /** The sessions as the app's tabs show them (the live line). */
-    view(): { device: string; deviceName: string; conversationId: number; session: number; apps: PhoneApp[]; until: number }[] {
+    view(): { device: string; deviceName: string; conversationId: number; session: number; apps: PhoneApp[]; follow: boolean; until: number }[] {
         return this.sessions().map((each) => ({
             device: each.device,
             deviceName: this.devices().find((device) => device.id === each.device)?.name ?? each.device,
             conversationId: each.conversationId,
             session: each.session,
-            apps: each.apps,
+            apps: [...each.apps, ...(each.followed ?? [])],
+            follow: each.follow === true,
             until: each.until,
         }));
     }
