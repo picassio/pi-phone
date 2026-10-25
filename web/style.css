@@ -8277,6 +8277,15 @@ textarea.notes {
     flex: 1 1 18rem;
 }
 
+/* So do the usage warning's ("…: weekly limit at 90%, resets …"): its Switch and Close go under them on a phone, to the right. */
+.usage-warning > .grow {
+    flex: 1 1 15rem;
+}
+
+.usage-warning > .grow + .link {
+    margin-left: auto;
+}
+
 .plan-bar > .link {
     margin-left: auto;
 }

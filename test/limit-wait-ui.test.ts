@@ -316,4 +316,18 @@ test("the top bar's usage meter opens as a pop-up: a tap outside or Escape close
     await page.navigate(`${base}/s/${second}`);
     await until(async () => inPage<boolean>(`return JSON.stringify(document.querySelector(".usage-meter") !== null)`), "its meter");
     assert.equal(await panel(), false, "another session starts with it closed");
+
+    // The warning over the composer (the default account's 5-hour window is full here): on a phone its words keep the
+    // bar's width, and Switch and Close go under them, not beside them in a narrow column of words.
+    await page.setViewport(VIEWPORTS.mobile);
+    await page.navigate(`${base}/s/${second}`);
+    await until(banner, "the usage warning");
+    const widths = await inPage<{ bar: number; words: number }>(`
+        const bar = document.querySelector(".usage-warning");
+
+        return JSON.stringify({ bar: bar.clientWidth, words: bar.querySelector(".grow").getBoundingClientRect().width });
+    `);
+
+    assert.ok(widths.words >= widths.bar * 0.75, JSON.stringify(widths));
+    await shot("usage-warning-390");
 });
