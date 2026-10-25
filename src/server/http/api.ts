@@ -688,6 +688,89 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ok: true });
         }
 
+        // Phone control (`phone-control.ts`, PP-141): the app's service reads and acts on the screen (a long poll, answers).
+        if (first === "phone" && second === "control" && third === undefined && method === "GET") {
+            requireOwner(user);
+            const abort = new AbortController();
+
+            request.on("close", () => abort.abort());
+
+            return json(response, 200, await app.phoneControl.requests.after(Number(url.searchParams.get("after") ?? -1), abort.signal));
+        }
+
+        if (first === "phone" && second === "control" && third !== undefined && method === "POST") {
+            requireOwner(user);
+
+            try {
+                // A picture of the screen comes this way: larger than other answers.
+                app.phoneControl.requests.answer(third, await readJson<Record<string, unknown>>(request, MAX_RENDER_BODY));
+            } catch (error) {
+                throw error instanceof HttpError ? error : new HttpError(404, error instanceof Error ? error.message : String(error));
+            }
+
+            return json(response, 200, { ok: true });
+        }
+
+        // Menu › Phone control: this phone's state, its apps, the Never list (the owner's alone to change), and Stop (the
+        // live line's, and the phone's banner and notification, which the app's service sends with the owner's sign-in).
+        if (first === "phone-control") {
+            requireOwner(user);
+            const control = app.phoneControl;
+            const unavailable = control.unavailable();
+
+            if (unavailable !== undefined) {
+                throw new HttpError(400, unavailable);
+            }
+
+            if (second === undefined && method === "GET") {
+                const present = control.present();
+                let status: unknown = null;
+                let problem: string | undefined;
+
+                if (present) {
+                    try {
+                        status = await control.status();
+                    } catch (error) {
+                        problem = error instanceof Error ? error.message : String(error);
+                    }
+                }
+
+                return json(response, 200, { devices: control.devices(), present, status, ...(problem === undefined ? {} : { problem }), sessions: control.view(), never: control.neverList() });
+            }
+
+            if (second === "apps" && method === "GET") {
+                const apps = await control.apps();
+
+                return json(response, 200, { apps: apps.map((each) => ({ ...each, never: control.neverReason(each.package) ?? null })) });
+            }
+
+            if (second === "never" && method === "POST") {
+                const body = await readJson<{ add?: { label?: unknown; package?: unknown }; remove?: unknown }>(request);
+
+                try {
+                    if (body.add !== undefined) {
+                        await control.addNever({ label: String(body.add.label ?? ""), package: String(body.add.package ?? "") });
+                    } else if (typeof body.remove === "string") {
+                        control.removeNever(body.remove);
+                    } else {
+                        throw new Error("Give add: { label, package } or remove: package.");
+                    }
+                } catch (error) {
+                    throw new HttpError(400, error instanceof Error ? error.message : String(error));
+                }
+
+                return json(response, 200, { never: control.neverList() });
+            }
+
+            if (second === "stop" && method === "POST") {
+                const body = await readJson<{ device?: unknown; from?: unknown }>(request);
+                const device = typeof body.device === "string" ? body.device : "phone";
+                const ended = await control.end(device, body.from === "phone" ? "Stop on the phone" : `${user.name} stopped it in the app`);
+
+                return json(response, 200, { ended, sessions: control.view() });
+            }
+        }
+
         // The Browser panel: what Pi's browser shows (frames while a tab watches), taking it over, and its input then.
         if (first === "browser") {
             requireOwner(user);

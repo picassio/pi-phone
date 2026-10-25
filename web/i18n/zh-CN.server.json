@@ -553,5 +553,6 @@
     "{1} has no {2} for this session to move to.": "{1} 没有可供本会话改用的 {2}。",
     "There is a machine with this id already.": "已有一台机器使用这个 id。",
     "There is a machine named {1} already.": "已有一台名为 {1} 的机器。",
-    "Adding a machine is the owner's.": "添加机器由所有者决定。"
+    "Adding a machine is the owner's.": "添加机器由所有者决定。",
+    "Controlling the phone is the owner's.": "控制手机由所有者决定。"
 }

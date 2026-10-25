@@ -24,6 +24,7 @@ import type { Secrets } from "./secrets.ts";
 import type { PolicyStore } from "./policy.ts";
 import type { Machines } from "./machines.ts";
 import type { SshKeys } from "./ssh-keys.ts";
+import type { PhoneApp, PhoneControl } from "./phone-control.ts";
 import type { WebSearch } from "./web/access.ts";
 
 export interface ApprovalRequest {
@@ -56,6 +57,11 @@ export interface ApprovalRequest {
               expected?: string;
               matches?: boolean;
           }
+        /**
+         * Pi asks to control a phone (`phone_control`, PP-141): the device, the apps the session may touch (with the home
+         * screen), and for how long. Approve starts it, and only the owner approves.
+         */
+        | { type: "phone"; device: string; deviceName: string; apps: PhoneApp[]; minutes: number }
         /**
          * Pi's browser asks the person (`extensions/browser.ts`): to sign in (a username and a password, typed into the
          * page's fields `fields` name), for a one-time code, or to do something on the page themselves. What they type
@@ -339,6 +345,10 @@ export interface PocketHost {
     /** The app's machines and SSH keys, as the Machines sheet changes them: for Pi's `machine_add` (PP-139). */
     readonly machineStore: Machines;
     readonly sshKeys: SshKeys;
+    /** Pi controls phones (`phone-control.ts`, PP-141): control sessions, the Never list, the phone's service. */
+    readonly phone: PhoneControl;
+    /** The session a conversation belongs to: itself, or a subagent's session. */
+    rootOf(conversationId: number): number;
     /** Web search's provider and keys (`web/access.ts`), as Settings › Web access has them. */
     readonly web: WebSearch;
     /**

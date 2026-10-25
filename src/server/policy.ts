@@ -25,7 +25,8 @@ export type Policy = {
 };
 
 /** Extension modules that are a permission's whole feature: off without it. */
-export const EXTENSIONS: Readonly<Record<string, string>> = { "browser.ts": "browser.use", "web.ts": "web.search", "machines.ts": "machines.use" };
+// Phone control (PP-141) has no permission in the gateway's catalogue: the team server has no phone, so no role has it.
+export const EXTENSIONS: Readonly<Record<string, string>> = { "browser.ts": "browser.use", "web.ts": "web.search", "machines.ts": "machines.use", "phone.ts": "phone.control" };
 
 /** Tools refused without a permission (besides those of the extensions above, which are absent). */
 export const TOOLS: Readonly<Record<string, string>> = {
@@ -37,6 +38,10 @@ export const TOOLS: Readonly<Record<string, string>> = {
     machine_run: "machines.use",
     machine_copy: "machines.use",
     machine_add: "machines.use",
+    phone_control: "phone.control",
+    phone_screen: "phone.control",
+    phone_act: "phone.control",
+    phone_screenshot: "phone.control",
     web_search: "web.search",
     fetch_content: "web.search",
 };
@@ -47,6 +52,7 @@ export const ROUTES: readonly { first: string; permission: string; writes: boole
     { first: "ssh-keys", permission: "machines.use", writes: false },
     { first: "forwards", permission: "machines.use", writes: false },
     { first: "secrets", permission: "secrets.use", writes: false },
+    { first: "phone-control", permission: "phone.control", writes: false },
     { first: "browser", permission: "browser.use", writes: false },
     { first: "web-access", permission: "web.search", writes: true },
     { first: "providers", permission: "providers.signin", writes: true },
@@ -66,6 +72,7 @@ export const ROUTES: readonly { first: string; permission: string; writes: boole
 /** What a permission is, in words, for refusals. */
 const WORDS: Readonly<Record<string, string>> = {
     "machines.use": "machines",
+    "phone.control": "controlling the phone",
     "secrets.use": "secrets",
     "browser.use": "Pi's browser",
     "web.search": "web access",

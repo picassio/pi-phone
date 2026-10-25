@@ -104,6 +104,7 @@ import { installImageGuard } from "./image-guard.ts";
 import { appSettings } from "./settings-registry.ts";
 import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
 import { PhoneRequests } from "./phone-requests.ts";
+import { PhoneControl } from "./phone-control.ts";
 import { askSessionModel, chargeSession } from "./side-model.ts";
 import { OfficeCli, type OfficeCliOptions } from "./officecli.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
@@ -418,6 +419,8 @@ export class PocketApp {
     readonly places: Places;
     /** Ports of machines opened here (`forwards.ts`). */
     readonly forwards: Forwards;
+    /** Pi controls phones (`phone-control.ts`, PP-141): control sessions, the Never list, the phone's service channel. */
+    readonly phoneControl: PhoneControl;
     /** The PARA wiki (`para.ts`). */
     readonly para: Para;
     readonly paraCapture: ParaCapture = new ParaCapture(this);
@@ -553,6 +556,15 @@ export class PocketApp {
             }
         });
         this.#phoneEngine = options.browserEngine ?? new PhoneEngine(this.browserRequests);
+        this.phoneControl = new PhoneControl({ dataDir: options.dataDir, gateway: this.gateway, now: this.now, log: (line) => this.log(line) });
+        // The owner's tabs show a session's live line while Pi uses the phone, and its Stop.
+        this.phoneControl.onChange(() => {
+            for (const client of this.#clients) {
+                if (client.user.role === "owner") {
+                    client.send("phone-control", { sessions: this.phoneControl.view() });
+                }
+            }
+        });
         this.#tabOwners = new TabOwners(join(options.dataDir, "browser-tabs.json"));
         this.#browserSizes = new BrowserSizes(join(options.dataDir, "browser-sizes.json"));
         this.para = new Para({
@@ -985,6 +997,8 @@ export class PocketApp {
             policy: this.policy,
             machineStore: this.machines,
             sshKeys: this.sshKeys,
+            phone: this.phoneControl,
+            rootOf: (conversationId) => Number(this.rootOf(conversationId as unknown as ConversationId)),
             web: this.web,
             envOf: (cwd) => this.places.env(cwd),
             teamServer: this.#teamServer,
@@ -2861,6 +2875,10 @@ export class PocketApp {
                 limitWaitHours: this.config.limitWaitHours,
                 // Whether the phone hears of a wait of 10 minutes or more.
                 limitNotice: this.config.limitNotice,
+                // Pi using a phone (PP-141): the owner's tabs show the session's live line, with Stop.
+                phoneControl: user.role === "owner" ? this.phoneControl.view() : [],
+                // This server runs on a phone (the pi-phone app's), which Menu › Phone control is for.
+                onPhone: process.platform === "android",
                 // The model and thinking level new sessions start with, or null for the last one picked.
                 defaultModel: this.config.defaultModel ?? null,
                 // The theme and colors of browsers that have not chosen their own, or null for the app's own.
@@ -3431,7 +3449,12 @@ export class PocketApp {
             throw new HttpError(403, "Adding a machine is the owner's.");
         }
 
-        if (allow && request.form !== undefined && request.form.type !== "machine" && !formAnswered) {
+        // Pi's phone_control card (PP-141): Approve starts the session, and only the owner may give Pi the phone.
+        if (allow && request.form?.type === "phone" && user.role !== "owner") {
+            throw new HttpError(403, "Controlling the phone is the owner's.");
+        }
+
+        if (allow && request.form !== undefined && request.form.type !== "machine" && request.form.type !== "phone" && !formAnswered) {
             throw new HttpError(
                 400,
                 request.form.type === "secret"
@@ -4554,6 +4577,7 @@ export class PocketApp {
         this.#closing ??= (async () => {
             clearTimeout(this.#sessionsTimer);
             clearInterval(this.#browserSweep);
+            this.phoneControl.close();
             this.themes.close();
             this.spend.close();
             this.limits.close();
