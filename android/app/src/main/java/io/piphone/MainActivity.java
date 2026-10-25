@@ -63,6 +63,8 @@ public final class MainActivity extends Activity {
     static volatile boolean inFront = false;
     /** A session a notification asked to open, before the web app was there to open it. */
     private volatile int pendingSession = -1;
+    /** Menu › Assistant, asked by the assistant's sheet (to allow the microphone) before the web app was there. */
+    private volatile boolean pendingAssistantSheet = false;
     /** One automatic check per process: the activity comes and goes, the process stays. */
     private static volatile boolean checked = false;
 
@@ -197,6 +199,9 @@ public final class MainActivity extends Activity {
                 intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
             } else if ("battery".equals(which)) {
                 intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()));
+            } else if ("assistant".equals(which)) {
+                // Default apps, where Digital assistant app is (Menu › Assistant, PP-146): the same on every phone.
+                intent = new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS);
             } else {
                 throw new IllegalArgumentException("no settings page " + which);
             }
@@ -213,6 +218,24 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public boolean dictationAvailable() {
             return dictation.available();
+        }
+
+        /** Whether pi-phone is the phone's digital assistant (Menu › Assistant, PP-146). */
+        @JavascriptInterface
+        public boolean assistantHeld() {
+            return PiAssistant.held(MainActivity.this);
+        }
+
+        /** Whether the microphone is allowed: the assistant's sheet cannot ask for it, this window can. */
+        @JavascriptInterface
+        public boolean micAllowed() {
+            return dictation.micAllowed();
+        }
+
+        /** Ask Android for the microphone now (Menu › Assistant's step), not at the first dictation. */
+        @JavascriptInterface
+        public void askMic() {
+            runOnUiThread(() -> requestPermissions(new String[] {android.Manifest.permission.RECORD_AUDIO}, Dictation.PERMISSION_REQUEST));
         }
 
         /** Listen for one utterance in `language` (BCP 47); events go to `window.__piPhoneSpeech`. */
@@ -270,7 +293,7 @@ public final class MainActivity extends Activity {
                 return true;
             }
         });
-        dictation = new Dictation(this, web);
+        dictation = new Dictation(this, this, web);
         web.addJavascriptInterface(new Bridge(), "PiPhoneApp");
         setContentView(web);
         registerReceiver(installStatus, new IntentFilter(Updater.INSTALL_STATUS));
@@ -278,13 +301,25 @@ public final class MainActivity extends Activity {
 
         startForegroundService(new Intent(this, PiService.class));
         pendingSession = getIntent().getIntExtra(PiService.EXTRA_SESSION, -1);
+        pendingAssistantSheet = getIntent().getBooleanExtra(PiAssistantSession.EXTRA_ASSISTANT_SHEET, false);
         new Thread(this::waitForServer, "pi-wait").start();
     }
 
-    /** A notification tapped while the app runs: its session, at once if the web app is there. */
+    /**
+     * A notification tapped while the app runs: its session, at once if the web app is there. The assistant's sheet
+     * opens a session (Open) or Menu › Assistant (to allow the microphone) the same way.
+     */
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (intent.getBooleanExtra(PiAssistantSession.EXTRA_ASSISTANT_SHEET, false)) {
+            if (loaded) {
+                web.evaluateJavascript("import('/store.js').then((store) => store.openSheet({ type: 'assistant' }))", null);
+            } else {
+                pendingAssistantSheet = true;
+            }
+            return;
+        }
         int session = intent.getIntExtra(PiService.EXTRA_SESSION, -1);
         if (session < 0) return;
         if (loaded) {
@@ -334,8 +369,11 @@ public final class MainActivity extends Activity {
                 try {
                     int session = pendingSession;
                     pendingSession = -1;
+                    boolean assistant = pendingAssistantSheet;
+                    pendingAssistantSheet = false;
+                    String next = assistant ? "/?sheet=assistant" : session < 0 ? null : "/s/" + session;
                     String url = BASE + "/login?token=" + Uri.encode(PiService.ownerToken(this))
-                            + (session < 0 ? "" : "&next=" + Uri.encode("/s/" + session));
+                            + (next == null ? "" : "&next=" + Uri.encode(next));
                     loaded = true;
                     statusShown = false;
                     runOnUiThread(() -> web.loadUrl(url));
@@ -357,7 +395,8 @@ public final class MainActivity extends Activity {
     }
 
     /** The server answers once the app is open; before that it says 503 ("starting"). */
-    private static boolean answers() {
+    /** Whether pi-phone's server answers (not 503 while it starts): the assistant's sheet waits for it too. */
+    static boolean answers() {
         try {
             HttpURLConnection connection = (HttpURLConnection) new URL(BASE + "/").openConnection();
             connection.setConnectTimeout(1000);

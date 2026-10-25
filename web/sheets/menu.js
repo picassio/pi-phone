@@ -524,6 +524,10 @@ export function MenuSheet({ places = true }) {
                 // Pi uses this phone's apps (PP-141): the phone's own pi-phone only, never the team server.
                 me?.role === "owner" && !server?.gateway && (server?.onPhone || window.PiPhoneApp) && allowed("phone.control") && item("Phone control", () => openSheet({ type: "phone-control" }), "Pi uses apps on this phone")
             }
+            ${
+                // pi-phone as the phone's digital assistant (PP-146): the side key's sheet, on the phone's own pi-phone.
+                me?.role === "owner" && !server?.gateway && (server?.onPhone || window.PiPhoneApp) && item("Assistant", () => openSheet({ type: "assistant" }), "hold the side key to talk to Pi")
+            }
             ${me?.role === "owner" && allowed("secrets.use") && item("Secrets", () => openSheet({ type: "secrets" }), "keys Pi uses without seeing")}
             ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
             ${me?.role === "owner" && allowed("settings.change") && (server?.gateway ? item("Backup", () => openSheet({ type: "phone" }), "your sessions and settings, in one file") : item("This phone", () => openSheet({ type: "phone" }), "notifications, screen off, backup"))}

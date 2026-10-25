@@ -554,5 +554,13 @@
     "There is a machine with this id already.": "已有一台机器使用这个 id。",
     "There is a machine named {1} already.": "已有一台名为 {1} 的机器。",
     "Adding a machine is the owner's.": "添加机器由所有者决定。",
-    "Controlling the phone is the owner's.": "控制手机由所有者决定。"
+    "Controlling the phone is the owner's.": "控制手机由所有者决定。",
+    "assistant is an object of the settings to change.": "assistant 是要更改的设置组成的对象。",
+    "assistant has no setting \"{1}\".": "assistant 没有设置“{1}”。",
+    "assistant.opens is last, new, or session.": "assistant.opens 只能是 last、new 或 session。",
+    "assistant.folder is a folder, or null for the default folder.": "assistant.folder 是一个文件夹，或用 null 表示默认文件夹。",
+    "assistant.session is a session's number, or null.": "assistant.session 是一个会话编号，或 null。",
+    "assistant.send is tap or auto.": "assistant.send 只能是 tap 或 auto。",
+    "assistant.from is true or false.": "assistant.from 只能是 true 或 false。",
+    "Pick the session the assistant opens (assistant.session).": "请选择助手打开的会话（assistant.session）。"
 }

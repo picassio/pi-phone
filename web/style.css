@@ -2437,6 +2437,504 @@ pre.diff .del {
     overflow-wrap: anywhere;
 }
 
+/* ─── The phone's assistant sheet (PP-146, assist.js) ─────────────────────────────────── */
+
+/* Over the app in front: the page is see-through, and the backdrop dims that app. */
+:root.assist-mode,
+:root.assist-mode body {
+    background: transparent;
+}
+
+.assist {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.assist-backdrop {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--desk) 42%, transparent);
+    animation: assist-fade 0.2s ease-out;
+}
+
+.assist-sheet {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: calc(100dvh - 48px);
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--bg);
+    color: var(--body);
+    border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+    box-shadow:
+        0 -1px 0 var(--hair),
+        0 -18px 50px -10px var(--sh);
+    animation: assist-rise 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Once a message went, the session's transcript shows: the sheet takes most of the screen. */
+.assist-sheet.talking {
+    height: min(72dvh, calc(100dvh - 48px));
+}
+
+@keyframes assist-rise {
+    from {
+        transform: translateY(100%);
+    }
+}
+
+@keyframes assist-fade {
+    from {
+        opacity: 0;
+    }
+}
+
+.assist-grab {
+    flex: none;
+    width: 38px;
+    height: 4px;
+    margin: 8px auto 2px;
+    border-radius: 2px;
+    background: var(--line);
+}
+
+.assist-head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 6px 12px;
+}
+
+.assist-mark {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, var(--brand), var(--spark));
+    color: var(--accent-ink);
+    font: 800 12px var(--mono);
+}
+
+.assist-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 65%;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-pill);
+    background: var(--card);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 550;
+}
+
+.assist-pill-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.assist-pill small {
+    color: var(--faint);
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.assist-space {
+    flex: 1;
+}
+
+.assist-menu {
+    position: absolute;
+    z-index: 2;
+    left: 10px;
+    top: 48px;
+    width: min(300px, calc(100% - 20px));
+    padding: 6px;
+    border-radius: var(--r-card);
+    background: var(--raised);
+    box-shadow: var(--pop);
+}
+
+.assist-menu-title {
+    margin: 4px 8px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+}
+
+.assist-menu button {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0 8px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--r-row);
+    background: none;
+    color: var(--body);
+    text-align: left;
+}
+
+.assist-menu button:hover,
+.assist-menu button[aria-checked="true"] {
+    background: var(--hover);
+}
+
+.assist-menu b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+    font-weight: 550;
+}
+
+.assist-menu small {
+    grid-column: 1;
+    color: var(--faint);
+}
+
+.assist-menu .icon {
+    grid-row: 1 / 3;
+    grid-column: 2;
+    align-self: center;
+    color: var(--accent);
+}
+
+.assist-menu p {
+    margin: 6px 10px 4px;
+    font-size: 11.5px;
+    color: var(--faint);
+}
+
+.assist-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    padding: 2px 16px 10px;
+}
+
+.assist-sheet.talking .assist-body {
+    padding: 0;
+}
+
+.assist-sheet.talking .transcript {
+    padding-top: 8px;
+}
+
+/* What is heard, as it is heard: the words are the sheet's hero, settled ones bright, ones still changing faint. */
+.assist-words {
+    min-height: 86px;
+    padding-top: 4px;
+    color: var(--text);
+    font-size: 21px;
+    font-weight: 450;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+    text-wrap: pretty;
+}
+
+.assist-words.small {
+    min-height: 0;
+    padding: 0 4px;
+    font-size: 16px;
+}
+
+.assist-coming,
+.assist-hint {
+    color: var(--faint);
+}
+
+.assist-caret {
+    display: inline-block;
+    width: 2px;
+    height: 1.05em;
+    margin-left: 2px;
+    vertical-align: -3px;
+    background: var(--accent);
+    animation: assist-blink 1s steps(1) infinite;
+}
+
+@keyframes assist-blink {
+    50% {
+        opacity: 0;
+    }
+}
+
+.assist-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 4px 0;
+    padding: 12px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+    background: var(--card);
+}
+
+.assist-notice.error {
+    border-color: var(--err-line);
+    background: var(--err-soft);
+}
+
+.assist-notice .icon {
+    flex: none;
+    margin-top: 1px;
+    color: var(--muted);
+}
+
+.assist-notice b {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.assist-notice p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.assist-foot {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px 14px;
+    border-top: 1px solid var(--hair);
+}
+
+.assist-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.assist-from {
+    height: 28px;
+    gap: 6px;
+    border-color: var(--hair);
+    border-radius: var(--r-pill);
+    font-size: 12.5px;
+}
+
+.assist-from button {
+    width: 20px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--faint);
+}
+
+.assist-from.off {
+    opacity: 0.55;
+    text-decoration: line-through;
+}
+
+.assist-wave {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+}
+
+.assist-wave i {
+    width: 4px;
+    border-radius: 2px;
+    background: var(--accent);
+    transition: height 0.1s;
+}
+
+.assist-wave.quiet i {
+    background: var(--line);
+}
+
+.assist-controls {
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    align-items: center;
+    justify-items: center;
+}
+
+.assist-controls > :first-child {
+    justify-self: start;
+}
+
+/* One loud button: Stop while listening, the mic to listen again. */
+.assist-big {
+    position: relative;
+    width: 62px;
+    height: 62px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent-fill);
+    color: var(--accent-ink);
+}
+
+.assist-big.listening::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border: 2px solid var(--accent-line);
+    border-radius: 50%;
+    animation: assist-ring 1.6s ease-out infinite;
+}
+
+@keyframes assist-ring {
+    from {
+        transform: scale(0.9);
+        opacity: 1;
+    }
+    to {
+        transform: scale(1.25);
+        opacity: 0;
+    }
+}
+
+.assist-sub {
+    text-align: center;
+    font-size: 12px;
+    color: var(--faint);
+}
+
+.assist-box {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 8px 8px 8px 12px;
+    border: 1px solid var(--accent-line);
+    border-radius: 14px;
+    background: var(--card);
+}
+
+.assist-box textarea {
+    flex: 1;
+    min-height: 42px;
+    padding: 0;
+    resize: none;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+.assist-send {
+    position: relative;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent-fill);
+    color: var(--accent-ink);
+}
+
+.assist-send:disabled {
+    opacity: 0.45;
+}
+
+/* "Send by itself": a ring fills around Send for the 3 seconds. */
+.assist-ring {
+    position: absolute;
+    inset: -4px;
+    width: 48px;
+    height: 48px;
+    transform: rotate(-90deg);
+}
+
+.assist-ring circle {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    stroke-dasharray: 138;
+    stroke-dashoffset: 138;
+    animation: assist-count 3s linear forwards;
+}
+
+@keyframes assist-count {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.assist-countdown {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+}
+
+.assist-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.assist-more {
+    flex: 1;
+    justify-content: center;
+}
+
+/* Menu › Assistant: a choice, then what it means or the field it needs. */
+.assistant-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.assistant-choice .segmented {
+    flex-wrap: wrap;
+    align-self: flex-start;
+}
+
+.assistant-choice p {
+    margin: 0;
+}
+
+.assistant-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .assist-sheet,
+    .assist-backdrop,
+    .assist-caret,
+    .assist-big.listening::after {
+        animation: none;
+    }
+}
+
 /* A phone control card that follows along: said in the warning tone, as it widens what Pi may touch. */
 .phone-control-follow {
     margin-top: 4px;

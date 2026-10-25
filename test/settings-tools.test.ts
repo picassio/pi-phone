@@ -24,6 +24,8 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "drop it": ["app_action", { id: "secrets.delete", args: { name: "TEST_KEY" }, reason: "Not needed any more" }],
     "make Vic a viewer": ["setting_change", { id: "people.role", value: "viewer", target: "Vic", reason: "Only to read" }],
     "billing off": ["setting_change", { id: "phone.claudeCodeBilling", value: "off", reason: "Testing plain OAuth" }],
+    "assistant sends": ["setting_change", { id: "assistant.send", value: "auto", reason: "Hands-free" }],
+    "assistant one session": ["setting_change", { id: "assistant.opens", value: "session", reason: "Always the assistant" }],
     "set instructions": ["setting_change", { id: "sessions.instructions", value: "Answer in Vietnamese.", target: "__SESSION__", reason: "The owner asked" }],
     "back up": ["app_action", { id: "backup.make", args: { folder: "__WORK__" }, reason: "Before the upgrade" }],
 };
@@ -174,6 +176,17 @@ test("people, phone, and one session's settings, each through the app's own meth
     assert.equal(billing.card?.subject, "Change Bill Anthropic sign-ins as Claude Code: on → off");
     assert.equal(app.phoneSettings.current().claudeCodeBilling.enabled, false);
     assert.match(readFileSync(app.phoneSettings.path, "utf8"), /"enabled": false/);
+
+    // The phone's assistant sheet (PP-146): through the app's own method, checked the same way.
+    const sends = await turn(id, "assistant sends", true);
+
+    assert.equal(sends.card?.subject, "Change When you stop speaking to the assistant: tap → auto");
+    assert.equal(app.config.assistant.send, "auto");
+
+    const oneSession = await turn(id, "assistant one session", true);
+
+    assert.match(oneSession.said, /Pick the session the assistant opens/);
+    assert.equal(app.config.assistant.opens, "last");
 
     const instructions = await turn(id, "set instructions", true);
 

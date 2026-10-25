@@ -245,6 +245,13 @@ No Termux, no laptop, no cloud VM.
   browser in as you once if no device can; the phone notifies you when it is used. Pi lists devices too (`devices`), and signs one or
   all out (`device_sign_out`, `sign_out_everywhere`) after you say yes on a card.
 - **Dictation** with Android's speech recognizer, in the language you choose.
+- **The phone's assistant.** Pick pi as the digital assistant (Menu › Assistant walks you through it), then hold the
+  side key in any app: a pi sheet comes up over it, already listening. Your words show as you speak, then wait for
+  Send, or go by themselves after 3 seconds. They go to the last session you were in, a new session, or one session
+  you pick (for this time from the sheet, or for good in Menu › Assistant), with the app you were in noted ("From
+  Chrome", a chip you can drop) so Pi can offer phone control for it. The reply streams in the sheet and approvals
+  are answered there; **Open** takes you to the session. While pi is the assistant, apps that ask the phone's default
+  speech recognizer still reach the phone's own: pi only passes it on. Not from the lock screen.
 
 ### The app
 - **A terminal.** A real shell inside the app, on the phone or on a machine, with Esc, Tab, Ctrl, and arrow keys
@@ -370,6 +377,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Notifications, screen off, backup | **This phone** | Yes for making a backup. Restoring one is yours |
 | The app's language (Auto, English, 简体中文) | **Appearance › Language**, kept with you on every device | "Switch my app to Chinese" |
 | Appearance, dictation language | **Appearance** and **Dictation**, per browser tab | Only the theme new browsers start with ("make lantern the default theme") |
+| The side key's assistant | **Assistant**: where your words go, whether they wait for Send, whether the app you were in is noted | "Make the assistant send by itself". Picking pi as the phone's assistant is yours, in Android's settings |
 | App updates | **Check for app updates**. New builds also offer themselves in an update sheet. Tap **Install** | No |
 
 What stays yours: typing secrets and passwords, signing in to providers and GitHub, the recovery code, accepting a
@@ -434,6 +442,12 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   act-time checks (the element as observed, in view, not covered). Ideas also from
   [jev-ra](https://github.com/brnyxx/jev-ra) (MIT) and [browser-use](https://github.com/browser-use/browser-use) (MIT);
   the browser panel's design from [Kuvo Code](https://github.com/serhatandic/kuvo-code) (ideas only, no code).
+
+### Contributed
+
+- **[@yichan002](https://github.com/yichan002)** ([#3](https://github.com/picassio/pi-phone/pull/3)): the idea and a
+  first version of pi-phone as the phone's digital assistant, opening with the message box listening. The assistant
+  sheet grew from it.
 
 ### Bundled and used
 

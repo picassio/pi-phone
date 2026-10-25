@@ -42,6 +42,35 @@
                 android:resource="@xml/phone_control_service" />
         </service>
 
+        <!-- The phone's digital assistant (PiAssistant.java, PP-146): offered in Settings › Default apps › Digital
+             assistant app; the side key's sheet is PiAssistantSession. Only the system binds these. -->
+        <service
+            android:name=".PiAssistant"
+            android:label="@string/assistant_label"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/assistant" />
+        </service>
+        <service
+            android:name=".PiAssistantSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <!-- The assistant's recognition service, which Android requires of an assistant: it passes speech on to the
+             phone's own recognizer (Recognizers.java). -->
+        <service
+            android:name=".PiRecognition"
+            android:label="@string/assistant_label"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+        </service>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

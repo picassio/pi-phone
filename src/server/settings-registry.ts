@@ -499,6 +499,63 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 app.phoneSettings.update({ version: value.trim() });
             },
         },
+        // ─── The phone's assistant (PP-146) ───
+        {
+            id: "assistant.opens",
+            area: "assistant",
+            title: "Where the side key's assistant sends your words",
+            help: "last (the last session you were in), new (a new session in assistant.folder), or session (always assistant.session).",
+            owner: true,
+            read: () => app.config.assistant.opens,
+            choices: () => ["last", "new", "session"],
+            apply: (user, value) => app.setAssistant(user, { opens: value.trim().toLowerCase() }),
+        },
+        {
+            id: "assistant.folder",
+            area: "assistant",
+            title: "Folder of the assistant's new sessions",
+            help: "A folder on this phone, or none for the app's default folder. Used when assistant.opens is new.",
+            owner: true,
+            read: () => app.config.assistant.folder ?? `none (the default folder, ${app.defaultCwd})`,
+            apply: (user, value) => app.setAssistant(user, { folder: NONE.test(value.trim()) ? null : value.trim() }),
+        },
+        {
+            id: "assistant.session",
+            area: "assistant",
+            title: "The session the assistant always sends to",
+            help: "A session's number (from the sessions tool). Used when assistant.opens is session.",
+            owner: true,
+            read: () => (app.config.assistant.session === null ? "none" : String(app.config.assistant.session)),
+            apply: async (user, value) => {
+                const id = count(value.replace(/^#/, ""), "The session");
+
+                if (id !== null) {
+                    app.requireSee(user, id as ConversationId);
+                }
+
+                await app.setAssistant(user, { session: id, ...(id === null && app.config.assistant.opens === "session" ? { opens: "last" } : {}) });
+            },
+        },
+        {
+            id: "assistant.send",
+            area: "assistant",
+            title: "When you stop speaking to the assistant",
+            help: "tap (the words wait for Send) or auto (they go by themselves after 3 seconds, unless you tap them).",
+            owner: true,
+            read: () => app.config.assistant.send,
+            choices: () => ["tap", "auto"],
+            apply: (user, value) => app.setAssistant(user, { send: value.trim().toLowerCase() }),
+        },
+        {
+            id: "assistant.from",
+            area: "assistant",
+            title: "The assistant notes the app you were in",
+            help: "on or off: a message from the side key starts with the app that was in front (its name only), so Pi can offer phone control for it.",
+            owner: true,
+            read: () => (app.config.assistant.from ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (user, value) => app.setAssistant(user, { from: onOff(value) }),
+        },
         // ─── One session ───
         {
             id: "sessions.model",

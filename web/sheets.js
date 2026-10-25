@@ -22,6 +22,7 @@ import { PiHandoffSheet } from "./sheets/pi-handoff.js";
 import { ForwardsSheet } from "./sheets/forwards.js";
 import { PhoneSheet } from "./sheets/phone.js";
 import { PhoneControlSheet } from "./sheets/phone-control.js";
+import { AssistantSheet } from "./sheets/assistant.js";
 import { NotificationsSheet } from "./sheets/notifications.js";
 import { SendLimitSheet } from "./sheets/send-limit.js";
 import { BrowserSheet } from "./sheets/browser.js";
@@ -255,6 +256,9 @@ function sheetBody(sheet) {
             break;
         case "phone-control":
             body = html`<${PhoneControlSheet} />`;
+            break;
+        case "assistant":
+            body = store.state.me?.role === "owner" ? html`<${AssistantSheet} />` : null;
             break;
         case "notifications":
             body = store.state.me?.role === "owner" ? html`<${NotificationsSheet} />` : null;

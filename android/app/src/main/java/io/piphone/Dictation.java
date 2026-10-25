@@ -2,6 +2,8 @@ package io.piphone;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -19,44 +21,70 @@ import java.util.ArrayList;
  * Android's own speech recognizer for the web app's dictation (DESIGN.md section 4): WebView has no Web Speech API, so
  * `web/android-speech.js` stands one in that calls here. One listening at a time; each start is one utterance, which
  * the web side restarts while it dictates continuously. What is heard goes back as events to
- * `window.__piPhoneSpeech({type, ...})`: start, partial (text), final (text), error (a Web Speech error name), end.
- * Everything here runs on the main thread, as SpeechRecognizer requires.
+ * `window.__piPhoneSpeech({type, ...})`: start, partial (text), final (text), level (0 to 1, the voice's loudness, a
+ * few times a second), error (a Web Speech error name), end. Everything here runs on the main thread, as
+ * SpeechRecognizer requires. The recognizer is named (`Recognizers.real`), never "the default": once pi-phone is the
+ * phone's assistant, the default is pi-phone's own.
  */
 final class Dictation implements RecognitionListener {
 
     static final int PERMISSION_REQUEST = 7;
+    /** The shortest time between two `level` events. */
+    private static final long LEVEL_EVERY_MS = 70;
 
+    private final Context context;
+    /** The app's window, which may ask for the microphone; null in the assistant's sheet, which cannot. */
     private final Activity activity;
     private final WebView web;
     private SpeechRecognizer recognizer;
     /** The language asked for while Android asks the person for the microphone. */
     private String waiting;
+    private long lastLevel;
 
-    Dictation(Activity activity, WebView web) {
+    Dictation(Context context, Activity activity, WebView web) {
+        this.context = context;
         this.activity = activity;
         this.web = web;
     }
 
     boolean available() {
-        return SpeechRecognizer.isRecognitionAvailable(activity);
+        return Recognizers.real(context) != null;
     }
 
-    /** Listen for one utterance in `language` (a BCP 47 tag), asking for the microphone the first time. */
+    boolean micAllowed() {
+        return context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * Listen for one utterance in `language` (a BCP 47 tag), asking for the microphone the first time; without a window
+     * to ask from (the assistant's sheet), "not-allowed".
+     */
     void start(String language) {
-        if (activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (!micAllowed()) {
+            if (activity == null) {
+                emit("error", "error", "not-allowed");
+                emit("end", null, null);
+                return;
+            }
             waiting = language;
             activity.requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, PERMISSION_REQUEST);
             return;
         }
+        ComponentName real = Recognizers.real(context);
+        if (real == null) {
+            emit("error", "error", "service-not-allowed");
+            emit("end", null, null);
+            return;
+        }
         release();
-        recognizer = SpeechRecognizer.createSpeechRecognizer(activity);
+        recognizer = SpeechRecognizer.createSpeechRecognizer(context, real);
         recognizer.setRecognitionListener(this);
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, activity.getPackageName());
+                .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.getPackageName());
         recognizer.startListening(intent);
     }
 
@@ -151,8 +179,15 @@ final class Dictation implements RecognitionListener {
     @Override
     public void onBeginningOfSpeech() {}
 
+    /** The voice's loudness, for the assistant sheet's sound wave: about -2 dB (quiet) to 10 dB (loud), as 0 to 1. */
     @Override
-    public void onRmsChanged(float rmsdB) {}
+    public void onRmsChanged(float rmsdB) {
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - lastLevel < LEVEL_EVERY_MS) return;
+        lastLevel = now;
+        float level = Math.max(0f, Math.min(1f, (rmsdB + 2f) / 12f));
+        emit("level", "value", String.format(java.util.Locale.ROOT, "%.2f", level));
+    }
 
     @Override
     public void onBufferReceived(byte[] buffer) {}

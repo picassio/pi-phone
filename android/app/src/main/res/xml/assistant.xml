@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  pi-phone as the phone's digital assistant (PiAssistant.java, PP-146). Android lists a voice interaction service for
+  the assistant role only with both a session service and a recognition service of its own (VoiceInteractionServiceInfo
+  rejects it otherwise: "No recognitionService specified"). supportsAssist: the side key, the corner swipe and the
+  assist gesture show the session. Not from the lock screen: Pi is reachable only on an unlocked phone.
+-->
+<voice-interaction-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="io.piphone.PiAssistantSessionService"
+    android:recognitionService="io.piphone.PiRecognition"
+    android:settingsActivity="io.piphone.MainActivity"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="false"
+    android:supportsLocalInteraction="false" />

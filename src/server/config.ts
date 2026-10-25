@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSy
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { type AssistantSettings, readAssistant, storedAssistant } from "./assistant.ts";
 
 /** The repository root: `web/`, `src/`, and `node_modules/` live here. */
 export const APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -134,6 +135,8 @@ interface PocketConfig {
     limitWaitHours?: number;
     /** False: no phone notice when a run begins to wait 10 minutes or more for a limit. Absent: on. */
     limitNotice?: boolean;
+    /** The phone's assistant sheet (`assistant.ts`): only the settings that differ from its defaults. */
+    assistant?: Partial<AssistantSettings>;
     /** Minutes a session is idle before what it learned goes to the wiki (`para-capture.ts`); null: never by itself. */
     wikiCaptureMinutes?: number | null;
     /**
@@ -398,6 +401,23 @@ export class ConfigStore {
             delete this.#config.limitWaitHours;
         } else {
             this.#config.limitWaitHours = Math.min(Math.max(hours, 0), 24);
+        }
+
+        this.save();
+    }
+
+    /** What the phone's assistant sheet does (PP-146). */
+    get assistant(): AssistantSettings {
+        return readAssistant(this.#config.assistant);
+    }
+
+    set assistant(settings: AssistantSettings) {
+        const kept = storedAssistant(settings);
+
+        if (kept === undefined) {
+            delete this.#config.assistant;
+        } else {
+            this.#config.assistant = kept;
         }
 
         this.save();

@@ -12,7 +12,8 @@ const bridge = () => {
 /** The one recognition listening now: Android's recognizer hears one at a time. */
 let active = null;
 
-globalThis.__piPhoneSpeech = (event) => active?.hear(event);
+// The voice's loudness (`level`, 0 to 1) goes to the assistant sheet's sound wave (`assist.js`), when it shows one.
+globalThis.__piPhoneSpeech = (event) => (event.type === "level" ? globalThis.__piPhoneSpeechLevel?.(Number(event.value)) : active?.hear(event));
 
 /** One result as the Web Speech API gives it: alternatives by index, and whether it is settled. */
 const result = (transcript, isFinal) => Object.assign([{ transcript, confidence: 1 }], { isFinal });

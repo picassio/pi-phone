@@ -44,4 +44,9 @@
     <string name="channel_phone_control">Phone control</string>
     <string name="phone_control_title">Pi is using your phone</string>
     <string name="phone_control_text">%1$s · until %2$s</string>
+    <!-- The phone's assistant (PP-146): the sheet's lines before its page is there. -->
+    <string name="assistant_label">pi</string>
+    <string name="assistant_starting">pi is starting: a few seconds</string>
+    <string name="assistant_locked">Unlock the phone, then hold the side key again</string>
+    <string name="assistant_failed">pi did not start. Open pi-phone to see why</string>
 </resources>

@@ -83,6 +83,7 @@ import { defang, quoted } from "./fence.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
 import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
+import { withAssistant } from "./assistant.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
 import { clockText, inLanguage, inZone, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
@@ -1972,6 +1973,16 @@ export class PocketApp {
         await this.#refreshClients();
     }
 
+    /** The owner changes what the phone's assistant sheet does (PP-146): `patch` names only the settings to change. */
+    async setAssistant(user: User, patch: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        this.config.assistant = withAssistant(this.config.assistant, patch);
+        await this.#refreshClients();
+    }
+
     /** Every connected tab. */
     /** The home folder: SSH keys, Pi's folder, and a backup's other parts are under it (`backup.ts`). */
     get home(): string {
@@ -2875,6 +2886,8 @@ export class PocketApp {
                 limitWaitHours: this.config.limitWaitHours,
                 // Whether the phone hears of a wait of 10 minutes or more.
                 limitNotice: this.config.limitNotice,
+                // What the phone's assistant sheet does (PP-146): the owner's, as only the owner uses the sheet.
+                ...(user.role === "owner" ? { assistant: this.config.assistant } : {}),
                 // Pi using a phone (PP-141): the owner's tabs show the session's live line, with Stop.
                 phoneControl: user.role === "owner" ? this.phoneControl.view() : [],
                 // This server runs on a phone (the pi-phone app's), which Menu › Phone control is for.

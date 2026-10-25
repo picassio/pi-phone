@@ -11,6 +11,7 @@
  */
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
+import { ASSISTANT_PROMPT } from "../assistant.ts";
 import type { PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 import { type Mark, markUp } from "../markup.ts";
@@ -487,6 +488,7 @@ export default function createPhone(host: PocketHost) {
     return defineExtension({
         name: "pocket-phone",
         tools: [controlTool, screenTool, actTool, shotTool],
-        sections: [section("phone", () => (control.unavailable() === undefined ? PHONE : ""))],
+        // With it, what a message from the side key's assistant sheet is (PP-146): the sheet is on this phone too.
+        sections: [section("phone", () => (control.unavailable() === undefined ? `${PHONE}\n\n${ASSISTANT_PROMPT}` : ""))],
     });
 }

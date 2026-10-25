@@ -60,6 +60,7 @@ import {
 import { prefs, setPrefs, startTheme } from "./theme.js";
 import { Transcript } from "./transcript.js";
 import { installAndroidSpeech } from "./android-speech.js";
+import { ASSIST, AssistView, rememberLastSession } from "./assist.js";
 import { installAppUpdates } from "./sheets/update.js";
 import { toggleDictation } from "./voice.js";
 import {
@@ -445,6 +446,11 @@ function App() {
             : "pi-phone";
     }, [state.view.conversation?.title]);
 
+    // The phone's assistant sheet (PP-146): only the sheet, over the app in front.
+    if (ASSIST) {
+        return html`<${AssistView} /><${Notices} />`;
+    }
+
     if (state.me === undefined) {
         return html`<${Boot}
             caption=${state.notices.some((notice) => notice.level === "error") ? t("waiting for the server") : t("starting")}
@@ -789,12 +795,23 @@ installAndroidSpeech();
 installAppUpdates();
 // Where the session list is not beside the conversation, a conversation opened straight away gets it under it, so back
 // goes to the list rather than out of the app.
-startHistory({ home: !wide() });
-startEdgeBack();
+// The assistant's sheet has no history of its own, nor the app's edge gestures; the app's window keeps the session the
+// owner is in, for the sheet's "last session".
+if (ASSIST) {
+    document.documentElement.classList.add("assist-mode");
+} else {
+    startHistory({ home: !wide() });
+    startEdgeBack();
+    rememberLastSession();
+}
 // One hand on a phone: on the conversation, swipe right to go back and left for the Files tile; swipe up from the
 // message box for the places.
 startSwipes((where) => {
     const { conversationId, view, missing } = store.state;
+
+    if (ASSIST) {
+        return {};
+    }
 
     // The subagents board or an extension's page in the conversation's place (or the home screen's): right goes back,
     // as its × does.
@@ -859,6 +876,7 @@ const LINKED_SHEETS = new Set([
     "people",
     "phone",
     "phone-control",
+    "assistant",
     "providers",
     "schedules",
     "secrets",

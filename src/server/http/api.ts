@@ -1261,6 +1261,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 compactAt?: unknown;
                 limitWaitHours?: unknown;
                 limitNotice?: unknown;
+                assistant?: unknown;
             }>(request);
 
             // One at a time: a second that fails must not leave the first changed.
@@ -1274,6 +1275,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.compactAt,
                     body.limitWaitHours,
                     body.limitNotice,
+                    body.assistant,
                 ].filter((value) => value !== undefined).length > 1
             ) {
                 throw new HttpError(400, "Change one setting at a time.");
@@ -1308,6 +1310,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
             if (body.limitNotice !== undefined) {
                 await app.setLimitNotice(user, body.limitNotice);
+            }
+
+            // What the phone's assistant sheet does (PP-146): `{ assistant: { send: "auto" } }`, the settings to change.
+            if (body.assistant !== undefined) {
+                await app.setAssistant(user, body.assistant);
             }
 
             // Null clears it: new sessions start with the last model picked again.

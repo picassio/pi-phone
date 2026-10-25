@@ -97,6 +97,18 @@ utterance per start; the stand-in starts the next one itself while dictating con
 after a quiet one. RECORD_AUDIO is asked the first time the mic is tapped. The language is the device's, or the one picked
 in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per device). Guests in a browser use its own.
 
+pi-phone is also the phone's **digital assistant** (PP-146, from @yichan002's #3): a `VoiceInteractionService`
+(`PiAssistant.java`, `res/xml/assistant.xml`) whose session (`PiAssistantSession.java`) is a see-through window over
+the app in front, holding a WebView on `/?assist=1` (`web/assist.js`): the web app draws the backdrop and the sheet,
+with the transcript's own components once a message went. Android lists an assistant only with a recognition service
+of its own, and then makes it the phone's default recognizer; `PiRecognition.java` passes each request on to the
+phone's real one, and dictation names that one too (`Recognizers.real`), never "the default", which would be itself.
+The sheet cannot ask for the microphone (no activity): it sends the person to Menu › Assistant, where the app's window
+can. Until the server answers, the window shows a one-line page and loads the sheet once it does, so nothing is heard
+before it can be sent. The app in front comes from the assist data (its activity's package, its name only). The
+choices (where the words go, Send or by themselves, the app noted or not) are the server's (`src/server/assistant.ts`),
+so Pi changes them through the settings tools; "the last session" is the one the app's window kept in localStorage.
+
 ## 4. Ours
 
 - **Claude Code billing patch** (`src/server/cc-patch.ts`, ported from picassio/pi-cc-patch): rewrites direct
