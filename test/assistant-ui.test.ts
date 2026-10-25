@@ -173,7 +173,9 @@ test("I tap Send: it listens at once, shows the words as heard, and sends them t
     await click(".assist-send");
     await until(async () => (await modelTexts(app, id)).some((each) => each.includes("heard: (From Chrome · com.android.chrome)") && each.includes("What's the cheapest morning flight here")), "the message in the session, with the app");
     // The session's transcript takes the sheet.
-    await seen(async () => (await text(".assist-sheet .transcript")).includes("What's the cheapest morning flight here"), "the transcript in the sheet");
+    // (The transcript's Markdown may curl the apostrophe.)
+    await seen(async () => (await text(".assist-sheet .transcript")).includes("the cheapest morning flight here"), "the transcript in the sheet");
+    await seen(async () => (await text("[data-part=assist-more]")).includes("Ask more"), "Ask more");
     assert.equal(await inPage<string>("location.pathname + location.search"), "/?assist=1", "the sheet's address kept");
     await shot("assist-sent-390");
 

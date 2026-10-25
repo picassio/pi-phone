@@ -137,6 +137,8 @@ export function AssistView() {
     const box = useRef(null);
     const pill = useRef(null);
     const timer = useRef(null);
+    /** Words just heard wait for the countdown ("Send by itself") to start. */
+    const armed = useRef(false);
     const target = sent
         ? { kind: "session", id: sentTo, title: state.sessions.find((each) => each.id === sentTo)?.title ?? t("New session") }
         : state.sessionsLoaded
@@ -151,6 +153,7 @@ export function AssistView() {
     };
 
     const listen = () => {
+        armed.current = false;
         recognition.current?.abort();
         stopCountdown();
         setProblem(null);
@@ -214,10 +217,8 @@ export function AssistView() {
 
             setText(capital);
             setPhase("heard");
-
-            if ((store.state.server?.assistant ?? DEFAULTS).send === "auto") {
-                startCountdown(capital);
-            }
+            // "Send by itself" counts down once the settings and the session are known (below).
+            armed.current = true;
         };
         recognition.current = heard;
         setPhase("listen");
@@ -257,6 +258,8 @@ export function AssistView() {
             const message = from && fromOn && settings.from !== false && !sent ? `${fromNote(from)}\n${words}` : words;
 
             await actions.submit(message, [], store.state.view.live?.busy ? "steer" : "followUp");
+
+            return true;
         });
 
         setSending(false);
@@ -291,6 +294,18 @@ export function AssistView() {
     const sendRef = useRef(send);
 
     sendRef.current = send;
+
+    // Words just heard, with "Send by itself": the countdown starts once the server's settings and the session are here
+    // (words can end before the page has them), once; editing first, or listening again, disarms it.
+    useEffect(() => {
+        if (phase === "heard" && armed.current && state.server !== null && target !== null) {
+            armed.current = false;
+
+            if (settings.send === "auto") {
+                startCountdown(text);
+            }
+        }
+    });
 
     const close = () => {
         recognition.current?.abort();
@@ -522,10 +537,14 @@ export function AssistView() {
                                 data-part="assist-text"
                                 value=${text}
                                 onInput=${(event) => {
+                                    armed.current = false;
                                     stopCountdown();
                                     setText(event.currentTarget.value);
                                 }}
-                                onFocus=${stopCountdown}
+                                onFocus=${() => {
+                                    armed.current = false;
+                                    stopCountdown();
+                                }}
                             ></textarea>
                             <button
                                 class="assist-send"
