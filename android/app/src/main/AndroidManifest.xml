@@ -37,6 +37,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- The phone's assistant (Settings › Apps › Default apps › Digital assistant): Android offers an app
+                 for that role when it handles ACTION_ASSIST (RoleManagerCompat: this, or a VoiceInteractionService),
+                 so a long press on the power button opens the app listening and a sentence becomes a message. -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>

@@ -97,6 +97,12 @@ utterance per start; the stand-in starts the next one itself while dictating con
 after a quiet one. RECORD_AUDIO is asked the first time the mic is tapped. The language is the device's, or the one picked
 in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per device). Guests in a browser use its own.
 
+pi-phone can also be the phone's **digital assistant**: `MainActivity` handles `android.intent.action.ASSIST`, which is
+what Android's assistant role asks for (`RoleManagerCompat`: this, or a `VoiceInteractionService`). The assistant
+gesture opens the app with the message box listening — `MainActivity.askForVoice` calls
+`globalThis.__piPhoneVoiceAssist` (registered by `web/composer.js`) and leaves `globalThis.__piPhoneWantsVoice` for the
+box that has not rendered yet, so one sentence is enough. The message is sent as any other: the person reads it first.
+
 ## 4. Ours
 
 - **Claude Code billing patch** (`src/server/cc-patch.ts`, ported from picassio/pi-cc-patch): rewrites direct

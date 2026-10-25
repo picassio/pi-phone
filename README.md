@@ -212,6 +212,8 @@ No Termux, no laptop, no cloud VM.
   browser in as you once if no device can; the phone notifies you when it is used. Pi lists devices too (`devices`), and signs one or
   all out (`device_sign_out`, `sign_out_everywhere`) after you say yes on a card.
 - **Dictation** with Android's speech recognizer, in the language you choose.
+- **Digital assistant**: with pi-phone chosen as the phone's assistant (Settings › Apps › Default apps › Digital
+  assistant), the assistant gesture or a long press on the power button opens the app with the message box listening.
 
 ### The app
 - **A terminal.** A real shell inside the app, on the phone or on a machine, with Esc, Tab, Ctrl, and arrow keys

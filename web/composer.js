@@ -528,6 +528,21 @@ export function Composer() {
         setBrowsing(null);
         update(value, at);
     });
+    // The phone's assistant (Android's ACTION_ASSIST, `MainActivity.askForVoice`): a long press on the power button
+    // opens the app with the box listening, so one sentence is enough. `__piPhoneWantsVoice` is the ask that came
+    // before this box existed; it is taken once.
+    useEffect(() => {
+        globalThis.__piPhoneVoiceAssist = () => dictation.start();
+
+        if (globalThis.__piPhoneWantsVoice) {
+            globalThis.__piPhoneWantsVoice = 0;
+            dictation.start();
+        }
+
+        return () => {
+            delete globalThis.__piPhoneVoiceAssist;
+        };
+    }, []);
     // What is above the message box, and how it shares the room with the conversation (`dock.js`).
     const dock = useRef(null);
     const picker = useRef(null);

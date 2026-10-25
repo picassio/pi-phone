@@ -54,6 +54,8 @@ public final class MainActivity extends Activity {
     private static final String BASE = "http://127.0.0.1:" + PiService.PORT;
 
     private WebView web;
+    /** The person asked for the assistant (ACTION_ASSIST) and the web app is not there yet: listen once it is. */
+    private boolean voiceAsked;
     /** Android's speech recognizer for dictation (`web/android-speech.js`). */
     private Dictation dictation;
     private ValueCallback<Uri[]> pendingFiles;
@@ -202,6 +204,15 @@ public final class MainActivity extends Activity {
         settings.setAllowContentAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
         web.setWebViewClient(new WebViewClient() {
+            /** The assistant's sentence waits for the box: the web app takes it in `composer.js` on its first render. */
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                if (!voiceAsked) return;
+
+                voiceAsked = false;
+                askForVoice();
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
                 Uri url = request.getUrl();
@@ -229,13 +240,34 @@ public final class MainActivity extends Activity {
 
         startForegroundService(new Intent(this, PiService.class));
         pendingSession = getIntent().getIntExtra(PiService.EXTRA_SESSION, -1);
+        voiceAsked = Intent.ACTION_ASSIST.equals(getIntent().getAction());
         new Thread(this::waitForServer, "pi-wait").start();
+    }
+
+    /**
+     * The box listens, now or when the web app is ready (`__piPhoneVoiceAssist` / `__piPhoneWantsVoice`, composer.js).
+     */
+    private void askForVoice() {
+        web.evaluateJavascript(
+                "globalThis.__piPhoneWantsVoice=1;globalThis.__piPhoneVoiceAssist&&globalThis.__piPhoneVoiceAssist()",
+                null);
     }
 
     /** A notification tapped while the app runs: its session, at once if the web app is there. */
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+
+        if (Intent.ACTION_ASSIST.equals(intent.getAction())) {
+            if (loaded) {
+                askForVoice();
+            } else {
+                voiceAsked = true;
+            }
+
+            return;
+        }
+
         int session = intent.getIntExtra(PiService.EXTRA_SESSION, -1);
         if (session < 0) return;
         if (loaded) {
