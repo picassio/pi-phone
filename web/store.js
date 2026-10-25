@@ -1176,10 +1176,14 @@ export function closeSignIn(flowId) {
     store.set((state) => (state.auth?.flowId === flowId ? { auth: null } : {}));
 }
 
-export function navigate(conversationId, { replace = false, sheet = null } = {}) {
+/**
+ * Open a session (or the list, for null). `route: false` keeps the page's address: the assistant's sheet opens a session
+ * behind it and must load as the sheet again (`assist.js`).
+ */
+export function navigate(conversationId, { replace = false, sheet = null, route = true } = {}) {
     const path = conversationId === null ? "/" : `/s/${conversationId}`;
 
-    if (routeOf(location.pathname) !== path || store.state.conversationId !== conversationId) {
+    if (route && (routeOf(location.pathname) !== path || store.state.conversationId !== conversationId)) {
         pushRoute(path, { replace });
     }
 

@@ -51,6 +51,21 @@ async function inPage<T>(expression: string): Promise<T> {
     return answer.result.value as T;
 }
 
+const pageErrors: string[] = [];
+
+/** `until`, and on a timeout what the page threw, what the sheet shows, and the store's session. */
+async function seen(check: () => Promise<boolean>, what: string): Promise<void> {
+    try {
+        await until(check, what, 15_000);
+    } catch (error) {
+        const state = await inPage<string>(
+            `import("/store.js").then(({ store }) => JSON.stringify({ conversationId: store.state.conversationId, view: Boolean(store.state.view.conversation), connection: store.state.connection, path: location.pathname }))`,
+        ).catch((failure: unknown) => String(failure));
+
+        throw new Error(`${(error as Error).message}\nstore: ${state}\nsheet: ${await text(".assist").catch(() => "")}\npage errors: ${pageErrors.join("\n")}`);
+    }
+}
+
 const text = (selector: string) => inPage<string>(`document.querySelector(${JSON.stringify(selector)})?.innerText ?? ""`);
 /** What the Android recognizer would say (`Dictation.java`'s events). */
 const hear = (event: Record<string, unknown>) => inPage(`window.__piPhoneSpeech(${JSON.stringify(event)})`);
@@ -90,6 +105,16 @@ before(async () => {
     engine = new ChromeEngine(chrome!, ["--no-sandbox"]);
     cdp = await engine.connect(await engine.newTab());
     await cdp.send("Page.enable");
+    // What the page throws or logs as an error, said with a failure.
+    await cdp.send("Runtime.enable");
+    cdp.on("Runtime.exceptionThrown", (params) => pageErrors.push(JSON.stringify((params as { exceptionDetails?: unknown }).exceptionDetails).slice(0, 600)));
+    cdp.on("Runtime.consoleAPICalled", (params) => {
+        const call = params as { type?: string; args?: { value?: unknown; description?: string }[] };
+
+        if (call.type === "error") {
+            pageErrors.push((call.args ?? []).map((each) => String(each.value ?? each.description ?? "")).join(" ").slice(0, 600));
+        }
+    });
     await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     // The Android sheet's bridge: dictation on "Android's recognizer" (the test says what it hears), the app in front,
     // close, open, and allow the microphone in the app. Recorded for the test to read.
@@ -148,7 +173,8 @@ test("I tap Send: it listens at once, shows the words as heard, and sends them t
     await click(".assist-send");
     await until(async () => (await modelTexts(app, id)).some((each) => each.includes("heard: (From Chrome · com.android.chrome)") && each.includes("What's the cheapest morning flight here")), "the message in the session, with the app");
     // The session's transcript takes the sheet.
-    await until(async () => (await text(".assist-sheet .transcript")).includes("What's the cheapest morning flight here"), "the transcript in the sheet");
+    await seen(async () => (await text(".assist-sheet .transcript")).includes("What's the cheapest morning flight here"), "the transcript in the sheet");
+    assert.equal(await inPage<string>("location.pathname + location.search"), "/?assist=1", "the sheet's address kept");
     await shot("assist-sent-390");
 
     // Open goes to the session in the app; × closes the sheet.

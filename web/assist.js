@@ -7,7 +7,6 @@
 // approvals and all, so a phone control card is answered without leaving the app.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dictationLanguage } from "./android-speech.js";
-import { replaceAddress } from "./back.js";
 import { t } from "./i18n.js";
 import { actions, attempt, navigate, store } from "./store.js";
 import { Transcript } from "./transcript.js";
@@ -31,8 +30,7 @@ const DEFAULTS = { opens: "last", folder: null, session: null, send: "tap", from
  * sheet again, not the app.
  */
 function openBehind(id) {
-    navigate(id, { replace: true });
-    replaceAddress("/?assist=1");
+    navigate(id, { route: false });
 }
 
 /** In the app's window: keep the session the owner is in, for the sheet's "last session". */
