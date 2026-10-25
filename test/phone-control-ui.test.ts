@@ -140,15 +140,16 @@ test("Menu › Phone control: the steps with the phone's marks, the Never list, 
     await until(async () => (await inPage<string[]>(`return JSON.stringify(window.__opened)`)).length > 0, "the bridge asked");
     assert.deepEqual(await inPage<string[]>(`return JSON.stringify(window.__opened)`), ["accessibility"]);
 
-    // The owner adds an app from the phone's list, then removes it.
-    await page.click({ selector: ".phone-never button.chip" });
+    // The owner adds an app from the phone's list, then removes it (DOM clicks, as above: a loaded CI run missed a
+    // coordinate click here too).
+    await page.evaluate(`document.querySelector(".phone-never button.chip").click()`);
     await until(async () => (await text(".phone-picker")).includes("Notes"), "the picker");
     assert.doesNotMatch(await text(".phone-picker"), /Vietcombank|Bitwarden|\bpi\b/, "apps on the built-in lists are not offered");
     await shot("phone-control-add-390");
     await page.evaluate(`[...document.querySelectorAll(".phone-picker button")].find((each) => each.innerText.includes("Notes")).click()`);
     await until(() => app.phoneControl.neverReason("com.example.notes") === "on the owner's Never list", "Notes on the Never list");
     await until(async () => (await text(".phone-never")).includes("Notes"), "its chip");
-    await page.click({ selector: ".phone-never .chip button[aria-label='Remove Notes']" });
+    await page.evaluate(`document.querySelector(".phone-never .chip button[aria-label='Remove Notes']").click()`);
     await until(() => app.phoneControl.neverReason("com.example.notes") === undefined, "Notes off the list");
 
     // On a desktop, with accessibility on (Android says so when the person comes back): the steps are done.
@@ -186,7 +187,7 @@ test("the phone_control card shows the apps and minutes, fits a phone, and start
     await until(async () => (await text(".phone-control-card")) !== "", "the card on a desktop");
     await shot("phone-control-card-1280");
     await until(async () => inPage<boolean>(`return JSON.stringify(document.querySelector(".phone-control-card .button.primary")?.disabled === false)`), "Approve enabled");
-    await page.click({ selector: ".phone-control-card .button.primary" });
+    await page.evaluate(`document.querySelector(".phone-control-card .button.primary").click()`);
     await until(() => app.phoneControl.active()?.conversationId === id, "the session started");
     assert.equal(phone.banner?.apps, "Grab");
 
@@ -198,7 +199,7 @@ test("the phone_control card shows the apps and minutes, fits a phone, and start
     await until(async () => (await text(".phone-control-line")) !== "", "the live line on a phone");
     await fits(".phone-control-line");
     await shot("phone-control-line-390");
-    await page.click({ selector: ".phone-control-line .button" });
+    await page.evaluate(`document.querySelector(".phone-control-line .button").click()`);
     await until(() => app.phoneControl.active() === undefined, "stopped");
     await until(async () => (await text(".phone-control-line")) === "", "the line gone");
     assert.equal(phone.banner, undefined, "the banner is down");
