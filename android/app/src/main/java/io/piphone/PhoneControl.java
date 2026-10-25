@@ -172,7 +172,7 @@ final class PhoneControl {
         switch (op) {
             case "front": {
                 String front = foreground(service);
-                return new JSONObject().put("foreground", front == null ? JSONObject.NULL : front);
+                return withHidden(service, new JSONObject().put("foreground", front == null ? JSONObject.NULL : front), front);
             }
             case "tree":
                 scoped(request, service, false);
@@ -274,6 +274,33 @@ final class PhoneControl {
             if (name.equals(allowed.getString(index))) return null;
         }
         return name + " is not in this session";
+    }
+
+    /**
+     * The title of the app window in front when Android hides its content from accessibility services: a screen marked
+     * sensitive (Android 14 and later: permission and default-app screens), whose root it gives as null, so its app is not
+     * known either. Null when no app window is in front, or its content shows.
+     */
+    private static String hiddenTitle(AccessibilityService service) {
+        AccessibilityWindowInfo top = null;
+        for (AccessibilityWindowInfo window : service.getWindows()) {
+            if (window.getType() == AccessibilityWindowInfo.TYPE_APPLICATION && (top == null || window.getLayer() > top.getLayer())) top = window;
+        }
+        if (top == null) return null;
+        AccessibilityNodeInfo root = top.getRoot();
+        if (root != null) {
+            recycle(root);
+            return null;
+        }
+        CharSequence title = top.getTitle();
+        return title == null ? "" : title.toString();
+    }
+
+    /** `reply` with `hidden` (the window's title) when nothing is known in front but a hidden app window is there. */
+    private static JSONObject withHidden(AccessibilityService service, JSONObject reply, String front) throws JSONException {
+        if (front != null) return reply;
+        String hidden = hiddenTitle(service);
+        return hidden == null ? reply : reply.put("hidden", hidden);
     }
 
     /** The package of the app in front: the active window's, or the top app window's while Android has no active one. */
@@ -388,11 +415,11 @@ final class PhoneControl {
             }
             windows.put(one);
         }
-        return new JSONObject()
+        return withHidden(service, new JSONObject()
                 .put("display", new JSONObject().put("width", metrics.widthPixels).put("height", metrics.heightPixels))
                 .put("foreground", front == null ? JSONObject.NULL : front)
                 .put("keyboard", keyboard)
-                .put("windows", windows);
+                .put("windows", windows), front);
     }
 
     private static String typeName(int type) {

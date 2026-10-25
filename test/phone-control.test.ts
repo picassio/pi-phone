@@ -280,6 +280,7 @@ test("which app in front a session may read and touch: its apps and the home scr
         assert.match(control.refusal(session, "com.google.android.permissioncontroller")!, /not in this session \(Settings, and the home screen\)/);
         assert.match(control.refusal(session, "com.vietcombank.mobile")!, /banking or payment app/);
         assert.match(control.refusal(session, null)!, /no app in front/);
+        assert.match(control.refusal(session, null, "Default apps")!, /Android hides the screen in front \("Default apps"\) from accessibility services.*Ask the owner to do this step/);
     } finally {
         control.close();
     }
@@ -455,6 +456,24 @@ test("strict, an app a named one opens is refused; following along, it joins, bu
     ({ said } = await call(id, "phone_act", { action: "tap", x: 450, y: 1900 }));
     assert.match(said, /com\.example\.notes is in front, and it is not in this session/);
     assert.ok(!said.includes("My private note"), "not read");
+    await call(id, "phone_act", { action: "button", button: "home" });
+    await call(id, "phone_control", { action: "stop" });
+});
+
+test("a screen Android hides from accessibility services (Choose default apps) is said so, not as no app in front; back leaves it", async () => {
+    const id = await newSession(app);
+
+    await call(id, "phone_control", { action: "start", apps: ["Settings"], follow: true, reason: "Look at the default apps" }, { answer: true });
+    await call(id, "phone_act", { action: "open_app", app: "Settings" });
+    let { said } = await call(id, "phone_act", { action: "tap", x: 540, y: 1700 });
+
+    // (What Pi was told comes back as JSON: its quotes escaped.)
+    assert.match(said, /Android hides the screen in front \(\\"Default apps\\"\) from accessibility services/);
+    assert.doesNotMatch(said, /no app in front/);
+    ({ said } = await call(id, "phone_screen", {}));
+    assert.match(said, /Android hides the screen in front \(\\"Default apps\\"\)/);
+    ({ said } = await call(id, "phone_act", { action: "button", button: "back" }));
+    assert.match(said, /Settings \(com\.android\.settings\)/);
     await call(id, "phone_act", { action: "button", button: "home" });
     await call(id, "phone_control", { action: "stop" });
 });

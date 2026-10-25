@@ -44,6 +44,8 @@ export type PhoneWindow = {
 export type PhoneScreen = {
     display: { width: number; height: number };
     foreground: string | null;
+    /** With no app known in front: the title of an app window whose content Android hides (`PhoneControl.hiddenTitle`). */
+    hidden?: string;
     keyboard: boolean;
     windows: PhoneWindow[];
 };

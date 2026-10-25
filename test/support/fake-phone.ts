@@ -100,6 +100,11 @@ type Request = Record<string, unknown> & { id: string; seq: number; op: string }
 
 export class FakePhone {
     foreground: string | null = "io.piphone";
+    /**
+     * A screen Android hides from accessibility services (no app in front, a window with this title), as Settings › Apps ›
+     * Choose default apps on a Samsung; null when none.
+     */
+    hidden: string | null = null;
     readonly launcher = "com.android.launcher3";
     enabled = true;
     keyboard = false;
@@ -184,7 +189,7 @@ export class FakePhone {
             case "status":
                 return { enabled: this.enabled, android: 34, screenshot: true, foreground: this.foreground, launcher: this.launcher, unrestricted: true };
             case "front":
-                return { foreground: this.foreground };
+                return { foreground: this.foreground, ...(this.foreground === null && this.hidden !== null ? { hidden: this.hidden } : {}) };
             case "apps":
                 return { apps: APPS };
             case "label": {
@@ -211,7 +216,13 @@ export class FakePhone {
                     { id: 2, type: "system", package: "com.android.systemui", layer: 5, active: false },
                 ];
 
-                return { display: { width: 1080, height: 2400 }, foreground: this.foreground, keyboard: this.keyboard, windows };
+                return {
+                    display: { width: 1080, height: 2400 },
+                    foreground: this.foreground,
+                    ...(this.foreground === null && this.hidden !== null ? { hidden: this.hidden } : {}),
+                    keyboard: this.keyboard,
+                    windows,
+                };
             }
             case "tap":
             case "press": {
@@ -228,7 +239,11 @@ export class FakePhone {
                 }
 
                 // Settings' Battery row opens Device care; Device care's button opens Notes.
-                if (this.foreground === "com.android.settings" && y >= 1270 && y < 1470) {
+                // Its Apps row opens Choose default apps, a screen Android hides from accessibility services.
+                if (this.foreground === "com.android.settings" && y >= 1600 && y < 1800) {
+                    this.foreground = null;
+                    this.hidden = "Default apps";
+                } else if (this.foreground === "com.android.settings" && y >= 1270 && y < 1470) {
                     this.foreground = "com.example.devicecare";
                 } else if (this.foreground === "com.example.devicecare" && y >= 500 && y < 600) {
                     this.foreground = "com.example.notes";
@@ -246,6 +261,13 @@ export class FakePhone {
 
                 if (request.name === "home") {
                     this.foreground = this.launcher;
+                    this.hidden = null;
+                }
+
+                // Back from the hidden screen: Settings again.
+                if (request.name === "back" && this.foreground === null && this.hidden !== null) {
+                    this.foreground = "com.android.settings";
+                    this.hidden = null;
                 }
 
                 return {};

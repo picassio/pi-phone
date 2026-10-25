@@ -449,7 +449,13 @@ export class PhoneControl {
     }
 
     /** Why Pi may not read or touch the app in front, or undefined when it may. */
-    refusal(session: ControlSession, foreground: string | null): string | undefined {
+    refusal(session: ControlSession, foreground: string | null, hidden?: string): string | undefined {
+        // A screen Android keeps from accessibility services (Android 14+: permission and default-app screens, such as
+        // Settings › Apps › Choose default apps on a Samsung): its window is there, its content and app are not.
+        if ((foreground === null || foreground === "") && hidden !== undefined) {
+            return `Android hides the screen in front${hidden === "" ? "" : ` ("${hidden}")`} from accessibility services, as it does permission and default-app screens: Pi cannot read or touch it. Ask the owner to do this step on the phone, or go back with phone_act button.`;
+        }
+
         if (foreground === null || foreground === "") {
             return "Android reports no app in front: wait a moment and read the screen again.";
         }
@@ -475,10 +481,10 @@ export class PhoneControl {
 
     /** The app in front now, checked against the session: or why Pi may not act there. */
     async front(session: ControlSession): Promise<string> {
-        const { foreground } = (await this.#ask(session.device, { op: "front" })) as { foreground?: string | null };
+        const { foreground, hidden } = (await this.#ask(session.device, { op: "front" })) as { foreground?: string | null; hidden?: string };
 
         await this.#follow(session, foreground ?? null);
-        const refused = this.refusal(session, foreground ?? null);
+        const refused = this.refusal(session, foreground ?? null, hidden);
 
         if (refused !== undefined) {
             throw new Error(refused);
@@ -496,7 +502,7 @@ export class PhoneControl {
             screen = (await this.#ask(session.device, { op: "tree", ...this.#scope(session) })) as unknown as PhoneScreen;
         }
 
-        const refused = this.refusal(session, screen.foreground);
+        const refused = this.refusal(session, screen.foreground, screen.hidden);
 
         if (refused !== undefined) {
             this.#outlines.delete(session.device);
