@@ -102,7 +102,7 @@ export class FakePhone {
     readonly asked: Request[] = [];
     /** What the service refused, as it would say it. */
     readonly refused: string[] = [];
-    banner: { until: number; apps: string } | undefined;
+    banner: { until: number; apps: string; again?: boolean } | undefined;
     #stop = new AbortController();
 
     /** Answer `requests` until `detach`. */
@@ -152,6 +152,11 @@ export class FakePhone {
 
         if (allowed === undefined || Number(request.until) <= Date.now()) {
             throw new Error("no phone control session is active");
+        }
+
+        // The banner goes up again first when it is not (the app's process started again in a session).
+        if (this.banner?.until !== Number(request.until)) {
+            this.banner = { until: Number(request.until), apps: String(request.apps), again: true };
         }
 
         if (!front) {

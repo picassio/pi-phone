@@ -384,12 +384,16 @@ export class PhoneControl {
         return session;
     }
 
-    /** What each scoped request carries: the apps it may touch, the Never list, and its end. The service checks them. */
-    #scope(session: ControlSession): { allowed: string[]; never: string[]; until: number } {
+    /**
+     * What each scoped request carries: the apps it may touch, the Never list, and its end, which the service checks; and
+     * the apps' names, for the banner it shows again when it is not up (pi-phone's process started again in a session).
+     */
+    #scope(session: ControlSession): { allowed: string[]; never: string[]; until: number; apps: string } {
         return {
             allowed: [...session.apps.map((each) => each.package), ...(session.launcher === undefined ? [] : [session.launcher])],
             never: this.#neverPatterns(),
             until: session.until,
+            apps: session.apps.map((each) => each.label).join(", "),
         };
     }
 

@@ -58,11 +58,6 @@ export function browserSecretNames(tool: string, args: Record<string, unknown>):
         return { names: [args.secret], subject: `Type [secret ${args.secret}] into [${String(args.index)}]` };
     }
 
-    // Typed into an app on the phone (PP-141): the same rules.
-    if (tool === "phone_act" && typeof args.secret === "string") {
-        return { names: [args.secret], subject: `Type [secret ${args.secret}] into the phone's ${args.index === undefined ? "focused field" : `[${String(args.index)}]`}` };
-    }
-
     if (tool === "browser_run" && typeof args.values === "object" && args.values !== null) {
         const names = Object.values(args.values as Record<string, unknown>).flatMap((value) =>
             typeof value === "object" && value !== null && typeof (value as { secret?: unknown }).secret === "string" ? [(value as { secret: string }).secret] : [],

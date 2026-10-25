@@ -160,7 +160,11 @@ type Working = {
     role: string;
     label: string;
     ref: { w: number; p: number[] };
+    /** The list (a collection) it is in, if any: its rows stay in the list's region, even at the screen's edges. */
+    list: PhoneNode | undefined;
 };
+
+const isCollection = (node: PhoneNode) => COLLECTIONS.has(node.c ?? "") || has(node, FLAG.collection);
 
 const frameOf = (node: PhoneNode): Frame => ({ x: node.b[0], y: node.b[1], width: node.b[2] - node.b[0], height: node.b[3] - node.b[1] });
 const sameFrame = (a: Frame, b: Frame) => a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
@@ -297,15 +301,17 @@ function hiddenMasterPane(node: PhoneNode): boolean {
     return first!.b.join() === second!.b.join() && labelled(first!) && labelled(second!);
 }
 
-function walk(node: PhoneNode, depth: number, declared: Region | undefined, screen: Frame, repeats: boolean, ref: Working["ref"], into: Working[]): void {
+function walk(node: PhoneNode, depth: number, declared: Region | undefined, screen: Frame, repeats: boolean, ref: Working["ref"], into: Working[], list?: PhoneNode): void {
     const own = declared === undefined ? declaredRegion(node) : undefined;
     const region = declared ?? own;
     const frame = frameOf(node);
     const label = labelOf(node);
 
     if (own === undefined && include(node, frame, screen, label, repeats)) {
-        into.push({ node, frame, depth, declared: region, role: roleOf(node), label, ref });
+        into.push({ node, frame, depth, declared: region, role: roleOf(node), label, ref, list });
     }
+
+    const inList = isCollection(node) ? node : list;
 
     const children = node.k ?? [];
     const counts = repeatingIds(children);
@@ -316,7 +322,7 @@ function walk(node: PhoneNode, depth: number, declared: Region | undefined, scre
             return;
         }
 
-        walk(child, depth + 1, region, screen, (counts.get(shortId(child.r)) ?? 0) >= 2, { w: ref.w, p: [...ref.p, child.i ?? position] }, into);
+        walk(child, depth + 1, region, screen, (counts.get(shortId(child.r)) ?? 0) >= 2, { w: ref.w, p: [...ref.p, child.i ?? position] }, into, inList);
     });
 }
 
@@ -401,7 +407,7 @@ function dedup(items: Working[]): Working[] {
 function lists(roots: readonly PhoneNode[], screen: Frame): { frame: Frame; rows: number }[] {
     const found: { frame: Frame; rows: number; height: number }[] = [];
     const visit = (node: PhoneNode) => {
-        if (COLLECTIONS.has(node.c ?? "") || has(node, FLAG.collection)) {
+        if (isCollection(node)) {
             const frame = frameOf(node);
             const cells = (node.k ?? []).map(frameOf).filter((cell, index) => has(node.k![index]!, FLAG.visible) && cell.width > 0 && cell.height > 0 && overlaps(cell, frame));
             const heights = cells.map((cell) => cell.height).sort((a, b) => a - b);
@@ -532,6 +538,8 @@ export function renderOutline(screen: PhoneScreen, app: string): Outline {
     // A popup over the app (a menu, a dropdown, a dialog of its own): what is under it cannot be tapped without closing it.
     const popups = active === undefined ? [] : readable.filter((window) => window !== active && window.layer > active.layer);
     const shown = popups.length > 0 ? popups.sort((a, b) => a.layer - b.layer) : active === undefined ? [] : [active];
+    // A dialog of the app takes the focus: the active window is over another of the app's, which is not listed.
+    const over = popups.length > 0 || (active !== undefined && readable.some((window) => window !== active && window.layer < active.layer));
     const collected: Working[] = [];
 
     for (const window of shown) {
@@ -560,8 +568,11 @@ export function renderOutline(screen: PhoneScreen, app: string): Outline {
             return item.declared;
         }
 
-        if (item.frame.height <= display.height / 2) {
-            const middle = item.frame.y + item.frame.height / 2;
+        // A list's rows go where the list is: by its place on the screen, not theirs.
+        const where = item.list === undefined ? item.frame : frameOf(item.list);
+
+        if (where.height <= display.height / 2) {
+            const middle = where.y + where.height / 2;
 
             if (middle < band) {
                 return { kind: "Top" };
@@ -591,7 +602,7 @@ export function renderOutline(screen: PhoneScreen, app: string): Outline {
     const ordered = [...buckets.values()].sort((a, b) => rank(a.region.kind) - rank(b.region.kind));
     const lines = [`${app} (${screen.foreground}) · screen ${display.width}x${display.height} px${screen.keyboard ? " · keyboard up" : ""}`];
 
-    if (popups.length > 0) {
+    if (over) {
         lines.push("A popup or dialog is open over the app: only it is listed (button back closes it).");
     }
 

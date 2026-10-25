@@ -1,9 +1,10 @@
 // Pi controls this phone (PP-141), against a fake phone answering the phone-control channel as the app's service does
-// (`test/support/fake-phone.ts`): the outline of real-looking screens; one card (only the owner approves) starts a
-// session for the apps it names and the home screen; another app, pi-phone itself, a bank, a password manager and an
-// app on the owner's Never list are refused (on the server, and each scoped request carries what the service checks);
-// a secret is typed unseen; Stop and the time limit end it; a restart keeps it; guests, roles without phone.control,
-// plan mode and the team server are refused.
+// (`test/support/fake-phone.ts`): the outline of real-looking screens (Settings, a long list, a dialog, the keyboard
+// up); one card (only the owner approves) starts a session for the apps it names and the home screen; another app,
+// pi-phone itself, a bank, a password manager and an app on the owner's Never list are refused (on the server, and each
+// scoped request carries what the service checks); a password field is never typed into; Stop and the time limit end
+// it; a restart keeps it, and the banner comes back; guests, roles without phone.control, plan mode and the team server
+// are refused.
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
@@ -14,10 +15,9 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { User } from "../src/server/config.ts";
 import { blockedInPlanMode } from "../src/server/extensions/plan.ts";
-import { browserSecretNames } from "../src/server/extensions/secrets.ts";
 import { createHandler } from "../src/server/http.ts";
 import { PhoneControl } from "../src/server/phone-control.ts";
-import { renderOutline } from "../src/server/phone-outline.ts";
+import { FLAG, renderOutline } from "../src/server/phone-outline.ts";
 import { FakePhone, GRAB, node, SETTINGS } from "./support/fake-phone.ts";
 
 /** What Pi calls, by the end of the owner's message: a tool and its arguments. */
@@ -40,14 +40,12 @@ let shift = 0;
 const clock = () => Date.now() + shift;
 let app: App;
 const phone = new FakePhone();
-const VALUE = "s3cret-pin-4471-value";
 
 before(async () => {
     app = await openApp(scriptedModel(route), dataDir, clock);
     phone.attach(app.phoneControl.requests);
     // The service polls: the phone is there.
     await until(() => app.phoneControl.present(), "the phone polls");
-    app.secrets.set("GRAB_PASSWORD", { value: VALUE, description: "Grab sign-in" });
 });
 
 after(async () => {
@@ -129,6 +127,164 @@ test("the outline of an app: a field's hint, a password field's value never show
     assert.doesNotMatch(popped.text, /Checkout/);
 });
 
+const CONTACTS = "com.google.android.contacts";
+
+/**
+ * A contacts row, the k-th from the list's top. As Android reports them: bounds clipped to the list's bottom (`clip`),
+ * a view clipped away entirely not sent (the service leaves out empty leaves), a row out of view marked so.
+ */
+function contact(k: number, shown = true, clip = 2274) {
+    const top = 300 + 160 * k;
+    const view = (c: string, [l, t, r, b]: [number, number, number, number], rest: Parameters<typeof node>[2], k2: Parameters<typeof node>[3] = []) => {
+        const bounds: [number, number, number, number] = shown ? [l, Math.min(t, clip), r, Math.min(b, clip)] : [l, t, r, b];
+
+        return shown ? node(c, bounds, rest, k2) : { ...node(c, bounds, rest, k2), f: ((rest?.f ?? 0) | FLAG.enabled) & ~FLAG.visible };
+    };
+    const texts = [
+        view("android.widget.TextView", [200, top + 30, 1000, top + 90], { r: `${CONTACTS}:id/name`, t: `Contact ${k + 1}` }),
+        view("android.widget.TextView", [200, top + 95, 1000, top + 140], { r: `${CONTACTS}:id/number`, t: `+84 90 000 ${String(k).padStart(4, "0")}` }),
+    ].filter((each) => each.b[3] > each.b[1]);
+
+    return view("android.widget.LinearLayout", [0, top, 1080, top + 160], { r: `${CONTACTS}:id/contact_row`, f: FLAG.clickable }, texts);
+}
+
+test("the outline of a long list: the rows in view only, its row count, a tab bar with the tab selected, at most 200 elements", () => {
+    const tab = (label: string, x: number, selected = false) =>
+        node("android.widget.FrameLayout", [x, 2274, x + 360, 2400], { f: FLAG.clickable | (selected ? FLAG.selected : 0) }, [node("android.widget.TextView", [x + 80, 2320, x + 280, 2370], { t: label })]);
+    const root = node("android.widget.FrameLayout", [0, 0, 1080, 2400], {}, [
+        node("androidx.appcompat.widget.Toolbar", [0, 132, 1080, 300], {}, [node("android.widget.TextView", [48, 170, 600, 260], { t: "Contacts" })]),
+        node(
+            "androidx.recyclerview.widget.RecyclerView",
+            [0, 300, 1080, 2274],
+            { r: `${CONTACTS}:id/contacts_list`, f: FLAG.scrollable | FLAG.collection },
+            // 13 rows in view (the last one half), two laid out below it.
+            [...Array.from({ length: 13 }, (_, k) => contact(k)), contact(13, false), contact(14, false)],
+        ),
+        node("com.google.android.material.bottomnavigation.BottomNavigationView", [0, 2274, 1080, 2400], {}, [tab("Favorites", 0), tab("Contacts", 360, true), tab("Fix & manage", 720)]),
+    ]);
+    const { text, entries } = renderOutline({ display: { width: 1080, height: 2400 }, foreground: CONTACTS, keyboard: false, windows: [{ id: 2, type: "application", package: CONTACTS, layer: 1, active: true, root }] }, "Contacts");
+
+    assert.match(text, /\[\d+\] List "" :contacts_list: \(0,300 1080x1974\) list of 13 rows in view scrollable/);
+    assert.ok(text.includes('"Contact 13" (200,2250 800x24)') && !text.includes('"+84 90 000 0012"'), "the half-shown row, as much as shows");
+    assert.ok(!text.includes("Contact 14") && !text.includes("Contact 15"), "no row out of view");
+    // Rows repeat their id: each is an element (to tap), its words indented under it.
+    // (The half-shown row, 54 px of it, reads as a divider: its name is listed by itself.)
+    assert.equal(entries.filter((entry) => entry.role === "LinearLayout").length, 12);
+    assert.match(text, /\n {2}\[\d+\] LinearLayout "" :contact_row: \(0,300 1080x160\)\n {4}\[\d+\] TextView "Contact 1" \(200,330 800x60\)/);
+    // The rows at the screen's foot stay in the list, not in the bottom band.
+    assert.doesNotMatch(text, /\[Bottom\]/);
+    assert.match(text, /\n {2}\[\d+\] TextView "Contact 13"/);
+    assert.ok(text.includes("[TabBar]"));
+    assert.match(text, /Button "Contacts" \(360,2274 360x126\) selected/);
+    assert.match(text, /Button "Favorites" \(0,2274 360x126\)\n/);
+
+    // A page of 300 links (a web view in an app): 200 listed, the rest counted.
+    const links = Array.from({ length: 300 }, (_, k) => node("android.view.View", [0, 8 * k, 1080, 8 * k + 8], { t: `Link ${k + 1}`, f: FLAG.clickable }));
+    const web = renderOutline(
+        { display: { width: 1080, height: 2400 }, foreground: "org.example.reader", keyboard: false, windows: [{ id: 3, type: "application", package: "org.example.reader", layer: 1, active: true, root: node("android.webkit.WebView", [0, 0, 1080, 2400], { f: FLAG.scrollable }, links) }] },
+        "Reader",
+    );
+
+    assert.equal(web.entries.length, 200);
+    assert.match(web.text, /\(101 more elements not listed\)$/);
+});
+
+test("the outline of a dialog over the app: the dialog alone, said so, with its buttons", () => {
+    const PHOTOS = "com.google.android.apps.photos";
+    const gallery = node("android.widget.FrameLayout", [0, 0, 1080, 2400], {}, [
+        node("androidx.appcompat.widget.Toolbar", [0, 132, 1080, 300], {}, [node("android.widget.TextView", [48, 170, 600, 260], { t: "3 selected" })]),
+        node("android.widget.ImageButton", [900, 170, 1040, 260], { d: "Delete", f: FLAG.clickable }),
+    ]);
+    const dialog = node("android.widget.FrameLayout", [90, 880, 990, 1520], {}, [
+        node("android.widget.TextView", [150, 940, 930, 1020], { r: "android:id/alertTitle", t: "Move 3 items to trash?" }),
+        node("android.widget.TextView", [150, 1040, 930, 1200], { r: "android:id/message", t: "Items in trash are deleted after 60 days." }),
+        node("android.widget.Button", [480, 1360, 700, 1480], { r: "android:id/button2", t: "Cancel", f: FLAG.clickable }),
+        node("android.widget.Button", [720, 1360, 940, 1480], { r: "android:id/button1", t: "Move to trash", f: FLAG.clickable }),
+    ]);
+    // Android gives the dialog the focus: it is the active window, over the app's.
+    const { text, entries } = renderOutline(
+        {
+            display: { width: 1080, height: 2400 },
+            foreground: PHOTOS,
+            keyboard: false,
+            windows: [
+                { id: 5, type: "application", package: PHOTOS, layer: 1, active: false, root: gallery },
+                { id: 6, type: "application", package: PHOTOS, layer: 2, active: true, root: dialog },
+                { id: 7, type: "system", package: "com.android.systemui", layer: 9, active: false },
+            ],
+        },
+        "Photos",
+    );
+
+    assert.match(text, /popup or dialog is open over the app: only it is listed/);
+    assert.deepEqual(
+        entries.map((entry) => `${entry.role} ${entry.label}`),
+        ["TextView Move 3 items to trash?", "TextView Items in trash are deleted after 60 days.", "Button Cancel", "Button Move to trash"],
+    );
+    assert.deepEqual(entries[3]!.ref, { w: 6, p: [3] });
+    assert.doesNotMatch(text, /3 selected|Delete"/);
+});
+
+test("the outline with the keyboard up: said so, the focused field with its text and hint, nothing of the keyboard", () => {
+    const CHAT = "com.example.chat";
+    const root = node("android.widget.FrameLayout", [0, 0, 1080, 1400], {}, [
+        node("androidx.appcompat.widget.Toolbar", [0, 132, 1080, 300], {}, [node("android.widget.TextView", [160, 170, 700, 260], { t: "Linh" })]),
+        node("androidx.recyclerview.widget.RecyclerView", [0, 300, 1080, 1240], { r: `${CHAT}:id/messages`, f: FLAG.scrollable }, [
+            node("android.widget.TextView", [400, 320, 1040, 420], { t: "Dinner tonight?" }),
+            node("android.widget.TextView", [40, 440, 700, 540], { t: "Sure, where?" }),
+        ]),
+        node("android.widget.EditText", [40, 1250, 880, 1380], { r: `${CHAT}:id/compose`, t: "See you at 7", h: "Message", f: FLAG.clickable | FLAG.focusable | FLAG.editable | FLAG.focused }),
+        node("android.widget.ImageButton", [900, 1250, 1040, 1380], { d: "Send", f: FLAG.clickable }),
+    ]);
+    const { text } = renderOutline(
+        {
+            display: { width: 1080, height: 2400 },
+            foreground: CHAT,
+            keyboard: true,
+            windows: [
+                { id: 2, type: "application", package: CHAT, layer: 1, active: true, root },
+                // The keyboard's window: never read (the service sends no nodes but the app's).
+                { id: 8, type: "input_method", package: "com.google.android.inputmethod.latin", layer: 3, active: false },
+            ],
+        },
+        "Chat",
+    );
+
+    assert.equal(text.split("\n")[0], "Chat (com.example.chat) · screen 1080x2400 px · keyboard up");
+    assert.match(text, /TextField "See you at 7" \(40,1250 840x130\) focused hint "Message"/);
+    assert.match(text, /Button "Send" \(900,1250 140x130\)/);
+    assert.match(text, /List "" :messages: \(0,300 1080x940\) list of 2 rows in view scrollable/);
+    assert.doesNotMatch(text, /popup or dialog/);
+});
+
+test("which app in front a session may read and touch: its apps and the home screen; never pi-phone, a Never app, or another", () => {
+    const control = new PhoneControl({ dataDir: mkdtempSync(join(root, "phone-scope-")), gateway: false });
+    const session = {
+        device: "phone",
+        conversationId: 1,
+        session: 1,
+        approvedBy: "owner",
+        apps: [{ label: "Settings", package: "com.android.settings" }],
+        launcher: "com.android.launcher3",
+        reason: "",
+        startedAt: Date.now(),
+        until: Date.now() + 60_000,
+    };
+
+    try {
+        assert.equal(control.refusal(session, "com.android.settings"), undefined);
+        assert.equal(control.refusal(session, "com.android.launcher3"), undefined, "the home screen");
+        assert.match(control.refusal({ ...session, launcher: undefined }, "com.android.launcher3")!, /not in this session/, "no home screen known: not allowed");
+        assert.match(control.refusal(session, "io.piphone")!, /pi-phone itself is in front/);
+        assert.match(control.refusal({ ...session, apps: [{ label: "pi", package: "io.piphone" }] }, "io.piphone")!, /pi-phone itself/, "even when named");
+        assert.match(control.refusal(session, "com.google.android.permissioncontroller")!, /not in this session \(Settings, and the home screen\)/);
+        assert.match(control.refusal(session, "com.vietcombank.mobile")!, /banking or payment app/);
+        assert.match(control.refusal(session, null)!, /no app in front/);
+    } finally {
+        control.close();
+    }
+});
+
 test("one card for the apps, only the owner approves; then only those apps and the home screen, with what the service checks", async () => {
     const id = await newSession(app);
     const guest = app.config.addUser("Lan", "guest").user;
@@ -181,18 +337,23 @@ test("one card for the apps, only the owner approves; then only those apps and t
         assert.ok((tap.never as string[]).includes("io.piphone") && (tap.never as string[]).includes("com.vietcombank*"));
         assert.match(said, /Tapped \[\d+\] Button \\"Checkout\\"/);
 
-        // A secret typed unseen: its value reaches the phone, never the transcript.
+        // A password field: Pi does not type into it, and the phone is not asked.
         const field = app.phoneControl.entry(app.phoneControl.active()!, Number(/\[(\d+)\] TextField \\"\\" :password:/.exec(said)![1]));
+        const search = app.phoneControl.entry(app.phoneControl.active()!, Number(/\[(\d+)\] TextField \\"\\" :search:/.exec(said)![1]));
+
         ({ said } = await call(id, "phone_act", { action: "type", index: field.index, text: "typed-as-text" }));
-        assert.match(said, /is a password field: type a saved secret/);
-        ({ said } = await call(id, "phone_act", { action: "type", index: field.index, secret: "GRAB_PASSWORD", submit: true }));
+        assert.match(said, /is a password field: Pi does not type into it\. Ask the owner to type it on the phone/);
+        assert.equal(phone.ops("type").length, 0);
+
+        // Text into the search field: the node it was read as (window, child path, bounds), and Enter.
+        ({ said } = await call(id, "phone_act", { action: "type", index: search.index, text: "pho bo", submit: true }));
         const typed = phone.ops("type").at(-1)!;
 
-        assert.equal(typed.text, VALUE);
-        assert.deepEqual(typed.node, { w: 1, p: field.ref.p, b: [40, 1560, 1040, 1680] });
+        assert.equal(typed.text, "pho bo");
+        assert.deepEqual(typed.node, { w: 1, p: search.ref.p, b: [40, 160, 1040, 280] });
         assert.equal(typed.submit, true);
-        assert.match(said, /Typed \[secret GRAB_PASSWORD\] into/);
-        assert.ok(!(await modelTexts(app, id)).join("\n").includes(VALUE), "the value is in no message");
+        assert.equal(typed.apps, "Grab", "the apps' names, for the banner");
+        assert.match(said, /Typed \\"pho bo\\" into \[\d+\] \\"\\" and pressed Enter/);
 
         // Home is allowed; another app opened from there is not read, and acting in it is refused before the phone.
         ({ said } = await call(id, "phone_act", { action: "button", button: "home" }));
@@ -270,9 +431,14 @@ test("a restart keeps a session; at its time it ends", async () => {
     phone.attach(app.phoneControl.requests);
     await until(() => app.phoneControl.present(), "the phone polls again");
     assert.equal(app.phoneControl.active()?.conversationId, id);
+    // pi-phone's process started again too: its banner is gone, and comes back before Pi reads the screen.
+    const end = phone.banner!.until;
+
+    phone.banner = undefined;
     let { said } = await call(id, "phone_screen", {});
 
     assert.match(said, /Settings \(com\.android\.settings\)[\s\S]*TextView \\"Battery\\"/);
+    assert.deepEqual(phone.banner, { until: end, apps: "Settings", again: true });
 
     // 16 minutes on: over.
     shift += 16 * 60_000;
@@ -292,9 +458,6 @@ test("guests, roles without phone.control, plan mode and the team server are ref
     } finally {
         app.config.removeUser(guest.id);
     }
-
-    // A secret typed into an app goes through the secrets module's rules (its folders, ask-first), as Pi's browser's do.
-    assert.deepEqual(browserSecretNames("phone_act", { action: "type", secret: "GRAB_PASSWORD", index: 4 }), { names: ["GRAB_PASSWORD"], subject: "Type [secret GRAB_PASSWORD] into the phone's [4]" });
 
     for (const tool of ["phone_control", "phone_screen", "phone_act", "phone_screenshot"]) {
         assert.match(blockedInPlanMode(tool, { action: "status" }) ?? "", /Plan mode is on/, tool);

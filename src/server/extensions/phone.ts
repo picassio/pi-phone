@@ -4,8 +4,8 @@
  * - `phone_control`: start a control session (one card the owner approves: the apps, the minutes), stop it, or say how
  *   it stands. Only the apps on the card (and the home screen, to open them); another app needs a new card.
  * - `phone_screen`: the screen as numbered elements (`phone-outline.ts`, ported from lycorp-jp/sim-use).
- * - `phone_act`: tap, long press, type (a text, or a saved secret by name that Pi never sees), swipe, scroll, a button,
- *   open an app, wait; answers with the screen after it.
+ * - `phone_act`: tap, long press, type a text, swipe, scroll, a button, open an app, wait; answers with the screen
+ *   after it. A password field is never typed into by Pi (the owner types it on the phone).
  * - `phone_screenshot`: a picture of the screen, with marks.
  * The owner's alone; never on the team server, never in plan mode (`plan.ts` blocks tools that change things).
  */
@@ -25,7 +25,7 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const PACKAGE = /^[A-Za-z][\w]*(\.[A-Za-z_][\w]*)+$/;
 
 /** In every prompt while the module is on. */
-export const PHONE = `Phone control: you can see and operate Android apps on the owner's phone, in a control session the owner approves on a card. phone_control start names the apps (and minutes, 15 by default); only those apps and the home screen may be read or touched, so ask with a new card for another app. Then phone_act open_app opens one, phone_screen reads the screen as numbered elements ([3] Button "Send"), phone_act taps, types, swipes, scrolls, presses back or home, and answers with the screen after it (use the newest numbers); phone_screenshot shows it as a picture. Type a password or code only as a saved secret by name (phone_act type with secret: "NAME"): its value goes into the field, never to you. pi-phone itself, banking and payment apps, password managers and apps on the owner's Never list are never read or controlled. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with phone_control stop when you are done.`;
+export const PHONE = `Phone control: you can see and operate Android apps on the owner's phone, in a control session the owner approves on a card. phone_control start names the apps (and minutes, 15 by default); only those apps and the home screen may be read or touched, so ask with a new card for another app. Then phone_act open_app opens one, phone_screen reads the screen as numbered elements ([3] Button "Send"), phone_act taps, types, swipes, scrolls, presses back or home, and answers with the screen after it (use the newest numbers); phone_screenshot shows it as a picture. Never type into a password field: ask the owner to type a password or code on the phone himself. pi-phone itself, banking and payment apps, password managers and apps on the owner's Never list are never read or controlled. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with phone_control stop when you are done.`;
 
 export default function createPhone(host: PocketHost) {
     const control = host.phone;
@@ -249,7 +249,7 @@ export default function createPhone(host: PocketHost) {
         description:
             "Act on the phone in a control session, then answer with the screen after it (use its numbers next). " +
             "tap / long_press: an element by index (from the newest phone_screen) or a point x, y in screen pixels. " +
-            "type: text, or a saved secret by name (secret: \"NAME\": its value goes into the field, never to you), into the field index (default: the focused one); clear (default true) replaces what is there, submit presses the keyboard's Enter. " +
+            "type: text into the field index (default: the focused one; never a password field); clear (default true) replaces what is there, submit presses the keyboard's Enter. " +
             "swipe: the finger moves direction (up, down, left, right) from index, x, y, or the screen's middle. scroll: shows more of index (a scrollable element) or the screen in direction (down: what is below). " +
             "button: back, home, recents, notifications, quick_settings. open_app: an app of the session (app: name or package). wait: seconds (default 2, at most 10). " +
             "Only in the session's apps and the home screen.",
@@ -268,7 +268,6 @@ export default function createPhone(host: PocketHost) {
             x: Type.Optional(Type.Number({ description: "A point on the screen, in pixels from the left" })),
             y: Type.Optional(Type.Number({ description: "A point on the screen, in pixels from the top" })),
             text: Type.Optional(Type.String({ description: "type: the text" })),
-            secret: Type.Optional(Type.String({ description: "type: a saved secret's name (secrets_list), typed instead of text" })),
             clear: Type.Optional(Type.Boolean({ description: "type: replace what is in the field (default true)" })),
             submit: Type.Optional(Type.Boolean({ description: "type: press Enter afterwards" })),
             direction: Type.Optional(Type.Union([Type.Literal("up"), Type.Literal("down"), Type.Literal("left"), Type.Literal("right")])),
@@ -321,25 +320,15 @@ export default function createPhone(host: PocketHost) {
                     }
 
                     case "type": {
-                        if ((args.text === undefined) === (args.secret === undefined)) {
-                            return reply("Give text, or a saved secret's name (secret), not both.", true);
+                        if (args.text === undefined) {
+                            return reply("type needs text.", true);
                         }
 
                         const entry = args.index === undefined ? undefined : control.entry(session, args.index);
-                        let value = args.text ?? "";
+                        const value = args.text;
 
-                        if (args.secret !== undefined) {
-                            // The secrets module checked the folder and asked a person when the secret says so (`extensions/secrets.ts`).
-                            const kept = host.secrets.value(args.secret);
-
-                            if (kept === undefined) {
-                                return reply(`There is no secret ${args.secret}: secrets_list says which you may use.`, true);
-                            }
-
-                            value = kept;
-                            host.secrets.used([args.secret]);
-                        } else if (entry?.password === true) {
-                            return reply(`[${args.index}] is a password field: type a saved secret into it (secret: "NAME"), or ask the owner to type it on the phone.`, true);
+                        if (entry?.password === true) {
+                            return reply(`[${args.index}] is a password field: Pi does not type into it. Ask the owner to type it on the phone.`, true);
                         }
 
                         await control.act(session, {
@@ -349,7 +338,7 @@ export default function createPhone(host: PocketHost) {
                             submit: args.submit ?? false,
                             ...(entry === undefined ? {} : { node: { w: entry.ref.w, p: entry.ref.p, b: [entry.frame.x, entry.frame.y, entry.frame.x + entry.frame.width, entry.frame.y + entry.frame.height] } }),
                         });
-                        done = `Typed ${args.secret === undefined ? JSON.stringify(value) : `[secret ${args.secret}]`} into ${entry === undefined ? "the focused field" : `[${args.index}] ${JSON.stringify(entry.label)}`}${args.submit ? " and pressed Enter" : ""}.`;
+                        done = `Typed ${JSON.stringify(value)} into ${entry === undefined ? "the focused field" : `[${args.index}] ${JSON.stringify(entry.label)}`}${args.submit ? " and pressed Enter" : ""}.`;
                         break;
                     }
 
