@@ -34,4 +34,12 @@
     <string name="later">稍后</string>
     <string name="ok">确定</string>
     <string name="megabytes">%1$.1f / %2$.1f MB</string>
+    <string name="phone_control_service_label">pi：手机控制</string>
+    <string name="phone_control_service_summary">在你批准的会话中，Pi 读取并操作你指定的应用</string>
+    <string name="phone_control_service_description">让 pi-phone 中的智能体 Pi 读取屏幕，并在其他应用中点按、输入和滑动，但只在你于 pi-phone 卡片上批准的控制会话中进行：仅限卡片上列出的应用（以及用来打开它们的主屏幕），时长为卡片上的分钟数。运行期间会显示横幅和通知，并带有“停止”按钮。pi-phone 本身、银行和支付应用、密码管理器以及你的“永不”列表中的应用永远不会被读取或控制。除了 Pi 在这些应用中读到的内容，没有任何内容离开手机。</string>
+    <string name="phone_control_banner">Pi 正在使用你的手机 · %1$d 分钟</string>
+    <string name="phone_control_stop">停止</string>
+    <string name="channel_phone_control">手机控制</string>
+    <string name="phone_control_title">Pi 正在使用你的手机</string>
+    <string name="phone_control_text">%1$s · 至 %2$s</string>
 </resources>

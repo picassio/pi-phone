@@ -27,6 +27,21 @@
             android:name=".PiService"
             android:exported="false" />
 
+        <!-- Phone control (PiAccessibility.java, PP-141): off until the owner turns it on in Android's Accessibility
+             settings. Only the system may bind it (BIND_ACCESSIBILITY_SERVICE). -->
+        <service
+            android:name=".PiAccessibility"
+            android:label="@string/phone_control_service_label"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/phone_control_service" />
+        </service>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

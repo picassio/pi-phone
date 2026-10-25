@@ -39,6 +39,8 @@ public final class PiService extends Service {
     static final String EXTRA_SESSION = "io.piphone.SESSION";
     private static final String TAG = "pi-phone";
     private static final String ACTION_UPDATE = "io.piphone.UPDATE";
+    /** Stop on the notification of a phone control session (PhoneControl.java). */
+    static final String ACTION_PHONE_STOP = "io.piphone.PHONE_STOP";
 
     enum State { STOPPED, INSTALLING, STARTING, RUNNING, UPDATING, FAILED }
 
@@ -79,6 +81,9 @@ public final class PiService extends Service {
     private Thread renderer;
     /** Pi's browser (PiBrowser.java). */
     private Thread browser;
+    /** Pi controls this phone (PhoneControl.java). */
+    private Thread control;
+    private PhoneControl phoneControl;
     private volatile Process server;
 
     @Override
@@ -111,6 +116,17 @@ public final class PiService extends Service {
             }, () -> state == State.RUNNING || state == State.STARTING);
             browser = new Thread(pages::loop, "pi-browser");
             browser.start();
+            phoneControl = new PhoneControl(this, () -> {
+                try {
+                    return ownerToken(this);
+                } catch (Exception e) {
+                    throw new IllegalStateException("no owner token: " + e, e);
+                }
+            }, () -> state == State.RUNNING || state == State.STARTING);
+            control = new Thread(phoneControl::loop, "pi-phone-control");
+            control.start();
+        } else if (intent != null && ACTION_PHONE_STOP.equals(intent.getAction())) {
+            phoneControl.stopFromPhone();
         } else if (intent != null && ACTION_UPDATE.equals(intent.getAction())) {
             // The runner swaps the update in once the server has stopped.
             Process running = server;
@@ -323,6 +339,7 @@ public final class PiService extends Service {
         if (notifier != null) notifier.interrupt();
         if (renderer != null) renderer.interrupt();
         if (browser != null) browser.interrupt();
+        if (control != null) control.interrupt();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         super.onDestroy();
     }

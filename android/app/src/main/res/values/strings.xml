@@ -35,4 +35,13 @@
     <string name="later">Later</string>
     <string name="ok">OK</string>
     <string name="megabytes">%1$.1f of %2$.1f MB</string>
+    <!-- Phone control (PP-141): the accessibility service, the banner over apps, and the session's notification. -->
+    <string name="phone_control_service_label">pi: phone control</string>
+    <string name="phone_control_service_summary">Pi reads and operates apps you name, in sessions you approve</string>
+    <string name="phone_control_service_description">Lets Pi, the agent in pi-phone, read the screen and tap, type and swipe in other apps, only in a control session you approve on a card in pi-phone: the apps it names (and the home screen to open them), for the minutes on the card. A banner and a notification show while it runs, with Stop. pi-phone itself, banking and payment apps, password managers and apps on your Never list are never read or controlled. Nothing leaves the phone but what Pi reads in those apps.</string>
+    <string name="phone_control_banner">Pi is using your phone · %1$d min</string>
+    <string name="phone_control_stop">Stop</string>
+    <string name="channel_phone_control">Phone control</string>
+    <string name="phone_control_title">Pi is using your phone</string>
+    <string name="phone_control_text">%1$s · until %2$s</string>
 </resources>

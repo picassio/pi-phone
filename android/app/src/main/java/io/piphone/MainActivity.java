@@ -184,6 +184,31 @@ public final class MainActivity extends Activity {
                     Uri.parse("package:" + getPackageName()))));
         }
 
+        /**
+         * Android's settings pages that setting up phone control needs (Menu › Phone control, PP-141): `app-info` (pi's
+         * App info, whose ⋮ menu has Allow restricted settings on Android 13+), `accessibility`, `battery`.
+         */
+        @JavascriptInterface
+        public void openSettings(String which) {
+            Intent intent;
+            if ("app-info".equals(which)) {
+                intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()));
+            } else if ("accessibility".equals(which)) {
+                intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            } else if ("battery".equals(which)) {
+                intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()));
+            } else {
+                throw new IllegalArgumentException("no settings page " + which);
+            }
+            runOnUiThread(() -> startActivity(intent));
+        }
+
+        /** Whether pi-phone's accessibility service is on (connected now). */
+        @JavascriptInterface
+        public boolean phoneControlOn() {
+            return PiAccessibility.get() != null;
+        }
+
         /** Whether Android has a speech recognizer for dictation. */
         @JavascriptInterface
         public boolean dictationAvailable() {

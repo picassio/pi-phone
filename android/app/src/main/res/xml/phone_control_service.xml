@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  pi-phone's accessibility service (PiAccessibility.java, PP-141): what Pi needs to read and operate other apps.
+  Ported from lycorp-jp/sim-use's bridge (Apache-2.0), accessibility_service_config.xml:
+  - Both window events are subscribed to although nothing reacts to them: the framework's node cache behind
+    getRootInActiveWindow() is refreshed by the events a service subscribes to, and with only typeWindowStateChanged
+    an in-app change (a tab, a fragment) left a stale tree.
+  - notificationTimeout 100, as sim-use and droidrun-portal ship.
+  - flagRetrieveInteractiveWindows: getWindows() (popups, dialogs, the keyboard); flagReportViewIds: resource ids;
+    flagIncludeNotImportantViews: the views apps mark unimportant, which are often the ones with text.
+  - canTakeScreenshot: Android 11 and later only (takeScreenshot).
+-->
+<accessibility-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagIncludeNotImportantViews|flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:canPerformGestures="true"
+    android:canTakeScreenshot="true"
+    android:description="@string/phone_control_service_description"
+    android:summary="@string/phone_control_service_summary"
+    android:notificationTimeout="100" />
