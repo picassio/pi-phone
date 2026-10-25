@@ -169,6 +169,10 @@ final class PhoneControl {
         if (op.equals("banner")) return banner(request);
         PiAccessibility service = PiAccessibility.get();
         if (service == null) throw new IllegalStateException("pi-phone's accessibility service is off: turn it on in Android's Accessibility settings");
+        // The assistant's sheet (PP-146) is pi-phone's own window over the app: while it shows, the app is not in front
+        // and a tap would land on the sheet. Pi works on the phone only with it out of the way: it goes, and the app is
+        // there again a moment later. The owner sees Pi work, and the reply in the session.
+        if (PiAssistantSession.hideShown()) Thread.sleep(600);
         switch (op) {
             case "front": {
                 String front = foreground(service);

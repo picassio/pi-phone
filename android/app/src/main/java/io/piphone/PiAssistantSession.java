@@ -42,6 +42,9 @@ final class PiAssistantSession extends VoiceInteractionSession {
     /** How long the sheet waits for a server that is starting, at most. */
     private static final long WAIT_MS = 90_000;
 
+    /** The sheet showing now, if one is: phone control puts it away before it reads or acts (`hideShown`). */
+    private static volatile PiAssistantSession shown;
+
     private final Handler main = new Handler(Looper.getMainLooper());
     private WebView web;
     private Dictation dictation;
@@ -90,9 +93,22 @@ final class PiAssistantSession extends VoiceInteractionSession {
         return web;
     }
 
+    /**
+     * Put the sheet away when it shows, for phone control: true when it did (the caller waits for it to go). The session
+     * keeps working; the owner sees its reply in the app, or in the sheet the next time.
+     */
+    static boolean hideShown() {
+        PiAssistantSession sheet = shown;
+        if (sheet == null) return false;
+        shown = null;
+        sheet.main.post(sheet::hide);
+        return true;
+    }
+
     @Override
     public void onShow(Bundle args, int showFlags) {
         super.onShow(args, showFlags);
+        shown = this;
         KeyguardManager keyguard = getContext().getSystemService(KeyguardManager.class);
         if (keyguard != null && keyguard.isKeyguardLocked()) {
             // Pi is not reachable from the lock screen.
@@ -136,6 +152,7 @@ final class PiAssistantSession extends VoiceInteractionSession {
 
     @Override
     public void onHide() {
+        if (shown == this) shown = null;
         // The next time, the app in front is told again (its assist data may come before or after onShow).
         from = "";
         if (dictation != null) dictation.abort();

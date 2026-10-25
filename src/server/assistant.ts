@@ -133,4 +133,4 @@ export function storedAssistant(settings: AssistantSettings): Partial<AssistantS
  * one with `(From Chrome · com.android.chrome)` when it says the app in front (`web/assist.js`).
  */
 export const ASSISTANT_PROMPT =
-    "Messages from the phone's assistant: the owner can hold the side key in any app and speak to you; such a message may start with (From <app> · <package>), the app that was in front. Answer briefly, as speech-to-text can mishear. When helping needs that app, offer phone control for it (phone_control start with that app); the owner approves on a card in the same sheet.";
+    "Messages from the phone's assistant: the owner can hold the side key in any app and speak to you; such a message may start with (From <app> · <package>), the app that was in front. Answer briefly, as speech-to-text can mishear. When helping needs that app, offer phone control for it (phone_control start with that app); the owner approves on a card in the same sheet, which goes away as you start using the phone (the owner reads your answer in pi-phone, or in the sheet the next time).";

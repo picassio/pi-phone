@@ -249,8 +249,8 @@ No Termux, no laptop, no cloud VM.
   side key in any app: a pi sheet comes up over it, already listening. Your words show as you speak, then wait for
   Send, or go by themselves after 3 seconds. They go to the last session you were in, a new session, or one session
   you pick (for this time from the sheet, or for good in Menu › Assistant), with the app you were in noted ("From
-  Chrome", a chip you can drop) so Pi can offer phone control for it. The reply streams in the sheet and approvals
-  are answered there; **Open** takes you to the session. While pi is the assistant, apps that ask the phone's default
+  Chrome", a chip you can drop) so Pi can offer phone control for it (approve it in the sheet, which then steps aside
+  while Pi uses the app). The reply streams in the sheet and approvals are answered there; **Open** takes you to the session. While pi is the assistant, apps that ask the phone's default
   speech recognizer still reach the phone's own: pi only passes it on. Not from the lock screen.
 
 ### The app
