@@ -247,6 +247,8 @@ test("the pill's picker finds any session by its search; the chosen session's hi
     await say(app, other, "an earlier note about the flights");
     await openSheet({ last: first });
     await until(async () => (await text("[data-part=assist-target]")).includes("last"), "the last session on the pill");
+    // The pill opens once the session list is here (before, it is disabled).
+    await until(async () => inPage<boolean>(`document.querySelector("[data-part=assist-target]").disabled === false`), "the pill enabled");
     await click("[data-part=assist-target]");
     await until(async () => inPage<boolean>(`document.querySelector(".assist-search") !== null`), "the picker");
     await inPage(`(() => { const input = document.querySelector(".assist-search"); input.value = "#${other}"; input.dispatchEvent(new Event("input", { bubbles: true })); })()`);
