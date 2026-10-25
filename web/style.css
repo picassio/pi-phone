@@ -2554,20 +2554,37 @@ pre.diff .del {
     flex: 1;
 }
 
+/* The session picker takes the sheet's body: a search, then the choices and every session, scrolling. */
+.assist-picker {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 12px 12px;
+}
+
+.assist-search {
+    flex: none;
+}
+
 .assist-menu {
-    position: absolute;
-    z-index: 2;
-    left: 10px;
-    top: 48px;
-    width: min(300px, calc(100% - 20px));
-    padding: 6px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 4px;
+    border: 1px solid var(--hair);
     border-radius: var(--r-card);
-    background: var(--raised);
-    box-shadow: var(--pop);
+    background: var(--card);
+}
+
+.assist-foot.hidden {
+    display: none;
 }
 
 .assist-menu-title {
-    margin: 4px 8px 6px;
+    margin: 10px 8px 6px;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.06em;
@@ -2589,7 +2606,7 @@ pre.diff .del {
 }
 
 .assist-menu button:hover,
-.assist-menu button[aria-checked="true"] {
+.assist-menu button[aria-selected="true"] {
     background: var(--hover);
 }
 
@@ -2613,7 +2630,8 @@ pre.diff .del {
     color: var(--accent);
 }
 
-.assist-menu p {
+.assist-menu p,
+.assist-menu-note {
     margin: 6px 10px 4px;
     font-size: 11.5px;
     color: var(--faint);

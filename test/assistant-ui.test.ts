@@ -4,7 +4,7 @@
 // itself" they go 3 seconds after the person stops, to a new session, without the app once its chip is dropped; no
 // microphone sends the person to pi-phone; nothing heard says so; × closes the sheet. With PHONE_SHOTS set to a
 // folder, screenshots at 390 px go there.
-import { type App, cleanUp, lastText, modelTexts, newSession, openApp, owner, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, lastText, modelTexts, newSession, openApp, owner, say, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -237,6 +237,29 @@ test("tapping the words stops the countdown; nothing heard says so; no microphon
     await shot("assist-nomic-390");
     await inPage(`[...document.querySelectorAll(".assist-foot .button")].find((each) => each.innerText.includes("Allow in pi-phone")).click()`);
     assert.equal(await inPage<number>(`window.__bridge.allowMic`), 1);
+});
+
+test("the pill's picker finds any session by its search; the chosen session's history shows while it listens", real, async () => {
+    await app.setAssistant(owner(app), { opens: "last", send: "tap" });
+    const first = await newSession(app);
+    const other = await newSession(app);
+
+    await say(app, other, "an earlier note about the flights");
+    await openSheet({ last: first });
+    await until(async () => (await text("[data-part=assist-target]")).includes("last"), "the last session on the pill");
+    await click("[data-part=assist-target]");
+    await until(async () => inPage<boolean>(`document.querySelector(".assist-search") !== null`), "the picker");
+    await inPage(`(() => { const input = document.querySelector(".assist-search"); input.value = "#${other}"; input.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await until(async () => (await text("[data-part=assist-menu]")).includes(`#${other} ·`), "the session found");
+    await shot("assist-picker-390");
+    await inPage(`[...document.querySelectorAll("[data-part=assist-session]")].find((each) => each.innerText.includes("#${other} ·")).click()`);
+    await until(async () => (await text("[data-part=assist-target]")).includes(`#${other}`), "the session on the pill");
+
+    // Its history, before anything is sent; what is heard shows under it.
+    await seen(async () => (await text(".assist-sheet .transcript")).includes("an earlier note about the flights"), "the session's history");
+    await hear({ type: "partial", text: "and the hotels" });
+    await until(async () => (await text(".assist-foot .assist-words")).includes("and the hotels"), "the words under the history");
+    await shot("assist-history-390");
 });
 
 test("Menu › Assistant: the choices change the server's settings", real, async () => {

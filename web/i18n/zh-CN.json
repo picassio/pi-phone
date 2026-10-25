@@ -2794,5 +2794,7 @@
     "What pi sees": "pi 能看到什么",
     "The app you're in": "你所在的应用",
     "Its name only (\"From Chrome\"), so pi can offer to use it. Nothing on its screen.": "只有它的名称（“来自 Chrome”），这样 pi 可以提出使用它。不包含屏幕上的任何内容。",
-    "hold the side key to talk to Pi": "长按侧键与 Pi 对话"
+    "hold the side key to talk to Pi": "长按侧键与 Pi 对话",
+    "Find a session": "查找会话",
+    "No session matches.": "没有匹配的会话。"
 }

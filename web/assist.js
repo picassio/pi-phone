@@ -51,8 +51,8 @@ export function rememberLastSession() {
 export const fromNote = (from) => `(From ${from.label} · ${from.package})`;
 
 /**
- * Where the words go: `{ kind: "session", id, title }`, or `{ kind: "new", folder }`. `opens` is the setting, or the
- * person's pick for this time.
+ * Where the words go: `{ kind: "session", id, title }`, or `{ kind: "new", folder }`. `opens` is the setting (last, new,
+ * session), or the person's pick for this time: one of those, or a session's number (from the picker's list).
  */
 export function targetFor(opens, settings, state) {
     const sessions = state.sessions.filter((each) => !each.archived);
@@ -65,6 +65,14 @@ export function targetFor(opens, settings, state) {
 
     if (opens === "new") {
         return { kind: "new", folder };
+    }
+
+    if (typeof opens === "number") {
+        const one = session(opens);
+
+        if (one) {
+            return one;
+        }
     }
 
     if (opens === "session" && settings.session !== null) {
@@ -128,7 +136,9 @@ export function AssistView() {
     const [fromOn, setFromOn] = useState(true);
     /** The person's pick for this time, from the session pill; null: the setting. */
     const [pick, setPick] = useState(null);
+    /** The session picker is open (the pill), and what is typed in its search. */
     const [menu, setMenu] = useState(false);
+    const [query, setQuery] = useState("");
     /** The session a message went to from this showing: its transcript takes the body, and more goes there too. */
     const [sentTo, setSentTo] = useState(null);
     const sent = sentTo !== null;
@@ -343,6 +353,7 @@ export function AssistView() {
             setSentTo(null);
             setPick(null);
             setMenu(false);
+            setQuery("");
             setFromOn(true);
             setText("");
             listen();
@@ -412,8 +423,22 @@ export function AssistView() {
               ...(settings.session !== null ? [{ opens: "session", ...targetFor("session", settings, state), hint: t("Picked in Menu › Assistant") }] : []),
           ]
         : [];
+    // Every session, newest first, for the picker; its search finds them by title or folder.
+    const needle = query.trim().toLowerCase();
+    const everyone = state.sessions
+        .filter((each) => !each.archived)
+        .filter((each) => needle === "" || `${each.title ?? ""} ${each.cwd ?? ""} #${each.id}`.toLowerCase().includes(needle))
+        .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
     const named = (each) => (each.kind === "new" ? t("New session") : each.title);
     const chosen = pick ?? settings.opens;
+    const choose = (opens) => {
+        setPick(opens);
+        setMenu(false);
+        setQuery("");
+        pill.current?.focus();
+    };
+    // The target session's conversation, once it is open behind the sheet: its history shows above what is heard.
+    const history = targetId !== null && targetId === state.conversationId && Boolean(state.view.conversation);
     const chip =
         from &&
         settings.from !== false &&
@@ -438,7 +463,7 @@ export function AssistView() {
 
     return html`<div class="assist" data-part="assist">
         <div class="assist-backdrop" onClick=${close}></div>
-        <section class=${`assist-sheet ${sent ? "talking" : ""}`} role="dialog" aria-label=${t("pi assistant")} data-part="assist-sheet">
+        <section class=${`assist-sheet ${history || menu ? "talking" : ""}`} role="dialog" aria-label=${t("pi assistant")} data-part="assist-sheet">
             <div class="assist-grab" aria-hidden="true"></div>
             <header class="assist-head">
                 <span class="assist-mark" aria-hidden="true">π</span>
@@ -452,7 +477,7 @@ export function AssistView() {
                     disabled=${target === null}
                 >
                     <span class="assist-pill-name">${target === null ? t("Loading…") : named(target)}</span>
-                    <small>${target?.kind === "new" ? shortPath(target.folder ?? "", home) : chosen === "last" ? t("last") : chosen === "session" ? `#${target?.id ?? ""}` : ""}</small>
+                    <small>${target?.kind === "new" ? shortPath(target.folder ?? "", home) : chosen === "last" ? t("last") : `#${target?.id ?? ""}`}</small>
                     <${Icon} name="down" size=${14} />
                 </button>
                 <span class="assist-space"></span>
@@ -466,36 +491,48 @@ export function AssistView() {
                     <${Icon} name="close" size=${18} />
                 </button>
             </header>
-            ${
-                menu &&
-                html`<div class="assist-menu" role="menu" aria-label=${t("Send to")} data-part="assist-menu">
-                    <div class="assist-menu-title">${t("Send to")}</div>
-                    ${choices.map(
-                        (each) => html`<button
-                            role="menuitemradio"
-                            aria-checked=${chosen === each.opens}
-                            onClick=${() => {
-                                setPick(each.opens);
-                                setMenu(false);
-                                pill.current?.focus();
-                            }}
-                        >
-                            <b>${named(each)}</b>
-                            <small>${each.kind === "new" ? `${each.hint} · ${shortPath(each.folder ?? "", home)}` : each.hint}</small>
-                            ${chosen === each.opens && html`<${Icon} name="check" size=${14} />`}
-                        </button>`,
-                    )}
-                    <p>${t("For this time only. The default is in Menu › Assistant.")}</p>
-                </div>`
-            }
             <div class="assist-body" aria-live="polite">
                 ${
-                    sent && sentTo === state.conversationId && state.view.conversation
-                        ? html`<${Transcript} key=${state.conversationId} />`
-                        : !sent &&
-                          listening &&
-                          html`<div class="assist-words" data-part="assist-words">${heardSoFar}<span class="assist-caret"></span></div>`
+                    menu
+                        ? html`<div class="assist-picker" data-part="assist-menu">
+                              <input
+                                  type="search"
+                                  class="assist-search"
+                                  placeholder=${t("Find a session")}
+                                  aria-label=${t("Find a session")}
+                                  value=${query}
+                                  onInput=${(event) => setQuery(event.currentTarget.value)}
+                              />
+                              <div class="assist-menu" role="listbox" aria-label=${t("Send to")}>
+                                  ${
+                                      needle === "" &&
+                                      choices.map(
+                                          (each) => html`<button role="option" aria-selected=${chosen === each.opens} onClick=${() => choose(each.opens)}>
+                                              <b>${named(each)}</b>
+                                              <small>${each.kind === "new" ? `${each.hint} · ${shortPath(each.folder ?? "", home)}` : each.hint}</small>
+                                              ${chosen === each.opens && html`<${Icon} name="check" size=${14} />`}
+                                          </button>`,
+                                      )
+                                  }
+                                  <div class="assist-menu-title">${t("All sessions")}</div>
+                                  ${everyone.length === 0 && html`<p>${t("No session matches.")}</p>`}
+                                  ${everyone.map(
+                                      (each) => html`<button role="option" aria-selected=${chosen === each.id} data-part="assist-session" onClick=${() => choose(each.id)}>
+                                          <b>${each.title ?? t("New session")}</b>
+                                          <small>#${each.id} · ${shortPath(each.cwd ?? "", home)}</small>
+                                          ${chosen === each.id && html`<${Icon} name="check" size=${14} />`}
+                                      </button>`,
+                                  )}
+                              </div>
+                              <p class="assist-menu-note">${t("For this time only. The default is in Menu › Assistant.")}</p>
+                          </div>`
+                        : history
+                          ? html`<${Transcript} key=${state.conversationId} />`
+                          : listening &&
+                            html`<div class="assist-words" data-part="assist-words">${heardSoFar}<span class="assist-caret"></span></div>`
                 }
+            </div>
+            <footer class=${`assist-foot ${menu ? "hidden" : ""}`}>
                 ${
                     phase === "problem" &&
                     html`<div class="assist-notice ${said.mic ? "error" : ""}" data-part="assist-problem">
@@ -503,12 +540,10 @@ export function AssistView() {
                         <div><b>${said.title}</b><p>${said.text}</p></div>
                     </div>`
                 }
-            </div>
-            <footer class="assist-foot">
                 ${phase !== "idle" && chip}
                 ${
                     listening &&
-                    html`${sent && html`<div class="assist-words small">${heardSoFar}</div>`}
+                    html`${history && html`<div class="assist-words small" data-part="assist-words">${heardSoFar}<span class="assist-caret"></span></div>`}
                         <${Wave} level=${level} quiet=${false} />
                         <div class="assist-controls">
                             <button class="icon-button" aria-label=${t("Type instead")} title=${t("Type instead")} onClick=${() => {
