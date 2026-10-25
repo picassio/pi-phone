@@ -625,7 +625,7 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   `POST /api/phone/control/<id>`: `status`, `front`, `apps`, `tree` (windows; the nodes of the app in front only, short
   keys, children fetched in parallel, a password field's text never sent), `tap`, `press`, `swipe` (`dispatchGesture`),
   `type` (`ACTION_SET_TEXT` on the node the server names, found again by window id and child path and checked to be
-  where it was read; Enter is `ACTION_IME_ENTER`, Android 11+), `button` (global actions), `open` (the app's launch
+  where it was read, or the focused field; never a password field; Enter is `ACTION_IME_ENTER`, Android 11+), `button` (global actions), `open` (the app's launch
   intent, from the service, which Android lets start activities from the background), `shot` (`takeScreenshot`, Android
   11+, JPEG at most 2000 px, with the screen's size), `banner` (a `TYPE_ACCESSIBILITY_OVERLAY` over the status bar, "Pi
   is using your phone · N min" with Stop, and an ongoing notification with Stop). Ported from lycorp-jp/sim-use's
@@ -643,13 +643,15 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   Vietnamese, crypto; password managers and authenticators) and the owner's own list, which only the owner changes, in
   Menu › Phone control (no tool: the owner's decision, an exception to "a tool for everything"). The server checks the app
   in front (`front`) before each act but open, back and home, renders only an allowed app, and sends the scope
-  (`allowed`, `never`, `until`) with every scoped request; the service checks it again against the app in front at that
-  moment, and refuses a session the owner stopped on the phone even before the server hears of it.
+  (`allowed`, `never`, `until`, and the apps' names) with every scoped request; the service checks it again against the
+  app in front at that moment, refuses a session the owner stopped on the phone even before the server hears of it, and
+  shows the session's banner again before it reads or acts when it is not up (pi-phone's process started again in a
+  session the server kept), so Pi never has the phone without the banner.
   - **Tools** (`extensions/phone.ts`, permission `phone.control`, which the gateway's catalogue does not have, so no role
   on the team server has it; the owner's Pi only; plan mode blocks them): `phone_control` (start = a card, `form.type: "phone"`,
-  `PhoneControlCard`, only the owner approves; stop; status), `phone_screen`, `phone_act` (tap, long_press, type with a
-  text or a saved secret by name, which the secrets module's folder and ask-first rules cover, swipe, scroll, button,
-  open_app, wait; each answers with the screen after it), `phone_screenshot` (marks by element or area, in screen
+  `PhoneControlCard`, only the owner approves; stop; status), `phone_screen`, `phone_act` (tap, long_press, type a text,
+  never into a password field, swipe, scroll, button, open_app, wait; each answers with the screen after it; typing a
+  saved secret by name is for a later round), `phone_screenshot` (marks by element or area, in screen
   pixels). A device parameter, `phone` by default, for the later kinds.
   - **Stop:** the banner's and the notification's Stop (the service posts `POST /api/phone-control/stop` with the owner
   token), the session's live line in the app (`PhoneControlLine`, from `server.phoneControl` in hello and

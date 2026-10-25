@@ -221,8 +221,8 @@ No Termux, no laptop, no cloud VM.
   swipes, scrolls, presses back or home, opens the apps and takes screenshots (`phone_control`, `phone_screen`,
   `phone_act`, `phone_screenshot`), through pi-phone's own accessibility service: no developer mode, no adb. A banner
   and a notification on the phone say Pi is using it, with **Stop**, as does a line in the session; it ends at its
-  time too. Another app needs a new card. Pi types a password only as a saved secret by name, which it never sees,
-  and password fields read as hidden. pi-phone itself, banking and payment apps, password managers and the apps on
+  time too. Another app needs a new card. Password fields read as hidden and Pi never types into them: a password or
+  code is yours to type on the phone. pi-phone itself, banking and payment apps, password managers and the apps on
   your Never list are never read or touched. Set it up in Menu › Phone control (Allow restricted settings on Android
   13+, turn on pi-phone in Accessibility, let it run in the background), where you also keep the Never list. The owner's
   alone; not on the team server.
