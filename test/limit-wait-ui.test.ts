@@ -284,3 +284,36 @@ test("with none of the person's own accounts left, the card lists the team's, ma
     await page.click({ selector: ".limit-card-move .button" });
     await until(async () => (await app.agentState(id))?.model?.provider === "anthropic~team-x" && !app.isBusy(id), "the move and the answer");
 });
+
+test("the top bar's usage meter opens as a pop-up: a tap outside or Escape closes it, and another session starts with it closed", real, async () => {
+    const make = async () => {
+        const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+        await app.commands.configure(id, owner(app), { model: { provider: "anthropic", modelId: MODEL_ID }, thinkingLevel: "off" });
+
+        return id;
+    };
+    const first = await make();
+    const second = await make();
+    const panel = () => inPage<boolean>(`return JSON.stringify(document.querySelector(".usage-meter-panel") !== null)`);
+    const openIt = async () => {
+        await page.evaluate(`document.querySelector(".usage-meter").click()`);
+        await until(panel, "the panel open");
+    };
+
+    await page.setViewport(VIEWPORTS.desktop);
+    await page.navigate(`${base}/s/${first}`);
+    await until(async () => inPage<boolean>(`return JSON.stringify(document.querySelector(".usage-meter") !== null)`), "the meter");
+    await openIt();
+    // A tap anywhere outside it.
+    await page.evaluate(`document.querySelector("main").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))`);
+    await until(async () => !(await panel()), "closed by a tap outside");
+    await openIt();
+    await page.press("Escape");
+    await until(async () => !(await panel()), "closed by Escape");
+    // Open, then another session: it starts closed (it was kept open on the device, and so open in every session).
+    await openIt();
+    await page.navigate(`${base}/s/${second}`);
+    await until(async () => inPage<boolean>(`return JSON.stringify(document.querySelector(".usage-meter") !== null)`), "its meter");
+    assert.equal(await panel(), false, "another session starts with it closed");
+});

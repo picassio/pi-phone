@@ -212,7 +212,7 @@ function Topbar() {
                 }
             </span>
         </div>
-        <${SessionUsage} provider=${view.agent?.model?.provider} />
+        <${SessionUsage} key=${conversationId} provider=${view.agent?.model?.provider} />
         ${
             busySubagents > 0 &&
             html`<button

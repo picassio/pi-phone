@@ -1,12 +1,11 @@
 // Subscription accounts' plan limits (src/server/usage-limits.ts), as the Providers sheet, the model menu, and the top bar
 // show them: each window's share used, a bar colored by how close it is, and when it resets.
-import { useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { t, tx } from "./i18n.js";
 import { actions, attempt, store } from "./store.js";
 import { html } from "./ui.js";
 
 const SHORT = { "5-hour": "5h", Weekly: "wk", "Weekly Opus": "wk Opus", "Weekly Sonnet": "wk Sonnet", "Premium requests": "premium" };
-const OPEN_KEY = "pi-phone.usage-meter-open";
 
 /**
  * A plan window's name in the person's language: the server names them in English ("5-hour", "Weekly", `usage-limits.ts`
@@ -104,23 +103,49 @@ export function UsageBars({ provider }) {
 
 /**
  * The top bar's meter for the session's model, when its account has plan limits: the first window's share, colored, and
- * a tap opens every window with its reset (and a tap closes it). Whether it is open stays on this device.
+ * a tap opens every window with its reset, over the conversation, as a pop-up: a tap on the meter, anywhere outside it,
+ * or Escape closes it, and another session starts with it closed (`SessionUsage` is keyed by the session).
  */
 export function UsageMeter({ provider }) {
-    const [open, setOpen] = useState(() => localStorage.getItem(OPEN_KEY) === "1");
+    const [open, setOpen] = useState(false);
+    const box = useRef(null);
     const usage = store.state.usage[provider];
+
+    // As it is drawn, not after the next paint: a tap right after it opens closes it too.
+    useLayoutEffect(() => {
+        if (!open) {
+            return undefined;
+        }
+
+        const outside = (event) => {
+            if (box.current !== null && !box.current.contains(event.target)) {
+                setOpen(false);
+            }
+        };
+        const escape = (event) => {
+            if (event.key === "Escape") {
+                setOpen(false);
+            }
+        };
+
+        // Both before the app's own handlers (Escape also stops a run, `ui.js`), which may stop the event.
+        document.addEventListener("pointerdown", outside, true);
+        window.addEventListener("keydown", escape, true);
+
+        return () => {
+            document.removeEventListener("pointerdown", outside, true);
+            window.removeEventListener("keydown", escape, true);
+        };
+    }, [open]);
 
     if (usage === undefined || usage.windows === undefined || usage.windows.length === 0) {
         return null;
     }
 
-    const toggle = () => {
-        localStorage.setItem(OPEN_KEY, open ? "0" : "1");
-        setOpen(!open);
-    };
+    const toggle = () => setOpen(!open);
     const first = usage.windows[0];
 
-    return html`<div class="usage-meter-wrap">
+    return html`<div class="usage-meter-wrap" ref=${box}>
         <button
             class=${`usage-meter ${level(usagePeak(provider))}`}
             aria-expanded=${open ? "true" : "false"}
