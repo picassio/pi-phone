@@ -67,7 +67,8 @@ import java.util.function.Supplier;
  * swipe, type, button, open, shot (a JPEG of the screen, Android 11+), banner (show or hide the session's banner and
  * notification). Every op but status, apps and banner carries the session's scope (`allowed` packages with the home
  * screen, the `never` patterns, `until`), and this checks it again here, against the app in front now: no session, a
- * session that ended or was stopped on the phone, pi-phone itself, a Never app or one outside the session is refused.
+ * session that ended or was stopped on the phone, pi-phone itself, a Never app or one outside the session is refused;
+ * the session's banner is shown again first when it is not up (pi-phone's process started again in a session).
  * A password field's text is never read; a tree of an app that may not be read has no nodes.
  *
  * The tree, the gestures, the text input and the screenshot are ported from lycorp-jp/sim-use's bridge (Apache-2.0,
@@ -154,7 +155,7 @@ final class PhoneControl {
         try {
             reply = run(request);
         } catch (Exception | OutOfMemoryError e) {
-            // Never the request itself in a log: a typed secret is in it.
+            // Never the request itself in a log: what Pi types is in it.
             reply = new JSONObject().put("error", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
         post("/api/phone/control/" + id, reply);
@@ -241,11 +242,14 @@ final class PhoneControl {
      * The request's session: there, not over, not stopped on the phone; with `front`, the app in front now may be
      * touched in it.
      */
-    private void scoped(JSONObject request, PiAccessibility service, boolean front) throws JSONException {
+    private void scoped(JSONObject request, PiAccessibility service, boolean front) throws Exception {
         JSONArray allowed = request.optJSONArray("allowed");
         long until = request.optLong("until", 0);
         if (allowed == null || until <= System.currentTimeMillis()) throw new IllegalStateException("no phone control session is active");
         if (until == stoppedUntil) throw new IllegalStateException("the owner pressed Stop on the phone: this session is over");
+        // The owner sees the banner whenever Pi reads or acts: after pi-phone's process or the service started again in
+        // a session (the server keeps it), the banner is shown again before anything else.
+        if (shownUntil != until) showBanner(service, until, request.optString("apps", ""));
         if (!front) return;
         String why = refusal(foreground(service), request);
         if (why != null) throw new IllegalStateException(why);
@@ -548,10 +552,10 @@ final class PhoneControl {
             String why = refusal(field.getPackageName() == null ? null : field.getPackageName().toString(), request);
             if (why != null) throw new IllegalStateException(why);
             if (!field.isEditable()) throw new IllegalStateException("that element is not a field to type into");
+            if (field.isPassword()) throw new IllegalStateException("that is a password field: Pi does not type into it; the owner types it on the phone");
             if (!field.isFocused()) field.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
             String text = request.getString("text");
-            // A password field's text is not read, so typing into one replaces it.
-            CharSequence now = field.isPassword() ? null : field.getText();
+            CharSequence now = field.getText();
             CharSequence hint = field.getHintText();
             String current = now == null ? "" : now.toString();
             boolean replace = request.optBoolean("clear", true) || (hint != null && current.equals(hint.toString()));
@@ -692,10 +696,14 @@ final class PhoneControl {
             onMain(this::hideNow);
             return new JSONObject();
         }
-        long until = request.getLong("until");
-        String apps = request.optString("apps", "");
         PiAccessibility service = PiAccessibility.get();
         if (service == null) throw new IllegalStateException("pi-phone's accessibility service is off: turn it on in Android's Accessibility settings");
+        showBanner(service, request.getLong("until"), request.optString("apps", ""));
+        return new JSONObject();
+    }
+
+    /** The session's banner and notification up until `until`, taken down by themselves then. */
+    private void showBanner(PiAccessibility service, long until, String apps) throws Exception {
         onMain(() -> {
             service.showBanner(until, this::stopFromPhone);
             notification(until, apps);
@@ -703,7 +711,6 @@ final class PhoneControl {
             main.removeCallbacks(expire);
             main.postDelayed(expire, Math.max(0, until - System.currentTimeMillis()) + 500);
         });
-        return new JSONObject();
     }
 
     /** The session's notification, with Stop: it stays until the session ends (main thread). */
