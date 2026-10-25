@@ -1625,9 +1625,88 @@ function MachineAddCard({ approval }) {
     </div>`;
 }
 
+/**
+ * Pi asks to control a phone (`phone_control`, PP-141): the device, the apps the session may read and touch (and the home
+ * screen, to open them), and for how long. The owner's to approve; it starts the session, with a banner and Stop on the
+ * phone.
+ */
+function PhoneControlCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [busy, setBusy] = useState(false);
+    const answer = (allow) => {
+        setBusy(true);
+        attempt(() => actions.approve(approval.id, allow)).finally(() => setBusy(false));
+    };
+
+    return html`<div class="approval phone-control-card" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="phone" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${t("Let Pi use {device} for {n} minutes?", { device: form.deviceName === "This phone" ? t("this phone") : form.deviceName, n: form.minutes })}</span>
+                ${approval.reason && html`<span class="approval-reason">${approval.reason}</span>`}
+            </div>
+        </div>
+        <dl class="machine-add-facts">
+            <dt>${t("Apps")}</dt>
+            <dd>
+                ${form.apps.map((app) => html`<div><span>${app.label}</span> <span class="muted mono small">${app.package}</span></div>`)}
+                <div class="muted small">${t("and the home screen, to open them")}</div>
+            </dd>
+            <dt>${t("For")}</dt>
+            <dd>${t("{n} minutes, from when you approve", { n: form.minutes })}</dd>
+        </dl>
+        <div class="muted small">
+            ${t("Pi reads the screen and taps, types and swipes only in these apps. A banner and a notification on the phone show it, with Stop. pi-phone, banking apps, password managers and your Never list stay out.")}
+        </div>
+        ${
+            me?.role !== "owner"
+                ? html`<div class="muted small">${t("Controlling the phone is the owner's: waiting for them.")}</div>`
+                : html`<div class="approval-actions">
+                      <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>${t("Deny")}</button>
+                      <button class="button primary" disabled=${busy} onClick=${() => answer(true)}>${t("Approve and start")}</button>
+                  </div>`
+        }
+    </div>`;
+}
+
+/** While Pi uses a phone for this session (PP-141): which apps, the minutes left, and Stop. The owner's tabs only. */
+function PhoneControlLine({ conversationId }) {
+    const [, tick] = useState(0);
+    const running = (store.state.phoneControl ?? []).filter((each) => each.conversationId === conversationId || each.session === conversationId);
+
+    useEffect(() => {
+        if (running.length === 0) {
+            return undefined;
+        }
+
+        const timer = setInterval(() => tick((n) => n + 1), 15_000);
+
+        return () => clearInterval(timer);
+    }, [running.length]);
+
+    return running.map(
+        (each) => html`<div class="phone-control-line" data-part="phone-control-line" key=${each.device}>
+            <${Icon} name="phone" size=${14} />
+            <span class="phone-control-what">
+                ${[
+                    t("Using {device}", { device: each.deviceName === "This phone" ? t("this phone") : each.deviceName }),
+                    each.apps.map((app) => app.label).join(", "),
+                    t("{n} min left", { n: Math.max(0, Math.ceil((fromServer(each.until) - Date.now()) / 60_000)) }),
+                ].join(" · ")}
+            </span>
+            <button class="button small" onClick=${() => attempt(() => api("phone-control/stop", { device: each.device }))}>${t("Stop")}</button>
+        </div>`,
+    );
+}
+
 function ApprovalCard({ approval }) {
     const { me, server } = store.state;
     const [busy, setBusy] = useState(false);
+
+    if (approval.form?.type === "phone") {
+        return html`<${PhoneControlCard} approval=${approval} />`;
+    }
 
     if (approval.form?.type === "machine") {
         return html`<${MachineAddCard} approval=${approval} />`;
@@ -3138,6 +3217,7 @@ export function Transcript() {
                 (approval) => html`<${ApprovalCard} key=${approval.id} approval=${approval} />`,
             )}
             ${(view.limitOffers ?? []).map((offer) => html`<${LimitOfferCard} key=${`${offer.conversationId}-${offer.to}`} offer=${offer} />`)}
+            <${PhoneControlLine} conversationId=${conversation.id} />
             ${
                 (busy || compacting) &&
                 html`<${LiveLine}

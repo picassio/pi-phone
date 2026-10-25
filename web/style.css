@@ -2446,6 +2446,143 @@ pre.diff .del {
     color: var(--ok);
 }
 
+/* While Pi uses a phone for this session (PP-141): which apps, the minutes left, and Stop. */
+.phone-control-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 10px 8px 12px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+    background: var(--card-2);
+    color: var(--text);
+    font-size: 13px;
+}
+
+.phone-control-line > svg {
+    flex: none;
+    color: var(--accent);
+}
+
+.phone-control-what {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.phone-control-line .button {
+    flex: none;
+}
+
+/* Menu › Phone control (PP-141): the setup steps, the Never list's chips. */
+.phone-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+}
+
+.phone-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+}
+
+.phone-step-mark {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--hair);
+    border-radius: 50%;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.phone-step.done .phone-step-mark {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--ok) 16%, transparent);
+    color: var(--ok);
+}
+
+.phone-step-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.phone-step .button {
+    flex: none;
+}
+
+.phone-never {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.phone-never .chip {
+    gap: 6px;
+    color: var(--text);
+}
+
+.phone-never .chip button {
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.phone-section-title {
+    margin: 6px 0 -6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.phone-picker {
+    display: flex;
+    flex-direction: column;
+    max-height: 50vh;
+    overflow: auto;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+}
+
+.phone-picker button {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--hair);
+    background: none;
+    color: var(--text);
+    text-align: left;
+    font: inherit;
+    font-size: 13.5px;
+    cursor: pointer;
+}
+
+.phone-picker button:last-child {
+    border-bottom: 0;
+}
+
+.phone-picker button:disabled {
+    color: var(--muted);
+    cursor: default;
+}
+
 .approval pre.cmd {
     padding: 10px 12px;
     border: 0;

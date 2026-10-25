@@ -858,6 +858,7 @@ const LINKED_SHEETS = new Set([
     "notifications",
     "people",
     "phone",
+    "phone-control",
     "providers",
     "schedules",
     "secrets",

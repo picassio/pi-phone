@@ -112,6 +112,8 @@ export const store = {
         folderFavorites: [],
         /** The machines' ports open here (`forwards.ts`), once the Ports sheet loaded them or the server sent a change. */
         forwards: null,
+        /** Pi using a phone (PP-141): each control session running, for its session's live line. The owner's tabs only. */
+        phoneControl: [],
         /** This person's folder groups in the session list (PP-76), from the server: the same on every device. */
         sessionGroups: { groups: [], members: {} },
         /** False until the server's first session list arrives: an empty list until then means "not here yet". */
@@ -791,6 +793,7 @@ const handlers = {
             server: keptServer(state.server, data.server),
             // Every theme folder (`theme.js`): an older server lists none.
             themeList: kept(state.themeList, Array.isArray(data.themes) ? data.themes : []),
+            phoneControl: kept(state.phoneControl, data.server?.phoneControl ?? []),
             // This connection's id, which peek lists name (`peeks.js`). `GET /api/me` answers without one.
             ...(data.connection === undefined ? {} : { streamId: data.connection }),
         });
@@ -799,6 +802,8 @@ const handlers = {
     language: (data) => chooseLanguage(data.language),
     // The machines' ports open here changed: one opened, closed, or ended by itself (PP-108). The owner's tabs only.
     forwards: (data) => store.set({ forwards: data.forwards }),
+    // A phone control session started or ended (PP-141).
+    "phone-control": (data) => store.set({ phoneControl: data.sessions }),
     sessions: (list) => {
         const state = store.state;
         const sessions = keptEach(state.sessions, list);
