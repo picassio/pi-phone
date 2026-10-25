@@ -159,6 +159,15 @@ const PAGES: Record<string, string> = {
         <input id="name" aria-label="Signer" class="at" style="left:300px;top:300px;width:200px;height:40px">
         <button class="at" style="left:300px;top:360px;width:120px;height:40px" onclick="out.textContent='Hit '+innerWidth+' '+devicePixelRatio+' '+visualViewport.scale">Hit</button>`,
     "/two": `<!doctype html><title>Two</title><p>Page two</p><article>${"A long article. ".repeat(400)}</article>`,
+    // A dialog whose box cancels mousedown (as dialogs and editors do to keep their focus): a click there focuses no
+    // field, and Select All then took the whole page (#71257). Below it, a field that will not keep the focus.
+    "/dialog": `<!doctype html><title>Dialog</title><p id="intro">Some page text</p>
+        <div role="dialog" aria-label="New template" onmousedown="event.preventDefault()" style="padding:16px;border:1px solid #888">
+            <label>Field name <input id="field"></label>
+        </div>
+        <label>Stubborn <input id="stubborn" onfocus="this.blur()"></label>
+        <p id="sel">Selected 0</p>
+        <script>document.addEventListener('selectionchange', () => { sel.textContent = 'Selected ' + getSelection().toString().length; });</script>`,
 };
 
 let server: Server;
@@ -489,6 +498,28 @@ test("with Chrome: after switching between phone and desktop sizes, clicks and t
         await browser.close();
         await other.close();
         await engine.close();
+    }
+});
+
+test("with Chrome: typing goes into the field itself, though a click there would not focus it; a field that will not take the focus is refused, and nothing else is typed or selected (#71257)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    const browser = new PiBrowser({
+        engine: new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]),
+        changed: () => {},
+        frame: () => {},
+        log: () => {},
+    });
+
+    try {
+        const page = await browser.open(1, "http://pi.test/dialog");
+        const field = Number(/\[(\d+)\] textbox "Field name"/.exec(page)?.[1]);
+        const stubborn = Number(/\[(\d+)\] textbox "Stubborn"/.exec(page)?.[1]);
+
+        assert.match(await browser.type(1, field, "customer_name", {}), /textbox "Field name" value "customer_name"/);
+        await assert.rejects(browser.type(1, stubborn, "never", {}), /Stubborn did not take the typing \(focus went to [a-z]+\): nothing was typed/);
+        assert.match(await browser.snapshot(1), /textbox "Stubborn" value ""/, "nothing went into it");
+        assert.match(await browser.snapshot(1), /Selected 0/, "the page's text was not selected");
+    } finally {
+        await browser.close();
     }
 });
 

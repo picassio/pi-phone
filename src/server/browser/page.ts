@@ -598,13 +598,12 @@ export class BrowserPage {
      * The element's centre now, if it is still there, in view, enabled, and not covered. One out of view (below the fold
      * of a list with its own scroll area, PP-116) is scrolled into view first, as a person would, and as Playwright does.
      */
-    async #point(element: Element, fill: boolean): Promise<{ x: number; y: number }> {
+    async #point(element: Element): Promise<{ x: number; y: number }> {
         const point = await this.evaluate<{ x: number; y: number } | null>(
             `(async node => {
             const e=window.__piBrowser?.nodes.get(node);
             if (!e?.isConnected || e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]') ||
                 !e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return null;
-            ${fill ? `if (e.readOnly || e.getAttribute('aria-readonly')==='true') return null;` : ""}
             const at=()=>{
               const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
               if (!r.width || !r.height || x<0 || y<0 || x>=innerWidth || y>=innerHeight) return null;
@@ -624,6 +623,29 @@ export class BrowserPage {
         }
 
         return point;
+    }
+
+    /** Put the focus in a field to type into: it must be there, shown, enabled, not read-only, and take the focus. */
+    async #focus(element: Element): Promise<void> {
+        const why = await this.evaluate<string | null>(
+            `(async node => {
+            const e=window.__piBrowser?.nodes.get(node);
+            if (!e?.isConnected) return 'gone';
+            if (e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]')) return 'disabled';
+            if (!e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return 'hidden';
+            if (e.readOnly || e.getAttribute('aria-readonly')==='true') return 'read-only';
+            e.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+            e.focus({preventScroll:true});
+            await new Promise(done=>{ requestAnimationFrame(()=>requestAnimationFrame(done)); setTimeout(done,150); });
+            const active=document.activeElement;
+            return active===e || e.contains(active) ? null : 'focus went to '+(active?.tagName?.toLowerCase() ?? 'nothing');
+          })(${element.node})`,
+            true,
+        );
+
+        if (why !== null) {
+            throw new StalePage(`[${element.index}] ${element.label} did not take the typing (${why}): nothing was typed. Read the page again.`);
+        }
     }
 
     async #click(point: { x: number; y: number }): Promise<void> {
@@ -665,7 +687,7 @@ export class BrowserPage {
 
         const before = this.#loads;
 
-        await this.#click(await this.#point(element, false));
+        await this.#click(await this.#point(element));
         this.#afterInput = { node: element.node, kind: "click" } as RawAction;
         await this.#followNavigation(before);
     }
@@ -676,7 +698,7 @@ export class BrowserPage {
             throw new StalePage("The page changed since it was read: read it again.");
         }
 
-        const point = await this.#point(element, false);
+        const point = await this.#point(element);
 
         await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
         this.#afterInput = { node: element.node, kind: "click" } as RawAction;
@@ -692,7 +714,7 @@ export class BrowserPage {
         }
 
         if (element.role === "file") {
-            await this.#point(element, false);
+            await this.#point(element);
 
             const field = await this.cdp.send<{ result: { objectId?: string } }>("Runtime.evaluate", { expression: `window.__piBrowser?.nodes.get(${element.node})` });
             const multiple = await this.evaluate<boolean>(`!!window.__piBrowser?.nodes.get(${element.node})?.multiple`);
@@ -707,7 +729,7 @@ export class BrowserPage {
 
             await this.cdp.send("DOM.setFileInputFiles", { files: paths, objectId: field.result.objectId });
         } else {
-            const point = await this.#point(element, false);
+            const point = await this.#point(element);
             let off = () => {};
             const opened = new Promise<{ backendNodeId: number; mode: string } | undefined>((resolve) => {
                 const timer = setTimeout(() => resolve(undefined), 3000);
@@ -775,7 +797,11 @@ export class BrowserPage {
             throw new StalePage("The page changed since it was read: read it again.");
         }
 
-        await this.#click(await this.#point(element, true));
+        // The field itself takes the focus, as Playwright's fill does, not a click at where it was read: a dialog still
+        // opening or a form still loading moves things between a read and a click, which then landed on something else
+        // (a breadcrumb link: the page went away), and Select All then took the whole page. Only once the focus is in
+        // the field do the keys go.
+        await this.#focus(element);
 
         if (clear) {
             for (const type of ["keyDown", "keyUp"]) {
@@ -811,7 +837,7 @@ export class BrowserPage {
             throw new StalePage("The page changed since it was read: read it again.");
         }
 
-        await this.#point(element, false);
+        await this.#point(element);
 
         const done = await this.evaluate<boolean>(`((node, value) => {
             const e=window.__piBrowser?.nodes.get(node);
