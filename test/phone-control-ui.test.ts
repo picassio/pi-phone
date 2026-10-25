@@ -135,7 +135,9 @@ test("Menu › Phone control: the steps with the phone's marks, the Never list, 
     await shot("phone-control-sheet-390");
 
     // Open asks the app's shell for Android's page.
-    await page.click({ selector: ".phone-step:nth-child(2) .button" });
+    // (A DOM click: under a full test run's load a click at the button's coordinates missed it.)
+    await page.evaluate(`document.querySelector(".phone-step:nth-child(2) .button").click()`);
+    await until(async () => (await inPage<string[]>(`return JSON.stringify(window.__opened)`)).length > 0, "the bridge asked");
     assert.deepEqual(await inPage<string[]>(`return JSON.stringify(window.__opened)`), ["accessibility"]);
 
     // The owner adds an app from the phone's list, then removes it.
