@@ -128,7 +128,7 @@ export default function createSettings(host: PocketHost) {
                                       ),
                                   ]),
                             "",
-                            "Also with their own tools: devices, secrets, schedules, project boards, board settings, machines (machine_run, machine_copy), Pi sessions.",
+                            "Also with their own tools: devices, secrets, schedules, project boards, board settings, machines (machine_run, machine_copy, machine_add), Pi sessions.",
                             ...(args.area === undefined ? [`Areas: ${areas.join(", ")}.`] : []),
                         ].join("\n"),
                     );

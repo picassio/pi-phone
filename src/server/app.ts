@@ -983,6 +983,8 @@ export class PocketApp {
             para: this.para,
             secrets: this.secrets,
             policy: this.policy,
+            machineStore: this.machines,
+            sshKeys: this.sshKeys,
             web: this.web,
             envOf: (cwd) => this.places.env(cwd),
             teamServer: this.#teamServer,
@@ -3424,7 +3426,12 @@ export class PocketApp {
             return false;
         }
 
-        if (allow && request.form !== undefined && !formAnswered) {
+        // Pi's machine_add card (PP-139) is answered by Approve itself, and only by the owner: it adds a machine.
+        if (allow && request.form?.type === "machine" && user.role !== "owner") {
+            throw new HttpError(403, "Adding a machine is the owner's.");
+        }
+
+        if (allow && request.form !== undefined && request.form.type !== "machine" && !formAnswered) {
             throw new HttpError(
                 400,
                 request.form.type === "secret"

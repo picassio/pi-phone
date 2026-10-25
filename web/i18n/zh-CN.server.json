@@ -550,5 +550,8 @@
     "{1} has no room now: its {2} window is full. Pick another account, or wait.": "{1} 现在没有余量：它的 {2} 窗口已用满。请选择其他账号，或继续等待。",
     "Name the account to move to (to: its provider id).": "请指明要改用的账号（to：它的提供方 id）。",
     "That wait is over.": "这次等待已结束。",
-    "{1} has no {2} for this session to move to.": "{1} 没有可供本会话改用的 {2}。"
+    "{1} has no {2} for this session to move to.": "{1} 没有可供本会话改用的 {2}。",
+    "There is a machine with this id already.": "已有一台机器使用这个 id。",
+    "There is a machine named {1} already.": "已有一台名为 {1} 的机器。",
+    "Adding a machine is the owner's.": "添加机器由所有者决定。"
 }

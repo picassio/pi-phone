@@ -4,6 +4,10 @@
  * - `machine_run`: one command on a machine, over the app's connection to it, as bash runs one: secrets it names are
  *   set (the secrets module's rules apply), and their values are hidden in what it prints.
  * - `machine_copy`: a file from the phone to a machine, a machine to the phone, or one machine to another.
+ * - `machine_add` (PP-139): add one, as the Machines sheet does, after the owner approves one card that shows it all:
+ *   the address, the key, the host key as scanned now (checked against one Pi read on the machine itself, when given),
+ *   and the install. Approve adds it, trusts that host key, installs pi-env and connects; Deny, or any step that fails,
+ *   leaves nothing saved.
  * For longer work there, a session in a folder on the machine runs all of Pi's tools there.
  */
 import { Type } from "@earendil-works/pi-ai";
@@ -29,7 +33,7 @@ export default function createMachines(host: PocketHost) {
         if (found === undefined) {
             throw new Error(
                 all.length === 0
-                    ? "No machine is connected: the owner adds one in Settings › Machines."
+                    ? "No machine is connected: add one with machine_add (the owner approves it), or the owner adds one in Settings › Machines."
                     : `No machine ${name}. Machines: ${all.map((each) => each.alias).join(", ")}.`,
             );
         }
@@ -187,5 +191,118 @@ export default function createMachines(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: "pocket-machines", tools: [run, copy] });
+    const add = defineTool({
+        name: "machine_add",
+        description:
+            "Add a computer to pi-phone's machines, after the owner approves one card: it scans the machine's host key, shows it with the address and the SSH key, and on Approve trusts that key, installs pi-env (~2 MB, in ~/.pi/mobile/tools there) and connects. Give expectedFingerprint when you read the host key on the machine itself (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub, from its console or guest agent): a different key is refused. The machine must have the key's public half in ~/.ssh/authorized_keys; with key \"new\", a new key is made on Approve and, if the machine refuses it, its public half comes back for you to install, then call again with that key. Owner only.",
+        parameters: Type.Object({
+            name: Type.String({ description: "The machine's name in pi-phone, like build-box" }),
+            address: Type.String({ description: "user@host or user@host:port" }),
+            key: Type.String({ description: 'The SSH key to sign in with: a key\'s name or id from Settings › SSH keys, or "new" to make one named after the machine' }),
+            expectedFingerprint: Type.Optional(Type.String({ description: "The host key's SHA256 fingerprint as read on the machine itself, like SHA256:a1Va..." })),
+            reason: Type.String({ description: "Why, in a sentence: shown on the card" }),
+        }),
+        execute: async (args, api, context) => {
+            try {
+                const asker = host.requesterOf(Number(api.conversationId) as never);
+
+                if (asker === undefined || host.person(asker).role !== "owner") {
+                    return failed("Only the owner adds machines.");
+                }
+
+                const keys = await host.sshKeys.list();
+                const wanted = args.key.trim();
+                const existing = wanted.toLowerCase() === "new" ? undefined : keys.find((each) => each.id === wanted || each.name.toLowerCase() === wanted.toLowerCase());
+
+                if (wanted.toLowerCase() !== "new" && existing === undefined) {
+                    return failed(`There is no SSH key ${wanted}. Keys: ${keys.map((each) => each.name).join(", ") || "none"}; or give "new".`);
+                }
+
+                const scanned = await host.machineStore.scanNew({ name: args.name, address: args.address, ...(existing === undefined ? {} : { keyId: existing.id }) });
+                const expected = args.expectedFingerprint?.trim();
+                const bare = (fingerprint: string) => fingerprint.replace(/\s*\(\w+\)\s*$/, "").replace(/^SHA256:/i, "");
+                const matched = expected === undefined || expected === "" ? undefined : scanned.fingerprints.find((each) => bare(each) === bare(expected));
+
+                if (expected !== undefined && expected !== "" && matched === undefined) {
+                    return failed(
+                        `${args.address} presents ${scanned.fingerprints.join(", ")}, not ${expected}: refused, nothing saved. Check the address, and read the key on the machine again; if it changed for a known reason, call again with the new fingerprint.`,
+                    );
+                }
+
+                const { machine } = scanned;
+                const address = `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`;
+                const keyName = existing?.name ?? machine.name;
+                const answer = await host.approvals.request(
+                    {
+                        id: `machine_add-${String(api.conversationId)}-${String(api.callId)}`,
+                        conversationId: Number(api.conversationId) as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "machine_add",
+                        subject: `Add ${machine.name} (${address}) with the key ${keyName}${existing === undefined ? " (new)" : ""}, host key ${matched ?? scanned.fingerprints.join(", ")}`,
+                        reason: args.reason,
+                        form: {
+                            type: "machine",
+                            name: machine.name,
+                            address,
+                            key: { name: keyName, fingerprint: existing?.fingerprint ?? "", new: existing === undefined },
+                            hostKeys: scanned.fingerprints,
+                            ...(expected === undefined || expected === "" ? {} : { expected, matches: true }),
+                        },
+                        createdAt: Date.now(),
+                    },
+                    context as never,
+                );
+
+                if (!answer.allow) {
+                    return failed(`${answer.by} said no: nothing was saved.`);
+                }
+
+                const key = existing ?? (await host.sshKeys.generate(machine.name));
+                const store = host.machineStore;
+
+                store.add({ name: machine.name, address, keyId: key.id }, machine.id);
+
+                try {
+                    await store.accept(machine.id, scanned.lines, matched ?? scanned.fingerprints[0]);
+                    const connected = (await store.connect(machine.id)) as Awaited<ReturnType<typeof store.connect>> & { warnings?: string[] };
+                    const remote = connected.remote;
+
+                    if (remote === undefined) {
+                        throw new Error("it connected but said nothing of its system.");
+                    }
+
+                    const alias = host.machines().find((each) => each.id === machine.id)?.alias ?? machine.name;
+
+                    return {
+                        output: [
+                            text(
+                                [
+                                    `Added ${machine.name} (${address}) and connected: ${remote.platform} ${remote.arch}, home ${remote.home}. Ready for sessions (machine:${machine.id}:<path>) and for machine_run as ${alias}.`,
+                                    ...(connected.warnings ?? []).map((warning) => `Note: ${warning}`),
+                                ].join("\n"),
+                            ),
+                        ],
+                        details: { id: machine.id, alias, platform: remote.platform, arch: remote.arch, home: remote.home },
+                    };
+                } catch (error) {
+                    await store.remove(machine.id);
+
+                    const said = error instanceof Error ? error.message : String(error);
+                    const refused = /refused the key/.test(said);
+
+                    return failed(
+                        [
+                            `Could not finish adding ${machine.name}: ${said} Nothing was saved${existing === undefined ? ` but the new key ${key.name}` : ""}.`,
+                            ...(refused ? [`Its public half, for ~/.ssh/authorized_keys on the machine (then call machine_add again with key "${key.name}"):`, key.publicKey] : []),
+                        ].join("\n"),
+                    );
+                }
+            } catch (error) {
+                return failed(error instanceof Error ? error.message : String(error));
+            }
+        },
+    });
+
+    return defineExtension({ name: "pocket-machines", tools: [run, copy, add] });
 }

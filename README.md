@@ -206,7 +206,10 @@ No Termux, no laptop, no cloud VM.
   addresses, so Pi can try the web app you run there (`localhost:3000`), and uploads and PDFs use the machine's files.
   Its sign-ins stay in `~/.pi/mobile/browser` there.
 - **From any session.** `machine_run` and `machine_copy` run a command or copy a file on a machine, and `pi-ssh`
-  gives bash ssh, rsync, scp, and tunnels with the app's keys, which nothing can read out.
+  gives bash ssh, rsync, scp, and tunnels with the app's keys, which nothing can read out. Pi adds a machine itself with
+  `machine_add` (a VM it just made, say): one card shows the address, the SSH key and the host key, checked against the
+  one Pi read on the machine when it could, and **Approve and connect** adds it, installs pi-env and connects; Deny
+  saves nothing.
 - **Ports** of a machine (a dev server there) open in the phone's browser.
 - **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's
   `~/.pi/agent/sessions`, with its history; or send a session to `pi` on a machine and bring back what was done there.

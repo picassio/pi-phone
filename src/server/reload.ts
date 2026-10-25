@@ -158,6 +158,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "openui_guide",
     "machine_run",
     "machine_copy",
+    "machine_add",
     "session_stop",
     "session_archive",
     "session_fork",

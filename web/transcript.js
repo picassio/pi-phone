@@ -1567,9 +1567,71 @@ function BoardModeCard({ approval }) {
     </div>`;
 }
 
+/**
+ * Pi adds a machine (`machine_add`, PP-139): one card with all Approve does. The address, the key, the host key as scanned
+ * now (and whether it is the one Pi read on the machine itself), and the install. The owner's to approve; Deny saves
+ * nothing.
+ */
+function MachineAddCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [busy, setBusy] = useState(false);
+    const answer = (allow) => {
+        setBusy(true);
+        attempt(() => actions.approve(approval.id, allow)).finally(() => setBusy(false));
+    };
+
+    return html`<div class="approval machine-add-card" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="monitor" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${tx("Add {name} to your machines?", { name: html`<span class="mono">${form.name}</span>` })}</span>
+                <span class="approval-reason">${approval.reason}</span>
+            </div>
+        </div>
+        <dl class="machine-add-facts">
+            <dt>${t("Address")}</dt>
+            <dd class="mono">${form.address}</dd>
+            <dt>${t("SSH key")}</dt>
+            <dd>
+                <span class="mono">${form.key.name}</span>
+                ${
+                    form.key.new
+                        ? html` <span class="muted">${t("new: made when you approve")}</span>`
+                        : html` <span class="muted mono small">${form.key.fingerprint}</span>`
+                }
+            </dd>
+            <dt>${t("Host key")}</dt>
+            <dd>
+                ${form.hostKeys.map((fingerprint) => html`<div class="mono small">${fingerprint}</div>`)}
+                ${
+                    form.matches === true
+                        ? html`<span class="machine-add-match"><${Icon} name="check" size=${12} /> ${t("the one Pi read on the machine itself")}</span>`
+                        : html`<span class="muted small">${t("Compare it with the machine's own, if you can.")}</span>`
+                }
+            </dd>
+        </dl>
+        <div class="muted small">
+            ${t("Approve trusts this host key, installs pi-env there (about 2 MB, in ~/.pi/mobile/tools) and connects. Deny saves nothing.")}
+        </div>
+        ${
+            me?.role !== "owner"
+                ? html`<div class="muted small">${t("Adding a machine is the owner's: waiting for them.")}</div>`
+                : html`<div class="approval-actions">
+                      <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>${t("Deny")}</button>
+                      <button class="button primary" disabled=${busy} onClick=${() => answer(true)}>${t("Approve and connect")}</button>
+                  </div>`
+        }
+    </div>`;
+}
+
 function ApprovalCard({ approval }) {
     const { me, server } = store.state;
     const [busy, setBusy] = useState(false);
+
+    if (approval.form?.type === "machine") {
+        return html`<${MachineAddCard} approval=${approval} />`;
+    }
 
     if (approval.form?.type === "secret") {
         return html`<${SecretRequestCard} approval=${approval} />`;

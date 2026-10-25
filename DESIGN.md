@@ -149,8 +149,14 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   `@earendil-works/pi-env` (its daemon on the machine, deployed over ssh and verified by hash). `machines.json` holds
   name, `user@host[:port]`, and the SSH key; host keys the owner accepted are in `~/.ssh/pi-phone_known_hosts` under
   one alias per machine (a changed key is refused). Three owner taps before anything runs there: scan the host key,
-  accept it, "Install and connect" (deploys the daemon to `~/.pi/mobile/tools` on the machine). `ready(id)` refuses a
-  machine not connected yet, so the agent can never trigger a deployment. Tested against the bundled `sshd`.
+  accept it, "Install and connect" (deploys the daemon to `~/.pi/mobile/tools` on the machine); or one approval card
+  for Pi's `machine_add` (PP-139, `extensions/machines.ts`): it scans the host key of the new address first
+  (`Machines.scanNew`, under the id the machine will get, saving nothing), refuses one that is not the fingerprint Pi
+  read on the machine itself (`expectedFingerprint`), and shows the address, the key and the host key on the card
+  (`form.type: "machine"`, `MachineAddCard`; only the owner approves). Approve adds it, accepts that key, connects;
+  Deny or a failed step saves nothing (a key made with `key: "new"` stays, and its public half comes back to Pi).
+  `ready(id)` refuses a machine not connected yet, so the agent can never trigger a deployment without the owner's
+  yes. Tested against the bundled `sshd` (`test/machines.test.ts`, `test/machine-add.test.ts`).
   **Windows** (2026-10-19): through Windows' own OpenSSH Server (pi-env's Windows daemons, x64 and arm64, are in the
   APK). The daemon runs command lines with Git Bash, so "Install and connect" runs one and refuses a Windows machine
   without it (install Git for Windows). Paths there are drive paths with forward slashes (`C:/Users/tuan`,

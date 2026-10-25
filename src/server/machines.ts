@@ -385,8 +385,9 @@ export class Machines {
             host: machine.host,
             user: machine.user,
             ...(machine.port === undefined ? {} : { port: machine.port }),
-            // The public key chooses the key (IdentitiesOnly); the agent, through the config, signs with it.
-            identityFile: this.#keys.publicKeyPath(machine.keyId),
+            // The public key chooses the key (IdentitiesOnly); the agent, through the config, signs with it. None only for
+            // the host-key scan of a machine whose key is made once the owner approves (`scanNew`).
+            ...(machine.keyId === "" ? {} : { identityFile: this.#keys.publicKeyPath(machine.keyId) }),
             knownHostsFile: this.knownHostsFile,
             configFile: this.configFile,
             hostKeyAlias: `pi-phone-${machine.id}`,
@@ -407,7 +408,8 @@ export class Machines {
         return machine;
     }
 
-    add(body: { name?: unknown; address?: unknown; keyId?: unknown }): Machine {
+    /** A new machine; `id` when its host key was scanned under it already (`scanNew`, Pi's `machine_add`). */
+    add(body: { name?: unknown; address?: unknown; keyId?: unknown }, id: string = randomUUID()): Machine {
         const name = checkName(body.name);
         const { user, host, port } = parseAddress(body.address);
 
@@ -415,9 +417,13 @@ export class Machines {
             throw new HttpError(400, "Choose the SSH key for this machine.");
         }
 
+        if (this.#machines.some((each) => each.id === id)) {
+            throw new HttpError(409, "There is a machine with this id already.");
+        }
+
         this.#keys.publicKeyPath(body.keyId);
         const machine: Machine = {
-            id: randomUUID(),
+            id,
             name,
             host,
             user,
@@ -493,14 +499,54 @@ export class Machines {
         try {
             const { lines, fingerprints } = await scanHostKey(this.target(machine));
 
-            return {
-                lines,
-                fingerprints: fingerprints.map((line) => {
-                    // `256 SHA256:abc... pi-phone-<id> (ED25519)`
-                    const match = /^\d+\s+(\S+)\s.*\((\w+)\)\s*$/.exec(line.trim());
+            return { lines, fingerprints: fingerprints.map(shortFingerprint) };
+        } catch (error) {
+            throw sshFailure(machine, error);
+        }
+    }
 
-                    return match === null ? line.trim() : `${match[1]} (${match[2]})`;
-                }),
+    /**
+     * The host key of a machine not added yet, under the id it will get (Pi's `machine_add`, PP-139): nothing is saved,
+     * so a card the owner denies leaves nothing behind. Fingerprints as `scan` gives them.
+     */
+    async scanNew(body: { name?: unknown; address?: unknown; keyId?: unknown }): Promise<{
+        machine: Pick<Machine, "id" | "name" | "user" | "host" | "port" | "keyId">;
+        lines: string[];
+        fingerprints: string[];
+    }> {
+        const name = checkName(body.name);
+        const { user, host, port } = parseAddress(body.address);
+
+        // No key yet (one made on approval): a scan does not sign in, so it needs none.
+        if (body.keyId !== undefined && typeof body.keyId !== "string") {
+            throw new HttpError(400, "Choose the SSH key for this machine.");
+        }
+
+        if (body.keyId !== undefined) {
+            this.#keys.publicKeyPath(body.keyId);
+        }
+
+        if (this.#machines.some((each) => each.name.toLowerCase() === name.toLowerCase())) {
+            throw new HttpError(409, `There is a machine named ${name} already.`);
+        }
+
+        const machine: Machine = {
+            id: randomUUID(),
+            name,
+            host,
+            user,
+            ...(port === undefined ? {} : { port }),
+            keyId: body.keyId ?? "",
+            createdAt: Date.now(),
+        };
+
+        try {
+            const { lines, fingerprints } = await scanHostKey(this.target(machine));
+
+            return {
+                machine: { id: machine.id, name, user, host, ...(port === undefined ? {} : { port }), keyId: machine.keyId },
+                lines,
+                fingerprints: fingerprints.map(shortFingerprint),
             };
         } catch (error) {
             throw sshFailure(machine, error);
@@ -604,6 +650,13 @@ export class Machines {
             throw sshFailure(machine, error);
         }
     }
+}
+
+/** `256 SHA256:abc... pi-phone-<id> (ED25519)`, as `ssh-keygen -l` prints it, as `SHA256:abc... (ED25519)`. */
+function shortFingerprint(line: string): string {
+    const match = /^\d+\s+(\S+)\s.*\((\w+)\)\s*$/.exec(line.trim());
+
+    return match === null ? line.trim() : `${match[1]} (${match[2]})`;
 }
 
 function checkName(name: unknown): string {

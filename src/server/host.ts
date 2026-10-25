@@ -22,6 +22,8 @@ import type { Para } from "./para.ts";
 import type { ParaCapture } from "./para-capture.ts";
 import type { Secrets } from "./secrets.ts";
 import type { PolicyStore } from "./policy.ts";
+import type { Machines } from "./machines.ts";
+import type { SshKeys } from "./ssh-keys.ts";
 import type { WebSearch } from "./web/access.ts";
 
 export interface ApprovalRequest {
@@ -41,6 +43,19 @@ export interface ApprovalRequest {
     form?:
         | { type: "secret"; name: string; description: string }
         | { type: "interview"; callId: string; title: string; count: number }
+        /**
+         * Pi adds a machine (`machine_add`, PP-139): what Approve does, shown whole. The host key as scanned now, and
+         * whether it is the one Pi was given (`expected`, read on the machine itself), when Pi gave one.
+         */
+        | {
+              type: "machine";
+              name: string;
+              address: string;
+              key: { name: string; fingerprint: string; new: boolean };
+              hostKeys: string[];
+              expected?: string;
+              matches?: boolean;
+          }
         /**
          * Pi's browser asks the person (`extensions/browser.ts`): to sign in (a username and a password, typed into the
          * page's fields `fields` name), for a one-time code, or to do something on the page themselves. What they type
@@ -321,6 +336,9 @@ export interface PocketHost {
     readonly secrets: Secrets;
     /** A role's policy from the server edition's gateway (`policy.ts`, PP-22): everything allowed without one. */
     readonly policy: PolicyStore;
+    /** The app's machines and SSH keys, as the Machines sheet changes them: for Pi's `machine_add` (PP-139). */
+    readonly machineStore: Machines;
+    readonly sshKeys: SshKeys;
     /** Web search's provider and keys (`web/access.ts`), as Settings › Web access has them. */
     readonly web: WebSearch;
     /**

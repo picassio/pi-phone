@@ -36,6 +36,7 @@ export const TOOLS: Readonly<Record<string, string>> = {
     app_action: "settings.change",
     machine_run: "machines.use",
     machine_copy: "machines.use",
+    machine_add: "machines.use",
     web_search: "web.search",
     fetch_content: "web.search",
 };

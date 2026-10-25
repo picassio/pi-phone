@@ -2689,5 +2689,13 @@
     "Premium requests": "高级请求",
     "Window": "窗口",
     "{name} (team)": "{name}（团队）",
-    "{provider}'s {n}-hour limit · goes on by itself at {time}": "{provider} 的 {n} 小时额度上限 · 将于 {time} 自动继续"
+    "{provider}'s {n}-hour limit · goes on by itself at {time}": "{provider} 的 {n} 小时额度上限 · 将于 {time} 自动继续",
+    "Add {name} to your machines?": "把 {name} 加到你的机器里？",
+    "new: made when you approve": "新密钥：在你同意时生成",
+    "Host key": "主机密钥",
+    "the one Pi read on the machine itself": "与 Pi 在该机器上读到的一致",
+    "Compare it with the machine's own, if you can.": "如果可以，请与机器自己显示的密钥核对。",
+    "Approve trusts this host key, installs pi-env there (about 2 MB, in ~/.pi/mobile/tools) and connects. Deny saves nothing.": "同意后会信任这个主机密钥、在那里安装 pi-env（约 2 MB，放在 ~/.pi/mobile/tools）并连接。拒绝则什么都不保存。",
+    "Adding a machine is the owner's: waiting for them.": "添加机器由所有者决定：正在等待他们。",
+    "Approve and connect": "同意并连接"
 }
