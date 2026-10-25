@@ -128,7 +128,7 @@ test("I tap Send: it listens at once, shows the words as heard, and sends them t
     await app.setAssistant(owner(app), { opens: "last", send: "tap" });
     await openSheet({ last: id });
     await until(async () => (await inPage<string[]>(`window.__bridge.started`)).length === 1, "listening at once");
-    await until(async () => (await text(".assist-target")).includes("last"), "the last session on the pill");
+    await until(async () => (await text("[data-part=assist-target]")).includes("last"), "the last session on the pill");
     assert.match(await text(".assist-from"), /From Chrome/);
 
     // Words as they come: the ones still changing are faint.
@@ -161,7 +161,7 @@ test("I tap Send: it listens at once, shows the words as heard, and sends them t
 test("Send by itself: 3 seconds after the person stops, to a new session, without the app once its chip is dropped", real, async () => {
     await app.setAssistant(owner(app), { opens: "new", folder: work, send: "auto" });
     await openSheet();
-    await until(async () => (await text(".assist-target")).includes("New session"), "a new session on the pill");
+    await until(async () => (await text("[data-part=assist-target]")).includes("New session"), "a new session on the pill");
 
     // The chip dropped: the app is not said.
     await click(".assist-from button");

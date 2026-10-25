@@ -100,9 +100,25 @@ export class Para {
     #embeddingModels: { at: number; list: Promise<EmbeddingModel[]> } | undefined;
     /** Stops hearing what embedding requests cost; set once, the first time the wiki opens. */
     #stopUsage: (() => void) | undefined;
+    /** The wiki's tool calls and page saves, one at a time (`exclusive`). */
+    #turn: Promise<unknown> = Promise.resolve();
 
     constructor(host: ParaHost) {
         this.#host = host;
+    }
+
+    /**
+     * Run `work` when no other wiki tool call or page save runs, in the order asked. pi-para writes a page in place
+     * (`writeFile`, not a rename), and its tools read a page before they write it: a wiki_write next to a wiki_edit of
+     * the same page read it while the edit had emptied it, took it for a new page, and wrote the new section alone over
+     * the whole page, "Untitled" (2026-10-25, a capture of #71257). Every session's Pi and the Wiki page share this.
+     */
+    exclusive<T>(work: () => Promise<T>): Promise<T> {
+        const next = this.#turn.then(work, work);
+
+        this.#turn = next.catch(() => undefined);
+
+        return next;
     }
 
     /** Open the wiki (once): its config, its folder, its index, and its scheduler. */
@@ -315,7 +331,11 @@ export class Para {
      * wiki_write, so it gets the same checks, links, index, log, and search update as Pi's writes. `create` refuses a
      * page that is there; otherwise it replaces it.
      */
-    async save(path: string, raw: string, create: boolean): Promise<string> {
+    save(path: string, raw: string, create: boolean): Promise<string> {
+        return this.exclusive(() => this.#save(path, raw, create));
+    }
+
+    async #save(path: string, raw: string, create: boolean): Promise<string> {
         const { wikiDir, store } = await this.open();
         const { parseFrontmatter, validateFrontmatter, createWriteExecute } = this.#pi!;
         const [, category, slug] = PATH.exec(path) ?? [];

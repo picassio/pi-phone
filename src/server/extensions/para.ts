@@ -66,6 +66,15 @@ type ParaResult = { content: ToolExecutionResult["output"]; details?: unknown; i
 /** What a tool's implementation is made from: the open wiki, and the calling session's scope. */
 type Wiki = Awaited<ReturnType<Para["open"]>> & { scope: Awaited<ReturnType<Para["scope"]>>; markDirty: () => void };
 
+/** A page's slug as pi-para's wiki_write makes it from what Pi wrote (`tools/write.ts`). */
+export function wikiSlug(slug: string): string {
+    return slug
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+}
+
 export default function createPara(host: PocketHost, web: ExtensionWeb) {
     const para = host.para;
 
@@ -135,7 +144,8 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
             execute: async (args, api, context) => {
                 const cwd = (await api.agent(context)).cwd!;
                 const wiki: Wiki = { ...(await para.open()), scope: await para.scope(cwd), markDirty: () => para.markDirty() };
-                const result = await run(wiki, args as Static<P>);
+                // One wiki call at a time, across every session (`Para.exclusive`): a call reads pages another may be writing.
+                const result = await para.exclusive(() => run(wiki, args as Static<P>));
 
                 return {
                     output: result.content,
@@ -186,11 +196,36 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
         tool("wiki_migrate", WikiMigrateParams, (wiki) => createMigrateExecute(wiki.wikiDir)()),
     ];
 
-    // The capture session's own extension (`para-capture.ts`), selected there alone: the wiki tools, and pi-para's capture
-    // instructions as its whole prompt.
+    // A capture adds to the wiki, never takes from it: its wiki_write may create pages and append to them, and wiki_edit
+    // changes parts, but replacing a page that is there is refused (a capture model wrote a section over a 30 KB page
+    // once, 2026-10-25). pi-para's own capture instructions say to "wiki_write with its EXACT slug to update it".
+    const captureWrite = tool("wiki_write", WikiWriteParams, async (wiki, args) => {
+        const pages = ((args as { pages?: unknown }).pages ?? []) as { category?: unknown; slug?: unknown; mode?: unknown }[];
+        const replaced = pages.filter(
+            (page) =>
+                page.mode === "replace" &&
+                typeof page.category === "string" &&
+                typeof page.slug === "string" &&
+                existsSync(join(wiki.wikiDir, page.category, `${wikiSlug(page.slug)}.md`)),
+        );
+
+        if (replaced.length > 0) {
+            const names = replaced.map((page) => `${String(page.category)}/${wikiSlug(String(page.slug))}`).join(", ");
+
+            return {
+                content: [{ type: "text", text: `A capture never replaces a page that is there (${names}): add to it with wiki_write mode "append", or change a part with wiki_edit. Nothing was written.` }],
+                isError: true,
+            };
+        }
+
+        return createWriteExecute(wiki.wikiDir, wiki.store, scoped(wiki), wiki.markDirty)(args as never);
+    });
+
+    // The capture session's own extension (`para-capture.ts`), selected there alone: the wiki tools (its wiki_write
+    // never replaces a page), and pi-para's capture instructions as its whole prompt.
     const capture = defineExtension({
         name: CAPTURE_EXTENSION,
-        tools,
+        tools: tools.map((each) => (each.name === "wiki_write" ? captureWrite : each)),
         sections: [section("capture", () => CAPTURE_SYSTEM_PROMPT, { tag: false })],
     });
 

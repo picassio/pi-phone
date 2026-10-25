@@ -31,6 +31,14 @@ const route: FauxResponseStep = (request) => {
 
     const { role, text } = lastText(request as never);
 
+    if (role === "user" && text.includes("<session-conversation>") && text.includes("rewrite the reattach page")) {
+        // A capture model that "updates" a page by replacing it with its new section alone.
+        return fauxAssistantMessage(
+            [fauxToolCall("wiki_write", { pages: [{ ...page, mode: "replace", body: "## Only the new section\n" }] })],
+            { stopReason: "toolUse" },
+        );
+    }
+
     if (role === "user" && text.includes("<session-conversation>")) {
         captureText = text;
         // Tools come with the transcript's system messages.
@@ -94,6 +102,17 @@ const route: FauxResponseStep = (request) => {
         if (role === "user" && text.endsWith(ask)) {
             return fauxAssistantMessage([fauxToolCall(tool, args as never)], { stopReason: "toolUse" });
         }
+    }
+
+    // An edit and an append of one page in one message: Pi runs them side by side.
+    if (role === "user" && text.endsWith("edit and append at once")) {
+        return fauxAssistantMessage(
+            [
+                fauxToolCall("wiki_edit", { path: "resources/terminal-reattach", edits: [{ oldText: "fifteen minutes", newText: "twenty minutes" }] }),
+                fauxToolCall("wiki_write", { pages: [{ ...page, mode: "append", body: "## Appended\n\nA second fact.\n" }] }),
+            ],
+            { stopReason: "toolUse" },
+        );
     }
 
     if (role === "user" && text.endsWith("remember this")) {
@@ -380,4 +399,36 @@ test("Pi changes the wiki only through its tools: writes, edits, and changing co
     assert.doesNotMatch(await turn(id, "write elsewhere"), /changes only through its tools/);
     assert.equal(readFileSync(join(work, "notes.txt"), "utf8"), "fine\n");
     assert.match(told, /never write, edit, move, or delete files under ~\/\.pi\/wiki/);
+});
+
+const reattach = () => readFileSync(join(home, ".pi", "wiki", "resources", "terminal-reattach.md"), "utf8");
+
+test("an edit and an append of one page side by side both land: wiki calls take turns, and the page stays whole", async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    await turn(id, "remember this");
+    assert.match(reattach(), /fifteen minutes/);
+    await turn(id, "edit and append at once");
+
+    const now = reattach();
+
+    assert.match(now, /^title: Terminal reattach$/m, now);
+    assert.match(now, /twenty minutes/, "the edit");
+    assert.match(now, /## Appended\n\nA second fact\./, "the append");
+    assert.match(now, /a page takes it up again by its id/, "the page before them");
+});
+
+test("a capture never replaces a page that is there: it is told to append or edit, and the page stays", async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    await turn(id, "please rewrite the reattach page");
+    const before = reattach();
+    const sent = await app.paraCapture.capture(id);
+
+    assert.equal(sent.sent, true);
+    await app.harness.waitForIdle(context);
+    assert.equal(reattach(), before, "the page as it was");
+    assert.match((await modelTexts(app, sent.conversation! as never)).join("\n"), /A capture never replaces a page that is there \(resources\/terminal-reattach\)/);
 });
