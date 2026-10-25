@@ -615,6 +615,46 @@ in Settings › Dictation (`web/sheets/dictation.js`, kept in localStorage per d
   `.pi/agent`, `.config/gh`, `.gitconfig`. A restore is checked (only those paths), unpacked to
   `~/.pi-phone-restore`, and swapped in by the next start (`applyRestore`, before the database opens), what was
   there moving to `~/.pi-phone-before-restore/<time>/`.
+- **Phone control** (PP-141, part A of epic PP-140: this phone; owner's decisions of 2026-10-25, wiki:
+  `resources/sim-use-phone-control-research`): Pi reads and operates other Android apps on the phone.
+  - **Android:** `PiAccessibility.java` is an accessibility service in pi-phone's own APK (config
+  `res/xml/phone_control_service.xml`: window content, gestures, screenshots, interactive windows, view ids; both window
+  events, so the node cache behind `getRootInActiveWindow()` stays fresh). It is off until the owner turns it on in
+  Android's Accessibility settings (Android 13+ first wants App info › ⋮ › Allow restricted settings for a sideloaded
+  app). `PhoneControl.java` long-polls `GET /api/phone/control` like `PiBrowser.java` and answers
+  `POST /api/phone/control/<id>`: `status`, `front`, `apps`, `tree` (windows; the nodes of the app in front only, short
+  keys, children fetched in parallel, a password field's text never sent), `tap`, `press`, `swipe` (`dispatchGesture`),
+  `type` (`ACTION_SET_TEXT` on the node the server names, found again by window id and child path and checked to be
+  where it was read; Enter is `ACTION_IME_ENTER`, Android 11+), `button` (global actions), `open` (the app's launch
+  intent, from the service, which Android lets start activities from the background), `shot` (`takeScreenshot`, Android
+  11+, JPEG at most 2000 px, with the screen's size), `banner` (a `TYPE_ACCESSIBILITY_OVERLAY` over the status bar, "Pi
+  is using your phone · N min" with Stop, and an ongoing notification with Stop). Ported from lycorp-jp/sim-use's
+  bridge (Apache-2.0, `third_party/sim-use/`); no HTTP server on the device, no adb.
+  - **Server:** `phone-control.ts`: the channel (`PhoneRequests("phone control")`), control sessions per device
+  (`phone` now; other phones with pi-phone and devices behind a machine are later kinds of `PhoneDevice`) kept in
+  `phone-control.json` with who approved, the conversation, the apps, the home screen's package and the end, so a
+  restart keeps them; a timer and every call end them at their time. `phone-outline.ts` renders the tree as an outline
+  numbered `[n]` like the browser's controls (port of sim-use's `AndroidOutlineRenderer` and friends: regions
+  Top/Content/Bottom and toolbars, lists with their row count, clickable wrappers folded into their label, skeleton and
+  dividers left out, a popup over the app listed alone, the keyboard; unlike sim-use a full-screen scrollable list stays,
+  so Pi can scroll it by number).
+  - **Scope:** a session touches only the apps on its card and the home screen; another app needs another card. Never:
+  `io.piphone` (Pi must not tap its own cards), the built-in lists (`NEVER_GROUPS`: banks and wallets, global and
+  Vietnamese, crypto; password managers and authenticators) and the owner's own list, which only the owner changes, in
+  Menu › Phone control (no tool: the owner's decision, an exception to "a tool for everything"). The server checks the app
+  in front (`front`) before each act but open, back and home, renders only an allowed app, and sends the scope
+  (`allowed`, `never`, `until`) with every scoped request; the service checks it again against the app in front at that
+  moment, and refuses a session the owner stopped on the phone even before the server hears of it.
+  - **Tools** (`extensions/phone.ts`, permission `phone.control`, which the gateway's catalogue does not have, so no role
+  on the team server has it; the owner's Pi only; plan mode blocks them): `phone_control` (start = a card, `form.type: "phone"`,
+  `PhoneControlCard`, only the owner approves; stop; status), `phone_screen`, `phone_act` (tap, long_press, type with a
+  text or a saved secret by name, which the secrets module's folder and ask-first rules cover, swipe, scroll, button,
+  open_app, wait; each answers with the screen after it), `phone_screenshot` (marks by element or area, in screen
+  pixels). A device parameter, `phone` by default, for the later kinds.
+  - **Stop:** the banner's and the notification's Stop (the service posts `POST /api/phone-control/stop` with the owner
+  token), the session's live line in the app (`PhoneControlLine`, from `server.phoneControl` in hello and
+  `phone-control` events to the owner's tabs), `phone_control stop`, or adding one of its apps to the Never list.
+  Pi's next call says how and when it ended.
 - **Terminal** (`src/server/terminal.ts`, `web/terminal.js`): a shell in a pseudo-terminal through pi-env's
   `openTerminal`, on a machine over its connection or on the phone through a local daemon (pi-env's Android build;
   PiService sets `SHELL` to the bundled bash). Owner only, and only from the app's own page (`Origin`), at

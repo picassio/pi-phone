@@ -215,6 +215,18 @@ No Termux, no laptop, no cloud VM.
   `~/.pi/agent/sessions`, with its history; or send a session to `pi` on a machine and bring back what was done there.
   Pi can do both itself (`pi_sessions`, `pi_session_import`, `continue_in_pi`, `pi_bring_back`).
 
+### This phone's apps
+- **Pi uses your apps.** In a control session you approve on one card (the apps it names, and the home screen to open
+  them, for 15 minutes or what the card says, 5 to 60), Pi reads the screen as numbered elements and taps, types,
+  swipes, scrolls, presses back or home, opens the apps and takes screenshots (`phone_control`, `phone_screen`,
+  `phone_act`, `phone_screenshot`), through pi-phone's own accessibility service: no developer mode, no adb. A banner
+  and a notification on the phone say Pi is using it, with **Stop**, as does a line in the session; it ends at its
+  time too. Another app needs a new card. Pi types a password only as a saved secret by name, which it never sees,
+  and password fields read as hidden. pi-phone itself, banking and payment apps, password managers and the apps on
+  your Never list are never read or touched. Set it up in Menu › Phone control (Allow restricted settings on Android
+  13+, turn on pi-phone in Accessibility, let it run in the background), where you also keep the Never list. The owner's
+  alone; not on the team server.
+
 ### People and devices
 - **Other devices and people** over your Tailscale network (Settings › Access): your laptop's browser signs in as you
   (People › Sign in as me), and invited people steer or watch sessions, all of them or one.
@@ -411,6 +423,10 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   PARA wiki, its tools and context, and its search.
 - **[pi-cc-patch](https://github.com/picassio/pi-cc-patch)** (MIT): the Claude Code billing transform, ported to
   `src/server/cc-patch.ts` with its tests.
+- **[sim-use](https://github.com/lycorp-jp/sim-use)** by LY Corporation (Apache-2.0, Copyright 2026 LY Corporation):
+  phone control's outline of the screen (`src/server/phone-outline.ts`, from its `AndroidOutlineRenderer` and
+  classifiers) and its accessibility service (`PiAccessibility.java`, `PhoneControl.java`, from its device bridge's
+  tree, gesture, input and capture handlers), ported and changed; see `third_party/sim-use/` (its license and NOTICE).
 - **[jev-ultrafast](https://github.com/browser-use/jev-ultrafast)** by Browser Use (MIT, Copyright (c) 2026 Browser Use):
   Pi's browser reads pages with its `snapshot.js` (adapted in `src/server/browser/snapshot.js`), and acts with its
   act-time checks (the element as observed, in view, not covered). Ideas also from

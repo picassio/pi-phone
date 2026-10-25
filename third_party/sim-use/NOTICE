@@ -1,0 +1,30 @@
+sim-use
+Copyright 2026 LY Corporation
+
+This product includes software developed at LY Corporation.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use the files in this project except in compliance with the License. A copy
+of the License is provided in the LICENSE file beside this one and is also
+available at http://www.apache.org/licenses/LICENSE-2.0.
+
+--------------------------------------------------------------------------------
+
+pi-phone ports parts of sim-use (https://github.com/lycorp-jp/sim-use, at commit
+c02295edfd2f442249b869096dda3dc7bfcd308d), changed for pi-phone (each file says so in
+its header):
+
+- src/server/phone-outline.ts: from Sources/AndroidBackend/Normalizer/
+  AndroidOutlineRenderer.swift, AndroidClassifier.swift, AndroidListDetector.swift
+  and Sources/SimUseCore/ElementType.swift, in TypeScript, cut down and numbered as
+  pi-phone's browser numbers a page's controls.
+- android/app/src/main/java/io/piphone/PiAccessibility.java and PhoneControl.java:
+  from bridge/app/src/main/java/com/linecorp/simuse/devicebridge/
+  (SimuseAccessibilityService.kt, handler/TreeHandler.kt, GestureHandler.kt,
+  InputHandler.kt, CaptureHandler.kt, KeyboardStateHandler.kt), in Java, reached
+  through pi-phone's own server instead of an HTTP server on the device.
+- android/app/src/main/res/xml/phone_control_service.xml: from
+  bridge/app/src/main/res/xml/accessibility_service_config.xml.
+
+sim-use's NOTICE also credits AXe and Facebook idb, for its iOS parts: pi-phone
+uses none of them.

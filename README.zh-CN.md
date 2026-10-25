@@ -160,6 +160,15 @@
   也可以把会话交给机器上的 `pi` 继续，再把那边完成的工作带回来。这两件事 Pi 都能自己做（`pi_sessions`、`pi_session_import`、
   `continue_in_pi`、`pi_bring_back`）。
 
+### 这部手机上的应用
+- **Pi 使用你的应用。** 在你通过一张卡片批准的控制会话中（仅限卡片列出的应用，以及用来打开它们的主屏幕；默认 15 分钟，可在 5 到 60
+  分钟之间），Pi 把屏幕读成带编号的元素，并能点按、输入、滑动、滚动、按返回或主屏幕、打开应用和截屏（`phone_control`、
+  `phone_screen`、`phone_act`、`phone_screenshot`），靠的是 pi-phone 自带的无障碍服务：不需要开发者模式，也不需要 adb。
+  手机上的横幅和通知会显示 Pi 正在使用它，并带有 **停止**，会话里也有一行提示；到时间也会自动结束。另一个应用需要新的卡片。
+  Pi 只能按名称输入已保存的密钥作为密码，它自己看不到值；密码框读取时显示为隐藏。pi-phone 本身、银行和支付应用、密码管理器以及你
+  “永不”列表中的应用永远不会被读取或操作。在菜单 › 手机控制中设置（Android 13+ 先允许受限设置，再在无障碍中开启 pi-phone，
+  并允许它在后台运行），也在那里维护“永不”列表。仅限所有者；团队服务器上没有。
+
 ### 人员与设备
 - **其他设备和人员**，通过你的 Tailscale 网络（设置 › 访问）：笔记本电脑的浏览器可以以你的身份登录（人员 › 以我的身份登录），
   受邀的人可以引导或观看会话，范围可以是全部会话或某一个。
@@ -336,6 +345,9 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[pi-para](https://github.com/picassio/pi-para)** 和 **[qmd-engine](https://github.com/picassio/qmd-1)**（MIT）：PARA 知识库及其工具、
   上下文和搜索。
 - **[pi-cc-patch](https://github.com/picassio/pi-cc-patch)**（MIT）：Claude Code 计费转换，连同测试一起移植到 `src/server/cc-patch.ts`。
+- **[sim-use](https://github.com/lycorp-jp/sim-use)**，作者 LY Corporation（Apache-2.0，Copyright 2026 LY Corporation）：
+  手机控制的屏幕大纲（`src/server/phone-outline.ts`，来自它的 `AndroidOutlineRenderer` 和分类器）与无障碍服务（`PiAccessibility.java`、
+  `PhoneControl.java`，来自它的设备桥的树、手势、输入和截屏处理），经移植并修改；见 `third_party/sim-use/`（其许可证和 NOTICE）。
 - **[jev-ultrafast](https://github.com/browser-use/jev-ultrafast)**，作者 Browser Use（MIT，Copyright (c) 2026 Browser Use）：
   Pi 的浏览器用它的 `snapshot.js` 读取页面（改编为 `src/server/browser/snapshot.js`），并采用它的操作前检查（元素与观察时一致、在视野内、未被遮挡）。
   另有部分思路来自 [jev-ra](https://github.com/brnyxx/jev-ra)（MIT）和 [browser-use](https://github.com/browser-use/browser-use)（MIT）；
