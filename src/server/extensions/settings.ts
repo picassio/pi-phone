@@ -130,7 +130,7 @@ export default function createSettings(host: PocketHost) {
                                       ),
                                   ]),
                             "",
-                            "Also with their own tools: devices, secrets, schedules, project boards, board settings, machines (machine_run, machine_copy, machine_add), Pi sessions, phone control (phone_control; its Never list is the owner's alone, in Menu › Phone control).",
+                            "Also with their own tools: devices, secrets, schedules, project boards, board settings, machines (machine_run, machine_copy, machine_add), Pi sessions, phone control (phone_control; its Never list is the owner's alone, in Menu › Phone control), computer control (computer_control; its Never list is the owner's alone, in Menu › Computer control).",
                             ...(args.area === undefined ? [`Areas: ${areas.join(", ")}.`] : []),
                         ].join("\n"),
                     );

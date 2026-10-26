@@ -827,10 +827,11 @@ kbd {
     :root[data-tiling="on"][data-focus="sidebar"] .sidebar,
     :root[data-tiling="on"][data-focus="browser-panel"] .browser,
     :root[data-tiling="on"][data-focus="files-panel"] .files-tile,
+    :root[data-tiling="on"][data-focus="computer-panel"] .files-tile,
     :root[data-tiling="on"][data-focus="people-panel"] .people,
     :root[data-tiling="on"]:not([data-focus="sidebar"]):not([data-focus="browser-panel"]):not(
             [data-focus="files-panel"]
-        ):not([data-focus="people-panel"]):not([data-focus="peeks"])
+        ):not([data-focus="computer-panel"]):not([data-focus="people-panel"]):not([data-focus="peeks"])
         .pane {
         border-color: var(--window-border-active);
         box-shadow: var(--window-ring);
@@ -17987,6 +17988,33 @@ pre.gallery-code {
     object-fit: cover;
     object-position: top;
     background: #fff;
+}
+
+/* Pi's computer (computer-panel.js, PP-178): the panel is the browser's; a window's thumb takes a window's shape, and
+   the box on the element Pi last acted on sits over the picture. */
+.pb-thumb.cu-thumb {
+    width: 70px;
+    height: 37px;
+}
+
+.pb-frame .cu-hit {
+    position: absolute;
+    border: 2px solid var(--accent);
+    border-radius: var(--r-tag);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    pointer-events: none;
+}
+
+.pb-frame .cu-hit-tag {
+    position: absolute;
+    right: -2px;
+    bottom: calc(100% + 4px);
+    padding: 2px 6px;
+    border-radius: var(--r-tag);
+    background: var(--accent-fill);
+    color: var(--accent-ink);
+    font: 600 11px / 1.4 var(--sans);
+    white-space: nowrap;
 }
 
 .pb-preview-text {

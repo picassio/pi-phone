@@ -772,6 +772,132 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
         }
 
+        // Menu › Computer control (PP-178): the machines and their sessions, each machine's desktop setup line and what
+        // ocu reads there, the Never list (the owner's alone to change), and Stop.
+        if (first === "computer-control") {
+            requireOwner(user);
+            const control = app.computerControl;
+            const unavailable = control.unavailable();
+
+            if (unavailable !== undefined) {
+                throw new HttpError(400, unavailable);
+            }
+
+            const failing = async <T>(run: () => Promise<T> | T): Promise<T> => {
+                try {
+                    return await run();
+                } catch (error) {
+                    throw error instanceof HttpError ? error : new HttpError(400, error instanceof Error ? error.message : String(error));
+                }
+            };
+
+            if (second === undefined && method === "GET") {
+                return json(response, 200, { machines: control.machinesView(), sessions: control.view(), never: control.neverList() });
+            }
+
+            if (second === "never" && method === "POST") {
+                const body = await readJson<{ add?: unknown; remove?: unknown }>(request);
+
+                await failing(async () => {
+                    if (typeof body.add === "string") {
+                        await control.addNever(body.add);
+                    } else if (typeof body.remove === "string") {
+                        control.removeNever(body.remove);
+                    } else {
+                        throw new Error("Give add: name or remove: name.");
+                    }
+                });
+
+                return json(response, 200, { never: control.neverList() });
+            }
+
+            if (second === "prepare" && method === "POST") {
+                const body = await readJson<{ machine?: unknown; prepare?: unknown }>(request);
+
+                await failing(() => control.setPrepare(control.machine(String(body.machine ?? "")).id, String(body.prepare ?? "")));
+
+                return json(response, 200, { machines: control.machinesView() });
+            }
+
+            // What ocu reads on a machine's desktop now: its apps, or why it cannot.
+            if (second === "check" && method === "POST") {
+                const body = await readJson<{ machine?: unknown }>(request);
+
+                try {
+                    return json(response, 200, { ok: true, apps: await control.apps(String(body.machine ?? "")) });
+                } catch (error) {
+                    return json(response, 200, { ok: false, problem: error instanceof Error ? error.message : String(error) });
+                }
+            }
+
+            if (second === "stop" && method === "POST") {
+                const body = await readJson<{ machine?: unknown }>(request);
+                const ended = await control.end(String(body.machine ?? ""), `${user.name} stopped it in the app`);
+
+                return json(response, 200, { ended, sessions: control.view() });
+            }
+        }
+
+        // The Computer panel (PP-178): a session's computer as it shows (pictures while a tab watches), its tabs, taking it
+        // over, and the owner's taps and keys then.
+        if (first === "computer") {
+            requireOwner(user);
+            const control = app.computerControl;
+            const session = Number(url.searchParams.get("session"));
+            const failing = async <T>(run: () => Promise<T> | T): Promise<T> => {
+                try {
+                    return await run();
+                } catch (error) {
+                    throw error instanceof HttpError ? error : new HttpError(400, error instanceof Error ? error.message : String(error));
+                }
+            };
+
+            if (second === undefined && method === "GET") {
+                const shown = control.panelOfSession(session);
+
+                return json(response, 200, shown?.panel ?? { session, open: false });
+            }
+
+            if (second === "watch" && method === "POST") {
+                const body = await readJson<{ connection?: unknown; on?: unknown }>(request);
+
+                app.setComputerWatch(user, String(body.connection ?? ""), session, body.on === true);
+
+                return json(response, 200, control.panelOfSession(session)?.panel ?? { session, open: false });
+            }
+
+            if (second === "tab" && method === "POST") {
+                const body = await readJson<{ app?: unknown }>(request);
+
+                return json(response, 200, await failing(() => control.setTab(session, String(body.app ?? ""))));
+            }
+
+            if (second === "take-over" && method === "POST") {
+                const body = await readJson<{ on?: unknown }>(request);
+
+                return json(response, 200, await failing(() => control.takeOver(session, body.on === true)));
+            }
+
+            if (second === "input" && method === "POST") {
+                const body = await readJson<{ type?: unknown; x?: unknown; y?: unknown; text?: unknown; key?: unknown }>(request);
+                const given =
+                    body.type === "tap"
+                        ? { type: "tap" as const, x: Number(body.x), y: Number(body.y) }
+                        : body.type === "text"
+                          ? { type: "text" as const, text: String(body.text ?? "") }
+                          : { type: "key" as const, key: String(body.key ?? "") };
+
+                return json(response, 200, await failing(() => control.input(session, given)));
+            }
+
+            if (second === "stop" && method === "POST") {
+                const found = control.panelOfSession(session);
+                const ended = found === undefined ? false : await control.end(found.panel.machine, `${user.name} stopped it in the app`);
+
+                return json(response, 200, { ended });
+            }
+        }
+
         // The Browser panel: what Pi's browser shows (frames while a tab watches), taking it over, and its input then.
         if (first === "browser") {
             requireOwner(user);

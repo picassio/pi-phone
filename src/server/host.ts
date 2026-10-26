@@ -26,6 +26,7 @@ import type { Machines } from "./machines.ts";
 import type { MachineTools, ToolOffer } from "./machine-tools.ts";
 import type { SshKeys } from "./ssh-keys.ts";
 import type { PhoneApp, PhoneControl } from "./phone-control.ts";
+import type { ComputerApp, ComputerControl } from "./computer-control.ts";
 import type { WebSearch } from "./web/access.ts";
 import type { CommandEnvProvider, HiddenValue } from "./hidden.ts";
 import type { DropInPackage } from "./drop-in-install.ts";
@@ -69,6 +70,11 @@ export interface ApprovalRequest {
          * screen), and for how long. Approve starts it, and only the owner approves.
          */
         | { type: "phone"; device: string; deviceName: string; apps: PhoneApp[]; minutes: number; follow: boolean }
+        /**
+         * Pi asks to control a computer (`computer_control`, PP-178): the machine, the apps (by their window titles and
+         * names), and the minutes Pi asked for. Approve starts it, and only the owner approves.
+         */
+        | { type: "computer"; machine: string; machineName: string; platform: string; ocu: string; apps: ComputerApp[]; minutes: number; follow: boolean }
         /**
          * Pi's browser asks the person (`extensions/browser.ts`): to sign in (a username and a password, typed into the
          * page's fields `fields` name), for a one-time code, or to do something on the page themselves. What they type
@@ -450,6 +456,8 @@ export interface PocketHost {
     readonly machineTools: MachineTools;
     /** Pi controls phones (`phone-control.ts`, PP-141): control sessions, the Never list, the phone's service. */
     readonly phone: PhoneControl;
+    /** Pi controls computers (`computer-control.ts`, PP-178): sessions on machines through ocu, the Never list, the panel. */
+    readonly computer: ComputerControl;
     /** The session a conversation belongs to: itself, or a subagent's session. */
     rootOf(conversationId: number): number;
     /** Web search's provider and keys (`web/access.ts`), as Settings › Web access has them. */

@@ -1711,6 +1711,62 @@ function PhoneControlCard({ approval }) {
     </div>`;
 }
 
+/**
+ * Pi asks to control a computer (`computer_control`, PP-178): the machine, the apps the session may read and act in (by
+ * window title, and name), and the minutes Pi asked for. The owner's to approve; it starts the session, with a window on
+ * the machine that says so, with Stop.
+ */
+function ComputerControlCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [busy, setBusy] = useState(false);
+    const answer = (allow) => {
+        setBusy(true);
+        attempt(() => actions.approve(approval.id, allow)).finally(() => setBusy(false));
+    };
+
+    return html`<div class="approval phone-control-card" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="monitor" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${t("Let Pi use {machine} for {n} minutes?", { machine: form.machineName, n: form.minutes })}</span>
+                ${approval.reason && html`<span class="approval-reason">${approval.reason}</span>`}
+            </div>
+        </div>
+        <dl class="machine-add-facts">
+            <dt>${t("Machine")}</dt>
+            <dd>
+                <div><span>${form.machineName}</span></div>
+                <div class="muted small">${[form.platform === "linux" ? "Linux" : form.platform, form.ocu && `ocu ${form.ocu}`].filter(Boolean).join(" · ")}</div>
+            </dd>
+            <dt>${t("Apps")}</dt>
+            <dd>
+                ${form.apps.map((app) => html`<div><span>${app.label}</span>${app.label !== app.name ? html` <span class="muted mono small">${app.name}</span>` : ""}</div>`)}
+                ${
+                    form.follow &&
+                    html`<div class="phone-control-follow">${t("and the windows these open while Pi works in them (a Save dialog, a settings window), added as they come")}</div>`
+                }
+            </dd>
+            <dt>${t("For")}</dt>
+            <dd>
+                ${t("{n} minutes, from when you approve", { n: form.minutes })}
+                <div class="muted small">${t("as Pi asked; for more, Pi asks again")}</div>
+            </dd>
+        </dl>
+        <div class="muted small">
+            ${t("Pi reads these windows and clicks, types and scrolls only in them, never in a password field. A window on the machine shows it, with Stop. pi-phone, banking apps, password managers and your Never list stay out.")}
+        </div>
+        ${
+            me?.role !== "owner"
+                ? html`<div class="muted small">${t("Controlling a computer is the owner's: waiting for them.")}</div>`
+                : html`<div class="approval-actions">
+                      <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>${t("Deny")}</button>
+                      <button class="button primary" disabled=${busy} onClick=${() => answer(true)}>${t("Approve and start")}</button>
+                  </div>`
+        }
+    </div>`;
+}
+
 /** While Pi uses a phone for this session (PP-141): which apps, the minutes left, and Stop. The owner's tabs only. */
 function PhoneControlLine({ conversationId }) {
     const [, tick] = useState(0);
@@ -1882,6 +1938,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "phone") {
         return html`<${PhoneControlCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "computer") {
+        return html`<${ComputerControlCard} approval=${approval} />`;
     }
 
     if (approval.form?.type === "machine") {

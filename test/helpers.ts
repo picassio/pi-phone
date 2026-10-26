@@ -72,6 +72,8 @@ export function openApp(
     model: ReturnType<typeof scriptedModel>,
     dataDir = join(root, "data"),
     now?: () => number,
+    /** More of the app's options a test stands in (computer control's machines and launch, PP-178). */
+    extra: Partial<Parameters<typeof PocketApp.open>[0]> = {},
 ): Promise<App> {
     return PocketApp.open({
         dataDir,
@@ -85,6 +87,7 @@ export function openApp(
         // Off unless a test stands one in (test/officecli.test.ts): on the phone the bundled binary would run.
         officecli: { runs: false },
         ...(now === undefined ? {} : { now }),
+        ...extra,
     });
 }
 

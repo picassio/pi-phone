@@ -733,6 +733,55 @@ so Pi changes them through the settings tools; "the last session" is the one the
   token), the session's live line in the app (`PhoneControlLine`, from `server.phoneControl` in hello and
   `phone-control` events to the owner's tabs), `phone_control stop`, or adding one of its apps to the Never list.
   Pi's next call says how and when it ended.
+- **Computer control** (PP-178, epic PP-175; owner's decisions of 2026-10-26, mockup v3; wiki:
+  `resources/open-computer-use-for-pi-phone`): Pi reads and operates desktop apps on the owner's machines, through
+  Computer use (ocu, the machine tool of PP-177), as phone control does Android apps.
+  - **Transport:** one `ocu mcp` per control session, from its start to its end (ocu keeps each app's element numbers in
+    its own memory), as `ssh <pi-env's sshArguments> sh -c '<script>'` with the machine's key: JSON-RPC lines over its
+    stdin and stdout (`ocu-client.ts`, calls one at a time). The script checks the ocu wrapper
+    (`~/.pi/mobile/tools/bin/ocu`), runs the machine's **desktop setup line** (Menu › Computer control, or Pi's
+    `computer_control setup`; kept in `computer-control.json`: the owner never edits a file) and execs `ocu mcp`. ocu
+    finds the desktop's display and buses itself; a virtual desktop's environment script goes in the setup line.
+    Linux only for now: Windows' sshd runs in session 0, where UI Automation sees no window, so it waits for PP-179 (a
+    task in the desktop session); the tools say so.
+  - **Server** (`computer-control.ts`): sessions per machine (one at a time), kept in memory; a restart ends them (their
+    ocu and window went with the server; `ended` says so) while the Never list and setup lines stay. Every call is
+    checked before ocu gets it: the session's apps by name or window title (and, with `follow`, apps that appear in
+    ocu's list right after Pi acted in a named one: one step, never the Never list); never pi-phone itself (its window's
+    app name), the phone's two groups as desktop names (`NEVER_GROUPS`, matched in an app's name, id and window title)
+    or the owner's own list (Menu only; adding one ends a session using it); no `set_value` into a `[password]`
+    element, no `type_text` or character key while the focused element is one (ocu's outline, `computer-outline.ts`;
+    pi-phone's ocu build refuses too); an element number only while ocu's newest read still has the same element there
+    (the panel's reads renumber: Pi reads again when it moved); and nothing while the owner has taken it over.
+  - **The window on the machine** (`SIGN`): a GTK 3 window through python3-gi (which ocu needs on Linux anyway), on
+    top, never taking the focus, "Pi is using this computer until HH:MM" and Stop, its app named `pi-phone` (so never
+    controlled). It is a second ssh process: `ready` when shown (the session starts only then, else nothing starts),
+    `stop` when pressed; it goes when its input closes. Stop pressed while ocu still starts ends the session at once.
+  - **Ends:** at its time, on Stop (the machine's window, the panel's foot, Menu › Computer control), `computer_control
+    stop`, 20 s after Pi's run ends unless another starts (`runEnded`/`runStarted`, as phone control), a Never-list
+    change, or ocu ending.
+  - **Tools** (`extensions/computer.ts`, permission `computer.control`, not in the gateway's catalogue: owner only, not on
+    the team server; plan mode blocks them): `computer_control` (start = a card, `form.type: "computer"`, machine, apps,
+    the minutes Pi asks for, 5 to 60, required; stop; status, with a machine its apps; setup), `computer_screen` (ocu's
+    outline and the time left), `computer_act` (click, double or right click by element or by a point of the window's
+    picture, set_value, type_text, press_key, scroll, secondary_action, wait; answers with the window after it),
+    `computer_screenshot` (PNG, marks by element or area). ocu cannot start apps: Pi asks the owner to open one.
+  - **The panel** (`web/computer-panel.js`), built from the browser panel's parts and classes (`pb-*`): the top bar's
+    monitor button, docked where Files and the browser go (one panel at a time; `computerOpen`), covering the screen on
+    phones with the small preview above the message box while Pi acts. Tabs are the session's windows; the status line
+    is what Pi does; the picture is ocu's screenshot (`computer-frame` events to tabs that watch,
+    `POST /api/computer/watch`), after each action and every 3 s while watched and Pi is not acting, with the box on
+    the element Pi last acted on (`.cu-hit`, in fractions of the window); the foot has the session, minutes left and
+    Stop. **Take over** (owner's choice B): Pi's calls are refused until Hand back; a tap on the picture is ocu's click
+    at that point, text and keys (Enter, Backspace, Tab, Escape, arrows) go to the field in focus, never while it is a
+    password field. Routes: `GET /api/computer?session=`, `watch`, `tab`, `take-over`, `input`, `stop`.
+  - **Menu › Computer control** (`web/sheets/computer-control.js`, phone control's parts): the setup steps, each machine
+    (state, setup line with Save and Check, which lists what ocu reads, Stop), the Never list, how cards work.
+    `GET /api/computer-control`, `never`, `prepare`, `check`, `stop`.
+  - **Tests:** `test/support/fake-ocu.ts` answers ocu's MCP for a few apps (a demo window with a password field, an
+    editor, 1Password, a ticker whose numbers move, a help viewer opened from the demo) and plays the window on the
+    machine; `computer-control.test.ts` and `computer-tools.test.ts` (the tools through the app);
+    `computer-control-ui.test.ts` (Chromium: the card, the panel, take over, the sheet).
 - **Terminal** (`src/server/terminal.ts`, `web/terminal.js`): a shell in a pseudo-terminal through pi-env's
   `openTerminal`, on a machine over its connection or on the phone through a local daemon (pi-env's Android build;
   PiService sets `SHELL` to the bundled bash). Owner only, and only from the app's own page (`Origin`), at

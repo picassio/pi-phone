@@ -21,8 +21,9 @@ export function setBrowserOpen(open) {
     if (open) {
         sessionStorage.setItem(OPEN_KEY, "1");
         sessionStorage.removeItem("pocket.files");
+        sessionStorage.removeItem("pocket.piComputer");
         closePeople();
-        store.set({ browserOpen: true, filesOpen: false, drawer: false });
+        store.set({ browserOpen: true, filesOpen: false, computerOpen: false, drawer: false });
     } else {
         closedAt = Date.now();
         sessionStorage.removeItem(OPEN_KEY);

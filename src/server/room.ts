@@ -164,6 +164,8 @@ export interface Client {
     boardSeq?: number;
     /** This tab shows the Browser panel: it gets that browser's frames (`phone` or `machine:<id>`) while it does (`setBrowserWatch`). */
     browserWatch?: { place: string; session: number; stop(): void };
+    /** This tab shows a session's Computer panel: it gets that session's pictures (`computer-frame`) while it does (PP-178). */
+    computerWatch?: number;
     /** The JSON of the subagents this tab's board last got, so an unchanged list is not sent again. */
     boardSent?: string;
     /** The JSON of the session list this tab last got, so an unchanged list is not sent again. */

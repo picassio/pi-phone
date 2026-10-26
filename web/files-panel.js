@@ -42,11 +42,12 @@ export function setFilesOpen(open, tab) {
 
     if (open) {
         sessionStorage.removeItem("pocket.piBrowser");
+        sessionStorage.removeItem("pocket.piComputer");
     }
 
     store.set({
         filesOpen: open,
-        ...(open ? { browserOpen: false } : {}),
+        ...(open ? { browserOpen: false, computerOpen: false } : {}),
         drawer: false,
         // Someone asked for the tile just now: Changes takes the keys (`DiffReview`).
         ...(open

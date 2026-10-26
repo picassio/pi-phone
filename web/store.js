@@ -114,6 +114,9 @@ export const store = {
         forwards: null,
         /** Pi using a phone (PP-141): each control session running, for its session's live line. The owner's tabs only. */
         phoneControl: [],
+        /** Pi using computers (PP-178): each control session running; and each session's Computer panel, by its number. */
+        computerControl: [],
+        computers: {},
         /** This person's folder groups in the session list (PP-76), from the server: the same on every device. */
         sessionGroups: { groups: [], members: {} },
         /** False until the server's first session list arrives: an empty list until then means "not here yet". */
@@ -162,6 +165,7 @@ export const store = {
         filesOpen: sessionStorage.getItem("pocket.files") === "1",
         /** Pi's browser panel shows (`browser-panel.js`), and what the server last said of Pi's browser. */
         browserOpen: sessionStorage.getItem("pocket.piBrowser") === "1" && sessionStorage.getItem("pocket.files") !== "1",
+        computerOpen: sessionStorage.getItem("pocket.piComputer") === "1" && sessionStorage.getItem("pocket.files") !== "1" && sessionStorage.getItem("pocket.piBrowser") !== "1",
         // Pi's browsers by place (`phone`, `machine:<id>`): what each shows and does. The panel shows the session's own.
         piBrowsers: {},
         /** The Files tile's tab: `files` or `changes`. */
@@ -742,6 +746,14 @@ function setChanged(change) {
 /** Who hears extensions' events: `extension-ui.js`, which imports this module and so cannot be imported here. */
 const extensionListeners = new Set();
 const browserFrameListeners = new Set();
+const computerFrameListeners = new Set();
+
+/** Hear the pictures of a session's computer (`computer-panel.js`), as Pi's browser's frames: outside the store. */
+export function onComputerFrame(listener) {
+    computerFrameListeners.add(listener);
+
+    return () => computerFrameListeners.delete(listener);
+}
 
 /** Hear Pi's browser's frames (`browser-panel.js`): they skip the store, which would redraw the app with each one. */
 export function onBrowserFrame(listener) {
@@ -794,6 +806,7 @@ const handlers = {
             // Every theme folder (`theme.js`): an older server lists none.
             themeList: kept(state.themeList, Array.isArray(data.themes) ? data.themes : []),
             phoneControl: kept(state.phoneControl, data.server?.phoneControl ?? []),
+            computerControl: kept(state.computerControl, data.server?.computerControl ?? []),
             // This connection's id, which peek lists name (`peeks.js`). `GET /api/me` answers without one.
             ...(data.connection === undefined ? {} : { streamId: data.connection }),
         });
@@ -804,6 +817,14 @@ const handlers = {
     forwards: (data) => store.set({ forwards: data.forwards }),
     // A phone control session started or ended (PP-141).
     "phone-control": (data) => store.set({ phoneControl: data.sessions }),
+    // A computer control session started or ended (PP-178); what its panel shows; a picture of its window (the tabs that watch).
+    "computer-control": (data) => store.set({ computerControl: data.sessions }),
+    computer: (data) => setComputer(data),
+    "computer-frame": (data) => {
+        for (const listener of computerFrameListeners) {
+            listener(data);
+        }
+    },
     sessions: (list) => {
         const state = store.state;
         const sessions = keptEach(state.sessions, list);
@@ -1440,12 +1461,14 @@ function sheetChange(sheet, state) {
     sessionStorage.setItem(PEOPLE_KEY, "1");
     sessionStorage.removeItem("pocket.files");
     sessionStorage.removeItem("pocket.piBrowser");
+    sessionStorage.removeItem("pocket.piComputer");
 
     return {
         sheet: null,
         peopleOpen: true,
         filesOpen: false,
         browserOpen: false,
+        computerOpen: false,
         peopleAsk: {
             tab: sheet.tab ?? null,
             highlight: sheet.highlight ?? null,
@@ -1521,6 +1544,25 @@ export function setPiBrowser(data) {
         store.set((state) => ({ piBrowsers: { ...state.piBrowsers, [browserKey(data.place ?? "phone", data.session)]: data } }));
     }
 }
+
+/** What the session shown's Computer panel shows (PP-178), or null: its session's, or one of its subagents'. */
+export const computerState = (state = store.state) => {
+    const id = state.conversationId;
+    const panels = Object.values(state.computers ?? {});
+
+    return panels.find((each) => each.conversationId === id) ?? panels.find((each) => each.session === id) ?? null;
+};
+
+/** Keep a session's computer panel, as the server sent it. */
+export function setComputer(data) {
+    // A session that never controlled a computer answers with no machine: nothing to keep.
+    if (data && typeof data === "object" && typeof data.session === "number" && typeof data.machine === "string") {
+        store.set((state) => ({ computers: { ...state.computers, [data.session]: data } }));
+    }
+}
+
+/** The Computer panel's request about the session shown's computer. */
+export const computerApi = (path, body) => api(`${path}?session=${computerState()?.session ?? store.state.conversationId}`, body);
 
 /** The address of a request to the session shown's own browser. */
 export const browserPath = (path) => `${path}?place=${encodeURIComponent(browserPlace())}&session=${store.state.conversationId}`;

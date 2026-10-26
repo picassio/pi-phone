@@ -16,6 +16,7 @@ import {
     toggleFiles,
 } from "./files-panel.js";
 import { BrowserButton, BrowserPanel, BrowserPreview, BrowserWatcher, browserShown } from "./browser-panel.js";
+import { ComputerButton, ComputerPanel, ComputerPreview, ComputerWatcher, computerShown } from "./computer-panel.js";
 import { ExtensionPage, openPageWhenReady, openSheetWhenReady } from "./extension-ui.js";
 import { GATEWAY_PAGE, GatewayPage } from "./gateway-panel.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
@@ -229,6 +230,7 @@ function Topbar() {
         ${filesAvailable() && html`<${ChangesButton} key=${conversationId} />`}
         <${PeeksButton} />
         <${BrowserButton} />
+        <${ComputerButton} />
         <${FilesButton} />
         <button
             class=${`icon-button badge-host ${artifacts > 0 ? "quiet-phone" : "quiet"}`}
@@ -475,7 +477,9 @@ function App() {
     const filing = !placed && filesShown(state);
     // Pi's browser takes the Files tile's place (one panel at a time), and the People panel's.
     const browsing = !placed && !filing && inConversation && browserShown(state);
-    const people = !placed && !filing && !browsing && peopleDocked(state);
+    // Pi's computer (PP-178) takes the same place, after the browser's.
+    const computing = !placed && !filing && !browsing && inConversation && computerShown(state);
+    const people = !placed && !filing && !browsing && !computing && peopleDocked(state);
     const peeking = !placed && peeksWanted(state);
     const tiles = peeking ? peekTiles(state) : [];
     // The column takes the place beside the conversation when Browser and People leave it free; otherwise a strip,
@@ -483,7 +487,7 @@ function App() {
     const peekColumn = peeking && PEEK_WIDE.matches && !filing && !people;
 
     return html`<div
-        class=${`layout ${inConversation || placed ? "" : "home"} ${filing || browsing ? "filing" : ""}`}
+        class=${`layout ${inConversation || placed ? "" : "home"} ${filing || browsing || computing ? "filing" : ""}`}
         data-part="app"
     >
         <aside class="sidebar window" data-part="sidebar">
@@ -516,7 +520,7 @@ function App() {
                     ${
                         state.view.conversation &&
                         !state.missing &&
-                        html`<${BrowserPreview} /><${Composer} key=${state.conversationId} />`
+                        html`<${BrowserPreview} /><${ComputerPreview} /><${Composer} key=${state.conversationId} />`
                     }`
                         : html`<div class="home-list" data-part="home-list">
                           <${RailNav} />
@@ -535,7 +539,9 @@ function App() {
         }
         <${PanelHost} key=${`files:${state.conversationId}`} shown=${filing} panel=${FilesPanel} />
         <${PanelHost} key="pi-browser" shown=${browsing} panel=${BrowserPanel} />
+        <${PanelHost} key="pi-computer" shown=${computing} panel=${ComputerPanel} />
         <${BrowserWatcher} />
+        <${ComputerWatcher} />
         ${inConversation && html`<${PeopleHost} shown=${people} replaced=${filing} />`}
         <${Drawer} />
         <${Sheets} />
@@ -558,9 +564,10 @@ function focusWindow(event) {
         return;
     }
 
-    // By the window's part name, as themes know it: `sidebar`, `peeks`, `people-panel`, `browser-panel`, `files-panel`.
+    // By the window's part name, as themes know it: `sidebar`, `peeks`, `people-panel`, `browser-panel`, `computer-panel`,
+    // `files-panel`.
     const name =
-        ["sidebar", "peeks", "people-panel", "browser-panel", "files-panel"].find((each) =>
+        ["sidebar", "peeks", "people-panel", "browser-panel", "computer-panel", "files-panel"].find((each) =>
             win.matches(`[data-part~="${each}"]`),
         ) ?? "pane";
 
@@ -877,6 +884,7 @@ const LINKED_SHEETS = new Set([
     "people",
     "phone",
     "phone-control",
+    "computer-control",
     "assistant",
     "providers",
     "schedules",

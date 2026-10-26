@@ -7,6 +7,8 @@
  * `alerts.ts`, provider sign-ins in `providers.ts`, and each conversation's shared live view in `room.ts`.
  */
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+import { sshArguments } from "@earendil-works/pi-env";
 import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
 import { TeamAccountsClient } from "./team-accounts.ts";
 import { TeamMachinesClient } from "./team-machines.ts";
@@ -107,6 +109,7 @@ import { appSettings } from "./settings-registry.ts";
 import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
 import { PhoneRequests } from "./phone-requests.ts";
 import { PhoneControl } from "./phone-control.ts";
+import { ComputerControl, type ComputerControlOptions, shellWord } from "./computer-control.ts";
 import { askSessionModel, chargeSession } from "./side-model.ts";
 import { OfficeCli, type OfficeCliOptions } from "./officecli.ts";
 import { isRemote, parsePlace, Places } from "./places.ts";
@@ -293,6 +296,8 @@ export interface OpenOptions {
     officecli?: Omit<OfficeCliOptions, "dataDir">;
     /** Where Pi's browser comes from: the phone's WebView unless a test or a computer gives another (a Chrome). */
     browserEngine?: BrowserEngine;
+    /** Computer control's machines and how it runs a script on one (PP-178): the app's machines and ssh, unless a test gives its own. */
+    computer?: Pick<ComputerControlOptions, "machines" | "launch" | "idleEndMs" | "refreshMs">;
     /** The owner token to have (`ConfigStore`): the server edition's gateway gives each person's container its own. */
     ownerToken?: string;
     /**
@@ -433,6 +438,7 @@ export class PocketApp {
     readonly forwards: Forwards;
     /** Pi controls phones (`phone-control.ts`, PP-141): control sessions, the Never list, the phone's service channel. */
     readonly phoneControl: PhoneControl;
+    readonly computerControl: ComputerControl;
     /** The PARA wiki (`para.ts`). */
     readonly para: Para;
     readonly paraCapture: ParaCapture = new ParaCapture(this);
@@ -574,6 +580,46 @@ export class PocketApp {
             for (const client of this.#clients) {
                 if (client.user.role === "owner") {
                     client.send("phone-control", { sessions: this.phoneControl.view() });
+                }
+            }
+        });
+        // Pi controls computers (PP-178): one `ocu mcp`, and the window that says so, per session, through the app's ssh.
+        this.computerControl = new ComputerControl({
+            dataDir: options.dataDir,
+            gateway: this.gateway,
+            now: this.now,
+            log: (line) => this.log(line),
+            machines: () =>
+                this.machines.list().map((machine) => ({
+                    id: machine.id,
+                    name: machine.name,
+                    ...(machine.remote === undefined ? {} : { platform: machine.remote.platform }),
+                    connected: machine.remote !== undefined,
+                    ...(machine.tools === undefined ? {} : { tools: machine.tools }),
+                })),
+            launch: (id, script) =>
+                spawn("ssh", [...sshArguments(this.machines.target(this.machines.ready(id))), `sh -c ${shellWord(script)}`], { stdio: ["pipe", "pipe", "pipe"] }),
+            ...options.computer,
+        });
+        this.computerControl.onChange(() => {
+            for (const client of this.#clients) {
+                if (client.user.role === "owner") {
+                    client.send("computer-control", { sessions: this.computerControl.view() });
+                }
+            }
+        });
+        // The panel: what a session's computer shows and does (the owner's tabs), and its pictures (the tabs that watch).
+        this.computerControl.onPanel((panel) => {
+            for (const client of this.#clients) {
+                if (client.user.role === "owner") {
+                    client.send("computer", panel);
+                }
+            }
+        });
+        this.computerControl.onFrame((frame) => {
+            for (const client of this.#clients) {
+                if (client.computerWatch === frame.session) {
+                    client.send("computer-frame", frame);
                 }
             }
         });
@@ -1018,6 +1064,7 @@ export class PocketApp {
             sshKeys: this.sshKeys,
             machineTools: this.machineTools,
             phone: this.phoneControl,
+            computer: this.computerControl,
             rootOf: (conversationId) => Number(this.rootOf(conversationId as unknown as ConversationId)),
             web: this.web,
             envOf: (cwd) => this.places.env(cwd),
@@ -1375,6 +1422,7 @@ export class PocketApp {
                     this.#busy.add(id);
                     this.#busySince.set(id, Date.now());
                     this.phoneControl.runStarted(Number(id));
+                    this.computerControl.runStarted(Number(id));
                     // A new run starts over: whether it fails is its own to say.
                     this.#failed.delete(id);
 
@@ -1392,6 +1440,7 @@ export class PocketApp {
                     this.spend.runEnded(id);
                     // Pi is done: its phone control session ends soon after, unless it goes on (`runEnded`).
                     this.phoneControl.runEnded(Number(id));
+                    this.computerControl.runEnded(Number(id));
 
                     if (this.#sessions[String(id)] !== undefined) {
                         this.#endedAt.set(id, Date.now());
@@ -2121,6 +2170,11 @@ export class PocketApp {
         client.browserWatch?.stop();
         client.browserWatch = undefined;
 
+        if (client.computerWatch !== undefined) {
+            this.computerControl.watch(client.computerWatch, false);
+            client.computerWatch = undefined;
+        }
+
         for (const id of client.peeks ?? []) {
             this.#unpeek(client, id);
         }
@@ -2647,6 +2701,37 @@ export class PocketApp {
         }
     }
 
+    /**
+     * A tab opened or closed the Computer panel of a session (PP-178): while open, it gets that session's pictures
+     * (`computer-frame`), read again every few seconds. The owner's.
+     */
+    setComputerWatch(user: User, connection: string, session: number, on: boolean): void {
+        for (const client of this.#clients) {
+            if (client.user.id !== user.id || client.connection !== connection) {
+                continue;
+            }
+
+            if (client.computerWatch !== undefined && (!on || client.computerWatch !== session)) {
+                this.computerControl.watch(client.computerWatch, false);
+                client.computerWatch = undefined;
+            }
+
+            if (on && client.computerWatch === undefined) {
+                client.computerWatch = session;
+                this.computerControl.watch(session, true);
+                const shown = this.computerControl.panelOfSession(session);
+
+                if (shown !== undefined) {
+                    client.send("computer", shown.panel);
+
+                    if (shown.frame !== undefined) {
+                        client.send("computer-frame", shown.frame);
+                    }
+                }
+            }
+        }
+    }
+
     /** A browser of Pi's, whose state and frames go to the owner's tabs (frames only to tabs that watch it). */
     #makeBrowser(engine: BrowserEngine, place: string, where: string, session: number): PiBrowser {
         return new PiBrowser({
@@ -2932,6 +3017,7 @@ export class PocketApp {
                 ...(user.role === "owner" ? { assistant: this.config.assistant } : {}),
                 // Pi using a phone (PP-141): the owner's tabs show the session's live line, with Stop.
                 phoneControl: user.role === "owner" ? this.phoneControl.view() : [],
+                computerControl: user.role === "owner" ? this.computerControl.view() : [],
                 // This server runs on a phone (the pi-phone app's), which Menu › Phone control is for.
                 onPhone: process.platform === "android",
                 // The model and thinking level new sessions start with, or null for the last one picked.
@@ -3542,12 +3628,17 @@ export class PocketApp {
             throw new HttpError(403, "Controlling the phone is the owner's.");
         }
 
+        // Pi's computer_control card (PP-178): the same, for a computer.
+        if (allow && request.form?.type === "computer" && user.role !== "owner") {
+            throw new HttpError(403, "Controlling a computer is the owner's.");
+        }
+
         // Pi's extension_install card (PP-173): Install copies a module into the drop-in folder, and only the owner may.
         if (allow && request.form?.type === "extension" && user.role !== "owner") {
             throw new HttpError(403, "Installing an extension is the owner's.");
         }
 
-        if (allow && request.form !== undefined && request.form.type !== "machine" && request.form.type !== "phone" && request.form.type !== "extension" && !formAnswered) {
+        if (allow && request.form !== undefined && request.form.type !== "machine" && request.form.type !== "phone" && request.form.type !== "computer" && request.form.type !== "extension" && !formAnswered) {
             throw new HttpError(
                 400,
                 request.form.type === "secret"
@@ -4738,6 +4829,7 @@ export class PocketApp {
             clearTimeout(this.#sessionsTimer);
             clearInterval(this.#browserSweep);
             this.phoneControl.close();
+            this.computerControl.close();
             this.themes.close();
             this.spend.close();
             this.limits.close();

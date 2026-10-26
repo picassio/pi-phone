@@ -525,6 +525,10 @@ export function MenuSheet({ places = true }) {
                 me?.role === "owner" && !server?.gateway && (server?.onPhone || window.PiPhoneApp) && allowed("phone.control") && item("Phone control", () => openSheet({ type: "phone-control" }), "Pi uses apps on this phone")
             }
             ${
+                // Pi uses desktop apps on the owner's machines (PP-178): never on the team server.
+                me?.role === "owner" && !server?.gateway && allowed("computer.control") && item("Computer control", () => openSheet({ type: "computer-control" }), "Pi uses apps on your machines")
+            }
+            ${
                 // pi-phone as the phone's digital assistant (PP-146): the side key's sheet, on the phone's own pi-phone.
                 me?.role === "owner" && !server?.gateway && (server?.onPhone || window.PiPhoneApp) && item("Assistant", () => openSheet({ type: "assistant" }), "hold the side key to talk to Pi")
             }
