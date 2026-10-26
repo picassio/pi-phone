@@ -56,6 +56,8 @@ test("the forward goes to localhost there (a dev server on ::1 too), and the hos
     assert.deepEqual(without.slice(-2), ["--", "me@box"]);
     assert.ok(without.includes("127.0.0.1:4100:localhost:5173"));
     assert.throws(() => forwardArguments(["me@box"], 1, 2), /no -- before the host/);
+    // Pi's browser names 127.0.0.1, where Chrome's DevTools listens alone (Windows' sshd took localhost for ::1).
+    assert.ok(forwardArguments(["--", "me@box"], 4100, 52395, "127.0.0.1").includes("127.0.0.1:4100:127.0.0.1:52395"));
 });
 
 test("ssh that cannot start is a 502 with why, not a crash (PP-106)", async () => {

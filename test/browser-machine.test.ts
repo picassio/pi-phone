@@ -42,6 +42,28 @@ test("the launch script starts Chrome once and says where its DevTools are, or t
     assert.match(script, /No usable sandbox/);
 });
 
+test("a forward Chrome does not answer through is closed and said so, not a bare socket hang up (tualh-laptop, 2026-10-26)", async () => {
+    // What Windows' sshd gave when it took `localhost` for ::1: the forward takes the connection, and drops it.
+    const hangUp = createServer((request) => request.socket.destroy());
+
+    await new Promise<void>((resolve) => hangUp.listen(0, "127.0.0.1", resolve));
+    let closed = 0;
+    const engine = new MachineEngine({
+        name: "win-box",
+        home: "/h",
+        run: async () => ({ code: 0, out: "port 52395\n" }),
+        writeFile: async () => {},
+        forward: async () => ({ port: (hangUp.address() as { port: number }).port, close: () => (closed += 1) }),
+    });
+
+    try {
+        await assert.rejects(engine.tabs(), /Chrome runs on win-box \(DevTools port 52395\), but it did not answer through the ssh forward/);
+        assert.equal(closed, 1, "the broken forward is closed, so the next call opens a new one");
+    } finally {
+        hangUp.close();
+    }
+});
+
 let server: Server;
 let port = 0;
 

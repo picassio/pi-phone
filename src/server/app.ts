@@ -2711,7 +2711,8 @@ export class PocketApp {
                     }
                 },
                 forward: async (port) => {
-                    const forward = await this.forwards.open(id, port);
+                    // Chrome's DevTools listens on 127.0.0.1 alone: `localhost` there may be ::1 (Windows).
+                    const forward = await this.forwards.open(id, port, "127.0.0.1");
 
                     return {
                         port: forward.localPort,

@@ -16,6 +16,8 @@ export type Forward = {
     machine: string;
     /** The port on the machine, and where it shows here. */
     remotePort: number;
+    /** The machine's address the port is on, when not `localhost` (Pi's browser: 127.0.0.1). */
+    remoteHost?: string;
     localPort: number;
     url: string;
     startedAt: number;
@@ -41,10 +43,12 @@ function freePort(): Promise<number> {
 /**
  * ssh's arguments for a forward, from pi-env's (`sshArguments`): its `-o ClearAllForwardings=yes` taken out when it is
  * there (forwarding is the point; PP-107: only then, so the host after `--` stays), then `-N` and the forward. The
- * machine's end is `localhost`, which reaches a dev server on `::1` as well as `127.0.0.1` (PP-105); this end listens on
+ * machine's end is `localhost`, which reaches a dev server on `::1` as well as `127.0.0.1` (PP-105), unless `host` names
+ * one: Pi's browser asks for 127.0.0.1, where Chrome's DevTools listens alone, as Windows' sshd took `localhost` for
+ * ::1 and every request to it came back empty ("socket hang up", tualh-laptop, 2026-10-26). This end listens on
  * 127.0.0.1 alone.
  */
-export function forwardArguments(args: readonly string[], localPort: number, remotePort: number): string[] {
+export function forwardArguments(args: readonly string[], localPort: number, remotePort: number, host = "localhost"): string[] {
     const out = [...args];
     const clear = out.indexOf("ClearAllForwardings=yes");
 
@@ -58,7 +62,7 @@ export function forwardArguments(args: readonly string[], localPort: number, rem
         throw new Error("pi-env's ssh arguments have no -- before the host");
     }
 
-    out.splice(end, 0, "-N", "-o", "ExitOnForwardFailure=yes", "-L", `127.0.0.1:${localPort}:localhost:${remotePort}`);
+    out.splice(end, 0, "-N", "-o", "ExitOnForwardFailure=yes", "-L", `127.0.0.1:${localPort}:${host}:${remotePort}`);
 
     return out;
 }
@@ -94,20 +98,21 @@ export class Forwards {
     }
 
     /** Port `remotePort` of a machine, here: the one open already, or a new forward once ssh listens. */
-    async open(machineId: string, remotePort: unknown): Promise<Forward> {
+    /** `host`: the machine's address the port is on, `localhost` unless one is named (`forwardArguments`). */
+    async open(machineId: string, remotePort: unknown, host = "localhost"): Promise<Forward> {
         if (typeof remotePort !== "number" || !Number.isInteger(remotePort) || remotePort < 1 || remotePort > 65535) {
             throw new HttpError(400, "The port must be a whole number from 1 to 65535.");
         }
 
         const machine = this.#machines.ready(machineId);
-        const already = this.list().find((each) => each.machineId === machineId && each.remotePort === remotePort);
+        const already = this.list().find((each) => each.machineId === machineId && each.remotePort === remotePort && (each.remoteHost ?? "localhost") === host);
 
         if (already !== undefined) {
             return already;
         }
 
         const localPort = await freePort();
-        const args = forwardArguments(sshArguments(this.#machines.target(machine)), localPort, remotePort);
+        const args = forwardArguments(sshArguments(this.#machines.target(machine)), localPort, remotePort, host);
         const ssh = spawn("ssh", args, { stdio: ["ignore", "ignore", "pipe"] });
         let said = "";
         let ended = false;
@@ -154,6 +159,7 @@ export class Forwards {
             machineId,
             machine: machine.name,
             remotePort,
+            ...(host === "localhost" ? {} : { remoteHost: host }),
             localPort,
             url: `http://127.0.0.1:${localPort}/`,
             startedAt: Date.now(),

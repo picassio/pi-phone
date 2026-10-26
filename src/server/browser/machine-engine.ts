@@ -137,6 +137,17 @@ export class MachineEngine implements BrowserEngine {
 
             const forward = await this.#machine.forward(port);
 
+            // Chrome answers through the forward, or this says where it broke (not a bare "socket hang up" later).
+            try {
+                await request(forward.port, "/json/version");
+            } catch (error) {
+                forward.close();
+
+                throw new Error(
+                    `Chrome runs on ${this.#machine.name} (DevTools port ${port}), but it did not answer through the ssh forward: ${error instanceof Error ? error.message : String(error)}`,
+                );
+            }
+
             this.#forward = { port: forward.port, remote: port, close: forward.close };
 
             return forward.port;
