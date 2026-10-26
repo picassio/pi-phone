@@ -5,12 +5,12 @@
 import { cleanUp } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, test } from "node:test";
-import { launchScript, MachineEngine } from "../src/server/browser/machine-engine.ts";
+import { launchScript, MachineEngine, stopScript } from "../src/server/browser/machine-engine.ts";
 import { PiBrowser } from "../src/server/browser/pi-browser.ts";
 import { addressOf } from "../src/server/browser/page.ts";
 
@@ -38,6 +38,12 @@ test("the launch script starts Chrome once and says where its DevTools are, or t
 
     assert.match(script, /--remote-debugging-port=0/);
     assert.match(script, /chrome\.pid/);
+    // Running when its DevTools answer, not by a pid (Git Bash on Windows cannot see one an earlier shell started); a
+    // Chrome holding the profile otherwise is stopped by its command line, on Windows too.
+    assert.match(script, /curl -sf -m 3 "http:\/\/127\.0\.0\.1:\$D\/json\/version"/);
+    assert.match(script, /powershell\.exe -NoProfile -Command 'Get-CimInstance Win32_Process/);
+    assert.match(script, /pkill -f -- "user-data-dir=\$P\/profile"/);
+    assert.match(stopScript(), /pkill -f -- "user-data-dir=\$P\/profile"/);
     assert.match(script, /echo nochrome; exit 5/);
     assert.match(script, /No usable sandbox/);
 });
@@ -126,6 +132,18 @@ test("on a machine: Chrome there opens its own dev server, takes uploads there, 
         assert.equal(again.code, 0);
         assert.equal(Number(/^port (\d+)/m.exec(again.out)?.[1]), Number(readFileSync(join(home, ".pi/mobile/browser/profile/DevToolsActivePort"), "utf8").split("\n")[0]));
         assert.equal(forwarded, 1);
+
+        // Its port file lost while it runs (as a failed start on Windows once left it): the next launch stops it and starts
+        // another, which answers, instead of a second Chrome that cannot take the profile.
+        const first = Number(/^port (\d+)/m.exec(again.out)?.[1]);
+
+        rmSync(join(home, ".pi/mobile/browser/profile/DevToolsActivePort"));
+        const relaunched = await run(launchScript());
+        const second = Number(/^port (\d+)/m.exec(relaunched.out)?.[1]);
+
+        assert.equal(relaunched.code, 0, relaunched.out);
+        assert.ok(second > 0 && second !== first, `a new Chrome: ${relaunched.out}`);
+        assert.equal((await run(`curl -sf -m 5 http://127.0.0.1:${second}/json/version >/dev/null && echo answers`)).out.trim(), "answers");
     } finally {
         await browser.close();
     }

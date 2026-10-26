@@ -28,6 +28,24 @@ export type MachineAccess = {
 export const BROWSER_DIR = ".pi/mobile/browser";
 
 /**
+ * Stop every Chrome started on the browser's profile (`$P/profile`, pi-phone's own), and forget its port: by its
+ * command line, not a pid file (on Windows, Git Bash cannot see a pid an earlier shell started). Then its locks go.
+ */
+const STOP = [
+    "if command -v powershell.exe >/dev/null 2>&1; then",
+    `  powershell.exe -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.Name -match "chrome|msedge" -and $_.CommandLine -like "*mobile*browser*profile*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' >/dev/null 2>&1 && sleep 1`,
+    "else",
+    '  pkill -f -- "user-data-dir=$P/profile" 2>/dev/null && sleep 1',
+    "fi",
+    'rm -f "$P/profile/DevToolsActivePort" "$P/chrome.pid" "$P/profile/SingletonLock" "$P/profile/SingletonSocket" "$P/profile/SingletonCookie"',
+];
+
+/** The script that stops the browser's Chrome on the machine (its profile stays). */
+export function stopScript(): string {
+    return [`P="$HOME/${BROWSER_DIR}"`, ...STOP, "true"].join("\n");
+}
+
+/**
  * The script that finds Chrome on the machine and starts it with a DevTools port, unless it runs already: its last line
  * is `port <n>`, or it exits 5 with `nochrome` when the machine has none, or 6 with the end of Chrome's log.
  */
@@ -35,10 +53,19 @@ export function launchScript(): string {
     return [
         `P="$HOME/${BROWSER_DIR}"`,
         'mkdir -p "$P/profile" "$P/uploads"',
-        'if [ -f "$P/chrome.pid" ] && kill -0 "$(cat "$P/chrome.pid")" 2>/dev/null && [ -s "$P/profile/DevToolsActivePort" ]; then',
-        '  echo "port $(head -n 1 "$P/profile/DevToolsActivePort")"; exit 0',
-        "fi",
-        'rm -f "$P/profile/DevToolsActivePort" "$P/chrome.pid"',
+        // Running already when its DevTools answer on the port it wrote. Not by its pid: on Windows, Git Bash cannot see
+        // a pid an earlier shell started, and a second Chrome on the profile then aborts ("Lock file can not be
+        // created", tualh-laptop, 2026-10-20 and 2026-10-26). Without curl, by the pid, as before.
+        "alive() {",
+        '  [ -s "$P/profile/DevToolsActivePort" ] || return 1',
+        '  D=$(head -n 1 "$P/profile/DevToolsActivePort")',
+        '  if command -v curl >/dev/null 2>&1; then curl -sf -m 3 "http://127.0.0.1:$D/json/version" >/dev/null 2>&1; return $?; fi',
+        '  [ -f "$P/chrome.pid" ] && kill -0 "$(cat "$P/chrome.pid")" 2>/dev/null',
+        "}",
+        'if alive; then echo "port $D"; exit 0; fi',
+        // A Chrome still holding this profile whose DevTools do not answer (its port file lost, or stuck) is stopped: a new
+        // one could not take the profile.
+        ...STOP,
         // Uploads a day old go.
         'find "$P/uploads" -mindepth 1 -maxdepth 1 -mtime +0 -exec rm -rf {} + 2>/dev/null || true',
         'C=""',
@@ -197,7 +224,7 @@ export class MachineEngine implements BrowserEngine {
     async close(): Promise<void> {
         this.#forward?.close();
         this.#forward = undefined;
-        await this.#machine.run(`P="$HOME/${BROWSER_DIR}"; [ -f "$P/chrome.pid" ] && kill "$(cat "$P/chrome.pid")" 2>/dev/null; rm -f "$P/chrome.pid"; true`, 30);
+        await this.#machine.run(stopScript(), 30);
     }
 
     async pdf(_id: string, page: BrowserPage): Promise<Buffer> {
