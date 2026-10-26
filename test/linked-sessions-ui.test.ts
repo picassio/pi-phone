@@ -2,7 +2,7 @@
 // that started it, whose row has a fold with how many; folding hides it and holds across a reload; above the
 // transcripts, "Started from" and "Linked session" lead from one to the other. With PHONE_SHOTS set to a folder,
 // screenshots at 390 px go there.
-import { type App, cleanUp, newSession, openApp, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, newSession, openApp, say, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -85,6 +85,9 @@ after(async () => {
 
 test("a session Pi starts shows under the one that started it, folds away, and each links to the other", real, async () => {
     const starter = await newSession(app);
+
+    // Pi acts for whoever asked for the work: the owner, here.
+    await say(app, starter, "check the build in another session");
     const { id: started } = await app.sessionControl.start(starter, { cwd: work, message: "check the build", title: "Build check", key: crypto.randomUUID() });
 
     await cdp.send("Page.navigate", { url: `${base}/` });
