@@ -1773,7 +1773,7 @@ function ApprovalCard({ approval }) {
                             disabled=${busy}
                             onClick=${() => answer(true)}
                         >
-                            ${t("Allow")}
+                            ${approval.tool === "secret_save" ? t("Run and save") : t("Allow")}
                         </button>`
                     }
                 </div>`

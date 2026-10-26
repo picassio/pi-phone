@@ -3,7 +3,7 @@
 // is replaced before it is sent, and Pi asks for one through a hidden field, never the chat.
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
@@ -28,6 +28,9 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "save over the app's ssh": ["secret_save", { name: "SSH_MADE", command: "pi-ssh-fake devbox 'cat token'", description: "read over pi-ssh" }],
     // A command that fails after printing its token on stderr: the token is made in the shell, so this text holds none.
     "save a failing key": ["secret_save", { name: "FAILED_KEY", command: "printf 'leaked-%s\\n' $((100+23)) >&2; exit 3", description: "fails" }],
+    // Declined: nothing runs, so the marker file is never made.
+    "save with a marker": ["secret_save", { name: "MARKED_KEY", command: `touch ${join(work, "secret-save-ran")}; printf marked-value`, description: "leaves a mark" }],
+    "save a long one": ["secret_save", { name: "LONG_KEY", command: `printf x # ${"y".repeat(1600)}`, description: "too long to show" }],
 };
 /** Every request the model was sent, whole: what reached it, besides the transcript. */
 const requests: string[] = [];
@@ -65,8 +68,19 @@ after(async () => {
     cleanUp();
 });
 
-async function turn(id: Parameters<App["commands"]["submit"]>[0], text: string): Promise<string> {
+/** One turn as the owner; with `card`, the card it waits on is answered so (and its subject kept in `asked`). */
+let asked: { tool: string; subject: string; reason: string } | undefined;
+
+async function turn(id: Parameters<App["commands"]["submit"]>[0], text: string, card?: boolean): Promise<string> {
     const { submissionId } = await app.commands.submit(id, owner(app), { text, requestId: crypto.randomUUID() });
+
+    if (card !== undefined) {
+        await until(() => app.approvals.forConversation(id).length > 0, "the card");
+        const request = app.approvals.forConversation(id)[0]!;
+
+        asked = { tool: request.tool, subject: request.subject, reason: request.reason };
+        await app.answerApproval(request.id, card, owner(app));
+    }
 
     await (await app.harness.submission(submissionId, context))!.wait(context);
     await app.harness.waitForIdle(context);
@@ -243,9 +257,27 @@ test("Pi asks for a secret through a hidden field: the value goes to the store, 
     assert.deepEqual(app.secrets.environment(["NEW_KEY"], work), { NEW_KEY: "new-key-value-424242" });
 });
 
+test("secret_save asks the owner on a card with the whole command: declined, nothing runs; a command too long to show is refused before asking", async () => {
+    const id = await newSession(app);
+    const declined = await turn(id, "save with a marker", false);
+
+    assert.equal(asked?.tool, "secret_save");
+    assert.equal(asked?.subject, `touch ${join(work, "secret-save-ran")}; printf marked-value`, "the whole command");
+    assert.match(asked?.reason ?? "", /save its output as \$MARKED_KEY: leaves a mark/);
+    assert.match(declined, /declined: nothing ran, and nothing was saved/);
+    assert.ok(!existsSync(join(work, "secret-save-ran")), "the command did not run");
+    assert.equal(app.secrets.get("MARKED_KEY"), undefined);
+
+    const long = await turn(id, "save a long one");
+
+    assert.match(long, /The command is 1611 characters; the card that asks the owner shows at most 1,500/);
+    assert.equal(app.approvals.forConversation(id).length, 0, "no card");
+    assert.equal(app.secrets.get("LONG_KEY"), undefined);
+});
+
 test("secret_save keeps a command's output as a secret without showing it", async () => {
     const id = await newSession(app);
-    const answer = await turn(id, "save a key");
+    const answer = await turn(id, "save a key", true);
 
     assert.match(answer, /Saved MADE_KEY \(22 characters\)/);
     assert.ok(!(await modelTexts(app, id)).join("\n").includes("generated-abcdefgh-123"));
@@ -255,7 +287,7 @@ test("secret_save keeps a command's output as a secret without showing it", asyn
 
 test("secret_save says a failed command failed, and none of its output: a token it printed reaches neither Pi nor the transcript", async () => {
     const id = await newSession(app);
-    const answer = await turn(id, "save a failing key");
+    const answer = await turn(id, "save a failing key", true);
 
     assert.match(answer, /The command failed \(exit 3\); nothing was saved\. Its output is not shown/);
     assert.ok(!(await modelTexts(app, id)).join("\n").includes("leaked-123"), "not in the transcript");
@@ -271,7 +303,7 @@ test("secret_save's command finds the app's tools, as bash does: pi-ssh's folder
     writeFileSync(join(bin, "pi-ssh-fake"), "#!/bin/sh\nprintf 'from-%s-%s' \"$1\" over-ssh\n", { mode: 0o755 });
 
     const id = await newSession(app);
-    const answer = await turn(id, "save over the app's ssh");
+    const answer = await turn(id, "save over the app's ssh", true);
 
     assert.match(answer, /Saved SSH_MADE/);
     assert.deepEqual(app.secrets.environment(["SSH_MADE"], work), { SSH_MADE: "from-devbox-over-ssh" });

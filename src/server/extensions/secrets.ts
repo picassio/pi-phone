@@ -26,11 +26,14 @@ const reply = (text: string, isError = false) => ({
     ...(isError ? { isError: true } : {}),
 });
 
+/** The longest command secret_save asks about: the card shows it whole. */
+export const MAX_SAVE_COMMAND = 1500;
+
 const RULES = `Secrets: the person keeps API keys and tokens in Settings > Secrets, and you use them without seeing them.
 - In bash, use a secret as an environment variable by its name: curl -H "Authorization: Bearer $DEEPSEEK_API_KEY" ..., NODE_AUTH_TOKEN=$NPM_TOKEN npm publish, printf '%s' "$NPM_TOKEN" | gh secret set NPM_TOKEN. Only the secrets a command names are set for it.
 - Never print, echo, or log a value, and never write one into a file you read back or into the wiki. Output that holds a value shows [secret NAME] instead.
 - When you need a secret that is not listed, call secret_request with a name and what it is for: the person types it into a hidden field on the call's card. Never ask anyone to paste a key, token, or password into the chat.
-- To keep a value a command makes (a generated key, gh auth token), use secret_save: it stores the command's output without showing it.`;
+- To keep a value a command makes (a generated key, gh auth token), use secret_save: the owner sees the whole command on a card first, and it stores the command's output without showing it.`;
 
 /** Every string in a result's JSON, with values replaced. */
 function redactJson(value: JsonValue, redact: (text: string) => string): JsonValue {
@@ -197,6 +200,39 @@ export default function createSecrets(host: PocketHost) {
         execute: async (args, api, context) => {
             if (!SECRET_NAME.test(args.name)) {
                 return reply(`${args.name} is not a secret's name: use capitals, digits, and _.`, true);
+            }
+
+            // It runs a command Pi chose and keeps its output: the owner's, and only after they read the whole command on
+            // a card (pi-pocket's review of our port, TannerMidd/pi-pocket-extensions#28; pi-phone has no other guard).
+            const asker = host.requesterOf(api.conversationId as never);
+
+            if (asker === undefined || host.person(asker).role !== "owner") {
+                return reply("secret_save is the owner's: it runs a command and keeps its output as a secret. Ask the owner, or use secret_request.", true);
+            }
+
+            if (args.command.length > MAX_SAVE_COMMAND) {
+                return reply(
+                    `The command is ${args.command.length} characters; the card that asks the owner shows at most ${MAX_SAVE_COMMAND.toLocaleString("en")}. Use a shorter one (a script it runs, say). Nothing ran.`,
+                    true,
+                );
+            }
+
+            const answer = await host.approvals.request(
+                {
+                    id: `secret-save-${String(api.taskId)}-${api.callId}`,
+                    conversationId: api.conversationId,
+                    taskId: api.taskId,
+                    callId: api.callId,
+                    tool: "secret_save",
+                    subject: args.command,
+                    reason: `Run this and save its output as $${args.name}: ${args.description}`,
+                    createdAt: Date.now(),
+                },
+                context,
+            );
+
+            if (!answer.allow) {
+                return reply(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} declined`}: nothing ran, and nothing was saved.`, true);
             }
 
             const cwd = await cwdOf(api, context);
