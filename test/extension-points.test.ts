@@ -1,16 +1,22 @@
 // pi-pocket 0.22.0's extension points for people's values, in pi-phone (adapted from pi-pocket's
 // test/extension-points.test.ts, commits 46d7353 and 8fe0121): `host.commandEnv` puts a value into a command's
 // environment, and `host.hide` keeps it out of command output as it streams, every tool's result, and people's messages,
-// through the same redaction as the owner's secrets (`secrets.ts`).
-import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until, work } from "./helpers.ts";
+// through the same redaction as the owner's secrets (`secrets.ts`); `host.ask` asks the person Pi works for on a card
+// whose values reach only the extension.
+import { type App, cleanUp, context, fakeTab, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { getEventListeners } from "node:events";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
-import type { ConversationId } from "@earendil-works/pi-durable";
+import type { ConversationId, TaskId } from "@earendil-works/pi-durable";
+import { DecisionsDoc } from "../src/server/docs.ts";
+import { HttpError } from "../src/server/errors.ts";
+import { ask } from "../src/server/extension-points.ts";
+import { createHandler } from "../src/server/http.ts";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { CommandEnvs, commandEnvLimits, HiddenValues } from "../src/server/hidden.ts";
@@ -235,4 +241,104 @@ test("a ! command that holds a hidden value is refused, so it is not stored as t
     const id = await newSession(app);
 
     await assert.rejects(app.shell.start(id, owner(app), { command: `echo ${SECRET}` }), /holds a hidden value/);
+});
+
+/** A question from an extension in session `id`, as `host.ask` puts it (`ask(app.approvals, …)` is that member). */
+const signIn = (id: ConversationId, callId: string) =>
+    ask(
+        app.approvals,
+        {
+            conversationId: id,
+            id: `7:${callId}`,
+            taskId: 7 as unknown as TaskId,
+            callId,
+            title: "Sign in to example.test",
+            fields: [
+                { name: "user", label: "Username", autocomplete: "username" },
+                { name: "password", label: "Password", secret: true },
+            ],
+            submit: "Fill in",
+        },
+        context,
+    );
+
+test("an ask's card is answered by the person Pi works for, and its values reach only the extension", async () => {
+    const id = await newSession(app);
+    const me = owner(app);
+    const guest = app.config.addUser("Gus", "guest").user;
+    const tab = fakeTab(id, me);
+    const server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
+
+    const told: string[] = [];
+    const unsubscribe = app.phoneEvents.subscribe((event) => told.push(`${event.kind}: ${event.text}`));
+
+    await app.attach(tab.client);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+    try {
+        const answered = signIn(id, "call-1");
+
+        await until(() => app.approvals.forConversation(id).length === 1, "the card");
+        const [card] = app.approvals.forConversation(id);
+
+        assert.equal(card!.form?.type, "ask");
+        assert.deepEqual(card!.form?.type === "ask" && card!.form.fields.map((field) => field.name), ["user", "password"]);
+        assert.equal(card!.form?.type === "ask" && card!.form.submit, "Fill in");
+        // The phone hears of it as a question for its person.
+        assert.ok(told.includes("approval: Pi asks you: Sign in to example.test"), told.join("\n"));
+
+        // Someone else in the session cannot answer it; a plain Allow, or a missing or extra field, is no answer.
+        await assert.rejects(app.answerAsk(card!.id, { user: "x", password: "y" }, guest), (error) => error instanceof HttpError && error.status === 403);
+        await assert.rejects(app.answerApproval(card!.id, true, me), (error) => error instanceof HttpError && error.status === 400);
+        await assert.rejects(app.answerAsk(card!.id, { user: "tevis" }, me), /Fill in Password/);
+        await assert.rejects(app.answerAsk(card!.id, { user: "tevis", password: "pw", extra: "z" }, me), /not a field/);
+
+        // The answer route: the values go to the asker.
+        const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+        const response = await fetch(`${base}/api/asks/${card!.id.split("/").map(encodeURIComponent).join("/")}`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${app.config.ownerToken}`, "x-pocket": "1", "content-type": "application/json" },
+            body: JSON.stringify({ values: { user: "tevis", password: "correct-horse" } }),
+        });
+
+        assert.equal(response.status, 200, await response.text());
+        assert.deepEqual(await answered, { answered: true, by: me.name, values: { user: "tevis", password: "correct-horse" } });
+
+        // Nowhere else: not in what tabs were sent, nor the session's documents and transcript. The call shows as answered.
+        await until(async () => (await app.harness.snapshot(DecisionsDoc, id, context))?.calls["call-1"] !== undefined, "the decision");
+        const decision = (await app.harness.snapshot(DecisionsDoc, id, context))!.calls["call-1"]!;
+
+        assert.equal(decision.allow, true);
+        assert.equal(decision.ask, true);
+        assert.ok(tab.events.some((each) => JSON.stringify(each.data).includes("Sign in to example.test")), "tabs saw the card");
+
+        for (const seen of [JSON.stringify(tab.events), JSON.stringify(decision), await stored(id)]) {
+            assert.doesNotMatch(seen, /correct-horse|tevis/);
+        }
+
+        // Anyone who can steer declines one.
+        const declined = signIn(id, "call-2");
+
+        await until(() => app.approvals.forConversation(id).length === 1, "the second card");
+        assert.equal(await app.answerApproval(app.approvals.forConversation(id)[0]!.id, false, guest), true);
+        assert.deepEqual(await declined, { answered: false, by: "Gus" });
+    } finally {
+        unsubscribe();
+        app.detach(tab.client);
+        server.closeAllConnections();
+        server.close();
+    }
+});
+
+test("an ask's fields and words are checked before a card shows", async () => {
+    const id = await newSession(app);
+    const base = { conversationId: id, id: "7:bad", taskId: 7 as unknown as TaskId, title: "Hi" };
+
+    await assert.rejects(ask(app.approvals, { ...base, title: "two\nlines" }, context), /title is one line/);
+    await assert.rejects(ask(app.approvals, { ...base, fields: [{ name: "1x", label: "X" }] }, context), /a field's name/);
+    await assert.rejects(
+        ask(app.approvals, { ...base, fields: [{ name: "a", label: "A" }, { name: "a", label: "B" }] }, context),
+        /same name/,
+    );
+    assert.equal(app.approvals.forConversation(id).length, 0);
 });

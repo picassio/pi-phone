@@ -114,6 +114,7 @@ import { SshKeys } from "./ssh-keys.ts";
 import { SshAgent } from "./ssh-agent.ts";
 import { namesIn, Secrets } from "./secrets.ts";
 import { CommandEnvs, HiddenValues } from "./hidden.ts";
+import { ask, checkValues } from "./extension-points.ts";
 import type { Tailnet } from "./tailnet.ts";
 import { WebSearch } from "./web/access.ts";
 import { InterviewHelpers } from "./interview-helpers.ts";
@@ -997,6 +998,7 @@ export class PocketApp {
 
                 return user !== undefined && this.canSee(user, conversationId);
             },
+            ask: (request, askContext) => ask(this.approvals, request, askContext),
             hide: (value) => this.hidden.add(value),
             commandEnv: (provider) => this.commandEnvs.add(provider),
             notice: (level, message, conversationId) => this.notice(level, message, conversationId),
@@ -1091,7 +1093,9 @@ export class PocketApp {
                     const asked: Said =
                         request.form?.type === "secret"
                             ? said("Pi asks for a secret: {name}", { name: request.form.name })
-                            : request.form?.type === "interview"
+                            : request.form?.type === "ask"
+                              ? said("Pi asks you: {title}", { title: request.form.title })
+                              : request.form?.type === "interview"
                               ? request.form.count === 1
                                   ? said("Pi has a question: {title}", { title: request.form.title })
                                   : said("Pi has {n} questions: {title}", { n: request.form.count, title: request.form.title })
@@ -3206,6 +3210,14 @@ export class PocketApp {
             return "You can view this session but not steer Pi.";
         }
 
+        // An ask (`host.ask`) is answered by the person Pi works for: what it asks for is theirs. With nobody known, the
+        // owner answers it. Anyone who can steer can decline it (pi-pocket 0.22.0).
+        if (request.form?.type === "ask") {
+            const answerer = request.requestedBy ?? this.config.users.find((each) => each.role === "owner")?.id;
+
+            return answerer === user.id ? undefined : "Only the person Pi works for here can answer this.";
+        }
+
         // In a session shared through the team server, only its owner allows calls (PP-57).
         if (user.team === true) {
             return "Waiting for the owner: in a shared session only they allow Pi's calls.";
@@ -3252,6 +3264,20 @@ export class PocketApp {
         }
 
         return this.answerApproval(id, true, user, true);
+    }
+
+    /**
+     * Answer an extension's question (`host.ask`): what the person typed, each field filled in, goes to the extension that
+     * asked, never into the conversation or the request tabs see. The person Pi works for answers it (`cannotAllow`).
+     */
+    async answerAsk(id: string, values: unknown, user: User): Promise<boolean> {
+        const request = this.approvals.all().find((each) => each.id === id);
+
+        if (request?.form?.type !== "ask") {
+            return false;
+        }
+
+        return this.answerApproval(id, true, user, true, checkValues(request.form.fields, values));
     }
 
     /**
@@ -3473,7 +3499,8 @@ export class PocketApp {
         );
     }
 
-    async answerApproval(id: string, allow: boolean, user: User, formAnswered = false): Promise<boolean> {
+    /** `values`: what was typed on an ask's card (`answerAsk`), for the asker alone. */
+    async answerApproval(id: string, allow: boolean, user: User, formAnswered = false, values?: Record<string, string>): Promise<boolean> {
         this.requireSteer(user);
         const request = this.approvals.all().find((each) => each.id === id);
 
@@ -3496,7 +3523,9 @@ export class PocketApp {
                 400,
                 request.form.type === "secret"
                     ? "This asks for a secret: type it into the card's field."
-                    : "This is an interview: answer it in its form, then submit.",
+                    : request.form.type === "ask"
+                      ? "This is a question: fill in its card, then send it."
+                      : "This is an interview: answer it in its form, then submit.",
             );
         }
 
@@ -3506,9 +3535,11 @@ export class PocketApp {
             throw new HttpError(403, refused);
         }
 
-        if (!this.approvals.answer(id, { allow, by: user.name })) {
+        if (!this.approvals.answer(id, { allow, by: user.name, ...(allow && values !== undefined ? { values } : {}) })) {
             return false;
         }
+
+        const asked = request.form?.type === "ask";
 
         const conversationId = request.conversationId;
 
@@ -3522,6 +3553,7 @@ export class PocketApp {
                         by: user.name,
                         userId: user.id,
                         at: Date.now(),
+                        ...(asked ? { ask: true as const } : {}),
                     };
                 }, context)
                 .catch((error: unknown) => this.#log(`decision not recorded: ${describe(error)}`));
@@ -3530,7 +3562,9 @@ export class PocketApp {
         await this.collab.activity(
             conversationId,
             user,
-            `${allow ? "allowed" : "denied"} the ${request.tool} call: ${snippet(request.subject, 120)}`,
+            asked
+                ? `${allow ? "answered" : "declined"} a question: ${snippet(request.subject, 120)}`
+                : `${allow ? "allowed" : "denied"} the ${request.tool} call: ${snippet(request.subject, 120)}`,
         );
 
         return true;

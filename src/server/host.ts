@@ -81,13 +81,60 @@ export interface ApprovalRequest {
               saved?: boolean;
               /** Which browser the page is in: `phone`, or `machine:<id>` (absent: the phone's). */
               place?: string;
-          };
+          }
+        /**
+         * An extension's question (`host.ask`, pi-pocket 0.22.0): what the card asks, and its fields. Only the person Pi
+         * works for answers it; anyone who can steer can decline it. Its values go to the asker, never here.
+         */
+        | AskForm;
     createdAt: number;
     /** Who Pi was working for when the call asked: set by `Approvals`, not by the asker. */
     requestedBy?: string;
 }
 
-export type ApprovalAnswer = { allow: boolean; by: string };
+/** What an ask's card shows (`ApprovalRequest.form`). */
+export type AskForm = { type: "ask"; title: string; text?: string; fields: AskField[]; submit: string };
+
+/** The answer to an approval; an ask's also carries what the person typed, which no one else sees. */
+export type ApprovalAnswer = { allow: boolean; by: string; values?: Record<string, string> };
+
+/** One field of an ask's card. */
+export interface AskField {
+    /** The value's key in the answer: letters, digits, and _, starting with a letter. */
+    name: string;
+    /** What the card says above the field. */
+    label: string;
+    /** A hidden input, as for a password. */
+    secret?: boolean;
+    /** What the field shows while empty. */
+    placeholder?: string;
+    /** A hint for the browser and the phone's keyboard: `username`, `current-password`, `one-time-code`, … */
+    autocomplete?: string;
+}
+
+/** A question for the person Pi works for, on a card in the session (`host.ask`). */
+export interface AskRequest {
+    readonly conversationId: ConversationId;
+    /** Unique while it waits, and the same when the call asks again: `${api.taskId}:${api.callId}`. */
+    readonly id: string;
+    /** The task that asks, so the card shows on its call. */
+    readonly taskId: TaskId;
+    /** The model's tool call id, to show the answer on the call's card. */
+    readonly callId?: string;
+    /** One line: what is asked, such as "Sign in to example.com". */
+    readonly title: string;
+    /** More words, such as what to do first. */
+    readonly text?: string;
+    /** Up to 6 fields; none for a question answered with the button alone ("Done"). */
+    readonly fields?: readonly AskField[];
+    /** The button's words: "Send" by default, or "Done" with no fields. */
+    readonly submit?: string;
+}
+
+/** What the person did: answered, with the values they typed, or declined. */
+export type AskAnswer =
+    | { readonly answered: true; readonly by: string; readonly values: Readonly<Record<string, string>> }
+    | { readonly answered: false; readonly by: string };
 
 /**
  * Tool calls waiting for a human. In memory on purpose: the guard hook runs before a call's intent is stored, so after
@@ -326,6 +373,14 @@ export interface PocketHost {
     signOutEverywhere(userId: string): void;
     /** Whether a person may see a session, as the app decides it for them (`canSee`). */
     canSee(userId: string, conversationId: ConversationId): boolean;
+    /**
+     * Ask the person Pi works for on a card in the session, as an approval asks: their answer, with the values they
+     * typed, goes to the extension, never to Pi or into the transcript. Do not keep the values in a memo or a document.
+     * (pi-pocket 0.22.0's extension point.)
+     *
+     * @experimental As in pi-pocket 0.22: it can change in a minor release.
+     */
+    ask(request: AskRequest, context: Context): Promise<AskAnswer>;
     /**
      * Hide a value from what Pi and people read: command output as it streams, every tool's result, and people's
      * messages to Pi. It shows as `[label]`, as the owner's secrets show as `[secret NAME]`. Returns how to stop; pass

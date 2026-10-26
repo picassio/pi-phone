@@ -1098,6 +1098,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ok: true });
         }
 
+        // What the person Pi works for typed on an extension's question (`host.ask`): to the extension that asked alone.
+        if (first === "asks" && parts.length > 1 && method === "POST") {
+            const body = await readJson<{ values?: unknown }>(request);
+
+            if (!(await app.answerAsk(parts.slice(1).join("/"), body.values, user))) {
+                throw new HttpError(404, "That request is no longer waiting");
+            }
+
+            return json(response, 200, { ok: true });
+        }
+
         // A value typed into `secret_request`'s card. Its id may hold a slash, as an approval's may.
         if (first === "secrets" && second === "requests" && parts.length > 2 && method === "POST") {
             const body = await readJson<{ value?: unknown }>(request);

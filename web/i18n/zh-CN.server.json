@@ -563,5 +563,9 @@
     "assistant.send is tap or auto.": "assistant.send 只能是 tap 或 auto。",
     "assistant.from is true or false.": "assistant.from 只能是 true 或 false。",
     "Pick the session the assistant opens (assistant.session).": "请选择助手打开的会话（assistant.session）。",
-    "This command holds a hidden value, which would be stored and shown. Use the variable that carries it instead, such as $NAME.": "这条命令含有一个被隐藏的值，它会被保存并显示出来。请改用承载它的变量，例如 $NAME。"
+    "This command holds a hidden value, which would be stored and shown. Use the variable that carries it instead, such as $NAME.": "这条命令含有一个被隐藏的值，它会被保存并显示出来。请改用承载它的变量，例如 $NAME。",
+    "This is a question: fill in its card, then send it.": "这是一个问题：请填写卡片后再发送。",
+    "Fill in the fields.": "请填写各个字段。",
+    "{1} is too long.": "{1} 太长了。",
+    "That is not a field of this card.": "这不是这张卡片上的字段。"
 }

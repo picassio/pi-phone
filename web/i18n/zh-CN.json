@@ -2806,5 +2806,13 @@
     "Hide {n} linked session": "隐藏 {n} 个关联会话",
     "Hide {n} linked sessions": "隐藏 {n} 个关联会话",
     "Run and save": "运行并保存",
-    "Username or email": "用户名或邮箱"
+    "Username or email": "用户名或邮箱",
+    "What you type goes to the extension that asked. Pi does not see it.": "你输入的内容只交给提问的扩展，Pi 看不到。",
+    "Waiting for the person Pi works for to answer.": "等待 Pi 服务的那个人回答。",
+    "Waiting for {who} to answer.": "等待 {who} 回答。",
+    "Answered by {who}": "{who} 已回答",
+    "Declined by {who}": "{who} 已拒绝",
+    "Waiting for your answer": "等待你的回答",
+    "Waiting for an answer": "等待回答",
+    "Pi asks you: {title}": "Pi 问你：{title}"
 }

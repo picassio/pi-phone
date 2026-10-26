@@ -3127,6 +3127,27 @@ pre.diff .del {
     line-height: 1.5;
 }
 
+/* An extension's question for the person Pi works for (`host.ask`, from pi-pocket 0.22.0): a field for each value, a
+   thumb's height. */
+.ask-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.ask-field input {
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+}
+
 .approval-actions {
     display: flex;
     justify-content: flex-end;
