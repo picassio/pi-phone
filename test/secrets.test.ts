@@ -3,7 +3,7 @@
 // is replaced before it is sent, and Pi asks for one through a hidden field, never the chat.
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
@@ -87,6 +87,37 @@ async function turn(id: Parameters<App["commands"]["submit"]>[0], text: string, 
 
     return (await modelTexts(app, id)).at(-1)!;
 }
+
+test("a write that fails changes nothing, and a broken file's log line holds none of it (TannerMidd/pi-pocket-extensions#28)", () => {
+    const dir = mkdtempSync(join(root, "secrets-write-"));
+    const secrets = new Secrets(dir);
+
+    secrets.set("KEPT_KEY", { value: "kept-value-1234" });
+    // A folder where the file goes: every write fails.
+    rmSync(join(dir, "secrets.json"));
+    mkdirSync(join(dir, "secrets.json"));
+
+    assert.throws(() => secrets.set("NEW_KEY", { value: "unsaved-value-5678" }));
+    assert.equal(secrets.get("NEW_KEY"), undefined, "an unsaved secret is not kept");
+    assert.deepEqual(secrets.environment(["NEW_KEY"], "/work"), {}, "nor given to commands");
+    assert.throws(() => secrets.set("KEPT_KEY", { value: "changed-value-0000" }));
+    assert.deepEqual(secrets.environment(["KEPT_KEY"], "/work"), { KEPT_KEY: "kept-value-1234" }, "a change unsaved is not made");
+    assert.throws(() => secrets.remove("KEPT_KEY"));
+    assert.ok(secrets.has("KEPT_KEY"), "a removal unsaved is not made");
+
+    // A broken file holding a value: the log says so, without the parser's message, which quotes the file.
+    const broken = mkdtempSync(join(root, "secrets-broken-"));
+    const lines: string[] = [];
+
+    writeFileSync(join(broken, "secrets.json"), '{"version":1,"secrets":{"A_KEY":{"value":"leaky-value-999" oops');
+    new Secrets(broken, Date.now, (line) => {
+        lines.push(line);
+    });
+
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /is not valid JSON; moved it to/);
+    assert.ok(!lines[0]!.includes("leaky-value-999"), lines[0]!);
+});
 
 test("the store keeps values to itself, in a file only the app reads, and checks what it is given", () => {
     const dir = mkdtempSync(join(root, "secrets-"));
@@ -227,7 +258,7 @@ test("a secrets file that cannot be read is moved aside, and the app starts with
     assert.deepEqual(secrets.list(), []);
     assert.deepEqual(readdirSync(dir), ["secrets.json.broken-1234"]);
     assert.equal(readFileSync(join(dir, "secrets.json.broken-1234"), "utf8"), "{ not json", "kept as it was");
-    assert.match(lines.join("\n"), /secrets\.json is not valid JSON .*moved it to .*secrets\.json\.broken-1234/);
+    assert.match(lines.join("\n"), /secrets\.json is not valid JSON; moved it to .*secrets\.json\.broken-1234/);
 
     // One without a "secrets" object, the same.
     writeFileSync(join(dir, "secrets.json"), "[]");

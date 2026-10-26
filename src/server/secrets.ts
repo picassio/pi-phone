@@ -63,8 +63,10 @@ function readSecretsFile(file: string): Record<string, Stored> | string {
 
     try {
         parsed = JSON.parse(readFileSync(file, "utf8"));
-    } catch (error) {
-        return `${file} is not valid JSON (${String(error)})`;
+    } catch {
+        // Not the parser's message: it can quote the file, and so a value, into the log, where Pi's bash reads it
+        // (pi-pocket's review of our port, TannerMidd/pi-pocket-extensions#28).
+        return `${file} is not valid JSON`;
     }
 
     const items = (parsed as { secrets?: unknown } | null)?.secrets;
@@ -206,18 +208,26 @@ export class Secrets {
             ...(before?.usedAt === undefined ? {} : { usedAt: before.usedAt }),
         };
 
+        // The file first, from a copy: a write that fails leaves the secrets as they were, and no unsaved value is given
+        // to commands (TannerMidd/pi-pocket-extensions#28).
+        this.#write(new Map(this.#secrets).set(name, stored));
         this.#secrets.set(name, stored);
-        this.#save();
+        this.#changed();
 
         return this.get(name)!;
     }
 
     remove(name: string): boolean {
-        if (!this.#secrets.delete(name)) {
+        if (!this.#secrets.has(name)) {
             return false;
         }
 
-        this.#save();
+        const next = new Map(this.#secrets);
+
+        next.delete(name);
+        this.#write(next);
+        this.#secrets.delete(name);
+        this.#changed();
 
         return true;
     }
@@ -268,7 +278,7 @@ export class Secrets {
         }
 
         if (changed) {
-            this.#save(false);
+            this.#write(this.#secrets);
         }
     }
 
@@ -383,23 +393,21 @@ export class Secrets {
         this.#patterns = patterns.sort((a, b) => b.text.length - a.text.length);
     }
 
-    #save(changed = true): void {
+    /** Write `secrets` to the file, whole (a temporary file, then renamed): throws when it cannot, changing nothing. */
+    #write(secrets: ReadonlyMap<string, Stored>): void {
         const temporary = `${this.#file}.${process.pid}.tmp`;
 
-        writeFileSync(
-            temporary,
-            `${JSON.stringify({ version: 1, secrets: Object.fromEntries(this.#secrets) }, null, 2)}\n`,
-            { mode: 0o600 },
-        );
+        writeFileSync(temporary, `${JSON.stringify({ version: 1, secrets: Object.fromEntries(secrets) }, null, 2)}\n`, { mode: 0o600 });
         chmodSync(temporary, 0o600);
         renameSync(temporary, this.#file);
+    }
 
-        if (changed) {
-            this.#index();
+    /** The secrets changed: what output hides, and who listens, follow. */
+    #changed(): void {
+        this.#index();
 
-            for (const listener of this.#listeners) {
-                listener();
-            }
+        for (const listener of this.#listeners) {
+            listener();
         }
     }
 }
