@@ -201,16 +201,14 @@ export default function createSecrets(host: PocketHost) {
 
             const cwd = await cwdOf(api, context);
             let stdout = "";
-            let stderr = "";
             const result = await host.envOf(cwd).exec(
                 args.command,
                 {
                     timeout: 120,
+                    // Only standard output, the value: what the command says on stderr is never shown, nor kept.
                     onOutput: (text, _context, info) => {
                         if (info.stream === "stdout") {
                             stdout += text;
-                        } else {
-                            stderr += text;
                         }
                     },
                 },
@@ -224,8 +222,10 @@ export default function createSecrets(host: PocketHost) {
             const value = stdout.trim();
             const hide = (text: string) => secrets.redact(value === "" ? text : text.split(value).join(`[secret ${args.name}]`));
 
+            // None of a failed command's output: what it printed may be the value itself, on stderr or half-written to
+            // stdout, where hiding the (unknown) value cannot find it (pi-pocket's review of our port, 2026-10-26).
             if (result.value.exitCode !== 0) {
-                return reply(`The command failed (exit ${result.value.exitCode}); nothing was saved.\n${hide(stderr).slice(-2000)}`, true);
+                return reply(`The command failed (exit ${result.value.exitCode}); nothing was saved. Its output is not shown, since it may hold the value.`, true);
             }
 
             try {

@@ -26,9 +26,15 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "save a key": ["secret_save", { name: "MADE_KEY", command: "printf 'generated-%s-%s' abcdefgh 123", description: "made by a command" }],
     "list them": ["secrets_list", {}],
     "save over the app's ssh": ["secret_save", { name: "SSH_MADE", command: "pi-ssh-fake devbox 'cat token'", description: "read over pi-ssh" }],
+    // A command that fails after printing its token on stderr: the token is made in the shell, so this text holds none.
+    "save a failing key": ["secret_save", { name: "FAILED_KEY", command: "printf 'leaked-%s\\n' $((100+23)) >&2; exit 3", description: "fails" }],
 };
+/** Every request the model was sent, whole: what reached it, besides the transcript. */
+const requests: string[] = [];
 
 const route: FauxResponseStep = (request) => {
+    requests.push(JSON.stringify(request));
+
     for (const message of (request as { messages: { role: string; sections?: Record<string, string | null> }[] }).messages) {
         if (message.role === "system" && message.sections?.secrets) {
             told = message.sections.secrets;
@@ -245,6 +251,16 @@ test("secret_save keeps a command's output as a secret without showing it", asyn
     assert.ok(!(await modelTexts(app, id)).join("\n").includes("generated-abcdefgh-123"));
     assert.deepEqual(app.secrets.environment(["MADE_KEY"], work), { MADE_KEY: "generated-abcdefgh-123" });
     assert.match(readFileSync(join(root, "data", "secrets.json"), "utf8"), /generated-abcdefgh-123/, "in the store's file");
+});
+
+test("secret_save says a failed command failed, and none of its output: a token it printed reaches neither Pi nor the transcript", async () => {
+    const id = await newSession(app);
+    const answer = await turn(id, "save a failing key");
+
+    assert.match(answer, /The command failed \(exit 3\); nothing was saved\. Its output is not shown/);
+    assert.ok(!(await modelTexts(app, id)).join("\n").includes("leaked-123"), "not in the transcript");
+    assert.ok(!requests.some((each) => each.includes("leaked-123")), "not in any model request");
+    assert.equal(app.secrets.get("FAILED_KEY"), undefined);
 });
 
 test("secret_save's command finds the app's tools, as bash does: pi-ssh's folder is on its PATH (PP-30)", async () => {
