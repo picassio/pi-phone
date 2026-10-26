@@ -9,6 +9,7 @@ import { GATEWAY_PAGE, openGatewayPage } from "./gateway-panel.js";
 import { useDragToClose } from "./gestures.js";
 import { PeeksRailButton } from "./peeks.js";
 import { sessionForest, unfolded } from "./session-tree.js";
+import { settledAt, settledOf as settleReason } from "./session-settle.js";
 import {
     actions,
     canSteer,
@@ -664,36 +665,8 @@ function workingFor(since) {
     return seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 }
 
-/** How long a session sits idle before it settles by itself (owner's choice: a day). */
-const SETTLE_IDLE_MS = DAY;
-/** Activity this soon after a session settled is its run's own end, not something new. */
-const SETTLE_GRACE_MS = 10_000;
-
-/**
- * Why a session is settled (out of the active list, in the folded Settled shelf), or null while it is active, after T3
- * Code's sidebar: settled by hand or by an extension (a task session whose run ended, a merged branch) until something
- * happens there again, or idle for a day. Work going on, or a call waiting for you, keeps it active; Un-settle keeps it
- * up for another day.
- */
-export function settledOf(session, now = Date.now()) {
-    if (session.busy || session.waiting || session.archived) {
-        return null;
-    }
-
-    const settle = session.settle;
-    const updated = session.updatedAt ?? 0;
-
-    if (settle?.state === "settled" && updated <= settle.at + SETTLE_GRACE_MS) {
-        return settle.reason ?? "settled";
-    }
-
-    const touched = Math.max(updated, settle?.state === "active" ? settle.at : 0);
-
-    return now - touched > SETTLE_IDLE_MS ? "idle a day" : null;
-}
-
-/** When a settled session settled, for the shelf's order. */
-const settledAt = (session) => (session.settle?.state === "settled" ? session.settle.at : (session.updatedAt ?? 0) + SETTLE_IDLE_MS);
+/** Why a session is settled, or null while it is active (`session-settle.js`), with the person's pin: pinned, it stays. */
+export const settledOf = (session, now = Date.now()) => settleReason(session, now, isPinned(session.id));
 
 /** Settle a session (out of the active list) or bring it back. Settling unpins it, as in T3 Code. */
 export async function setSettled(id, settled) {
