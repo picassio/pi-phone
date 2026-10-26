@@ -100,7 +100,7 @@ export default function createSecrets(host: PocketHost) {
     // loads again when its file changes. Only the owner puts files there; Pi's tools do not write or name it.
     const dropIns = join(host.dataDir, "extensions");
     const dropInsSpelled = [dropIns, ...(dropIns.startsWith(`${homedir()}/`) ? [`~${dropIns.slice(homedir().length)}`] : [])];
-    const DROP_INS = `Drop-in extensions (${dropIns}) are the owner's to put in place: Pi's tools do not write there. Write the module elsewhere and tell the owner to copy it there; Settings > Extensions turns it on.`;
+    const DROP_INS = `Drop-in extensions (${dropIns}) are the owner's to put in place: Pi's tools do not write there. Write the module elsewhere and install it with extension_install (the owner approves it on a card); it lands off, and Settings > Extensions turns it on.`;
 
     /** Why a call may not run, if it reaches the app's key stores: a path tool on one, or a command that names one. */
     const keyStores = (tool: string, args: Record<string, unknown>): string | undefined => {

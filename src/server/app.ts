@@ -133,6 +133,7 @@ import { THEME_ID } from "./themes/format.ts";
 import { measureModelStreams } from "./timing.ts";
 import { Providers } from "./providers.ts";
 import { type ExtensionInfo, ExtensionLoader, prepareDropInFolder, Refused } from "./reload.ts";
+import { type DropInPackage, replacedBy, writePackage } from "./drop-in-install.ts";
 import { ResendTask } from "./resend.ts";
 import { type Client, reportingOf, Room, ROOM_DOCS, subagentView } from "./room.ts";
 import { Schedules } from "./schedules.ts";
@@ -999,6 +1000,10 @@ export class PocketApp {
                 return user !== undefined && this.canSee(user, conversationId);
             },
             ask: (request, askContext) => ask(this.approvals, request, askContext),
+            dropIns: {
+                replaces: (pkg) => this.dropInReplaces(pkg),
+                install: (userId, pkg, replace) => this.installDropIn(this.#person(userId), pkg, replace),
+            },
             hide: (value) => this.hidden.add(value),
             commandEnv: (provider) => this.commandEnvs.add(provider),
             notice: (level, message, conversationId) => this.notice(level, message, conversationId),
@@ -1101,6 +1106,8 @@ export class PocketApp {
                             ? said("Pi asks for a secret: {name}", { name: request.form.name })
                             : request.form?.type === "ask"
                               ? said("Pi asks you: {title}", { title: request.form.title })
+                              : request.form?.type === "extension"
+                              ? said("Pi asks to install the extension {module}", { module: request.form.module })
                               : request.form?.type === "interview"
                               ? request.form.count === 1
                                   ? said("Pi has a question: {title}", { title: request.form.title })
@@ -3524,7 +3531,12 @@ export class PocketApp {
             throw new HttpError(403, "Controlling the phone is the owner's.");
         }
 
-        if (allow && request.form !== undefined && request.form.type !== "machine" && request.form.type !== "phone" && !formAnswered) {
+        // Pi's extension_install card (PP-173): Install copies a module into the drop-in folder, and only the owner may.
+        if (allow && request.form?.type === "extension" && user.role !== "owner") {
+            throw new HttpError(403, "Installing an extension is the owner's.");
+        }
+
+        if (allow && request.form !== undefined && request.form.type !== "machine" && request.form.type !== "phone" && request.form.type !== "extension" && !formAnswered) {
             throw new HttpError(
                 400,
                 request.form.type === "secret"
@@ -4082,6 +4094,57 @@ export class PocketApp {
         } catch (error) {
             this.log(`Team accounts not listed: ${describe(error)}`);
         }
+    }
+
+    /**
+     * What installing a drop-in would replace in the drop-in folder (empty: nothing). A built-in module's name is refused:
+     * that drop-in would never load.
+     */
+    dropInReplaces(pkg: DropInPackage): string[] {
+        if (this.loader.builtInFiles().includes(pkg.module)) {
+            throw new HttpError(409, `${pkg.module} is a built-in module's name: rename the module.`);
+        }
+
+        return replacedBy(pkg, this.#dropInFolder());
+    }
+
+    /**
+     * Install a drop-in (PP-173), from Settings › Extensions' upload or `extension_install` after the owner's card: the
+     * owner's alone. It lands switched off, and one it replaces is switched off first, so no new code runs until the owner
+     * turns it on. What it would replace needs `replace`; without it, the answer says what (and nothing is written).
+     */
+    async installDropIn(user: User, pkg: DropInPackage, replace: boolean): Promise<{ file: string; installed: boolean; replaces: string[] }> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner installs extensions.");
+        }
+
+        const replaces = this.dropInReplaces(pkg);
+
+        if (replaces.length > 0 && !replace) {
+            return { file: pkg.module, installed: false, replaces };
+        }
+
+        this.config.setExtensionEnabled(pkg.module, false);
+
+        if (this.loader.files().includes(pkg.module)) {
+            await this.loader.apply(pkg.module);
+        }
+
+        writePackage(pkg, this.#dropInFolder());
+        await this.#refreshClients();
+        this.notice("info", `${user.name} installed the drop-in ${pkg.module} (off until turned on).`);
+
+        return { file: pkg.module, installed: true, replaces };
+    }
+
+    #dropInFolder(): string {
+        const folder = this.loader.dropInFolder;
+
+        if (folder === undefined) {
+            throw new HttpError(409, "This pi-phone has no drop-in folder.");
+        }
+
+        return folder;
     }
 
     async setExtensionEnabled(user: User, file: string, enabled: boolean, { byPolicy = false }: { byPolicy?: boolean } = {}): Promise<void> {

@@ -346,6 +346,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `settings` tool's help says the same. pi-pocket's gallery modules (fixtures in `test/fixtures/gallery`): secrets is
   refused for its tools (and, installed as `secrets.ts`, for its file name), browser-sign-in and browser-runs for
   `host.browser`. No `_pocket.d.ts` is linked there: pi-phone has no `types/pocket.d.ts`.
+  **Installing** (PP-173; the owner's decisions of 2026-10-26): on the phone the folder is in the app's private
+  storage, out of reach of file apps, and the hook keeps Pi out (strictly, the owner's choice), so modules come in
+  through the app. Settings › Extensions' **Add drop-in…** uploads a `.ts` or a `.zip` (`POST
+  /api/extensions/drop-ins?name=&replace=1`, the owner's); `extension_install` (in `extensions/settings.ts`, the
+  owner's; a guest is refused before anyone is asked) reads a file, folder or zip on the phone and asks on a card
+  (`form: { type: "extension" }`: path, size, files, what is left out and replaced, the module's first 40 lines;
+  Install, the owner only). Both read with `drop-in-install.ts` (its own zip reader: stored and deflate, no zip64 or
+  encryption) and install with `PocketApp.installDropIn`: one module `<name>.ts` at the top with `<name>.*` and
+  `<name>/` (a lone wrapping folder is read from inside; the rest is left out and said so), no absolute path or `..`,
+  no symbolic link, at most 5 MB and 1000 files, never a built-in module's name; what it replaces needs the owner's
+  yes (the upload's confirm, the card), and it is switched off (and uninstalled) before its files change. It lands off.
+  A `.js` alone is refused: the loader's modules are `.ts`, and a `.js` beside one is its browser part.
+  `/?sheet=extensions` opens the sheet.
 - **Diagrams** (`web/rich.js`, pele 1.6.0 pinned): a ```mermaid block in any Markdown (replies, wiki pages, later
   interview questions) is a rich block of kind `mermaid` (`richKind` in `ui.js`), shown as **Diagram** with its code a
   tab away. pele is one 0.7 MB module, served as `/vendor/pele.mjs` and imported the first time a diagram shows.

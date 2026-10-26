@@ -27,6 +27,7 @@ import type { SshKeys } from "./ssh-keys.ts";
 import type { PhoneApp, PhoneControl } from "./phone-control.ts";
 import type { WebSearch } from "./web/access.ts";
 import type { CommandEnvProvider, HiddenValue } from "./hidden.ts";
+import type { DropInPackage } from "./drop-in-install.ts";
 
 export type { CommandEnvProvider, CommandRun, HiddenValue } from "./hidden.ts";
 
@@ -86,7 +87,22 @@ export interface ApprovalRequest {
          * An extension's question (`host.ask`, pi-pocket 0.22.0): what the card asks, and its fields. Only the person Pi
          * works for answers it; anyone who can steer can decline it. Its values go to the asker, never here.
          */
-        | AskForm;
+        | AskForm
+        /**
+         * Pi installs a drop-in extension (`extension_install`, PP-173): what Install copies into the drop-in folder, shown
+         * first: where it comes from, its size, its files and what is left out, what it replaces, and the module's first
+         * lines. The owner's to approve.
+         */
+        | {
+              type: "extension";
+              path: string;
+              module: string;
+              bytes: number;
+              files: string[];
+              leftOut: string[];
+              replaces: string[];
+              head: string;
+          };
     createdAt: number;
     /** Who Pi was working for when the call asked: set by `Approvals`, not by the asker. */
     requestedBy?: string;
@@ -381,6 +397,14 @@ export interface PocketHost {
      * @experimental As in pi-pocket 0.22: it can change in a minor release.
      */
     ask(request: AskRequest, context: Context): Promise<AskAnswer>;
+    /**
+     * The owner's drop-in extensions (`drop-in-install.ts`, PP-173): what a package would replace (it throws for a
+     * built-in module's name), and installing one as a person (the owner alone), switched off.
+     */
+    readonly dropIns: {
+        replaces(pkg: DropInPackage): string[];
+        install(userId: string, pkg: DropInPackage, replace: boolean): Promise<{ file: string; installed: boolean; replaces: string[] }>;
+    };
     /**
      * Hide a value from what Pi and people read: command output as it streams, every tool's result, and people's
      * messages to Pi. It shows as `[label]`, as the owner's secrets show as `[secret NAME]`. Returns how to stop; pass

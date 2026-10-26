@@ -38,6 +38,7 @@ import { conversationRoutes } from "./conversation-routes.ts";
 import { createEventStreams } from "./events.ts";
 import { extensionRoute } from "./extension-routes.ts";
 import { type ApiRequest, conversationId, type HttpOptions, json, readJson, readBody } from "./io.ts";
+import { MAX_DROP_IN_BYTES, packageFromUpload } from "../drop-in-install.ts";
 import { addressOf as browserAddress } from "../browser/page.ts";
 import { JevDecider, testDecision } from "../browser/run.ts";
 
@@ -1352,6 +1353,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
         if (first === "extensions" && second === undefined && method === "GET") {
             return json(response, 200, await app.extensions(user));
+        }
+
+        // A drop-in uploaded in Settings › Extensions (PP-173): a module (.ts) or a .zip, the file's bytes as the body and
+        // its name in `name`. The owner's. What it would replace needs `replace=1`; without it the answer says what.
+        if (first === "extensions" && second === "drop-ins" && third === undefined && method === "POST") {
+            requireOwner(user);
+            const data = await readBody(request, MAX_DROP_IN_BYTES);
+            const pkg = packageFromUpload(url.searchParams.get("name") ?? "", data);
+            const done = await app.installDropIn(user, pkg, url.searchParams.get("replace") === "1");
+
+            return json(response, 200, { ...done, leftOut: pkg.leftOut, ...(await app.extensions(user)) });
         }
 
         if (

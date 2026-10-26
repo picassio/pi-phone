@@ -276,6 +276,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "settings",
     "setting_change",
     "app_action",
+    "extension_install",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */
@@ -555,6 +556,16 @@ export class ExtensionLoader {
 
     #module(file: string): Module | undefined {
         return this.#modules().find((module) => module.file === file);
+    }
+
+    /** The built-in modules' files: a drop-in of one of these names is never loaded, nor installed. */
+    builtInFiles(): string[] {
+        return moduleFiles(this.#builtIn);
+    }
+
+    /** The drop-in folder, when there is one. */
+    get dropInFolder(): string | undefined {
+        return this.#dropIn;
     }
 
     /** Drop-ins with a built-in module's file name: never loaded, and listed apart (`nameClashes`). */

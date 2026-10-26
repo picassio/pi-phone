@@ -180,8 +180,9 @@ No Termux, no laptop, no cloud VM.
   makes (`gh auth token`), Pi shows you the whole command on a card first (**Run and save**), and a failed command's
   output is never shown. Pi's browser gives Pi a page's text fenced as the page's, not instructions, and a sign-in you
   type hides your username in what Pi reads afterwards, as it does the password.
-- **Drop-in extensions.** Your own extension modules, put in the folder Settings › Extensions shows, each off until you
-  turn it on. They can use pi-pocket 0.22's `host.ask` (a card whose values reach only the extension), `host.hide`
+- **Drop-in extensions.** Your own extension modules, added with **Add drop-in…** in Settings › Extensions (a `.ts`
+  file, or a `.zip` holding one) or by Pi with `extension_install` once you approve its card (files and first lines
+  shown), each off until you turn it on. They can use pi-pocket 0.22's `host.ask` (a card whose values reach only the extension), `host.hide`
   and `host.commandEnv`, not `host.browser` yet; one whose tool has a built-in tool's name is refused, with why.
 - **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
   search, tracks its open questions until they are answered, and captures idle sessions into it.

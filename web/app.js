@@ -870,6 +870,7 @@ const LINKED_SHEETS = new Set([
     "access",
     "appearance",
     "dictation",
+    "extensions",
     "github",
     "machines",
     "notifications",

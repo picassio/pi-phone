@@ -1783,6 +1783,49 @@ function AskCard({ approval }) {
     </form>`;
 }
 
+/**
+ * Pi installs a drop-in extension (`extension_install`, PP-173): where it comes from, its size and files, what is left out
+ * and what it replaces, and the module's first lines, all before Install. The owner's to approve; it lands switched off.
+ */
+function ExtensionInstallCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [busy, setBusy] = useState(false);
+    const answer = (allow) => {
+        setBusy(true);
+        attempt(() => actions.approve(approval.id, allow)).finally(() => setBusy(false));
+    };
+
+    return html`<div class="approval extension-install-card" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="shield" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${tx("Install the extension {module}?", { module: html`<span class="mono">${form.module}</span>` })}</span>
+                <span class="approval-reason">${t("It runs in the app with all it has (secrets included) once you turn it on. It lands switched off.")}</span>
+            </div>
+        </div>
+        <dl class="machine-add-facts">
+            <dt>${t("From")}</dt>
+            <dd class="mono">${form.path}</dd>
+            <dt>${t("Size")}</dt>
+            <dd>${t("{n} KB", { n: Math.max(1, Math.round(form.bytes / 1024)) })}</dd>
+            <dt>${t("Files")}</dt>
+            <dd>${form.files.map((file) => html`<div class="mono small">${file}</div>`)}</dd>
+            ${form.leftOut.length > 0 && html`<dt>${t("Left out")}</dt><dd class="mono small">${form.leftOut.join(", ")}</dd>`}
+            ${form.replaces.length > 0 && html`<dt>${t("Replaces")}</dt><dd class="mono small">${form.replaces.join(", ")}</dd>`}
+        </dl>
+        <pre class="cmd">${form.head}</pre>
+        ${
+            me?.role !== "owner"
+                ? html`<div class="muted small">${t("Installing an extension is the owner's: waiting for them.")}</div>`
+                : html`<div class="approval-actions">
+                      <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>${t("Decline")}</button>
+                      <button class="button primary" disabled=${busy} onClick=${() => answer(true)}>${t("Install")}</button>
+                  </div>`
+        }
+    </div>`;
+}
+
 /** What someone did with a call that waited for them: an ask (`host.ask`) is answered or declined. */
 function decided(decision) {
     if (decision.ask) {
@@ -1798,6 +1841,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "ask") {
         return html`<${AskCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "extension") {
+        return html`<${ExtensionInstallCard} approval=${approval} />`;
     }
 
     if (approval.form?.type === "phone") {

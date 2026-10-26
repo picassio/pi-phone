@@ -6,6 +6,8 @@
  */
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, hook, section, type ToolExecutionApi, ToolTask } from "@earendil-works/pi-durable";
+import { isAbsolute, resolve } from "node:path";
+import { type DropInPackage, moduleHead, packageFromPath } from "../drop-in-install.ts";
 import type { PocketHost } from "../host.ts";
 import type { AppAction, Setting } from "../settings-registry.ts";
 
@@ -14,7 +16,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 
 /** In every prompt while the module is on. */
 export const SETTINGS_RULE =
-    "The app's settings: list them with settings, change one with setting_change, and take one-off actions (reload an extension, refresh models, …) with app_action; each change asks the person on a card. Never change the app with code: no curl or fetch to its API, no edits to its data files or database, no scripts in its WebView.";
+    "The app's settings: list them with settings, change one with setting_change, and take one-off actions (reload an extension, refresh models, …) with app_action; each change asks the person on a card. A drop-in extension you wrote goes in with extension_install (never by copying it into the app's data folder), switched off. Never change the app with code: no curl or fetch to its API, no edits to its data files or database, no scripts in its WebView.";
 
 /** Said when a command reaches into the app instead of using its tools. */
 const REFUSED =
@@ -223,9 +225,76 @@ export default function createSettings(host: PocketHost) {
         }),
     ];
 
+    // A drop-in extension Pi wrote elsewhere, copied into the drop-in folder after the owner reads it on a card (PP-173).
+    const install = defineTool({
+        name: "extension_install",
+        description:
+            "Install a drop-in extension you wrote: a module (.ts), a folder holding one, or a .zip, on this phone. The owner sees its files and first lines on a card and installs it; it lands switched off, for the owner to turn on in Settings > Extensions (or setting_change extensions.<file> on).",
+        parameters: Type.Object({
+            path: Type.String({ description: "The module file, its folder, or a .zip: absolute, ~/..., or relative to the session's folder" }),
+        }),
+        execute: async (args, api, context) => {
+            try {
+                // The owner's alone: an extension runs in the app with all it has. Asked of whom Pi works for now.
+                const asker = personOf(api.conversationId);
+
+                if (asker.role !== "owner") {
+                    return reply("extension_install is the owner's: an extension runs in the app with everything it has. Ask the owner.", true);
+                }
+
+                const cwd = (await (api as typeof api & Partial<Pick<ToolExecutionApi, "agent">>).agent?.(context))?.cwd ?? host.home;
+
+                if (cwd.startsWith("machine:")) {
+                    return reply("Extensions are installed from this phone: copy the module here first (machine_copy), then give its path on the phone.", true);
+                }
+
+                const expanded = args.path.replace(/^~(?=\/|$)/, host.home);
+                const path = isAbsolute(expanded) ? expanded : resolve(cwd, expanded);
+                // Read and checked now: what the card shows is what Install copies.
+                const pkg: DropInPackage = packageFromPath(path);
+                const replaces = host.dropIns.replaces(pkg);
+                const answer = await host.approvals.request(
+                    {
+                        id: `extension-install-${String(api.taskId)}-${String(api.callId)}`,
+                        conversationId: Number(api.conversationId) as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "extension_install",
+                        subject: path,
+                        reason: `Install the drop-in ${pkg.module}`,
+                        form: {
+                            type: "extension",
+                            path,
+                            module: pkg.module,
+                            bytes: pkg.bytes,
+                            files: pkg.files.map((file) => file.path),
+                            leftOut: [...pkg.leftOut],
+                            replaces,
+                            head: moduleHead(pkg),
+                        },
+                        createdAt: Date.now(),
+                    },
+                    context,
+                );
+
+                if (!answer.allow) {
+                    return reply(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} declined`}: nothing was installed.`, true);
+                }
+
+                const done = await host.dropIns.install(asker.id, pkg, true);
+
+                return reply(
+                    `Installed ${done.file}${done.replaces.length > 0 ? ` in place of ${done.replaces.join(", ")}` : ""}, switched off. The owner turns it on in Settings > Extensions, or you can with setting_change extensions.${done.file} on (the owner approves).`,
+                );
+            } catch (error) {
+                return reply(message(error), true);
+            }
+        },
+    });
+
     return defineExtension({
         name: "pocket-settings",
-        tools,
+        tools: [...tools, install],
         sections: [section("app-settings", () => SETTINGS_RULE)],
         hooks: [
             // The app changes through its tools (SETTINGS_RULE): a command that reaches into it is refused, naming them.

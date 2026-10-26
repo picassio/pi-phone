@@ -3,7 +3,7 @@
 // why the app refused one.
 import { useEffect, useState } from "preact/hooks";
 import { leaveSafeMode, moduleTitle, safeMode } from "../extension-ui.js";
-import { api, attempt, closeSheet, store } from "../store.js";
+import { api, attempt, closeSheet, notify, store } from "../store.js";
 import { html, Loader, Sheet, Switch } from "../ui.js";
 import { t, tx } from "../i18n.js";
 
@@ -34,12 +34,60 @@ function refusalText(refused) {
         : t("Refused: it added nothing (it may need host.browser, which pi-phone does not have yet).");
 }
 
+/**
+ * Add a drop-in from a file (PP-173): a module (.ts) or a .zip holding one, uploaded, checked on the server, and installed
+ * switched off. One that would replace a drop-in asks first.
+ */
+function AddDropIn({ onAdded }) {
+    const [adding, setAdding] = useState(false);
+    const add = (event) => {
+        const file = event.currentTarget.files[0];
+
+        event.currentTarget.value = "";
+
+        if (!file) {
+            return;
+        }
+
+        const upload = (replace) => api(`extensions/drop-ins?name=${encodeURIComponent(file.name)}${replace ? "&replace=1" : ""}`, file);
+
+        setAdding(true);
+        attempt(async () => {
+            let result = await upload(false);
+
+            if (!result.installed) {
+                if (!confirm(t("{file} is installed already ({what}). Replace it? It is switched off first.", { file: result.file, what: result.replaces.join(", ") }))) {
+                    return;
+                }
+
+                result = await upload(true);
+            }
+
+            onAdded(result);
+            notify(
+                "info",
+                result.leftOut.length > 0
+                    ? t("Installed {file}, switched off: turn it on below. Left out: {left}.", { file: result.file, left: result.leftOut.join(", ") })
+                    : t("Installed {file}, switched off: turn it on below.", { file: result.file }),
+            );
+        }).finally(() => setAdding(false));
+    };
+
+    return html`<label class=${`button small ghost ${adding ? "disabled" : ""}`}>
+        ${adding ? t("Adding…") : t("Add drop-in…")}
+        <input type="file" accept=".ts,.zip,application/zip" hidden disabled=${adding} onChange=${add} />
+    </label>`;
+}
+
 /** Where drop-ins go, and those never loaded because a built-in module has their file's name. The owner's. */
-function DropIns({ folder, clashes }) {
-    return html`<div class="muted small">
-            ${tx("Drop-ins: modules you put in {folder} load after these, each off until you turn it on. They can use host.ask, host.hide and host.commandEnv; not host.browser yet.", {
-                folder: html`<span class="mono">${folder}</span>`,
-            })}
+function DropIns({ folder, clashes, onAdded }) {
+    return html`<div class="setting wrap drop-ins">
+            <div class="grow muted small">
+                ${tx("Drop-ins: your own modules, added here as a .ts file or a .zip holding one, load after these, each off until you turn it on. They can use host.ask, host.hide and host.commandEnv; not host.browser yet. Folder: {folder}", {
+                    folder: html`<span class="mono">${folder}</span>`,
+                })}
+            </div>
+            <${AddDropIn} onAdded=${onAdded} />
         </div>
         ${(clashes ?? []).map(
             (clash) => html`<div class="error-box small" key=${clash.path}>
@@ -83,7 +131,7 @@ export function ExtensionsSheet() {
                 : t("Extensions give Pi its tools and checks. A change applies to every session right away and stays after restarts. Only the owner can change them.")}
         </p>
         <${SafeMode} />
-        ${data?.dropIns && html`<${DropIns} folder=${data.dropIns} clashes=${data.nameClashes} />`}
+        ${data?.dropIns && html`<${DropIns} folder=${data.dropIns} clashes=${data.nameClashes} onAdded=${(result) => setData({ modules: result.modules, dropIns: result.dropIns, nameClashes: result.nameClashes })} />`}
         ${problem && html`<div class="error-box">${problem}</div>`}
         ${!data && !problem && html`<${Loader} label=${t("Loading extensions")} />`}
         ${

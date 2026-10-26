@@ -2818,8 +2818,20 @@
     "Refused: its tools {names} have built-in tools' names, and the built-in ones win. Rename them in the module.": "已拒绝：它的工具 {names} 与内置工具同名，以内置工具为准。请在模块中给它们改名。",
     "Refused: it added nothing. It needs {members}, which pi-phone does not have yet.": "已拒绝：它什么都没有添加。它需要 {members}，而 pi-phone 还没有。",
     "Refused: it added nothing (it may need host.browser, which pi-phone does not have yet).": "已拒绝：它什么都没有添加（它可能需要 host.browser，而 pi-phone 还没有）。",
-    "Drop-ins: modules you put in {folder} load after these, each off until you turn it on. They can use host.ask, host.hide and host.commandEnv; not host.browser yet.": "自备扩展：你放入 {folder} 的模块在这些之后加载，每个都先处于关闭状态，直到你打开它。它们可以使用 host.ask、host.hide 和 host.commandEnv；暂时不能用 host.browser。",
     "{file} is not loaded: a built-in module has its name. Rename the file.": "{file} 未加载：有一个内置模块与它同名。请给文件改名。",
     "· drop-in": "· 自备扩展",
-    "· refused": "· 已拒绝"
+    "· refused": "· 已拒绝",
+    "{file} is installed already ({what}). Replace it? It is switched off first.": "{file} 已经安装（{what}）。要替换它吗？会先把它关闭。",
+    "Installed {file}, switched off: turn it on below. Left out: {left}.": "已安装 {file}，处于关闭状态：请在下方打开它。未安装：{left}。",
+    "Installed {file}, switched off: turn it on below.": "已安装 {file}，处于关闭状态：请在下方打开它。",
+    "Add drop-in…": "添加自备扩展…",
+    "Drop-ins: your own modules, added here as a .ts file or a .zip holding one, load after these, each off until you turn it on. They can use host.ask, host.hide and host.commandEnv; not host.browser yet. Folder: {folder}": "自备扩展：你自己的模块，在这里以 .ts 文件或包含它的 .zip 添加，在这些之后加载，每个都先处于关闭状态，直到你打开它。它们可以使用 host.ask、host.hide 和 host.commandEnv；暂时不能用 host.browser。文件夹：{folder}",
+    "Install the extension {module}?": "安装扩展 {module}？",
+    "It runs in the app with all it has (secrets included) once you turn it on. It lands switched off.": "你打开它后，它会在应用中运行，能用应用的一切（包括密钥）。安装后处于关闭状态。",
+    "From": "来源",
+    "{n} KB": "{n} KB",
+    "Left out": "未安装",
+    "Replaces": "替换",
+    "Installing an extension is the owner's: waiting for them.": "安装扩展由所有者决定：正在等待他们。",
+    "Pi asks to install the extension {module}": "Pi 请求安装扩展 {module}"
 }

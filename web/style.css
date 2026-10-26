@@ -3127,6 +3127,12 @@ pre.diff .del {
     line-height: 1.5;
 }
 
+/* Pi's extension_install card (PP-173): the module's first lines, scrolled within the card. */
+.extension-install-card pre.cmd {
+    max-height: 16rem;
+    overflow: auto;
+}
+
 /* An extension's question for the person Pi works for (`host.ask`, from pi-pocket 0.22.0): a field for each value, a
    thumb's height. */
 .ask-field {
