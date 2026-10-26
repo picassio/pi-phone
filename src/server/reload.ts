@@ -122,7 +122,11 @@ const TITLES: Record<string, string> = {
  */
 export const RESERVED_EXTENSIONS = /^(pocket-.*|coding-tools)$/;
 
-/** The tools of Pi Durable's coding tools and of the built-in modules, kept in step with what they install by hand. */
+/**
+ * The tools of Pi Durable's coding tools and of the built-in modules, kept in step with what they install by hand: a
+ * module that is off cannot be asked without running it. test/drop-ins.test.ts turns every built-in module on and fails
+ * when one installs a tool this lacks. Tools installed now count as built-in too (`#checkNames`).
+ */
 export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "read",
     "write",
@@ -238,6 +242,40 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "sessions_shared",
     "session_share",
     "session_unshare",
+    "screenshot",
+    "image_markup",
+    "browser_open",
+    "browser_snapshot",
+    "browser_click",
+    "browser_type",
+    "browser_select",
+    "browser_hover",
+    "browser_upload",
+    "browser_save_pdf",
+    "browser_new_tab",
+    "browser_tabs",
+    "browser_size",
+    "browser_scroll",
+    "browser_press",
+    "browser_back",
+    "browser_forward",
+    "browser_text",
+    "browser_screenshot",
+    "browser_wait",
+    "browser_run",
+    "browser_sign_in",
+    "browser_ask_code",
+    "browser_ask_user",
+    "browser_close",
+    "watch_ci",
+    "session_settle",
+    "board_settings",
+    "devices",
+    "device_sign_out",
+    "sign_out_everywhere",
+    "settings",
+    "setting_change",
+    "app_action",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */
@@ -272,6 +310,48 @@ export interface ExtensionInfo {
     web?: { routes: string[]; client?: WebAccess; access?: WebAccess; commands?: string[] };
     /** Why the module is not loaded, when it failed. */
     error?: string;
+    /** When the app refused the module (a drop-in), why, for the Extensions sheet to say in its own words. */
+    refused?: Refusal;
+}
+
+/**
+ * Why the app refused a drop-in rather than load it:
+ * - `tool-names`: its tools have built-in tools' names (the built-in ones win, so the whole module is refused);
+ * - `nothing`: it returned no extensions and added nothing, and `missing` are the host members it looked for that
+ *   pi-phone does not have (pi-pocket's `host.browser`, say); empty when it is not known why.
+ */
+export type Refusal = { kind: "tool-names"; names: string[] } | { kind: "nothing"; missing: string[] };
+
+/** A drop-in the app refuses to load, with why (`ExtensionInfo.refused`). */
+export class Refused extends Error {
+    readonly refusal: Refusal;
+
+    constructor(refusal: Refusal) {
+        super(
+            refusal.kind === "tool-names"
+                ? `its tools ${refusal.names.join(", ")} have built-in tools' names, and the built-in ones win: rename them in the module`
+                : refusal.missing.length > 0
+                  ? `it added nothing: it needs ${refusal.missing.map((name) => `host.${name}`).join(", ")}, which pi-phone does not have yet`
+                  : "it added nothing (it may need host.browser, which pi-phone does not have yet)",
+        );
+        this.refusal = refusal;
+    }
+}
+
+/**
+ * The host as a drop-in gets it, noting the members it looks for that the host does not have: a module that checks for
+ * one (pi-pocket's `host.browser`) and returns nothing is refused saying which.
+ */
+function noticingMissing(host: PocketHost, missing: Set<string>): PocketHost {
+    return new Proxy(host, {
+        get(target, property) {
+            if (typeof property === "string" && !(property in target)) {
+                missing.add(property);
+            }
+
+            return Reflect.get(target, property, target) as unknown;
+        },
+    });
 }
 
 type Module = { file: string; directory: string; source: ModuleSource };
@@ -405,6 +485,8 @@ export class ExtensionLoader {
     /** Extension names each file installed, to uninstall the ones a new version no longer provides. */
     readonly #installed = new Map<string, Extension[]>();
     readonly #errors = new Map<string, string>();
+    /** Why each refused drop-in was refused (its error is in `#errors` too). */
+    readonly #refusals = new Map<string, Refusal>();
     readonly #timers = new Map<string, NodeJS.Timeout>();
     /** Drop-ins already reported for having a built-in module's name, so each is reported once. */
     readonly #clashes = new Set<string>();
@@ -475,6 +557,20 @@ export class ExtensionLoader {
         return this.#modules().find((module) => module.file === file);
     }
 
+    /** Drop-ins with a built-in module's file name: never loaded, and listed apart (`nameClashes`). */
+    nameClashes(): { file: string; path: string }[] {
+        if (this.#dropIn === undefined) {
+            return [];
+        }
+
+        const builtIn = moduleFiles(this.#builtIn);
+
+        return moduleFiles(this.#dropIn)
+            .filter((file) => builtIn.includes(file))
+            .sort()
+            .map((file) => ({ file, path: join(this.#dropIn!, file) }));
+    }
+
     /** Tell the owner about drop-ins that have a built-in module's name, each once: they are never loaded. */
     #reportClashes(): void {
         if (this.#dropIn === undefined) {
@@ -542,10 +638,12 @@ export class ExtensionLoader {
                     continue;
                 }
 
-                this.#errors.set(module.file, describe(error));
+                this.#failed(module.file, error);
                 this.#notify(
                     "error",
-                    `Extension ${module.file} failed to load: ${describe(error)}`,
+                    error instanceof Refused
+                        ? `The drop-in extension ${module.file} is refused: ${describe(error)}`
+                        : `Extension ${module.file} failed to load: ${describe(error)}`,
                 );
             }
         }
@@ -589,6 +687,18 @@ export class ExtensionLoader {
         this.#webs.remove(file);
         this.#installed.delete(file);
         this.#errors.delete(file);
+        this.#refusals.delete(file);
+    }
+
+    /** Keep why a load failed, and whether it was a refusal. */
+    #failed(file: string, error: unknown): void {
+        this.#errors.set(file, describe(error));
+
+        if (error instanceof Refused) {
+            this.#refusals.set(file, error.refusal);
+        } else {
+            this.#refusals.delete(file);
+        }
     }
 
     /**
@@ -608,7 +718,7 @@ export class ExtensionLoader {
                 return undefined;
             }
 
-            this.#errors.set(file, describe(error));
+            this.#failed(file, error);
 
             throw error;
         }
@@ -639,6 +749,7 @@ export class ExtensionLoader {
         return this.#modules().map((module) => {
             const { file } = module;
             const error = this.#errors.get(file);
+            const refused = this.#refusals.get(file);
             const web = this.#webs.describe(file);
 
             return {
@@ -652,6 +763,7 @@ export class ExtensionLoader {
                 extensions: (this.#installed.get(file) ?? []).map(declared),
                 ...(web === undefined ? {} : { web }),
                 ...(error === undefined ? {} : { error }),
+                ...(error === undefined || refused === undefined ? {} : { refused }),
             };
         });
     }
@@ -731,9 +843,14 @@ export class ExtensionLoader {
         // and what it set up (its cleanups) goes. The new version starts before the old one's cleanups run.
         const { part, web } = this.#webs.stage(file, module.directory, titleOf(file));
         let committed = false;
+        /** The host members a drop-in looked for that pi-phone does not have. */
+        const missing = new Set<string>();
 
         try {
-            const returned = loaded.default(this.#host, web) as unknown;
+            const returned = loaded.default(
+                module.source === "drop-in" ? noticingMissing(this.#host, missing) : this.#host,
+                web,
+            ) as unknown;
             // An async default export: it may register until it settles.
             const built = isThenable(returned)
                 ? await this.#within(Promise.resolve(returned), deadline, file)
@@ -751,6 +868,11 @@ export class ExtensionLoader {
                 part.empty &&
                 part.disposers.length === 0
             ) {
+                // A drop-in written for pi-pocket that finds a member missing (`host.browser`) returns nothing.
+                if (module.source === "drop-in") {
+                    throw new Refused({ kind: "nothing", missing: [...missing].sort() });
+                }
+
                 throw new Error(
                     "the module returned no extensions and added nothing to the app: return its extensions",
                 );
@@ -902,6 +1024,26 @@ export class ExtensionLoader {
     #checkNames(file: string, extensions: readonly Extension[]): void {
         const owners = new Map<string, string>();
         const tools = new Map<string, string>();
+        const fromDropIns = new Set(
+            [...this.#installed].filter(([other]) => this.#sources.get(other) !== this.#builtIn).flatMap(([, installed]) => installed),
+        );
+        // The built-in tools: the list (for modules that are off), and every tool installed now but by a drop-in: the
+        // built-in modules' and the app's own (its coding tools).
+        const builtIn = new Set([
+            ...BUILT_IN_TOOLS,
+            ...this.#registry
+                .snapshot()
+                .installed()
+                .filter((extension) => !fromDropIns.has(extension))
+                .flatMap((extension) => (extension.tools ?? []).map((tool) => tool.name)),
+        ]);
+        const clashing = extensions.flatMap((extension) => (extension.tools ?? []).map((tool) => tool.name)).filter((name) => builtIn.has(name));
+
+        // The built-in tool wins, and the whole module is refused (the owner's choice, 2026-10-26): its other tools may
+        // need the one that clashes.
+        if (clashing.length > 0) {
+            throw new Refused({ kind: "tool-names", names: [...new Set(clashing)] });
+        }
 
         for (const [other, installed] of this.#installed) {
             if (other === file) {
@@ -931,12 +1073,6 @@ export class ExtensionLoader {
             }
 
             for (const tool of extension.tools ?? []) {
-                if (BUILT_IN_TOOLS.has(tool.name)) {
-                    throw new Error(
-                        `the tool name ${tool.name} is a built-in tool's: give it a name of your own`,
-                    );
-                }
-
                 if (tools.has(tool.name)) {
                     throw new Error(
                         `${tools.get(tool.name)} already has a tool named ${tool.name}: give it a name of your own`,

@@ -53,3 +53,9 @@ is skipped on purpose.
   provider. Not taken: `host.browser` (pi-phone's browser is its own), `types/pocket.d.ts` and the docs
   (`docs/extensions/people-values.md`, `reference/host.md`: pi-phone has neither), the peek tile change (pi-phone's
   tiles already open any card with a form).
+- Drop-ins (PP-171): pi-pocket's drop-in folder is wired again (`prepareDropInFolder`, as its `app.ts` does; not
+  `linkTypes`, as pi-phone has no `types/pocket.d.ts`). Differs: pi-phone refuses a drop-in that adds nothing, saying
+  which host members it looked for that pi-phone lacks, and lists refusals and file-name clashes in the Extensions
+  sheet; its built-in tool list is pi-phone's own. The gallery stays out. Test fixtures: picassio's
+  pi-pocket-secrets (f69dce8), pi-pocket-browser-sign-in (82b838b) and pi-pocket-browser-runs (ee9fcdf), unchanged,
+  with their licenses (`test/fixtures/gallery/`).

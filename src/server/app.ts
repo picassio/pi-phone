@@ -132,7 +132,7 @@ import { BASE_THEME, Themes } from "./themes.ts";
 import { THEME_ID } from "./themes/format.ts";
 import { measureModelStreams } from "./timing.ts";
 import { Providers } from "./providers.ts";
-import { type ExtensionInfo, ExtensionLoader } from "./reload.ts";
+import { type ExtensionInfo, ExtensionLoader, prepareDropInFolder, Refused } from "./reload.ts";
 import { ResendTask } from "./resend.ts";
 import { type Client, reportingOf, Room, ROOM_DOCS, subagentView } from "./room.ts";
 import { Schedules } from "./schedules.ts";
@@ -1024,11 +1024,17 @@ export class PocketApp {
         };
 
         this.#registry = registry;
+        // The owner's drop-ins (the owner's decision, 2026-10-26): modules the owner puts in `<data>/extensions`, each off
+        // until turned on. Nothing downloads them. Its `node_modules` leads to the app's, so they import the packages the
+        // server runs.
+        const dropIn = join(this.dataDir, "extensions");
+
+        prepareDropInFolder(dropIn, join(APP_ROOT, "node_modules"));
 
         this.loader = new ExtensionLoader(
             registry,
             host,
-            { builtIn: join(APP_ROOT, "src", "server", "extensions") },
+            { builtIn: join(APP_ROOT, "src", "server", "extensions"), dropIn },
             (file) => this.config.extensionChoice(file),
             // What a module's load says can name the server's folders, or quote a provider: the owner's to read.
             { webs: this.webs, notify: (level, message) => this.ownerNotice(level, message) },
@@ -3981,7 +3987,7 @@ export class PocketApp {
     /** The extension modules, as this person may see them: where the server keeps files is for the owner only. */
     async extensions(
         user: User,
-    ): Promise<{ modules: ExtensionInfo[]; dropIns?: string }> {
+    ): Promise<{ modules: ExtensionInfo[]; dropIns?: string; nameClashes?: { file: string; path: string }[] }> {
         const owner = user.role === "owner";
         // A load error can name the server's folders too.
         // Modules' routes are the owner's to know: others see only whose tabs load a browser module.
@@ -4004,7 +4010,8 @@ export class PocketApp {
 
         return {
             modules,
-            ...(owner ? { dropIns: join(this.dataDir, "extensions") } : {}),
+            // Where drop-ins go, and those never loaded for a built-in module's file name: the owner's to know.
+            ...(owner ? { dropIns: join(this.dataDir, "extensions"), nameClashes: this.loader.nameClashes() } : {}),
         };
     }
 
@@ -4106,6 +4113,10 @@ export class PocketApp {
         try {
             await this.loader.apply(file);
         } catch (error) {
+            if (error instanceof Refused) {
+                throw new HttpError(409, `${module.title} is on but refused: ${describe(error)}`);
+            }
+
             throw new HttpError(
                 500,
                 `${module.title} is on but failed to load: ${describe(error)}`,
@@ -4134,6 +4145,10 @@ export class PocketApp {
         try {
             await this.loader.reload(file);
         } catch (error) {
+            if (error instanceof Refused) {
+                throw new HttpError(409, `${module.title} is refused: ${describe(error)}`);
+            }
+
             throw new HttpError(500, `${module.title} failed to load: ${describe(error)}`);
         } finally {
             await this.#refreshClients();

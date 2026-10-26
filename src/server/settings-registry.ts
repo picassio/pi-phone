@@ -695,7 +695,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 id: `extensions.${module.file}`,
                 area: "extensions",
                 title: `Extension: ${module.title}`,
-                help: `${module.summary} on or off${module.required ? " (required: it stays on)" : ""}.`,
+                help: `${module.source === "drop-in" ? "A drop-in (the owner's, in the data folder's extensions). " : ""}${module.summary} on or off${module.required ? " (required: it stays on)" : ""}.${module.error === undefined ? "" : ` ${module.refused === undefined ? "It failed to load" : "It is refused"}: ${module.error}`}`,
                 owner: true,
                 read: () => (module.enabled ? "on" : "off"),
                 choices: () => ["on", "off"],

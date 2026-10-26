@@ -96,17 +96,30 @@ export default function createSecrets(host: PocketHost) {
     const stores = [join(host.dataDir, "ssh"), join(host.dataDir, "pocket.sqlite"), join(host.dataDir, "secrets.json")];
     const spelled = stores.flatMap((path) => [path, ...(path.startsWith(`${homedir()}/`) ? [`~${path.slice(homedir().length)}`] : [])]);
     const STORES = "The app keeps its keys (SSH keys, its ssh-agent, the secrets) out of Pi's tools: use machine_run, machine_copy, or a session on a machine for machines, and secrets by name in bash.";
+    // The owner's drop-in extensions (PP-171): code that runs in the server with the app's host, secrets included, and
+    // loads again when its file changes. Only the owner puts files there; Pi's tools do not write or name it.
+    const dropIns = join(host.dataDir, "extensions");
+    const dropInsSpelled = [dropIns, ...(dropIns.startsWith(`${homedir()}/`) ? [`~${dropIns.slice(homedir().length)}`] : [])];
+    const DROP_INS = `Drop-in extensions (${dropIns}) are the owner's to put in place: Pi's tools do not write there. Write the module elsewhere and tell the owner to copy it there; Settings > Extensions turns it on.`;
 
     /** Why a call may not run, if it reaches the app's key stores: a path tool on one, or a command that names one. */
     const keyStores = (tool: string, args: Record<string, unknown>): string | undefined => {
         if ((tool === "read" || tool === "write" || tool === "edit") && typeof args.path === "string") {
             const path = resolve(args.path.replace(/^~(?=\/|$)/, homedir()));
 
+            if (tool !== "read" && (path === dropIns || path.startsWith(`${dropIns}/`))) {
+                return DROP_INS;
+            }
+
             return stores.some((store) => path === store || path.startsWith(`${store}/`) || path.startsWith(`${store}-`)) ? STORES : undefined;
         }
 
         if (tool === "bash" && typeof args.command === "string") {
             const command = args.command;
+
+            if (dropInsSpelled.some((folder) => command.includes(folder))) {
+                return DROP_INS;
+            }
 
             return spelled.some((store) => command.includes(store)) || /\bSSH_AUTH_SOCK\b|\bssh-add\b/.test(command) ? STORES : undefined;
         }

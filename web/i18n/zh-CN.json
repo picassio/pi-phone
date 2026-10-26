@@ -2814,5 +2814,12 @@
     "Declined by {who}": "{who} 已拒绝",
     "Waiting for your answer": "等待你的回答",
     "Waiting for an answer": "等待回答",
-    "Pi asks you: {title}": "Pi 问你：{title}"
+    "Pi asks you: {title}": "Pi 问你：{title}",
+    "Refused: its tools {names} have built-in tools' names, and the built-in ones win. Rename them in the module.": "已拒绝：它的工具 {names} 与内置工具同名，以内置工具为准。请在模块中给它们改名。",
+    "Refused: it added nothing. It needs {members}, which pi-phone does not have yet.": "已拒绝：它什么都没有添加。它需要 {members}，而 pi-phone 还没有。",
+    "Refused: it added nothing (it may need host.browser, which pi-phone does not have yet).": "已拒绝：它什么都没有添加（它可能需要 host.browser，而 pi-phone 还没有）。",
+    "Drop-ins: modules you put in {folder} load after these, each off until you turn it on. They can use host.ask, host.hide and host.commandEnv; not host.browser yet.": "自备扩展：你放入 {folder} 的模块在这些之后加载，每个都先处于关闭状态，直到你打开它。它们可以使用 host.ask、host.hide 和 host.commandEnv；暂时不能用 host.browser。",
+    "{file} is not loaded: a built-in module has its name. Rename the file.": "{file} 未加载：有一个内置模块与它同名。请给文件改名。",
+    "· drop-in": "· 自备扩展",
+    "· refused": "· 已拒绝"
 }

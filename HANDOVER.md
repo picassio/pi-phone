@@ -48,8 +48,11 @@ Done:
   (`claude-billing.ts`, `phone.json`; a test builds pi-ai's real Anthropic request and checks the patch still finds
   it); GitHub device sign-in; Continue a Pi session (file import, a chosen folder, from a machine).
 - Restored from pi-pocket: artifacts, scheduled messages and goals. Staying out by the owner's decision: PiP's panel and follows (its session tools are back as Other sessions), Agent
-  Teams, memory, triggers/watches/webhooks, the built-in browser, the gallery and drop-ins, Lancet Guard, Web Push,
+  Teams, memory, triggers/watches/webhooks, the built-in browser, the gallery, Lancet Guard, Web Push,
   share target, dictation. No more trimming: multiplayer, theme editing, the launcher, the extension layer stay.
+- Drop-ins are back (owner's decision, 2026-10-26, PP-171): the owner's modules in `<data>/extensions`, off until
+  turned on, with pi-pocket 0.22's host.ask, host.hide and host.commandEnv (not host.browser). A drop-in with a
+  built-in tool's name, or one that adds nothing, is refused with its reason in Settings › Extensions.
 - Remote work: SSH keys, Machines, sessions on a machine (`machine:<id>:<path>`), Files/viewer/images/Changes/
   diffs/undo there, attachments copied to `~/.pi/mobile/uploads/<session>/` there, uploads from the Files panel
   (`workspace.putFile`, never over a file), the dock's machine bar when it does not answer (`places.reach`).

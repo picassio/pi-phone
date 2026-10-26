@@ -567,5 +567,7 @@
     "This is a question: fill in its card, then send it.": "这是一个问题：请填写卡片后再发送。",
     "Fill in the fields.": "请填写各个字段。",
     "{1} is too long.": "{1} 太长了。",
-    "That is not a field of this card.": "这不是这张卡片上的字段。"
+    "That is not a field of this card.": "这不是这张卡片上的字段。",
+    "{1} is on but refused: {2}": "{1} 已打开，但被拒绝：{2}",
+    "{1} is refused: {2}": "{1} 被拒绝：{2}"
 }

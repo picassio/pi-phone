@@ -13,5 +13,6 @@
         "noUnusedLocals": true,
         "types": ["node"]
     },
-    "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"]
+    "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
+    "exclude": ["test/fixtures/gallery"]
 }

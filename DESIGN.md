@@ -73,9 +73,13 @@ diffs, files and changes, sessions, session tree, subagents board, sheets for th
 `lantern` themes.
 
 Removed, and staying out (the owner's decision, 2026-10-17): PiP, Agent Teams and linked sessions, memory, triggers
-(GitHub watches, repository watches, webhooks), the built-in browser, the extension gallery and drop-ins, Lancet
+(GitHub watches, repository watches, webhooks), the built-in browser, the extension gallery, Lancet
 Guard (ONNX), Web Push, the share target, the launcher (access modes, tunnels, QR), and the repo extras (docs
 site, nix, lint config).
+
+Drop-ins are back (the owner's decision, 2026-10-26, PP-171; they were cut on 2026-10-17): the owner's own modules in
+`<data>/extensions`, loaded after the built-in ones, each off until turned on in Settings › Extensions (see
+"Drop-in extensions" in section 4). The gallery that installs them stays out: nothing downloads a drop-in.
 
 Kept on purpose (the owner's decision, 2026-10-17: no more trimming): multiplayer (`collab`, `spend`, people,
 invites, roles, peek tiles), theme editing and Omarchy palettes, the Walker-style launcher, and the extension web
@@ -324,8 +328,24 @@ so Pi changes them through the settings tools; "the last session" is the one the
   by `POST /api/asks/<id>` through `answerAsk`, which checks each field (`checkValues`) and hands the values to the
   asker in `ApprovalAnswer.values` only. The person Pi works for answers it (the owner when nobody is known;
   `cannotAllow`), anyone who can steer declines, and a plain Allow is refused. `AskCard` in `transcript.js`; the
-  decision is kept with `ask: true` (Answered / Declined). Only built-in modules can use them for now: the app loads
-  no drop-ins (section 3), and pi-pocket's `host.browser` is not ported (Pi's browser here is pi-phone's own).
+  decision is kept with `ask: true` (Answered / Declined). Built-in modules and drop-ins use them; pi-pocket's
+  `host.browser` is not ported (Pi's browser here is pi-phone's own).
+- **Drop-in extensions** (PP-171; the owner's decisions of 2026-10-26; `reload.ts`, `web/sheets/extensions.js`): the
+  loader gets `<data>/extensions`, whose `node_modules` is linked to the app's (`prepareDropInFolder`), so a module
+  imports the packages the server runs. The owner puts files there; nothing downloads them, and the secrets
+  extension's hook keeps Pi's write, edit and bash out of the folder (an enabled drop-in reloads when its file changes,
+  and has the host, secrets included). Each is off until the owner turns it on. **Refused** (`Refused`, kept as
+  `ExtensionInfo.refused` beside its error): a drop-in with a tool of a built-in tool's name, refused whole (the
+  built-in wins; the owner's choice), and one that returns no extensions and adds nothing. For that one the host it
+  gets is a proxy noting the members it looked for that pi-phone lacks, so pi-pocket's browser modules (which return
+  nothing without `host.browser`) are refused saying so. Built-in tool names are `BUILT_IN_TOOLS` (a module that is
+  off cannot be asked without running it), with every tool installed now but by a drop-in; `test/drop-ins.test.ts`
+  turns every built-in module on and fails when one installs a tool the list lacks. A drop-in with a built-in
+  module's file name is never loaded (`nameClashes`). Turning one on that is refused answers 409. The sheet shows the
+  folder, what drop-ins can use, each drop-in's refusal in the person's language, and the name clashes; the
+  `settings` tool's help says the same. pi-pocket's gallery modules (fixtures in `test/fixtures/gallery`): secrets is
+  refused for its tools (and, installed as `secrets.ts`, for its file name), browser-sign-in and browser-runs for
+  `host.browser`. No `_pocket.d.ts` is linked there: pi-phone has no `types/pocket.d.ts`.
 - **Diagrams** (`web/rich.js`, pele 1.6.0 pinned): a ```mermaid block in any Markdown (replies, wiki pages, later
   interview questions) is a rich block of kind `mermaid` (`richKind` in `ui.js`), shown as **Diagram** with its code a
   tab away. pele is one 0.7 MB module, served as `/vendor/pele.mjs` and imported the first time a diagram shows.
