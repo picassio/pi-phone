@@ -88,7 +88,10 @@ No Termux, no laptop, no cloud VM.
 - **Other sessions.** Pi can list, read, start, message, wait for, and stop the app's other sessions, as the person it
   works for. It can also get a stuck session going again, each time after you say yes on a card: fork it before the
   message that stopped it (`session_fork`), start a new context there (`session_new_context`), or compact it
-  (`session_compact`). Never its own session.
+  (`session_compact`). Never its own session, except a fork: Pi can branch off its own work and hand the fork its
+  task. A session Pi starts is linked to the one that started it: it shows under that one in the list (a pill with
+  how many folds them away, with a dot when one waits for you or failed), "Started from" and "Linked session" links
+  above the transcripts lead from one to the other, and its spend counts toward the starter's limit.
 - **Projects** (an extension, off until you turn it on in Settings › Extensions): boards of tasks that keep work from
   being forgotten. Pi asks once before it tracks a session's work on a board ("Track this on the board?"), then keeps
   its tasks current with `task_create`, `task_update`, and `task_comment`. Epics, Stories, Tasks, Bugs, and Sub-tasks;

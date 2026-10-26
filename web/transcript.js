@@ -7,6 +7,7 @@ import { routeSliding } from "./back.js";
 import { describeCall, describersRevision } from "./calls.js";
 import { DiffBlock } from "./diff.js";
 import { fromServer } from "./seen.js";
+import { LinkedSessions } from "./linked-sessions.js";
 import { Highlighted } from "./rich.js";
 import {
     actions,
@@ -3173,6 +3174,7 @@ export function Transcript() {
 
     return html`<main class="scroller" ref=${scroller} onScroll=${onScroll}>
         <div class=${`transcript ${entrance.current}`} data-part="transcript" ref=${column}>
+            <${LinkedSessions} />
             ${
                 conversation.forkedFrom &&
                 sessionsLoaded &&

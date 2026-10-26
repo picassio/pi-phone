@@ -230,10 +230,15 @@ export class SessionControl {
         const { user, root } = this.#caller(caller);
 
         this.#spend(root);
-        const { id } = await this.#app.commands.createSession(user, {
-            cwd: request.cwd,
-            ...(request.title === undefined ? {} : { title: request.title }),
-        });
+        // Linked to the session that started it (PP-157): it shows under that one, and its spend counts toward its limit.
+        const { id } = await this.#app.commands.createSession(
+            user,
+            {
+                cwd: request.cwd,
+                ...(request.title === undefined ? {} : { title: request.title }),
+            },
+            { linkedFrom: root },
+        );
 
         await this.#app.commands.submit(id, user, { text: request.message, requestId: request.key }, this.#via(root));
 

@@ -356,7 +356,14 @@ export class Commands {
     async createSession(
         user: User,
         request: { cwd?: string; title?: string; worktree?: unknown },
-        { projectDefaults = true }: { projectDefaults?: boolean } = {},
+        {
+            projectDefaults = true,
+            linkedFrom,
+        }: {
+            projectDefaults?: boolean;
+            /** The session that started this one (Pi's session_start, PP-157): it shows under that one. Never from a request body. */
+            linkedFrom?: ConversationId;
+        } = {},
     ): Promise<{ id: ConversationId }> {
         const app = this.#app;
 
@@ -404,6 +411,7 @@ export class Commands {
                                 createdBy: user.id,
                                 ...(title === undefined ? {} : { title }),
                                 ...(worktree === undefined ? {} : { worktree }),
+                                ...(linkedFrom === undefined ? {} : { linkedFrom: { id: Number(linkedFrom) } }),
                             };
                         },
                     },

@@ -69,6 +69,9 @@ test("a session starts another, messages it, waits for it, reads it, and stops i
     const { id } = await control.start(caller, { cwd: work, message: "first task", key: crypto.randomUUID() });
     const target = id as unknown as ConversationId;
 
+    // Linked to the session that started it (PP-157): it shows under that one, and its spend counts toward its limit.
+    assert.deepEqual(app.sessionMeta(target)?.linkedFrom, { id: Number(caller) });
+    assert.equal(app.spend.teamRoot(target), caller);
     await app.commands.configure(target, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
     const waited = await control.wait(caller, id, 20_000, new AbortController().signal);
 

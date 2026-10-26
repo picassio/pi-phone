@@ -1326,6 +1326,20 @@ kbd {
     line-height: var(--leading);
 }
 
+/* The session that started this one, and those it started (`linked-sessions.js`, PP-157). */
+.linked-sessions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.linked-sessions .breadcrumb {
+    min-height: 40px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
 /* A session opened rises into place; on a phone, where the route slides it in, the slide alone (`transcript.js`). */
 .transcript.rising {
     animation: rise-in 0.36s var(--ease-out);
@@ -5203,6 +5217,65 @@ pre.diff .del {
 /* The last child: only the corner, no line on down. */
 .session-branches > .elbow:not(.continues)::before {
     display: none;
+}
+
+/*
+ * A row with linked sessions under it (PP-157, from pi-pocket): a button on its right shows how many and folds them
+ * away (`sessions.js`). The row's own button keeps its right side clear of it, and the hover actions move in beside it.
+ */
+.session-fold {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 44px;
+    padding: 0 6px;
+    border: 0;
+    background: none;
+    font: 11px var(--mono);
+    color: var(--muted);
+}
+
+/* The control itself: how many, and a chevron, in a quiet pill; the whole 44px beside it takes the tap. */
+.session-fold-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 20px;
+    padding: 0 6px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-pill);
+    background: var(--card-2);
+    transition:
+        color var(--t-hover) var(--ease-out),
+        border-color var(--t-hover) var(--ease-out);
+}
+
+@media (hover: hover) {
+    .session-fold:hover .session-fold-pill {
+        color: var(--text);
+        border-color: var(--accent-line);
+    }
+}
+
+.session-fold .icon {
+    transition: transform var(--t-in) var(--ease-out);
+}
+
+.session-fold.folded .icon {
+    transform: rotate(-90deg);
+}
+
+.session-row.with-fold .session {
+    padding-right: 52px;
+}
+
+.session-row.with-fold .session-actions {
+    right: 50px;
 }
 
 /* One line: the folder's color, the title, and what goes on there on the right. */
