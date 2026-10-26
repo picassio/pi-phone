@@ -9,6 +9,7 @@ import { defineExtension, defineTool, section } from "@earendil-works/pi-durable
 import { basename } from "node:path";
 import { addressOf, PRESSABLE, StalePage } from "../browser/page.ts";
 import { MAX_TABS, type PiBrowser } from "../browser/pi-browser.ts";
+import { fencedPage } from "../fence.ts";
 import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
@@ -49,17 +50,19 @@ export default function createBrowser(host: PocketHost) {
         try {
             browser = await browserOf(api, context);
 
-            return reply(await work(browser, session));
+            // What the page shows, and what was done there (names of its controls), reach Pi fenced as data.
+            return reply(fencedPage(await work(browser, session)));
         } catch (error) {
             if (error instanceof StalePage && browser !== undefined) {
                 try {
-                    return reply(`${error.message}\nThe page now:\n${await browser.snapshot(session)}`, true);
+                    return reply(fencedPage(`${error.message}\nThe page now:\n${await browser.snapshot(session)}`), true);
                 } catch {
                     // The page is gone too: say the first problem.
                 }
             }
 
-            return reply(error instanceof Error ? error.message : String(error), true);
+            // An error can name the page's controls too.
+            return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
         }
     };
     const index = Type.Integer({ minimum: 1, description: "The control's number, like 3 for [3], from the newest read of the page" });
@@ -107,9 +110,9 @@ export default function createBrowser(host: PocketHost) {
         }
 
         try {
-            return reply(`${done}\nThe page now:\n${await browser.snapshot(session)}`);
+            return reply(`${done}\n${fencedPage(`The page now:\n${await browser.snapshot(session)}`)}`);
         } catch (error) {
-            return reply(`${done} The page could not be read again: ${error instanceof Error ? error.message : String(error)}`);
+            return reply(`${done} ${fencedPage(`The page could not be read again: ${error instanceof Error ? error.message : String(error)}`)}`);
         }
     };
     const acceptDialog = Type.Optional(Type.Boolean({ description: "Accept a confirmation or prompt the page shows on the way (they are declined otherwise)" }));
