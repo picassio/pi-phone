@@ -192,6 +192,8 @@ export type ComputerControlOptions = {
     machines: () => ComputerMachine[];
     /** Run `script` with sh on a machine, its input, output and errors here (ssh through the app's keys). */
     launch: (machine: string, script: string) => OcuProcess;
+    /** Ask a machine again which tools it has, and keep the answer (`machines()` then has it). */
+    refreshTools?: (machine: string) => Promise<void>;
     now?: () => number;
     log?: (line: string) => void;
     idleEndMs?: number;
@@ -305,6 +307,26 @@ export class ComputerControl {
         }
 
         return machine;
+    }
+
+    /**
+     * `machine`, after asking the machine itself when the app's record says ocu is not there: the record is only as new
+     * as the last look at its tools (Settings › Machines), and ocu may have been installed since.
+     */
+    async ready(wanted: string): Promise<ComputerMachine> {
+        try {
+            return this.machine(wanted);
+        } catch (error) {
+            const found = this.#options.machines().find((each) => each.id === wanted.trim() || each.name.toLowerCase() === wanted.trim().toLowerCase());
+
+            if (found === undefined || !found.connected || found.tools?.ocu !== undefined || this.#options.refreshTools === undefined) {
+                throw error;
+            }
+
+            await this.#options.refreshTools(found.id);
+
+            return this.machine(found.id);
+        }
     }
 
     /** The shell line run on a machine before ocu starts (its desktop's environment), as the owner set it. */

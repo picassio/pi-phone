@@ -814,7 +814,9 @@ export function createApi(options: HttpOptions, auth: Auth) {
             if (second === "prepare" && method === "POST") {
                 const body = await readJson<{ machine?: unknown; prepare?: unknown }>(request);
 
-                await failing(() => control.setPrepare(control.machine(String(body.machine ?? "")).id, String(body.prepare ?? "")));
+                const machine = await failing(() => control.ready(String(body.machine ?? "")));
+
+                await failing(() => control.setPrepare(machine.id, String(body.prepare ?? "")));
 
                 return json(response, 200, { machines: control.machinesView() });
             }

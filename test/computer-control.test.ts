@@ -128,6 +128,31 @@ test("a machine must be connected, Linux, with ocu; its desktop setup line runs 
     assert.throws(() => control.setPrepare("m1", "a\nb"), /one shell line/);
 });
 
+test("ocu installed since the app last looked at the machine's tools: it asks the machine again before refusing", async () => {
+    const devbox: ComputerMachine = { id: "m3", name: "devbox", platform: "linux", connected: true, tools: {} };
+    const asked: string[] = [];
+    const control = new ComputerControl({
+        dataDir: mkdtempSync(join(root, "data-")),
+        gateway: false,
+        machines: () => [devbox],
+        launch: () => {
+            throw new Error("not started here");
+        },
+        refreshTools: async (id) => {
+            asked.push(id);
+            devbox.tools = { ocu: "1.1.2-pp.1" };
+        },
+    });
+
+    controls.push(control);
+    assert.throws(() => control.machine("devbox"), /not installed on devbox/);
+    assert.equal((await control.ready("devbox")).id, "m3");
+    assert.deepEqual(asked, ["m3"]);
+    // Known now: no second look.
+    await control.ready("devbox");
+    assert.deepEqual(asked, ["m3"]);
+});
+
 test("the apps on the desktop, each with why it is never controlled; the setup line goes first", async () => {
     const { control, scripts } = make();
 

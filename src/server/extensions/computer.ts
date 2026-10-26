@@ -130,7 +130,7 @@ export default function createComputer(host: PocketHost) {
                     });
 
                     if (args.machine !== undefined) {
-                        const found = control.machine(args.machine);
+                        const found = await control.ready(args.machine);
                         const apps = await control.apps(found.id);
 
                         lines.push(`Apps with a window on ${found.name}: ${apps.filter((each) => each.running).map((each) => `${each.window || each.name} (${each.name})${each.never === null ? "" : ` - never: ${each.never}`}`).join(", ") || "none"}.`);
@@ -144,7 +144,7 @@ export default function createComputer(host: PocketHost) {
                         return reply("setup needs machine and prepare (one shell line, or empty for none).", true);
                     }
 
-                    const found = control.machine(args.machine);
+                    const found = await control.ready(args.machine);
 
                     control.setPrepare(found.id, args.prepare);
                     const apps = await control.apps(found.id);
@@ -176,7 +176,7 @@ export default function createComputer(host: PocketHost) {
                     return reply(`Say how long you need: minutes, a whole number from ${MINUTES.min} to ${MINUTES.max}.`, true);
                 }
 
-                const found = control.machine(args.machine);
+                const found = await control.ready(args.machine);
                 const mine = control.active(found.id);
 
                 if (mine !== undefined && mine.conversationId !== conversationId) {

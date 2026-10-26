@@ -599,6 +599,9 @@ export class PocketApp {
                 })),
             launch: (id, script) =>
                 spawn("ssh", [...sshArguments(this.machines.target(this.machines.ready(id))), `sh -c ${shellWord(script)}`], { stdio: ["pipe", "pipe", "pipe"] }),
+            refreshTools: async (id) => {
+                await this.machineTools.status(id);
+            },
             ...options.computer,
         });
         this.computerControl.onChange(() => {
