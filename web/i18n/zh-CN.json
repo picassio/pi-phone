@@ -988,6 +988,7 @@
     "Connecting copies the app's helper program (pi-env, about 2 MB) to {path} on {name} over ssh and starts it there whenever a session works on this machine. It runs as {user}, only while connected, and is checked against its hash before every start.": "连接时，应用会通过 ssh 把它的助手程序（pi-env，约 2 MB）复制到 {name} 的 {path}，并在有会话在这台机器上工作时启动它。它以 {user} 身份运行，仅在连接期间运行，每次启动前都会校验哈希。",
     "Also install there": "同时安装",
     "only if the machine has none": "仅当机器上没有时",
+    "needs a desktop session on Linux": "在 Linux 上需要桌面会话",
     "Connecting…": "正在连接…",
     "Installing tools…": "正在安装工具…",
     "Install and connect": "安装并连接",

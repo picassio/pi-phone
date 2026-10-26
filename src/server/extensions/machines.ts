@@ -14,6 +14,7 @@ import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { machinePaths } from "../machine-paths.ts";
+import { toolOffer, toolsToInstall } from "../machine-tools.ts";
 import { namesIn } from "../secrets.ts";
 
 type Text = { type: "text"; text: string };
@@ -248,6 +249,7 @@ export default function createMachines(host: PocketHost) {
                             key: { name: keyName, fingerprint: existing?.fingerprint ?? "", new: existing === undefined },
                             hostKeys: scanned.fingerprints,
                             ...(expected === undefined || expected === "" ? {} : { expected, matches: true }),
+                            tools: host.machineTools.catalog.map(toolOffer),
                         },
                         createdAt: Date.now(),
                     },
@@ -273,12 +275,27 @@ export default function createMachines(host: PocketHost) {
                     }
 
                     const alias = host.machines().find((each) => each.id === machine.id)?.alias ?? machine.name;
+                    // The tools the card kept ticked, those the machine offers (PP-177), as Settings › Machines does.
+                    // A tool that fails leaves the machine added: it says why, and Settings › Machines › Install tools tries again.
+                    const ticked = (answer.values?.tools ?? "").split(",").filter((id) => id !== "");
+                    let installed: { id: string; ok: boolean; version?: string; said: string }[] = [];
+
+                    try {
+                        const installs = ticked.length === 0 ? [] : toolsToInstall(await host.machineTools.status(machine.id), ticked, host.machineTools.catalog);
+
+                        installed = installs.length === 0 ? [] : (await host.machineTools.install(machine.id, installs)).results;
+                    } catch (error) {
+                        installed = ticked.map((id) => ({ id, ok: false, said: error instanceof Error ? error.message : String(error) }));
+                    }
 
                     return {
                         output: [
                             text(
                                 [
                                     `Added ${machine.name} (${address}) and connected: ${remote.platform} ${remote.arch}, home ${remote.home}. Ready for sessions (machine:${machine.id}:<path>) and for machine_run as ${alias}.`,
+                                    installed.length === 0
+                                        ? "No tools installed (none ticked on the card, or the machine has them)."
+                                        : `Tools: ${installed.map((each) => (each.ok ? `${each.id} ${each.version} installed` : `${each.id} not installed (${each.said})`)).join("; ")}.`,
                                     ...(connected.warnings ?? []).map((warning) => `Note: ${warning}`),
                                 ].join("\n"),
                             ),

@@ -145,6 +145,10 @@ test("the machine_add card shows the machine, fits a phone, and Approve adds it 
     assert.match(card, /SHA256:\S+ \(ED25519\)/);
     assert.match(card, /the one Pi read on the machine itself/);
     assert.match(card, /installs pi-env there \(about 2 MB, in ~\/\.pi\/mobile\/tools\) and connects\. Deny saves nothing\./);
+    // The machine tools, ticked (PP-177): Computer use among them, needing a desktop session on Linux.
+    assert.match(card, /Also install there/);
+    assert.match(card, /Computer use \(ocu\) 1\.1\.2-pp\.1 · about 2\.5 MB · needs a desktop session on Linux/);
+    assert.deepEqual(await inPage<boolean[]>(`return JSON.stringify([...document.querySelectorAll(".machine-add-card .machine-tool input")].map((each) => each.checked))`), [true, true, true, true, true]);
     const fits = await inPage<{ card: number; column: number; page: number; screen: number }>(`
         const card = document.querySelector(".machine-add-card").getBoundingClientRect();
         const column = document.querySelector(".machine-add-card").parentElement.getBoundingClientRect();
@@ -161,6 +165,8 @@ test("the machine_add card shows the machine, fits a phone, and Approve adds it 
     await until(async () => (await text(".machine-add-card")) !== "", "the card on a desktop");
     await shot("machine-add-1280");
     await until(async () => inPage<boolean>(`return JSON.stringify(document.querySelector(".machine-add-card .button.primary")?.disabled === false)`), "Approve enabled");
+    // Nothing to download here: every tool unticked.
+    await page.evaluate(`for (const box of document.querySelectorAll(".machine-add-card .machine-tool input")) if (box.checked) box.click()`);
     await page.click({ selector: ".machine-add-card .button.primary" });
     await until(() => app.machines.list().some((each) => each.name === "tuanlh-sandbox-01" && each.remote !== undefined), "connected", 60_000);
     await until(async () => (await text(".machine-add-card")) === "", "the card gone");

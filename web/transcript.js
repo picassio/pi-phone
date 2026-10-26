@@ -1580,9 +1580,12 @@ function MachineAddCard({ approval }) {
     const { me } = store.state;
     const form = approval.form;
     const [busy, setBusy] = useState(false);
+    // The tools to install once it is connected (PP-177): every one ticked, as Settings › Machines offers them.
+    const offered = form.tools ?? [];
+    const [wanted, setWanted] = useState(() => new Set(offered.map((tool) => tool.id)));
     const answer = (allow) => {
         setBusy(true);
-        attempt(() => actions.approve(approval.id, allow)).finally(() => setBusy(false));
+        attempt(() => actions.approve(approval.id, allow, allow ? { tools: [...wanted] } : {})).finally(() => setBusy(false));
     };
 
     return html`<div class="approval machine-add-card" data-part="approval">
@@ -1615,6 +1618,36 @@ function MachineAddCard({ approval }) {
                 }
             </dd>
         </dl>
+        ${
+            offered.length > 0 &&
+            html`<div class="machine-tools-pick">
+                <div class="label">${t("Also install there")}</div>
+                ${offered.map(
+                    (tool) => html`<label class="check machine-tool" key=${tool.id}>
+                        <input
+                            type="checkbox"
+                            checked=${wanted.has(tool.id)}
+                            disabled=${busy || me?.role !== "owner"}
+                            onChange=${(event) => {
+                                const next = new Set(wanted);
+
+                                if (event.currentTarget.checked) {
+                                    next.add(tool.id);
+                                } else {
+                                    next.delete(tool.id);
+                                }
+
+                                setWanted(next);
+                            }}
+                        />
+                        <span>
+                            <strong>${tool.name}</strong> ${tool.version} <span class="muted small">· ${tool.size}${tool.onlyIfMissing ? ` · ${t("only if the machine has none")}` : ""}${tool.desktop ? ` · ${t("needs a desktop session on Linux")}` : ""}</span>
+                            <div class="muted small">${tool.description}</div>
+                        </span>
+                    </label>`,
+                )}
+            </div>`
+        }
         <div class="muted small">
             ${t("Approve trusts this host key, installs pi-env there (about 2 MB, in ~/.pi/mobile/tools) and connects. Deny saves nothing.")}
         </div>

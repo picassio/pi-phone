@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { toolOffer } from "../src/server/machine-tools.ts";
 
 const sshdPath = ["/usr/sbin/sshd", join(process.env.PREFIX ?? "/usr", "bin", "sshd")].find((path) => existsSync(path));
 const skip = sshdPath === undefined ? "no sshd on this machine" : false;
@@ -92,15 +93,15 @@ after(async () => {
     cleanUp();
 });
 
-/** One turn; with `answer`, the card it waits on is answered so and returned. */
-async function turn(id: number, text: string, answer?: boolean) {
+/** One turn; with `answer`, the card it waits on is answered so (with the ticked `tools`, as the card sends them) and returned. */
+async function turn(id: number, text: string, answer?: boolean, tools?: string) {
     const { submissionId } = await app.commands.submit(id as never, owner(app), { text, requestId: crypto.randomUUID() });
     let card: ReturnType<typeof app.approvals.all>[number] | undefined;
 
     if (answer !== undefined) {
         await until(() => app.approvals.forConversation(id as never).length > 0, "the card");
         card = app.approvals.forConversation(id as never)[0]!;
-        await app.answerApproval(card.id, answer, owner(app));
+        await app.answerApproval(card.id, answer, owner(app), false, tools === undefined ? undefined : { tools });
     }
 
     await (await app.harness.submission(submissionId, context))!.wait(context);
@@ -138,6 +139,7 @@ test("Deny saves nothing; the card shows the address, the key and the host key t
         hostKeys: [`${hostFingerprint} (ED25519)`],
         expected: hostFingerprint,
         matches: true,
+        tools: app.machineTools.catalog.map(toolOffer),
     });
     assert.equal(card?.reason, "A new VM");
     assert.match(said, /said no: nothing was saved/);
@@ -161,6 +163,30 @@ test("Approve adds it, trusts the host key, deploys pi-env and connects, ready f
     assert.match(readFileSync(app.machines.knownHostsFile, "utf8"), new RegExp(`pi-phone-${added!.id}`));
     // In the list Pi and the folder picker read (`hello`'s machines come from the same list).
     assert.ok(app.machines.sshHosts().some(({ machine }) => machine.id === added!.id));
+});
+
+test("the card offers the machine tools, ticked, Computer use (ocu) with them; a tool it did not offer is refused; none ticked installs none", { skip }, async () => {
+    const key = await app.sshKeys.generate("tools-key");
+
+    writeFileSync(authorized, `${key.publicKey}\n`, { mode: 0o600 });
+    calls = { "add it with tools": { name: "box-tools", address: address(), key: key.name, reason: "A desktop VM" } };
+    const id = await newSession(app);
+    const { submissionId } = await app.commands.submit(id as never, owner(app), { text: "add it with tools", requestId: crypto.randomUUID() });
+
+    await until(() => app.approvals.forConversation(id as never).length > 0, "the card");
+    const card = app.approvals.forConversation(id as never)[0]!;
+    const tools = (card.form as { tools: { id: string; desktop: boolean }[] }).tools;
+
+    assert.deepEqual(tools.map((tool) => tool.id), ["officecli", "rg", "fd", "chrome", "ocu"]);
+    assert.equal(tools.find((tool) => tool.id === "ocu")?.desktop, true);
+    await assert.rejects(app.answerApproval(card.id, true, owner(app), false, { tools: "ocu,nope" }), /The card offers no tool nope/);
+    await app.answerApproval(card.id, true, owner(app), false, { tools: "" });
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    await app.harness.waitForIdle(context);
+    const said = (await modelTexts(app, id as never)).at(-1)!;
+
+    assert.match(said, /Added box-tools .* and connected/);
+    assert.match(said, /No tools installed/);
 });
 
 test('With key "new", a machine that refuses it saves nothing but the key, whose public half comes back', { skip }, async () => {

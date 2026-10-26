@@ -266,7 +266,7 @@ function MachineToolsPanel({ machine, onClose }) {
                     />
                     <span>
                         <strong>${tool.name}</strong> ${tool.version}
-                        <span class="muted small"> · ${toolState(tool)}</span>
+                        <span class="muted small"> · ${toolState(tool)}${tool.desktop ? ` · ${t("needs a desktop session on Linux")}` : ""}</span>
                         <div class="muted small">${tool.description}</div>
                     </span>
                 </label>`,
@@ -528,7 +528,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                                         }}
                                     />
                                     <span>
-                                        <strong>${tool.name}</strong> ${tool.version} <span class="muted small">· ${tool.size}${tool.onlyIfMissing ? ` · ${t("only if the machine has none")}` : ""}</span>
+                                        <strong>${tool.name}</strong> ${tool.version} <span class="muted small">· ${tool.size}${tool.onlyIfMissing ? ` · ${t("only if the machine has none")}` : ""}${tool.desktop ? ` · ${t("needs a desktop session on Linux")}` : ""}</span>
                                         <div class="muted small">${tool.description}</div>
                                     </span>
                                 </label>`,

@@ -1355,7 +1355,8 @@ export const actions = {
     importPiSession: (file) => api(`pi-sessions/import?name=${encodeURIComponent(file.name)}`, file),
     /** `cwd`: the folder to work in, for a session whose own folder is not on this phone. */
     continuePiSession: (path, cwd) => api("pi-sessions/continue", { path, ...(cwd ? { cwd } : {}) }),
-    approve: (id, allow) => api(`approvals/${encodeURIComponent(id)}`, { allow }),
+    /** `extra`: what a card sends with Approve (the machine_add card's ticked `tools`). */
+    approve: (id, allow, extra = {}) => api(`approvals/${encodeURIComponent(id)}`, { allow, ...extra }),
     /** `worktree`: the session works in a git worktree of its own, made from the folder. */
     createSession: (cwd, { worktree = false } = {}) =>
         api("sessions", { cwd, ...(worktree ? { worktree } : {}) }),

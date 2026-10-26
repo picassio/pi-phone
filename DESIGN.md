@@ -584,13 +584,20 @@ so Pi changes them through the settings tools; "the last session" is the one the
     are offered only when the machine has none of its own. **Windows** (2026-10-19): the projects' own Windows builds
     (OfficeCLI's `.exe`, rg's and fd's `.zip`s, x64 and arm64), installed by the same script in Git Bash (curl, sha256sum,
     `unzip -p` for a zip); a program keeps its `.exe`, and the wrapper execs it by its drive path (`C:/Users/…`).
+    **Computer use (ocu)** (PP-177, `OCU_TOOL`): our fork's release v1.1.2-pp.1 of open-computer-use
+    (picassio/open-computer-use: password fields marked `[password]` and typing into them refused), linux-x64,
+    linux-arm64 and windows-x64, pinned to the release's SHA256SUMS; command `ocu`; `desktop: true` puts "needs a
+    desktop session on Linux" beside it in every list. Computer control (`computer-control.ts`) runs `ocu mcp`.
   - **Install:** the machine downloads each itself (curl or wget), checks the sha256 (sha256sum or shasum) before
     keeping anything, into `~/.pi/mobile/tools/<tool>/<version>/`, and a wrapper `~/.pi/mobile/tools/bin/<command>`
     (marked `# pi-phone-tool <id> <version>`, written by a quoted heredoc) runs it with what it needs (OfficeCLI: no
     self-update, no self-install; Termux's OpenSSL on Android). Older versions are removed. OfficeCLI's skills are copied
     with it (`<version>/skills/`, a tar from the phone's `third_party/`).
   - **Where it shows:** adding a machine lists the tools, ticked, under "Install and connect"; after connecting, the
-    ticked ones the machine has a build of (and, for rg and fd, has none of) are installed. A connected machine has
+    ticked ones the machine has a build of (and, for rg and fd, has none of) are installed. Pi's `machine_add` card lists
+    them too, ticked (`form.tools`, PP-177); Approve sends the ticked ids (`POST /api/approvals/<id>` `{allow, tools}`,
+    refused when the card did not offer one), and the tool installs those the machine offers once connected
+    (`toolsToInstall`). A tool that fails leaves the machine added and says why. A connected machine has
     Install tools: each tool's state there (installed and its version, the machine's own, not installed, no build),
     offered ones ticked. `GET /api/machines/tools` is the catalog; `POST /api/machines/<id>/tools` the status, or
     `{install: [...]}`. What is installed is kept as `Machine.tools` (machines.json).

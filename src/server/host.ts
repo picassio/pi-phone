@@ -23,6 +23,7 @@ import type { ParaCapture } from "./para-capture.ts";
 import type { Secrets } from "./secrets.ts";
 import type { PolicyStore } from "./policy.ts";
 import type { Machines } from "./machines.ts";
+import type { MachineTools, ToolOffer } from "./machine-tools.ts";
 import type { SshKeys } from "./ssh-keys.ts";
 import type { PhoneApp, PhoneControl } from "./phone-control.ts";
 import type { WebSearch } from "./web/access.ts";
@@ -60,6 +61,8 @@ export interface ApprovalRequest {
               hostKeys: string[];
               expected?: string;
               matches?: boolean;
+              /** The tools offered to install once it is connected, every one ticked (PP-177); the answer names those kept. */
+              tools: ToolOffer[];
           }
         /**
          * Pi asks to control a phone (`phone_control`, PP-141): the device, the apps the session may touch (with the home
@@ -443,6 +446,8 @@ export interface PocketHost {
     /** The app's machines and SSH keys, as the Machines sheet changes them: for Pi's `machine_add` (PP-139). */
     readonly machineStore: Machines;
     readonly sshKeys: SshKeys;
+    /** The tools pi-phone installs on machines (`machine-tools.ts`): `machine_add` installs those its card kept ticked. */
+    readonly machineTools: MachineTools;
     /** Pi controls phones (`phone-control.ts`, PP-141): control sessions, the Never list, the phone's service. */
     readonly phone: PhoneControl;
     /** The session a conversation belongs to: itself, or a subagent's session. */

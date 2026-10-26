@@ -1016,6 +1016,7 @@ export class PocketApp {
             policy: this.policy,
             machineStore: this.machines,
             sshKeys: this.sshKeys,
+            machineTools: this.machineTools,
             phone: this.phoneControl,
             rootOf: (conversationId) => Number(this.rootOf(conversationId as unknown as ConversationId)),
             web: this.web,
@@ -3524,6 +3525,16 @@ export class PocketApp {
         // Pi's machine_add card (PP-139) is answered by Approve itself, and only by the owner: it adds a machine.
         if (allow && request.form?.type === "machine" && user.role !== "owner") {
             throw new HttpError(403, "Adding a machine is the owner's.");
+        }
+
+        // Its ticked tools (PP-177): only tools the card offered.
+        if (request.form?.type === "machine" && values?.tools !== undefined) {
+            const offered = request.form.tools.map((tool) => tool.id);
+            const wrong = values.tools.split(",").filter((id) => id !== "" && !offered.includes(id));
+
+            if (wrong.length > 0) {
+                throw new HttpError(400, `The card offers no tool ${wrong.join(", ")}.`);
+            }
         }
 
         // Pi's phone_control card (PP-141): Approve starts the session, and only the owner may give Pi the phone.

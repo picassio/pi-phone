@@ -1,0 +1,12 @@
+open-computer-use
+Copyright (c) 2026 Leo (https://github.com/iFurySt/open-computer-use), MIT License (LICENSE beside this file).
+
+pi-phone installs open-computer-use ("ocu") on the owner's machines as a machine tool (src/server/machine-tools.ts,
+OCU_TOOL) and runs its MCP server there for computer control. The binaries are built from our fork,
+https://github.com/picassio/open-computer-use (branch pi-phone, release v1.1.2-pp.1), which changes upstream so that
+password fields are marked "[password]" in the outline and typing into them is refused; see PI-PHONE.md in the fork.
+Each release ships LICENSE, THIRD_PARTY_NOTICES.md and PI-PHONE.md with the binaries.
+
+Upstream's THIRD_PARTY_NOTICES.md names Cua Driver (MIT, Copyright (c) 2025 Cua AI, Inc.) and yabai (MIT,
+Copyright (c) 2019 Åsmund Vikane) for its macOS click and key paths, and libwebp (BSD-3-Clause) in its macOS app. The
+Linux and Windows builds pi-phone installs contain none of those.

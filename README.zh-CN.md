@@ -153,14 +153,16 @@
   [pi-env](https://github.com/earendil-works/pi/tree/main/packages/env) 的小型守护进程在那里运行工具；对话和你的登录信息仍留在手机上。
   文件面板、查看器、更改和终端都会跟随会话切到那台机器。支持 Linux、macOS、Termux 和 **Windows**（通过其 OpenSSH Server 和 Git Bash；
   应用会给你一个负责配置的 PowerShell 脚本）。
-- **机器工具。** 可以从应用中在机器上安装 OfficeCLI、ripgrep、fd 和 Chrome（无头模式，供没有 Chrome 的机器运行 Pi 的浏览器），Windows 也支持，
-  安装时校验 SHA-256。
+- **机器工具。** 可以从应用中在机器上安装 OfficeCLI、ripgrep、fd、Chrome（无头模式，供没有 Chrome 的机器运行 Pi 的浏览器）
+  和电脑操作（ocu，让 Pi 操作那里的桌面应用；在 Linux 上需要桌面会话），Windows 也支持，安装时校验 SHA-256。添加机器时、
+  **安装工具** 里以及 `machine_add` 卡片上都会列出它们，默认全部勾选。
 - **机器上的 Pi 浏览器。** 机器上的会话在那里的无头 Chrome 中浏览（优先用机器自带的 Chrome、Chromium 或 Edge，否则用机器工具安装的），
   在同一个面板中观看（“<machine> 上的 Pi 浏览器”）。它能打开机器本地的地址，因此 Pi 可以试用你在那里运行的网页应用（`localhost:3000`），
   上传和 PDF 也使用机器上的文件。其登录状态保存在那台机器的 `~/.pi/mobile/browser` 中。
 - **在任意会话中。** `machine_run` 和 `machine_copy` 可在机器上运行命令或复制文件；`pi-ssh` 让 bash 能用应用的密钥执行 ssh、rsync、scp
   和端口隧道，而这些密钥任何程序都读不出来。Pi 还能用 `machine_add` 自己添加机器（比如它刚建好的虚拟机）：一张卡片列出地址、
-  SSH 密钥和主机密钥（如果 Pi 在机器上读到了主机密钥，会与之核对），点 **同意并连接** 即添加、安装 pi-env 并连接；
+  SSH 密钥和主机密钥（如果 Pi 在机器上读到了主机密钥，会与之核对），以及要安装的工具（默认全部勾选），点 **同意并连接** 即添加、
+  安装 pi-env、连接并安装勾选的工具；
   拒绝则什么都不保存。
 - **端口：** 机器上的端口（比如那里的开发服务器）可以在手机浏览器中打开。
 - **接续 Pi 会话。** 可以接手本手机上 Pi 的会话、一个 `.jsonl` 文件或某台机器 `~/.pi/agent/sessions` 中的会话，连同其历史记录；
@@ -286,7 +288,7 @@
 | 知识库整理与提示上下文 | **知识库**：会话闲置多少分钟后整理、负责整理的模型、每次提示中放入多少令牌的知识库内容、lint 选项 | “会话闲置 30 分钟后整理”“知识库整理用 claude-haiku” |
 | 网页搜索 | **网络访问**：选择提供方并填写其密钥（直接输入或保存在密钥中） | “把网页搜索换成 exa”。密钥本身要你自己输入 |
 | API 密钥和令牌 | **密钥**。缺少某个密钥时，Pi 会通过卡片上的隐藏输入框向你索取，从不在聊天中索要 | Pi 可以索取密钥、修改密钥的标记或删除密钥。值由你输入 |
-| 其他电脑 | 先 **SSH 密钥**，再 **机器**（在那里点 **安装工具** 可安装 OfficeCLI、ripgrep、fd、Chrome） | 重命名、安装工具、端口或移除都可以。接受新的主机密钥要你自己来 |
+| 其他电脑 | 先 **SSH 密钥**，再 **机器**（在那里点 **安装工具** 可安装 OfficeCLI、ripgrep、fd、Chrome、电脑操作） | 重命名、安装工具、端口或移除都可以。接受新的主机密钥要你自己来 |
 | 扩展（项目、知识库、Pi 的浏览器等） | **扩展** | “打开项目功能” |
 | 花费与上限 | **花费** | “这个会话最多花 5 美元” |
 | 会话何时自动压缩 | **菜单 › 压缩上下文**，可针对当前会话或所有会话 | “这个会话在 60% 时压缩” |
@@ -387,6 +389,9 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[effective-html](https://github.com/plannotator/effective-html)**，作者 plannotator（MIT）：位于 `third_party/effective-html/` 的 HTML 设计技能。
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)**（MIT 或 Unlicense）和 **[fd](https://github.com/sharkdp/fd)**
   （MIT 或 Apache-2.0）：从它们各自的发布版安装到机器上。
+- **[open-computer-use](https://github.com/iFurySt/open-computer-use)**，作者 Leo（iFurySt）（MIT，Copyright (c) 2026 Leo）：
+  机器上的电脑操作（ocu），在我们的分叉 [picassio/open-computer-use](https://github.com/picassio/open-computer-use) 中构建
+  （标出并拒绝密码框），作为机器工具安装；其许可证和声明见 `third_party/open-computer-use/`。
 - **agent-board** 和 **ACS（agent-crew）**，作者 Picassio（MIT）：项目功能的任务类型、状态和任务协议，以及看板的设计。
 - **[pi-web-access](https://github.com/nicobailon/pi-web-access)**，作者 Nico Bailon（MIT）：`web_search` 和 `fetch_content`，
   以及从它移植到 `src/server/web/providers/` 的 37 个搜索提供方。

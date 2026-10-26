@@ -3,7 +3,7 @@
  * which a form on another site cannot send. A conversation's routes are in `conversation-routes.ts`.
  */
 import { createReadStream, readdirSync, rmSync, statSync } from "node:fs";
-import { TOOLS } from "../machine-tools.ts";
+import { TOOLS, toolOffer } from "../machine-tools.ts";
 import { pipeline } from "node:stream/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { homedir, networkInterfaces, tmpdir } from "node:os";
@@ -1122,11 +1122,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "approvals" && second !== undefined && method === "POST") {
-            const body = await readJson<{ allow?: boolean }>(request);
+            const body = await readJson<{ allow?: boolean; tools?: unknown }>(request);
+            // The machine_add card's ticked tools (PP-177): installed once the machine is connected.
+            const tools = Array.isArray(body.tools) ? { tools: body.tools.map(String).join(",") } : undefined;
 
             // An id may hold a slash, which the path decoded into a part of its own: a codemode script's calls are
             // named `<call>/<n>`.
-            if (!(await app.answerApproval(parts.slice(1).join("/"), body.allow === true, user))) {
+            if (!(await app.answerApproval(parts.slice(1).join("/"), body.allow === true, user, false, tools))) {
                 throw new HttpError(404, "That approval is no longer pending");
             }
 
@@ -1457,7 +1459,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
             requireOwner(user);
 
             return json(response, 200, {
-                tools: TOOLS.map((tool) => ({ id: tool.id, name: tool.name, version: tool.version, description: tool.description, size: tool.size, onlyIfMissing: tool.onlyIfMissing === true })),
+                tools: TOOLS.map(toolOffer),
             });
         }
 

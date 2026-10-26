@@ -49,6 +49,8 @@ export type ToolSpec = {
     skills?: string;
     /** The whole archive (a .zip) is unpacked into its folder, and `member` is the program in it (Chrome's many files). */
     whole?: boolean;
+    /** It works in the machine's desktop: on Linux it needs a signed-in (or virtual) desktop session (ocu). */
+    desktop?: boolean;
     assets: Partial<Record<Target, Asset>>;
 };
 
@@ -93,6 +95,28 @@ export const CHROME_TOOL: ToolSpec = {
         "windows-x64": { url: `${CHROME}/win64/chrome-headless-shell-win64.zip`, sha256: "5ca590a4968864e219ea25ccd134597ef8898a733a4698c07fc3e8b2c480fef4", member: "chrome-headless-shell-win64/chrome-headless-shell.exe" },
         // There is no Windows arm64 build: Windows on Arm runs the x64 one.
         "windows-arm64": { url: `${CHROME}/win64/chrome-headless-shell-win64.zip`, sha256: "5ca590a4968864e219ea25ccd134597ef8898a733a4698c07fc3e8b2c480fef4", member: "chrome-headless-shell-win64/chrome-headless-shell.exe" },
+    },
+};
+
+const OCU = "https://github.com/picassio/open-computer-use/releases/download/v1.1.2-pp.1";
+
+/**
+ * Computer use (PP-177): open-computer-use ("ocu", MIT) in our fork's build, whose outline marks password fields and
+ * refuses typing into them. `computer-control.ts` runs `ocu mcp` on the machine for a control session.
+ */
+export const OCU_TOOL: ToolSpec = {
+    id: "ocu",
+    name: "Computer use (ocu)",
+    command: "ocu",
+    version: "1.1.2-pp.1",
+    description: "Pi reads and operates desktop apps here, in a session you approve on a card. pi-phone's build of open-computer-use (MIT).",
+    size: "about 2.5 MB",
+    desktop: true,
+    // The release's own SHA256SUMS.
+    assets: {
+        "linux-x64": { url: `${OCU}/open-computer-use-linux-x64`, sha256: "baeeee2694eb9d7745bdff040416ce25bd82540ba6cc16d7f17b6b111eedd311" },
+        "linux-arm64": { url: `${OCU}/open-computer-use-linux-arm64`, sha256: "0ab801f327839d4713ef356a2544217bbd1ce7a5fd7b2efad1b34212a78d2a88" },
+        "windows-x64": { url: `${OCU}/open-computer-use-windows-x64.exe`, sha256: "601980f7cc0a6259aff3ae32cde3a3b6e0946db5382e7f4c028bae1dd2231d18" },
     },
 };
 
@@ -160,6 +184,7 @@ export const TOOLS: readonly ToolSpec[] = [
         },
     },
     CHROME_TOOL,
+    OCU_TOOL,
 ];
 
 /** One tool on one machine, as the list shows it. */
@@ -169,6 +194,8 @@ export type ToolStatus = {
     version: string;
     description: string;
     size: string;
+    /** It needs a desktop session on Linux (ocu). */
+    desktop: boolean;
     /** The machine has no build of it: not offered. */
     supported: boolean;
     /** Installed by pi-phone, and which version. */
@@ -180,6 +207,34 @@ export type ToolStatus = {
 };
 
 export type InstallResult = { id: string; ok: boolean; version?: string; said: string };
+
+/** A tool as the lists before connecting offer it (Settings › Machines, the machine_add card): every one, ticked. */
+export type ToolOffer = { id: string; name: string; version: string; description: string; size: string; onlyIfMissing: boolean; desktop: boolean };
+
+export const toolOffer = (tool: ToolSpec): ToolOffer => ({
+    id: tool.id,
+    name: tool.name,
+    version: tool.version,
+    description: tool.description,
+    size: tool.size,
+    onlyIfMissing: tool.onlyIfMissing === true,
+    desktop: tool.desktop === true,
+});
+
+/**
+ * The tools to install on a machine just connected: those ticked (`wanted`, ids) that it offers (`ToolStatus.offered`:
+ * it has a build, it is not installed at this version, and for rg and fd it has none of its own). An id that is no tool
+ * is refused.
+ */
+export function toolsToInstall(statuses: readonly ToolStatus[], wanted: readonly string[], catalog: readonly ToolSpec[] = TOOLS): string[] {
+    const unknown = wanted.filter((id) => !catalog.some((tool) => tool.id === id));
+
+    if (unknown.length > 0) {
+        throw new Error(`No tool ${unknown.join(", ")}. The tools are ${catalog.map((tool) => tool.id).join(", ")}.`);
+    }
+
+    return statuses.filter((status) => status.offered && wanted.includes(status.id)).map((status) => status.id);
+}
 
 /** A value for a single-quoted sh word. */
 const q = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
@@ -356,6 +411,7 @@ export class MachineTools {
                 version: tool.version,
                 description: tool.description,
                 size: tool.size,
+                desktop: tool.desktop === true,
                 supported,
                 ...(version === undefined ? {} : { installed: version }),
                 ...(own === undefined ? {} : { own }),

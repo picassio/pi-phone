@@ -209,8 +209,10 @@ No Termux, no laptop, no cloud VM.
   the conversation and your logins stay on the phone. The Files panel, viewer, Changes, and the terminal follow the
   session there. Linux, macOS, Termux, and **Windows** (through its OpenSSH Server and Git Bash; the app gives you a
   PowerShell script that sets it up).
-- **Machine tools.** OfficeCLI, ripgrep, fd, and Chrome (headless, for Pi's browser where a machine has no Chrome)
-  installed on a machine from the app (Windows included), checked by their SHA-256.
+- **Machine tools.** OfficeCLI, ripgrep, fd, Chrome (headless, for Pi's browser where a machine has no Chrome), and
+  Computer use (ocu, for Pi to operate desktop apps there; on Linux it needs a desktop session) installed on a machine
+  from the app (Windows included), checked by their SHA-256. They are listed, ticked, when you add a machine, in
+  **Install tools**, and on the `machine_add` card.
 - **Pi's browser on a machine.** A session on a machine browses in a headless Chrome there (its own Chrome, Chromium or
   Edge, else the machine tool), watched in the same panel ("Pi's browser on <machine>"). It opens the machine's own
   addresses, so Pi can try the web app you run there (`localhost:3000`), and uploads and PDFs use the machine's files.
@@ -218,8 +220,8 @@ No Termux, no laptop, no cloud VM.
 - **From any session.** `machine_run` and `machine_copy` run a command or copy a file on a machine, and `pi-ssh`
   gives bash ssh, rsync, scp, and tunnels with the app's keys, which nothing can read out. Pi adds a machine itself with
   `machine_add` (a VM it just made, say): one card shows the address, the SSH key and the host key, checked against the
-  one Pi read on the machine when it could, and **Approve and connect** adds it, installs pi-env and connects; Deny
-  saves nothing.
+  one Pi read on the machine when it could, and the tools to install (all ticked); **Approve and connect** adds it,
+  installs pi-env, connects, and installs the ticked tools; Deny saves nothing.
 - **Ports** of a machine (a dev server there) open in the phone's browser.
 - **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's
   `~/.pi/agent/sessions`, with its history; or send a session to `pi` on a machine and bring back what was done there.
@@ -378,7 +380,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Wiki capture and prompt context | **Wiki**: minutes idle before a session is captured, the model that writes captures, tokens of wiki in each prompt, lint options | "Capture idle sessions after 30 minutes", "use claude-haiku for wiki captures" |
 | Web search | **Web access**: a provider, and its key (typed there or kept in Secrets) | "Switch web search to exa". The key itself is yours to type |
 | API keys and tokens | **Secrets**. Pi asks for a missing one with a hidden field on a card, never in the chat | Pi can ask for one, change a secret's flags, or delete one. You type the value |
-| Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
+| Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
 | Extensions (Projects, Wiki, Pi's browser, …) | **Extensions** | "Turn on Projects" |
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
@@ -477,6 +479,10 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   `third_party/effective-html/`.
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT or Unlicense) and **[fd](https://github.com/sharkdp/fd)**
   (MIT or Apache-2.0): installed on machines from their own releases.
+- **[open-computer-use](https://github.com/iFurySt/open-computer-use)** by Leo (iFurySt) (MIT, Copyright (c) 2026
+  Leo): computer use on machines (ocu), built in our fork
+  [picassio/open-computer-use](https://github.com/picassio/open-computer-use) (password fields marked and refused) and
+  installed as a machine tool; its license and notices in `third_party/open-computer-use/`.
 - **agent-board** and **ACS (agent-crew)** by Picassio (MIT): the task types, states, and task
   protocol of Projects, and the board's design.
 - **[pi-web-access](https://github.com/nicobailon/pi-web-access)** by Nico Bailon (MIT): `web_search` and `fetch_content`,
