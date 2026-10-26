@@ -1444,6 +1444,9 @@ function SecretRequestCard({ approval }) {
  * page themselves. What they type goes into the page, never into the conversation; a sign-in can be kept in Secrets
  * (Remember) and used from there next time. The owner's to answer; anyone who can steer may say not now.
  */
+/** A sign-in or code card's field, in the app's own words: never the page's (TannerMidd/pi-pocket-extensions#29). */
+const fieldName = (name) => (name === "username" ? t("Username or email") : name === "password" ? t("Password") : t("Code"));
+
 function BrowserAskCard({ approval }) {
     const { me } = store.state;
     const form = approval.form;
@@ -1492,8 +1495,8 @@ function BrowserAskCard({ approval }) {
                                 type=${field.name === "username" ? "text" : "password"}
                                 autocomplete=${field.name === "username" ? "username" : field.name === "password" ? "current-password" : "one-time-code"}
                                 inputmode=${field.name === "code" ? "numeric" : undefined}
-                                aria-label=${field.label}
-                                placeholder=${field.name === "username" ? t("{label} (username or email)", { label: field.label }) : field.name === "password" ? t("Password") : field.label}
+                                aria-label=${fieldName(field.name)}
+                                placeholder=${fieldName(field.name)}
                                 value=${values[field.name] ?? ""}
                                 onInput=${(event) => setValues({ ...values, [field.name]: event.currentTarget.value })}
                             />`,

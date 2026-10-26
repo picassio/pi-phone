@@ -80,6 +80,7 @@ import { describe, HttpError } from "./errors.ts";
 import { ExtensionCommands } from "./extension-commands.ts";
 import { ExtensionWebs, mayUse } from "./extension-web.ts";
 import { defang, quoted } from "./fence.ts";
+import { cardFills } from "./extensions/browser.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
 import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
@@ -3270,15 +3271,15 @@ export class PocketApp {
             values = typeof body.values === "object" && body.values !== null ? (body.values as Record<string, string>) : {};
         }
 
-        // A password or a code stays out of what Pi reads of the page afterwards; a username may show (PP-93).
-        const fields = form.fields.map((field) => ({ index: field.index, value: values[field.name], hide: field.name !== "username" }));
+        // What the person typed stays out of what Pi reads of the page afterwards, the username too (`cardFills`).
+        const fields = cardFills(form, values);
 
         if (fields.some((field) => typeof field.value !== "string" || field.value === "")) {
             throw new HttpError(400, `Fill in ${form.fields.map((field) => field.label).join(" and ")}.`);
         }
 
         try {
-            await this.browserAt(form.place ?? "phone", Number(request.conversationId)).fillFields(Number(request.conversationId), fields as { index: number; value: string; hide: boolean }[]);
+            await this.browserAt(form.place ?? "phone", Number(request.conversationId)).fillFields(Number(request.conversationId), fields as { index: number; value: string; hide: boolean | string }[]);
         } catch (error) {
             throw new HttpError(409, error instanceof Error ? error.message : String(error));
         }

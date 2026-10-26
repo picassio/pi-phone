@@ -1062,9 +1062,10 @@ export class PiBrowser {
     /**
      * What the person typed on a sign-in or code card, into the page's fields by number (as last read): password fields
      * too. It never goes to Pi; the page is read again afterwards, and a password field's value is never read. With
-     * `hide` (a password, a code), the page keeps it out of everything Pi reads of it from now on (PP-93).
+     * `hide` (what it reads as: a password, a code, a username), the page keeps it out of everything Pi reads of it
+     * from now on (PP-93).
      */
-    fillFields(session: number, fields: { index: number; value: string; hide: boolean }[]): Promise<void> {
+    fillFields(session: number, fields: { index: number; value: string; hide: boolean | string }[]): Promise<void> {
         return this.#run(session, "Filling in what you typed", async (tab) => {
             const page = tab.page;
             // By node, from the read the card was made from: filling one field may renumber the others.

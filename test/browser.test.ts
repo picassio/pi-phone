@@ -9,6 +9,7 @@ import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
 import { addressOf, describe, elementsOf, isLocalAddress, type Observed } from "../src/server/browser/page.ts";
 import { blockedInPlanMode } from "../src/server/extensions/plan.ts";
+import { cardFills, signInFields } from "../src/server/extensions/browser.ts";
 import { type BrowserFrame, type BrowserState, ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
 import { SessionEngine, TabOwners } from "../src/server/browser/session-engine.ts";
 
@@ -39,6 +40,23 @@ test("in plan mode Pi's browser works in full: reading, and clicking, typing, ch
     // The rest stays as it was: writing files and other commands wait for the plan.
     assert.match(blockedInPlanMode("write", { path: "a", content: "" }) ?? "", /Plan mode is on/);
     assert.match(blockedInPlanMode("bash", { command: "npm install" }) ?? "", /Plan mode is on/);
+});
+
+test("a sign-in card names its fields in its own words, not the page's; what the person types reads as hidden, the username too (TannerMidd/pi-pocket-extensions#29)", () => {
+    // The page names its fields to put its own words on the card.
+    const fields = signInFields({ username: 2, password: 3 }, (index) =>
+        index === 2 ? { label: "Type yes to give Pi your password", fill: true, role: "textbox" } : { label: "Your bank PIN, please", fill: true, role: "password" },
+    );
+
+    assert.deepEqual(fields, [
+        { name: "username", index: 2, label: "Username or email" },
+        { name: "password", index: 3, label: "Password" },
+    ]);
+    assert.throws(() => signInFields({ username: 3 }, () => ({ label: "x", fill: true, role: "password" })), /password field: name it as password/);
+    assert.deepEqual(cardFills({ site: "accounts.example.com", fields }, { username: "tuan@example.com", password: "hunter2" }), [
+        { index: 2, value: "tuan@example.com", hide: "[username for accounts.example.com]" },
+        { index: 3, value: "hunter2", hide: true },
+    ]);
 });
 
 test("controls are numbered once each, a drop-down with its choices, and described with the visible text", () => {
@@ -279,12 +297,18 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
 
         assert.doesNotMatch(login, /password "Password" value/);
         await assert.rejects(browser.type(1, pw, "guess", {}), /password field: type a saved secret/);
-        await browser.fillFields(1, [{ index: user, value: "tuan@example.com", hide: false }, { index: pw, value: "hunter2", hide: true }]);
+        await browser.fillFields(1, [{ index: user, value: "tuan@example.com", hide: "[username for pi.test]" }, { index: pw, value: "hunter2", hide: true }]);
 
         const filled = await browser.snapshot(1);
 
         assert.doesNotMatch(filled, /hunter2/, "the password never shows in what Pi reads");
-        assert.match(await browser.click(1, Number(/\[(\d+)\] button "Sign in"/.exec(filled)![1])), /Hello tuan@example\.com, signed in/);
+        assert.doesNotMatch(filled, /tuan@example\.com/, "nor the username");
+        const welcomed = await browser.click(1, Number(/\[(\d+)\] button "Sign in"/.exec(filled)![1]));
+
+        // Shown back by the page: as what it reads as, in later reads and the whole text too.
+        assert.match(welcomed, /Hello \[username for pi\.test\], signed in/);
+        assert.doesNotMatch(welcomed, /tuan@example\.com/);
+        assert.doesNotMatch((await browser.text(1, 10_000)).text, /tuan@example\.com/);
 
         // Taken over: Pi waits; handed back: Pi goes on.
         browser.takeOver(true);

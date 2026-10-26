@@ -14,6 +14,49 @@ import { type Decider, JevDecider, report, SessionDecider } from "../browser/run
 import type { ApprovalRequest, PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 
+/** The sign-in and code cards' field names: fixed, not the page's (a page could put its own words on the card). */
+export const FIELD_LABELS = { username: "Username or email", password: "Password", code: "Code" } as const;
+
+/**
+ * A sign-in card's fields, from the numbers Pi named: checked against the page (a field to type into; a username that
+ * is not a password field), and named in the card's own words, never the page's (TannerMidd/pi-pocket-extensions#29).
+ */
+export function signInFields(
+    named: { username?: number; password?: number },
+    field: (index: number) => { label: string; fill: boolean; role: string },
+): { name: "username" | "password"; index: number; label: string }[] {
+    return [
+        ...(named.username === undefined ? [] : [{ name: "username" as const, index: named.username, field: field(named.username) }]),
+        ...(named.password === undefined ? [] : [{ name: "password" as const, index: named.password, field: field(named.password) }]),
+    ].map((each) => {
+        if (!each.field.fill) {
+            throw new Error(`[${each.index}] is not a field to type into.`);
+        }
+
+        if (each.name === "username" && each.field.role === "password") {
+            throw new Error(`[${each.index}] is a password field: name it as password.`);
+        }
+
+        return { name: each.name, index: each.index, label: FIELD_LABELS[each.name] };
+    });
+}
+
+/**
+ * What a sign-in or code card's answer fills in: each field's value, and what it reads as from then on in all Pi reads
+ * of the page (PP-93): a password or a code as `[typed by the person]`, the username as `[username for <site>]` (it
+ * showed before pi-pocket's review, TannerMidd/pi-pocket-extensions#29).
+ */
+export function cardFills(
+    form: { site: string; fields: readonly { name: "username" | "password" | "code"; index: number }[] },
+    values: Record<string, string | undefined>,
+): { index: number; value: string | undefined; hide: string | true }[] {
+    return form.fields.map((field) => ({
+        index: field.index,
+        value: values[field.name],
+        hide: field.name === "username" ? `[username for ${form.site}]` : true,
+    }));
+}
+
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 /** How much of a whole page `browser_text` gives at once. */
 const TEXT_MAX = 40_000;
@@ -510,20 +553,7 @@ export default function createBrowser(host: PocketHost) {
                 let fields: { name: "username" | "password"; index: number; label: string }[];
 
                 try {
-                    fields = [
-                        ...(args.username === undefined ? [] : [{ name: "username" as const, index: args.username, field: browser.field(args.username) }]),
-                        ...(args.password === undefined ? [] : [{ name: "password" as const, index: args.password, field: browser.field(args.password) }]),
-                    ].map((each) => {
-                        if (!each.field.fill) {
-                            throw new Error(`[${each.index}] ${each.field.label} is not a field to type into.`);
-                        }
-
-                        if (each.name === "username" && each.field.role === "password") {
-                            throw new Error(`[${each.index}] is a password field: name it as password.`);
-                        }
-
-                        return { name: each.name, index: each.index, label: each.field.label };
-                    });
+                    fields = signInFields(args, (index) => browser.field(index));
                 } catch (error) {
                     return reply(error instanceof Error ? error.message : String(error), true);
                 }
@@ -577,7 +607,7 @@ export default function createBrowser(host: PocketHost) {
                     type: "browser",
                     kind: "code",
                     site,
-                    fields: [{ name: "code", index: args.index, label: field.label }],
+                    fields: [{ name: "code", index: args.index, label: FIELD_LABELS.code }],
                     instruction: args.prompt ?? "Enter the one-time code the site sent you.",
                 }, "The person entered the code (you do not see it). Submit it if the page did not.");
             },

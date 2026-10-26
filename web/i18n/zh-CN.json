@@ -2805,5 +2805,6 @@
     "Show {n} linked sessions": "显示 {n} 个关联会话",
     "Hide {n} linked session": "隐藏 {n} 个关联会话",
     "Hide {n} linked sessions": "隐藏 {n} 个关联会话",
-    "Run and save": "运行并保存"
+    "Run and save": "运行并保存",
+    "Username or email": "用户名或邮箱"
 }

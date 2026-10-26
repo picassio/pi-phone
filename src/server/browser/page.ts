@@ -286,18 +286,19 @@ export class BrowserPage {
     }
 
     /**
-     * What a person typed into this page through a card (a password, a one-time code; not a username), kept in memory
-     * only: everything Pi reads of the page has them as `[typed by the person]` (PP-93). A code in a plain text field
-     * would otherwise show in the next read.
+     * What a person typed into this page through a card (a username, a password, a one-time code), kept in memory only,
+     * with what it reads as instead: everything Pi reads of the page has `[typed by the person]`, or a username's
+     * `[username for <site>]` (PP-93; the username too since pi-pocket's review, TannerMidd/pi-pocket-extensions#29). A
+     * code in a plain text field would otherwise show in the next read.
      */
-    readonly #typed = new Set<string>();
+    readonly #typed = new Map<string, string>();
 
     /** `text` with what the person typed through a card taken out, longest first. */
     hideTyped(text: string): string {
         let result = text;
 
-        for (const value of [...this.#typed].sort((a, b) => b.length - a.length)) {
-            result = result.split(value).join("[typed by the person]");
+        for (const [value, shown] of [...this.#typed].sort(([a], [b]) => b.length - a.length)) {
+            result = result.split(value).join(shown);
         }
 
         return result;
@@ -777,20 +778,23 @@ export class BrowserPage {
      * Type into a field, password fields too: Pi's own typing goes through `type`, which refuses passwords; this is for
      * what the person typed on a sign-in or code card, which goes into the page without passing through Pi.
      */
-    /** `hide`: the person typed it on a card (a password, a code), so Pi's reads of this page never show it (`hideTyped`). */
+    /**
+     * `hide`: the person typed it on a card (a username, a password, a code), so Pi's reads of this page never show it
+     * (`hideTyped`): `true` reads as `[typed by the person]`, a string as itself.
+     */
     async fill(
         observed: Observed,
         element: Element,
         text: string,
-        { clear = true, submit = false, hide = false }: { clear?: boolean; submit?: boolean; hide?: boolean } = {},
+        { clear = true, submit = false, hide = false }: { clear?: boolean; submit?: boolean; hide?: boolean | string } = {},
     ): Promise<void> {
         if (!element.fill) {
             throw new Error(`[${element.index}] ${element.label} is not a field to type into.`);
         }
 
         // Kept before it is typed: a read the typing sets off already hides it. Very short values would hide too much.
-        if (hide && text.length >= 3) {
-            this.#typed.add(text);
+        if (hide !== false && text.length >= 3) {
+            this.#typed.set(text, hide === true ? "[typed by the person]" : hide);
         }
 
         if (!(await this.#fresh(observed, element.node))) {
