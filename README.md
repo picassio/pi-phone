@@ -155,7 +155,7 @@ No Termux, no laptop, no cloud VM.
   model, and an "ask first" secret still asks you on a card. **Otherwise signing in stays yours:** Pi never types a password
   or a code as text. `browser_sign_in` puts a card in the
   conversation where you type the username and password (or use one kept in Secrets with Remember), and they go
-  straight into the page; `browser_ask_code` does the same for a one-time code; `browser_ask_user` hands you the page
+  straight into the page (the card names the fields in its own words, never the page's); `browser_ask_code` does the same for a one-time code; `browser_ask_user` hands you the page
   for a CAPTCHA or an approval on your phone, and Pi goes on when you say Done. Passkeys are not possible there
   (Android allows them only in allowlisted browsers): Pi takes the site's other way, or asks you.
 - **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for
@@ -176,7 +176,10 @@ No Termux, no laptop, no cloud VM.
 
 ### Secrets and the wiki
 - **Secrets.** API keys and tokens in Settings › Secrets, used by name (`$NPM_TOKEN`) and never shown: output that
-  contains one shows `[secret NAME]`. Pi asks for a missing one through a hidden field.
+  contains one shows `[secret NAME]`. Pi asks for a missing one through a hidden field. To keep a value a command
+  makes (`gh auth token`), Pi shows you the whole command on a card first (**Run and save**), and a failed command's
+  output is never shown. Pi's browser gives Pi a page's text fenced as the page's, not instructions, and a sign-in you
+  type hides your username in what Pi reads afterwards, as it does the password.
 - **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
   search, tracks its open questions until they are answered, and captures idle sessions into it.
 - **Documents** (rail › Documents): your documents in folders, as markdown pages rendered like the wiki.
