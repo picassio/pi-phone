@@ -12,7 +12,7 @@ const reply = (text: string) => ({ output: [{ type: "text" as const, text }] });
 
 const GUIDE = `You can reach this app's other sessions with the sessions tools, as the person you work for, with their rights: sessions (list), session_read, session_start, session_send, session_wait, session_stop, session_settle, session_archive, approvals.
 - A session stuck on something in its context (every request fails): session_compact, session_new_context, or session_fork (a new session before the message that stopped it). Each asks your person on a card; read the session first and say why.
-- These work on other sessions only, never this one.
+- These work on other sessions only, never this one; but session_fork forks this one too (a new session from before one of your person's messages, this one going on as it is; then give the fork its task with session_send).
 - Folder groups in your person's session list are theirs too: session_groups lists them; session_group_create, _rename, _pin, _fold, _order and _move change them when asked; session_group_delete asks them on a card.
 - Use them when your person asks you to look after, test through, or hand work to other sessions; not on your own initiative.
 - Read a session (session_read) before you message or stop it, and do only what it needs.
@@ -170,14 +170,14 @@ export default function createSessions(host: PocketHost) {
     const fork = defineTool({
         name: "session_fork",
         description:
-            "Fork another session: a new session whose history ends just before one of the person's messages there, as editing that message does, sending nothing (asks your person on a card first). For a session stuck on a message: the fork goes on without it.",
+            "Fork a session, this one too: a new session whose history ends just before one of the person's messages there, as editing that message does, sending nothing (asks your person on a card first); the session forked goes on as it is. For a session stuck on a message: the fork goes on without it. For this one: a branch of the work, given its task with session_send.",
         parameters: Type.Object({
             session,
             message: Type.Number({ description: "Which of the person's messages there, counted from the newest: 1 is the latest, 2 the one before" }),
             reason: why,
         }),
         execute: async (args, api, context) => {
-            const line = await host.sessions.checkRescue(api.conversationId, args.session, false);
+            const line = await host.sessions.checkRescue(api.conversationId, args.session, false, true);
             const answer = await asked(api, context, "session_fork", `Fork ${line} before the person's message ${args.message === 1 ? "(the latest)" : `${args.message} from the end`}`, args.reason);
 
             if (!answer.allow) {

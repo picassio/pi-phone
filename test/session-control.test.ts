@@ -143,12 +143,27 @@ test("Pi gets another session past what stops it: fork before a message, a new c
     assert.match(compacted, /Compacting #\d+/);
 });
 
+test("session_fork forks this session too: the fork has the history before the person's message, this one stays as it is", async () => {
+    const caller = await session("first ask");
+    const control = app.sessionControl;
+    const { submissionId } = await app.commands.submit(caller, owner(app), { text: "second ask", requestId: crypto.randomUUID() });
+
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    await app.harness.waitForIdle(context);
+    assert.match(await control.checkRescue(caller, Number(caller), false, true), new RegExp(`#${String(caller)}`));
+
+    const fork = (await control.fork(caller, Number(caller), 1)).id as unknown as ConversationId;
+
+    assert.notEqual(fork, caller);
+    assert.deepEqual(await peopleSaid(fork), ["first ask"]);
+    assert.deepEqual(await peopleSaid(caller), ["first ask", "second ask"], "this session goes on as it was");
+});
+
 test("the rescue tools refuse this session and sessions the person cannot drive, before any card (PP-99)", async () => {
     const caller = await session("myself");
     const control = app.sessionControl;
 
     await assert.rejects(control.checkRescue(caller, Number(caller), false), /That is this session/);
-    await assert.rejects(control.fork(caller, Number(caller), 1), /That is this session/);
     await assert.rejects(control.newContext(caller, Number(caller)), /That is this session/);
     await assert.rejects(control.compact(caller, Number(caller), undefined), /That is this session/);
     await assert.rejects(control.checkRescue(caller, 999_999, true), /no session #999999/);

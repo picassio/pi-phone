@@ -368,8 +368,8 @@ export class SessionControl {
      * Before the card that asks the person: refused at once when it is this session, or when the person may not do it
      * there (`drive`: compact and New context need the session's driver, as from its menu). Answers its line.
      */
-    async checkRescue(caller: ConversationId, id: number, drive: boolean): Promise<string> {
-        const { user, target } = this.#target(caller, id, true);
+    async checkRescue(caller: ConversationId, id: number, drive: boolean, self = false): Promise<string> {
+        const { user, target } = this.#target(caller, id, !self);
 
         if (drive) {
             await this.#app.requireDriver(target, user);
@@ -378,9 +378,13 @@ export class SessionControl {
         return this.status(caller, id);
     }
 
-    /** A new session with the history before one of the person messages there (1: the latest), as the person (PP-99). */
+    /**
+     * A new session with the history before one of the person messages there (1: the latest), as the person (PP-99).
+     * This session too (the owner, 2026-10-26): a fork leaves the session it came from as it is, so Pi may branch off
+     * its own work, and hand the fork its task with session_send.
+     */
     async fork(caller: ConversationId, id: number, message: number): Promise<{ id: number }> {
-        const { user, target } = this.#target(caller, id, true);
+        const { user, target } = this.#target(caller, id, false);
 
         return { id: Number((await this.#app.commands.forkBefore(target, user, message)).id) };
     }
