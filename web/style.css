@@ -8161,8 +8161,11 @@ pre.diff .del {
     color: var(--muted);
 }
 
+/* A solid bar over the image: a light picture zoomed in under a see-through one hid its controls among its own words
+ * (#71257, 2026-10-26). The title gives way; the controls keep their size. */
 .lightbox-bar {
     position: fixed;
+    z-index: 1;
     top: 0;
     left: 0;
     right: 0;
@@ -8170,8 +8173,13 @@ pre.diff .del {
     align-items: center;
     gap: 0.4rem;
     padding: calc(env(safe-area-inset-top) + 0.4rem) 0.4rem 0.4rem 0.9rem;
-    background: linear-gradient(color-mix(in srgb, var(--desk) 80%, transparent), transparent);
+    background: var(--bg);
+    border-bottom: 1px solid var(--hair);
     cursor: default;
+}
+
+.lightbox-bar > :not(.lightbox-title) {
+    flex: none;
 }
 
 .lightbox-title {
@@ -8181,7 +8189,7 @@ pre.diff .del {
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: 0.85rem;
-    color: var(--muted);
+    color: var(--text);
 }
 
 /* ─── Notices, sign-in, plain pages ────────────────────────── */
