@@ -2,7 +2,8 @@
  * The owner's secrets for Pi (`secrets.ts`): which it may use here, said in its prompt; `secrets_list`; asking a person
  * for one (`secret_request`, a hidden field on the call's card, never the chat); saving a command's output as one
  * (`secret_save`). The hooks keep values out: a `bash` command that names a secret it may not use here is refused, one
- * that uses an ask-first secret waits for a person, and every tool's result has values replaced by `[secret NAME]`.
+ * that uses an ask-first secret waits for a person, and every tool's result has values replaced by `[secret NAME]`, and
+ * the values extensions hide in its session (`host.hide`, `hidden.ts`) by their `[label]`.
  * The values themselves reach commands as environment variables, set by the app's `bash` (`app.ts`).
  */
 import { Type } from "@earendil-works/pi-ai";
@@ -35,7 +36,7 @@ const RULES = `Secrets: the person keeps API keys and tokens in Settings > Secre
 - When you need a secret that is not listed, call secret_request with a name and what it is for: the person types it into a hidden field on the call's card. Never ask anyone to paste a key, token, or password into the chat.
 - To keep a value a command makes (a generated key, gh auth token), use secret_save: the owner sees the whole command on a card first, and it stores the command's output without showing it.`;
 
-/** Every string in a result's JSON, with values replaced. */
+/** Every string in a result's JSON, object keys too (pi-pocket 0.22.0's `host.hide` does keys), with values replaced. */
 function redactJson(value: JsonValue, redact: (text: string) => string): JsonValue {
     if (typeof value === "string") {
         return redact(value);
@@ -46,7 +47,7 @@ function redactJson(value: JsonValue, redact: (text: string) => string): JsonVal
     }
 
     if (value !== null && typeof value === "object") {
-        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactJson(item as JsonValue, redact)]));
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [redact(key), redactJson(item as JsonValue, redact)]));
     }
 
     return value;
@@ -356,9 +357,12 @@ export default function createSecrets(host: PocketHost) {
 
                     return undefined;
                 },
-                // Every result, with secrets' values replaced before it is stored and reaches the model.
-                afterTool: (_call, result): ToolExecutionResult | undefined =>
-                    secrets.longest() === 0 ? undefined : redactToolResult(result, (text) => secrets.redact(text)),
+                // Every result, with secrets' values, and the values extensions hide in this session (`host.hide`),
+                // replaced before it is stored and reaches the model.
+                afterTool: (_call, result, api): ToolExecutionResult | undefined =>
+                    secrets.longest(api.conversationId) === 0
+                        ? undefined
+                        : redactToolResult(result, (text) => secrets.redact(text, api.conversationId)),
             }),
         ],
     });

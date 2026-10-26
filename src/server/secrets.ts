@@ -9,13 +9,17 @@
  * `afterTool` hook, and a person's own message before it is sent. That keeps values out of the model, the transcript,
  * the wiki, and the screen by accident; it is not a boundary against a model set on leaking one.
  *
+ * Values extensions hide (`host.hide`, `hidden.ts`) go through the same redaction, in the session they are hidden in:
+ * given a session, `redact`, `longest`, and `guard` replace them too, as `[label]`.
+ *
  * They live in one file in the app's data folder, readable by the app alone (mode 0600), and go into backups with it,
  * as Pi's `auth.json` does.
  */
-import type { Context } from "@earendil-works/chord";
-import type { ExecutionEnv, ShellExecOptions } from "@earendil-works/pi-durable/env";
+import type { ConversationId } from "@earendil-works/pi-durable";
+import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { HiddenValues, longestFirst, redactStream, type Replacement, replaceAll } from "./hidden.ts";
 
 /** What a secret is called: an environment variable's name, upper case. */
 export const SECRET_NAME = /^[A-Z_][A-Z0-9_]{0,63}$/;
@@ -89,16 +93,24 @@ export class Secrets {
     readonly #now: () => number;
     readonly #secrets = new Map<string, Stored>();
     readonly #listeners = new Set<() => void>();
-    /** Each value's forms that are replaced in output, longest first, with the name they stand for. */
-    #patterns: { text: string; name: string }[] = [];
+    /** Each value's forms that are replaced in output, longest first, with `[secret NAME]`. */
+    #patterns: Replacement[] = [];
+    /** Values extensions hide (`host.hide`), redacted with the secrets in the session they are hidden in. */
+    readonly hidden: HiddenValues;
 
     /**
      * A secrets file that cannot be read (not JSON, no "secrets" object) is moved aside to
      * `secrets.json.broken-<time>`, said in the log, and the app starts with no secrets rather than not at all (PP-92).
      */
-    constructor(dataDir: string, now: () => number = Date.now, log: (line: string) => void = () => {}) {
+    constructor(
+        dataDir: string,
+        now: () => number = Date.now,
+        log: (line: string) => void = () => {},
+        hidden: HiddenValues = new HiddenValues(),
+    ) {
         this.#file = join(dataDir, FILE);
         this.#now = now;
+        this.hidden = hidden;
 
         if (existsSync(this.#file)) {
             const items = readSecretsFile(this.#file);
@@ -282,66 +294,62 @@ export class Secrets {
         }
     }
 
-    /** Text with every secret's value, raw, base64, or URL-encoded, replaced by `[secret NAME]`. */
-    redact(text: string): string {
-        let result = text;
-
-        for (const { text: value, name } of this.#patterns) {
-            if (result.includes(value)) {
-                result = result.split(value).join(`[secret ${name}]`);
-            }
+    /**
+     * What is replaced in a session's output, longest first: every secret's forms, and with `conversationId` the values
+     * extensions hide there.
+     */
+    #replacements(conversationId?: ConversationId | number): Replacement[] {
+        if (conversationId === undefined) {
+            return this.#patterns;
         }
 
-        return result;
+        const hidden = this.hidden.for(conversationId);
+
+        return hidden.length === 0 ? this.#patterns : longestFirst([...this.#patterns, ...hidden]);
     }
 
-    /** The longest form of a value that is replaced: how much of a stream is held back so none is cut in two. */
-    longest(): number {
-        return this.#patterns[0]?.text.length ?? 0;
+    /**
+     * Text with every secret's value, raw, base64, or URL-encoded, replaced by `[secret NAME]`; with `conversationId`,
+     * the values extensions hide in that session too, by `[label]`.
+     */
+    redact(text: string, conversationId?: ConversationId | number): string {
+        return replaceAll(text, this.#replacements(conversationId));
     }
 
-    /** An environment like `env`, whose commands' output has secrets' values replaced as it streams. */
-    guard(env: ExecutionEnv): ExecutionEnv {
-        const known = this.#guarded.get(env);
+    /** The longest text that is replaced: how much of a stream is held back so none is cut in two. */
+    longest(conversationId?: ConversationId | number): number {
+        return this.#replacements(conversationId)[0]?.text.length ?? 0;
+    }
+
+    /**
+     * An environment like `env`, whose commands' output has secrets' values replaced as it streams; with
+     * `conversationId` (the session it runs for), the values extensions hide there too.
+     */
+    guard(env: ExecutionEnv, conversationId?: number): ExecutionEnv {
+        const key = conversationId ?? 0;
+        const known = this.#guarded.get(env)?.get(key);
 
         if (known !== undefined) {
             return known;
         }
 
-        const secrets = this;
         const exec: ExecutionEnv["exec"] = async (command, options, context) => {
-            if (options?.onOutput === undefined || secrets.longest() === 0) {
+            const replacements = this.#replacements(conversationId);
+
+            if (options?.onOutput === undefined || replacements.length === 0) {
                 return env.exec(command, options, context);
             }
 
-            const onOutput = options.onOutput;
-            // Per stream, what came but is held back: it may end in the first part of a value.
-            const held = new Map<string, { text: string; context: Context }>();
-            const hold = secrets.longest() - 1;
-            const wrapped: ShellExecOptions = {
-                ...options,
-                onOutput: (text, context, info) => {
-                    // After omitted output, what was held belongs to the omitted part.
-                    const before = info.skipped === undefined ? (held.get(info.stream)?.text ?? "") : "";
-                    const joined = secrets.redact(before + text);
-                    const cut = Math.max(0, joined.length - hold);
-
-                    held.set(info.stream, { text: joined.slice(cut), context });
-
-                    if (cut > 0 || info.skipped !== undefined) {
-                        onOutput(joined.slice(0, cut), context, info);
-                    }
-                },
-            };
+            const stream = redactStream(
+                (text) => replaceAll(text, replacements),
+                replacements[0]!.text.length - 1,
+                options.onOutput,
+            );
 
             try {
-                return await env.exec(command, wrapped, context);
+                return await env.exec(command, { ...options, onOutput: stream.onOutput }, context);
             } finally {
-                for (const [stream, rest] of held) {
-                    if (rest.text !== "") {
-                        onOutput(secrets.redact(rest.text), rest.context, { stream: stream as "stdout" | "stderr" });
-                    }
-                }
+                stream.flush();
             }
         };
         const guarded = new Proxy(env, {
@@ -357,12 +365,16 @@ export class Secrets {
             },
         });
 
-        this.#guarded.set(env, guarded);
+        const ofEnv = this.#guarded.get(env) ?? new Map<number, ExecutionEnv>();
+
+        ofEnv.set(key, guarded);
+        this.#guarded.set(env, ofEnv);
 
         return guarded;
     }
 
-    readonly #guarded = new WeakMap<ExecutionEnv, ExecutionEnv>();
+    /** Each environment's guards, by the session they run for (0: none). */
+    readonly #guarded = new WeakMap<ExecutionEnv, Map<number, ExecutionEnv>>();
 
     onChange(listener: () => void): () => void {
         this.#listeners.add(listener);
@@ -371,7 +383,7 @@ export class Secrets {
     }
 
     #index(): void {
-        const patterns: { text: string; name: string }[] = [];
+        const patterns: Replacement[] = [];
 
         for (const { name, value } of this.#secrets.values()) {
             const bytes = Buffer.from(value, "utf8");
@@ -385,12 +397,12 @@ export class Secrets {
 
             for (const text of forms) {
                 if (text.length >= MIN_SECRET_LENGTH) {
-                    patterns.push({ text, name });
+                    patterns.push({ text, replacement: `[secret ${name}]` });
                 }
             }
         }
 
-        this.#patterns = patterns.sort((a, b) => b.text.length - a.text.length);
+        this.#patterns = longestFirst(patterns);
     }
 
     /** Write `secrets` to the file, whole (a temporary file, then renamed): throws when it cannot, changing nothing. */

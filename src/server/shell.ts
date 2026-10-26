@@ -252,6 +252,16 @@ export class Shell {
             throw new HttpError(413, `Commands are limited to ${MAX_COMMAND} characters.`);
         }
 
+        // A command is stored and shown as typed, and runs from what is stored: one that holds a value an extension hides
+        // (`host.hide`) would keep it in the transcript. The extension's variable carries the value instead (pi-pocket
+        // 0.22.0, cdef41e).
+        if (app.hidden.replace(command, id) !== command) {
+            throw new HttpError(
+                400,
+                "This command holds a hidden value, which would be stored and shown. Use the variable that carries it instead, such as $NAME.",
+            );
+        }
+
         const input: ShellInput = {
             command,
             by: user.id,

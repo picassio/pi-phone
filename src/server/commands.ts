@@ -773,8 +773,9 @@ export class Commands {
         await app.requireDriver(id, user);
 
         const conversation = await app.conversation(id);
-        // A known secret's value pasted into a message stays out of the conversation: its name takes its place.
-        const typed = app.secrets.redact(request.text.trim());
+        // A known secret's value pasted into a message stays out of the conversation: its name takes its place. So does a
+        // value an extension hides here (`host.hide`): its label does.
+        const typed = app.secrets.redact(request.text.trim(), id);
         // `/skill:name request` sends the skill with the request; `/name arguments`, Pi's prompt template of that name.
         const text = typed.startsWith("/skill:")
             ? (expandSkillCommand(typed, app.skillCommands(id)) ?? typed)
@@ -826,7 +827,11 @@ export class Commands {
             request.inlineFiles === true
                 ? await this.#mentionedFiles(id, user, typed, model.input.includes("image"))
                 : [];
-        const parts: (TextContent | ImageContent)[] = [{ type: "text", text: body }, ...mentioned];
+        // A file's text that a message brings along is redacted as the message is (pi-pocket 0.22.0, cdef41e).
+        const parts: (TextContent | ImageContent)[] = [
+            { type: "text", text: body },
+            ...mentioned.map((part) => (part.type === "text" ? { ...part, text: app.secrets.redact(part.text, id) } : part)),
+        ];
 
         for (const file of attachments) {
             if (
@@ -1778,7 +1783,7 @@ export class Commands {
         const entryId = entryIdOf(request.entryId);
         const typed = optionalText(request.text, "text")?.trim();
         // A known secret's value pasted into the edited message stays out of the conversation, as in `submit` (PP-92).
-        const edited = typed === undefined ? undefined : app.secrets.redact(typed);
+        const edited = typed === undefined ? undefined : app.secrets.redact(typed, id);
         const asked = request.model as { provider?: unknown; modelId?: unknown } | undefined;
 
         checkModel(asked);

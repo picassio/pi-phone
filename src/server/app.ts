@@ -113,6 +113,7 @@ import { isRemote, parsePlace, Places } from "./places.ts";
 import { SshKeys } from "./ssh-keys.ts";
 import { SshAgent } from "./ssh-agent.ts";
 import { namesIn, Secrets } from "./secrets.ts";
+import { CommandEnvs, HiddenValues } from "./hidden.ts";
 import type { Tailnet } from "./tailnet.ts";
 import { WebSearch } from "./web/access.ts";
 import { InterviewHelpers } from "./interview-helpers.ts";
@@ -402,6 +403,13 @@ export class PocketApp {
     readonly sshAgent: SshAgent;
     /** The owner's secrets: values for commands that name them, never for the model (`secrets.ts`). */
     readonly secrets: Secrets;
+    /**
+     * Values extensions hide from what commands and tools give back and people send (`hidden.ts`, `host.hide`): redacted
+     * with the secrets, in the session they are hidden in (and its subagents).
+     */
+    readonly hidden = new HiddenValues((id) => Number(this.rootOf(id as unknown as ConversationId)));
+    /** What extensions add to the environment of each command (`hidden.ts`, `host.commandEnv`). */
+    readonly commandEnvs = new CommandEnvs((line) => this.log(line));
     /** Web search's provider, its key from Pi's sign-ins or the secrets, and self-hosted addresses (`web/access.ts`). */
     readonly web: WebSearch;
     /** Other computers sessions can work on, over ssh (`machines.ts`). */
@@ -498,7 +506,7 @@ export class PocketApp {
 
         this.sshAgent = new SshAgent(sshDir, (line) => this.log(line));
         this.sshKeys = new SshKeys(options.dataDir, this.sshAgent, sshDir, this.#home);
-        this.secrets = new Secrets(options.dataDir, Date.now, (line) => this.log(line));
+        this.secrets = new Secrets(options.dataDir, Date.now, (line) => this.log(line), this.hidden);
         this.policy = new PolicyStore(options.dataDir);
         this.web = new WebSearch(this.config, this.secrets, async (provider) => (await this.models.getAuth(provider))?.auth.apiKey);
         // Every tab's machines (the folder picker, Ports, Pi sessions on a machine) come with `hello`: a machine connected,
@@ -989,6 +997,8 @@ export class PocketApp {
 
                 return user !== undefined && this.canSee(user, conversationId);
             },
+            hide: (value) => this.hidden.add(value),
+            commandEnv: (provider) => this.commandEnvs.add(provider),
             notice: (level, message, conversationId) => this.notice(level, message, conversationId),
             heldBack: (conversationId) => this.spend.heldBack(conversationId),
             onLimitsChanged: (listener) => this.spend.onLimitsChanged(listener),
@@ -1047,8 +1057,9 @@ export class PocketApp {
                 registry,
                 settings: this.#harnessSettings(),
                 now: this.now,
-                // Commands' output with secrets' values replaced as it streams (`secrets.ts`).
-                env: ({ cwd }) => this.secrets.guard(this.places.env(cwd ?? this.defaultCwd)),
+                // Commands' output with secrets' and hidden values replaced as it streams, and what extensions add to
+                // each command's environment (`secrets.ts`, `hidden.ts`).
+                env: ({ conversationId, cwd }) => this.#wrapped(conversationId, cwd ?? this.defaultCwd),
                 conversationCreated: async (tx, conversation) => {
                     // Every conversation gets the app's documents up front, so views can read them from the start.
                     await tx.doc(AuthorsDoc, conversation.id);
@@ -1511,9 +1522,17 @@ export class PocketApp {
         } as HarnessSettings;
     }
 
-    /** Where a conversation's commands run: its folder on this machine. */
+    /** Where a conversation's commands run (its goals' checks): its folder, as its other commands run there. */
     envFor(id: ConversationId): ExecutionEnv {
-        return this.places.env(this.cwdOf(id));
+        return this.#wrapped(id, this.cwdOf(id));
+    }
+
+    /**
+     * A folder's environment for a session: output with the secrets and the session's hidden values replaced as it
+     * streams, and what extensions add to each command's environment (`host.commandEnv`).
+     */
+    #wrapped(id: ConversationId, cwd: string): ExecutionEnv {
+        return this.commandEnvs.wrap(this.secrets.guard(this.places.env(cwd), Number(id)), Number(id), cwd);
     }
 
     // ─── Clients ────────────────────────────────────────────────────────────

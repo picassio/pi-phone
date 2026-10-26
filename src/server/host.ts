@@ -26,6 +26,9 @@ import type { Machines } from "./machines.ts";
 import type { SshKeys } from "./ssh-keys.ts";
 import type { PhoneApp, PhoneControl } from "./phone-control.ts";
 import type { WebSearch } from "./web/access.ts";
+import type { CommandEnvProvider, HiddenValue } from "./hidden.ts";
+
+export type { CommandEnvProvider, CommandRun, HiddenValue } from "./hidden.ts";
 
 export interface ApprovalRequest {
     id: string;
@@ -323,6 +326,22 @@ export interface PocketHost {
     signOutEverywhere(userId: string): void;
     /** Whether a person may see a session, as the app decides it for them (`canSee`). */
     canSee(userId: string, conversationId: ConversationId): boolean;
+    /**
+     * Hide a value from what Pi and people read: command output as it streams, every tool's result, and people's
+     * messages to Pi. It shows as `[label]`, as the owner's secrets show as `[secret NAME]`. Returns how to stop; pass
+     * that to `web.onDispose`. (pi-pocket 0.22.0's extension point.)
+     *
+     * @experimental As in pi-pocket 0.22: it can change in a minor release.
+     */
+    hide(value: HiddenValue): () => void;
+    /**
+     * Add environment variables to the commands Pi and people run in sessions (bash, `!` commands, goal checks), chosen
+     * for each command. What the app sets itself (PATH, the owner's secrets a command names) is not replaced. Returns
+     * how to stop; pass that to `web.onDispose`. (pi-pocket 0.22.0's extension point.)
+     *
+     * @experimental As in pi-pocket 0.22: it can change in a minor release.
+     */
+    commandEnv(provider: CommandEnvProvider): () => void;
     /** Report something odd to the log and the connected clients: with `conversationId`, to that session's tabs only. */
     notice(
         level: "info" | "warning" | "error",

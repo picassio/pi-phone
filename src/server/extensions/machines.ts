@@ -126,7 +126,7 @@ export default function createMachines(host: PocketHost) {
 
             const tail = out.length > MAX_OUTPUT ? out.slice(-MAX_OUTPUT) : out;
             const cut = skipped + (out.length - tail.length);
-            const shown = host.secrets.redact(tail);
+            const shown = host.secrets.redact(tail, api.conversationId);
             const head = `${machine.alias}:${cwd} · exit ${result.value.exitCode}${cut > 0 ? ` · the first ${cut.toLocaleString("en")} characters of output left out` : ""}`;
 
             return {
