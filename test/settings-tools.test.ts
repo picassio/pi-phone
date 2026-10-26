@@ -24,6 +24,8 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "drop it": ["app_action", { id: "secrets.delete", args: { name: "TEST_KEY" }, reason: "Not needed any more" }],
     "make Vic a viewer": ["setting_change", { id: "people.role", value: "viewer", target: "Vic", reason: "Only to read" }],
     "billing off": ["setting_change", { id: "phone.claudeCodeBilling", value: "off", reason: "Testing plain OAuth" }],
+    "interview off": ["setting_change", { id: "extensions.interview.ts", value: "off", reason: "Not needed here" }],
+    "interview on": ["setting_change", { id: "extensions.interview.ts", value: "on", reason: "Back as it was" }],
     "assistant sends": ["setting_change", { id: "assistant.send", value: "auto", reason: "Hands-free" }],
     "assistant one session": ["setting_change", { id: "assistant.opens", value: "session", reason: "Always the assistant" }],
     "set instructions": ["setting_change", { id: "sessions.instructions", value: "Answer in Vietnamese.", target: "__SESSION__", reason: "The owner asked" }],
@@ -176,6 +178,10 @@ test("people, phone, and one session's settings, each through the app's own meth
     assert.equal(billing.card?.subject, "Change Bill Anthropic sign-ins as Claude Code: on → off");
     assert.equal(app.phoneSettings.current().claudeCodeBilling.enabled, false);
     assert.match(readFileSync(app.phoneSettings.path, "utf8"), /"enabled": false/);
+
+    // An extension's switch says its new state after the change, not the one the settings were listed with.
+    assert.match((await turn(id, "interview off", true)).said, /Changed extensions\.interview\.ts: on → off\./);
+    assert.match((await turn(id, "interview on", true)).said, /Changed extensions\.interview\.ts: off → on\./);
 
     // The phone's assistant sheet (PP-146): through the app's own method, checked the same way.
     const sends = await turn(id, "assistant sends", true);

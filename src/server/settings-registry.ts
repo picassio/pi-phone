@@ -697,7 +697,8 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 title: `Extension: ${module.title}`,
                 help: `${module.source === "drop-in" ? "A drop-in (the owner's, in the data folder's extensions). " : ""}${module.summary} on or off${module.required ? " (required: it stays on)" : ""}.${module.error === undefined ? "" : ` ${module.refused === undefined ? "It failed to load" : "It is refused"}: ${module.error}`}`,
                 owner: true,
-                read: () => (module.enabled ? "on" : "off"),
+                // Read now, not from the list the settings were made from: after a change it says the new state.
+                read: () => (app.loader.list().find((each) => each.file === module.file)?.enabled ? "on" : "off"),
                 choices: () => ["on", "off"],
                 apply: (user, value) => app.setExtensionEnabled(user, module.file, onOff(value)),
             }),
