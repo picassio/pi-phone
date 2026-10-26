@@ -26,7 +26,7 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const PACKAGE = /^[A-Za-z][\w]*(\.[A-Za-z_][\w]*)+$/;
 
 /** In every prompt while the module is on. */
-export const PHONE = `Phone control: you can see and operate Android apps on the owner's phone, in a control session the owner approves on a card. phone_control start names the apps (and minutes, 15 by default); only those apps and the home screen may be read or touched, so ask with a new card for another app; or, when the work will lead into screens of other apps (on a Samsung, Settings' Battery is Device care, an app of its own), ask with follow: true, so an app the named ones open while you act in them joins (one step). Then phone_act open_app opens one, phone_screen reads the screen as numbered elements ([3] Button "Send"), phone_act taps, types, swipes, scrolls, presses back or home, and answers with the screen after it (use the newest numbers); phone_screenshot shows it as a picture. Never type into a password field: ask the owner to type a password or code on the phone himself. pi-phone itself, banking and payment apps, password managers and apps on the owner's Never list are never read or controlled. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with phone_control stop when you are done.`;
+export const PHONE = `Phone control: you can see and operate Android apps on the owner's phone, in a control session the owner approves on a card. phone_control start names the apps (and minutes, 15 by default); only those apps and the home screen may be read or touched, so ask with a new card for another app; or, when the work will lead into screens of other apps (on a Samsung, Settings' Battery is Device care, an app of its own), ask with follow: true, so an app the named ones open while you act in them joins (one step). Then phone_act open_app opens one, phone_screen reads the screen as numbered elements ([3] Button "Send"), phone_act taps, types, swipes, scrolls, presses back or home, and answers with the screen after it (use the newest numbers); phone_screenshot shows it as a picture. Never type into a password field: ask the owner to type a password or code on the phone himself. pi-phone itself, banking and payment apps, password managers and apps on the owner's Never list are never read or controlled. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with phone_control stop as soon as you are done, also when you give up or something fails, so the banner tells the owner you are done; it also ends by itself shortly after your turn ends. If open_app says the app did not come to the front, open it from the home screen as it says. If the screen says Android hides it (permission and default-app screens), ask the owner to do that step. Say plainly what you read or did, and what you could not.`;
 
 export default function createPhone(host: PocketHost) {
     const control = host.phone;
@@ -393,8 +393,9 @@ export default function createPhone(host: PocketHost) {
                             return reply(`open_app needs one of this session's apps: ${session.apps.map((each) => `${each.label} (${each.package})`).join(", ")}. Another app needs phone_control start.`, true);
                         }
 
-                        await control.open(session, found);
-                        done = `Opened ${found.label}.`;
+                        done = (await control.open(session, found))
+                            ? `Opened ${found.label}.`
+                            : `Asked Android to open ${found.label}, but it did not come to the front: Android can hold back an app started while pi-phone is in the background. Open it from the home screen instead: phone_act button home, swipe up for the app list (or tap its search and type the name), then tap ${found.label}.`;
                         break;
                     }
 

@@ -1344,6 +1344,7 @@ export class PocketApp {
                 if (busy) {
                     this.#busy.add(id);
                     this.#busySince.set(id, Date.now());
+                    this.phoneControl.runStarted(Number(id));
                     // A new run starts over: whether it fails is its own to say.
                     this.#failed.delete(id);
 
@@ -1359,6 +1360,8 @@ export class PocketApp {
 
                 if (!busy) {
                     this.spend.runEnded(id);
+                    // Pi is done: its phone control session ends soon after, unless it goes on (`runEnded`).
+                    this.phoneControl.runEnded(Number(id));
 
                     if (this.#sessions[String(id)] !== undefined) {
                         this.#endedAt.set(id, Date.now());

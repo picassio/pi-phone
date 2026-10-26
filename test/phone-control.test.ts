@@ -478,6 +478,62 @@ test("a screen Android hides from accessibility services (Choose default apps) i
     await call(id, "phone_control", { action: "stop" });
 });
 
+test("open_app says so when Android holds the app back, and how to open it from the home screen", async () => {
+    const id = await newSession(app);
+
+    await startSettings(id);
+    phone.foreground = phone.launcher;
+    phone.holdStarts = true;
+
+    try {
+        const { said } = await call(id, "phone_act", { action: "open_app", app: "Settings" });
+
+        assert.match(said, /Asked Android to open Settings, but it did not come to the front.*Open it from the home screen instead/);
+        assert.doesNotMatch(said, /Opened Settings/);
+    } finally {
+        phone.holdStarts = false;
+    }
+
+    assert.match((await call(id, "phone_act", { action: "open_app", app: "Settings" })).said, /Opened Settings\./);
+    await call(id, "phone_act", { action: "button", button: "home" });
+    await call(id, "phone_control", { action: "stop" });
+});
+
+test("a session ends soon after Pi's run ends, unless a run starts again first", async () => {
+    const control = new PhoneControl({ dataDir: mkdtempSync(join(root, "phone-idle-")), gateway: false, idleEndMs: 100 });
+    const own = new FakePhone();
+
+    own.attach(control.requests);
+    own.foreground = own.launcher;
+
+    try {
+        await until(() => control.present(), "the phone polls");
+        const start = () =>
+            control.start({ device: "phone", conversationId: 7, session: 7, approvedBy: "owner", apps: [{ label: "Settings", package: "com.android.settings" }], reason: "", minutes: 15 });
+
+        // Pi goes on after a tool's answer: a run starts again before the end.
+        await start();
+        control.runEnded(7);
+        control.runStarted(7);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        assert.equal(control.active()?.conversationId, 7, "still on");
+
+        // Pi is done: the session ends, and the phone's banner goes.
+        control.runEnded(7);
+        await until(() => control.active() === undefined, "the session ended", 3000);
+        await until(() => own.banner === undefined, "the banner down", 3000);
+
+        // Another conversation's end leaves it be.
+        await start();
+        control.runEnded(8);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        assert.equal(control.active()?.conversationId, 7);
+    } finally {
+        own.detach();
+        control.close();
+    }
+});
+
 test("a restart keeps a session; at its time it ends", async () => {
     const id = await newSession(app);
 

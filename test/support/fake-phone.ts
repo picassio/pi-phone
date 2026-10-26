@@ -105,6 +105,8 @@ export class FakePhone {
      * Choose default apps on a Samsung; null when none.
      */
     hidden: string | null = null;
+    /** Android holds back starts from pi-phone in the background: open_app leaves the screen as it is. */
+    holdStarts = false;
     readonly launcher = "com.android.launcher3";
     enabled = true;
     keyboard = false;
@@ -278,7 +280,9 @@ export class FakePhone {
                     throw new Error("not in this session");
                 }
 
-                this.foreground = String(request.package);
+                if (!this.holdStarts) {
+                    this.foreground = String(request.package);
+                }
 
                 return {};
             case "shot": {

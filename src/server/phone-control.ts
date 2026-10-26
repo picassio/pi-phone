@@ -19,6 +19,9 @@ import { clockText } from "./phone-events.ts";
 import { type Outline, type PhoneScreen, renderOutline } from "./phone-outline.ts";
 import { PhoneRequests } from "./phone-requests.ts";
 
+/** How long a session waits after Pi's run ended for the next one before it ends (`PhoneControl.runEnded`). */
+export const IDLE_END_MS = 20_000;
+
 /** pi-phone's own package: never read or controlled (Pi must never tap its own approval cards). */
 export const PI_PHONE_PACKAGE = "io.piphone";
 
@@ -124,13 +127,18 @@ export class PhoneControl {
     readonly #now: () => number;
     readonly #log: (line: string) => void;
     readonly #timers = new Map<string, NodeJS.Timeout>();
+    /** How long after Pi's run ends its session goes on, waiting for the next run (`runEnded`). */
+    readonly #idleEndMs: number;
+    /** The sessions whose run ended, by conversation: their end, unless a run starts again first. */
+    readonly #idle = new Map<number, NodeJS.Timeout>();
     readonly #listeners = new Set<() => void>();
     /** The named app Pi last acted in by a tap, a long press or typing, per device: what a followed app came from. */
     readonly #opener = new Map<string, string>();
     /** The newest outline read on each device: `[n]` in an action is from it. */
     readonly #outlines = new Map<string, Outline & { foreground: string }>();
 
-    constructor(options: { dataDir: string; gateway: boolean; now?: () => number; log?: (line: string) => void }) {
+    constructor(options: { dataDir: string; gateway: boolean; now?: () => number; log?: (line: string) => void; idleEndMs?: number }) {
+        this.#idleEndMs = options.idleEndMs ?? IDLE_END_MS;
         this.#file = join(options.dataDir, "phone-control.json");
         this.#gateway = options.gateway;
         this.#now = options.now ?? Date.now;
@@ -359,6 +367,35 @@ export class PhoneControl {
         return session;
     }
 
+    /**
+     * Pi's run in `conversationId` ended (the app's busy state): its control session ends a little later unless a run
+     * starts again (`runStarted`), as Pi going on after a tool's answer does. So the banner goes when Pi is done, even
+     * when Pi did not stop it (the owner, 2026-10-26: "the user does not know whether you are done").
+     */
+    runEnded(conversationId: number): void {
+        if (!this.#kept.sessions.some((each) => each.conversationId === conversationId)) {
+            return;
+        }
+
+        clearTimeout(this.#idle.get(conversationId));
+        const timer = setTimeout(() => {
+            this.#idle.delete(conversationId);
+
+            for (const session of this.#kept.sessions.filter((each) => each.conversationId === conversationId)) {
+                void this.end(session.device, "Pi's turn ended");
+            }
+        }, this.#idleEndMs);
+
+        timer.unref();
+        this.#idle.set(conversationId, timer);
+    }
+
+    /** A run started again in `conversationId`: its session goes on. */
+    runStarted(conversationId: number): void {
+        clearTimeout(this.#idle.get(conversationId));
+        this.#idle.delete(conversationId);
+    }
+
     /** End a device's session (`why`: "time ran out", "Stop on the phone", …), and take the phone's banner down. */
     async end(device: string, why: string): Promise<boolean> {
         const session = this.#remove(device, this.#now(), why);
@@ -557,13 +594,31 @@ export class PhoneControl {
         return this.#ask(session.device, { ...payload, ...this.#scope(session) });
     }
 
-    /** Open one of the session's apps. */
-    async open(session: ControlSession, app: PhoneApp): Promise<void> {
+    /**
+     * Open one of the session's apps; whether it came to the front within `waitMs`. Android may not let an app start
+     * another while it is in the background (the owner's phone, 2026-10-26: Zalo stayed behind), and says nothing.
+     */
+    async open(session: ControlSession, app: PhoneApp, waitMs = 2500): Promise<boolean> {
         if (!session.apps.some((each) => each.package === app.package) || this.neverReason(app.package) !== undefined) {
             throw new Error(`${app.label} is not in this session: ask for it with phone_control start.`);
         }
 
         await this.act(session, { op: "open", package: app.package }, true);
+
+        // Real time, not the session clock (`now`): this waits on the phone.
+        for (const started = Date.now(); ; ) {
+            const { foreground } = (await this.#ask(session.device, { op: "front" })) as { foreground?: string | null };
+
+            if (foreground === app.package) {
+                return true;
+            }
+
+            if (Date.now() - started >= waitMs) {
+                return false;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        }
     }
 
     /** A picture of the screen (JPEG), with the screen's size in pixels. */

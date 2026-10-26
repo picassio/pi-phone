@@ -221,7 +221,7 @@ No Termux, no laptop, no cloud VM.
   swipes, scrolls, presses back or home, opens the apps and takes screenshots (`phone_control`, `phone_screen`,
   `phone_act`, `phone_screenshot`), through pi-phone's own accessibility service: no developer mode, no adb. A banner
   and a notification on the phone say Pi is using it, with **Stop**, as does a line in the session; it ends at its
-  time too. Another app needs a new card, unless the card follows along: then an app the named ones open (on a
+  time too, and soon after Pi's turn ends, so the banner going means Pi is done. Another app needs a new card, unless the card follows along: then an app the named ones open (on a
   Samsung, Settings' Battery is Device care, an app of its own) joins as it comes, one step only, and the card says so.
   Password fields read as hidden and Pi never types into them: a password or
   code is yours to type on the phone. pi-phone itself, banking and payment apps, password managers and the apps on
