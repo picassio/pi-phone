@@ -40,3 +40,16 @@ is skipped on purpose.
   and pi-phone's views; pi-phone adds the usage bars as a source of the reset, the account card (Wait or Move), the
   team server's pass-through, and the notice as a phone event and web push. Not taken: pi-pocket's push kinds and
   `alerts.ts` (pi-phone's phone events instead), PiP's summaries, the theme surface docs.
+- Extension points for people's values from 0.22.0 (PP-167): 46d7353 and 8fe0121, with the hidden-value parts of the
+  review fixes cdef41e and c5d649f (a message's `@` files, subagents, the `!` refusal, the provider's 5 s and its
+  abort listener). Ported: `hidden.ts` (`HiddenValues`, `CommandEnvs`, the stream), `ask` and `checkValues` from
+  `extension-points.ts`, `host.hide`, `host.commandEnv`, `host.ask` with their types, the ask card (`AskCard`, its
+  CSS with pi-phone's `--hair`), `decided`, the live line's "Waiting for your answer", and tests adapted from
+  `test/extension-points.test.ts`. Differs: hidden values go through pi-phone's own Secrets redaction
+  (`Secrets.redact/guard` given a session, the secrets extension's `afterTool`), not a core hook and `wrapEnv`, which
+  pi-phone keeps beside its native Secrets and Pi's browser sign-in cards; the ask is approval form `{ type: "ask" }`
+  answered by `POST /api/asks/<id>` (pi-pocket: any `form`, through `POST /api/approvals/<id>` with `values`); the
+  phone hears "Pi asks you: …" as a phone event, not `alerts.ts`; what the caller sets in a command's env wins over a
+  provider. Not taken: `host.browser` (pi-phone's browser is its own), `types/pocket.d.ts` and the docs
+  (`docs/extensions/people-values.md`, `reference/host.md`: pi-phone has neither), the peek tile change (pi-phone's
+  tiles already open any card with a form).

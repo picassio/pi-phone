@@ -310,6 +310,22 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `secret_request` are allowed in plan mode, as are `wiki_query`, `wiki_read` and `wiki_summarize`. None of this
   is a boundary against a model set on leaking a value; it keeps values out by accident. The approval card's heading
   is now "Pi asks before this … call", no longer Lancet Guard's.
+- **Extension points for people's values** (from pi-pocket 0.22.0, PP-167; `hidden.ts`, `extension-points.ts`):
+  `host.hide`, `host.commandEnv` and `host.ask`, with pi-pocket's names and signatures, beside Secrets rather than in
+  its place. **One redaction:** `Secrets` holds the app's `HiddenValues`; given a session, `redact`, `longest` and
+  `guard(env, id)` replace its hidden values (`[label]`) with the secrets' forms, longest first, so streamed output,
+  every tool's result (the secrets extension's `afterTool`, object keys too), messages, edits sent again and `@` files
+  go through the same code. The stream keeps stdout and stderr in order and flushes what it held at an omission
+  (pi-pocket's `stream`). A session's values hold in its subagents (`rootOf`). A `!` command holding a hidden value is
+  refused: it would be stored as typed. **Command env:** the harness's env is `commandEnvs.wrap(secrets.guard(env,
+  id))`, so bash, `!` commands and goal checks (`envFor`) get what providers add; a provider has 5 s, and one that
+  throws or hangs adds nothing. What the caller sets (bash's PATH, the secrets a command names) wins over a provider:
+  pi-pocket lets the provider win. **Ask:** an approval with `form: { type: "ask" }` (fields, never values), answered
+  by `POST /api/asks/<id>` through `answerAsk`, which checks each field (`checkValues`) and hands the values to the
+  asker in `ApprovalAnswer.values` only. The person Pi works for answers it (the owner when nobody is known;
+  `cannotAllow`), anyone who can steer declines, and a plain Allow is refused. `AskCard` in `transcript.js`; the
+  decision is kept with `ask: true` (Answered / Declined). Only built-in modules can use them for now: the app loads
+  no drop-ins (section 3), and pi-pocket's `host.browser` is not ported (Pi's browser here is pi-phone's own).
 - **Diagrams** (`web/rich.js`, pele 1.6.0 pinned): a ```mermaid block in any Markdown (replies, wiki pages, later
   interview questions) is a rich block of kind `mermaid` (`richKind` in `ui.js`), shown as **Diagram** with its code a
   tab away. pele is one 0.7 MB module, served as `/vendor/pele.mjs` and imported the first time a diagram shows.
