@@ -87,7 +87,7 @@ import { FolderFavorites } from "./folder-favorites.ts";
 import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
 import { withAssistant } from "./assistant.ts";
-import { type CallPlan, type CallStart, chatgptAccount, type VoiceEndpoints, type VoiceMode, VoiceService, isVoiceMode, voiceInstructions, withVoice } from "./voice.ts";
+import { type CallPlan, type CallStart, chatgptAccount, type VoiceEndpoints, type VoiceMode, VOICES, VoiceService, isVoiceMode, voiceInstructions, withVoice } from "./voice.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
 import { clockText, inLanguage, inZone, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
@@ -3248,7 +3248,7 @@ export class PocketApp {
                 // What the phone's assistant sheet does (PP-146): the owner's, as only the owner uses the sheet.
                 ...(user.role === "owner" ? { assistant: this.config.assistant } : {}),
                 // Voice with the owner's ChatGPT sign-in (PP-185): its settings and what the last model check found.
-                ...(user.role === "owner" ? { voice: { settings: this.config.voice, check: this.config.voiceCheck ?? null } } : {}),
+                ...(user.role === "owner" ? { voice: { settings: this.config.voice, check: this.config.voiceCheck ?? null, voices: VOICES } } : {}),
                 // Pi using a phone (PP-141): the owner's tabs show the session's live line, with Stop.
                 phoneControl: user.role === "owner" ? this.phoneControl.view() : [],
                 computerControl: user.role === "owner" ? this.computerControl.view() : [],

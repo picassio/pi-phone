@@ -285,12 +285,15 @@ No Termux, no laptop, no cloud VM.
   what you say to Pi and reads Pi's words out. Set it in the call or in the model chip's menu. Talk any time
   (talking over the voice stops it) or hold to talk; mute; end. What you say to Pi shows as your message marked voice,
   and the rest of the talk as quiet voice rows. Approvals stay a tap in the chat. The screen-off notification is to come.
-- **Voice settings** (in progress). Pi checks which live and dictation models your ChatGPT (Codex)
-  sign-in has (`app_action voice.check`) and how each live model's calls are set up, and changes the voice settings
-  (`voice.*`: live and dictation model, voice, language, who thinks, turn-taking, progress, reader, daily minutes) after
-  checking a model, voice or language with OpenAI; a session has its own voice mode (`sessions.voiceMode`). Minutes of
-  voice show in Spend, counted on your ChatGPT plan; no daily limit unless you set one. The sign-in's token stays on
-  the server.
+- **Settings › Voice.** The live models your ChatGPT (Codex) sign-in has, as checked with OpenAI (**Check again**),
+  each with how its calls are set up: a short-lived key, through pi-phone, or Codex's own `gpt-live` (ChatGPT's private
+  endpoint, only when you pick it). Also the voice and the language (checked when picked), who thinks and turn-taking
+  for new sessions, what the voice says while Pi works (Pi's words as they come, or only the answer, and a short cue on
+  what Pi runs at most every 20 s), who reads Pi's answers in "Pi thinks", the dictation engine and model, and an
+  optional daily limit. Minutes of voice show in Spend, counted on your ChatGPT plan. The sign-in's token stays on the
+  server.
+- **Codex dictation**: Settings › Dictation can let Codex (`gpt-4o-transcribe` on your ChatGPT sign-in) listen to the
+  mic instead of Android's recognizer; words still show in the box as they are heard, and nothing is sent by itself.
 - **The phone's assistant.** Pick pi as the digital assistant (Menu › Assistant walks you through it), then hold the
   side key in any app: a pi sheet comes up over it, already listening. Your words show as you speak, then wait for
   Send, or go by themselves after 3 seconds. They go to the last session you were in, a new session, or one session
@@ -424,6 +427,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | The app's language (Auto, English, 简体中文) | **Appearance › Language**, kept with you on every device | "Switch my app to Chinese" |
 | Appearance, dictation language | **Appearance** and **Dictation**, per browser tab | Only the theme new browsers start with ("make lantern the default theme") |
 | The side key's assistant | **Assistant**: where your words go, whether they wait for Send, whether the app you were in is noted | "Make the assistant send by itself". Picking pi as the phone's assistant is yours, in Android's settings |
+| Voice calls and Codex dictation | **Voice** (and **Dictation**'s engine): live and dictation model, voice, language, who thinks, turn-taking, progress, reader, daily minutes; a session's voice mode in its model menu | "Use gpt-realtime-mini for voice", "Let Codex listen to the mic", "Check the voice models". Models, voice and language are checked with OpenAI first |
 | App updates | **Check for app updates**. New builds also offer themselves in an update sheet. Tap **Install** | No |
 
 What stays yours: typing secrets and passwords, signing in to providers and GitHub, the recovery code, accepting a

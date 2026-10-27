@@ -6,11 +6,22 @@
 import { t } from "./i18n.js";
 import { dictationLanguage } from "./android-speech.js";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { notify } from "./store.js";
+import { CodexRecognition } from "./codex-dictation.js";
+import { notify, store } from "./store.js";
 import { html, Icon } from "./ui.js";
 
-/** The browser's recognizer, looked up when used (so a page can stand one in), or undefined where there is none. */
-const Recognizer = () => globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
+/**
+ * Codex listens (Settings › Voice's engine, PP-190): the owner's, on a server with voice, in a browser with WebRTC and a
+ * microphone.
+ */
+const codexEngine = () =>
+    store.state.server?.voice?.settings?.engine === "codex" &&
+    store.state.me?.role === "owner" &&
+    typeof globalThis.RTCPeerConnection === "function" &&
+    typeof navigator.mediaDevices?.getUserMedia === "function";
+
+/** The recognizer, looked up when used (so a page can stand one in): Codex's, or the browser's; undefined where there is none. */
+const Recognizer = () => (codexEngine() ? CodexRecognition : (globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition));
 
 /** Whether the mic can work here: a recognizer, and a page browsers give the microphone to (https, or this machine). */
 export const voiceAvailable = () =>

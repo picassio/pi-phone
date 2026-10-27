@@ -4307,6 +4307,15 @@ pre.diff .del {
     align-items: center;
 }
 
+/* Settings › Voice (PP-190): the live model in use, in the accent. */
+.voice-chosen {
+    color: var(--accent);
+}
+
+.voice-chosen .icon {
+    vertical-align: -2px;
+}
+
 .voice-turns .segmented {
     align-self: center;
 }

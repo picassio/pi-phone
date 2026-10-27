@@ -27,6 +27,7 @@ import {
 } from "../auth.ts";
 import type { User } from "../config.ts";
 import type { ConversationId } from "@earendil-works/pi-durable";
+import { VOICES } from "../voice.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { addressOf, deviceName } from "../devices.ts";
 import { HttpError } from "../errors.ts";
@@ -1480,7 +1481,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
             requireOwner(user);
 
             if (second === undefined && method === "GET") {
-                return json(response, 200, { settings: app.config.voice, check: app.config.voiceCheck ?? null, usage: app.spend.voiceSummary() });
+                return json(response, 200, { settings: app.config.voice, check: app.config.voiceCheck ?? null, voices: VOICES, usage: app.spend.voiceSummary() });
             }
 
             if (second === "check" && method === "POST") {

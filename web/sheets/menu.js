@@ -491,6 +491,10 @@ export function MenuSheet({ places = true }) {
             ${item("Appearance", () => openSheet({ type: "appearance" }), lookLabel())}
             ${me?.role === "owner" && !["app", "space"].includes(pushSupport()) && item("Notifications", () => openSheet({ type: "notifications" }), pushId() === null ? "off on this device" : "on on this device")}
             ${voiceAvailable() && item("Dictation", () => openSheet({ type: "dictation" }), dictationLanguage())}
+            ${
+                // Voice calls and Codex dictation on the owner's ChatGPT sign-in (PP-190).
+                me?.role === "owner" && server?.voice && item("Voice", () => openSheet({ type: "voice" }), "calls with Pi, on your ChatGPT sign-in")
+            }
             ${!touch && item("Keyboard shortcuts", () => openSheet({ type: "shortcuts" }), "?")}
             ${
                 me?.role === "owner" &&

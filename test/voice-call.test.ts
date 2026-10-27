@@ -107,10 +107,12 @@ test("the model check finds each live model's way (key, through pi-phone, Codex'
     // The check went with the sign-in's account, as Codex sends it.
     assert.equal(openai.requests[0]!.headers["chatgpt-account-id"], "acct-1");
 
-    const hello = (await app.hello(owner(app))) as { server: { voice?: { check: unknown; settings: unknown } } };
+    const hello = (await app.hello(owner(app))) as { server: { voice?: { check: unknown; settings: unknown; voices: string[] } } };
 
     assert.deepEqual(hello.server.voice?.check, check);
     assert.deepEqual(hello.server.voice?.settings, DEFAULT_VOICE);
+    // Settings › Voice's choices of voice (PP-190); which one a model has is checked when it is picked.
+    assert.ok(hello.server.voice?.voices.includes("marin") && hello.server.voice.voices.includes("cedar"));
 });
 
 test("a model, voice or language is checked with OpenAI before it is kept, and a refusal says why", async () => {

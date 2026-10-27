@@ -2,7 +2,7 @@
 // language unless one is picked; kept in this browser, as each device may speak its own.
 import { useState } from "preact/hooks";
 import { DICTATION_LANGUAGE_KEY } from "../android-speech.js";
-import { closeSheet, notify } from "../store.js";
+import { api, attempt, closeSheet, notify, openSheet, store } from "../store.js";
 import { Choice, html, Sheet } from "../ui.js";
 import { t } from "../i18n.js";
 
@@ -36,10 +36,31 @@ export function DictationSheet() {
         notify("info", t("Dictation listens for {language}.", { language: named(tag === "" ? phone : tag) }));
     };
 
+    // Who listens (PP-190): the phone's or browser's recognizer, or Codex on the owner's ChatGPT sign-in (Settings › Voice).
+    const voice = store.state.server?.voice;
+    const codex = voice?.settings.engine === "codex";
+
     return html`<${Sheet} title=${t("Dictation")} onClose=${closeSheet}>
         <p class="muted small">
             ${t("Tap the mic beside Send and speak: words show in the message box as they are heard, and nothing is sent by itself. In the app, Android's own speech recognizer listens (Google's, as voice typing uses); in a browser, the browser's. This device keeps its own choice.")}
         </p>
+        ${
+            voice &&
+            html`<div class="field" data-part="dictation-engine">
+                <div class="label">${t("Who listens")}</div>
+                <div class="assistant-choice">
+                    <div class="segmented" role="group" aria-label=${t("Who listens")}>
+                        <button class=${codex ? "" : "on"} aria-pressed=${!codex} onClick=${() => attempt(() => api("settings", { voice: { engine: "android" } }))}>${t("Android's recognizer")}</button>
+                        <button class=${codex ? "on" : ""} aria-pressed=${codex} onClick=${() => attempt(() => api("settings", { voice: { engine: "codex" } }))}>${t("Codex")}</button>
+                    </div>
+                    <p class="muted small">
+                        ${codex ? t("Codex ({model}) on your ChatGPT sign-in; audio goes to OpenAI. Its model and language are in Settings › Voice.", { model: voice.settings.dictationModel }) : t("Free, as voice typing is. Codex is on your ChatGPT sign-in.")}
+                        ${" "}
+                        <button class="link small" onClick=${() => openSheet({ type: "voice" })}>${t("Voice settings")}</button>
+                    </p>
+                </div>
+            </div>`
+        }
         <div class="field">
             <div class="label">${t("Language")}</div>
             <${Choice}

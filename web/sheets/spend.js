@@ -1,6 +1,6 @@
 // Spend: what each session and person cost, and their limits.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { api, attempt, closeSheet, store } from "../store.js";
+import { api, attempt, closeSheet, openSheet, store } from "../store.js";
 import { html, Icon, Loader, Sheet } from "../ui.js";
 import { t, tn, tx } from "../i18n.js";
 
@@ -123,6 +123,35 @@ export function SpendSheet() {
                     </div>
                 </div>
                 <p class="muted small">${t("Indexing pages and each search by meaning (OpenRouter): counted in the total, not in anyone's limit.")}</p>
+            </div>`
+        }
+        ${
+            // Voice on the ChatGPT sign-in (PP-190): minutes, counted on the plan, not in dollars.
+            data?.voice &&
+            html`<div class="group" data-part="spend-voice">
+                <div class="group-title">${t("Voice (ChatGPT sign-in)")}</div>
+                <div class="sheet-list">
+                    <div class="spend-row">
+                        <span class="grow">
+                            ${t("Calls")}
+                            <small class="muted spend-sub">${t("today {today} min · this month {month} min", { today: Math.ceil(data.voice.today.call / 60), month: Math.ceil(data.voice.month.call / 60) })}</small>
+                        </span>
+                        <span class="mono">${t("{n} min", { n: Math.ceil(data.voice.today.call / 60) })}</span>
+                    </div>
+                    <div class="spend-row">
+                        <span class="grow">
+                            ${t("Dictation (Codex)")}
+                            <small class="muted spend-sub">${t("today {today} min · this month {month} min", { today: Math.ceil(data.voice.today.dictation / 60), month: Math.ceil(data.voice.month.dictation / 60) })}</small>
+                        </span>
+                        <span class="mono">${t("{n} min", { n: Math.ceil(data.voice.today.dictation / 60) })}</span>
+                    </div>
+                    <div class="spend-row">
+                        <span class="grow">${t("Daily limit")}</span>
+                        <span class="mono">${data.voice.limit === null ? t("none") : t("{n} min", { n: data.voice.limit })}</span>
+                        <button class="button small ghost" onClick=${() => openSheet({ type: "voice" })}>${t("Change")}</button>
+                    </div>
+                </div>
+                <p class="muted small">${t("Counted on your ChatGPT plan in minutes, not in the money above. No limit unless you set one.")}</p>
             </div>`
         }
         <p class="muted small">

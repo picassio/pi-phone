@@ -9,7 +9,9 @@ const STUBS: Record<string, string> = {
         export const useRef = (current) => ({ current });
         export const useEffect = (effect) => globalThis.voiceCleanups.push(effect());
     `,
-    "./store.js": `export const notify = () => {};`,
+    "./store.js": `export const notify = () => {}; export const store = { state: { me: null, server: null } };`,
+    // Codex dictation (PP-190): not this test's; the browser's recognizer listens.
+    "./codex-dictation.js": `export class CodexRecognition {}`,
     "./ui.js": `export const html = () => null; export const Icon = () => null;`,
     "./android-speech.js": `export const dictationLanguage = () => "vi-VN";`,
     // The app's words in English, as written: no catalog to fetch, no page to set the language on.

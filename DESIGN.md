@@ -796,6 +796,20 @@ so Pi changes them through the settings tools; "the last session" is the one the
     mode; a call going on follows (`VoiceBridge.modeChanged`: a new `session.update`, no hang-up). The call going (not
     End) after 50 minutes starts it again, with the session's context; earlier, the view says it ended. A spoken
     request's title is its words, not `[voice]`.
+  - **Settings › Voice** (PP-190, `web/sheets/voice.js`, Menu › Voice, `?sheet=voice`): the live models of the last
+    check with their way (`short-lived key`, `through pi-phone`, `Codex's own · private`), Check again, voice (the
+    realtime voices; the server checks the pick with the live model), language (auto or a code), the defaults for new
+    sessions, progress and cue seconds, reader, dictation engine and model, the daily limit and today's minutes. Each
+    choice is `POST /api/settings {voice}`, checked as Pi's `setting_change` is. Settings › Dictation has the engine too.
+    **Codex dictation** (`web/codex-dictation.js`): a SpeechRecognition-shaped recognizer `voice.js` uses when the
+    engine is codex (the owner's, WebRTC and a mic at hand): a short-lived key for a transcription session
+    (`POST /api/voice/dictation`), the page's own offer to OpenAI, `…transcription.delta` as words coming and
+    `…completed` as settled, one result per item; Stop commits the buffer and waits up to 2.5 s for the last words, then
+    ends (`…/dictation/:id/end` counts its seconds). **Spend** shows voice minutes today and this month, and the daily
+    limit (Change opens Settings › Voice).
+  - **Not yet (PP-191, the APK):** the WebView grants no microphone (`onPermissionRequest`), so calls and Codex
+    dictation work in browsers, not yet in the app; no foreground service, call notification or audio focus; the
+    `android` reader needs the app's text-to-speech (PP-193).
   - **Routes:** `POST /api/c/:id/voice` (mode), `POST /api/c/:id/voice/call` (start), `GET /api/voice`,
     `POST /api/voice/check`, `POST /api/voice/calls/:call/{sdp,joined,end}`, `POST /api/voice/dictation[/:id/end]`,
     `POST /api/settings {voice}`. Tests: a fake OpenAI (`test/support/fake-openai.ts`).
