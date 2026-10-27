@@ -8,7 +8,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { type ConversationId, UsageDoc, type UsageState } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
-import { SessionsDoc, SpendDoc, type WikiSpend } from "./docs.ts";
+import { SessionsDoc, SpendDoc, type VoiceDay, type WikiSpend } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
 import { teamUsageCost, usageCost } from "./projection.ts";
 
@@ -33,6 +33,8 @@ export type SpendSummary = {
     total?: number;
     /** The wiki's search by meaning (remote embeddings), counted since `since`; only the owner sees it. */
     wiki?: WikiSpend;
+    /** Voice with the ChatGPT sign-in, in seconds (PP-185): counted on the ChatGPT plan, not in dollars; only the owner sees it. */
+    voice?: { today: VoiceDay; month: VoiceDay; limit: number | null };
     sessions: { id: number; title: string; spent: number; budget?: number }[];
     /** Everyone for the owner; others see themselves. */
     people: { id: string; name: string; spent: number; budget?: number }[];
@@ -58,6 +60,9 @@ export class Spend {
     /** The wiki's embeddings as stored at the last count, and what came since, to be added with the next. */
     #wiki: WikiSpend | undefined;
     #wikiAdded: WikiSpend | undefined;
+    /** Seconds of voice by day, as stored and counted since (`voiceUsed`). */
+    #voice: Record<string, VoiceDay> = {};
+    #voiceWrites: Promise<void> = Promise.resolve();
 
     constructor(app: PocketApp) {
         this.#app = app;
@@ -508,15 +513,78 @@ export class Spend {
         return {
             ...(owner ? { total } : {}),
             ...(owner && wiki !== undefined ? { wiki } : {}),
+            ...(owner ? { voice: this.voiceSummary() } : {}),
             sessions: sessions.sort((a, b) => b.spent - a.spent),
             people: people.sort((a, b) => b.spent - a.spent),
         };
+    }
+
+    /** Count seconds of voice (PP-185) on today's date, stored at once: a call ends rarely. */
+    voiceUsed(kind: "call" | "dictation", seconds: number): void {
+        if (!(seconds > 0)) {
+            return;
+        }
+
+        const day = dayOf(this.#app.now());
+        const before = this.#voice[day] ?? { call: 0, dictation: 0 };
+
+        this.#voice = { ...this.#voice, [day]: { ...before, [kind]: before[kind] + seconds } };
+        this.#voiceWrites = this.#voiceWrites
+            .then(() =>
+                this.#app.harness.commit(async (tx) => {
+                    const doc = await tx.doc(SpendDoc);
+                    const stored = doc.voice?.[day] ?? { call: 0, dictation: 0 };
+
+                    doc.voice = { ...doc.voice, [day]: { ...stored, [kind]: stored[kind] + seconds } };
+                }, context),
+            )
+            .catch((error: unknown) => this.#app.log(`voice minutes not stored: ${describe(error)}`));
+    }
+
+    /** Seconds of voice today, calls and dictation together. */
+    voiceToday(): number {
+        const today = this.#voice[dayOf(this.#app.now())];
+
+        return today === undefined ? 0 : today.call + today.dictation;
+    }
+
+    /** Voice today and this month, in seconds, with the daily limit in minutes (null: none). */
+    voiceSummary(): { today: VoiceDay; month: VoiceDay; limit: number | null } {
+        const today = dayOf(this.#app.now());
+        const month = today.slice(0, 7);
+        const total: VoiceDay = { call: 0, dictation: 0 };
+
+        for (const [day, used] of Object.entries(this.#voice)) {
+            if (day.startsWith(month)) {
+                total.call += used.call;
+                total.dictation += used.dictation;
+            }
+        }
+
+        return { today: { call: 0, dictation: 0, ...this.#voice[today] }, month: total, limit: this.#app.config.voice.dailyLimit };
+    }
+
+    /** The voice minutes stored, read once at start. */
+    async loadVoice(): Promise<void> {
+        this.#voice = { ...(await this.#app.harness.snapshot(SpendDoc, context))?.voice };
+    }
+
+    /** Until every voice count is stored. */
+    async voiceStored(): Promise<void> {
+        await this.#voiceWrites;
     }
 
     close(): void {
         clearTimeout(this.#timer);
         this.#limits.clear();
     }
+}
+
+/** A day as voice minutes are kept: `YYYY-MM-DD` by the server's clock and time zone. */
+function dayOf(at: number): string {
+    const date = new Date(at);
+
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function requireOwner(user: User): void {

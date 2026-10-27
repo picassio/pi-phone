@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type AssistantSettings, readAssistant, storedAssistant } from "./assistant.ts";
+import { readVoice, readVoiceCheck, storedVoice, type VoiceCheck, type VoiceSettings } from "./voice.ts";
 
 /** The repository root: `web/`, `src/`, and `node_modules/` live here. */
 export const APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -137,6 +138,10 @@ interface PocketConfig {
     limitNotice?: boolean;
     /** The phone's assistant sheet (`assistant.ts`): only the settings that differ from its defaults. */
     assistant?: Partial<AssistantSettings>;
+    /** Voice with the ChatGPT sign-in (`voice.ts`): only the settings that differ from its defaults. */
+    voice?: Partial<VoiceSettings>;
+    /** What the last voice model check found with the sign-in (`voice.ts`). */
+    voiceCheck?: VoiceCheck;
     /** Minutes a session is idle before what it learned goes to the wiki (`para-capture.ts`); null: never by itself. */
     wikiCaptureMinutes?: number | null;
     /**
@@ -420,6 +425,33 @@ export class ConfigStore {
             this.#config.assistant = kept;
         }
 
+        this.save();
+    }
+
+    /** Voice with the ChatGPT sign-in (PP-185). */
+    get voice(): VoiceSettings {
+        return readVoice(this.#config.voice);
+    }
+
+    set voice(settings: VoiceSettings) {
+        const kept = storedVoice(settings);
+
+        if (kept === undefined) {
+            delete this.#config.voice;
+        } else {
+            this.#config.voice = kept;
+        }
+
+        this.save();
+    }
+
+    /** What the last voice model check found, or undefined before the first. */
+    get voiceCheck(): VoiceCheck | undefined {
+        return readVoiceCheck(this.#config.voiceCheck);
+    }
+
+    set voiceCheck(check: VoiceCheck) {
+        this.#config.voiceCheck = check;
         this.save();
     }
 

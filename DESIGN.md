@@ -734,6 +734,32 @@ so Pi changes them through the settings tools; "the last session" is the one the
   token), the session's live line in the app (`PhoneControlLine`, from `server.phoneControl` in hello and
   `phone-control` events to the owner's tabs), `phone_control stop`, or adding one of its apps to the Never list.
   Pi's next call says how and when it ended.
+- **Voice** (PP-185, tasks PP-186 to PP-194; owner's decisions and approved plan of 2026-10-27, artifact `plan-voice`;
+  wiki: `resources/codex-voice-for-pi-howaboua`): a voice call with the session's Pi, and Codex dictation, on the
+  owner's openai-codex (ChatGPT) sign-in.
+  - **Core** (`src/server/voice.ts`, PP-186): the token comes from the model runtime's auth (refreshed when it ran out)
+    and stays on the server: never in what the page gets, the logs, a refusal's words (OpenAI's error text has it taken
+    out) or the transcript. The page holds only the media.
+  - **How a call is set up**, per live model, as the model check found it for this sign-in (and Settings › Voice says
+    it): `key` (the server mints a 60 s key with `POST /v1/realtime/client_secrets` carrying the call's whole
+    configuration, the page posts its SDP to `/v1/realtime/calls` with it and names the call, `rtc_…`), `server`
+    (minting refused with 401/403 but a call is not: the page gives the server its SDP, the server posts it with the
+    sign-in), or `codex` (`gpt-live-*`: ChatGPT's private calls endpoint, `intent=quicksilver`, never used unless picked).
+    Not a fallback: each model's way is what the check found, shown with it. Checked live on 2026-10-27: minting,
+    calls with a key or the sign-in, and joining a call by id all accept the Codex token.
+  - **The model check** mints a key per candidate (and posts a made-up SDP offer only where minting is refused or for
+    Codex's endpoint): a 404 hides the model. Setting a live or dictation model, a voice or a language checks it the
+    same way first (a voice with the live model, a language with the dictation model); a refusal says OpenAI's reason
+    and nothing is kept. Kept in `config.json` (`voice`, only what differs from the defaults; `voiceCheck`).
+  - **Settings** (`voice.*` in the settings tools, owner only): live and dictation model, engine (android or codex),
+    voice, language (auto or a code), mode for new sessions (work, chat, think), turns (hands-free: semantic VAD that
+    stops the voice when you talk; hold), progress (text or answer), cueSeconds (20), reader (live or android),
+    dailyLimit (minutes or none). A session's own mode in `SessionMeta.voiceMode` (`sessions.voiceMode`).
+  - **Minutes** in `SpendDoc.voice` by day (seconds of calls and of Codex dictation), shown in Spend; a call or a
+    dictation is refused once today's minutes reach the daily limit. Calls are in memory: a restart ends them.
+  - **Routes:** `POST /api/c/:id/voice` (mode), `POST /api/c/:id/voice/call` (start), `GET /api/voice`,
+    `POST /api/voice/check`, `POST /api/voice/calls/:call/{sdp,joined,end}`, `POST /api/voice/dictation[/:id/end]`,
+    `POST /api/settings {voice}`. Tests: a fake OpenAI (`test/support/fake-openai.ts`).
 - **Computer control** (PP-178, epic PP-175; owner's decisions of 2026-10-26, mockup v3; wiki:
   `resources/open-computer-use-for-pi-phone`): Pi reads and operates desktop apps on the owner's machines, through
   Computer use (ocu, the machine tool of PP-177), as phone control does Android apps.

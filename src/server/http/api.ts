@@ -26,6 +26,7 @@ import {
     setAuthCookie,
 } from "../auth.ts";
 import type { User } from "../config.ts";
+import type { ConversationId } from "@earendil-works/pi-durable";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { addressOf, deviceName } from "../devices.ts";
 import { HttpError } from "../errors.ts";
@@ -1404,6 +1405,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 limitWaitHours?: unknown;
                 limitNotice?: unknown;
                 assistant?: unknown;
+                voice?: unknown;
             }>(request);
 
             // One at a time: a second that fails must not leave the first changed.
@@ -1418,6 +1420,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.limitWaitHours,
                     body.limitNotice,
                     body.assistant,
+                    body.voice,
                 ].filter((value) => value !== undefined).length > 1
             ) {
                 throw new HttpError(400, "Change one setting at a time.");
@@ -1459,12 +1462,66 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 await app.setAssistant(user, body.assistant);
             }
 
+            // Settings › Voice (PP-185): `{ voice: { model: "gpt-realtime-mini" } }`; models, voice and language are checked live.
+            if (body.voice !== undefined) {
+                await app.setVoice(user, body.voice);
+            }
+
             // Null clears it: new sessions start with the last model picked again.
             if (body.defaultModel !== undefined) {
                 await app.setDefaultModel(user, body.defaultModel);
             }
 
             return json(response, 200, { ok: true });
+        }
+
+        // Voice with the owner's ChatGPT sign-in (PP-185): the settings, the model check, minutes, and a call's set-up steps.
+        if (first === "voice") {
+            requireOwner(user);
+
+            if (second === undefined && method === "GET") {
+                return json(response, 200, { settings: app.config.voice, check: app.config.voiceCheck ?? null, usage: app.spend.voiceSummary() });
+            }
+
+            if (second === "check" && method === "POST") {
+                await app.checkVoice(user);
+
+                return json(response, 200, { check: app.config.voiceCheck ?? null });
+            }
+
+            if (second === "dictation" && third === undefined && method === "POST") {
+                return json(response, 200, await app.voice.dictation(user.id));
+            }
+
+            if (second === "dictation" && third !== undefined && parts[3] === "end" && method === "POST") {
+                app.voice.dictationEnd(user.id, third);
+
+                return json(response, 200, { ok: true });
+            }
+
+            if (second === "calls" && third !== undefined && method === "POST") {
+                const call = app.voice.call(user.id, third);
+
+                if (parts[3] === "sdp") {
+                    const body = await readJson<{ sdp?: unknown }>(request);
+
+                    return json(response, 200, await app.voice.answer(user.id, third, body.sdp, await app.voicePlan(call.session as unknown as ConversationId)));
+                }
+
+                if (parts[3] === "joined") {
+                    const body = await readJson<{ rtc?: unknown }>(request);
+
+                    app.voice.joined(user.id, third, body.rtc);
+
+                    return json(response, 200, { ok: true });
+                }
+
+                if (parts[3] === "end") {
+                    app.voice.end(call.id);
+
+                    return json(response, 200, { ok: true });
+                }
+            }
         }
 
         // One model allowed for subagents, or no longer: the rest stay as they are. The owner's (checked in `app.ts`).

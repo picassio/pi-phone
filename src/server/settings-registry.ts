@@ -14,6 +14,7 @@ import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
 import { MAX_COMPACT_AT, MIN_COMPACT_AT } from "./auto-compact.ts";
 import { makeBackup } from "./backup.ts";
+import { type VoiceCheck, VOICES } from "./voice.ts";
 import { copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -98,6 +99,17 @@ const onOff = (value: string): boolean => {
 };
 
 const money = (amount: number | undefined) => (amount === undefined ? "none" : `$${amount.toFixed(2)}`);
+
+/** What a voice model check found, in words. */
+function voiceModels(check: VoiceCheck | undefined): string {
+    if (check === undefined) {
+        return "No check yet.";
+    }
+
+    const live = check.live.map((each) => `${each.id} (${each.path === "key" ? "short-lived key" : each.path === "server" ? "through pi-phone" : "Codex's endpoint"})`).join(", ");
+
+    return `Live: ${live || "none"}. Dictation: ${check.dictation.join(", ") || "none"}. Not for this sign-in: ${check.hidden.join(", ") || "none"}.`;
+}
 
 /** Every setting and action as the app is now (the extensions list changes as modules come and go). */
 export function appSettings(app: PocketApp): { settings: Setting[]; actions: AppAction[]; targets: Record<TargetKind, () => Promise<string[]> | string[]> } {
@@ -556,6 +568,129 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["on", "off"],
             apply: (user, value) => app.setAssistant(user, { from: onOff(value) }),
         },
+        // ─── Voice with the ChatGPT sign-in (PP-185) ───
+        {
+            id: "voice.model",
+            area: "voice",
+            title: "Live model of voice calls",
+            help: "A live model's id the ChatGPT sign-in has, checked with OpenAI before it is kept (gpt-realtime-2, gpt-realtime-mini; gpt-live-1.1-codex is Codex's own voice on ChatGPT's private endpoint).",
+            owner: true,
+            read: () => app.config.voice.model,
+            choices: () => (app.config.voiceCheck?.live ?? []).map((each) => each.id),
+            apply: (user, value) => app.setVoice(user, { model: value.trim() }),
+        },
+        {
+            id: "voice.dictationModel",
+            area: "voice",
+            title: "Model that writes down what you say",
+            help: "A transcription model the ChatGPT sign-in has (gpt-4o-transcribe, gpt-4o-mini-transcribe, whisper-1), checked with OpenAI: used in calls and by the Codex dictation engine.",
+            owner: true,
+            read: () => app.config.voice.dictationModel,
+            choices: () => [...(app.config.voiceCheck?.dictation ?? [])],
+            apply: (user, value) => app.setVoice(user, { dictationModel: value.trim() }),
+        },
+        {
+            id: "voice.engine",
+            area: "voice",
+            title: "Who listens to the message box's mic",
+            help: "android (the phone's recognizer, free) or codex (the dictation model, on the ChatGPT sign-in).",
+            owner: true,
+            read: () => app.config.voice.engine,
+            choices: () => ["android", "codex"],
+            apply: (user, value) => app.setVoice(user, { engine: value.trim().toLowerCase() }),
+        },
+        {
+            id: "voice.voice",
+            area: "voice",
+            title: "The voice calls speak with",
+            help: "A voice the live model has (marin, cedar, alloy, ash, ballad, coral, echo, sage, shimmer, verse), checked with OpenAI.",
+            owner: true,
+            read: () => app.config.voice.voice,
+            choices: () => [...VOICES],
+            apply: (user, value) => app.setVoice(user, { voice: value.trim() }),
+        },
+        {
+            id: "voice.language",
+            area: "voice",
+            title: "Language voice listens for",
+            help: "auto (the language you speak) or a two-letter code the dictation model takes (vi, en), checked with OpenAI.",
+            owner: true,
+            read: () => app.config.voice.language,
+            apply: (user, value) => app.setVoice(user, { language: value.trim() }),
+        },
+        {
+            id: "voice.mode",
+            area: "voice",
+            title: "Who thinks in voice calls of new sessions",
+            help: "work (the voice talks and hands real work to Pi, then speaks Pi's answer), chat (the voice only chats), or think (Pi thinks; voice is speech in and out). A session's own: sessions.voiceMode.",
+            owner: true,
+            read: () => app.config.voice.mode,
+            choices: () => ["work", "chat", "think"],
+            apply: (user, value) => app.setVoice(user, { mode: value.trim().toLowerCase() }),
+        },
+        {
+            id: "voice.turns",
+            area: "voice",
+            title: "How you take turns in a call",
+            help: "hands-free (talk any time; talking over the voice stops it) or hold (hold the button to talk).",
+            owner: true,
+            read: () => app.config.voice.turns,
+            choices: () => ["hands-free", "hold"],
+            apply: (user, value) => app.setVoice(user, { turns: value.trim().toLowerCase() }),
+        },
+        {
+            id: "voice.progress",
+            area: "voice",
+            title: "What the voice says while Pi works",
+            help: "text (Pi's words as they come) or answer (only Pi's answer).",
+            owner: true,
+            read: () => app.config.voice.progress,
+            choices: () => ["text", "answer"],
+            apply: (user, value) => app.setVoice(user, { progress: value.trim().toLowerCase() }),
+        },
+        {
+            id: "voice.cueSeconds",
+            area: "voice",
+            title: "A tool cue at most every",
+            help: "Seconds between short cues on what Pi runs (\"still running the tests\"), 0 for none, up to 600.",
+            owner: true,
+            read: () => String(app.config.voice.cueSeconds),
+            apply: (user, value) => app.setVoice(user, { cueSeconds: Number(value.trim().replace(/\s*s(ec(ond)?s?)?$/i, "")) }),
+        },
+        {
+            id: "voice.reader",
+            area: "voice",
+            title: "Who reads Pi's answers in \"Pi thinks\"",
+            help: "live (the live model reads Pi's text as written) or android (the phone's own voice).",
+            owner: true,
+            read: () => app.config.voice.reader,
+            choices: () => ["live", "android"],
+            apply: (user, value) => app.setVoice(user, { reader: value.trim().toLowerCase() }),
+        },
+        {
+            id: "voice.dailyLimit",
+            area: "voice",
+            title: "Minutes of voice a day",
+            help: "Calls and Codex dictation together, 1 to 1440 minutes, or none (the default). Minutes used are in Spend.",
+            owner: true,
+            read: () => (app.config.voice.dailyLimit === null ? "none" : String(app.config.voice.dailyLimit)),
+            apply: (user, value) => app.setVoice(user, { dailyLimit: count(value.replace(/\s*min(ute)?s?$/i, ""), "The limit") }),
+        },
+        {
+            id: "sessions.voiceMode",
+            area: "sessions",
+            title: "Who thinks in one session's voice calls",
+            help: "work, chat, think, or inherit (Settings › Voice's mode for new sessions). Target: the session's number.",
+            owner: false,
+            target: "session",
+            read: (target) => {
+                const own = app.sessionMeta(session(target))?.voiceMode;
+
+                return own === undefined ? `inherit (${app.config.voice.mode})` : own;
+            },
+            choices: () => ["work", "chat", "think", "inherit"],
+            apply: (user, value, target) => app.setSessionVoiceMode(session(target), user, value.trim().toLowerCase()),
+        },
         // ─── One session ───
         {
             id: "sessions.model",
@@ -718,6 +853,20 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 await app.reloadExtension(args.file ?? "");
 
                 return `Reloaded ${args.file}.`;
+            },
+        },
+        {
+            id: "voice.check",
+            area: "voice",
+            title: "Check the voice models",
+            help: "Ask OpenAI which live and dictation models the ChatGPT sign-in has now, and how each live model's calls are set up.",
+            owner: true,
+            args: {},
+            describe: () => "Ask OpenAI which voice models the ChatGPT sign-in has",
+            run: async (user) => {
+                await app.checkVoice(user);
+
+                return voiceModels(app.config.voiceCheck);
             },
         },
         {

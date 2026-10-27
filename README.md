@@ -279,6 +279,12 @@ No Termux, no laptop, no cloud VM.
   browser in as you once if no device can; the phone notifies you when it is used. Pi lists devices too (`devices`), and signs one or
   all out (`device_sign_out`, `sign_out_everywhere`) after you say yes on a card.
 - **Dictation** with Android's speech recognizer, in the language you choose.
+- **Voice with your ChatGPT sign-in** (in progress). Pi checks which live and dictation models your ChatGPT (Codex)
+  sign-in has (`app_action voice.check`) and how each live model's calls are set up, and changes the voice settings
+  (`voice.*`: live and dictation model, voice, language, who thinks, turn-taking, progress, reader, daily minutes) after
+  checking a model, voice or language with OpenAI; a session has its own voice mode (`sessions.voiceMode`). Minutes of
+  voice show in Spend, counted on your ChatGPT plan; no daily limit unless you set one. The sign-in's token stays on
+  the server.
 - **The phone's assistant.** Pick pi as the digital assistant (Menu › Assistant walks you through it), then hold the
   side key in any app: a pi sheet comes up over it, already listening. Your words show as you speak, then wait for
   Send, or go by themselves after 3 seconds. They go to the last session you were in, a new session, or one session

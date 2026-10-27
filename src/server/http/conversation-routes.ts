@@ -314,6 +314,17 @@ export async function conversationRoutes(
         return json(response, 200, await app.answerInterview(id, parts.slice(3).join("/"), user, body));
     }
 
+    // Voice (PP-185): the session's own voice mode (`{ mode: "chat" }`, or "inherit"), and starting a call in it.
+    if (third === "voice" && fourth === undefined && method === "POST") {
+        await app.setSessionVoiceMode(id, user, (await readJson<{ mode?: unknown }>(request)).mode);
+
+        return json(response, 200, { ok: true });
+    }
+
+    if (third === "voice" && fourth === "call" && method === "POST") {
+        return json(response, 200, await app.startVoiceCall(user, id));
+    }
+
     if (third === "plan" && method === "POST") {
         const body = await readJson<{ on?: unknown; approve?: unknown }>(request);
 

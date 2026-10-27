@@ -87,6 +87,7 @@ import { FolderFavorites } from "./folder-favorites.ts";
 import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
 import { withAssistant } from "./assistant.ts";
+import { type CallPlan, type CallStart, chatgptAccount, type VoiceEndpoints, type VoiceMode, VoiceService, isVoiceMode, voiceInstructions, withVoice } from "./voice.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
 import { clockText, inLanguage, inZone, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
@@ -310,6 +311,15 @@ export interface OpenOptions {
      * `ownerToken`, which is how the gateway knows this pi-phone.
      */
     gatewayUrl?: string;
+    /** Where OpenAI is and whose sign-in voice uses (`voice.ts`): tests stand in a fake OpenAI and a token. */
+    voice?: { endpoints?: VoiceEndpoints; auth?: () => Promise<{ token: string; account?: string } | undefined>; fetch?: typeof fetch };
+}
+
+/** A Codex token's ChatGPT account, as voice sends it. */
+function withAccount(token: string): { account?: string } {
+    const account = chatgptAccount(token);
+
+    return account === undefined ? {} : { account };
 }
 
 /** A send limit as given: a whole number of 1 to 10000 an hour, or null for none. */
@@ -428,6 +438,8 @@ export class PocketApp {
     readonly teamMachines: TeamMachinesClient;
     /** The subscription accounts' plan limits (`usage-limits.ts`). */
     readonly usageLimits: UsageLimits;
+    /** Voice with the ChatGPT sign-in (PP-185): calls and Codex dictation (`voice.ts`). */
+    readonly voice: VoiceService;
     /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
     readonly officecli: OfficeCli;
     /** Tools pi-phone installs on machines: OfficeCLI, rg, fd (`machine-tools.ts`). */
@@ -557,6 +569,25 @@ export class PocketApp {
                 }
             },
             ...(options.usageFetch === undefined ? {} : { fetch: options.usageFetch }),
+        });
+        this.voice = new VoiceService({
+            auth:
+                options.voice?.auth ??
+                (async () => {
+                    const token = (await this.models.getAuth("openai-codex"))?.auth.apiKey;
+
+                    return token === undefined || token === "" ? undefined : { token, ...withAccount(token) };
+                }),
+            settings: () => this.config.voice,
+            check: () => this.config.voiceCheck,
+            saveCheck: (check) => {
+                this.config.voiceCheck = check;
+            },
+            usedToday: () => this.spend.voiceToday(),
+            used: (kind, seconds) => this.spend.voiceUsed(kind, seconds),
+            ...(options.voice?.endpoints === undefined ? {} : { endpoints: options.voice.endpoints }),
+            ...(options.voice?.fetch === undefined ? {} : { fetch: options.voice.fetch }),
+            now: () => this.now(),
         });
         this.officecli = new OfficeCli({ dataDir: options.dataDir, ...options.officecli });
         this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools));
@@ -1138,6 +1169,7 @@ export class PocketApp {
         const conversations = await this.#recover(storage);
 
         await this.spend.load(conversations);
+        await this.spend.loadVoice();
 
         this.#unsubscribeCommits = this.harness.subscribeCommits((publication) =>
             this.#committed(publication),
@@ -2074,6 +2106,87 @@ export class PocketApp {
 
         this.config.assistant = withAssistant(this.config.assistant, patch);
         await this.#refreshClients();
+    }
+
+    /**
+     * The owner changes Settings › Voice (PP-185): `patch` names only the settings to change. A live or dictation model, a
+     * voice or a language is checked with OpenAI first, with the owner's sign-in; what it refuses is not kept.
+     */
+    async setVoice(user: User, patch: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        const current = this.config.voice;
+        const next = withVoice(current, patch);
+
+        await this.voice.validate(current, next);
+        this.config.voice = next;
+        await this.#refreshClients();
+    }
+
+    /** Ask OpenAI again which voice models the owner's sign-in has (Settings › Voice's Check again). */
+    async checkVoice(user: User): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        await this.voice.check();
+        await this.#refreshClients();
+    }
+
+    /** Who thinks in a session's voice calls: its own mode, else Settings › Voice's. */
+    voiceModeOf(id: ConversationId): VoiceMode {
+        return this.sessionMeta(this.rootOf(id))?.voiceMode ?? this.config.voice.mode;
+    }
+
+    /** A session's own voice mode (work, chat, think), or "inherit" for Settings › Voice's. Whoever steers it. */
+    async setSessionVoiceMode(id: ConversationId, user: User, mode: unknown): Promise<void> {
+        this.requireSee(user, id);
+        await this.requireDriver(id, user);
+
+        if (mode !== "inherit" && !isVoiceMode(mode)) {
+            throw new HttpError(400, "The voice mode is work, chat, think, or inherit.");
+        }
+
+        const root = this.rootOf(id);
+
+        await this.harness.commit(async (tx) => {
+            const meta = (await tx.doc(SessionsDoc)).items[String(root)];
+
+            if (meta === undefined) {
+                throw new HttpError(404, "There is no such session.");
+            }
+
+            if (mode === "inherit") {
+                delete meta.voiceMode;
+            } else {
+                meta.voiceMode = mode;
+            }
+        }, context);
+    }
+
+    /**
+     * Start a voice call in a session (the owner's: it runs on the owner's sign-in). What the page gets sets the call up
+     * and never holds the token.
+     */
+    async startVoiceCall(user: User, id: ConversationId): Promise<CallStart> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Voice runs on the owner's ChatGPT sign-in: only the owner can call.");
+        }
+
+        this.requireSee(user, id);
+        await this.requireDriver(id, user);
+        const root = this.rootOf(id);
+
+        return this.voice.start(user.id, Number(root), await this.voicePlan(root));
+    }
+
+    /** How a session's call runs: its mode, the voice's instructions with the session's context, and its tools. */
+    async voicePlan(id: ConversationId): Promise<CallPlan> {
+        const mode = this.voiceModeOf(id);
+
+        return { mode, instructions: voiceInstructions(mode, this.sessionMeta(id)?.title), tools: [] };
     }
 
     /** Every connected tab. */
@@ -3018,6 +3131,8 @@ export class PocketApp {
                 limitNotice: this.config.limitNotice,
                 // What the phone's assistant sheet does (PP-146): the owner's, as only the owner uses the sheet.
                 ...(user.role === "owner" ? { assistant: this.config.assistant } : {}),
+                // Voice with the owner's ChatGPT sign-in (PP-185): its settings and what the last model check found.
+                ...(user.role === "owner" ? { voice: { settings: this.config.voice, check: this.config.voiceCheck ?? null } } : {}),
                 // Pi using a phone (PP-141): the owner's tabs show the session's live line, with Stop.
                 phoneControl: user.role === "owner" ? this.phoneControl.view() : [],
                 computerControl: user.role === "owner" ? this.computerControl.view() : [],
@@ -3278,6 +3393,8 @@ export class PocketApp {
             ...(meta?.sendLimit === undefined ? {} : { sendLimit: meta.sendLimit }),
             // Its own auto-compact (`auto-compact.ts`); absent, the setting for all.
             ...(meta?.compactAt === undefined ? {} : { compactAt: meta.compactAt }),
+            // Who thinks in its voice calls (`voice.ts`); absent, Settings › Voice's mode.
+            ...(meta?.voiceMode === undefined ? {} : { voiceMode: meta.voiceMode }),
             // Whether a fork could get a worktree of its own.
             ...(meta === undefined
                 ? {}
@@ -4833,6 +4950,8 @@ export class PocketApp {
             clearInterval(this.#browserSweep);
             this.phoneControl.close();
             this.computerControl.close();
+            this.voice.endAll();
+            await this.spend.voiceStored();
             this.themes.close();
             this.spend.close();
             this.limits.close();

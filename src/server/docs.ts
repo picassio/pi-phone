@@ -53,6 +53,8 @@ export type SessionMeta = {
     sendLimit?: number | null;
     /** When this session compacts by itself (`auto-compact.ts`): a percentage of the context, or "full". Absent: the setting for all. */
     compactAt?: number | "full";
+    /** Who thinks in this session's voice calls (`voice.ts`): work, chat, or think. Absent: Settings › Voice's mode. */
+    voiceMode?: "work" | "chat" | "think";
     /** The run model for this session's `browser_run`: "session" or a Jev model's OpenRouter id. Absent: the owner's. */
     browserRunModel?: string;
     /** The "Wiki capture" session (`para-capture.ts`): captures of the others run there. */
@@ -356,6 +358,9 @@ export const PlanDoc = defineDoc<{ on: boolean; by?: string; at?: number }>({
 /** What the wiki's remote embeddings cost so far: dollars, tokens, requests, and since when it was counted. */
 export type WikiSpend = { cost: number; tokens: number; requests: number; since: number };
 
+/** One day's voice, in seconds. */
+export type VoiceDay = { call: number; dictation: number };
+
 /**
  * What Pi spent for each person, in dollars: the work goes to whoever asked for it. `counted` is how much of each
  * conversation's spend is in `people` already, so every dollar is counted once, also across restarts.
@@ -371,6 +376,8 @@ export const SpendDoc = defineDoc<{
      */
     team?: Record<string, number>;
     teamCounted?: Record<string, number>;
+    /** Seconds of voice with the ChatGPT sign-in (PP-185) by day (`YYYY-MM-DD`, the server's): calls and Codex dictation. */
+    voice?: Record<string, VoiceDay>;
 }>({
     kind: "pocket.spend",
     version: 1,

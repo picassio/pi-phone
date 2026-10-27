@@ -40,7 +40,7 @@ const route: FauxResponseStep = (request) => {
         }
     }
 
-    return fauxAssistantMessage([fauxText(role === "toolResult" ? `told: ${text.slice(0, 20000)}` : "ok")]);
+    return fauxAssistantMessage([fauxText(role === "toolResult" ? `told: ${text.slice(0, 40000)}` : "ok")]);
 };
 let app: App;
 
