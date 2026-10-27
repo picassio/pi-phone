@@ -4942,6 +4942,22 @@ pre.diff .del {
     stroke-width: 2.4;
 }
 
+/* Voice beside New (PP-192): a new session with a call; quieter than New, in the accent. */
+.new-button.voice-new {
+    background: transparent;
+    color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+/* In the sidebar, beside New, only its waveform: the list's head has no room for both words. */
+.sidebar .new-button.voice-new {
+    padding: 0 8px;
+}
+
+.sidebar .new-button.voice-new .voice-label {
+    display: none;
+}
+
 /* A search field: the sheets' (providers, a message's, the pickers') and the session list's. */
 .search {
     position: relative;

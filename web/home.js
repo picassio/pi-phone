@@ -7,6 +7,7 @@ import { sessionMark } from "./sessions.js";
 import { canSteer, navigate, openSheet, scoped, store, workspaceOrder } from "./store.js";
 import { lookLabel, prefs } from "./theme.js";
 import { html, Icon, Keys, shortPath, timeAgo } from "./ui.js";
+import { VoiceNewButton } from "./voice-view.js";
 
 /** pi-phone's mark (web/icon.svg's, which is Pi's logo), where fastfetch puts a machine's logo. */
 const LOGO = html`<svg class="fetch-logo" data-part="home-logo" viewBox="150 150 500 500" aria-hidden="true">
@@ -134,6 +135,7 @@ export function Splash() {
                     <${Icon} name="plus" size=${16} /> ${t("New session")} <${Keys} keys="Alt N" />
                 </button>`
             }
+            ${canStart && html`<${VoiceNewButton} className="button" size=${16} />`}
             <button class="button" onClick=${() => store.set({ launcher: true })}>
                 <${Icon} name="command" size=${16} /> ${t("Launcher")} <${Keys} keys="Mod K" />
             </button>

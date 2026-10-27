@@ -17,6 +17,8 @@ import android.os.Looper;
 import android.service.voice.VoiceInteractionSession;
 import android.view.View;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -44,6 +46,10 @@ final class PiAssistantSession extends VoiceInteractionSession {
 
     /** The sheet showing now, if one is: phone control puts it away before it reads or acts (`hideShown`). */
     private static volatile PiAssistantSession shown;
+    /** The session of the voice call the sheet holds (PP-192), or -1. */
+    private static volatile int callSession = -1;
+    /** The sheet goes because Open took the person to the app: a call handed over stays in front there. */
+    private volatile boolean opening;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private WebView web;
@@ -86,6 +92,18 @@ final class PiAssistantSession extends VoiceInteractionSession {
                 startAssistantActivity(new Intent(Intent.ACTION_VIEW, url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 hide();
                 return true;
+            }
+        });
+        // The microphone for a voice call in the sheet (PP-192): the app's own page, audio only, once pi has it. The sheet
+        // cannot ask Android (no activity): the page says so, and Allow in pi-phone does it.
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                if (VoicePage.ownAudio(request) && dictation.micAllowed()) {
+                    request.grant(new String[] {PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                } else {
+                    request.deny();
+                }
             }
         });
         dictation = new Dictation(getContext(), null, web);
@@ -153,6 +171,18 @@ final class PiAssistantSession extends VoiceInteractionSession {
     @Override
     public void onHide() {
         if (shown == this) shown = null;
+        // A call in the sheet moves to the app's window (PP-192): the sheet's page ends its own, and the window starts
+        // one in the same session, then goes back behind the app that was in front (unless Open took the person there).
+        int call = callSession;
+        if (call >= 0 && web != null) {
+            callSession = -1;
+            web.evaluateJavascript("globalThis.__piVoiceHandOver && globalThis.__piVoiceHandOver()", null);
+            startAssistantActivity(new Intent(getContext(), MainActivity.class)
+                    .putExtra(MainActivity.EXTRA_VOICE_START, call)
+                    .putExtra(MainActivity.EXTRA_VOICE_BACK, !opening)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        }
+        opening = false;
         // The next time, the app in front is told again (its assist data may come before or after onShow).
         from = "";
         if (dictation != null) dictation.abort();
@@ -261,9 +291,30 @@ final class PiAssistantSession extends VoiceInteractionSession {
             main.post(PiAssistantSession.this::hide);
         }
 
+        /** The sheet's voice call started, changed, or ended (`web/voice-call.js`): its notification and audio follow. */
+        @JavascriptInterface
+        public void voiceCall(String json) {
+            main.post(() -> {
+                try {
+                    String state = VoicePage.tell(getContext(), json);
+                    if ("start".equals(state)) {
+                        callSession = new JSONObject(json).optInt("session", -1);
+                        VoiceCallService.page = (action) -> main.post(() -> {
+                            if (web != null) web.evaluateJavascript(VoicePage.action(action), null);
+                        });
+                    } else if ("end".equals(state)) {
+                        callSession = -1;
+                    }
+                } catch (JSONException e) {
+                    android.util.Log.w("pi-phone", "voice call: " + e);
+                }
+            });
+        }
+
         /** Open this session in the app, and close the sheet. */
         @JavascriptInterface
         public void open(int session) {
+            opening = true;
             main.post(() -> {
                 startAssistantActivity(new Intent(getContext(), MainActivity.class)
                         .putExtra(PiService.EXTRA_SESSION, session)

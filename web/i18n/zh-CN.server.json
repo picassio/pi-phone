@@ -617,6 +617,7 @@
     "{1} is not a live model for your sign-in ({2}): pick another in Settings › Voice.": "{1} 不是你的登录可用的实时模型（{2}）：请在 设置 › 语音 中另选一个。",
     "Today's voice minutes ({1}) are used up: raise the limit in Settings › Voice.": "今天的语音分钟数（{1}）已用完：请在 设置 › 语音 中提高上限。",
     "There is no such person.": "没有这个人。",
+    "assistant.talk is dictate or call.": "assistant.talk 为 dictate 或 call。",
     "There is no such call: start it again.": "没有这个通话：请重新开始。",
     "This call posts its own offer with its key.": "此通话用自己的密钥发送自己的 offer。",
     "sdp is the page's SDP offer.": "sdp 是页面的 SDP offer。",

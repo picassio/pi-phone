@@ -823,6 +823,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
     never paused. The window going (swiped away) ends its call and the notification. A notification tap opens
     `/s/:id?voice=show`; `?voice=start` starts a call there (`voiceFromShell`). The `android` reader needs the app's
     text-to-speech (PP-193).
+  - **The side key and home** (PP-192): `assistant.talk` (`dictate` or `call`, Menu › Assistant's "When the sheet
+    opens", Pi's `assistant.talk`). With `call` the sheet starts a call in its target session instead of listening (a
+    new session is made first); its waveform button (while listening, after sending, after nothing heard) does so for
+    this time. The call's controls (`CallControls`, shared with the voice view) take the sheet's foot, the session's
+    transcript above. The sheet's WebView grants the mic like the window's but cannot ask Android: without it the sheet
+    says so and sends the person to pi-phone. The sheet's bridge `voiceCall` starts the same notification; when the
+    sheet hides (`onHide`) it calls `__piVoiceHandOver` (the page ends its call with `handOver`, so the notification
+    stays) and starts the app's window with `EXTRA_VOICE_START` (and `EXTRA_VOICE_BACK` unless Open took the person
+    there): the window starts a new call in the same session (startup context carries the talk so far) and, once it is
+    up, goes back behind the app that was in front (`moveTaskToBack`). A call ended while it is still being set up ends
+    on the server too (`STALE` in `voice-call.js`). Home: **Voice** beside New (the session list; on the desktop's home
+    beside New session; in the sidebar only its waveform) makes a session titled Voice in the default folder and calls
+    in it, with Settings › Voice's mode and turn-taking for new sessions.
   - **Routes:** `POST /api/c/:id/voice` (mode), `POST /api/c/:id/voice/call` (start), `GET /api/voice`,
     `POST /api/voice/check`, `POST /api/voice/calls/:call/{sdp,joined,end}`, `POST /api/voice/dictation[/:id/end]`,
     `POST /api/settings {voice}`. Tests: a fake OpenAI (`test/support/fake-openai.ts`).

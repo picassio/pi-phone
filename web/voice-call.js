@@ -135,6 +135,12 @@ export async function startVoice(session) {
     });
 
     const mine = {};
+    // Ended (or another call started) while this one was being set up: what it made so far goes.
+    const stale = () => {
+        if (engine !== mine) {
+            throw STALE;
+        }
+    };
 
     engine = mine;
 
@@ -142,6 +148,7 @@ export async function startVoice(session) {
         const start = await api(`c/${session}/voice/call`, {});
 
         mine.call = start.call;
+        stale();
         mine.path = start.path;
         mine.session = session;
         mine.mode = sessionVoiceMode(session);
@@ -149,12 +156,7 @@ export async function startVoice(session) {
         mine.outLevel = null;
         mine.muted = hold;
         mine.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-
-        if (engine !== mine) {
-            mine.mic.getTracks().forEach((track) => track.stop());
-
-            return;
-        }
+        stale();
 
         mine.mic.getAudioTracks().forEach((track) => (track.enabled = !hold));
         mine.micLevel = analyser(mine.mic);
@@ -195,6 +197,7 @@ export async function startVoice(session) {
         }
 
         await pc.setLocalDescription(await pc.createOffer());
+        stale();
 
         if (mine.path === "key") {
             // The key is for this offer only, and goes with it: it is not kept.
@@ -211,11 +214,13 @@ export async function startVoice(session) {
             const answer = await posted.text();
             const rtc = (posted.headers.get("location") ?? "").split("/").pop();
 
+            stale();
             await pc.setRemoteDescription({ type: "answer", sdp: answer });
             await api(`voice/calls/${mine.call}/joined`, { rtc });
         } else {
             const { sdp } = await api(`voice/calls/${mine.call}/sdp`, { sdp: pc.localDescription.sdp });
 
+            stale();
             await pc.setRemoteDescription({ type: "answer", sdp });
         }
 
@@ -224,12 +229,27 @@ export async function startVoice(session) {
             tellShell("start");
         }
     } catch (error) {
+        if (error === STALE) {
+            mine.pc?.close();
+            mine.mic?.getTracks().forEach((track) => track.stop());
+
+            if (mine.call && !mine.endSent) {
+                mine.endSent = true;
+                await api(`voice/calls/${mine.call}/end`, {}).catch(() => {});
+            }
+
+            return;
+        }
+
         if (engine === mine) {
             await endVoice({ quiet: true });
             notify("error", t("The call did not start: {why}", { why: error?.message ?? String(error) }));
         }
     }
 }
+
+/** A call set up no further: it ended, or another started. */
+const STALE = new Error("stale call");
 
 /** An event from the call: what the view shows; for Codex's voice, passed on to the server too. */
 function receive(mine, event) {
@@ -330,7 +350,8 @@ export async function endVoice({ quiet = false, handOver = false } = {}) {
 
     void mine.audioContext?.close().catch(() => {});
 
-    if (mine.call) {
+    if (mine.call && !mine.endSent) {
+        mine.endSent = true;
         await api(`voice/calls/${mine.call}/end`, {}).catch((error) => quiet || notify("error", error.message));
     }
 }

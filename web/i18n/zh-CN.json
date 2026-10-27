@@ -2962,5 +2962,11 @@
     "None: voice counts on your ChatGPT plan.": "无：语音计入你的 ChatGPT 套餐。",
     "{n} minutes a day, calls and dictation together.": "每天 {n} 分钟，通话和听写合计。",
     "Minutes a day": "每天分钟数",
-    "Minutes are in Spend too. Pi can change these settings with your OK on a card.": "分钟数也在花费中。经你在卡片上同意后，Pi 也能修改这些设置。"
+    "Minutes are in Spend too. Pi can change these settings with your OK on a card.": "分钟数也在花费中。经你在卡片上同意后，Pi 也能修改这些设置。",
+    "When the sheet opens": "面板打开时",
+    "Listen for a message": "聆听一条消息",
+    "Start a voice call": "开始语音通话",
+    "A call with the session's Pi; when you leave the sheet, it goes on in pi-phone, with its notification.": "与会话中的 Pi 通话；离开面板后，通话在 pi-phone 中继续，并显示通知。",
+    "The waveform button in the sheet starts a call for this time.": "面板里的波形按钮可以为这次发起通话。",
+    "Voice: a new session, talking": "语音：新建会话并开始通话"
 }

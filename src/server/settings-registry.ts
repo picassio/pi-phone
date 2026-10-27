@@ -568,6 +568,16 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["on", "off"],
             apply: (user, value) => app.setAssistant(user, { from: onOff(value) }),
         },
+        {
+            id: "assistant.talk",
+            area: "assistant",
+            title: "What the side key's sheet does when it opens",
+            help: "dictate (it listens for a message) or call (a voice call with the session's Pi, which moves to the app when the sheet goes; needs the ChatGPT sign-in, Settings › Voice).",
+            owner: true,
+            read: () => app.config.assistant.talk,
+            choices: () => ["dictate", "call"],
+            apply: (user, value) => app.setAssistant(user, { talk: value.trim().toLowerCase() }),
+        },
         // ─── Voice with the ChatGPT sign-in (PP-185) ───
         {
             id: "voice.model",

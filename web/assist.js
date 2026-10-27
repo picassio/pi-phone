@@ -5,12 +5,18 @@
 // one session, as set, or as picked from the session pill for this time only. The app that was in front is noted on
 // the message ("From Chrome"), as a chip the person can drop. Once sent, the session's transcript shows in the sheet,
 // approvals and all, so a phone control card is answered without leaving the app.
+//
+// Voice (PP-192): the sheet can start a voice call with the session's Pi instead (its waveform button, or by itself when
+// Menu › Assistant says "Start a voice call"); the call's controls take the sheet's foot. When the sheet goes, the
+// call moves to the app's window (`PiAssistantSession.onHide`, `__piVoiceHandOver`), its notification staying.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dictationLanguage } from "./android-speech.js";
 import { t } from "./i18n.js";
 import { actions, attempt, navigate, store } from "./store.js";
 import { Transcript } from "./transcript.js";
 import { html, Icon, shortPath } from "./ui.js";
+import { endVoice, startVoice, voiceAvailable } from "./voice-call.js";
+import { CallControls } from "./voice-view.js";
 
 /** This page is the assistant's sheet, not the app. */
 export const ASSIST = new URLSearchParams(location.search).has("assist");
@@ -23,7 +29,7 @@ const AUTO_SECONDS = 3;
 /** Bars in the sound wave. */
 const BARS = 28;
 /** The assistant's settings until the server's state says (`src/server/assistant.ts`). */
-const DEFAULTS = { opens: "last", folder: null, session: null, send: "tap", from: true };
+const DEFAULTS = { opens: "last", folder: null, session: null, send: "tap", from: true, talk: "dictate" };
 
 /**
  * Open a session behind the sheet, keeping the sheet's address: a reload (the server's, after an update) must load the
@@ -149,6 +155,8 @@ export function AssistView() {
     const timer = useRef(null);
     /** Words just heard wait for the countdown ("Send by itself") to start. */
     const armed = useRef(false);
+    /** The sheet opened to start a voice call: it does once the session to call is known. */
+    const wantCall = useRef(false);
     const target = sent
         ? { kind: "session", id: sentTo, title: state.sessions.find((each) => each.id === sentTo)?.title ?? t("New session") }
         : state.sessionsLoaded
@@ -162,13 +170,27 @@ export function AssistView() {
         setCountdown(null);
     };
 
-    const listen = () => {
+    /** `how`: "auto" when the sheet opens (with "Start a voice call", a call instead), else a button's tap. */
+    const listen = (how) => {
         armed.current = false;
         recognition.current?.abort();
         stopCountdown();
         setProblem(null);
         setWords({ settled: "", coming: "" });
         setLevel(0);
+
+        if (how === "auto" && store.state.server?.assistant?.talk === "call" && voiceAvailable()) {
+            recognition.current = null;
+            wantCall.current = true;
+            setPhase("idle");
+
+            return;
+        }
+
+        // The settings not here yet: it listens, and calls instead once they say so (the effect below).
+        if (how === "auto" && store.state.server == null) {
+            wantCall.current = "maybe";
+        }
 
         const Recognition = globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
 
@@ -281,6 +303,47 @@ export function AssistView() {
         }
     };
 
+    /**
+     * A voice call with the target session's Pi (PP-192): a new session is made first; the session opens behind the
+     * sheet, so its transcript shows above the call's controls. The sheet cannot ask for the microphone: without it, the
+     * sheet sends the person to pi-phone to allow it, as dictation does.
+     */
+    const startCall = () =>
+        attempt(async () => {
+            if (typeof app?.micAllowed === "function" && !app.micAllowed()) {
+                setProblem("not-allowed");
+                setPhase("problem");
+
+                return;
+            }
+
+            // The session to call is not known yet (the list is on its way): the call starts once it is.
+            if (target === null) {
+                wantCall.current = true;
+
+                return;
+            }
+
+            recognition.current?.abort();
+            recognition.current = null;
+            stopCountdown();
+
+            let to = target.kind === "session" ? target.id : null;
+
+            if (to === null) {
+                to = (await actions.createSession(target.folder)).id;
+                localStorage.setItem(LAST_SESSION_KEY, String(to));
+            }
+
+            if (store.state.conversationId !== to) {
+                openBehind(to);
+            }
+
+            setSentTo(to);
+            setPhase("idle");
+            await startVoice(to);
+        });
+
     const startCountdown = (said) => {
         let left = AUTO_SECONDS;
 
@@ -304,6 +367,21 @@ export function AssistView() {
     const sendRef = useRef(send);
 
     sendRef.current = send;
+
+    // A call the sheet opened for starts once the session to call is known (and the settings, when they came late).
+    useEffect(() => {
+        if (wantCall.current === false || target === null || state.server == null) {
+            return;
+        }
+
+        const call = wantCall.current === true || (settings.talk === "call" && voiceAvailable());
+
+        wantCall.current = false;
+
+        if (call) {
+            startCall();
+        }
+    });
 
     // Words just heard, with "Send by itself": the countdown starts once the server's settings and the session are here
     // (words can end before the page has them), once; editing first, or listening again, disarms it.
@@ -356,7 +434,7 @@ export function AssistView() {
             setQuery("");
             setFromOn(true);
             setText("");
-            listen();
+            listen("auto");
         };
         globalThis.__piAssistHidden = () => {
             recognition.current?.abort();
@@ -366,7 +444,7 @@ export function AssistView() {
             setPhase("idle");
         };
         globalThis.__piPhoneSpeechLevel = (value) => setLevel(Number(value) || 0);
-        listen();
+        listen("auto");
 
         return () => {
             recognition.current?.abort();
@@ -460,6 +538,13 @@ export function AssistView() {
             : html`${words.settled} <span class="assist-coming">${words.coming}</span>`;
     const listening = phase === "listen";
     const said = problem === null ? null : problemOf(problem);
+    // A voice call in this sheet (PP-192), and the button that starts one.
+    const call = state.voiceCall;
+    const callButton = voiceAvailable()
+        ? html`<button class="icon-button" aria-label=${t("Voice call")} title=${t("Voice call with Pi")} data-part="assist-call" onClick=${startCall}>
+              <${Icon} name="voice" size=${20} />
+          </button>`
+        : html`<span></span>`;
 
     return html`<div class="assist" data-part="assist">
         <div class="assist-backdrop" onClick=${close}></div>
@@ -558,7 +643,7 @@ export function AssistView() {
                             <button class="assist-big listening" aria-label=${t("Stop listening")} data-part="assist-stop" onClick=${() => recognition.current?.stop()}>
                                 <${Icon} name="stop" size=${24} />
                             </button>
-                            <span></span>
+                            ${callButton}
                         </div>
                         <div class="assist-sub">${t("Listening · speak, then pause")}</div>`
                 }
@@ -617,12 +702,25 @@ export function AssistView() {
                                 ? html`<button class="button primary" onClick=${() => app.allowMic()}>${t("Allow in pi-phone")}</button>`
                                 : html`<button class="assist-big" aria-label=${t("Listen again")} data-part="assist-again" onClick=${listen}><${Icon} name="mic" size=${24} /></button>`
                         }
-                        <span></span>
+                        ${said.mic ? html`<span></span>` : callButton}
                     </div>`
+                }
+                ${
+                    call &&
+                    html`<${CallControls}
+                        call=${call}
+                        onType=${() =>
+                            attempt(async () => {
+                                await endVoice();
+                                setPhase("heard");
+                                setTimeout(() => box.current?.focus());
+                            })}
+                    />`
                 }
                 ${
                     phase === "idle" &&
                     sent &&
+                    !call &&
                     html`<div class="assist-row">
                         <button class="icon-button" aria-label=${t("Type instead")} title=${t("Type instead")} onClick=${() => {
                             setPhase("heard");
@@ -631,6 +729,7 @@ export function AssistView() {
                             <${Icon} name="keyboard" size=${20} />
                         </button>
                         <button class="button primary assist-more" data-part="assist-more" onClick=${listen}><${Icon} name="mic" size=${16} /> ${t("Ask more")}</button>
+                        ${callButton}
                     </div>`
                 }
             </footer>

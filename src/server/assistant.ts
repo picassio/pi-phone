@@ -7,11 +7,14 @@
  *   when the words are sent, not when the sheet opens), or always `session`.
  * - `send`: "tap": the words wait for Send; "auto": they go by themselves 3 seconds after the person stops speaking.
  * - `from`: the message notes the app that was in front ("From Chrome"), so Pi can offer phone control for it.
+ * - `talk` (PP-192): "dictate": the sheet listens for a message; "call": it starts a voice call with the session's Pi
+ *   (`voice.ts`), which moves to the app when the sheet goes.
  */
 import { HttpError } from "./errors.ts";
 
 export type AssistantOpens = "last" | "new" | "session";
 export type AssistantSend = "tap" | "auto";
+export type AssistantTalk = "dictate" | "call";
 
 export interface AssistantSettings {
     readonly opens: AssistantOpens;
@@ -21,13 +24,15 @@ export interface AssistantSettings {
     readonly session: number | null;
     readonly send: AssistantSend;
     readonly from: boolean;
+    readonly talk: AssistantTalk;
 }
 
-export const DEFAULT_ASSISTANT: AssistantSettings = { opens: "last", folder: null, session: null, send: "tap", from: true };
+export const DEFAULT_ASSISTANT: AssistantSettings = { opens: "last", folder: null, session: null, send: "tap", from: true, talk: "dictate" };
 
 const OPENS: readonly AssistantOpens[] = ["last", "new", "session"];
 const SENDS: readonly AssistantSend[] = ["tap", "auto"];
-const KEYS = ["opens", "folder", "session", "send", "from"] as const;
+const TALKS: readonly AssistantTalk[] = ["dictate", "call"];
+const KEYS = ["opens", "folder", "session", "send", "from", "talk"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -48,6 +53,7 @@ export function readAssistant(stored: unknown): AssistantSettings {
         session: typeof stored.session === "number" && Number.isInteger(stored.session) && stored.session > 0 ? stored.session : null,
         send: SENDS.includes(stored.send as AssistantSend) ? (stored.send as AssistantSend) : DEFAULT_ASSISTANT.send,
         from: typeof stored.from === "boolean" ? stored.from : DEFAULT_ASSISTANT.from,
+        talk: TALKS.includes(stored.talk as AssistantTalk) ? (stored.talk as AssistantTalk) : DEFAULT_ASSISTANT.talk,
     };
 }
 
@@ -106,6 +112,14 @@ export function withAssistant(current: AssistantSettings, patch: unknown): Assis
         }
 
         next.from = patch.from;
+    }
+
+    if (patch.talk !== undefined) {
+        if (!TALKS.includes(patch.talk as AssistantTalk)) {
+            throw new HttpError(400, "assistant.talk is dictate or call.");
+        }
+
+        next.talk = patch.talk as AssistantTalk;
     }
 
     if (next.opens === "session" && next.session === null) {

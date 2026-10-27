@@ -302,7 +302,10 @@ No Termux, no laptop, no cloud VM.
   you pick (for this time from the sheet, or for good in Menu › Assistant), with the app you were in noted ("From
   Chrome", a chip you can drop) so Pi can offer phone control for it (approve it in the sheet, which then steps aside
   while Pi uses the app). The reply streams in the sheet and approvals are answered there; **Open** takes you to the session. While pi is the assistant, apps that ask the phone's default
-  speech recognizer still reach the phone's own: pi only passes it on. Not from the lock screen.
+  speech recognizer still reach the phone's own: pi only passes it on. Not from the lock screen. The sheet can also
+  start a **voice call** with the session's Pi (its waveform button, or by itself when Menu › Assistant says "Start a
+  voice call"); when you leave the sheet the call goes on in pi-phone, with its notification.
+- **Voice beside New** in the session list (and on the desktop's home): a new session named Voice, opened talking.
 
 ### The app
 - **A terminal.** A real shell inside the app, on the phone or on a machine, with Esc, Tab, Ctrl, and arrow keys

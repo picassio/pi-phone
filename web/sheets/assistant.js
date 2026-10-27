@@ -7,7 +7,7 @@ import { t } from "../i18n.js";
 import { api, attempt, closeSheet, store } from "../store.js";
 import { html, Icon, Sheet, shortPath, Switch } from "../ui.js";
 
-const DEFAULTS = { opens: "last", folder: null, session: null, send: "tap", from: true };
+const DEFAULTS = { opens: "last", folder: null, session: null, send: "tap", from: true, talk: "dictate" };
 
 function Step({ number, done, title, text, open, action = t("Open") }) {
     return html`<li class=${`phone-step ${done ? "done" : ""}`} data-part="assistant-step">
@@ -121,6 +121,19 @@ export function AssistantSheet() {
                 </label>`
             }
         </div>
+
+        ${
+            // A voice call from the side key (PP-192): on the owner's ChatGPT sign-in (Settings › Voice).
+            server?.voice &&
+            html`<div class="phone-section-title">${t("When the sheet opens")}</div>
+                <div class="assistant-choice" data-part="assistant-talk">
+                    <div class="segmented" role="group" aria-label=${t("When the sheet opens")}>
+                        <button class=${settings.talk !== "call" ? "on" : ""} aria-pressed=${settings.talk !== "call"} onClick=${() => change({ talk: "dictate" })}>${t("Listen for a message")}</button>
+                        <button class=${settings.talk === "call" ? "on" : ""} aria-pressed=${settings.talk === "call"} onClick=${() => change({ talk: "call" })}>${t("Start a voice call")}</button>
+                    </div>
+                    <p class="muted small">${settings.talk === "call" ? t("A call with the session's Pi; when you leave the sheet, it goes on in pi-phone, with its notification.") : t("The waveform button in the sheet starts a call for this time.")}</p>
+                </div>`
+        }
 
         <div class="phone-section-title">${t("When you stop speaking")}</div>
         <div class="assistant-choice" data-part="assistant-send">

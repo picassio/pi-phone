@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
 import { t } from "./i18n.js";
-import { api, attempt, panelsBeside, store } from "./store.js";
+import { api, attempt, navigate, panelsBeside, store } from "./store.js";
 import { html, Icon } from "./ui.js";
 import { endVoice, hideVoice, sessionVoiceMode, setVoiceHold, setVoiceMode, setVoiceMuted, startVoice, voiceAvailable, voiceLevel, voicePress } from "./voice-call.js";
 
@@ -24,6 +24,35 @@ export async function chooseVoiceMode(session, mode) {
     if (store.state.voiceCall?.session === session) {
         setVoiceMode(mode);
     }
+}
+
+/**
+ * Home's Voice (PP-192): a new session in the default folder, named Voice, opened talking (its mode and turn-taking are
+ * Settings › Voice's for new sessions: Pi works, hands-free unless changed).
+ */
+export async function startVoiceSession() {
+    const cwd = store.state.server?.defaultCwd;
+    const { id } = await api("sessions", { ...(cwd ? { cwd } : {}), title: t("Voice") });
+
+    navigate(id);
+    await startVoice(id);
+}
+
+/** Voice beside New (the session list, the desktop's home): a new session with a call. */
+export function VoiceNewButton({ className = "new-button voice-new", size = 14 }) {
+    if (!voiceAvailable()) {
+        return null;
+    }
+
+    return html`<button
+        class=${className}
+        data-part="voice-new"
+        title=${t("Voice: a new session, talking")}
+        aria-label=${t("Voice: a new session, talking")}
+        onClick=${() => attempt(startVoiceSession)}
+    >
+        <${Icon} name="voice" size=${size} /><span class="voice-label">${t("Voice")}</span>
+    </button>`;
 }
 
 /** The message box's voice button: starts a call in this session, or shows the call going on. */
@@ -140,15 +169,9 @@ function Recent() {
 export function VoicePanel({ leaving = false }) {
     const call = store.state.voiceCall;
     const beside = panelsBeside();
-    const [, tick] = useState(0);
     const [modes, setModes] = useState(false);
 
     useBack(!beside && !leaving, hideVoice);
-    useEffect(() => {
-        const timer = setInterval(() => tick((n) => n + 1), 1000);
-
-        return () => clearInterval(timer);
-    }, []);
 
     if (call == null) {
         return null;
@@ -158,26 +181,6 @@ export function VoicePanel({ leaving = false }) {
     const title = view.conversation?.title ?? t("New session");
     const mode = sessionVoiceMode(call.session);
     const modeName = VOICE_MODES().find(([value]) => value === mode)?.[1] ?? mode;
-    const speaking = call.status === "speaking";
-    const busy = view.live.busy;
-    const quiet = call.muted || call.status === "connecting" || (call.hold && !call.pressing && !speaking);
-    const status =
-        call.status === "connecting"
-            ? t("Connecting…")
-            : call.muted
-              ? t("Muted")
-              : speaking
-                ? t("Speaking · talk to interrupt")
-                : call.hold
-                  ? call.pressing
-                      ? t("Listening · let go to send")
-                      : t("Hold to talk")
-                  : busy
-                    ? t("Pi working · you can keep talking")
-                    : t("Listening · speak any time");
-    const words = speaking || (call.voice !== "" && call.you === "") ? call.voice : call.you;
-    const who = speaking || (call.voice !== "" && call.you === "") ? `${t("Voice")} · ${call.model}` : t("You");
-    const approvals = view.approvals?.length ?? 0;
 
     return html`<section
         class=${`files-tile window pb-panel voice-panel ${leaving ? "leaving" : ""}`}
@@ -218,37 +221,88 @@ export function VoicePanel({ leaving = false }) {
                 </button>`
             }
         </header>
-        ${
-            modes &&
-            html`<div class="assistant-choice voice-modes" data-part="voice-modes">
-                <div class="segmented" role="group" aria-label=${t("Voice mode")}>
-                    ${VOICE_MODES().map(
-                        ([value, label]) => html`<button
-                            class=${mode === value ? "on" : ""}
-                            aria-pressed=${mode === value}
-                            onClick=${() =>
-                                attempt(async () => {
-                                    await chooseVoiceMode(call.session, value);
-                                    setModes(false);
-                                })}
-                        >
-                            ${label}
-                        </button>`,
-                    )}
-                </div>
-                <p class="muted small">
-                    ${mode === "work" ? t("The voice talks and hands real work to Pi, then speaks Pi's answer.") : mode === "chat" ? t("The voice only chats; Pi reads it with your next message.") : t("Pi thinks: what you say goes to Pi, and Pi's words are read out.")}
-                </p>
-            </div>`
-        }
+        ${modes && html`<${ModeChoice} session=${call.session} mode=${mode} onDone=${() => setModes(false)} />`}
         <${Recent} />
         <footer class="assist-foot voice-foot">
+            <${CallControls}
+                call=${call}
+                onShow=${beside ? null : hideVoice}
+                onType=${() => {
+                    hideVoice();
+                    setTimeout(() => document.querySelector(".composer textarea, [data-part=composer] textarea")?.focus());
+                }}
+            />
+        </footer>
+    </section>`;
+}
+
+/** The session's voice modes to pick from, with what the one chosen does. */
+function ModeChoice({ session, mode, onDone }) {
+    return html`<div class="assistant-choice voice-modes" data-part="voice-modes">
+        <div class="segmented" role="group" aria-label=${t("Voice mode")}>
+            ${VOICE_MODES().map(
+                ([value, label]) => html`<button
+                    class=${mode === value ? "on" : ""}
+                    aria-pressed=${mode === value}
+                    onClick=${() =>
+                        attempt(async () => {
+                            await chooseVoiceMode(session, value);
+                            onDone();
+                        })}
+                >
+                    ${label}
+                </button>`,
+            )}
+        </div>
+        <p class="muted small">
+            ${mode === "work" ? t("The voice talks and hands real work to Pi, then speaks Pi's answer.") : mode === "chat" ? t("The voice only chats; Pi reads it with your next message.") : t("Pi thinks: what you say goes to Pi, and Pi's words are read out.")}
+        </p>
+    </div>`;
+}
+
+/**
+ * A call's controls (the voice view's foot, and the assistant sheet's during a call, PP-192): what you say and what the
+ * voice says, the wave, Mute (or End while holding to talk), End (or Hold to talk), Type instead, the status with the
+ * time, and Hands-free / Hold to talk. `onShow`: where a pending approval is seen (null: here).
+ */
+export function CallControls({ call, onType, onShow = null }) {
+    const [, tick] = useState(0);
+
+    useEffect(() => {
+        const timer = setInterval(() => tick((n) => n + 1), 1000);
+
+        return () => clearInterval(timer);
+    }, []);
+
+    const { view } = store.state;
+    const speaking = call.status === "speaking";
+    const busy = view.live.busy;
+    const quiet = call.muted || call.status === "connecting" || (call.hold && !call.pressing && !speaking);
+    const status =
+        call.status === "connecting"
+            ? t("Connecting…")
+            : call.muted
+              ? t("Muted")
+              : speaking
+                ? t("Speaking · talk to interrupt")
+                : call.hold
+                  ? call.pressing
+                      ? t("Listening · let go to send")
+                      : t("Hold to talk")
+                  : busy
+                    ? t("Pi working · you can keep talking")
+                    : t("Listening · speak any time");
+    const words = speaking || (call.voice !== "" && call.you === "") ? call.voice : call.you;
+    const who = speaking || (call.voice !== "" && call.you === "") ? `${t("Voice")} · ${call.model}` : t("You");
+    const approvals = view.approvals?.length ?? 0;
+
+    return html`
             ${
                 approvals > 0 &&
                 html`<div class="assist-notice" data-part="voice-approval">
                     <${Icon} name="shield" size=${18} />
                     <div><b>${t("Pi needs your OK")}</b><p>${t("Approvals need a tap: see the card in the chat.")}</p></div>
-                    ${!beside && html`<button class="button small" onClick=${hideVoice}>${t("Show")}</button>`}
+                    ${onShow && html`<button class="button small" onClick=${onShow}>${t("Show")}</button>`}
                 </div>`
             }
             <div class="assist-words small" data-part="voice-words">
@@ -298,15 +352,7 @@ export function VoicePanel({ leaving = false }) {
                               <${Icon} name="close" size=${24} />
                           </button>`
                 }
-                <button
-                    class="icon-button"
-                    aria-label=${t("Type instead")}
-                    title=${t("Type instead")}
-                    onClick=${() => {
-                        hideVoice();
-                        setTimeout(() => document.querySelector(".composer textarea, [data-part=composer] textarea")?.focus());
-                    }}
-                >
+                <button class="icon-button" aria-label=${t("Type instead")} title=${t("Type instead")} data-part="voice-type" onClick=${onType}>
                     <${Icon} name="keyboard" size=${20} />
                 </button>
             </div>
@@ -316,9 +362,7 @@ export function VoicePanel({ leaving = false }) {
                     <button class=${call.hold ? "" : "on"} aria-pressed=${!call.hold} onClick=${() => setVoiceHold(false)}>${t("Hands-free")}</button>
                     <button class=${call.hold ? "on" : ""} aria-pressed=${call.hold} onClick=${() => setVoiceHold(true)}>${t("Hold to talk")}</button>
                 </div>
-            </div>
-        </footer>
-    </section>`;
+            </div>`;
 }
 
 /** The session's voice mode in the model chip's menu (PP-189): Pi works, Chat only, Pi thinks. */

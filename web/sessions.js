@@ -8,6 +8,7 @@ import { ExtensionRailButtons } from "./extension-ui.js";
 import { GATEWAY_PAGE, openGatewayPage } from "./gateway-panel.js";
 import { useDragToClose } from "./gestures.js";
 import { PeeksRailButton } from "./peeks.js";
+import { VoiceNewButton } from "./voice-view.js";
 import { sessionForest, unfolded } from "./session-tree.js";
 import { settledAt, settledOf as settleReason } from "./session-settle.js";
 import {
@@ -1636,6 +1637,7 @@ function AllSessions({ compact = false }) {
                 >
                     <${Icon} name="plus" size=${14} />${t("New")}</button>`
             }
+            ${canStart && html`<${VoiceNewButton} />`}
         </div>
         <label class=${`search ${query ? "filled" : ""}`} data-part="session-search">
             <${Icon} name="search" size=${14} />

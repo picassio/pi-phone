@@ -20,6 +20,15 @@ test("a patch is checked key by key, and opening one session needs that session"
     assert.throws(() => withAssistant(DEFAULT_ASSISTANT, "auto"), /an object/);
 });
 
+test("the sheet can start a voice call when it opens (PP-192): talk is dictate or call, dictate by default", () => {
+    assert.equal(DEFAULT_ASSISTANT.talk, "dictate");
+    assert.equal(withAssistant(DEFAULT_ASSISTANT, { talk: "call" }).talk, "call");
+    assert.throws(() => withAssistant(DEFAULT_ASSISTANT, { talk: "sing" }), /dictate or call/);
+    assert.deepEqual(storedAssistant({ ...DEFAULT_ASSISTANT, talk: "call" }), { talk: "call" });
+    assert.equal(readAssistant({ talk: "call" }).talk, "call");
+    assert.equal(readAssistant({ talk: "whisper" }).talk, "dictate");
+});
+
 test("only what differs from the defaults is kept, and what is kept reads back whole", () => {
     assert.equal(storedAssistant(DEFAULT_ASSISTANT), undefined);
     assert.deepEqual(storedAssistant({ ...DEFAULT_ASSISTANT, send: "auto", from: false }), { send: "auto", from: false });
