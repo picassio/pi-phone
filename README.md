@@ -284,7 +284,9 @@ No Termux, no laptop, no cloud VM.
   talks and hands real work to the session's Pi, then tells you Pi's answer; "Chat only" just chats; "Pi thinks" sends
   what you say to Pi and reads Pi's words out. Set it in the call or in the model chip's menu. Talk any time
   (talking over the voice stops it) or hold to talk; mute; end. What you say to Pi shows as your message marked voice,
-  and the rest of the talk as quiet voice rows. Approvals stay a tap in the chat. The screen-off notification is to come.
+  and the rest of the talk as quiet voice rows. Approvals stay a tap in the chat. In the app the call goes on with the
+  screen off or another app in front, with a call notification (Mute, End; a tap shows the call); music pauses, and a
+  connected headset is used, else the speaker. pi asks Android for the microphone the first time.
 - **Settings › Voice.** The live models your ChatGPT (Codex) sign-in has, as checked with OpenAI (**Check again**),
   each with how its calls are set up: a short-lived key, through pi-phone, or Codex's own `gpt-live` (ChatGPT's private
   endpoint, only when you pick it). Also the voice and the language (checked when picked), who thinks and turn-taking

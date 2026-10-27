@@ -25,6 +25,7 @@ import android.provider.Settings;
 import android.text.Html;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
 import android.widget.Toast;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -52,7 +53,15 @@ import java.nio.charset.StandardCharsets;
 public final class MainActivity extends Activity {
 
     private static final int FILE_CHOOSER = 1;
+    /** Android's answer to the microphone for the page's call (`onPermissionRequest`). */
+    private static final int MIC_FOR_PAGE = 8;
     private static final String BASE = "http://127.0.0.1:" + PiService.PORT;
+    /** The voice call's notification, tapped: show the call of this session (PP-191). */
+    static final String EXTRA_VOICE_SHOW = "io.piphone.VOICE_SHOW";
+    /** The assistant's sheet hands its call over (PP-192): start a call in this session here. */
+    static final String EXTRA_VOICE_START = "io.piphone.VOICE_START";
+    /** With `EXTRA_VOICE_START`: once the call is up, go back to the app that was in front. */
+    static final String EXTRA_VOICE_BACK = "io.piphone.VOICE_BACK";
 
     private WebView web;
     /** Android's speech recognizer for dictation (`web/android-speech.js`). */
@@ -65,6 +74,16 @@ public final class MainActivity extends Activity {
     private volatile int pendingSession = -1;
     /** Menu › Assistant, asked by the assistant's sheet (to allow the microphone) before the web app was there. */
     private volatile boolean pendingAssistantSheet = false;
+    /** A call to start or show (`EXTRA_VOICE_*`) before the web app was there: its session and what to do. */
+    private volatile int pendingVoice = -1;
+    private volatile String pendingVoiceWhat = "show";
+    /** Go back to the app that was in front once the handed-over call is up. */
+    private volatile boolean backAfterCall = false;
+    /** The page's request for the microphone, while Android asks the person. */
+    private PermissionRequest pendingMic;
+    /** The call's notification buttons, to this window's page while its call runs (`VoiceCallService.page`). */
+    private final java.util.function.Consumer<String> callPage =
+            (action) -> web.post(() -> web.evaluateJavascript(VoicePage.action(action), null));
     /** One automatic check per process: the activity comes and goes, the process stays. */
     private static volatile boolean checked = false;
 
@@ -254,6 +273,32 @@ public final class MainActivity extends Activity {
             runOnUiThread(() -> dictation.abort());
         }
 
+        /**
+         * The page's voice call started, changed, or ended (`web/voice-call.js`, PP-191): the call's notification and audio
+         * follow (`VoiceCallService`), and its buttons come back here. While a call runs, the page's renderer keeps its
+         * priority with the window hidden (the screen off, another app in front).
+         */
+        @JavascriptInterface
+        public void voiceCall(String json) {
+            runOnUiThread(() -> {
+                try {
+                    String state = VoicePage.tell(MainActivity.this, json);
+                    if ("start".equals(state)) {
+                        VoiceCallService.page = callPage;
+                        web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+                        if (backAfterCall) {
+                            backAfterCall = false;
+                            moveTaskToBack(true);
+                        }
+                    } else if ("end".equals(state)) {
+                        web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true);
+                    }
+                } catch (JSONException e) {
+                    Log.w("pi-phone", "voice call: " + e);
+                }
+            });
+        }
+
         /** Sign in again and show the app: after a restore, the owner's sign-in is the backup's. */
         @JavascriptInterface
         public void reload() {
@@ -283,6 +328,30 @@ public final class MainActivity extends Activity {
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
+            /**
+             * The microphone for a voice call or Codex dictation (PP-191): only the app's own page, only audio, and only once
+             * Android allows pi the microphone (asked now, the first time).
+             */
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                if (!VoicePage.ownAudio(request)) {
+                    request.deny();
+                    return;
+                }
+                if (dictation.micAllowed()) {
+                    request.grant(new String[] {PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                    return;
+                }
+                if (pendingMic != null) pendingMic.deny();
+                pendingMic = request;
+                requestPermissions(new String[] {android.Manifest.permission.RECORD_AUDIO}, MIC_FOR_PAGE);
+            }
+
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest request) {
+                if (pendingMic == request) pendingMic = null;
+            }
+
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (pendingFiles != null) pendingFiles.onReceiveValue(null);
@@ -302,7 +371,28 @@ public final class MainActivity extends Activity {
         startForegroundService(new Intent(this, PiService.class));
         pendingSession = getIntent().getIntExtra(PiService.EXTRA_SESSION, -1);
         pendingAssistantSheet = getIntent().getBooleanExtra(PiAssistantSession.EXTRA_ASSISTANT_SHEET, false);
+        voiceIntent(getIntent());
         new Thread(this::waitForServer, "pi-wait").start();
+    }
+
+    /**
+     * A call to start (the assistant's sheet handed it over) or to show (its notification tapped): at once if the web app
+     * is there, else once it is. True when the intent was one.
+     */
+    private boolean voiceIntent(Intent intent) {
+        int start = intent.getIntExtra(EXTRA_VOICE_START, -1);
+        int show = intent.getIntExtra(EXTRA_VOICE_SHOW, -1);
+        if (start < 0 && show < 0) return false;
+        int session = start >= 0 ? start : show;
+        String what = start >= 0 ? "start" : "show";
+        backAfterCall = start >= 0 && intent.getBooleanExtra(EXTRA_VOICE_BACK, false);
+        if (loaded) {
+            web.evaluateJavascript(VoicePage.fromShell(session, what), null);
+        } else {
+            pendingVoice = session;
+            pendingVoiceWhat = what;
+        }
+        return true;
     }
 
     /**
@@ -312,6 +402,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (voiceIntent(intent)) return;
         if (intent.getBooleanExtra(PiAssistantSession.EXTRA_ASSISTANT_SHEET, false)) {
             if (loaded) {
                 web.evaluateJavascript("import('/store.js').then((store) => store.openSheet({ type: 'assistant' }))", null);
@@ -339,6 +430,17 @@ public final class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         if (requestCode == Dictation.PERMISSION_REQUEST) {
             dictation.permitted(results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
+            return;
+        }
+        if (requestCode == MIC_FOR_PAGE) {
+            PermissionRequest request = pendingMic;
+            pendingMic = null;
+            if (request == null) return;
+            if (results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                request.grant(new String[] {PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+            } else {
+                request.deny();
+            }
             return;
         }
         super.onRequestPermissionsResult(requestCode, permissions, results);
@@ -371,7 +473,11 @@ public final class MainActivity extends Activity {
                     pendingSession = -1;
                     boolean assistant = pendingAssistantSheet;
                     pendingAssistantSheet = false;
-                    String next = assistant ? "/?sheet=assistant" : session < 0 ? null : "/s/" + session;
+                    int voice = pendingVoice;
+                    pendingVoice = -1;
+                    // A call to start or show: its session, and the web app does the rest (`voice` in `web/app.js`).
+                    String next = voice >= 0 ? "/s/" + voice + "?voice=" + pendingVoiceWhat
+                            : assistant ? "/?sheet=assistant" : session < 0 ? null : "/s/" + session;
                     String url = BASE + "/login?token=" + Uri.encode(PiService.ownerToken(this))
                             + (next == null ? "" : "&next=" + Uri.encode(next));
                     loaded = true;
@@ -681,6 +787,12 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        // The window's call goes with its page: its notification and audio too (not a call the assistant's sheet holds).
+        if (VoiceCallService.running() && VoiceCallService.page == callPage) {
+            VoiceCallService.page = null;
+            VoiceCallService.tell(this, VoiceCallService.ACTION_STOP, "", -1, false);
+        }
+        if (pendingMic != null) pendingMic.deny();
         dictation.release();
         unregisterReceiver(installStatus);
         super.onDestroy();

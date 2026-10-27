@@ -807,9 +807,22 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `…completed` as settled, one result per item; Stop commits the buffer and waits up to 2.5 s for the last words, then
     ends (`…/dictation/:id/end` counts its seconds). **Spend** shows voice minutes today and this month, and the daily
     limit (Change opens Settings › Voice).
-  - **Not yet (PP-191, the APK):** the WebView grants no microphone (`onPermissionRequest`), so calls and Codex
-    dictation work in browsers, not yet in the app; no foreground service, call notification or audio focus; the
-    `android` reader needs the app's text-to-speech (PP-193).
+  - **The app** (PP-191, `VoiceCallService.java`, `VoicePage.java`, `MainActivity.java`): the WebView's
+    `onPermissionRequest` grants `RESOURCE_AUDIO_CAPTURE` only to the app's own origin (`http://127.0.0.1:8787`), only
+    for audio (anything else asked is denied whole), and only once Android allows pi `RECORD_AUDIO` (asked then, the
+    first time; the request waits for the answer). The page tells the window of its call through `PiPhoneApp.voiceCall`
+    (`{state: start | update | end, session, title, muted, handOver}`, `web/voice-call.js`): a foreground service
+    (`foregroundServiceType="microphone"` and `FOREGROUND_SERVICE_MICROPHONE` declared for a later targetSdk; at 28 a
+    plain foreground service keeps the mic) shows the call's notification (`Notification.CallStyle.forOngoingCall` from
+    Android 12, with Mute; before, an ongoing notification with Mute and End; a chronometer; a tap shows the call), and
+    holds the audio: focus `GAIN_TRANSIENT` (voice communication), `MODE_IN_COMMUNICATION`, and the route (Android 12+:
+    `setCommunicationDevice` to a BLE or SCO headset, else wired or USB, else the speaker; before: Bluetooth SCO when a
+    headset is there, else the speaker unless wired), all given back on end. Mute and End reach the page as
+    `__piVoiceAction("mute" | "end")` (`VoiceCallService.page`, set by the window whose call starts). While a call runs
+    the WebView's renderer keeps its priority hidden (`setRendererPriorityPolicy(IMPORTANT, false)`); the WebView is
+    never paused. The window going (swiped away) ends its call and the notification. A notification tap opens
+    `/s/:id?voice=show`; `?voice=start` starts a call there (`voiceFromShell`). The `android` reader needs the app's
+    text-to-speech (PP-193).
   - **Routes:** `POST /api/c/:id/voice` (mode), `POST /api/c/:id/voice/call` (start), `GET /api/voice`,
     `POST /api/voice/check`, `POST /api/voice/calls/:call/{sdp,joined,end}`, `POST /api/voice/dictation[/:id/end]`,
     `POST /api/settings {voice}`. Tests: a fake OpenAI (`test/support/fake-openai.ts`).

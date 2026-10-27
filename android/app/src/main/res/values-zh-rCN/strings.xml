@@ -42,4 +42,13 @@
     <string name="channel_phone_control">手机控制</string>
     <string name="phone_control_title">Pi 正在使用你的手机</string>
     <string name="phone_control_text">%1$s · 至 %2$s</string>
+    <string name="channel_voice">语音通话</string>
+    <string name="voice_title">与 Pi 语音</string>
+    <string name="voice_title_session">与 Pi 语音 · %1$s</string>
+    <string name="voice_on_call">通话中：点按打开</string>
+    <string name="voice_muted">已静音：Pi 听不到</string>
+    <string name="voice_mute">静音</string>
+    <string name="voice_unmute">取消静音</string>
+    <string name="voice_end">结束</string>
+    <string name="voice_caller">Pi</string>
 </resources>

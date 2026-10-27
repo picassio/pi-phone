@@ -49,4 +49,14 @@
     <string name="assistant_starting">pi is starting: a few seconds</string>
     <string name="assistant_locked">Unlock the phone, then hold the side key again</string>
     <string name="assistant_failed">pi did not start. Open pi-phone to see why</string>
+    <!-- A voice call with Pi (PP-191): its notification. -->
+    <string name="channel_voice">Voice calls</string>
+    <string name="voice_title">Voice with Pi</string>
+    <string name="voice_title_session">Voice with Pi · %1$s</string>
+    <string name="voice_on_call">On a call: tap to open</string>
+    <string name="voice_muted">Muted: Pi hears nothing</string>
+    <string name="voice_mute">Mute</string>
+    <string name="voice_unmute">Unmute</string>
+    <string name="voice_end">End</string>
+    <string name="voice_caller">Pi</string>
 </resources>

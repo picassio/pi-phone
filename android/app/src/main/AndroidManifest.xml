@@ -8,6 +8,11 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Dictation (Dictation.java): Android asks the person the first time the mic is tapped. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- A voice call with Pi (VoiceCallService.java, PP-191): the microphone in the background, the call's audio route.
+         FOREGROUND_SERVICE_MICROPHONE and the service's type count from targetSdk 34; declared now. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
 
     <!-- Android 11 and later list only the services an app declares it looks for: the speech recognizer. -->
     <queries>
@@ -26,6 +31,12 @@
         <service
             android:name=".PiService"
             android:exported="false" />
+
+        <!-- A voice call with Pi going on: its notification (Mute, End), the microphone with the screen off. -->
+        <service
+            android:name=".VoiceCallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- Phone control (PiAccessibility.java, PP-141): off until the owner turns it on in Android's Accessibility
              settings. Only the system may bind it (BIND_ACCESSIBILITY_SERVICE). -->

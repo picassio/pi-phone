@@ -17,7 +17,7 @@ import {
 } from "./files-panel.js";
 import { BrowserButton, BrowserPanel, BrowserPreview, BrowserWatcher, browserShown } from "./browser-panel.js";
 import { ComputerButton, ComputerPanel, ComputerPreview, ComputerWatcher, computerShown } from "./computer-panel.js";
-import { voiceShown } from "./voice-call.js";
+import { voiceFromShell, voiceShown } from "./voice-call.js";
 import { VoicePanel } from "./voice-view.js";
 import { ExtensionPage, openPageWhenReady, openSheetWhenReady } from "./extension-ui.js";
 import { GATEWAY_PAGE, GatewayPage } from "./gateway-panel.js";
@@ -905,6 +905,19 @@ const linkedSheet = new URLSearchParams(location.search).get("sheet");
 if (linkedSheet !== null && LINKED_SHEETS.has(linkedSheet)) {
     replaceAddress(location.pathname);
     openSheet({ type: linkedSheet });
+}
+
+// The Android window's voice call (PP-191, PP-192), by link: `/s/:id?voice=start` starts one in the session (the
+// assistant's sheet handed its call over), `?voice=show` shows the one going on (its notification tapped). Once signed in.
+const linkedVoice = new URLSearchParams(location.search).get("voice");
+const linkedVoiceSession = /^\/s\/(\d+)/.exec(location.pathname)?.[1];
+
+if ((linkedVoice === "start" || linkedVoice === "show") && linkedVoiceSession !== undefined) {
+    replaceAddress(location.pathname);
+
+    const go = () => (store.state.me ? void voiceFromShell(Number(linkedVoiceSession), linkedVoice) : setTimeout(go, 200));
+
+    go();
 }
 
 // An extension's sheet by link, `/?sheet=projects:board-mode` (module:sheet): opened once its module has loaded.

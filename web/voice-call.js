@@ -8,10 +8,53 @@
 // voice speaks. Codex's own voice has no server connection to the call: its events go to the server and the server's
 // come back as `voice` events, onto the channel.
 import { t } from "./i18n.js";
-import { api, notify, onVoiceEvents, store } from "./store.js";
+import { api, navigate, notify, onVoiceEvents, store } from "./store.js";
 
 /** The call now: its peer, microphone, data channel and player. Null when there is none. */
 let engine = null;
+
+/**
+ * The Android app (PP-191): the page tells its window (`PiPhoneApp.voiceCall`) when a call starts, changes and ends, so
+ * the call's notification (Mute, End) and the phone's audio follow; the notification's buttons come back as
+ * `__piVoiceAction("mute" | "end")`. In a browser there is no window to tell.
+ */
+function tellShell(state, extra = {}) {
+    const shell = globalThis.PiPhoneApp;
+    const call = store.state.voiceCall;
+
+    if (typeof shell?.voiceCall !== "function" || (call == null && state !== "end")) {
+        return;
+    }
+
+    const session = call?.session ?? extra.session ?? -1;
+    const title = store.state.sessions.find((each) => each.id === session)?.title ?? "";
+
+    shell.voiceCall(JSON.stringify({ state, session, title, muted: call?.muted === true, ...extra }));
+}
+
+globalThis.__piVoiceAction = (action) => {
+    if (action === "mute") {
+        setVoiceMuted(!(store.state.voiceCall?.muted === true));
+    } else if (action === "end") {
+        void endVoice();
+    }
+};
+
+/** The assistant's sheet goes (PP-192): its call ends here, and the app's window starts it again in the same session. */
+globalThis.__piVoiceHandOver = () => endVoice({ quiet: true, handOver: true });
+
+/** From the app's window (`VoicePage.fromShell`): start a call in a session, or show the one going on. */
+export async function voiceFromShell(session, what) {
+    if (store.state.conversationId !== session) {
+        navigate(session);
+    }
+
+    if (what === "start") {
+        await startVoice(session);
+    } else if (store.state.voiceCall?.session === session) {
+        store.set({ voiceOpen: true });
+    }
+}
 
 /** The browser can make a call: WebRTC and a microphone (a page browsers give one to: https, or this machine). */
 export const voiceSupported = () =>
@@ -178,6 +221,7 @@ export async function startVoice(session) {
 
         if (engine === mine) {
             setCall({ call: mine.call, path: mine.path, model: start.model, status: hold ? "holding" : "listening", startedAt: Date.now() });
+            tellShell("start");
         }
     } catch (error) {
         if (engine === mine) {
@@ -254,11 +298,20 @@ async function dropped(mine) {
     }
 }
 
-/** End the call: the server counts its minutes; the view closes. */
-export async function endVoice({ quiet = false } = {}) {
+/**
+ * End the call: the server counts its minutes; the view closes. `handOver`: the app's window takes the call on (the
+ * assistant's sheet went), so its notification stays.
+ */
+export async function endVoice({ quiet = false, handOver = false } = {}) {
     const mine = engine;
+    const session = store.state.voiceCall?.session;
 
     engine = null;
+
+    if (mine !== null && mine.call) {
+        tellShell("end", { session, ...(handOver ? { handOver: true } : {}) });
+    }
+
     store.set({ voiceCall: null, voiceOpen: false });
 
     if (mine === null) {
@@ -299,6 +352,7 @@ export function setVoiceMuted(muted) {
     }
 
     setCall({ muted, ...(muted ? { status: "muted" } : { status: "listening" }) });
+    tellShell("update");
 }
 
 /** Hands-free (the voice answers when you pause, and stops when you talk) or hold to talk, for this call. */
