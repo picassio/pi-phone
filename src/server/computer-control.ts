@@ -10,9 +10,10 @@
  *
  * Every call is checked here before ocu gets it: the session's apps only (and, with follow, the apps they open), never
  * pi-phone itself, banking and payment apps, password managers and authenticators, or the owner's own Never list; no
- * typing or character keys into a password field (ocu's outline marks them `[password]`, and pi-phone's ocu build
- * refuses them too); an element number only while it is still the element Pi read. While the owner has taken the
- * computer over (the panel's Take over), Pi's calls are refused until they hand it back.
+ * typing or character keys from Pi into a password field (ocu's outline marks them `[password]`, and pi-phone's ocu
+ * build refuses them too); an element number only while it is still the element Pi read. While the owner has taken the
+ * computer over (the panel's Take over), Pi's calls are refused until they hand it back, and what the owner types goes
+ * to the field in focus, a password field too: only those calls tell ocu `allow_password_input`.
  *
  * The panel (`web/computer-panel.js`) shows the session's windows: a picture of one after each action and every 3 s while
  * a tab watches, with a box on the element Pi acted on. Only the owner sees it.
@@ -1125,7 +1126,9 @@ export class ComputerControl {
 
     /**
      * What the owner does on the window while they have it (Take over): a tap is ocu's click at that point of the picture;
-     * text and keys go to the field in focus, never a password field (ocu's own guard too).
+     * text and keys go to the field in focus, a password field too (the owner's own: these calls alone tell ocu
+     * `allow_password_input`, so its guard stays for Pi's). What they type is never logged, shown on the panel, or kept.
+     * Answers whether the focus is in a password field now, for the panel's keyboard.
      */
     async input(
         sessionNumber: number,
@@ -1138,7 +1141,6 @@ export class ComputerControl {
         }
 
         const app = this.app(session, live.tab);
-        const focused = live.outlines.get(app.name)?.focusedPassword === true;
         const KEYS: Record<string, string> = { Enter: "Return", Backspace: "BackSpace", Tab: "Tab", Escape: "Escape", ArrowUp: "Up", ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right" };
         let result: OcuResult;
 
@@ -1149,11 +1151,7 @@ export class ComputerControl {
 
             result = await this.#call(session, app, "click", { x: Math.round(given.x), y: Math.round(given.y) }, null, { frame: { x: given.x - 6, y: given.y - 6, width: 12, height: 12 }, label: "tap" });
         } else if (given.type === "text") {
-            if (focused) {
-                throw new Error("The field in focus is a password field: type it on the computer itself.");
-            }
-
-            result = await this.#call(session, app, "type_text", { text: given.text }, null);
+            result = await this.#call(session, app, "type_text", { text: given.text, allow_password_input: true }, null);
         } else {
             const key = KEYS[given.key];
 
@@ -1161,11 +1159,12 @@ export class ComputerControl {
                 throw new Error(`The keys are ${Object.keys(KEYS).join(", ")}.`);
             }
 
-            result = await this.#call(session, app, "press_key", { key }, null);
+            result = await this.#call(session, app, "press_key", { key, allow_password_input: true }, null);
         }
 
         if (result.isError) {
-            throw new Error(textOf(result));
+            // ocu's message, never what was typed.
+            throw new Error(given.type === "text" && given.text !== "" ? `ocu could not type there: ${textOf(result).split(given.text).join("…")}` : textOf(result));
         }
 
         return { password: live.outlines.get(app.name)?.focusedPassword === true };

@@ -168,7 +168,7 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
 
         image.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: box.left + box.width * 0.5, clientY: box.top + box.height * 0.64 }));
     `);
-    await until(async () => (await text("[data-part=computer-panel] .pb-takeover")).includes("never into a password field"), "the take-over bar");
+    await until(async () => (await text("[data-part=computer-panel] .pb-takeover")).includes("a password field too: what you type there is never shown to Pi"), "the take-over bar");
     await shot("computer-takeover-1280");
     await page.evaluate(`[...document.querySelectorAll("[data-part=computer-panel] .button")].find((each) => each.innerText === "Hand back").click()`);
     await until(async () => !(await text("[data-part=computer-panel] .pb-status")).includes("You have the window"), "handed back");
@@ -227,6 +227,24 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
     assert.deepEqual(await inPage<unknown[]>(`return JSON.stringify(__left)`), [], "the field never lost the focus");
     await page.input([{ type: "text", text: "abc" }]);
     await until(() => ocuCalls().some((each) => each.tool === "type_text" && each.args.text === "abc"), "what the keyboard typed as ocu's type_text");
+    const capture = () => inPage<{ type: string; autocomplete: string }>(`const field = document.querySelector("[data-part=computer-panel] .pb-capture"); return JSON.stringify({ type: field.type, autocomplete: field.autocomplete })`);
+
+    assert.deepEqual(await capture(), { type: "text", autocomplete: "off" });
+    // The password field (the owner may type their own there): the keyboard stays, in password mode, and what they type
+    // reaches ocu with this call's opt-out of its guard.
+    const passwordAt = { x: name.x, y: name.y + (await inPage<number>(`return JSON.stringify(document.querySelector("[data-part=computer-panel] .pb-frame img").getBoundingClientRect().height * (42 / 220))`)) };
+    const tapped = clicks();
+
+    await page.tap(passwordAt);
+    await until(() => clicks() > tapped, "the tap on the password field as ocu's click");
+    await until(async () => (await capture()).type === "password", "the keyboard's field in password mode");
+    assert.deepEqual(await capture(), { type: "password", autocomplete: "new-password" });
+    assert.equal(await focused(), "pb-capture", "the keyboard's field keeps the focus over a password field");
+    assert.deepEqual(await inPage<unknown[]>(`return JSON.stringify(__left)`), [], "the field never lost the focus over a password field");
+    await page.input([{ type: "text", text: "owner-pw-9" }]);
+    await until(() => ocuCalls().some((each) => each.tool === "type_text" && each.args.text === "owner-pw-9"), "the password as ocu's type_text");
+    assert.equal(ocuCalls().find((each) => each.tool === "type_text" && each.args.text === "owner-pw-9")?.args.allow_password_input, true);
+    assert.ok(!(await inPage<string>(`return JSON.stringify(document.body.innerText + document.querySelector("[data-part=computer-panel] .pb-capture").value)`)).includes("owner-pw-9"), "nothing typed stays on the page");
     await page.evaluate(`[...document.querySelectorAll("[data-part=computer-panel] .button")].find((each) => each.innerText === "Hand back").click()`);
     await until(async () => !(await text("[data-part=computer-panel] .pb-status")).includes("You have the window"), "handed back on a phone");
 

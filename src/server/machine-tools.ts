@@ -98,25 +98,26 @@ export const CHROME_TOOL: ToolSpec = {
     },
 };
 
-const OCU = "https://github.com/picassio/open-computer-use/releases/download/v1.1.2-pp.1";
+const OCU = "https://github.com/picassio/open-computer-use/releases/download/v1.1.2-pp.2";
 
 /**
  * Computer use (PP-177): open-computer-use ("ocu", MIT) in our fork's build, whose outline marks password fields and
- * refuses typing into them. `computer-control.ts` runs `ocu mcp` on the machine for a control session.
+ * refuses typing into them unless a call says `allow_password_input` (1.1.2-pp.2: the owner typing on a taken-over
+ * window, a saved secret by name). `computer-control.ts` runs `ocu mcp` on the machine for a control session.
  */
 export const OCU_TOOL: ToolSpec = {
     id: "ocu",
     name: "Computer use (ocu)",
     command: "ocu",
-    version: "1.1.2-pp.1",
+    version: "1.1.2-pp.2",
     description: "Pi reads and operates desktop apps here, in a session you approve on a card. pi-phone's build of open-computer-use (MIT).",
     size: "about 2.5 MB",
     desktop: true,
     // The release's own SHA256SUMS.
     assets: {
-        "linux-x64": { url: `${OCU}/open-computer-use-linux-x64`, sha256: "baeeee2694eb9d7745bdff040416ce25bd82540ba6cc16d7f17b6b111eedd311" },
-        "linux-arm64": { url: `${OCU}/open-computer-use-linux-arm64`, sha256: "0ab801f327839d4713ef356a2544217bbd1ce7a5fd7b2efad1b34212a78d2a88" },
-        "windows-x64": { url: `${OCU}/open-computer-use-windows-x64.exe`, sha256: "601980f7cc0a6259aff3ae32cde3a3b6e0946db5382e7f4c028bae1dd2231d18" },
+        "linux-x64": { url: `${OCU}/open-computer-use-linux-x64`, sha256: "a1550551f64e5fd4fb68501dc6edca977519c888ec8d5e5d7742fcd93902eb70" },
+        "linux-arm64": { url: `${OCU}/open-computer-use-linux-arm64`, sha256: "4bd5f231a1416445db2eaf383c641fe773d65b46e0fa7b86b838e1a7723b6d5c" },
+        "windows-x64": { url: `${OCU}/open-computer-use-windows-x64.exe`, sha256: "abfda45584dbde65b5b4dfce115f3bde619ebdd17dc2ecb3dee98b100f57e960" },
     },
 };
 

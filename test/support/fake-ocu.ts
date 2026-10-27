@@ -173,9 +173,22 @@ function serve(): void {
         }
 
         const refused = "Refused: the target is a password field. Open Computer Use (pi-phone build) does not type into password fields.";
+        // pi-phone's ocu 1.1.2-pp.2: one call may opt out (the owner typing, a saved secret by name), only with true.
+        const allowed = args.allow_password_input === true;
+        const focusedPassword = app === "demo_app.py" && windows[app]!.elements()[state.focus]?.password === true;
 
         switch (name) {
             case "click": {
+                // A click at a point of the picture focuses the field there, as a real click does.
+                if (app === "demo_app.py" && element === undefined && typeof args.x === "number" && typeof args.y === "number") {
+                    const [x, y] = [args.x, args.y];
+                    const at = elements.findIndex((each) => each.editable === true && x >= each.frame[0] && x < each.frame[0] + each.frame[2] && y >= each.frame[1] && y < each.frame[1] + each.frame[3]);
+
+                    if (at !== -1) {
+                        state.focus = at;
+                    }
+                }
+
                 if (app === "demo_app.py" && element !== undefined) {
                     if (element.editable) {
                         state.focus = index!;
@@ -194,12 +207,14 @@ function serve(): void {
             }
 
             case "set_value": {
-                if (element?.password) {
+                if (element?.password && !allowed) {
                     return fail(refused);
                 }
 
                 if (app === "demo_app.py" && index === 2) {
                     state.name = String(args.value);
+                } else if (app === "demo_app.py" && index === 3) {
+                    state.secret = String(args.value);
                 } else if (app === "gedit") {
                     state.editor = String(args.value);
                 }
@@ -209,11 +224,15 @@ function serve(): void {
 
             case "type_text": {
                 if (app === "demo_app.py") {
-                    if (windows[app]!.elements()[state.focus]?.password) {
+                    if (focusedPassword && !allowed) {
                         return fail(refused);
                     }
 
-                    state.name += String(args.text);
+                    if (focusedPassword) {
+                        state.secret += String(args.text);
+                    } else {
+                        state.name += String(args.text);
+                    }
                 } else if (app === "gedit") {
                     state.editor += String(args.text);
                 }
@@ -222,6 +241,10 @@ function serve(): void {
             }
 
             case "press_key": {
+                if (focusedPassword && !allowed && /^(shift\+)?(.|space)$/.test(String(args.key))) {
+                    return fail(refused);
+                }
+
                 if (app === "demo_app.py" && args.key === "Tab") {
                     state.focus = state.focus === 2 ? 3 : 2;
                 }

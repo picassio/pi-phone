@@ -255,7 +255,8 @@ No Termux, no laptop, no cloud VM.
   phone it covers the screen, and a small live preview sits above the message box while Pi acts). The session's windows
   are its tabs; the picture is the window as ocu sees it, after each of Pi's actions and every few seconds, with a box on
   what Pi acted on; the foot has the minutes left and Stop. **Take over**: Pi waits; tap the picture to click there, and
-  your keys go to the field in focus (never a password field) until you **Hand back**.
+  your keys go to the field in focus, a password field too (the keyboard is in password mode there, and what you type
+  is never shown to Pi, kept in the panel, or logged), until you **Hand back**.
 - **Menu › Computer control**: each machine and where it stands, a line run before ocu starts for a machine whose
   desktop needs its environment set (with **Check**, what ocu reads there), the Never list, and how cards work. The
   owner's alone; not on the team server.

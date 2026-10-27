@@ -53,12 +53,13 @@ function make(options: { sign?: string; machines?: ComputerMachine[]; idleEndMs?
             env: { ...process.env, FAKE_OCU_LOG: logFile, ...(options.sign === undefined ? {} : { FAKE_SIGN: options.sign }) },
         });
     };
-    const control = new ComputerControl({ dataDir, gateway: false, machines: () => options.machines ?? [SANDBOX], launch, idleEndMs: options.idleEndMs ?? 60_000, refreshMs: 60_000 });
+    const lines: string[] = [];
+    const control = new ComputerControl({ dataDir, gateway: false, machines: () => options.machines ?? [SANDBOX], launch, idleEndMs: options.idleEndMs ?? 60_000, refreshMs: 60_000, log: (line) => lines.push(line) });
     const calls = () => (existsSync(logFile) ? readFileSync(logFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { tool: string; args: Record<string, unknown> }) : []);
 
     controls.push(control);
 
-    return { control, scripts, calls, dataDir };
+    return { control, scripts, calls, dataDir, lines };
 }
 
 const DEMO = { label: "Pi OCU Demo", name: "demo_app.py" };
@@ -232,8 +233,13 @@ test("Pi reads and acts in its apps only; never a password field; [n] only while
     await control.end("m1", "test over");
 });
 
-test("while the owner has the computer, Pi waits; their taps and keys go through ocu, never into a password field", async () => {
-    const { control, calls } = make();
+test("while the owner has the computer, Pi waits; their taps and keys go through ocu, into a password field too, and nowhere else", async () => {
+    const { control, calls, lines } = make();
+    const panels: unknown[] = [];
+    const frames: ComputerFrame[] = [];
+
+    control.onPanel((panel) => panels.push(panel));
+    control.onFrame((frame) => frames.push(frame));
     const session = await start(control);
 
     await control.screen(session, "demo_app.py");
@@ -241,12 +247,25 @@ test("while the owner has the computer, Pi waits; their taps and keys go through
     await assert.rejects(control.screen(session, "demo_app.py"), /The owner took the computer over: wait until they hand it back/);
     await control.input(7, { type: "tap", x: 200, y: 140 });
     assert.deepEqual(calls().at(-1), { tool: "click", args: { app: "demo_app.py", x: 200, y: 140 } });
-    await control.input(7, { type: "text", text: "Tu" });
+    assert.equal((await control.input(7, { type: "text", text: "Tu" })).password, false);
+    assert.deepEqual(calls().at(-1), { tool: "type_text", args: { app: "demo_app.py", text: "Tu", allow_password_input: true } });
+    // Into the password field: the owner's own, so ocu is told this call may.
     assert.equal((await control.input(7, { type: "key", key: "Tab" })).password, true);
-    await assert.rejects(control.input(7, { type: "text", text: "secret" }), /type it on the computer itself/);
+    assert.equal((await control.input(7, { type: "text", text: "owner-pass-42" })).password, true);
+    assert.deepEqual(calls().at(-1), { tool: "type_text", args: { app: "demo_app.py", text: "owner-pass-42", allow_password_input: true } });
+    await control.input(7, { type: "key", key: "Backspace" });
+    assert.deepEqual(calls().at(-1), { tool: "press_key", args: { app: "demo_app.py", key: "BackSpace", allow_password_input: true } });
     await assert.rejects(control.input(7, { type: "key", key: "F13" }), /The keys are Enter/);
     control.takeOver(7, false);
-    assert.match((await control.screen(session, "demo_app.py")).text, /text {2}Value: Tu/);
+    // What the owner typed into the password field: in ocu's calls only, never in what Pi reads, the panel or the log.
+    const read = (await control.screen(session, "demo_app.py")).text;
+
+    assert.match(read, /text {2}Value: Tu/);
+    assert.ok(!read.includes("owner-pass-42"), read);
+    assert.ok(!JSON.stringify([panels, frames.map((each) => each.hit)]).includes("owner-pass-42"));
+    assert.ok(!lines.join("\n").includes("owner-pass-42"));
+    // Pi's own calls never carry the opt-out.
+    assert.equal(calls().filter((each) => each.args.allow_password_input !== undefined && !["type_text", "press_key"].includes(each.tool)).length, 0);
     await control.end("m1", "test over");
 });
 

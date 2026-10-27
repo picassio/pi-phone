@@ -584,8 +584,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
     are offered only when the machine has none of its own. **Windows** (2026-10-19): the projects' own Windows builds
     (OfficeCLI's `.exe`, rg's and fd's `.zip`s, x64 and arm64), installed by the same script in Git Bash (curl, sha256sum,
     `unzip -p` for a zip); a program keeps its `.exe`, and the wrapper execs it by its drive path (`C:/Users/…`).
-    **Computer use (ocu)** (PP-177, `OCU_TOOL`): our fork's release v1.1.2-pp.1 of open-computer-use
-    (picassio/open-computer-use: password fields marked `[password]` and typing into them refused), linux-x64,
+    **Computer use (ocu)** (PP-177, `OCU_TOOL`): our fork's release v1.1.2-pp.2 of open-computer-use
+    (picassio/open-computer-use: password fields marked `[password]` and typing into them refused unless the call says
+    `allow_password_input: true`, which pi-phone sends only for the owner's take-over input and a saved secret by name), linux-x64,
     linux-arm64 and windows-x64, pinned to the release's SHA256SUMS; command `ocu`; `desktop: true` puts "needs a
     desktop session on Linux" beside it in every list. Computer control (`computer-control.ts`) runs `ocu mcp`.
   - **Install:** the machine downloads each itself (curl or wget), checks the sha256 (sha256sum or shasum) before
@@ -773,8 +774,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `POST /api/computer/watch`), after each action and every 3 s while watched and Pi is not acting, with the box on
     the element Pi last acted on (`.cu-hit`, in fractions of the window); the foot has the session, minutes left and
     Stop. **Take over** (owner's choice B): Pi's calls are refused until Hand back; a tap on the picture is ocu's click
-    at that point, text and keys (Enter, Backspace, Tab, Escape, arrows) go to the field in focus, never while it is a
-    password field. Routes: `GET /api/computer?session=`, `watch`, `tab`, `take-over`, `input`, `stop`.
+    at that point, text and keys (Enter, Backspace, Tab, Escape, arrows) go to the field in focus, a password field too
+    (owner's decision 2026-10-27: the owner may type passwords there; Pi never types one as text). Only these calls
+    send ocu `allow_password_input: true` (ocu 1.1.2-pp.2's per-call opt-out), so ocu's own guard stays for every
+    other call. Each answer says whether the focus is in a password field; the panel's hidden field is then
+    `type=password` (`autocomplete=new-password`), as the browser panel's. What the owner types is never logged, put
+    on the panel's status or box, or kept. Routes: `GET /api/computer?session=`, `watch`, `tab`, `take-over`, `input`, `stop`.
   - **Menu › Computer control** (`web/sheets/computer-control.js`, phone control's parts): the setup steps, each machine
     (state, setup line with Save and Check, which lists what ocu reads, Stop), the Never list, how cards work.
     `GET /api/computer-control`, `never`, `prepare`, `check`, `stop`.

@@ -3,7 +3,7 @@
 // covers the screen on phones, where a small live preview sits above the message box while Pi acts. The windows of the
 // session's apps are its tabs; the picture is ocu's screenshot of one, after each action and every few seconds while the
 // panel shows, with a box on the element Pi acted on. Take over: Pi waits, and the person's taps are ocu's clicks there,
-// their keys go to the field in focus (never a password field). The owner's.
+// their keys go to the field in focus, a password field too (theirs to type; Pi never types into one). The owner's.
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
@@ -82,15 +82,28 @@ const send = (body) => {
 
     sending = next.catch(() => {});
 
-    return attempt(() => next);
+    // Each answer says whether the focus there is in a password field now (a tap, or Tab, moved it): the field here follows.
+    return attempt(() => next).then((answer) => {
+        if (typeof answer?.password === "boolean") {
+            for (const listener of focusListeners) {
+                listener(answer.password);
+            }
+        }
+
+        return answer;
+    });
 };
+
+/** Who hears where the focus is on the window: the shown picture's keyboard field. */
+const focusListeners = new Set();
 
 /**
  * The keyboard while the person has the window: a hidden field the phone's keyboard (or a computer's) types into; each
  * keystroke goes to the field in focus there, and the field here is emptied, so nothing typed stays here. Over a password
- * field there, nothing is sent: ocu refuses it, and the person types it on the computer itself.
+ * field there (the person's own to type: Pi never does), it is a password field itself, which keyboards do not learn
+ * from, and nothing typed is shown, kept, or logged.
  */
-function Capture({ field }) {
+function Capture({ field, password }) {
     const sent = useRef("");
     const composing = useRef(false);
     const clear = (input) => {
@@ -124,9 +137,9 @@ function Capture({ field }) {
     return html`<input
         ref=${field}
         class="pb-capture"
-        type="text"
+        type=${password ? "password" : "text"}
         aria-label=${t("Type into the window")}
-        autocomplete="off"
+        autocomplete=${password ? "new-password" : "off"}
         autocorrect="off"
         autocapitalize="off"
         spellcheck="false"
@@ -157,8 +170,14 @@ function Frame({ panel, interactive }) {
     const [frame, setFrame] = useState(lastFrames.get(key) ?? null);
     const image = useRef(null);
     const field = useRef(null);
+    const [password, setPassword] = useState(false);
 
     useEffect(() => setFrame(lastFrames.get(key) ?? null), [key]);
+    useEffect(() => {
+        focusListeners.add(setPassword);
+
+        return () => focusListeners.delete(setPassword);
+    }, []);
     useFrames(panel, (next) => {
         if (next.app === panel.tab) {
             setFrame(next);
@@ -170,14 +189,12 @@ function Frame({ panel, interactive }) {
             return;
         }
 
+        // The keyboard comes up at once (it must, within the tap) and stays, over a password field too: the field here
+        // becomes a password field when the answer says the focus there is in one.
         field.current?.focus({ preventScroll: true });
         const box = image.current.getBoundingClientRect();
 
-        void send({ type: "tap", x: Math.round(((event.clientX - box.left) / box.width) * frame.width), y: Math.round(((event.clientY - box.top) / box.height) * frame.height) }).then((focus) => {
-            if (focus?.password) {
-                field.current?.blur();
-            }
-        });
+        void send({ type: "tap", x: Math.round(((event.clientX - box.left) / box.width) * frame.width), y: Math.round(((event.clientY - box.top) / box.height) * frame.height) });
     };
     /**
      * A press on the picture leaves the focus where it is, as the take-over keys do: the press's default would focus the
@@ -202,7 +219,7 @@ function Frame({ panel, interactive }) {
             >`
         }
         ${frame === null && html`<span class="pb-wait">${t("Waiting for the window…")}</span>`}
-        ${interactive && html`<${Capture} field=${field} />`}
+        ${interactive && html`<${Capture} field=${field} password=${password} />`}
     </div>`;
 }
 
@@ -212,7 +229,7 @@ function TakeOverBar() {
     const keep = (event) => event.preventDefault();
 
     return html`<div class="pb-takeover">
-        <p class="pb-hint">${t("Tap the window to click there. Your keys go to the field in focus, never into a password field: type those on the computer itself.")}</p>
+        <p class="pb-hint">${t("Tap the window to click there. Your keys go to the field in focus, a password field too: what you type there is never shown to Pi. Pi itself never types into a password field.")}</p>
         <div class="pb-keys">
             ${["Enter", "Backspace", "Tab", "Escape"].map((key) => html`<button class="pb-key" onPointerDown=${keep} onClick=${() => send({ type: "key", key })}>${key === "Backspace" ? "⌫" : key}</button>`)}
         </div>

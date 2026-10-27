@@ -2706,7 +2706,7 @@
     "Type into the window": "在窗口中输入",
     "{app} on {machine}": "{machine} 上的 {app}",
     "Waiting for the window…": "正在等待窗口…",
-    "Tap the window to click there. Your keys go to the field in focus, never into a password field: type those on the computer itself.": "点按窗口即在那里点击。你的按键会进入当前焦点所在的输入框，但绝不会进入密码框：密码请在那台电脑上自己输入。",
+    "Tap the window to click there. Your keys go to the field in focus, a password field too: what you type there is never shown to Pi. Pi itself never types into a password field.": "点按窗口即在那里点击。你的按键会进入当前焦点所在的输入框，密码框也可以：你在密码框里输入的内容绝不会显示给 Pi。Pi 自己从不在密码框中输入。",
     "The session's windows": "本会话的窗口",
     "Pi's computer": "Pi 的电脑",
     "{machine}: ended": "{machine}：已结束",
