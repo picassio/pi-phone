@@ -753,7 +753,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     and nothing is kept. Kept in `config.json` (`voice`, only what differs from the defaults; `voiceCheck`).
   - **Settings** (`voice.*` in the settings tools, owner only): live and dictation model, engine (android or codex),
     voice, language (auto or a code), mode for new sessions (work, chat, think), turns (hands-free: semantic VAD that
-    stops the voice when you talk; hold), progress (text or answer), cueSeconds (20), reader (live or android),
+    stops the voice when you talk; hold), progress (text or answer), cueSeconds (20), reader (live or device),
     dailyLimit (minutes or none). A session's own mode in `SessionMeta.voiceMode` (`sessions.voiceMode`).
   - **Minutes** in `SpendDoc.voice` by day (seconds of calls and of Codex dictation), shown in Spend; a call or a
     dictation is refused once today's minutes reach the daily limit. Calls are in memory: a restart ends them.
@@ -821,8 +821,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `__piVoiceAction("mute" | "end")` (`VoiceCallService.page`, set by the window whose call starts). While a call runs
     the WebView's renderer keeps its priority hidden (`setRendererPriorityPolicy(IMPORTANT, false)`); the WebView is
     never paused. The window going (swiped away) ends its call and the notification. A notification tap opens
-    `/s/:id?voice=show`; `?voice=start` starts a call there (`voiceFromShell`). The `android` reader needs the app's
-    text-to-speech (PP-193).
+    `/s/:id?voice=show`; `?voice=start` starts a call there (`voiceFromShell`).
+  - **Pi thinks and its reader** (PP-193): the live model never answers (`create_response: false`, no tools); each
+    transcript of the owner goes to Pi as `[voice] …`; Pi's words (`speechChunks`) are read by the reader setting.
+    `live`: a system item `Read aloud: …` and `response.create` with "read it exactly as written", one response at a
+    time. `device`: the server sends the page `voice {call, say}` (`BridgeHost.say`) and the page reads it with the
+    device's own voice, one after another (`readOut`): in the app Android's text-to-speech (`Speech.java`, the bridge's
+    `speakAvailable`/`speak(id, text, language)`/`stopSpeaking`, events to `__piPhoneSpoken`; voice-communication
+    audio, the phone's engine as the person set it up: pi-phone runs no model for it), in a browser its speech
+    synthesis. The language is Settings › Voice's (the device's own for auto). Talking over it (`speech_started`) or
+    holding to talk stops it and drops what waits. A device with no voice does not start a call in Pi thinks with this
+    reader: it says to pick the live model (no other reader takes its place). OpenAI's text-to-speech is not a reader:
+    `/v1/audio/speech` refuses the ChatGPT sign-in (429 `billing_not_active`, checked 2026-10-27,
+    `~/work/tmp-ocu/codex-tts-check.mjs`). The reader's first name, `android`, reads as `device`.
   - **The side key and home** (PP-192): `assistant.talk` (`dictate` or `call`, Menu › Assistant's "When the sheet
     opens", Pi's `assistant.talk`). With `call` the sheet starts a call in its target session instead of listening (a
     new session is made first); its waveform button (while listening, after sending, after nothing heard) does so for

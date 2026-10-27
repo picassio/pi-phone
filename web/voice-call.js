@@ -129,6 +129,13 @@ export async function startVoice(session) {
     const settings = store.state.server?.voice?.settings;
     const hold = settings?.turns === "hold";
 
+    // "Pi thinks" read out by the device's own voice (PP-193): a device without one does not start the call.
+    if (sessionVoiceMode(session) === "think" && settings?.reader === "device" && deviceVoice() === null) {
+        notify("error", t("This device has no voice to read Pi's answers: pick the live model as the reader in Settings › Voice."));
+
+        return;
+    }
+
     store.set({
         voiceOpen: true,
         voiceCall: { session, status: "connecting", muted: false, hold, pressing: false, you: "", voice: "", startedAt: Date.now(), model: settings?.model ?? "", mode: sessionVoiceMode(session) },
@@ -185,16 +192,25 @@ export async function startVoice(session) {
             }
         };
 
-        if (mine.path === "codex") {
-            mine.outbox = [];
-            mine.stopRelay = onVoiceEvents((data) => {
-                if (data.call === mine.call && mine.channel?.readyState === "open") {
-                    for (const event of data.events ?? []) {
-                        mine.channel.send(JSON.stringify(event));
-                    }
+        // The server's word for this call: Pi's words to read out (`say`, "Pi thinks" with the device's voice), and for
+        // Codex's voice its data channel events.
+        mine.outbox = [];
+        mine.reading = [];
+        mine.stopRelay = onVoiceEvents((data) => {
+            if (data.call !== mine.call || engine !== mine) {
+                return;
+            }
+
+            if (typeof data.say === "string") {
+                readOut(mine, data.say);
+            }
+
+            if (mine.path === "codex" && mine.channel?.readyState === "open") {
+                for (const event of data.events ?? []) {
+                    mine.channel.send(JSON.stringify(event));
                 }
-            });
-        }
+            }
+        });
 
         await pc.setLocalDescription(await pc.createOffer());
         stale();
@@ -251,6 +267,97 @@ export async function startVoice(session) {
 /** A call set up no further: it ended, or another started. */
 const STALE = new Error("stale call");
 
+/**
+ * The device's own voice (PP-193): "app" (Android's text-to-speech, through the app's window or sheet), "browser" (the
+ * browser's speech synthesis), or null where there is none.
+ */
+export function deviceVoice() {
+    const shell = globalThis.PiPhoneApp;
+
+    if (typeof shell?.speak === "function" && typeof shell.speakAvailable === "function") {
+        return shell.speakAvailable() ? "app" : null;
+    }
+
+    return typeof globalThis.speechSynthesis?.speak === "function" && typeof globalThis.SpeechSynthesisUtterance === "function" ? "browser" : null;
+}
+
+/** The language the device reads in: Settings › Voice's, or the device's own for auto. */
+function readingLanguage() {
+    const language = store.state.server?.voice?.settings?.language;
+
+    return language && language !== "auto" ? language : "";
+}
+
+let readings = 0;
+
+/** Pi's words to read out with the device's voice, after what is being read. */
+function readOut(mine, text) {
+    mine.reading.push(text);
+
+    if (mine.reading.length === 1) {
+        readNext(mine);
+    }
+}
+
+/** Read the first of what waits; when it is done, the next; when nothing waits, the call listens again. */
+function readNext(mine) {
+    const text = mine.reading[0];
+
+    if (text === undefined || engine !== mine) {
+        setCall((call) => (call.status === "speaking" ? { status: call.hold ? "holding" : "listening" } : {}));
+
+        return;
+    }
+
+    const done = () => {
+        if (mine.reading[0] === text) {
+            mine.reading.shift();
+            readNext(mine);
+        }
+    };
+
+    setCall({ status: "speaking", voice: text, you: "" });
+
+    if (deviceVoice() === "app") {
+        const id = `pi-${++readings}`;
+
+        mine.spoken = (event) => {
+            if (event?.id === id && (event.state === "done" || event.state === "error")) {
+                done();
+            }
+        };
+        globalThis.PiPhoneApp.speak(id, text, readingLanguage());
+
+        return;
+    }
+
+    const utterance = new globalThis.SpeechSynthesisUtterance(text);
+
+    utterance.lang = readingLanguage();
+    utterance.onend = done;
+    utterance.onerror = done;
+    globalThis.speechSynthesis.speak(utterance);
+}
+
+/** Stop reading, and drop what waits (the owner talks, holds to talk, or the call ends). */
+function stopReading(mine) {
+    if (!mine?.reading?.length) {
+        return;
+    }
+
+    mine.reading.length = 0;
+    mine.spoken = undefined;
+
+    if (deviceVoice() === "app") {
+        globalThis.PiPhoneApp.stopSpeaking?.();
+    } else {
+        globalThis.speechSynthesis?.cancel();
+    }
+}
+
+/** The app's text-to-speech says how a reading went: `{ id, state: "start" | "done" | "error" }`. */
+globalThis.__piPhoneSpoken = (event) => engine?.spoken?.(event);
+
 /** An event from the call: what the view shows; for Codex's voice, passed on to the server too. */
 function receive(mine, event) {
     if (engine !== mine) {
@@ -269,6 +376,8 @@ function receive(mine, event) {
 
     switch (event.type) {
         case "input_audio_buffer.speech_started":
+            // Talking over the device's voice stops it, as talking over the live model's does.
+            stopReading(mine);
             setCall({ status: "listening", you: "", voice: "" });
             break;
         case "conversation.item.input_audio_transcription.delta":
@@ -339,6 +448,7 @@ export async function endVoice({ quiet = false, handOver = false } = {}) {
     }
 
     clearTimeout(mine.flush);
+    stopReading(mine);
     mine.stopRelay?.();
     mine.channel?.close();
     mine.pc?.close();
@@ -412,6 +522,7 @@ export function voicePress(down) {
     mine.muted = !down;
 
     if (down) {
+        stopReading(mine);
         mine.channel.send(JSON.stringify({ type: "response.cancel" }));
         mine.channel.send(JSON.stringify({ type: "input_audio_buffer.clear" }));
         setCall({ pressing: true, status: "listening", you: "" });

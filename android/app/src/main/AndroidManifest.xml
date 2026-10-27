@@ -19,6 +19,10 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- The phone's text-to-speech engine: the device's voice for "Pi thinks" (Speech.java, PP-193). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
     </queries>
 
     <application

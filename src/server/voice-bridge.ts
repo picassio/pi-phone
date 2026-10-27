@@ -11,7 +11,8 @@
  * In "Pi works" the live model hands work to the session's Pi with `ask_pi` (a message marked voice, steering Pi when it
  * is busy) and stops it with `stop_pi`; Pi's words come back to be spoken: its text as it comes (the first two
  * sentences, then by paragraph) or only its answer, and a short cue on what it runs at most every `cueSeconds`. In "Pi
- * thinks" what is said goes to Pi as it is, and Pi's words are read out. In "Chat only" Pi does not run. What was said
+ * thinks" what is said goes to Pi as it is, and Pi's words are read out: by the live model, or by the device's own
+ * voice (`reader`, the page reads them: `say`). In "Chat only" Pi does not run. What was said
  * goes to the transcript (`said`, `voice-turns.ts`).
  */
 import { WebSocket } from "ws";
@@ -37,6 +38,8 @@ export interface BridgeHost {
     said(call: VoiceCall, turns: readonly VoiceTurn[], delegated: boolean): Promise<void>;
     /** Codex calls: events for the page to put on the call's data channel. */
     toPage(call: VoiceCall, events: readonly Record<string, unknown>[]): void;
+    /** "Pi thinks" with the device's voice: words for the page to read out. */
+    say(call: VoiceCall, text: string): void;
     log(line: string): void;
     now(): number;
 }
@@ -477,6 +480,15 @@ class CallBridge {
                         ? { type: "session.context.append", channel: "speakable", content }
                         : { type: "delegation.context.append", delegation_item_id: this.#delegation, channel: "speakable", content },
                 );
+            }
+
+            return;
+        }
+
+        // "Pi thinks" with the device's own voice as the reader (PP-193): the page reads Pi's words out itself.
+        if (this.mode === "think" && this.#host.settings().reader === "device") {
+            for (const next of this.#queue.splice(0)) {
+                this.#host.say(this.call, next.text);
             }
 
             return;

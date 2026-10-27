@@ -54,6 +54,8 @@ final class PiAssistantSession extends VoiceInteractionSession {
     private final Handler main = new Handler(Looper.getMainLooper());
     private WebView web;
     private Dictation dictation;
+    /** The device's voice for "Pi thinks" in the sheet's call (PP-193). */
+    private Speech speech;
     /** The app in front when the side key was held, as JSON `{label, package}`, or "" when not known (or not useful). */
     private volatile String from = "";
     /** The sheet's page is there, or on its way. */
@@ -107,6 +109,7 @@ final class PiAssistantSession extends VoiceInteractionSession {
             }
         });
         dictation = new Dictation(getContext(), null, web);
+        speech = new Speech(getContext(), web);
         web.addJavascriptInterface(new Bridge(), "PiPhoneApp");
         return web;
     }
@@ -194,6 +197,7 @@ final class PiAssistantSession extends VoiceInteractionSession {
     public void onDestroy() {
         gone = true;
         if (dictation != null) dictation.release();
+        if (speech != null) speech.release();
         if (web != null) web.destroy();
         super.onDestroy();
     }
@@ -289,6 +293,21 @@ final class PiAssistantSession extends VoiceInteractionSession {
         @JavascriptInterface
         public void close() {
             main.post(PiAssistantSession.this::hide);
+        }
+
+        @JavascriptInterface
+        public boolean speakAvailable() {
+            return speech.available();
+        }
+
+        @JavascriptInterface
+        public void speak(String id, String text, String language) {
+            main.post(() -> speech.speak(id, text, language));
+        }
+
+        @JavascriptInterface
+        public void stopSpeaking() {
+            main.post(() -> speech.stop());
         }
 
         /** The sheet's voice call started, changed, or ended (`web/voice-call.js`): its notification and audio follow. */

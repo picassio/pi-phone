@@ -606,7 +606,7 @@
     "voice.turns is hands-free or hold.": "voice.turns 为 hands-free 或 hold。",
     "voice.progress is text or answer.": "voice.progress 为 text 或 answer。",
     "voice.cueSeconds is a whole number of seconds from 0 (no cues) to 600.": "voice.cueSeconds 是 0（不提示）到 600 之间的整数秒。",
-    "voice.reader is live or android.": "voice.reader 为 live 或 android。",
+    "voice.reader is live or device.": "voice.reader 为 live 或 device。",
     "voice.dailyLimit is a number of minutes from 1 to 1440, or null for none.": "voice.dailyLimit 是 1 到 1440 之间的分钟数，或 null 表示不限。",
     "Voice needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "语音需要 ChatGPT（Codex）登录：请在 设置 › 提供商 中添加。",
     "OpenAI could not check {1}: {2}": "OpenAI 无法检查 {1}：{2}",

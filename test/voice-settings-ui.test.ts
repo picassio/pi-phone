@@ -132,6 +132,12 @@ test("Settings › Voice: the checked live models with their way, choices that c
     await until(() => app.config.voice.turns === "hold", "turn-taking");
     await press("[data-part=voice-progress]", "Only the answer");
     await until(() => app.config.voice.progress === "answer", "progress");
+    // Who reads Pi's answers in Pi thinks (PP-193): the device's own voice, which this browser has.
+    await press("[data-part=voice-reader]", "This device's voice");
+    await until(() => app.config.voice.reader === "device", "the device's voice");
+    await until(async () => (await text("[data-part=voice-reader-note]")).includes("reads Pi's words"), "what it does");
+    await press("[data-part=voice-reader]", "The live model");
+    await until(() => app.config.voice.reader === "live", "the live model again");
     await inPage(`document.querySelector("[data-part=voice-limit] [role=switch]").click()`);
     await until(() => app.config.voice.dailyLimit === 60, "a daily limit");
 

@@ -22,7 +22,12 @@ import { HttpError } from "./errors.ts";
 export type VoiceMode = "work" | "chat" | "think";
 export type VoiceTurns = "hands-free" | "hold";
 export type VoiceProgress = "text" | "answer";
-export type VoiceReader = "live" | "android";
+/**
+ * Who reads Pi's answers in "Pi thinks" (PP-193): the live model, or the device's own voice (Android's text-to-speech
+ * in the app, the browser's speech synthesis elsewhere). OpenAI's text-to-speech is not a reader: the ChatGPT sign-in is
+ * refused there (`/v1/audio/speech` answers 429 billing_not_active, checked 2026-10-27).
+ */
+export type VoiceReader = "live" | "device";
 export type DictationEngine = "android" | "codex";
 export type VoicePath = "key" | "server" | "codex";
 
@@ -43,7 +48,7 @@ export interface VoiceSettings {
     readonly progress: VoiceProgress;
     /** A tool cue ("still running the tests") at most this often, in seconds; 0: none. */
     readonly cueSeconds: number;
-    /** Who reads Pi's answers in "Pi thinks": the live model, or the phone's own voice. */
+    /** Who reads Pi's answers in "Pi thinks": the live model, or the device's own voice. */
     readonly reader: VoiceReader;
     /** Minutes of voice a day (calls and Codex dictation together); null: no limit. */
     readonly dailyLimit: number | null;
@@ -73,7 +78,9 @@ export const VOICES = ["marin", "cedar", "alloy", "ash", "ballad", "coral", "ech
 const MODES: readonly VoiceMode[] = ["work", "chat", "think"];
 const TURNS: readonly VoiceTurns[] = ["hands-free", "hold"];
 const PROGRESS: readonly VoiceProgress[] = ["text", "answer"];
-const READERS: readonly VoiceReader[] = ["live", "android"];
+const READERS: readonly VoiceReader[] = ["live", "device"];
+/** The reader as first named (PP-190): the device's voice. */
+const reader = (value: unknown): unknown => (value === "android" ? "device" : value);
 const ENGINES: readonly DictationEngine[] = ["android", "codex"];
 const KEYS = ["model", "dictationModel", "engine", "voice", "language", "mode", "turns", "progress", "cueSeconds", "reader", "dailyLimit"] as const;
 const MODEL_ID = /^[a-z0-9][a-z0-9.\-]{1,63}$/;
@@ -104,7 +111,7 @@ export function readVoice(stored: unknown): VoiceSettings {
         turns: pick(stored.turns, (value) => TURNS.includes(value as VoiceTurns), DEFAULT_VOICE.turns),
         progress: pick(stored.progress, (value) => PROGRESS.includes(value as VoiceProgress), DEFAULT_VOICE.progress),
         cueSeconds: pick(stored.cueSeconds, (value) => Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 600, DEFAULT_VOICE.cueSeconds),
-        reader: pick(stored.reader, (value) => READERS.includes(value as VoiceReader), DEFAULT_VOICE.reader),
+        reader: pick(reader(stored.reader), (value) => READERS.includes(value as VoiceReader), DEFAULT_VOICE.reader),
         dailyLimit: pick(stored.dailyLimit, (value) => value === null || (Number.isInteger(value) && (value as number) > 0), DEFAULT_VOICE.dailyLimit),
     };
 }
@@ -199,11 +206,11 @@ export function withVoice(current: VoiceSettings, patch: unknown): VoiceSettings
     }
 
     if (patch.reader !== undefined) {
-        if (!READERS.includes(patch.reader as VoiceReader)) {
-            throw new HttpError(400, "voice.reader is live or android.");
+        if (!READERS.includes(reader(patch.reader) as VoiceReader)) {
+            throw new HttpError(400, "voice.reader is live or device.");
         }
 
-        next.reader = patch.reader as VoiceReader;
+        next.reader = reader(patch.reader) as VoiceReader;
     }
 
     if (patch.dailyLimit !== undefined) {

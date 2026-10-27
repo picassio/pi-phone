@@ -29,6 +29,11 @@ test("a patch is checked key by key; only what differs from the defaults is kept
     assert.deepEqual(storedVoice({ ...DEFAULT_VOICE, engine: "codex" }), { engine: "codex" });
     assert.deepEqual(readVoice({ engine: "codex", mode: "nonsense" }), { ...DEFAULT_VOICE, engine: "codex" });
     assert.equal(chatgptAccount(TOKEN), "acct-1");
+    // The reader (PP-193): the live model, or the device's own voice; "android", its first name, is the device's.
+    assert.equal(withVoice(DEFAULT_VOICE, { reader: "device" }).reader, "device");
+    assert.equal(withVoice(DEFAULT_VOICE, { reader: "android" }).reader, "device");
+    assert.equal(readVoice({ reader: "android" }).reader, "device");
+    assert.throws(() => withVoice(DEFAULT_VOICE, { reader: "openai" }), /live or device/);
 });
 
 test("a call's configuration: hands-free answers by itself, hold to talk waits, Pi thinks never answers", () => {

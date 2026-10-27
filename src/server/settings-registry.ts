@@ -671,10 +671,10 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "voice.reader",
             area: "voice",
             title: "Who reads Pi's answers in \"Pi thinks\"",
-            help: "live (the live model reads Pi's text as written) or android (the phone's own voice).",
+            help: "live (the live model reads Pi's text as written) or device (the device's own voice: Android's text-to-speech in the app, the browser's elsewhere; a call does not start where there is none).",
             owner: true,
             read: () => app.config.voice.reader,
-            choices: () => ["live", "android"],
+            choices: () => ["live", "device"],
             apply: (user, value) => app.setVoice(user, { reader: value.trim().toLowerCase() }),
         },
         {

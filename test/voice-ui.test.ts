@@ -153,6 +153,10 @@ before(async () => {
                 close() { window.__voice.closed++; }
             };
             window.AudioContext = undefined;
+            // The browser's speech synthesis (the device's voice for Pi thinks): what it reads is kept.
+            window.__voice.read = [];
+            window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; this.lang = ""; } };
+            Object.defineProperty(window, "speechSynthesis", { value: { speak: (utterance) => { window.__voice.read.push(utterance.text); setTimeout(() => utterance.onend && utterance.onend(), 50); }, cancel() {} }, configurable: true });
             // Every answer the app's API gives the page, to check the token is in none.
             const realFetch = window.fetch;
             window.__voice.fetches = [];
@@ -245,6 +249,31 @@ test("on a phone: the voice button starts a call by key, full screen; words, mut
     await until(() => app.voice.calls().length === 0, "the call ended");
     await until(async () => !(await exists("[data-part=voice-panel]")), "the view closed");
     assert.ok(!(await inPage<string[]>("window.__voice.responses")).some((body) => body.includes(TOKEN)), "the token never reached the page");
+});
+
+test("Pi thinks with the device's voice: what you say goes to Pi, and Pi's answer is read out by the device, not the live model", real, async () => {
+    const id = await newSession(app);
+
+    await app.setSessionVoiceMode(id, owner(app), "think");
+    await app.setVoice(owner(app), { reader: "device" });
+    await width(390);
+    await open(id);
+    await click("[data-part~=voice-button]");
+    await seen(() => app.voice.calls().some((call) => call.rtc !== undefined), "the call named");
+
+    const rtc = app.voice.calls()[0]!.rtc!;
+
+    await until(() => openai.sidebands.has(rtc), "joined");
+    openai.push(rtc, { type: "conversation.item.input_audio_transcription.completed", transcript: "what time is it" });
+    await until(async () => (await inPage<string[]>("window.__voice.read")).some((each) => each.includes("heard: [voice] what time is it")), "read out by the device");
+    assert.ok(
+        !openai.sidebands.get(rtc)!.received.some((event) => event.type === "conversation.item.create" || event.type === "response.create"),
+        "the live model reads nothing",
+    );
+    await click("[data-part=voice-end]");
+    await until(() => app.voice.calls().length === 0, "ended");
+    await app.setVoice(owner(app), { reader: "live" });
+    await app.setSessionVoiceMode(id, owner(app), "inherit");
 });
 
 test("on a wide screen the call is a panel at the right; the session's voice mode is in the model menu; voice turns are marked", real, async () => {

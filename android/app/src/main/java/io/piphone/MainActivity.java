@@ -66,6 +66,8 @@ public final class MainActivity extends Activity {
     private WebView web;
     /** Android's speech recognizer for dictation (`web/android-speech.js`). */
     private Dictation dictation;
+    /** Android's text-to-speech: the device's voice for "Pi thinks" (PP-193). */
+    private Speech speech;
     private ValueCallback<Uri[]> pendingFiles;
     private volatile boolean loaded = false;
     /** Whether the app is in front: PiService notifies only when it is not. */
@@ -299,6 +301,23 @@ public final class MainActivity extends Activity {
             });
         }
 
+        /** Whether the phone has a voice to read Pi's words with ("Pi thinks", reader "device"). */
+        @JavascriptInterface
+        public boolean speakAvailable() {
+            return speech.available();
+        }
+
+        /** Read `text` out after what is being read; how it went goes to `window.__piPhoneSpoken`. */
+        @JavascriptInterface
+        public void speak(String id, String text, String language) {
+            runOnUiThread(() -> speech.speak(id, text, language));
+        }
+
+        @JavascriptInterface
+        public void stopSpeaking() {
+            runOnUiThread(() -> speech.stop());
+        }
+
         /** Sign in again and show the app: after a restore, the owner's sign-in is the backup's. */
         @JavascriptInterface
         public void reload() {
@@ -363,6 +382,7 @@ public final class MainActivity extends Activity {
             }
         });
         dictation = new Dictation(this, this, web);
+        speech = new Speech(this, web);
         web.addJavascriptInterface(new Bridge(), "PiPhoneApp");
         setContentView(web);
         registerReceiver(installStatus, new IntentFilter(Updater.INSTALL_STATUS));
@@ -794,6 +814,7 @@ public final class MainActivity extends Activity {
         }
         if (pendingMic != null) pendingMic.deny();
         dictation.release();
+        speech.release();
         unregisterReceiver(installStatus);
         super.onDestroy();
     }

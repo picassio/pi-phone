@@ -618,6 +618,13 @@ export class PocketApp {
                     }
                 }
             },
+            say: (call, text) => {
+                for (const client of this.#clients) {
+                    if (client.user.id === call.userId) {
+                        client.send("voice", { call: call.id, say: text });
+                    }
+                }
+            },
             log: (line) => this.log(line),
             now: () => this.now(),
         });

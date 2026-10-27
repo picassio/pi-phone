@@ -17,7 +17,11 @@ const STUBS: Record<string, string> = {
         export const api = (path, body) => shared.api(path, body);
         export const navigate = (id) => shared.navigated.push(id);
         export const notify = (level, message) => shared.notices.push(message);
-        export const onVoiceEvents = () => () => {};
+        export const onVoiceEvents = (listener) => {
+            shared.voiceListeners.add(listener);
+
+            return () => shared.voiceListeners.delete(listener);
+        };
     `,
 };
 
@@ -31,18 +35,26 @@ registerHooks({
     },
 });
 
-type State = { voiceCall: { session: number; muted: boolean } | null; voiceOpen?: boolean; sessions: { id: number; title: string }[]; server: unknown; me: unknown; conversationId: number | null };
+type State = {
+    voiceCall: { session: number; muted: boolean; status?: string; voice?: string } | null;
+    voiceOpen?: boolean;
+    sessions: { id: number; title: string; voiceMode?: string }[];
+    server: { voice: { settings: Record<string, unknown> } };
+    me: unknown;
+    conversationId: number | null;
+};
 
 const told: Record<string, unknown>[] = [];
 const asked: string[] = [];
 const track = { enabled: true, stop() {} };
 const shared = {
     navigated: [] as number[],
+    voiceListeners: new Set<(data: Record<string, unknown>) => void>(),
     notices: [] as string[],
     store: {
         state: {
             voiceCall: null,
-            sessions: [{ id: 7, title: "AHA deploy" }, { id: 9, title: "Voice" }],
+            sessions: [{ id: 7, title: "AHA deploy" }, { id: 9, title: "Voice" }, { id: 11, title: "Think", voiceMode: "think" }],
             server: { voice: { settings: { turns: "hands-free", model: "gpt-realtime-2", mode: "work" } } },
             me: { role: "owner" },
             conversationId: 7,
@@ -73,7 +85,11 @@ global.RTCPeerConnection = class {
     localDescription: unknown = null;
     addTrack() {}
     createDataChannel() {
-        return { readyState: "open", send() {}, close() {} };
+        const channel = { readyState: "open", sent: [] as string[], send(data: string) { channel.sent.push(data); }, close() {}, onmessage: null as unknown };
+
+        global.__channel = channel;
+
+        return channel;
     }
     async createOffer() {
         return { type: "offer", sdp: "v=0\r\n" };
@@ -145,4 +161,85 @@ test("in a browser there is no window to tell", async () => {
     await voice.endVoice();
     assert.deepEqual(told, []);
     global.PiPhoneApp = shell;
+});
+
+/** The server's word for the call going on (`voice` events): Pi's words to read out. */
+const say = (text: string) => {
+    const call = (shared.store.state.voiceCall as { call?: string } | null)?.call;
+
+    for (const listener of shared.voiceListeners) {
+        listener({ call, say: text });
+    }
+};
+const channelEvent = (event: Record<string, unknown>) => (global.__channel as { onmessage(event: { data: string }): void }).onmessage({ data: JSON.stringify(event) });
+const settings = shared.store.state.server.voice.settings;
+
+test("Pi thinks with the device's voice, in the app: Android reads Pi's words one after another; talking over it stops it", async () => {
+    const spoken: unknown[][] = [];
+    let stopped = 0;
+    const shell = global.PiPhoneApp as Record<string, unknown>;
+
+    Object.assign(shell, { speakAvailable: () => true, speak: (...args: unknown[]) => spoken.push(args), stopSpeaking: () => stopped++ });
+    Object.assign(settings, { reader: "device", language: "vi" });
+    await voice.startVoice(11);
+    say("It is noon.");
+    say("Anything else?");
+
+    assert.deepEqual(spoken.map((each) => each.slice(1)), [["It is noon.", "vi"]], "one at a time, in the voice's language");
+    assert.equal(shared.store.state.voiceCall?.status, "speaking");
+    assert.equal(shared.store.state.voiceCall?.voice, "It is noon.");
+
+    const spokenNow = (globalThis as unknown as { __piPhoneSpoken(event: unknown): void }).__piPhoneSpoken;
+
+    spokenNow({ id: spoken[0]![0], state: "done" });
+    assert.deepEqual(spoken.map((each) => each[1]), ["It is noon.", "Anything else?"]);
+
+    // The owner talks over it: it stops, and what waited goes.
+    say("And one more thing.");
+    channelEvent({ type: "input_audio_buffer.speech_started" });
+    assert.equal(stopped, 1);
+    spokenNow({ id: spoken[1]![0], state: "done" });
+    assert.equal(spoken.length, 2, "nothing more is read");
+    assert.equal(shared.store.state.voiceCall?.status, "listening");
+    await voice.endVoice();
+    delete shell.speak;
+    delete shell.speakAvailable;
+    delete shell.stopSpeaking;
+});
+
+test("Pi thinks with the device's voice, in a browser: its speech synthesis reads; a device with no voice does not start the call", async () => {
+    const utterances: { text: string; lang: string; onend: () => void }[] = [];
+
+    global.SpeechSynthesisUtterance = class {
+        text: string;
+        lang = "";
+        onend = () => {};
+        onerror = () => {};
+        constructor(text: string) {
+            this.text = text;
+        }
+    };
+    global.speechSynthesis = { speak: (utterance: { text: string; lang: string; onend: () => void }) => utterances.push(utterance), cancel() {} };
+    Object.assign(settings, { reader: "device", language: "auto" });
+    await voice.startVoice(11);
+    say("It is noon.");
+    assert.deepEqual(utterances.map((each) => [each.text, each.lang]), [["It is noon.", ""]], "the device's own language for auto");
+    utterances[0]!.onend();
+    assert.equal(shared.store.state.voiceCall?.status, "listening");
+    await voice.endVoice();
+
+    // No voice here: the call does not start, and the notice says where to change the reader.
+    delete global.speechSynthesis;
+    delete global.SpeechSynthesisUtterance;
+    asked.length = 0;
+    await voice.startVoice(11);
+    assert.equal(shared.store.state.voiceCall, null);
+    assert.deepEqual(asked, [], "nothing asked of the server");
+    assert.match(String(shared.notices.at(-1)), /no voice to read Pi's answers/);
+
+    // With the live model reading, no device voice is needed.
+    Object.assign(settings, { reader: "live" });
+    await voice.startVoice(11);
+    assert.notEqual(shared.store.state.voiceCall, null);
+    await voice.endVoice();
 });

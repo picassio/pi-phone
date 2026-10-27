@@ -2952,7 +2952,6 @@
     "Who reads Pi's answers in Pi thinks": "“Pi 思考”中由谁朗读 Pi 的回答",
     "Reader": "朗读者",
     "The live model": "实时模型",
-    "Android's voice": "Android 的声音",
     "Who listens to the mic": "由谁听麦克风",
     "Codex dictation model, also used in calls": "Codex 听写模型，通话中也会用到",
     "Codex dictation model": "Codex 听写模型",
@@ -2968,5 +2967,10 @@
     "Start a voice call": "开始语音通话",
     "A call with the session's Pi; when you leave the sheet, it goes on in pi-phone, with its notification.": "与会话中的 Pi 通话；离开面板后，通话在 pi-phone 中继续，并显示通知。",
     "The waveform button in the sheet starts a call for this time.": "面板里的波形按钮可以为这次发起通话。",
-    "Voice: a new session, talking": "语音：新建会话并开始通话"
+    "Voice: a new session, talking": "语音：新建会话并开始通话",
+    "This device's voice": "本设备的声音",
+    "This device has no voice to read with: a call in Pi thinks does not start here.": "本设备没有可用来朗读的声音：“Pi 思考”模式的通话在这里不会开始。",
+    "Your phone's text-to-speech (the browser's on a computer) reads Pi's words; talking over it stops it.": "由手机的文字转语音（电脑上是浏览器的）朗读 Pi 的话；开口即可打断。",
+    "The live model reads Pi's words as written, in its voice.": "由实时模型用它的声音照原文朗读 Pi 的话。",
+    "This device has no voice to read Pi's answers: pick the live model as the reader in Settings › Voice.": "本设备没有可用来朗读 Pi 回答的声音：请在 设置 › 语音 中把朗读者设为实时模型。"
 }

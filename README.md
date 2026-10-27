@@ -282,7 +282,8 @@ No Termux, no laptop, no cloud VM.
 - **Voice calls with Pi** on your ChatGPT (Codex) sign-in: the waveform button beside the mic starts a call in the
   session, full screen on a phone and a panel at the right on a wide screen. In "Pi works" (the default) the voice
   talks and hands real work to the session's Pi, then tells you Pi's answer; "Chat only" just chats; "Pi thinks" sends
-  what you say to Pi and reads Pi's words out. Set it in the call or in the model chip's menu. Talk any time
+  what you say to Pi as it is and reads Pi's words out as written, with the live model's voice or your device's own
+  (Android's text-to-speech in the app, the browser's elsewhere; Settings › Voice's reader). Set it in the call or in the model chip's menu. Talk any time
   (talking over the voice stops it) or hold to talk; mute; end. What you say to Pi shows as your message marked voice,
   and the rest of the talk as quiet voice rows. Approvals stay a tap in the chat. In the app the call goes on with the
   screen off or another app in front, with a call notification (Mute, End; a tap shows the call); music pauses, and a

@@ -186,6 +186,26 @@ test("Pi thinks: what is said goes to Pi as it is, and Pi's words are read out, 
     app.voice.end(live.start.call);
 });
 
+test("Pi thinks with the device's voice as the reader: Pi's words go to the page to read out, never to the live model", async () => {
+    const id = await newSession(app);
+    const tab = fakeTab(undefined, owner(app));
+
+    app.attach(tab.client);
+    await app.setSessionVoiceMode(id, owner(app), "think");
+    await app.setVoice(owner(app), { reader: "device" });
+
+    const live = await call(id);
+
+    live.push({ type: "conversation.item.input_audio_transcription.completed", transcript: "what time is it" });
+    await until(() => tab.events.some((each) => each.event === "voice" && each.data.say === "It is noon."), "read out by the page");
+    assert.equal((tab.events.find((each) => each.event === "voice" && each.data.say !== undefined)!.data as { call: string }).call, live.start.call);
+    assert.ok(!live.said().some((text) => text.startsWith("Read aloud:")), "the live model reads nothing");
+    assert.equal(live.sent("response.create").length, 0);
+    app.voice.end(live.start.call);
+    app.detach(tab.client);
+    await app.setVoice(owner(app), { reader: "live" });
+});
+
 test("the session's voice mode changed during a call: the call's instructions, tools and turn-taking follow, without hanging up", async () => {
     const id = await newSession(app);
     const live = await call(id);

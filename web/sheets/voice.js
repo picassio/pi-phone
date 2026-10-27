@@ -7,6 +7,7 @@ import { t } from "../i18n.js";
 import { api, attempt, closeSheet, openSheet, store } from "../store.js";
 import { Choice, html, Icon, Sheet, Switch } from "../ui.js";
 import { VOICE_MODES } from "../voice-view.js";
+import { deviceVoice } from "../voice-call.js";
 
 /** Languages people pick most; any other two-letter code the model takes works through Pi's settings. */
 const LANGUAGES = ["vi", "en", "zh", "ja", "ko", "th", "id", "fr", "de", "es", "pt", "ru"];
@@ -148,7 +149,16 @@ export function VoiceSheet() {
         </label>
 
         <div class="phone-section-title">${t("Who reads Pi's answers in Pi thinks")}</div>
-        ${segmented(t("Reader"), "voice-reader", [["live", t("The live model")], ["android", t("Android's voice")]], settings.reader, "reader")}
+        ${segmented(t("Reader"), "voice-reader", [["live", t("The live model")], ["device", t("This device's voice")]], settings.reader, "reader")}
+        <p class="muted small" data-part="voice-reader-note">
+            ${
+                settings.reader === "device"
+                    ? deviceVoice() === null
+                        ? t("This device has no voice to read with: a call in Pi thinks does not start here.")
+                        : t("Your phone's text-to-speech (the browser's on a computer) reads Pi's words; talking over it stops it.")
+                    : t("The live model reads Pi's words as written, in its voice.")
+            }
+        </p>
 
         <div class="phone-section-title">${t("Dictation")}</div>
         ${segmented(t("Who listens to the mic"), "voice-engine", [["android", t("Android's recognizer")], ["codex", t("Codex")]], settings.engine, "engine")}
