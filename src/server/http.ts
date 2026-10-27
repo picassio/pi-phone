@@ -14,6 +14,16 @@ import { intelligentUiFile, katexFile, serveApp, serveFile, TYPES, VENDOR, WEB }
 import { type HttpOptions, json } from "./http/io.ts";
 import { join as joinPage, login, recover, sharePage } from "./http/sign-in.ts";
 import { themeFile } from "./http/theme-routes.ts";
+import type { PocketApp } from "./app.ts";
+
+/**
+ * The one address besides its own the app page may send to (PP-189): OpenAI's realtime calls endpoint, where the page
+ * posts a voice call's SDP offer with the call's short-lived key. Nothing else on OpenAI's site (in tests, the fake
+ * OpenAI's).
+ */
+function voiceConnect(app: PocketApp): string[] {
+    return [`${app.voice.endpoints.api}/realtime/calls`];
+}
 
 export function createHandler(options: HttpOptions) {
     const { app } = options;
@@ -104,7 +114,7 @@ export function createHandler(options: HttpOptions) {
 
             // The web app: index.html for app routes, files from web/ otherwise.
             if (parts.length === 0 || parts[0] === "s") {
-                return serveApp(response, request.headers["x-pocket-base"] as string | undefined);
+                return serveApp(response, request.headers["x-pocket-base"] as string | undefined, voiceConnect(app));
             }
 
             const file = normalize(join(WEB, ...parts));
@@ -114,7 +124,7 @@ export function createHandler(options: HttpOptions) {
             }
 
             if (file === join(WEB, "index.html")) {
-                return serveApp(response, request.headers["x-pocket-base"] as string | undefined);
+                return serveApp(response, request.headers["x-pocket-base"] as string | undefined, voiceConnect(app));
             }
 
             return await serveFile(request, response, file);

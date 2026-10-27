@@ -777,6 +777,25 @@ so Pi changes them through the settings tools; "the last session" is the one the
     for Pi (Pi's words read back, cues) is not kept again. In "Chat only" the entry carries a model message
     (`[voice chat, before this message] …`), so Pi gets the talk with its next message, as `Commands.note` does;
     otherwise none: Pi never sees it. Secrets are redacted as in messages; export and peeks show the rows.
+  - **The view** (PP-189, `web/voice-call.js` the call, `web/voice-view.js` the view): the message box's waveform button
+    (beside the mic, which stays dictation) starts a call in the session, one at a time in the app. The page asks the
+    server for the call (`POST /api/c/:id/voice/call`), opens the mic (echo cancelling, noise suppression), makes an
+    `RTCPeerConnection` with the mic's track and a data channel (`oai-events`), and posts its offer: with the key to
+    OpenAI (`connect-src` allows exactly `…/v1/realtime/calls` besides the app's own server, `voiceConnect` in
+    `http.ts`; OpenAI answers with `Access-Control-Allow-Origin: *` and exposes `Location`, checked 2026-10-27) and names
+    the call (`joined`), or to the server (`sdp`). The key is used once and not kept. The view is a `PanelHost` panel
+    (`voicing` before the browser's and computer's): full screen over the chat on a phone, at the right on wide screens;
+    Back or × hides it and the call goes on (the button, lit, shows it again). It is built from the assistant sheet's
+    parts (`assist-words`, `assist-wave`, `assist-controls`, one loud button) and the panels' bar, with the session's
+    last turns above: what you say as heard and what the voice says (the data channel's transcription and transcript
+    deltas), a wave from the mic's or the voice's loudness (Web Audio analysers), Mute (the track disabled: silence
+    goes, the call stays), End (red), Type instead, the status with the time, and Hands-free / Hold to talk for this
+    call (a `session.update` on the data channel: semantic VAD, or none; holding enables the track and clears the
+    buffer, letting go commits and asks for an answer, not in "Pi thinks"). A pending approval shows "Pi needs your
+    OK": approvals stay a tap in the chat. The mode chip (and a Voice row in the model chip's menu) sets the session's
+    mode; a call going on follows (`VoiceBridge.modeChanged`: a new `session.update`, no hang-up). The call going (not
+    End) after 50 minutes starts it again, with the session's context; earlier, the view says it ended. A spoken
+    request's title is its words, not `[voice]`.
   - **Routes:** `POST /api/c/:id/voice` (mode), `POST /api/c/:id/voice/call` (start), `GET /api/voice`,
     `POST /api/voice/check`, `POST /api/voice/calls/:call/{sdp,joined,end}`, `POST /api/voice/dictation[/:id/end]`,
     `POST /api/settings {voice}`. Tests: a fake OpenAI (`test/support/fake-openai.ts`).

@@ -75,6 +75,7 @@ test("Pi works: small talk is a voice row for people only; a request handed to P
     live.push({ type: "conversation.item.input_audio_transcription.completed", transcript: "Check the deploy please" });
     live.push({ type: "response.function_call_arguments.done", name: "ask_pi", call_id: "fc-1", arguments: JSON.stringify({ request: "check the deploy" }) });
     live.push({ type: "response.done" });
+    await until(() => [...openai.sidebands.values()].at(-1)!.received.some((event) => event.type === "conversation.item.create" && JSON.stringify(event).includes("function_call_output")), "the tool's answer");
     live.push({ type: "response.created" });
     live.push({ type: "response.output_audio_transcript.done", transcript: "On it." });
     live.push({ type: "response.done" });
@@ -84,11 +85,15 @@ test("Pi works: small talk is a voice row for people only; a request handed to P
     const message = all.find((entry) => entry.kind === "user") as Extract<ClientEntry, { kind: "user" }>;
 
     assert.equal(message.text, "[voice] check the deploy");
+    await until(() => app.sessionMeta(id)?.title !== undefined, "a title");
+    assert.ok(!app.sessionMeta(id)!.title!.includes("[voice]"), "the title is the words, not the voice mark");
     assert.ok(!JSON.stringify(all).includes("Check the deploy please"), "the owner's words went to Pi as the request");
     assert.deepEqual((all.filter((entry) => entry.kind === "voice")[1] as Extract<ClientEntry, { kind: "voice" }>).turns, [{ speaker: "voice", text: "On it." }]);
 
     // Pi's words read back by the voice are Pi's, in the transcript already.
     await until(async () => (await modelTexts(app, id)).some((text) => text.includes("echo: [voice] check the deploy")), "Pi answered");
+    await until(() => [...openai.sidebands.values()].at(-1)!.received.some((event) => JSON.stringify(event).includes("Pi says: echo")), "Pi's words sent to be spoken");
+    live.push({ type: "response.created" });
     live.push({ type: "response.output_audio_transcript.done", transcript: "Pi says the deploy is fine." });
     live.push({ type: "response.done" });
     await new Promise((resolve) => setTimeout(resolve, 300));

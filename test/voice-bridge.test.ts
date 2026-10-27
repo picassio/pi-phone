@@ -107,13 +107,20 @@ test("the server joins by the call's id with the sign-in, with the session's con
     live.push({ type: "conversation.item.input_audio_transcription.completed", transcript: "Is the deploy done?" });
     live.push({ type: "response.created" });
     live.push({ type: "response.function_call_arguments.done", name: "ask_pi", call_id: "fc-1", arguments: JSON.stringify({ request: "is the deploy done?" }) });
+    await until(async () => (await modelTexts(app, id)).some((text) => text.includes("[voice] is the deploy done?")), "Pi got the message, marked voice");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(live.sent("response.create").length, 0, "nothing asked for while the tool's response runs");
+    // The response that called the tool ends: then the tool's answer, and the ack is asked for.
+    live.push({ type: "response.done" });
     await until(() => live.said().some((text) => text.startsWith("output: Pi is on it")), "the tool's answer");
     assert.equal(live.sent("response.create").length, 1, "the ack is asked for");
-    await until(async () => (await modelTexts(app, id)).some((text) => text.includes("[voice] is the deploy done?")), "Pi got the message, marked voice");
 
-    // Pi answered while the ack is spoken: Pi's words wait for that response to end.
+    // Pi answered meanwhile: Pi's words wait for the ack to run and end.
     await until(async () => (await modelTexts(app, id)).some((text) => text.includes("It finished at 14:02")), "Pi's answer");
     await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.ok(!live.said().some((text) => text.startsWith("Pi says:")), "nothing before the ack");
+    live.push({ type: "response.created" });
+    await new Promise((resolve) => setTimeout(resolve, 100));
     assert.ok(!live.said().some((text) => text.startsWith("Pi says:")), "nothing over the ack");
     live.push({ type: "response.done" });
     await until(() => live.said().includes("Pi says: Yes. It finished at 14:02."), "the first two sentences");
@@ -141,6 +148,9 @@ test("a tool Pi runs is a short cue, at most every cueSeconds; stop_pi stops Pi"
     clock += 60_000;
     live.push({ type: "response.function_call_arguments.done", name: "ask_pi", call_id: "fc-2", arguments: JSON.stringify({ request: "run the tests" }) });
     live.push({ type: "response.done" });
+    await until(() => live.said().some((text) => text.startsWith("output: ")), "the tool's answer");
+    live.push({ type: "response.created" });
+    live.push({ type: "response.done" });
     await until(() => live.said().some((text) => text === "Pi is working: bash echo 12 passed"), "the cue", 10_000);
 
     const cue = live.sent("response.create").at(-1) as { response?: { instructions?: string } };
@@ -150,6 +160,7 @@ test("a tool Pi runs is a short cue, at most every cueSeconds; stop_pi stops Pi"
     await until(() => live.said().includes("Pi says: 12 passed."), "then Pi's words");
 
     live.push({ type: "response.function_call_arguments.done", name: "stop_pi", call_id: "fc-3", arguments: "{}" });
+    live.push({ type: "response.done" });
     await until(() => live.said().includes("output: Pi stopped."), "stopped");
     app.voice.end(live.start.call);
 });
@@ -172,6 +183,21 @@ test("Pi thinks: what is said goes to Pi as it is, and Pi's words are read out, 
 
     assert.match(String(read.response?.instructions), /exactly as written/);
     assert.ok((await modelTexts(app, id)).some((text) => text.includes("[voice] what time is it")));
+    app.voice.end(live.start.call);
+});
+
+test("the session's voice mode changed during a call: the call's instructions, tools and turn-taking follow, without hanging up", async () => {
+    const id = await newSession(app);
+    const live = await call(id);
+
+    await app.setSessionVoiceMode(id, owner(app), "chat");
+    await until(() => live.sent("session.update").length === 2, "a second session.update");
+
+    const update = live.sent("session.update")[1]!.session as { instructions: string; tools: unknown[] };
+
+    assert.match(update.instructions, /You chat by voice/);
+    assert.deepEqual(update.tools, []);
+    assert.equal(app.voice.calls().find((each) => each.id === live.start.call)?.mode, "chat");
     app.voice.end(live.start.call);
 });
 

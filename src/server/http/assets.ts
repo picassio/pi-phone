@@ -152,8 +152,9 @@ export function sniffImage(head: Buffer): string | undefined {
 /**
  * The app page's policy. Replies show markdown that Pi wrote, and what Pi writes can be steered by any file or page it
  * reads: nothing on the page may load from, send to, or post to another site. The inline import map is allowed by hash.
+ * `connect` names the only other addresses it may send to, whole (a voice call's SDP offer to OpenAI's calls endpoint).
  */
-function appPolicy(html: string): string {
+function appPolicy(html: string, connect: readonly string[]): string {
     // Browsers hash script text after turning CRLF and CR into LF, as their HTML parser does.
     const hashes = [...html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(
         (match) =>
@@ -166,7 +167,7 @@ function appPolicy(html: string): string {
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob:",
         "media-src 'self' data: blob:",
-        "connect-src 'self'",
+        ["connect-src 'self'", ...connect].join(" "),
         "frame-src 'self'",
         "worker-src 'self'",
         "object-src 'none'",
@@ -293,7 +294,7 @@ const SPACE_BASE = /^\/space\/[A-Za-z0-9_-]{6,64}\/(write|watch)\/$/;
  * `base` (a teammate opening a session shared with them, through the gateway: `/space/<key>/`) its relative URLs resolve
  * there, and it offers no install (that is the sharer's app).
  */
-export function serveApp(response: ServerResponse, base?: string): void {
+export function serveApp(response: ServerResponse, base?: string, connect: readonly string[] = []): void {
     let body: string;
 
     try {
@@ -309,7 +310,7 @@ export function serveApp(response: ServerResponse, base?: string): void {
     }
 
     // The policy is of the page as it is stored: links are not scripts, and add nothing to it.
-    const policy = appPolicy(body);
+    const policy = appPolicy(body, connect);
 
     try {
         const map = /<script type="importmap">([\s\S]*?)<\/script>/.exec(body)?.[1];

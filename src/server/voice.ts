@@ -337,7 +337,8 @@ export interface VoiceCall {
     readonly userId: string;
     readonly model: string;
     readonly path: VoicePath;
-    readonly mode: VoiceMode;
+    /** Who thinks: the session's mode as the call began, changed with it during the call (`VoiceBridge.modeChanged`). */
+    mode: VoiceMode;
     readonly startedAt: number;
     /** OpenAI's id for the call (`rtc_…`), once the SDP went through. */
     rtc?: string;

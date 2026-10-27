@@ -139,6 +139,10 @@ class CallBridge {
     #delegated = false;
     /** The response running is one the bridge asked for, to speak for Pi. */
     #ours = false;
+    /** A tool's ack was asked for and has not started yet. */
+    #ack = false;
+    /** What waits for the running response to end: a tool's answer. */
+    readonly #afterResponse: (() => void)[] = [];
     /** Codex: the delegation Pi works on, whose context Pi's words go to. */
     #delegation: string | undefined;
 
@@ -205,12 +209,16 @@ class CallBridge {
                 const error = event.error as { message?: unknown } | undefined;
 
                 this.#host.log(`voice: ${String(error?.message ?? "an error").slice(0, 300)}`);
+                // A response asked for that did not start: nothing waits for it.
+                this.#ack = false;
+                this.#pump();
 
                 return;
             }
 
             case "response.created":
                 this.#responding = true;
+                this.#ack = false;
 
                 return;
 
@@ -238,6 +246,10 @@ class CallBridge {
 
             case "response.done":
                 this.#responding = false;
+
+                for (const next of this.#afterResponse.splice(0)) {
+                    next();
+                }
 
                 // What the voice said for Pi (its words, a cue, a reading) is Pi's, in the transcript already.
                 if (this.#ours) {
@@ -334,8 +346,19 @@ class CallBridge {
             output = `It did not reach Pi: ${error instanceof Error ? error.message : String(error)}`;
         }
 
-        this.#link?.send({ type: "conversation.item.create", item: { type: "function_call_output", call_id: callId, output } });
-        this.#link?.send({ type: "response.create" });
+        // The tool's answer and the ack go once the response that called the tool has ended (one response at a time);
+        // Pi's words wait until the ack has run.
+        const answer = () => {
+            this.#link?.send({ type: "conversation.item.create", item: { type: "function_call_output", call_id: callId, output } });
+            this.#link?.send({ type: "response.create" });
+            this.#ack = true;
+        };
+
+        if (this.#responding) {
+            this.#afterResponse.push(answer);
+        } else {
+            answer();
+        }
     }
 
     /** Codex: the live model hands the owner's request to Pi. */
@@ -459,7 +482,7 @@ class CallBridge {
             return;
         }
 
-        if (this.#responding) {
+        if (this.#responding || this.#ack) {
             return;
         }
 
@@ -483,6 +506,25 @@ class CallBridge {
                   ? { response: { instructions: "In one short sentence, tell the owner what Pi is doing now." } }
                   : {}),
         });
+    }
+
+    /** The session's voice mode changed during the call: the call's instructions, tools and turn-taking follow. */
+    async changeMode(mode: VoiceMode): Promise<void> {
+        if (this.call.mode === mode || this.#closed) {
+            return;
+        }
+
+        await this.#flush();
+        this.call.mode = mode;
+
+        if (this.#codex) {
+            return;
+        }
+
+        const plan = await this.#host.plan(this.call.session);
+        const { model: _model, ...session } = callSession({ ...this.#host.settings(), model: this.call.model }, plan);
+
+        this.#link?.send({ type: "session.update", session: { ...session, tools: plan.tools } });
     }
 
     /** End the bridge: the connection, the watch; what was said and not yet kept goes to the transcript. */
@@ -522,6 +564,15 @@ export class VoiceBridge {
             this.#host.log(`voice: could not join the call: ${error instanceof Error ? error.message : String(error)}`);
             this.#calls.delete(call.id);
             this.#host.service.end(call.id);
+        }
+    }
+
+    /** A session's voice mode changed: its call, if one goes on, follows. */
+    async modeChanged(session: number, mode: VoiceMode): Promise<void> {
+        for (const bridge of this.#calls.values()) {
+            if (bridge.call.session === session) {
+                await bridge.changeMode(mode);
+            }
         }
     }
 

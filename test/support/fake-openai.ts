@@ -46,10 +46,20 @@ export class FakeOpenAI {
             request.on("data", (chunk: Buffer) => chunks.push(chunk));
             request.on("end", () => {
                 const body = Buffer.concat(chunks).toString("utf8");
+                // A page posts its offer from another origin, as OpenAI allows (checked 2026-10-27: `*`, Location exposed).
+                const cors = { "access-control-allow-origin": "*", "access-control-expose-headers": "Location" };
+
+                if (request.method === "OPTIONS") {
+                    response.writeHead(200, { ...cors, "access-control-allow-headers": "authorization,content-type", "access-control-allow-methods": "POST" });
+                    response.end();
+
+                    return;
+                }
+
                 const answer = this.#answer(request, body);
 
                 this.requests.push({ method: request.method ?? "", path: request.url ?? "", headers: request.headers, body });
-                response.writeHead(answer.status, { "content-type": answer.type, ...(answer.location === undefined ? {} : { location: answer.location }) });
+                response.writeHead(answer.status, { ...cors, "content-type": answer.type, ...(answer.location === undefined ? {} : { location: answer.location }) });
                 response.end(answer.body);
             });
         });

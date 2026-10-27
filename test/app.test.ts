@@ -1388,7 +1388,8 @@ test("the web edge: page policy, local redirects, asked account switches, no cro
                 `${path} allows the import map`,
             );
             assert.match(policy, /img-src 'self' data: blob:;/);
-            assert.match(policy, /connect-src 'self';/);
+            // Its own server, and only OpenAI's calls endpoint, where a voice call's offer goes with its key (PP-189).
+            assert.match(policy, /connect-src 'self' https:\/\/api\.openai\.com\/v1\/realtime\/calls;/);
             assert.match(policy, /frame-ancestors 'self'/);
         }
 

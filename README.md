@@ -279,7 +279,13 @@ No Termux, no laptop, no cloud VM.
   browser in as you once if no device can; the phone notifies you when it is used. Pi lists devices too (`devices`), and signs one or
   all out (`device_sign_out`, `sign_out_everywhere`) after you say yes on a card.
 - **Dictation** with Android's speech recognizer, in the language you choose.
-- **Voice with your ChatGPT sign-in** (in progress). Pi checks which live and dictation models your ChatGPT (Codex)
+- **Voice calls with Pi** on your ChatGPT (Codex) sign-in: the waveform button beside the mic starts a call in the
+  session, full screen on a phone and a panel at the right on a wide screen. In "Pi works" (the default) the voice
+  talks and hands real work to the session's Pi, then tells you Pi's answer; "Chat only" just chats; "Pi thinks" sends
+  what you say to Pi and reads Pi's words out. Set it in the call or in the model chip's menu. Talk any time
+  (talking over the voice stops it) or hold to talk; mute; end. What you say to Pi shows as your message marked voice,
+  and the rest of the talk as quiet voice rows. Approvals stay a tap in the chat. The screen-off notification is to come.
+- **Voice settings** (in progress). Pi checks which live and dictation models your ChatGPT (Codex)
   sign-in has (`app_action voice.check`) and how each live model's calls are set up, and changes the voice settings
   (`voice.*`: live and dictation model, voice, language, who thinks, turn-taking, progress, reader, daily minutes) after
   checking a model, voice or language with OpenAI; a session has its own voice mode (`sessions.voiceMode`). Minutes of

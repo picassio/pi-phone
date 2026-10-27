@@ -2196,6 +2196,9 @@ export class PocketApp {
                 meta.voiceMode = mode;
             }
         }, context);
+
+        // A call going on there now follows.
+        await this.voiceBridge.modeChanged(Number(root), this.voiceModeOf(root));
     }
 
     /**

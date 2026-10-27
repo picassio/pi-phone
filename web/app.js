@@ -17,6 +17,8 @@ import {
 } from "./files-panel.js";
 import { BrowserButton, BrowserPanel, BrowserPreview, BrowserWatcher, browserShown } from "./browser-panel.js";
 import { ComputerButton, ComputerPanel, ComputerPreview, ComputerWatcher, computerShown } from "./computer-panel.js";
+import { voiceShown } from "./voice-call.js";
+import { VoicePanel } from "./voice-view.js";
 import { ExtensionPage, openPageWhenReady, openSheetWhenReady } from "./extension-ui.js";
 import { GATEWAY_PAGE, GatewayPage } from "./gateway-panel.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
@@ -475,19 +477,21 @@ function App() {
     const page = !board && state.page !== null;
     const placed = board || page;
     const filing = !placed && filesShown(state);
+    // A voice call's view (PP-189) takes the panels' place while it shows: full screen on a phone, at the right on wide screens.
+    const voicing = !placed && !filing && inConversation && voiceShown(state);
     // Pi's browser takes the Files tile's place (one panel at a time), and the People panel's.
-    const browsing = !placed && !filing && inConversation && browserShown(state);
+    const browsing = !placed && !filing && !voicing && inConversation && browserShown(state);
     // Pi's computer (PP-178) takes the same place, after the browser's.
-    const computing = !placed && !filing && !browsing && inConversation && computerShown(state);
-    const people = !placed && !filing && !browsing && !computing && peopleDocked(state);
+    const computing = !placed && !filing && !voicing && !browsing && inConversation && computerShown(state);
+    const people = !placed && !filing && !voicing && !browsing && !computing && peopleDocked(state);
     const peeking = !placed && peeksWanted(state);
     const tiles = peeking ? peekTiles(state) : [];
     // The column takes the place beside the conversation when Browser and People leave it free; otherwise a strip,
     // which only shows when there are tiles.
-    const peekColumn = peeking && PEEK_WIDE.matches && !filing && !people;
+    const peekColumn = peeking && PEEK_WIDE.matches && !filing && !people && !voicing;
 
     return html`<div
-        class=${`layout ${inConversation || placed ? "" : "home"} ${filing || browsing || computing ? "filing" : ""}`}
+        class=${`layout ${inConversation || placed ? "" : "home"} ${filing || browsing || computing || voicing ? "filing" : ""}`}
         data-part="app"
     >
         <aside class="sidebar window" data-part="sidebar">
@@ -540,6 +544,7 @@ function App() {
         <${PanelHost} key=${`files:${state.conversationId}`} shown=${filing} panel=${FilesPanel} />
         <${PanelHost} key="pi-browser" shown=${browsing} panel=${BrowserPanel} />
         <${PanelHost} key="pi-computer" shown=${computing} panel=${ComputerPanel} />
+        <${PanelHost} key="pi-voice" shown=${voicing} panel=${VoicePanel} />
         <${BrowserWatcher} />
         <${ComputerWatcher} />
         ${inConversation && html`<${PeopleHost} shown=${people} replaced=${filing} />`}

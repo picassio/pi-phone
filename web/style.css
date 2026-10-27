@@ -4214,6 +4214,103 @@ pre.diff .del {
     color: var(--muted);
 }
 
+/* A voice call (voice-view.js, PP-189): the waveform beside the mic, in the accent; lit while a call goes on here. */
+.composer-row .composer-voice {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r-control);
+    color: var(--accent);
+}
+
+.composer-row .composer-voice.in-call {
+    background: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+/* The voice view: the assistant sheet's parts in a panel (full screen on a phone, at the right on wide screens). */
+.voice-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.voice-panel .voice-mode-chip {
+    flex: none;
+    max-width: 50%;
+}
+
+.voice-modes {
+    flex: none;
+    padding: 8px 14px 4px;
+    border-bottom: 1px solid var(--hair);
+}
+
+.voice-recent {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+}
+
+.voice-recent .voice-line {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.45;
+}
+
+.voice-recent .voice-line b {
+    color: var(--muted);
+}
+
+.voice-recent .voice-line .icon {
+    align-self: flex-start;
+    margin-top: 3px;
+    color: var(--muted);
+}
+
+.voice-working {
+    align-items: center;
+}
+
+.voice-foot {
+    padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
+}
+
+.voice-who {
+    display: block;
+    text-align: left;
+    margin-bottom: 2px;
+}
+
+.assist-wave.voice-speaking i {
+    background: var(--ok);
+}
+
+.assist-big.voice-end {
+    background: var(--err);
+    color: var(--bg);
+}
+
+.voice-ctl.on {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: var(--r-control);
+}
+
+.voice-end-small {
+    color: var(--err);
+}
+
+.voice-turns {
+    align-items: center;
+}
+
+.voice-turns .segmented {
+    align-self: center;
+}
+
 .mic-button.listening {
     color: var(--accent);
     background: var(--accent-soft);
@@ -13770,7 +13867,8 @@ textarea.notes {
     /* While Pi works the row is full, and Stop holds the end of it: Send shows once there is something to send, in the
        mic's place (the mic stays while it listens, to stop it). */
     .composer.busy:not(.filled):has(.composer-mic) .send-button,
-    .composer.busy.filled .composer-mic:not(.listening) {
+    .composer.busy.filled .composer-mic:not(.listening),
+    .composer.busy .composer-voice:not(.in-call) {
         display: none;
     }
 }
@@ -14058,7 +14156,7 @@ textarea.notes {
         width: 32px;
         height: 36px;
     }
-    .composer-row .composer-mic {
+    .composer-row :is(.composer-mic, .composer-voice) {
         width: 32px;
         height: 36px;
     }
@@ -14075,6 +14173,7 @@ textarea.notes {
             .model-chip,
             .plan-chip,
             .composer-mic,
+            .composer-voice,
             .stop-button,
             .send-button
         ) {
@@ -14087,6 +14186,7 @@ textarea.notes {
             .model-chip,
             .plan-chip,
             .composer-mic,
+            .composer-voice,
             .stop-button,
             .send-button
         )::before {

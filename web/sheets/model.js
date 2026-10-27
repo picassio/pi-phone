@@ -4,6 +4,7 @@ import { t, tn } from "../i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { actions, attempt, closeSheet, loadUsage, openSheet, store } from "../store.js";
 import { usageLine } from "../usage.js";
+import { VoiceModeRow } from "../voice-view.js";
 import { useDragToClose } from "../gestures.js";
 import {
     anchorStyle,
@@ -345,6 +346,7 @@ export function ModelPicker() {
                     </div>
                 </div>`
             }
+            ${!forDefault && html`<${VoiceModeRow} session=${store.state.conversationId} />`}
             ${
                 !defaultsKept()
                     ? null

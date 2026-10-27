@@ -52,6 +52,7 @@ import {
     NOTE_ENTRY,
     splitAttachments,
     VOICE_ENTRY,
+    VOICE_PREFIX,
     type VoiceData,
 } from "./entry-format.ts";
 import { documentKind, toMarkdown } from "./documents.ts";
@@ -884,7 +885,8 @@ export class Commands {
         );
 
         app.collab.setTyping(id, user, null);
-        await this.#touched(id, typed, text === typed ? undefined : text);
+        // A spoken request's title is its words, not its voice mark.
+        await this.#touched(id, typed.startsWith(VOICE_PREFIX) ? typed.slice(VOICE_PREFIX.length) : typed, text === typed ? undefined : text);
 
         this.#reportUnanswered(id, submission.wait(context));
 

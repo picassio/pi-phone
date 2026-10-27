@@ -746,6 +746,15 @@ function setChanged(change) {
 /** Who hears extensions' events: `extension-ui.js`, which imports this module and so cannot be imported here. */
 const extensionListeners = new Set();
 const browserFrameListeners = new Set();
+/** The server's events for a Codex voice call's data channel (PP-187), to its engine (`voice-call.js`). */
+const voiceEventListeners = new Set();
+
+export function onVoiceEvents(listener) {
+    voiceEventListeners.add(listener);
+
+    return () => voiceEventListeners.delete(listener);
+}
+
 const computerFrameListeners = new Set();
 
 /** Hear the pictures of a session's computer (`computer-panel.js`), as Pi's browser's frames: outside the store. */
@@ -822,6 +831,11 @@ const handlers = {
     computer: (data) => setComputer(data),
     "computer-frame": (data) => {
         for (const listener of computerFrameListeners) {
+            listener(data);
+        }
+    },
+    voice: (data) => {
+        for (const listener of voiceEventListeners) {
             listener(data);
         }
     },
@@ -1396,6 +1410,8 @@ const ROW_KINDS = new Set([
     "shell",
     "command",
     "note",
+    // What was said in a voice call and did not go to Pi as a message (PP-188).
+    "voice",
     "fromPi",
 ]);
 

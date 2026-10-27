@@ -34,6 +34,7 @@ import { TrustBar } from "./trust.js";
 import { prefs } from "./theme.js";
 import { says } from "./turns.js";
 import { MicButton, useDictation } from "./voice.js";
+import { VoiceButton } from "./voice-view.js";
 import {
     APPLE,
     contextLevel,
@@ -1557,6 +1558,7 @@ export function Composer() {
                             class="composer-mic"
                             part="composer-button"
                         />
+                        <${VoiceButton} session=${store.state.conversationId} />
                         <button
                             class=${`send-button ${canSend ? "ready" : ""}`}
                             data-part="send-button"
