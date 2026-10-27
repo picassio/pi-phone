@@ -346,4 +346,11 @@ test("Pi's browser names the secrets it types, for the folder and ask-first rule
     assert.deepEqual(browserSecretNames("browser_run", { goal: "Sign in", values: { user: "tuan", password: { secret: "LOGIN" } } })?.names, ["LOGIN"]);
     assert.equal(browserSecretNames("browser_run", { goal: "Search", values: { q: "lamp" } }), undefined);
     assert.equal(browserSecretNames("bash", { command: "echo $LOGIN" }), undefined);
+    // Pi's computer fills a field with a saved secret by name the same way (PP-178).
+    assert.deepEqual(browserSecretNames("computer_act", { action: "set_value", index: 3, app: "Pi OCU Demo", secret: "LOGIN" }), {
+        names: ["LOGIN"],
+        subject: "Fill [secret LOGIN] into [3] of Pi OCU Demo on the computer",
+    });
+    assert.equal(browserSecretNames("computer_act", { action: "type_text", secret: "LOGIN" })?.subject, "Fill [secret LOGIN] into the field in focus on the computer");
+    assert.equal(browserSecretNames("computer_act", { action: "type_text", text: "hello" }), undefined);
 });

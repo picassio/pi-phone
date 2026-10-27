@@ -54,12 +54,18 @@ function redactJson(value: JsonValue, redact: (text: string) => string): JsonVal
 }
 
 /**
- * The secrets a browser call types by name (PP-32), and a line saying so for an approval card; undefined for any other
- * call, or one that names none.
+ * The secrets a browser call (PP-32) or a computer call (`computer_act`'s set_value and type_text, PP-178) types by
+ * name, and a line saying so for an approval card; undefined for any other call, or one that names none.
  */
 export function browserSecretNames(tool: string, args: Record<string, unknown>): { names: string[]; subject: string } | undefined {
     if (tool === "browser_type" && typeof args.secret === "string") {
         return { names: [args.secret], subject: `Type [secret ${args.secret}] into [${String(args.index)}]` };
+    }
+
+    if (tool === "computer_act" && typeof args.secret === "string") {
+        const where = args.action === "set_value" ? `[${String(args.index)}]` : "the field in focus";
+
+        return { names: [args.secret], subject: `Fill [secret ${args.secret}] into ${where}${typeof args.app === "string" ? ` of ${args.app}` : ""} on the computer` };
     }
 
     if (tool === "browser_run" && typeof args.values === "object" && args.values !== null) {
@@ -313,7 +319,8 @@ export default function createSecrets(host: PocketHost) {
                     }
 
                     // machine_run runs a command as bash does, on a machine: the same rules for the secrets it names. Pi's browser
-                    // types a secret by name (browser_type's secret, browser_run's { secret } values; PP-32): the same rules too.
+                    // types a secret by name (browser_type's secret, browser_run's { secret } values; PP-32), and so does Pi's
+                    // computer (computer_act's secret): the same rules too.
                     const browserSecrets = browserSecretNames(call.name, call.arguments as Record<string, unknown>);
 
                     if (call.name !== "bash" && call.name !== "machine_run" && browserSecrets === undefined) {

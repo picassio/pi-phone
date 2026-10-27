@@ -1,10 +1,13 @@
 // Pi's computer tools (PP-178) in the app, with a stand-in machine and ocu (`test/support/fake-ocu.ts`): computer_control
 // start names the machine and apps the machine has (never a password manager), shows the owner one card, and on
 // Approve the session starts; computer_screen and computer_act read and act through it, a password field refused;
-// computer_screenshot sends the window's picture; stop ends it. Only the owner's Pi may.
+// computer_screenshot sends the window's picture; stop ends it. Only the owner's Pi may. A password field takes only a
+// saved secret by name (as Pi's browser's): its value reaches ocu alone, with that call's opt-out of ocu's guard, and Pi,
+// the transcript and the model see [secret NAME]; the folder and ask-first rules hold.
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
@@ -20,11 +23,25 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "read it": ["computer_screen", { app: "Pi OCU Demo" }],
     "type the password": ["computer_act", { action: "set_value", index: 3, value: "hunter2" }],
     "fill the name": ["computer_act", { action: "set_value", index: 2, value: "Tuan" }],
+    "fill the password": ["computer_act", { action: "set_value", index: 3, secret: "DEMO_PW" }],
+    "type the secret": ["computer_act", { action: "type_text", secret: "DEMO_PW" }],
+    "fill the other one": ["computer_act", { action: "set_value", index: 3, secret: "ELSEWHERE_PW" }],
+    "fill the asking one": ["computer_act", { action: "set_value", index: 3, secret: "ASK_PW" }],
+    "fill a missing one": ["computer_act", { action: "set_value", index: 3, secret: "NO_SUCH_PW" }],
+    "fill with both": ["computer_act", { action: "set_value", index: 3, secret: "DEMO_PW", value: "x" }],
     "picture it": ["computer_screenshot", {}],
     "how is it": ["computer_control", { action: "status", machine: "tuanlh-sandbox-01" }],
     "stop it": ["computer_control", { action: "stop" }],
 };
+/** Every request the model was sent, whole. */
+const requests: string[] = [];
+const PASSWORD = "demo-pass-55555";
+const ocuLog = join(mkdtempSync(join(root, "computer-ocu-")), "calls.jsonl");
+const ocuCalls = (): { tool: string; args: Record<string, unknown> }[] =>
+    existsSync(ocuLog) ? readFileSync(ocuLog, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { tool: string; args: Record<string, unknown> }) : [];
+
 const route: FauxResponseStep = (request) => {
+    requests.push(JSON.stringify(request));
     const { role, text } = lastText(request as never);
 
     for (const [ask, [tool, args]] of Object.entries(calls)) {
@@ -41,11 +58,14 @@ before(async () => {
     app = await openApp(scriptedModel(route), join(root, "computer-data"), undefined, {
         computer: {
             machines: () => [{ id: "m1", name: "tuanlh-sandbox-01", platform: "linux", connected: true, tools: { ocu: "1.1.2-pp.1" } }],
-            launch: (_machine, script) => spawn(process.execPath, [FAKE, script.includes("python3 -c") ? "sign" : "mcp"], { stdio: ["pipe", "pipe", "pipe"] }),
+            launch: (_machine, script) => spawn(process.execPath, [FAKE, script.includes("python3 -c") ? "sign" : "mcp"], { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, FAKE_OCU_LOG: ocuLog } }),
             idleEndMs: 60_000,
             refreshMs: 60_000,
         },
     });
+    app.secrets.set("DEMO_PW", { value: PASSWORD, description: "the demo's password" });
+    app.secrets.set("ELSEWHERE_PW", { value: "elsewhere-pass-66666", folders: [join(root, "elsewhere")] });
+    app.secrets.set("ASK_PW", { value: "asking-pass-77777", ask: true });
 });
 
 after(async () => {
@@ -94,8 +114,47 @@ test("computer_control start: only apps the machine has, never a password manage
     assert.equal(app.computerControl.view()[0]?.conversationId, id);
 
     assert.match((await turn(id, "read it")).said, /3 password text \[password\][\s\S]*\(Computer control on tuanlh-sandbox-01: \d+ min left, until \d\d:\d\d\.\)/);
-    assert.match((await turn(id, "type the password")).said, /\[3\] is a password field: Pi does not type into it/);
+    assert.match((await turn(id, "type the password")).said, /\[3\] is a password field: Pi never types a password as text\. Fill it with a saved secret by name \(secret: \\"NAME\\", secrets_list\)/);
+    assert.ok(!ocuCalls().some((each) => each.args.value === "hunter2"), "plain text into a password field never reached ocu");
     assert.match((await turn(id, "fill the name")).said, /Set \[2\] text to \\"Tuan\\"\.[\s\S]*Value: Tuan/);
+
+    // A saved secret by name into the password field: its value reaches ocu (with this call's opt-out), Pi reads its name.
+    const filled = await turn(id, "fill the password");
+
+    assert.match(filled.said, /Set \[3\] password text \[password\] to \[secret DEMO_PW\]\./);
+    assert.deepEqual(ocuCalls().at(-1), { tool: "set_value", args: { app: "demo_app.py", element_index: "3", value: PASSWORD, allow_password_input: true } });
+    // Into a field that shows what it holds (the name): the window Pi reads says [secret DEMO_PW].
+    const typed = await turn(id, "type the secret");
+
+    assert.match(typed.said, /Typed \[secret DEMO_PW\]\.[\s\S]*Value: Tuan\[secret DEMO_PW\]/);
+    assert.deepEqual(ocuCalls().at(-1), { tool: "type_text", args: { app: "demo_app.py", text: PASSWORD, allow_password_input: true } });
+    // Where it may not be used, unknown, or with a value too: refused before ocu.
+    const before = ocuCalls().length;
+
+    assert.match((await turn(id, "fill the other one")).said, /\$ELSEWHERE_PW may not be used in this folder/);
+    assert.match((await turn(id, "fill a missing one")).said, /There is no secret NO_SUCH_PW: secrets_list says which you may use/);
+    assert.match((await turn(id, "fill with both")).said, /Give value, or a saved secret's name \(secret\), not both/);
+    assert.equal(ocuCalls().length, before, "none of them reached ocu");
+    // Ask-first: a card first; on Allow, it is filled in.
+    const asking = await turn(id, "fill the asking one", true);
+
+    assert.equal(asking.card?.subject, "Fill [secret ASK_PW] into [3] on the computer");
+    assert.match(asking.card?.reason ?? "", /Uses \$ASK_PW/);
+    assert.match(asking.said, /Set \[3\] password text \[password\] to \[secret ASK_PW\]\./);
+    assert.equal(ocuCalls().at(-1)?.args.value, "asking-pass-77777");
+    // The values: in ocu's calls, never in the transcript or what the model was sent; Pi's other calls never opt out.
+    const seen = JSON.stringify(await modelTexts(app, id as never)) + requests.join("\n");
+
+    for (const value of [PASSWORD, "asking-pass-77777", "elsewhere-pass-66666"]) {
+        assert.ok(!seen.includes(value), `${value} reached the transcript or the model`);
+    }
+
+    assert.deepEqual(
+        ocuCalls()
+            .filter((each) => each.args.allow_password_input !== undefined)
+            .map((each) => each.args.value ?? each.args.text),
+        [PASSWORD, PASSWORD, "asking-pass-77777"],
+    );
     assert.match((await turn(id, "how is it")).said, /- tuanlh-sandbox-01: ocu 1\.1\.2-pp\.1; session #\d+ controls it until/);
 
     const shot = await turn(id, "picture it");

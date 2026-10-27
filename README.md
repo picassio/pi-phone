@@ -248,7 +248,9 @@ No Termux, no laptop, no cloud VM.
   it (`computer_control`, `computer_screen`, `computer_act`, `computer_screenshot`), through Computer use (ocu, a
   machine tool) running there over the app's own ssh. A small window on the machine says Pi is using it, with **Stop**;
   the session ends at its time, soon after Pi's turn ends, or on Stop. Following along (when Pi asks) lets an app the
-  named ones open join. Password fields are marked in what Pi reads, and neither Pi nor ocu types into them.
+  named ones open join. Password fields are marked in what Pi reads, and Pi never types a password as text: it fills one
+  with a saved secret by name (`computer_act` with `secret`, the same folder and ask-first rules as everywhere; the value
+  goes into the field, Pi reads `[secret NAME]`), or you type it on Take over.
   pi-phone itself, banking and payment apps, password managers and authenticators, and the apps on your Never list are
   never read or touched.
 - **Pi's computer**, a panel like Pi's browser: the top bar's monitor button opens it beside the conversation (on a

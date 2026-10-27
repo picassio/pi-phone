@@ -846,14 +846,15 @@ export class ComputerControl {
     /**
      * Pi acts in an app: checked here first (the app, the owner's hands, password fields, the element still the one read),
      * then ocu acts and answers with the window after it. With follow, an app that opens from it joins the session.
+     * A password field takes only a saved secret by name (`secret`, `extensions/computer.ts`), never Pi's own text.
      */
     async act(
         session: ComputerSession,
         wanted: string | undefined,
         action:
             | { op: "click"; index?: number; x?: number; y?: number; count?: number; button?: "left" | "right" | "middle" }
-            | { op: "set_value"; index: number; value: string }
-            | { op: "type_text"; text: string }
+            | { op: "set_value"; index: number; value: string; secret?: string }
+            | { op: "type_text"; text: string; secret?: string }
             | { op: "press_key"; key: string }
             | { op: "scroll"; index: number; direction: "up" | "down" | "left" | "right"; pages?: number }
             | { op: "secondary_action"; index: number; name: string },
@@ -885,31 +886,33 @@ export class ComputerControl {
                 break;
             }
 
+            // A saved secret by name (`secret`, its value in value or text): the one way Pi fills a password field, and
+            // the only call of Pi's that tells ocu `allow_password_input`. What it did says the name, never the value.
             case "set_value": {
-                if (element!.password) {
-                    throw new Error(`[${element!.index}] is a password field: Pi does not type into it. Ask the owner to type it on the computer.`);
+                if (element!.password && action.secret === undefined) {
+                    throw new Error(`[${element!.index}] is a password field: Pi never types a password as text. Fill it with a saved secret by name (secret: "NAME", secrets_list), or ask the owner to type it (Take over in Pi's computer).`);
                 }
 
                 tool = "set_value";
-                args = { element_index: String(element!.index), value: action.value };
-                did = `Set ${named} to ${JSON.stringify(action.value)}`;
+                args = { element_index: String(element!.index), value: action.value, ...(action.secret === undefined ? {} : { allow_password_input: true }) };
+                did = `Set ${named} to ${action.secret === undefined ? JSON.stringify(action.value) : `[secret ${action.secret}]`}`;
                 break;
             }
 
             case "type_text": {
-                if (outline?.focusedPassword === true) {
-                    throw new Error("The field in focus is a password field: Pi does not type into it. Ask the owner to type it on the computer.");
+                if (outline?.focusedPassword === true && action.secret === undefined) {
+                    throw new Error(`The field in focus is a password field: Pi never types a password as text. Fill it with a saved secret by name (secret: "NAME", secrets_list), or ask the owner to type it (Take over in Pi's computer).`);
                 }
 
                 tool = "type_text";
-                args = { text: action.text };
-                did = `Typed ${JSON.stringify(action.text)}`;
+                args = { text: action.text, ...(action.secret === undefined ? {} : { allow_password_input: true }) };
+                did = `Typed ${action.secret === undefined ? JSON.stringify(action.text) : `[secret ${action.secret}]`}`;
                 break;
             }
 
             case "press_key": {
                 if (typesCharacter(action.key) && outline?.focusedPassword === true) {
-                    throw new Error("The field in focus is a password field: Pi does not type into it, a key at a time either. Ask the owner to type it on the computer.");
+                    throw new Error(`The field in focus is a password field: Pi never types a password as text, a key at a time either. Fill it with a saved secret by name (secret: "NAME", secrets_list), or ask the owner to type it (Take over in Pi's computer).`);
                 }
 
                 tool = "press_key";
@@ -941,7 +944,9 @@ export class ComputerControl {
                   ? { frame: { x: action.x - 6, y: action.y - 6, width: 12, height: 12 }, label: "click" }
                   : undefined;
         const result = await this.#call(session, app, tool, args, `${did}`, hit);
-        const text = textOf(result);
+        const filled = action.op === "set_value" ? action.value : action.op === "type_text" ? action.text : "";
+        // A secret's value never comes back in what Pi reads (ocu does not read password fields; elsewhere, its name).
+        const text = "secret" in action && action.secret !== undefined && filled !== "" ? textOf(result).split(filled).join(`[secret ${action.secret}]`) : textOf(result);
 
         if (result.isError) {
             throw new Error(`ocu: ${text}`);

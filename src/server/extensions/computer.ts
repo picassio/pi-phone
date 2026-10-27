@@ -5,7 +5,9 @@
  *   stop it, say how the machines stand, or set a machine's desktop setup line.
  * - `computer_screen`: an app's window as numbered elements (ocu's outline).
  * - `computer_act`: click (an element or a point of the window's picture), set a value, type, press a key, scroll, an
- *   element's other action, wait; answers with the window after it. Never into a password field.
+ *   element's other action, wait; answers with the window after it. A password field only by a saved secret's name
+ *   (`secret`, as Pi's browser's `browser_type`): the secrets module checks the folder and asks first when the secret
+ *   says so (`extensions/secrets.ts`), and its value reaches ocu alone, never Pi.
  * - `computer_screenshot`: a picture of the window, with marks.
  * The owner's alone; never on the team server, never in plan mode.
  */
@@ -24,7 +26,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** In every prompt while the module is on. */
-export const COMPUTER = `Computer control: you can see and operate desktop apps on the owner's machines (Linux for now), in a control session the owner approves on a card. computer_control start names the machine, the apps (as computer_control status or the card's error lists them: their window titles or names) and the minutes you need (5 to 60; ask again with a new card for more); only those apps may be read or touched, so ask with a new card for another, or with follow: true when the work opens other apps (a dialog of another program). Then computer_screen reads an app's window as numbered elements, computer_act clicks, sets values, types, presses keys and scrolls, and answers with the window after it (use the newest numbers), and computer_screenshot shows the window as a picture. Prefer set_value and elements to points. Never type into a password field ([password] in the outline): ask the owner to type it on the computer. pi-phone itself, banking and payment apps, password managers and the owner's Never list are never read or controlled. While the owner has taken the computer over (the panel's Take over), wait until they hand it back. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with computer_control stop as soon as you are done; it also ends shortly after your turn ends. A window on the machine shows that you are using it, with Stop. Say plainly what you read or did, and what you could not.`;
+export const COMPUTER = `Computer control: you can see and operate desktop apps on the owner's machines (Linux for now), in a control session the owner approves on a card. computer_control start names the machine, the apps (as computer_control status or the card's error lists them: their window titles or names) and the minutes you need (5 to 60; ask again with a new card for more); only those apps may be read or touched, so ask with a new card for another, or with follow: true when the work opens other apps (a dialog of another program). Then computer_screen reads an app's window as numbered elements, computer_act clicks, sets values, types, presses keys and scrolls, and answers with the window after it (use the newest numbers), and computer_screenshot shows the window as a picture. Prefer set_value and elements to points. Never type a password as text: fill a password field ([password] in the outline) with set_value or type_text and secret: "NAME" (one of the owner's saved secrets you may use, secrets_list), whose value goes into the field and never to you; otherwise ask the owner to type it (Take over in Pi's computer). pi-phone itself, banking and payment apps, password managers and the owner's Never list are never read or controlled. While the owner has taken the computer over (the panel's Take over), wait until they hand it back. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with computer_control stop as soon as you are done; it also ends shortly after your turn ends. A window on the machine shows that you are using it, with Stop. Say plainly what you read or did, and what you could not.`;
 
 export default function createComputer(host: PocketHost) {
     const control = host.computer;
@@ -291,9 +293,11 @@ export default function createComputer(host: PocketHost) {
         description:
             "Act in an app's window in a computer control session, then answer with the window after it (use its numbers next). " +
             "click / double_click / right_click: an element by index (from the newest computer_screen) or a point x, y in the window's picture (computer_screenshot's pixels). " +
-            "set_value: value into the element index (a text field, a slider): prefer it to typing. type_text: text into the field in focus. press_key: key, like Return, Tab, Escape, ctrl+a, Down. " +
+            "set_value: value into the element index (a text field, a slider): prefer it to typing. type_text: text into the field in focus. " +
+            "Either takes secret: \"NAME\" (one of the owner's saved secrets, secrets_list) instead of value or text: its value goes into the field and never to you; a password field takes only that. " +
+            "press_key: key, like Return, Tab, Escape, ctrl+a, Down. " +
             "scroll: the element index, direction up, down, left or right, pages. secondary_action: the element's action name (from its Secondary Actions). wait: seconds (default 2, at most 10). " +
-            "Never into a password field. Only in the session's apps.",
+            "Never type a password as text: a saved secret by name, or the owner types it (Take over). Only in the session's apps.",
         parameters: Type.Object({
             action: Type.Union([
                 Type.Literal("click"),
@@ -313,6 +317,7 @@ export default function createComputer(host: PocketHost) {
             y: Type.Optional(Type.Number({ description: "A point in the window's picture, in pixels from the top" })),
             value: Type.Optional(Type.String({ description: "set_value: the value" })),
             text: Type.Optional(Type.String({ description: "type_text: the text" })),
+            secret: Type.Optional(Type.String({ description: "set_value / type_text: a saved secret's name (secrets_list), filled in instead of value or text" })),
             key: Type.Optional(Type.String({ description: "press_key: the key or chord" })),
             direction: Type.Optional(Type.Union([Type.Literal("up"), Type.Literal("down"), Type.Literal("left"), Type.Literal("right")])),
             pages: Type.Optional(Type.Number({ minimum: 0.1, maximum: 10, description: "scroll: how many pages (default 1)" })),
@@ -338,6 +343,28 @@ export default function createComputer(host: PocketHost) {
                     return args.index;
                 };
                 let done: Awaited<ReturnType<typeof control.act>>;
+                /** A saved secret by name, for set_value and type_text: its value, never shown. The secrets module checked first. */
+                const secretValue = (given: string | undefined): { value: string; secret: string } | { error: string } => {
+                    const name = args.secret!;
+
+                    if (given !== undefined) {
+                        return { error: `Give ${args.action === "set_value" ? "value" : "text"}, or a saved secret's name (secret), not both.` };
+                    }
+
+                    const value = host.secrets.value(name);
+
+                    if (value === undefined) {
+                        return { error: `There is no secret ${name}: secrets_list says which you may use.` };
+                    }
+
+                    host.secrets.used([name]);
+
+                    return { value, secret: name };
+                };
+
+                if (args.secret !== undefined && args.action !== "set_value" && args.action !== "type_text") {
+                    return reply("secret goes with set_value or type_text.", true);
+                }
 
                 switch (args.action) {
                     case "click":
@@ -351,21 +378,45 @@ export default function createComputer(host: PocketHost) {
                         });
                         break;
 
-                    case "set_value":
+                    case "set_value": {
+                        if (args.secret !== undefined) {
+                            const found = secretValue(args.value);
+
+                            if ("error" in found) {
+                                return reply(found.error, true);
+                            }
+
+                            done = await control.act(session, args.app, { op: "set_value", index: needIndex("set_value"), value: found.value, secret: found.secret });
+                            break;
+                        }
+
                         if (args.value === undefined) {
-                            return reply("set_value needs value.", true);
+                            return reply("set_value needs value (or secret, a saved secret's name).", true);
                         }
 
                         done = await control.act(session, args.app, { op: "set_value", index: needIndex("set_value"), value: args.value });
                         break;
+                    }
 
-                    case "type_text":
+                    case "type_text": {
+                        if (args.secret !== undefined) {
+                            const found = secretValue(args.text);
+
+                            if ("error" in found) {
+                                return reply(found.error, true);
+                            }
+
+                            done = await control.act(session, args.app, { op: "type_text", text: found.value, secret: found.secret });
+                            break;
+                        }
+
                         if (args.text === undefined) {
-                            return reply("type_text needs text.", true);
+                            return reply("type_text needs text (or secret, a saved secret's name).", true);
                         }
 
                         done = await control.act(session, args.app, { op: "type_text", text: args.text });
                         break;
+                    }
 
                     case "press_key":
                         if (args.key === undefined || args.key.trim() === "") {

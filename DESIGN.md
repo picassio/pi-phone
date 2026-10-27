@@ -765,7 +765,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
     the team server; plan mode blocks them): `computer_control` (start = a card, `form.type: "computer"`, machine, apps,
     the minutes Pi asks for, 5 to 60, required; stop; status, with a machine its apps; setup), `computer_screen` (ocu's
     outline and the time left), `computer_act` (click, double or right click by element or by a point of the window's
-    picture, set_value, type_text, press_key, scroll, secondary_action, wait; answers with the window after it),
+    picture, set_value, type_text, press_key, scroll, secondary_action, wait; answers with the window after it;
+    set_value and type_text take `secret: "NAME"` instead of value or text, as `browser_type` does: the secrets
+    module's hook checks the folder, machines and ask-first (`browserSecretNames` covers `computer_act`), the value goes
+    to ocu alone with `allow_password_input: true`, and what Pi reads, the panel's status and the card say
+    `[secret NAME]`. A password field takes only that: plain text or a character key there is refused before ocu,
+    pointing to `secret` or the owner's Take over. A card for the owner to type into a field (as `browser_sign_in`) is
+    not built yet),
     `computer_screenshot` (PNG, marks by element or area). ocu cannot start apps: Pi asks the owner to open one.
   - **The panel** (`web/computer-panel.js`), built from the browser panel's parts and classes (`pb-*`): the top bar's
     monitor button, docked where Files and the browser go (one panel at a time; `computerOpen`), covering the screen on

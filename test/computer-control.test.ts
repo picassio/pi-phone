@@ -219,12 +219,22 @@ test("Pi reads and acts in its apps only; never a password field; [n] only while
     // Password fields: refused here, before ocu gets them.
     const before = calls().length;
 
-    await assert.rejects(control.act(session, undefined, { op: "set_value", index: 3, value: "hunter2" }), /\[3\] is a password field: Pi does not type into it/);
+    await assert.rejects(control.act(session, undefined, { op: "set_value", index: 3, value: "hunter2" }), /\[3\] is a password field: Pi never types a password as text\. Fill it with a saved secret by name/);
     await control.act(session, undefined, { op: "press_key", key: "Tab" });
-    await assert.rejects(control.act(session, undefined, { op: "type_text", text: "hunter2" }), /The field in focus is a password field/);
+    await assert.rejects(control.act(session, undefined, { op: "type_text", text: "hunter2" }), /The field in focus is a password field: Pi never types a password as text/);
     await assert.rejects(control.act(session, undefined, { op: "press_key", key: "h" }), /a key at a time either/);
     assert.deepEqual(calls().slice(before).map((each) => each.tool), ["press_key"], "only Tab reached ocu");
     await control.act(session, undefined, { op: "press_key", key: "Return" });
+    // Pi's own calls never tell ocu it may type into a password field: only a saved secret by name does (its name in
+    // what Pi is told, its value in the field).
+    assert.equal(calls().filter((each) => "allow_password_input" in each.args).length, 0);
+    await control.screen(session, "demo_app.py");
+    const filled = await control.act(session, undefined, { op: "set_value", index: 3, value: "s3cret-55", secret: "DEMO_PW" });
+
+    assert.equal(filled.did, "Set [3] password text [password] to [secret DEMO_PW].");
+    assert.deepEqual(calls().at(-1), { tool: "set_value", args: { app: "demo_app.py", element_index: "3", value: "s3cret-55", allow_password_input: true } });
+    assert.ok(!filled.text.includes("s3cret-55"));
+    assert.ok(!JSON.stringify(frames.map((each) => each.hit)).includes("s3cret-55"));
 
     // The ticker's numbers move with each read: after the panel read it again, Pi's [1] is no longer its [1].
     await control.screen(session, "ticker");
