@@ -7,7 +7,7 @@
 import { type App, cleanUp, lastText, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -40,6 +40,10 @@ let server: Server;
 let browsers: Browsers;
 let page: BrowserPage;
 let base = "";
+/** Every call the stand-in ocu got, one JSON line each (`FAKE_OCU_LOG`). */
+let ocuLog = "";
+const ocuCalls = (): { tool: string; args: Record<string, unknown> }[] =>
+    existsSync(ocuLog) ? readFileSync(ocuLog, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { tool: string; args: Record<string, unknown> }) : [];
 
 async function until(check: () => Promise<boolean> | boolean, what: string, timeoutMs = 20_000): Promise<void> {
     const started = Date.now();
@@ -60,6 +64,8 @@ before(async () => {
         return;
     }
 
+    ocuLog = join(mkdtempSync(join(root, "computer-ui-ocu-")), "calls.jsonl");
+    process.env.FAKE_OCU_LOG = ocuLog;
     app = await openApp(scriptedModel(route), join(root, "computer-ui-data"), undefined, {
         computer: {
             machines: () => [{ id: "m1", name: "tuanlh-sandbox-01", platform: "linux", connected: true, tools: { ocu: "1.1.2-pp.1" } }],
@@ -172,6 +178,45 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
     await page.navigate(`${base}/s/${id}`);
     await until(async () => (await text("[data-part=computer-panel]")) !== "", "the panel on a phone");
     await shot("computer-panel-390");
+
+    // Taken over on a phone, with a finger: a tap on the picture brings the keyboard up (the hidden field takes the focus),
+    // and it stays up through the taps that follow (the name field, after a tap elsewhere) and while pictures and the
+    // panel's status come, so what the phone's keyboard types gets there. A press on the picture never takes the focus
+    // from the field, not even for a moment: on a phone, the keyboard goes when the focus leaves a text field.
+    await page.tap(await inPage<{ x: number; y: number }>(`const b = [...document.querySelectorAll("[data-part=computer-panel] .button")].find((each) => each.innerText === "Take over").getBoundingClientRect(); return JSON.stringify({ x: b.x + b.width / 2, y: b.y + b.height / 2 })`));
+    await until(async () => inPage<boolean>(`return JSON.stringify(document.querySelector("[data-part=computer-panel] .pb-capture") !== null && document.querySelector("[data-part=computer-panel] .pb-frame img") !== null)`), "taken over on a phone");
+    const name = await inPage<{ x: number; y: number }>(`
+        const box = document.querySelector("[data-part=computer-panel] .pb-frame img").getBoundingClientRect();
+
+        return JSON.stringify({ x: box.left + box.width * 0.4, y: box.top + box.height * (29 / 220) });
+    `);
+    const clicks = () => ocuCalls().filter((each) => each.tool === "click").length;
+    const focused = () => inPage<string>(`return JSON.stringify(document.activeElement?.className ?? "")`);
+    const before = clicks();
+
+    await page.evaluate(`
+        window.__left = [];
+        document.addEventListener("focusout", (event) => event.target.matches(".pb-capture") && __left.push(event.relatedTarget?.className ?? null), true);
+    `);
+    // Elsewhere first (the label), then the name field.
+    await page.tap({ x: name.x, y: name.y + (await inPage<number>(`return JSON.stringify(document.querySelector("[data-part=computer-panel] .pb-frame img").getBoundingClientRect().height * (150 / 220))`)) });
+    await until(() => clicks() > before, "the first tap as ocu's click");
+    assert.equal(await focused(), "pb-capture", "the keyboard's field has the focus after a tap");
+    await page.tap(name);
+    await until(() => clicks() > before + 1, "the tap on the name field as ocu's click");
+    assert.equal(await focused(), "pb-capture", "the keyboard's field has the focus after the next tap");
+    // A new picture, and the panel's status (another read of the window shown).
+    const reads = ocuCalls().filter((each) => each.tool === "get_app_state").length;
+
+    await app.computerControl.setTab(session.session, "demo_app.py");
+    await until(() => ocuCalls().filter((each) => each.tool === "get_app_state").length > reads, "a new picture");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(await focused(), "pb-capture", "the keyboard's field keeps the focus as pictures and status come");
+    assert.deepEqual(await inPage<unknown[]>(`return JSON.stringify(__left)`), [], "the field never lost the focus");
+    await page.input([{ type: "text", text: "abc" }]);
+    await until(() => ocuCalls().some((each) => each.tool === "type_text" && each.args.text === "abc"), "what the keyboard typed as ocu's type_text");
+    await page.evaluate(`[...document.querySelectorAll("[data-part=computer-panel] .button")].find((each) => each.innerText === "Hand back").click()`);
+    await until(async () => !(await text("[data-part=computer-panel] .pb-status")).includes("You have the window"), "handed back on a phone");
 
     // Menu › Computer control: the machine and its session, the Never list kept by the owner, Stop.
     await page.evaluate(`

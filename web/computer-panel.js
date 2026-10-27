@@ -179,13 +179,19 @@ function Frame({ panel, interactive }) {
             }
         });
     };
+    /**
+     * A press on the picture leaves the focus where it is, as the take-over keys do: the press's default would focus the
+     * panel before the tap's click gives it back to the field, and on a phone the keyboard goes when the focus leaves a
+     * text field, even for that moment. The click still comes.
+     */
+    const keep = (event) => interactive && event.preventDefault();
     const ratio = frame === null ? 1.6 : frame.width / frame.height;
 
     return html`<div
         class=${`pb-frame ${interactive ? "live" : ""}`}
         style=${`aspect-ratio:${frame === null ? "16/10" : `${frame.width}/${frame.height}`};--ratio:${ratio};--frame-max:100cqw`}
     >
-        ${frame !== null && html`<img ref=${image} src=${`data:image/png;base64,${frame.png}`} alt=${t("{app} on {machine}", { app: panel.apps.find((each) => each.name === panel.tab)?.label ?? panel.tab, machine: panel.machineName })} draggable="false" onClick=${tap} />`}
+        ${frame !== null && html`<img ref=${image} src=${`data:image/png;base64,${frame.png}`} alt=${t("{app} on {machine}", { app: panel.apps.find((each) => each.name === panel.tab)?.label ?? panel.tab, machine: panel.machineName })} draggable="false" data-no-swipe=${interactive ? "" : undefined} onPointerDown=${keep} onClick=${tap} />`}
         ${
             frame?.hit &&
             !interactive &&

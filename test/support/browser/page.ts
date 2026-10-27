@@ -1044,6 +1044,19 @@ export class BrowserPage {
         };
     }
 
+    /**
+     * A finger's tap at CSS pixels of the viewport, as a phone's screen gets one (touch emulation is on for a phone's
+     * size): touch events, then the click the browser makes of them.
+     */
+    async tap(at: { x: number; y: number }): Promise<void> {
+        this.usedAt = Date.now();
+        const point = { x: at.x, y: at.y, radiusX: 4, radiusY: 4, force: 1, id: 1 };
+
+        await this.#send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+        await wait(60);
+        await this.#send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    }
+
     async hover(target: Target): Promise<string> {
         this.usedAt = Date.now();
         const found = await this.locate(target);
