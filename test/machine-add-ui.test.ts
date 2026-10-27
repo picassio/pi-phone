@@ -147,7 +147,8 @@ test("the machine_add card shows the machine, fits a phone, and Approve adds it 
     assert.match(card, /installs pi-env there \(about 2 MB, in ~\/\.pi\/mobile\/tools\) and connects\. Deny saves nothing\./);
     // The machine tools, ticked (PP-177): Computer use among them, needing a desktop session on Linux.
     assert.match(card, /Also install there/);
-    assert.match(card, /Computer use \(ocu\) 1\.1\.2-pp\.1 · about 2\.5 MB · needs a desktop session on Linux/);
+    // The version is the one machine-tools.ts pins (test/machine-tools-ocu.test.ts checks the pin itself).
+    assert.match(card, /Computer use \(ocu\) \d+\.\d+\.\d+-pp\.\d+ · about 2\.5 MB · needs a desktop session on Linux/);
     assert.deepEqual(await inPage<boolean[]>(`return JSON.stringify([...document.querySelectorAll(".machine-add-card .machine-tool input")].map((each) => each.checked))`), [true, true, true, true, true]);
     const fits = await inPage<{ card: number; column: number; page: number; screen: number }>(`
         const card = document.querySelector(".machine-add-card").getBoundingClientRect();
