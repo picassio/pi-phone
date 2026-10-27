@@ -183,7 +183,19 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
     // and it stays up through the taps that follow (the name field, after a tap elsewhere) and while pictures and the
     // panel's status come, so what the phone's keyboard types gets there. A press on the picture never takes the focus
     // from the field, not even for a moment: on a phone, the keyboard goes when the focus leaves a text field.
-    await page.tap(await inPage<{ x: number; y: number }>(`const b = [...document.querySelectorAll("[data-part=computer-panel] .button")].find((each) => each.innerText === "Take over").getBoundingClientRect(); return JSON.stringify({ x: b.x + b.width / 2, y: b.y + b.height / 2 })`));
+    // Where the button is once the panel has come in: it slides over the conversation, so a point read during that moves.
+    const takeOverAt = () => inPage<{ x: number; y: number }>(`const b = [...document.querySelectorAll("[data-part=computer-panel] .button")].find((each) => each.innerText === "Take over").getBoundingClientRect(); return JSON.stringify({ x: b.x + b.width / 2, y: b.y + b.height / 2 })`);
+    let at = await takeOverAt();
+
+    for (let still = 0; still < 3; ) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const now = await takeOverAt();
+
+        still = now.x === at.x && now.y === at.y ? still + 1 : 0;
+        at = now;
+    }
+
+    await page.tap(at);
     await until(async () => inPage<boolean>(`return JSON.stringify(document.querySelector("[data-part=computer-panel] .pb-capture") !== null && document.querySelector("[data-part=computer-panel] .pb-frame img") !== null)`), "taken over on a phone");
     const name = await inPage<{ x: number; y: number }>(`
         const box = document.querySelector("[data-part=computer-panel] .pb-frame img").getBoundingClientRect();
