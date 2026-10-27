@@ -8,6 +8,12 @@ export const FILE_BLOCK = '<file name="';
 /** The entry kind of a note about what a person did (`Commands.note`). */
 export const NOTE_ENTRY = "pocket.note";
 
+/**
+ * How a message spoken in a voice call starts (`voice-bridge.ts`, PP-185): Pi knows speech-to-text may have misheard,
+ * and the transcript marks it as voice.
+ */
+export const VOICE_PREFIX = "[voice] ";
+
 /** The speaker prefix Pi Pocket adds to messages when several people share the server. */
 export const FROM_PREFIX = /^\[from: ([^\]\n]{1,60})\] /;
 

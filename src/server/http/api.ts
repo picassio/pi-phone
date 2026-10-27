@@ -1516,6 +1516,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     return json(response, 200, { ok: true });
                 }
 
+                // Codex's own voice: the call's data channel events, which the page passes on (no sideband there).
+                if (parts[3] === "events") {
+                    app.voiceBridge.fromPage(call, (await readJson<{ events?: unknown }>(request)).events);
+
+                    return json(response, 200, { ok: true });
+                }
+
                 if (parts[3] === "end") {
                     app.voice.end(call.id);
 

@@ -130,7 +130,9 @@ import { takeLock } from "./lock.ts";
 import { SAFETY_COPY_DAYS, safetyCopyBeforeUpgrade } from "./storage-upgrade.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
 import { configureHttp } from "./net.ts";
-import { type LimitOffer, snippet } from "./projection.ts";
+import { type ClientEntry, type LimitOffer, projectEntry, snippet } from "./projection.ts";
+import { VOICE_PREFIX } from "./entry-format.ts";
+import { VOICE_TOOLS, VoiceBridge } from "./voice-bridge.ts";
 import { loadPromptTemplates, type PromptTemplate, type SkillCommand } from "./prompts.ts";
 import { BASE_THEME, Themes } from "./themes.ts";
 import { THEME_ID } from "./themes/format.ts";
@@ -440,6 +442,8 @@ export class PocketApp {
     readonly usageLimits: UsageLimits;
     /** Voice with the ChatGPT sign-in (PP-185): calls and Codex dictation (`voice.ts`). */
     readonly voice: VoiceService;
+    /** The server's side of a call once it is set up: Pi's work in, Pi's words out (`voice-bridge.ts`). */
+    readonly voiceBridge: VoiceBridge;
     /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
     readonly officecli: OfficeCli;
     /** Tools pi-phone installs on machines: OfficeCLI, rg, fd (`machine-tools.ts`). */
@@ -585,8 +589,36 @@ export class PocketApp {
             },
             usedToday: () => this.spend.voiceToday(),
             used: (kind, seconds) => this.spend.voiceUsed(kind, seconds),
+            joined: (call) => void this.voiceBridge.join(call),
+            ended: (call) => void this.voiceBridge.leave(call.id),
             ...(options.voice?.endpoints === undefined ? {} : { endpoints: options.voice.endpoints }),
             ...(options.voice?.fetch === undefined ? {} : { fetch: options.voice.fetch }),
+            now: () => this.now(),
+        });
+        this.voiceBridge = new VoiceBridge({
+            service: this.voice,
+            settings: () => this.config.voice,
+            plan: (session) => this.voicePlan(session as unknown as ConversationId),
+            watch: (session, listener) => this.#watchVoice(session as unknown as ConversationId, listener),
+            submit: async (call, text) => {
+                const id = call.session as unknown as ConversationId;
+
+                await this.commands.submit(id, this.#voiceUser(call.userId), {
+                    text: `${VOICE_PREFIX}${text}`,
+                    mode: this.isBusy(id) ? "steer" : "followUp",
+                    requestId: randomUUID(),
+                });
+            },
+            stop: (call) => this.commands.abort(call.session as unknown as ConversationId, this.#voiceUser(call.userId)),
+            said: async () => {},
+            toPage: (call, events) => {
+                for (const client of this.#clients) {
+                    if (client.user.id === call.userId) {
+                        client.send("voice", { call: call.id, events });
+                    }
+                }
+            },
+            log: (line) => this.log(line),
             now: () => this.now(),
         });
         this.officecli = new OfficeCli({ dataDir: options.dataDir, ...options.officecli });
@@ -2185,8 +2217,89 @@ export class PocketApp {
     /** How a session's call runs: its mode, the voice's instructions with the session's context, and its tools. */
     async voicePlan(id: ConversationId): Promise<CallPlan> {
         const mode = this.voiceModeOf(id);
+        const recent = await this.#voiceContext(id);
+        const instructions = voiceInstructions(mode, this.sessionMeta(id)?.title);
 
-        return { mode, instructions: voiceInstructions(mode, this.sessionMeta(id)?.title), tools: [] };
+        return {
+            mode,
+            instructions: recent === "" ? instructions : `${instructions}\n\n<startup_context>\nThe session so far, newest last:\n${recent}\n</startup_context>`,
+            tools: mode === "work" ? VOICE_TOOLS : [],
+        };
+    }
+
+    /** The person a call is for. */
+    #voiceUser(id: string): User {
+        const user = this.config.users.find((each) => each.id === id);
+
+        if (user === undefined) {
+            throw new HttpError(404, "There is no such person.");
+        }
+
+        return user;
+    }
+
+    /**
+     * A session's recent talk for a call's start: the owner's messages and Pi's text (no tools, thinking or images), the
+     * newest last, about 6000 characters.
+     */
+    async #voiceContext(id: ConversationId): Promise<string> {
+        const view = await (await this.conversation(id)).viewState(context);
+
+        try {
+            const lines: string[] = [];
+
+            for (const entry of view.value.entries) {
+                const shown = projectEntry(entry);
+
+                if (shown?.kind === "user" && shown.text.trim() !== "") {
+                    lines.push(`Owner: ${shown.text.trim().slice(0, 800)}`);
+                } else if (shown?.kind === "assistant") {
+                    const text = shown.blocks
+                        .filter((block) => block.type === "text")
+                        .map((block) => (block as { text: string }).text)
+                        .join("\n")
+                        .trim();
+
+                    if (text !== "") {
+                        lines.push(`Pi: ${text.slice(0, 800)}`);
+                    }
+                }
+            }
+
+            const kept: string[] = [];
+            let size = 0;
+
+            for (const line of lines.reverse()) {
+                if (size + line.length > 6000) {
+                    break;
+                }
+
+                kept.unshift(line);
+                size += line.length;
+            }
+
+            return kept.join("\n");
+        } finally {
+            view.dispose();
+        }
+    }
+
+    /** Follow a session for a call: its entries as tabs get them, and whether Pi works there. */
+    async #watchVoice(id: ConversationId, listener: (entries: readonly ClientEntry[], busy: boolean) => void): Promise<() => void> {
+        const view = await (await this.conversation(id)).viewState(context);
+        const emit = () =>
+            listener(
+                view.value.entries.map((entry) => projectEntry(entry)).filter((entry): entry is ClientEntry => entry !== undefined),
+                this.isBusy(id),
+            );
+        const unsubscribe = view.subscribe(emit);
+
+        emit();
+
+        return () => {
+            unsubscribe();
+            view.dispose();
+        };
     }
 
     /** Every connected tab. */

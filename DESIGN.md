@@ -757,6 +757,20 @@ so Pi changes them through the settings tools; "the last session" is the one the
     dailyLimit (minutes or none). A session's own mode in `SessionMeta.voiceMode` (`sessions.voiceMode`).
   - **Minutes** in `SpendDoc.voice` by day (seconds of calls and of Codex dictation), shown in Spend; a call or a
     dictation is refused once today's minutes reach the daily limit. Calls are in memory: a restart ends them.
+  - **Bridge** (`src/server/voice-bridge.ts`, PP-187): once a `key` or `server` call is named, the server joins it by id
+    (`wss://…/v1/realtime?call_id=`, the sign-in's headers) and sends `session.update`: the call's whole configuration
+    but the model, its instructions with `<startup_context>` (the session's title and its last ~6000 characters of
+    the owner's messages and Pi's text) and, in "Pi works", the tools `ask_pi({request})` and `stop_pi()`. ask_pi
+    submits `[voice] request` (`VOICE_PREFIX`) as the owner's message, steering a busy Pi, answers the tool at once and
+    asks for the ack. The bridge follows the session's view: Pi's new text is queued in pieces (`speechChunks`: two
+    sentences, then paragraphs; `speakable` drops code and Markdown) and each goes as a system item (`Pi says: …`) with
+    `response.create` only when no response runs (the next after `response.done`); a tool call with no text is a cue
+    (`Pi is working: bash …`) when nothing was spoken for `cueSeconds`; with progress `answer` only Pi's last text,
+    when the run ends. "Pi thinks": no tools, `create_response: false`; each transcript of the owner goes to Pi as it
+    is and Pi's words are read out (`Read aloud: …`). Codex's `gpt-live` has no sideband: the page passes the data
+    channel's events (`POST /api/voice/calls/:call/events`) and gets the server's as `voice` events; a
+    `delegation.created` goes to Pi and Pi's words to `delegation.context.append` (channel `speakable`). OpenAI
+    closing the sideband ends the call (its minutes count).
   - **Routes:** `POST /api/c/:id/voice` (mode), `POST /api/c/:id/voice/call` (start), `GET /api/voice`,
     `POST /api/voice/check`, `POST /api/voice/calls/:call/{sdp,joined,end}`, `POST /api/voice/dictation[/:id/end]`,
     `POST /api/settings {voice}`. Tests: a fake OpenAI (`test/support/fake-openai.ts`).

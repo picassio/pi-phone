@@ -710,13 +710,12 @@ export class VoiceService {
             call.rtc = posted.rtc;
         }
 
-        if (call.path === "server") {
-            if (call.rtc === undefined) {
-                throw new HttpError(502, "OpenAI did not name the call.");
-            }
-
-            this.#options.joined?.(call);
+        if (call.path === "server" && call.rtc === undefined) {
+            throw new HttpError(502, "OpenAI did not name the call.");
         }
+
+        // The bridge joins: by the call's id (`server`), or through the page's data channel (`codex`).
+        this.#options.joined?.(call);
 
         return { sdp: posted.sdp };
     }
