@@ -15,6 +15,8 @@ import {
     SHELL_ENTRY,
     type ShellData,
     splitAttachments,
+    VOICE_ENTRY,
+    type VoiceData,
 } from "./entry-format.ts";
 import type { WaitView } from "./limit-gate.ts";
 import type { StreamTiming } from "./timing.ts";
@@ -72,6 +74,7 @@ export type ClientEntry =
     | ({ id: number; kind: "shell"; truncated?: number } & ShellData)
     | ({ id: number; kind: "command"; truncated?: number } & CommandData)
     | { id: number; kind: "note"; text: string; name: string }
+    | { id: number; kind: "voice"; turns: { speaker: "you" | "voice"; text: string }[]; chat: boolean; live: string }
     | { id: number; kind: "fromPi"; title: string; file: string }
     | { id: number; kind: "other"; entryKind: string };
 
@@ -429,6 +432,20 @@ export function projectEntry(entry: EntryRecord, full = false): ClientEntry | un
                 kind: "note",
                 text: String(data?.text ?? ""),
                 name: String(data?.name ?? "Someone"),
+            };
+        }
+
+        case VOICE_ENTRY: {
+            const data = entry.data as Partial<VoiceData> | undefined;
+
+            return {
+                id,
+                kind: "voice",
+                turns: (Array.isArray(data?.turns) ? data.turns : [])
+                    .filter((turn) => (turn.speaker === "you" || turn.speaker === "voice") && typeof turn.text === "string")
+                    .map((turn) => ({ speaker: turn.speaker, text: turn.text })),
+                chat: data?.chat === true,
+                live: String(data?.live ?? ""),
             };
         }
 
@@ -893,6 +910,12 @@ export function peekLines(
                     text: snippet(entry.text, PEEK_TEXT),
                     name: entry.name,
                 });
+                break;
+            case "voice":
+                for (const turn of entry.turns) {
+                    lines.push({ kind: "note", text: snippet(turn.text, PEEK_TEXT), name: turn.speaker === "you" ? "You (voice)" : "Voice" });
+                }
+
                 break;
             case "compaction":
                 lines.push({ kind: "event", text: "Context compacted" });

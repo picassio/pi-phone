@@ -2877,5 +2877,8 @@
     "Left out": "未安装",
     "Replaces": "替换",
     "Installing an extension is the owner's: waiting for them.": "安装扩展由所有者决定：正在等待他们。",
-    "Pi asks to install the extension {module}": "Pi 请求安装扩展 {module}"
+    "Pi asks to install the extension {module}": "Pi 请求安装扩展 {module}",
+    "voice": "语音",
+    "Voice": "语音",
+    "Voice chat: Pi reads it with your next message.": "语音闲聊：Pi 会在你的下一条消息时读到。"
 }

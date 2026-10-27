@@ -51,6 +51,8 @@ import {
     FROM_PREFIX,
     NOTE_ENTRY,
     splitAttachments,
+    VOICE_ENTRY,
+    type VoiceData,
 } from "./entry-format.ts";
 import { documentKind, toMarkdown } from "./documents.ts";
 import { describe, HttpError, optionalText } from "./errors.ts";
@@ -1148,6 +1150,43 @@ export class Commands {
                 type: "write",
                 entry: { kind: NOTE_ENTRY, data: { text, by: user.id, name: user.name }, model },
                 requestId: ownRequest(user.id, `note-${randomUUID()}`),
+            },
+            context,
+        );
+    }
+
+    /**
+     * What was said in a voice call and did not go to Pi as a message (PP-188): the owner's words and the voice's, a row
+     * marked voice in the transcript. In "Chat only" (`chat`) Pi gets them too, with its next message, as a short note;
+     * otherwise they are for people only (Pi had the request, and its own words).
+     */
+    async voiceTurns(id: ConversationId, user: User, turns: readonly { speaker: "you" | "voice"; text: string }[], chat: boolean, live: string): Promise<void> {
+        const app = this.#app;
+        const kept = turns
+            .map((turn) => ({ speaker: turn.speaker, text: app.secrets.redact(turn.text.trim(), id).slice(0, 4000) }))
+            .filter((turn) => turn.text !== "");
+
+        if (kept.length === 0) {
+            return;
+        }
+
+        const data: VoiceData = { turns: kept, chat, live, by: user.id };
+        const note = kept.map((turn) => `${turn.speaker === "you" ? user.name : "Voice"}: ${turn.text}`).join("\n");
+        const model = chat
+            ? [
+                  {
+                      role: "user" as const,
+                      content: [{ type: "text" as const, text: `[voice chat, before this message] ${note}` }],
+                      timestamp: Date.now(),
+                  },
+              ]
+            : undefined;
+
+        await (await app.conversation(id)).submit(
+            {
+                type: "write",
+                entry: { kind: VOICE_ENTRY, data, ...(model === undefined ? {} : { model }) },
+                requestId: ownRequest(user.id, `voice-${randomUUID()}`),
             },
             context,
         );

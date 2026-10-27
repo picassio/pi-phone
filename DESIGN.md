@@ -771,6 +771,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
     channel's events (`POST /api/voice/calls/:call/events`) and gets the server's as `voice` events; a
     `delegation.created` goes to Pi and Pi's words to `delegation.context.append` (channel `speakable`). OpenAI
     closing the sideband ends the call (its minutes count).
+  - **Transcript** (PP-188): a request handed to Pi is the owner's message `[voice] …`, shown with a "voice" mark. What
+    else was said goes in a `pocket.voice` entry (`VOICE_ENTRY`, `Commands.voiceTurns`, written when a response ends:
+    the owner's words unless they went to Pi in that response, and the voice's) shown as quiet rows. What the voice says
+    for Pi (Pi's words read back, cues) is not kept again. In "Chat only" the entry carries a model message
+    (`[voice chat, before this message] …`), so Pi gets the talk with its next message, as `Commands.note` does;
+    otherwise none: Pi never sees it. Secrets are redacted as in messages; export and peeks show the rows.
   - **Routes:** `POST /api/c/:id/voice` (mode), `POST /api/c/:id/voice/call` (start), `GET /api/voice`,
     `POST /api/voice/check`, `POST /api/voice/calls/:call/{sdp,joined,end}`, `POST /api/voice/dictation[/:id/end]`,
     `POST /api/settings {voice}`. Tests: a fake OpenAI (`test/support/fake-openai.ts`).

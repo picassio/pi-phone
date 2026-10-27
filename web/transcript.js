@@ -71,6 +71,8 @@ const NEXT_REPORT = /\n\n(?=\[subagent \S+ (?:answered|failed))/;
 
 /** How a scheduled message starts (see src/server/schedules.ts). */
 const SCHEDULED = "[scheduled] ";
+/** How a message spoken in a voice call starts (`VOICE_PREFIX`, src/server/entry-format.ts). */
+const VOICE = "[voice] ";
 
 /** A message the app sent for a person, and what sent it: PiP, a PR watch, a webhook (`submit` in src/server/commands.ts). */
 const VIA = /^\[via ([^\]\n]{1,300})\] /;
@@ -308,13 +310,15 @@ function UserEntry({ entry, view, users }) {
     const via = authorId === undefined ? VIA.exec(written) : null;
     const sent = via ? written.slice(via[0].length) : written;
     const scheduled = sent.startsWith(SCHEDULED);
+    // Spoken in a voice call (PP-185): marked voice, as speech-to-text may have misheard.
+    const spoken = !scheduled && sent.startsWith(VOICE);
     // A linked session's message: shown by its label and its fence alone, so the words before the fence (which tell Pi
     // how to read it) can change without changing how older messages show.
     const peerText =
         via && /^linked session \S+$/.test(via[1])
             ? /\n<linked-session-message>\n([\s\S]*)\n<\/linked-session-message>$/.exec(sent)?.[1]
             : undefined;
-    const body = peerText ?? (scheduled ? sent.slice(SCHEDULED.length) : sent);
+    const body = peerText ?? (scheduled ? sent.slice(SCHEDULED.length) : spoken ? sent.slice(VOICE.length) : sent);
     const files = attachments ? parseAttachments(attachments) : [];
     // `/skill:name request`: the skill by name, and the request.
     const skill = SKILL.exec(body);
@@ -385,6 +389,7 @@ function UserEntry({ entry, view, users }) {
                 ${name && html`<b class="prompt-author" data-part="prompt-author">${name}</b>`}
                 ${entry.at && html`<span class="prompt-time">${clock(entry.at)}</span>`}
                 ${scheduled && html`<span class="prompt-time">· ${t("scheduled")}</span>`}
+                ${spoken && html`<span class="prompt-time voice-mark" data-part="voice-mark">· <${Icon} name="mic" size=${11} /> ${t("voice")}</span>`}
                 ${via && viaNote && html`<span class="prompt-time">· ${team ? (peerText === undefined ? viaNote : t("a linked session")) : t("via {where}", { where: peerText === undefined ? viaNote : t("a linked session") })}</span>`}
             </span>
             <div class="prompt-body" data-part="prompt-text">
@@ -2308,6 +2313,22 @@ function ShellEntry({ entry }) {
     />`;
 }
 
+/**
+ * What was said in a voice call and did not go to Pi as a message (PP-188): the owner's words and the voice's, as quiet
+ * rows. Talk in "Chat only" goes to Pi with the next message, which the row says.
+ */
+function VoiceEntry({ entry }) {
+    return html`<div class="voice-entry" id=${`entry-${entry.id}`} data-part="voice-entry">
+        ${entry.turns.map(
+            (turn) => html`<div class="voice-line" data-part="voice-line">
+                <${Icon} name=${turn.speaker === "you" ? "mic" : "speaker"} size=${12} />
+                <span><b>${turn.speaker === "you" ? t("You") : t("Voice")}</b> · ${turn.text}</span>
+            </div>`,
+        )}
+        ${entry.chat && html`<div class="voice-line voice-note">${t("Voice chat: Pi reads it with your next message.")}</div>`}
+    </div>`;
+}
+
 /** Something a person did that Pi was told about, such as undoing a file. */
 function NoteEntry({ entry }) {
     return html`<div class="note-line" id=${`entry-${entry.id}`}>
@@ -2389,6 +2410,10 @@ function EntryView({ entry }) {
 
     if (entry.kind === "note") {
         return html`<${NoteEntry} entry=${entry} />`;
+    }
+
+    if (entry.kind === "voice") {
+        return html`<${VoiceEntry} entry=${entry} />`;
     }
 
     if (entry.kind === "user") {

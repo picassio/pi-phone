@@ -14,6 +14,15 @@ export const NOTE_ENTRY = "pocket.note";
  */
 export const VOICE_PREFIX = "[voice] ";
 
+/**
+ * The entry kind of what was said in a voice call and did not go to Pi as a message (`Commands.voiceTurns`): the
+ * owner's words and the voice's, marked voice. In "Chat only" Pi gets them too, with its next message.
+ */
+export const VOICE_ENTRY = "pocket.voice";
+
+/** What a voice entry holds. */
+export type VoiceData = { turns: { speaker: "you" | "voice"; text: string }[]; chat: boolean; live: string; by: string };
+
 /** The speaker prefix Pi Pocket adds to messages when several people share the server. */
 export const FROM_PREFIX = /^\[from: ([^\]\n]{1,60})\] /;
 

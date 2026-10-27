@@ -177,6 +177,9 @@ export function transcriptMarkdown(input: ExportInput): string {
             );
         } else if (entry.kind === "note") {
             sections.push(`_${entry.name} ${entry.text}._`);
+        } else if (entry.kind === "voice") {
+            // What was said in a voice call and did not go to Pi as a message.
+            sections.push(entry.turns.map((turn) => `> _${turn.speaker === "you" ? "You (voice)" : "Voice"}:_ ${turn.text}`).join("\n>\n"));
         } else if (entry.kind === "fromPi") {
             // A teammate's shared session, continued here (PP-59), is a Pi session file named shared-…
             sections.push(String(entry.file).startsWith("shared-") ? "---\n\n_Continued from a session shared with you._" : `---\n\n_Continued from Pi in the terminal (${entry.file})._`);

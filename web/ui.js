@@ -1070,6 +1070,10 @@ const ICONS = {
     send: "M12 19V5M5 12l7-7 7 7",
     stop: "M7 7h10v10H7z",
     mic: "M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM19 11a7 7 0 01-14 0M12 18v3",
+    // Voice (PP-185): a call (the waveform), the voice speaking, and the mic muted.
+    voice: "M4 10v4M8 6v12M12 3v18M16 6v12M20 10v4",
+    speaker: "M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 010 6M19 6a8 8 0 010 12",
+    micoff: "M3 3l18 18M9 9v3a3 3 0 005 2.2M15 10V6a3 3 0 00-5.6-1.5M19 11a7 7 0 01-11.6 5.2M12 18v3",
     clip: "M21 11.5l-8.6 8.6a5 5 0 01-7.1-7.1l8.6-8.6a3.3 3.3 0 014.7 4.7l-8.6 8.6a1.7 1.7 0 01-2.4-2.4l7.9-7.9",
     plus: "M12 5v14M5 12h14",
     artifact: "M4 5h16v14H4zM4 9h16M8 5v4",

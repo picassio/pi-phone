@@ -610,7 +610,7 @@ export class PocketApp {
                 });
             },
             stop: (call) => this.commands.abort(call.session as unknown as ConversationId, this.#voiceUser(call.userId)),
-            said: async () => {},
+            said: (call, turns) => this.commands.voiceTurns(call.session as unknown as ConversationId, this.#voiceUser(call.userId), turns, call.mode === "chat", call.model),
             toPage: (call, events) => {
                 for (const client of this.#clients) {
                     if (client.user.id === call.userId) {

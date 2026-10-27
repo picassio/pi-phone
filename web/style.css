@@ -12806,6 +12806,40 @@ textarea.notes {
     color: var(--muted);
 }
 
+/* What was said in a voice call and did not go to Pi as a message (PP-188): quiet rows, the speaker first. */
+.voice-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 2px 0 10px 4px;
+}
+
+.voice-line {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    font-size: 12.5px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+.voice-line .icon {
+    flex: none;
+    align-self: center;
+}
+
+.voice-line b {
+    font-weight: 600;
+}
+
+.voice-note {
+    font-style: italic;
+}
+
+.prompt-time.voice-mark .icon {
+    vertical-align: -1px;
+}
+
 .link.danger {
     color: var(--err);
     font-weight: 700;
