@@ -215,6 +215,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, await app.hello(user));
         }
 
+        // The owner's Getting started session (PP-235): opened again, or made and started. `whatsNew`: a version to show.
+        if (first === "getting-started" && second === undefined && method === "POST") {
+            const body = await readJson<{ language?: unknown; whatsNew?: unknown }>(request);
+            const session = await app.gettingStarted(user, {
+                ...(typeof body.language === "string" ? { language: body.language } : {}),
+                ...(typeof body.whatsNew === "string" && /^[\w.-]{1,40}$/.test(body.whatsNew) ? { whatsNew: body.whatsNew } : {}),
+            });
+
+            return json(response, 200, { session: Number(session) });
+        }
+
         if (first === "me" && method === "POST") {
             const body = await readJson<{ name?: string; language?: unknown; welcome?: unknown }>(request);
 

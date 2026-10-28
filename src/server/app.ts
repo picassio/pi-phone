@@ -2679,6 +2679,49 @@ export class PocketApp {
         }
     }
 
+    /**
+     * The owner's Getting started session (PP-235; Menu › Getting started, the welcome's last step): opened again, back in
+     * the active list, when there is one; else made, titled and started in their language (`language`: the page's, for
+     * "auto"), on a model there is. `whatsNew`: a version whose notes Pi then walks through (the What's new card).
+     */
+    async gettingStarted(user: User, { language, whatsNew }: { language?: string; whatsNew?: string } = {}): Promise<ConversationId> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner has Getting started.");
+        }
+
+        const t = translator(resolveLanguage(user.language, language));
+        const ask = whatsNew === undefined ? t("Show me around.") : t("Show me what's new in {version}.", { version: whatsNew });
+        const known = user.guide === undefined ? undefined : (Number(user.guide) as unknown as ConversationId);
+
+        if (known !== undefined && this.sessionMeta(known) !== undefined) {
+            await this.commands.updateSession(known, user, { settled: false, archived: false });
+
+            if (whatsNew !== undefined) {
+                await this.commands.submit(known, user, { text: ask, requestId: randomUUID() });
+            }
+
+            return known;
+        }
+
+        const available = this.models.getAvailableSnapshot();
+
+        if (available.length === 0) {
+            throw new HttpError(409, "Sign in to a model first: Pi needs one to show you around.");
+        }
+
+        const { id } = await this.commands.createSession(user, { title: t("Getting started") });
+
+        // A new pi-phone has no model picked yet: the first there is.
+        if ((await this.agentState(id))?.model === undefined) {
+            await this.commands.configure(id, user, { model: { provider: available[0]!.provider, modelId: available[0]!.id } });
+        }
+
+        this.config.updateUser(user.id, { guide: String(id) });
+        await this.commands.submit(id, user, { text: ask, requestId: randomUUID() });
+
+        return id;
+    }
+
     rename(user: User, name: string): void {
         this.config.updateUser(user.id, { name });
         this.#peopleChanged();
@@ -4352,8 +4395,13 @@ export class PocketApp {
         }
 
         // The app's skills: after Pi's own, so a skill of the owner's by the same name comes first.
-        // Effective HTML's (artifacts), and OfficeCLI's where it runs (`third_party/`).
-        const builtIn = [join(APP_ROOT, "third_party", "effective-html", "skills"), ...(this.officecli.available() ? [this.officecli.skillsDir] : [])];
+        // pi-phone's own (`src/skills/`: getting-started), Effective HTML's (artifacts), and OfficeCLI's where it runs
+        // (`third_party/`).
+        const builtIn = [
+            join(APP_ROOT, "src", "skills"),
+            join(APP_ROOT, "third_party", "effective-html", "skills"),
+            ...(this.officecli.available() ? [this.officecli.skillsDir] : []),
+        ];
 
         return { agentDir: getAgentDir(), home: this.#home, settingsPaths, defaultProjectTrust, builtIn };
     }

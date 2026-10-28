@@ -72,6 +72,7 @@ const ORDER = [
     "pip.ts",
     "triggers.ts",
     "gallery.ts",
+    "onboarding.ts",
 ];
 
 /** The built-in modules' names (their files' without `.ts`): a drop-in with one of them is never loaded. */
@@ -115,6 +116,7 @@ const TITLES: Record<string, string> = {
     "pip.ts": "PiP",
     "triggers.ts": "Triggers",
     "gallery.ts": "Extension gallery",
+    "onboarding.ts": "Getting started",
 };
 
 /**
@@ -175,6 +177,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "computer_screen",
     "computer_act",
     "computer_screenshot",
+    "guide",
     "session_stop",
     "session_archive",
     "session_fork",

@@ -11,6 +11,7 @@ import { filesAvailable, setFilesOpen } from "../files-panel.js";
 import { peeksOn, togglePeeks } from "../peeks.js";
 import { modelRefreshAvailable, refreshModels } from "../model-refresh.js";
 import { groupOf } from "../session-groups.js";
+import { openGettingStarted } from "../guide.js";
 
 /** The Compact context row's hint: when the session compacts by itself (PP-78). */
 const compactHint = (at) => (typeof at === "number" ? t("now, or by itself at {n}%", { n: at }) : t("summarize older messages"));
@@ -488,6 +489,7 @@ export function MenuSheet({ places = true }) {
         }
         <div class="group">
             <div class="group-title">${t("App")}</div>
+            ${me?.role === "owner" && item("Getting started", () => openGettingStarted(), "Pi shows you around")}
             ${item("Appearance", () => openSheet({ type: "appearance" }), lookLabel())}
             ${me?.role === "owner" && !["app", "space"].includes(pushSupport()) && item("Notifications", () => openSheet({ type: "notifications" }), pushId() === null ? "off on this device" : "on on this device")}
             ${voiceAvailable() && item("Dictation", () => openSheet({ type: "dictation" }), dictationLanguage())}

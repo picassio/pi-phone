@@ -478,6 +478,23 @@ export const GoalDoc = defineDoc<{ goal?: Goal }>({
     initial: () => ({}),
 });
 
+/** One part of a Getting started guide (PP-235): what it is, and whether it is done. */
+export type GuideItem = { text: string; done: boolean };
+
+/**
+ * A session's Getting started checklist (`extensions/onboarding.ts`, the `guide` tool): the parts the person picked, each
+ * ticked as Pi finishes it; `finished` once Pi closed the guide. The checklist bar under the session's header shows it.
+ */
+export const GuideDoc = defineDoc<{ items: GuideItem[]; finished?: boolean }>({
+    kind: "pocket.guide",
+    version: 1,
+    ...rebased,
+    scope: "conversation",
+    history: "latest",
+    fork: "initial",
+    initial: () => ({ items: [] }),
+});
+
 
 /** A GitHub Actions run a conversation watches (`extensions/ci-watch.ts`): the task that looks at it, and what it is. */
 export type CiWatch = {

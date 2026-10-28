@@ -46,6 +46,8 @@ export interface User {
      * time they open the app. People here before it existed are marked done (`onboarding` in the config).
      */
     welcome?: WelcomeState;
+    /** Their Getting started session (PP-235), by its id: Menu › Getting started opens it again rather than a new one. */
+    guide?: string;
 }
 
 /** Where a person is with the first-run welcome: finished, or skipped (absent: it shows). */
@@ -627,7 +629,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide">>,
     ): void {
         const user = this.userById(id);
 

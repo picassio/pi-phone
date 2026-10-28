@@ -87,6 +87,8 @@ const emptyView = () => ({
     artifacts: [],
     schedules: [],
     goal: null,
+    // The Getting started checklist (PP-235): `{ items, finished }`, or null.
+    guide: null,
     ciWatches: [],
     branch: null,
     subagentsHeld: null,
@@ -620,6 +622,7 @@ function mergeView(current, data) {
         schedules: data.schedules ?? base.schedules,
         // No goal is null, which the server sends too: only a missing field keeps the last value.
         goal: data.goal === undefined ? base.goal : data.goal,
+        guide: data.guide === undefined ? base.guide : data.guide,
         ciWatches: data.ciWatches ?? base.ciWatches,
         // Why subagents' reports wait (a spend limit), or null when none do: the subagents bar says it.
         subagentsHeld: data.subagentsHeld === undefined ? base.subagentsHeld : data.subagentsHeld,

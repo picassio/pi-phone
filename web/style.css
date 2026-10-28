@@ -18686,3 +18686,112 @@ button.welcome-row:hover {
     flex-direction: column;
     align-items: stretch;
 }
+
+/* The Getting started checklist under the session's header (PP-235, web/guide.js): one line on a phone, opening to the
+   whole list; the whole list on a wide screen. */
+.guide-bar {
+    flex: none;
+    margin: 8px auto 0;
+    width: min(100% - 24px, 760px);
+    padding: 9px 12px;
+    border: 1px solid var(--hair);
+    border-radius: 12px;
+    background: var(--card);
+}
+
+.guide-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.guide-head:disabled {
+    cursor: default;
+}
+
+.guide-progress {
+    flex: 1;
+    max-width: 140px;
+    height: 4px;
+    margin-left: auto;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--line);
+}
+
+.guide-progress i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+}
+
+.guide-chevron {
+    flex: none;
+    color: var(--muted);
+    transform: rotate(90deg);
+}
+
+.guide-chevron.up {
+    transform: rotate(-90deg);
+}
+
+.guide-now {
+    margin-top: 3px;
+}
+
+.guide-now b {
+    color: var(--text);
+    font-weight: 500;
+}
+
+.guide-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 0 2px;
+    padding: 0;
+    list-style: none;
+    font-size: 13.5px;
+}
+
+.guide-items li {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.guide-items li.done {
+    color: var(--muted);
+}
+
+.guide-items li.now {
+    color: var(--text);
+}
+
+.guide-mark {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid var(--line-strong);
+    border-radius: 50%;
+}
+
+.guide-items li.now .guide-mark {
+    border-color: var(--accent);
+}
+
+.guide-items li.done .guide-mark {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--ok) 16%, transparent);
+    color: var(--ok);
+}

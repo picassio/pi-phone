@@ -82,6 +82,20 @@ export function describeCall(call) {
             return { icon: "⚙", label: t("Reads settings"), subject: args.id ? `${args.id}${args.target ? ` (${args.target})` : ""}` : (args.area ?? t("all")), mono: Boolean(args.id) };
         case "setting_change":
             return { icon: "⚙", label: t("Changes"), subject: `${args.id ?? ""}${args.target ? ` (${args.target})` : ""} → ${short(args.value ?? "", 60)}`, mono: true };
+        // The Getting started checklist (PP-235).
+        case "guide":
+            return {
+                icon: "☑",
+                label: t("Checklist"),
+                subject:
+                    args.action === "set"
+                        ? short((args.items ?? []).join(" · "), 100)
+                        : args.action === "finish"
+                          ? t("done")
+                          : args.action === "tick"
+                            ? t("ticks {item}", { item: args.item ?? "" })
+                            : t("unticks {item}", { item: args.item ?? "" }),
+            };
         case "app_action":
             return { icon: "⚙", label: t("Action"), subject: `${args.id ?? ""}${args.args && Object.keys(args.args).length > 0 ? ` ${Object.values(args.args).join(", ")}` : ""}`, mono: true };
         case "devices":

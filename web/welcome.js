@@ -7,6 +7,7 @@ import { LANGUAGES, resolveLanguage, t } from "./i18n.js";
 import { pushId, pushSupport, turnPushOn } from "./push.js";
 import { actions, api, attempt, notify, openSheet, store } from "./store.js";
 import { html, Icon } from "./ui.js";
+import { openGettingStarted } from "./guide.js";
 
 /** The model sign-ins the welcome offers (owner's decision D): subscriptions people already have, then a key. */
 const PROVIDERS = () => [
@@ -181,11 +182,28 @@ function Permission({ n, done, title, text, button, onClick }) {
     </li>`;
 }
 
-/** The end of the welcome: finished. */
+/**
+ * The end of the welcome: finished. With a model, Pi can show them around next: the Getting started session (PP-235);
+ * without one, only the app.
+ */
 function Finish({ back }) {
+    const guide = store.state.models.length > 0;
+    const finish = (andGuide) =>
+        attempt(async () => {
+            await api("me", { welcome: "done" });
+
+            if (andGuide) {
+                await openGettingStarted();
+            }
+        });
+
     return html`<div class="welcome-actions welcome-actions-end">
-        <button class="button primary" onClick=${() => leaveWelcome("done")}>${t("Go to the app")}</button>
-        <div class="welcome-actions"><button class="button ghost" onClick=${back}>${t("Back")}</button></div>
+        ${guide && html`<button class="button primary" onClick=${() => finish(true)}>${t("Get started with Pi")}</button>`}
+        <div class="welcome-actions">
+            <button class="button ghost" onClick=${back}>${t("Back")}</button>
+            <span class="grow"></span>
+            <button class=${`button ${guide ? "" : "primary"}`} onClick=${() => finish(false)}>${t("Go to the app")}</button>
+        </div>
     </div>`;
 }
 

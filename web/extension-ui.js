@@ -63,6 +63,7 @@ export function moduleTitle(title) {
         PiP: t("PiP"),
         Triggers: t("Triggers"),
         "Extension gallery": t("Extension gallery"),
+        "Getting started": t("Getting started"),
     };
 
     return Object.hasOwn(titles, title) ? titles[title] : title;

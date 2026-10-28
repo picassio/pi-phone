@@ -33,6 +33,8 @@ import {
     PlanDoc,
     type Goal,
     GoalDoc,
+    type GuideItem,
+    GuideDoc,
     type Schedule,
     ScheduleDoc,
     CiWatchesDoc,
@@ -80,6 +82,7 @@ export const ROOM_DOCS = new Set(
         PlanDoc,
         ScheduleDoc,
         GoalDoc,
+        GuideDoc,
         CiWatchesDoc,
     ].map((doc) => doc.definition.kind),
 );
@@ -87,6 +90,10 @@ export const ROOM_DOCS = new Set(
 const TYPING_MS = 6000;
 /** Peek tiles change at most this often: they are glanced at, and a streaming answer changes every 90 ms. */
 const PEEK_MS = 1000;
+
+/** A Getting started checklist as the view shows it, or undefined while the session has none. */
+const guideOf = (doc: { items?: GuideItem[]; finished?: boolean } | null | undefined) =>
+    doc === null || doc === undefined || (doc.items ?? []).length === 0 ? undefined : { items: doc.items ?? [], finished: doc.finished === true };
 /** Entries read from the end of a session for its peek tile: enough to find the results of the calls it shows. */
 const PEEK_ENTRIES = PEEK_LINES * 3;
 /** How often an open view looks at its folder's branch, for one switched outside the app while the session is quiet. */
@@ -340,6 +347,8 @@ export class Room {
     artifacts: Record<string, ArtifactMeta> = {};
     schedules: Record<string, Schedule> = {};
     goal: Goal | undefined;
+    /** Its Getting started checklist (PP-235), when Pi keeps one here. */
+    guide: { items: GuideItem[]; finished: boolean } | undefined;
     /** The GitHub Actions runs this conversation watches (`extensions/ci-watch.ts`). */
     ciWatches: Record<string, CiWatch> = {};
     /** Who is typing where, by user id. Memory only: it means nothing after a restart. */
@@ -395,6 +404,7 @@ export class Room {
             ...((await harness.snapshot(ScheduleDoc, this.id, context))?.items ?? {}),
         };
         this.goal = (await harness.snapshot(GoalDoc, this.id, context))?.goal;
+        this.guide = guideOf(await harness.snapshot(GuideDoc, this.id, context));
         this.ciWatches = { ...((await harness.snapshot(CiWatchesDoc, this.id, context))?.items ?? {}) };
 
         if (owner !== undefined) {
@@ -465,6 +475,8 @@ export class Room {
             this.schedules = { ...((value?.items as Record<string, Schedule>) ?? {}) };
         } else if (kind === GoalDoc.definition.kind) {
             this.goal = (value?.goal as Goal | undefined) ?? undefined;
+        } else if (kind === GuideDoc.definition.kind) {
+            this.guide = guideOf(value as { items?: GuideItem[]; finished?: boolean } | null);
         } else if (kind === CiWatchesDoc.definition.kind) {
             this.ciWatches = { ...((value?.items as Record<string, CiWatch>) ?? {}) };
         }
@@ -621,6 +633,7 @@ export class Room {
                           max: this.goal.max,
                           ...(this.goal.last === undefined ? {} : { last: this.goal.last }),
                       },
+            guide: this.guide ?? null,
             ciWatches: Object.values(this.ciWatches).map(
                 ({ repo, runId, label, workflow, number, branch, url, startedAt }) => ({
                     repo,

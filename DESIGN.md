@@ -743,6 +743,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   team models, a radio list sets `defaultModel`), 3 this phone (the bridge: notifications, run unrestricted, mic, the
   side key; read again on `visibilitychange`) or this browser (web push, the install prompt). Full screen on a phone, a
   card when `min-width: 960px`. Test: `test/welcome-ui.test.ts` (devbox).
+  Getting started (PP-235): `app.gettingStarted` (`POST /api/getting-started`; Menu › Getting started, the welcome's
+  "Get started with Pi") opens the owner's session again (`User.guide`, back in the active list) or makes one titled
+  "Getting started" in the default folder, on a model there is, and sends "Show me around." in their language (the page's
+  for "auto"); with no model it is refused (409) and the web app shows the welcome instead. The built-in module
+  `onboarding.ts` adds a prompt section in that session (read the `getting-started` skill: `src/skills/`, a built-in
+  skills folder) and the `guide` tool (set / tick / untick / finish) that keeps `GuideDoc`, which the view sends as
+  `guide` and `web/guide.js` shows as a bar under the header (one line on a phone, the list on wide screens); `finish`
+  settles the session. Tests: `test/onboarding.test.ts`, `test/getting-started-ui.test.ts` (devbox).
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

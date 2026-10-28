@@ -413,6 +413,10 @@ A new pi-phone opens with a short welcome, three steps you can each skip: the ap
 (Claude, ChatGPT, GitHub Copilot, OpenRouter, or an API key; on a team server, the models your team gives you), and the
 phone's permissions (notifications, running with the screen off, the microphone, the side key), or in a browser,
 notifications and installing the app. It needs no model. Pi can show it again: ask it, or set `onboarding.welcome`.
+Then **Getting started** (the welcome's last step, or Menu › Getting started any time): a session where Pi asks what
+you want to cover (the basics, the app's look and language, voice, Pi's browser, machines, phone control, secrets and
+backup, boards and the wiki), shows you only those, changes settings on cards you approve, and ticks a checklist under
+the session's header as it goes.
 
 ### Every day
 - **Start a session:** **+ New** in the session list, then pick a folder on the phone or on a machine; inside a

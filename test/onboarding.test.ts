@@ -1,12 +1,17 @@
 // Onboarding (PP-232): the first-run welcome's state on the server (PP-234). A new pi-phone's owner sees it the first time
 // the app opens; people from before it existed are marked done (owner's decision A); the owner finishes, skips, or asks
 // for it again (the app, `POST /api/me`, and Pi's settings tools: `onboarding.welcome`); guests never get it.
-import { type App, cleanUp, fakeTab, openApp, owner, root, scriptedModel } from "./helpers.ts";
+import { type App, cleanUp, fakeTab, lastText, modelTexts, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import type { FauxResponseStep } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import type { ConversationId } from "@earendil-works/pi-durable";
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { ConfigStore } from "../src/server/config.ts";
+import { GuideDoc } from "../src/server/docs.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
 
 const apps: App[] = [];
@@ -76,4 +81,87 @@ test("the owner finishes, skips, or asks for it again; their tabs hear it; Pi's 
     await setting.apply(me, "done", undefined);
     assert.equal(await setting.read(undefined), "done");
     await assert.rejects(async () => setting.apply(me, "maybe", undefined), /show, done, or skipped/);
+});
+
+// ─── Getting started (PP-235) ───
+
+/** What Pi saw last in each request: its system prompt and the last message, for the scripted model's route. */
+const prompts: string[] = [];
+/** Pi in a Getting started session: sets the checklist, ticks the first part, finishes, as the skill says. */
+const guiding: FauxResponseStep = (context) => {
+    const { role, text } = lastText(context as never);
+
+    for (const message of (context as { messages: { role: string; sections?: Record<string, string | null> }[] }).messages) {
+        if (message.role === "system" && message.sections?.["getting-started"]) {
+            prompts.push(message.sections["getting-started"]);
+        }
+    }
+
+    if (role === "user" && (text.includes("Show me around.") || text.includes("带我熟悉一下。"))) {
+        return fauxAssistantMessage([fauxToolCall("guide", { action: "set", items: ["The basics", "How the app looks", "Voice"] } as never)], { stopReason: "toolUse" });
+    }
+
+    if (role === "toolResult" && text.includes("[ ] The basics")) {
+        return fauxAssistantMessage([fauxToolCall("guide", { action: "tick", item: "1" } as never)], { stopReason: "toolUse" });
+    }
+
+    if (role === "toolResult" && text.includes("[x] The basics") && !text.includes("settled")) {
+        return fauxAssistantMessage([fauxToolCall("guide", { action: "finish" } as never)], { stopReason: "toolUse" });
+    }
+
+    return fauxAssistantMessage([fauxText("That is the tour.")]);
+};
+
+test("Menu › Getting started makes the owner's session once, in their language, and opens the same one again", async () => {
+    const app = await openApp(scriptedModel(guiding), join(root, "onboarding-guide"));
+
+    apps.push(app);
+
+    const me = owner(app);
+    const id = await app.gettingStarted(me, { language: "zh-CN" });
+
+    assert.equal(app.sessionMeta(id)?.title, "入门引导");
+    assert.equal(me.guide, String(id));
+    await until(async () => (await modelTexts(app, id)).some((each) => each.includes("带我熟悉一下。")), "the first message, in Chinese");
+
+    // The prompt names the session and the skill; the skill is among the built-in ones.
+    await until(() => prompts.some((each) => each.includes("Getting started session") && each.includes("getting-started")), "the section");
+    assert.ok(app.skills(app.defaultCwd).some((skill) => skill.name === "getting-started"), "the getting-started skill");
+
+    // Again: the same session, back in the active list.
+    await until(() => app.sessionMeta(id)?.settle?.state === "settled", "settled by guide finish");
+    assert.equal(await app.gettingStarted(me), id);
+    assert.notEqual(app.sessionMeta(id)?.settle?.state, "settled");
+
+    // What's new: the same session, asked about a version.
+    assert.equal(await app.gettingStarted(me, { whatsNew: "0.9.0" }), id);
+    await until(async () => (await modelTexts(app, id)).some((each) => each.includes("Show me what's new in 0.9.0.")), "the What's new message");
+
+    const guest = app.config.addUser("Ana", "guest").user;
+
+    await assert.rejects(app.gettingStarted(guest), /Only the owner/);
+});
+
+test("the guide tool keeps the checklist the bar shows: set, tick, finish settles the session", async () => {
+    const app = await openApp(scriptedModel(guiding), join(root, "onboarding-checklist"));
+
+    apps.push(app);
+
+    const id: ConversationId = await app.gettingStarted(owner(app), { language: "en" });
+    const guide = async () => app.harness.snapshot(GuideDoc, id, BACKGROUND_CONTEXT);
+
+    await until(async () => (await guide())?.finished === true, "the guide finished");
+    assert.deepEqual((await guide())?.items, [
+        { text: "The basics", done: true },
+        { text: "How the app looks", done: false },
+        { text: "Voice", done: false },
+    ]);
+    assert.equal(app.sessionMeta(id)?.settle?.state, "settled");
+
+    // The tab's view has it, for the bar.
+    const tab = fakeTab(id, owner(app));
+
+    await app.attach(tab.client);
+    await until(() => tab.field("guide") !== undefined, "the view's checklist");
+    assert.deepEqual(tab.field("guide"), { items: (await guide())!.items, finished: true });
 });

@@ -3060,5 +3060,16 @@
     "Notifications are on in this browser.": "本浏览器已开启通知。",
     "Install as an app": "安装为应用",
     "pi-phone runs as an app here.": "pi-phone 在这里以应用方式运行。",
-    "Its own window and icon. In a browser that offers no button, use its menu: Install app, or Add to Home Screen.": "拥有自己的窗口和图标。如果浏览器没有提供按钮，请用它的菜单：安装应用，或添加到主屏幕。"
+    "Its own window and icon. In a browser that offers no button, use its menu: Install app, or Add to Home Screen.": "拥有自己的窗口和图标。如果浏览器没有提供按钮，请用它的菜单：安装应用，或添加到主屏幕。",
+    "Getting started": "入门引导",
+    "{done} of {n} done": "已完成 {done}/{n}",
+    "All done.": "全部完成。",
+    "Now:": "当前：",
+    "to do": "待完成",
+    "Pi shows you around": "Pi 带你熟悉应用",
+    "Get started with Pi": "让 Pi 带你入门",
+    "Show me around.": "带我熟悉一下。",
+    "Show me what's new in {version}.": "给我看看 {version} 有什么新功能。",
+    "ticks {item}": "勾选 {item}",
+    "unticks {item}": "取消勾选 {item}"
 }

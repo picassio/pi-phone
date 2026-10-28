@@ -41,6 +41,7 @@ import { Sheets } from "./sheets.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
 import { SignIn } from "./signin.js";
 import { Welcome } from "./welcome.js";
+import { GuideBar } from "./guide.js";
 import { openSubagents } from "./subagents.js";
 import { SubagentsBoard } from "./subagents-board.js";
 import {
@@ -521,6 +522,7 @@ function App() {
                         !peekColumn &&
                         html`<${PeekStrip} tiles=${tiles} />`
                     }
+                    <${GuideBar} />
                     <${Transcript} key=${state.conversationId} />
                     ${
                         state.view.conversation &&
