@@ -391,6 +391,36 @@ export type RunOptions = {
     progress(what: string): void;
 };
 
+/**
+ * `value` with every string in it (not object keys: the questions' choices) holding a secret's value replaced by
+ * `[secret NAME]`: what the run model gets of a page where a secret was typed into a field that is not a password field,
+ * or that shows it (PP-204: the field's value went to OpenRouter, or the session's model, in the next step's state).
+ */
+export function concealSecrets<T>(value: T, secrets: readonly (readonly [name: string, value: string])[]): T {
+    if (secrets.length === 0) {
+        return value;
+    }
+
+    const longest = [...secrets].sort(([, a], [, b]) => b.length - a.length);
+    const walk = (item: unknown): unknown => {
+        if (typeof item === "string") {
+            return longest.reduce((text, [name, secret]) => (secret === "" ? text : text.split(secret).join(`[secret ${name}]`)), item);
+        }
+
+        if (Array.isArray(item)) {
+            return item.map(walk);
+        }
+
+        if (item !== null && typeof item === "object") {
+            return Object.fromEntries(Object.entries(item).map(([key, each]) => [key, walk(each)]));
+        }
+
+        return item;
+    };
+
+    return walk(value) as T;
+}
+
 /** Carry out a goal on the page, a decision a step, until done or a reason to stop. */
 export async function runGoal(page: RunPage, decider: Decider, options: RunOptions): Promise<RunResult> {
     const started = Date.now();
@@ -434,9 +464,10 @@ export async function runGoal(page: RunPage, decider: Decider, options: RunOptio
         options.progress(`Deciding step ${steps.length + 1}`);
 
         let decided: Awaited<ReturnType<Decider["decide"]>>;
+        const secretValues = (options.secrets ?? []).flatMap((name) => (options.values[name] === undefined ? [] : [[name, options.values[name]!] as const]));
 
         try {
-            decided = await decider.decide(state, questions);
+            decided = await decider.decide(concealSecrets(state, secretValues), concealSecrets(questions, secretValues));
         } catch (error) {
             return finish("stopped", "decision_error", error instanceof Error ? error.message : String(error));
         }

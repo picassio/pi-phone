@@ -237,3 +237,25 @@ test("a run that changes nothing three times stops as stuck; one past its steps 
     assert.equal(refused.reason, "decision_error");
     assert.match(refused.detail ?? "", /No allowed providers/);
 });
+
+test("a secret typed into a plain field never reaches the run model in the steps after: the field's value and the page show its name (PP-204)", async () => {
+    const script = scripted([["TYPE_TEXT", "1", "token"], ["CLICK", "3"], ["DONE", undefined, undefined, 0.95]]);
+    const seen: string[] = [];
+    const watching: Decider = {
+        label: script.label,
+        decide: async (state, questions) => {
+            seen.push(JSON.stringify({ state, questions }));
+
+            return script.decide(state, questions);
+        },
+    };
+    // The shop's search field shows what was typed (its value), and its results page says it.
+    const result = await runGoal(shop().runPage, watching, { ...options({ token: "tok-SECRET-0123456789", plain: "lamp" }), secrets: ["token"] });
+
+    assert.equal(result.status, "done");
+    assert.equal(seen.length, 3);
+    assert.ok(seen.every((each) => !each.includes("tok-SECRET-0123456789")), seen.join("\n"));
+    assert.match(seen[1]!, /\[secret token\]/, "the field's value, by the secret's name");
+    assert.match(seen[2]!, /Results for \[secret token\]/, "the page's text too");
+    assert.match(seen[0]!, /plain: lamp/, "a plain value is still told");
+});
