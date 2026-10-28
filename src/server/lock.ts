@@ -226,19 +226,39 @@ function release(lockFile: string, owned: Lock): void {
     }
 }
 
+/** The lock is held by a live process (`pid`, when the lock said it). */
+export class LockHeldError extends Error {
+    readonly pid: number | undefined;
+
+    constructor(message: string, pid: number | undefined) {
+        super(message);
+        this.name = "LockHeldError";
+        this.pid = pid;
+    }
+}
+
+/** What a process runs, from `/proc/<pid>/cmdline` (Linux and Android), or why it cannot be read. */
+export function commandLine(pid: number): string {
+    try {
+        const words = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").filter((word) => word !== "");
+
+        return words.length === 0 ? "(no command line)" : words.join(" ");
+    } catch (error) {
+        return `(command line unknown: ${(error as NodeJS.ErrnoException).code ?? String(error)})`;
+    }
+}
+
 /**
- * Take the data directory's lock, or throw when a live pi-phone holds it. A lock left by a process that died (killed,
- * or its phone stopped it) is taken over; created with `wx`, so of two processes starting at once only one gets it.
- * Answers this lock's release.
+ * Take the data directory's lock, or throw `LockHeldError` when a live pi-phone holds it. A lock left by a process
+ * that died (killed, or its phone stopped it) is taken over; created with `wx`, so of two processes starting at once
+ * only one gets it. Answers this lock's release.
  */
 export function takeLock(lockFile: string): () => void {
     const previous = readLock(lockFile);
 
     if (previous !== undefined) {
         if (lockHolder(lockFile, previous)) {
-            throw new Error(
-                `pi-phone is already running on this data directory (pid ${previous.pid}). If it is not, delete ${lockFile}.`,
-            );
+            throw new LockHeldError(`pi-phone is already running on this data directory (pid ${previous.pid}).`, previous.pid);
         }
 
         release(lockFile, previous);
@@ -251,7 +271,9 @@ export function takeLock(lockFile: string): () => void {
             throw error;
         }
 
-        throw new Error("pi-phone is already running on this data directory: another one started at the same moment.");
+        const other = readLock(lockFile)?.pid;
+
+        throw new LockHeldError("pi-phone is already running on this data directory: another one started at the same moment.", Number.isSafeInteger(other) && other! > 0 ? other : undefined);
     }
 
     const owned = readLock(lockFile);
@@ -271,4 +293,55 @@ export function takeLock(lockFile: string): () => void {
     }
 
     return () => release(lockFile, owned);
+}
+
+/**
+ * Take the lock (`takeLock`), waiting up to `waitMs` for a live holder to let it go: on a phone, the server before this
+ * one may still be stopping (PP-198: the app's service started a new server while the old one, sent SIGTERM, still
+ * closed, and the new one failed for good). The holder's pid and command line are logged; a holder still there at the
+ * end fails the start with what to do, never with a file to delete (the person cannot reach it on a phone).
+ */
+export async function waitForLock(
+    lockFile: string,
+    options: { waitMs?: number; pollMs?: number; log?: (line: string) => void } = {},
+): Promise<() => void> {
+    const waitMs = options.waitMs ?? 10_000;
+    const pollMs = options.pollMs ?? 250;
+    const log = options.log ?? (() => {});
+    const until = Date.now() + waitMs;
+    let told: number | undefined | null = null;
+
+    while (true) {
+        try {
+            const release = takeLock(lockFile);
+
+            if (told !== null) {
+                log(`lock: the earlier server (pid ${told ?? "unknown"}) let go of ${lockFile}; starting`);
+            }
+
+            return release;
+        } catch (error) {
+            if (!(error instanceof LockHeldError)) {
+                throw error;
+            }
+
+            const holder = error.pid === undefined ? "pid unknown" : `pid ${error.pid}: ${commandLine(error.pid)}`;
+
+            if (told === null) {
+                told = error.pid;
+                log(`lock: ${lockFile} is held by a live process (${holder}); waiting up to ${Math.round(waitMs / 1000)} s for it to stop`);
+            }
+
+            if (Date.now() >= until) {
+                log(`lock: still held after ${Math.round(waitMs / 1000)} s (${holder})`);
+
+                throw new LockHeldError(
+                    `pi-phone is still stopping its earlier server (${error.pid === undefined ? "pid unknown" : `pid ${error.pid}`}), so it cannot start. Restart the app.`,
+                    error.pid,
+                );
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, Math.min(pollMs, Math.max(0, until - Date.now()))));
+        }
+    }
 }

@@ -764,9 +764,18 @@ test("a lock left by a process that is gone, or whose pid a later Node process r
         assert.equal(existsSync(lock), false);
         assert.equal(existsSync(`${lock}.identity`), false);
 
-        // Written after the process started: it may be the holder, whatever its name.
+        // Written after the process started: it may be the holder, whatever its name. Opening waits for it (a server
+        // that is stopping), then says what to do: never a file to delete (PP-198).
         writeFileSync(lock, `${node.pid}\n`);
-        await assert.rejects(openHere(), new RegExp(`already running on this data directory \\(pid ${node.pid}\\)`));
+        const lines: string[] = [];
+        const started = Date.now();
+
+        await assert.rejects(
+            openApp(faux, dataDir, undefined, { lockWaitMs: 600, log: (line) => lines.push(line) }),
+            (error: Error) => error.message === `pi-phone is still stopping its earlier server (pid ${node.pid}), so it cannot start. Restart the app.`,
+        );
+        assert.ok(Date.now() - started >= 550, "it waited");
+        assert.ok(lines.some((line) => line.includes(`pid ${node.pid}: `) && line.includes("setTimeout")), `the holder's pid and command line are logged: ${lines.join(" | ")}`);
 
         if (process.platform === "linux" || process.platform === "android") {
             // Written a minute before the process started: a crash's lock whose pid came round again (/proc tells).

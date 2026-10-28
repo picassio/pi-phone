@@ -2,8 +2,10 @@
 // (`POST /v1/realtime/client_secrets`), calls (`POST /v1/realtime/calls`, with a key or the sign-in), Codex's private
 // calls endpoint, and the server's own connection to a call by its id (the sideband WebSocket). Only the test token
 // signs in. Everything asked is recorded; tests push events into a call's sideband as OpenAI would.
+import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
 import type { VoiceEndpoints } from "../../src/server/voice.ts";
 
@@ -29,6 +31,12 @@ export class FakeOpenAI {
     readonly calls = new Map<string, { by: string; offer: string }>();
     /** Each call's sideband: what the server sent on it, and the socket. */
     readonly sidebands = new Map<string, { received: Record<string, unknown>[]; socket: WebSocket; headers: Record<string, string | string[] | undefined> }>();
+    /**
+     * The sideband takes the connection and then answers nothing, not even a close (a network that died): each such
+     * call's connection, with what came on it and when it ended.
+     */
+    deaf = false;
+    readonly deafSidebands = new Map<string, { socket: Duplex; bytes: number; endedAt: number | undefined }>();
     #server: Server | undefined;
     #sockets: WebSocketServer | undefined;
     #count = 0;
@@ -74,6 +82,28 @@ export class FakeOpenAI {
                 return;
             }
 
+            if (this.deaf) {
+                const accept = createHash("sha1").update(`${String(request.headers["sec-websocket-key"])}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
+                const side = { socket, bytes: 0, endedAt: undefined as number | undefined };
+
+                this.deafSidebands.set(call, side);
+                socket.on("data", (chunk: Buffer) => {
+                    side.bytes += chunk.length;
+                });
+                // The other end went (an HTTP server's sockets are half-open: 'end' is when it went).
+                const ended = () => {
+                    side.endedAt ??= Date.now();
+                };
+
+                socket.on("end", ended);
+                socket.on("close", ended);
+                socket.resume();
+                socket.on("error", () => {});
+                socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+
+                return;
+            }
+
             this.#sockets!.handleUpgrade(request, socket, head, (ws) => {
                 const side = { received: [] as Record<string, unknown>[], socket: ws, headers: request.headers };
 
@@ -97,6 +127,14 @@ export class FakeOpenAI {
     /** Send an event to the server on a call's sideband, as OpenAI would. */
     push(call: string, event: Record<string, unknown>): void {
         this.sidebands.get(call)?.socket.send(JSON.stringify(event));
+    }
+
+    /** Send an event on a deaf sideband (an unmasked text frame, as a server sends). */
+    pushDeaf(call: string, event: Record<string, unknown>): void {
+        const payload = Buffer.from(JSON.stringify(event));
+        const header = payload.length < 126 ? Buffer.from([0x81, payload.length]) : Buffer.from([0x81, 126, payload.length >> 8, payload.length & 0xff]);
+
+        this.deafSidebands.get(call)?.socket.write(Buffer.concat([header, payload]));
     }
 
     /** Close a call's sideband from OpenAI's side (the call ended). */
@@ -204,6 +242,10 @@ export class FakeOpenAI {
     async close(): Promise<void> {
         for (const side of this.sidebands.values()) {
             side.socket.terminate();
+        }
+
+        for (const side of this.deafSidebands.values()) {
+            side.socket.destroy();
         }
 
         this.#sockets?.close();

@@ -112,6 +112,9 @@ const textOf = (entry: Extract<ClientEntry, { kind: "assistant" }>) =>
         .join("\n\n")
         .trim();
 
+/** How long a closed sideband may wait for OpenAI to answer its close before it is ended (ws alone waits 30 s). */
+export const CLOSE_GRACE_MS = 1500;
+
 /** A call's link to OpenAI: the sideband WebSocket, or the page's data channel (Codex). */
 interface Link {
     send(event: Record<string, unknown>): void;
@@ -162,6 +165,12 @@ class CallBridge {
     async start(): Promise<void> {
         this.#unwatch = await this.#host.watch(this.call.session, (entries, busy) => this.#pi(entries, busy));
 
+        if (this.#closed) {
+            this.#unwatch();
+
+            return;
+        }
+
         if (this.#codex) {
             this.#link = { send: (event) => this.#host.toPage(this.call, [event]), close: () => {} };
 
@@ -172,6 +181,12 @@ class CallBridge {
         const plan = await this.#host.plan(this.call.session);
         const settings = this.#host.settings();
         const { model: _model, ...session } = callSession({ ...settings, model: this.call.model }, plan);
+
+        if (this.#closed) {
+            // Ended (the app closing) while it joined: no connection to leave open.
+            return;
+        }
+
         const socket = new WebSocket(`${this.#host.service.endpoints.socket}/realtime?call_id=${encodeURIComponent(this.call.rtc ?? "")}`, {
             headers: this.#host.service.headers(auth),
         });
@@ -182,7 +197,23 @@ class CallBridge {
                     socket.send(JSON.stringify(event));
                 }
             },
-            close: () => socket.close(1000),
+            close: () => {
+                if (socket.readyState === WebSocket.CONNECTING) {
+                    // Not open yet: nothing to say goodbye on (close() here would only throw on the socket).
+                    socket.terminate();
+
+                    return;
+                }
+
+                socket.close(1000);
+
+                // OpenAI answers the close at once; one that does not (a dead network) would hold the socket, and a
+                // stopping server with it, for ws's 30 s: ended for good after a moment.
+                const ending = setTimeout(() => socket.terminate(), CLOSE_GRACE_MS);
+
+                ending.unref();
+                socket.once("close", () => clearTimeout(ending));
+            },
         };
         socket.on("open", () => this.#link?.send({ type: "session.update", session }));
         socket.on("message", (data) => {
@@ -609,6 +640,17 @@ export class VoiceBridge {
 
         this.#calls.delete(id);
         await bridge?.close();
+    }
+
+    /**
+     * End every call's bridge (the app closing): each connection closed, at most CLOSE_GRACE_MS each, and what was said
+     * written to the transcript, before the storage closes.
+     */
+    async closeAll(): Promise<void> {
+        const bridges = [...this.#calls.values()];
+
+        this.#calls.clear();
+        await Promise.all(bridges.map((bridge) => bridge.close().catch((error: unknown) => this.#host.log(`voice: a call did not close: ${error instanceof Error ? error.message : String(error)}`))));
     }
 
     /** For tests: whether a call is joined. */

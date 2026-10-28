@@ -126,7 +126,7 @@ import { checkDraft, type Interview, InterviewsDoc } from "./interviews.ts";
 import type { JsonValue } from "@earendil-works/chord";
 import { ANSWER_KEY, MAX_ANSWER_STATE_BYTES, MAX_ANSWER_STATES, OpenUiStateDoc } from "./openui.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
-import { takeLock } from "./lock.ts";
+import { waitForLock } from "./lock.ts";
 import { SAFETY_COPY_DAYS, safetyCopyBeforeUpgrade } from "./storage-upgrade.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
 import { configureHttp } from "./net.ts";
@@ -283,6 +283,8 @@ export interface OpenOptions {
     defaultCwd: string;
     supervised: boolean;
     log?: (line: string) => void;
+    /** How long opening waits for a live holder of the data directory's lock to let go (`waitForLock`); default 10 s. */
+    lockWaitMs?: number;
     /** Tests register scripted providers here. */
     configureModels?: (models: ModelRuntime) => void;
     /** Tests shorten the limit gate's waits (`limit-gate.ts`). */
@@ -502,6 +504,7 @@ export class PocketApp {
     #unsubscribeCommits: (() => void) | undefined;
     #unsubscribeApprovals: (() => void) | undefined;
     #lockFile: string;
+    readonly #lockWaitMs: number | undefined;
     #closing: Promise<void> | undefined;
     /** This process's data lock, once taken: released last, when the storage is closed (`lock.ts`). */
     #releaseLock: (() => void) | undefined;
@@ -714,6 +717,7 @@ export class PocketApp {
             log: (message) => this.#log(message),
         });
         this.#lockFile = join(options.dataDir, "harness.lock");
+        this.#lockWaitMs = options.lockWaitMs;
         this.#log = options.log ?? ((line) => console.log(line));
         // After the log: reading the gates kept by the last run may say why it ignored them.
         this.limits = new LimitGate({
@@ -831,7 +835,11 @@ export class PocketApp {
     });
 
     async #open(): Promise<void> {
-        this.#releaseLock = takeLock(this.#lockFile);
+        // A server before this one may still be stopping (the phone's service started this one as it closed): wait for it.
+        this.#releaseLock = await waitForLock(this.#lockFile, {
+            log: (line) => this.#log(line),
+            ...(this.#lockWaitMs === undefined ? {} : { waitMs: this.#lockWaitMs }),
+        });
         // The keys into the agent (moved into the database first, from files, once): before anything connects.
         await this.sshKeys.open();
 
@@ -5074,6 +5082,9 @@ export class PocketApp {
             this.phoneControl.close();
             this.computerControl.close();
             this.voice.endAll();
+            // Each call's connection closed (bounded: one that OpenAI does not answer is ended) and what was said kept,
+            // before the storage closes: a stopping server waits for no socket (PP-198).
+            await this.voiceBridge.closeAll();
             await this.spend.voiceStored();
             this.themes.close();
             this.spend.close();
