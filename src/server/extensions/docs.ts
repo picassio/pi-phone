@@ -8,6 +8,7 @@ import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { ExtensionWeb, PocketHost, WebRequest } from "../host.ts";
 import { HttpError } from "../errors.ts";
+import { fencedDocuments } from "../fence.ts";
 import { Docs } from "../docs-access.ts";
 import { openRouterEmbedder } from "../embeddings.ts";
 import { Projects } from "../projects.ts";
@@ -182,7 +183,7 @@ export default function createDocs(host: PocketHost, web: ExtensionWeb) {
         tool("doc_search", "Search people's documents (Mine, the team's, boards') by words: pages, best first, with where they are and where they match.", Type.Object({ query: Type.String(), place: PLACE }), async (args: { query: string; place?: string }) => {
             const hits = await docs.search(args.query, args.place === undefined ? undefined : [placeOf(args.place, undefined)]);
 
-            return hits.length === 0 ? "No document matches." : hits.map((hit) => `- ${hit.title} (${where(hit.scope, hit.path)}): ${hit.snippet}`).join("\n");
+            return hits.length === 0 ? "No document matches." : fencedDocuments(hits.map((hit) => `- ${hit.title} (${where(hit.scope, hit.path)}): ${hit.snippet}`).join("\n"));
         }),
         tool("doc_list", "The folders and pages of a place's documents.", Type.Object({ place: PLACE }), async (args: { place?: string }, api) => {
             const scope = placeOf(args.place, api.conversationId);
@@ -201,13 +202,14 @@ export default function createDocs(host: PocketHost, web: ExtensionWeb) {
 
             walk(null, 0);
 
-            return `${where(scope)}:\n${lines.length === 0 ? "(nothing yet)" : lines.join("\n")}`;
+            return `${where(scope)}:\n${lines.length === 0 ? "(nothing yet)" : fencedDocuments(lines.join("\n"))}`;
         }),
         tool("doc_read", "Read a document page: its text (markdown), where it is, and who saved it last.", Type.Object({ page: PAGE, place: PLACE }), async (args: { page: string; place?: string }, api) => {
             const scope = placeOf(args.place, api.conversationId);
             const page = (await docs.call(scope, "page", [(await found(scope, args.page)).id])) as { title: string; body: string; path: string[]; updatedByName: string; updatedAt: number };
 
-            return `# ${page.title} (${where(scope, page.path)}; last saved by ${page.updatedByName}, ${new Date(page.updatedAt).toISOString().slice(0, 16).replace("T", " ")} UTC)\n\n${host.text.defang(page.body)}`;
+            // The title, the folders and the text are people's words (a teammate's too): fenced as data (PP-204).
+            return fencedDocuments(`# ${page.title} (${where(scope, page.path)}; last saved by ${page.updatedByName}, ${new Date(page.updatedAt).toISOString().slice(0, 16).replace("T", " ")} UTC)\n\n${page.body}`);
         }),
         tool("doc_history", "A document page's saved versions, newest first.", Type.Object({ page: PAGE, place: PLACE }), async (args: { page: string; place?: string }, api) => {
             const scope = placeOf(args.place, api.conversationId);
