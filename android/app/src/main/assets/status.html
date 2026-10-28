@@ -1,0 +1,87 @@
+<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>
+<!--
+  The app's own screen before the server answers (unpacking, updating, starting, downloading an update) and when
+  something failed (MainActivity.show). The web app's colors (web/style.css, the pocket theme): this page shows before
+  the server and its fonts are up. It loads once; show() then changes it in place, so the spinner keeps turning.
+
+  A failure (PP-198) shows its reason, the log's last error (a FATAL line, else the last line that looks like an error,
+  with the stack under it) at the top, Copy log and Share log (window.PiPhoneApp), and the log's end: the box is
+  scrolled to the bottom, where the newest lines are.
+
+  MainActivity appends <script>show(state)</script></body></html>.
+-->
+<style>
+html,body{margin:0;height:100%;background:#141414;color:#a9b1d6;font:15px/1.5 system-ui,-apple-system,Roboto,sans-serif}
+main{min-height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 28px;text-align:center}
+.logo{width:72px;height:72px}
+.name{margin:18px 0 28px;color:#e8eaf2;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.spin{width:22px;height:22px;border-radius:50%;border:2.5px solid rgba(169,177,214,.18);border-top-color:#a9b1d6;animation:spin .9s linear infinite;margin-bottom:22px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.title{color:#d4d8e8;font-size:16px;font-weight:500}
+.note{margin-top:6px;color:#7b8199;font-size:13.5px;max-width:30em;overflow-wrap:anywhere;white-space:pre-line}
+.bar{width:min(280px,80%);height:4px;margin:20px 0 8px;border-radius:2px;background:rgba(169,177,214,.15);overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:2px;background:#7aa2f7;transition:width .4s ease}
+.amount{color:#7b8199;font-size:12.5px;font-variant-numeric:tabular-nums}
+pre{align-self:stretch;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.45 monospace;background:#0d0d10;color:#c0caf5;border-radius:10px;padding:12px;margin:0;overflow:auto}
+.label{align-self:stretch;text-align:left;margin:22px 0 6px;color:#7b8199;font-size:12.5px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+#error{color:#f7768e;max-height:30vh;border:1px solid rgba(247,118,142,.35)}
+#log{max-height:45vh}
+.actions{align-self:stretch;display:flex;gap:10px;margin:16px 0 0}
+.actions button{flex:1;min-height:44px;border-radius:10px;border:1px solid rgba(169,177,214,.25);background:#1d1d22;color:#d4d8e8;font:inherit;font-size:14.5px}
+.actions button:active{background:#26262d}
+body.failed main{justify-content:flex-start;padding-top:56px}body.failed .title{color:#f7768e}
+[hidden]{display:none!important}
+</style></head><body><main>
+<svg class='logo' viewBox='150 150 500 500' aria-hidden='true'>
+<path fill='#F09082' d='M165.29 165.29H517.36V400H400V282.65H165.29Z'/>
+<path fill='#4D9ABF' d='M165.29 282.65H282.65V400H400V517.36H282.65V634.72H165.29Z'/>
+<path fill='#F1BE58' d='M517.36 400H634.72V634.72H517.36Z'/></svg>
+<div class='name'>pi-phone</div>
+<div class='spin' id='spin'></div>
+<div class='title' id='title'></div><div class='note' id='note'></div>
+<div class='bar' id='bar' hidden><i id='fill'></i></div><div class='amount' id='amount'></div>
+<div class='label' id='errorLabel' hidden></div><pre id='error' hidden></pre>
+<div class='actions' id='actions' hidden><button type='button' id='copy'></button><button type='button' id='share'></button></div>
+<div class='label' id='logLabel' hidden></div><pre id='log' hidden></pre>
+</main><script>
+/** Lines that look like an error, and the line of a crash. */
+var ERROR = /Error\b|Exception\b|Unhandled|FATAL|[Uu]ncaught|\berror\b/;
+var CRASH = /^FATAL\b|[Uu]ncaught|JavaScript heap out of memory/;
+/** The log's last error with the stack under it (at most 24 lines), or '': a crash (FATAL) before any other. */
+function lastError(log) {
+  var lines = String(log || '').split('\n');
+  var last = -1, crash = -1;
+  for (var i = 0; i < lines.length; i++) {
+    if (/^\s+at\s/.test(lines[i])) continue;
+    if (CRASH.test(lines[i])) crash = i;
+    if (ERROR.test(lines[i])) last = i;
+  }
+  var from = crash >= 0 ? crash : last;
+  if (from < 0) return '';
+  var block = [lines[from]];
+  // Its stack and causes: indented lines, "Caused by", and the error itself under a FATAL line.
+  for (var j = from + 1; j < lines.length && block.length < 24; j++) {
+    var line = lines[j];
+    if (/^\s+\S/.test(line) || /^Caused by:/.test(line) || (j === from + 1 && /^FATAL\b/.test(lines[from]) && line !== '')) block.push(line);
+    else break;
+  }
+  return block.join('\n');
+}
+function show(s) {
+  title.textContent = s.title || ''; note.textContent = s.note || ''; note.hidden = !s.note;
+  spin.hidden = !!s.failed; bar.hidden = s.fraction == null; if (s.fraction != null) fill.style.width = Math.round(s.fraction * 100) + '%';
+  amount.textContent = s.amount || '';
+  var labels = s.labels || {};
+  var found = s.log ? lastError(s.log) : '';
+  error.textContent = found; error.hidden = !found; errorLabel.hidden = !found; errorLabel.textContent = labels.lastError || '';
+  log.textContent = s.log || ''; log.hidden = !s.log; logLabel.hidden = !s.log; logLabel.textContent = labels.log || '';
+  var app = window.PiPhoneApp;
+  actions.hidden = !s.log || !app || typeof app.shareLog !== 'function';
+  copy.textContent = labels.copy || ''; share.textContent = labels.share || '';
+  document.body.classList.toggle('failed', !!s.failed);
+  // The newest lines are at the end: show them.
+  log.scrollTop = log.scrollHeight;
+}
+copy.onclick = function () { window.PiPhoneApp.copyLog(); };
+share.onclick = function () { window.PiPhoneApp.shareLog(); };
+</script>

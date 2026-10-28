@@ -86,6 +86,14 @@
             </intent-filter>
         </service>
 
+        <!-- The failure screen's Share log (LogProvider.java, PP-198): a copy of server.log's end, read-only, to the app
+             it is shared with (a grant on the share's intent only). -->
+        <provider
+            android:name=".LogProvider"
+            android:authorities="${applicationId}.logs"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

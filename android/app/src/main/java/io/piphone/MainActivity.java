@@ -6,6 +6,8 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.os.Build;
@@ -113,8 +115,20 @@ public final class MainActivity extends Activity {
                 String url = BASE + "/login?token=" + Uri.encode(PiService.ownerToken(MainActivity.this));
                 runOnUiThread(() -> web.loadUrl(url));
             } catch (Exception e) {
-                runOnUiThread(() -> failure(getString(R.string.cannot_sign_in), e.toString()));
+                runOnUiThread(() -> failure(getString(R.string.cannot_sign_in), e.toString(), false));
             }
+        }
+
+        /** The failure screen's Copy log (`assets/status.html`). */
+        @JavascriptInterface
+        public void copyLog() {
+            MainActivity.this.copyLog();
+        }
+
+        /** The failure screen's Share log: off the page's thread, as it copies up to 4 MB. */
+        @JavascriptInterface
+        public void shareLog() {
+            new Thread(MainActivity.this::shareLog, "pi-share-log").start();
         }
 
         @JavascriptInterface
@@ -477,7 +491,7 @@ public final class MainActivity extends Activity {
         while (!loaded) {
             PiService.State state = PiService.state();
             if (state == PiService.State.FAILED) {
-                failure(getString(R.string.runtime_failed), PiService.failure() + "\n\n" + logTail());
+                failure(getString(R.string.runtime_failed), PiService.failure(), true);
                 return;
             }
             if (state != last) {
@@ -508,7 +522,7 @@ public final class MainActivity extends Activity {
                         runOnUiThread(() -> checkForUpdates(false));
                     }
                 } catch (Exception e) {
-                    failure(getString(R.string.cannot_sign_in), e + "\n\n" + logTail());
+                    failure(getString(R.string.cannot_sign_in), e.toString(), true);
                 }
                 return;
             }
@@ -596,59 +610,83 @@ public final class MainActivity extends Activity {
                 .build());
     }
 
-    private String logTail() {
+    /** How much of server.log's end the failure screen shows (its last error is found in it). */
+    private static final int SHOWN_LOG_BYTES = 64 * 1024;
+    /** How much of server.log's end Copy log puts on the clipboard (Android's clipboard goes through Binder). */
+    private static final int COPIED_LOG_BYTES = 256 * 1024;
+    /** How much of server.log's end Share log hands on, as a file. */
+    private static final int SHARED_LOG_BYTES = 4 * 1024 * 1024;
+
+    /** The last `max` bytes of server.log, from a whole line on. */
+    private String logTail(int max) {
         File log = PiService.logFile(getFilesDir());
         try (RandomAccessFile file = new RandomAccessFile(log, "r")) {
-            long start = Math.max(0, file.length() - 6000);
+            long start = Math.max(0, file.length() - max);
             byte[] bytes = new byte[(int) (file.length() - start)];
             file.seek(start);
             file.readFully(bytes);
-            return new String(bytes, StandardCharsets.UTF_8);
+            int from = 0;
+            if (start > 0) {
+                // Not half a line (nor half a character): from the next line on.
+                while (from < bytes.length && bytes[from] != '\n') from++;
+                from = Math.min(bytes.length, from + 1);
+            }
+            return new String(bytes, from, bytes.length - from, StandardCharsets.UTF_8);
         } catch (IOException e) {
             return "(no log: " + e + ")";
         }
     }
 
-    /** The web app's colors (web/style.css, the pocket theme): this page shows before the server and its fonts are up. */
+    /** Copy log: the end of server.log on the clipboard. */
+    private void copyLog() {
+        String text = logTail(COPIED_LOG_BYTES);
+        runOnUiThread(() -> {
+            ClipboardManager clipboard = getSystemService(ClipboardManager.class);
+            clipboard.setPrimaryClip(ClipData.newPlainText("server.log", text));
+            Toast.makeText(this, getString(R.string.log_copied), Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    /** Share log: the end of server.log (up to 4 MB) as a file, through Android's share sheet (`LogProvider`). */
+    private void shareLog() {
+        try {
+            File shared = LogProvider.file(this);
+            if (!shared.getParentFile().isDirectory() && !shared.getParentFile().mkdirs()) {
+                throw new IOException("cannot create " + shared.getParentFile());
+            }
+            File log = PiService.logFile(getFilesDir());
+            try (RandomAccessFile in = new RandomAccessFile(log, "r"); OutputStream out = new java.io.FileOutputStream(shared)) {
+                long start = Math.max(0, in.length() - SHARED_LOG_BYTES);
+                in.seek(start);
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = in.read(buffer)) >= 0) out.write(buffer, 0, read);
+            }
+            Uri uri = LogProvider.uri(this);
+            Intent send = new Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_log_subject))
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            send.setClipData(ClipData.newRawUri("server.log", uri));
+            runOnUiThread(() -> startActivity(Intent.createChooser(send, getString(R.string.share_log))));
+        } catch (Exception e) {
+            runOnUiThread(() -> alert(getString(R.string.could_not_share_log), e.toString()));
+        }
+    }
+
     /**
      * The app's own screen before the server answers (unpacking, updating, starting, downloading an update) and when
-     * something failed: the logo, the app's name, a spinner, what is happening and a note, a progress bar for a download,
-     * and the log for a failure. It loads once; `show()` then changes it in place, so the spinner keeps turning.
+     * something failed: `assets/status.html`. It loads once; `show()` then changes it in place, so the spinner keeps
+     * turning.
      */
-    private static final String STATUS_PAGE = "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
-            + "<style>"
-            + "html,body{margin:0;height:100%;background:#141414;color:#a9b1d6;font:15px/1.5 system-ui,-apple-system,Roboto,sans-serif}"
-            + "main{min-height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;"
-            + "padding:32px 28px;text-align:center}"
-            + ".logo{width:72px;height:72px}"
-            + ".name{margin:18px 0 28px;color:#e8eaf2;font-size:22px;font-weight:600;letter-spacing:-.01em}"
-            + ".spin{width:22px;height:22px;border-radius:50%;border:2.5px solid rgba(169,177,214,.18);border-top-color:#a9b1d6;"
-            + "animation:spin .9s linear infinite;margin-bottom:22px}"
-            + "@keyframes spin{to{transform:rotate(360deg)}}"
-            + ".title{color:#d4d8e8;font-size:16px;font-weight:500}"
-            + ".note{margin-top:6px;color:#7b8199;font-size:13.5px;max-width:30em}"
-            + ".bar{width:min(280px,80%);height:4px;margin:20px 0 8px;border-radius:2px;background:rgba(169,177,214,.15);overflow:hidden}"
-            + ".bar i{display:block;height:100%;width:0;border-radius:2px;background:#7aa2f7;transition:width .4s ease}"
-            + ".amount{color:#7b8199;font-size:12.5px;font-variant-numeric:tabular-nums}"
-            + "pre{align-self:stretch;text-align:left;white-space:pre-wrap;font:12px/1.45 monospace;background:#0d0d10;color:#c0caf5;"
-            + "border-radius:10px;padding:12px;margin:22px 0 0;max-height:55vh;overflow:auto}"
-            + "body.failed main{justify-content:flex-start;padding-top:56px}body.failed .title{color:#f7768e}"
-            + "[hidden]{display:none!important}"
-            + "</style></head><body><main>"
-            + "<svg class='logo' viewBox='150 150 500 500' aria-hidden='true'>"
-            + "<path fill='#F09082' d='M165.29 165.29H517.36V400H400V282.65H165.29Z'/>"
-            + "<path fill='#4D9ABF' d='M165.29 282.65H282.65V400H400V517.36H282.65V634.72H165.29Z'/>"
-            + "<path fill='#F1BE58' d='M517.36 400H634.72V634.72H517.36Z'/></svg>"
-            + "<div class='name'>pi-phone</div>"
-            + "<div class='spin' id='spin'></div>"
-            + "<div class='title' id='title'></div><div class='note' id='note'></div>"
-            + "<div class='bar' id='bar' hidden><i id='fill'></i></div><div class='amount' id='amount'></div>"
-            + "<pre id='log' hidden></pre>"
-            + "</main><script>"
-            + "function show(s){title.textContent=s.title||'';note.textContent=s.note||'';note.hidden=!s.note;"
-            + "spin.hidden=!!s.failed;bar.hidden=s.fraction==null;if(s.fraction!=null)fill.style.width=Math.round(s.fraction*100)+'%';"
-            + "amount.textContent=s.amount||'';log.hidden=!s.log;log.textContent=s.log||'';document.body.classList.toggle('failed',!!s.failed)}"
-            + "</script>";
+    private String statusPage() {
+        try (InputStream in = getAssets().open("status.html")) {
+            return PiService.readAll(in);
+        } catch (IOException e) {
+            throw new IllegalStateException("The APK has no assets/status.html", e);
+        }
+    }
 
     /** Whether the status screen is what the WebView shows now (the app's page replaces it once the server answers). */
     private volatile boolean statusShown = false;
@@ -660,7 +698,7 @@ public final class MainActivity extends Activity {
                 web.evaluateJavascript("typeof show==='function'&&show(" + state + ")", null);
             } else {
                 statusShown = true;
-                web.loadDataWithBaseURL(null, STATUS_PAGE + "<script>show(" + state + ")</script></body></html>", "text/html", "utf-8", null);
+                web.loadDataWithBaseURL(null, statusPage() + "<script>show(" + state + ")</script></body></html>", "text/html", "utf-8", null);
             }
         });
     }
@@ -684,10 +722,19 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** A failure: what failed, and what the log says. */
-    private void failure(String title, String log) {
+    /**
+     * A failure: what failed, why, and the end of server.log when `withLog` (the page puts its last error on top, with
+     * Copy log and Share log).
+     */
+    private void failure(String title, String reason, boolean withLog) {
         try {
-            show(new JSONObject().put("title", title).put("log", log).put("failed", true));
+            JSONObject labels = new JSONObject()
+                    .put("lastError", getString(R.string.last_error))
+                    .put("log", getString(R.string.log_end))
+                    .put("copy", getString(R.string.copy_log))
+                    .put("share", getString(R.string.share_log));
+            show(new JSONObject().put("title", title).put("note", reason).put("log", withLog ? logTail(SHOWN_LOG_BYTES) : "")
+                    .put("labels", labels).put("failed", true));
         } catch (JSONException impossible) {
             throw new IllegalStateException(impossible);
         }
@@ -746,7 +793,7 @@ public final class MainActivity extends Activity {
                         runtime, plan.manifest.getString("runtimeVersion")));
                 waitForServer();
             } catch (Exception e) {
-                failure(getString(R.string.update_failed), getString(R.string.update_failed_note, e.toString()));
+                failure(getString(R.string.update_failed), getString(R.string.update_failed_note, e.toString()), false);
             }
         }, "pi-update").start();
     }

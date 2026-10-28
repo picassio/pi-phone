@@ -26,6 +26,7 @@ import { PhoneSettingsFile } from "./phone-settings.ts";
 import { Tailnet } from "./tailnet.ts";
 import { ChromeEngine } from "./browser/pi-browser.ts";
 import { ChromeRenderer } from "./chrome-renderer.ts";
+import { installFatalLog } from "./fatal.ts";
 
 const RESTART_CODE = 75;
 /**
@@ -151,6 +152,8 @@ process.on("SIGTERM", () => void stop(0));
 process.on("SIGHUP", () => void stop(0));
 process.on("SIGUSR2", () => void stop(RESTART_CODE));
 process.on("unhandledRejection", (error) => console.error("Unhandled rejection:", error));
+// An exception nothing caught: its stack in the log under a FATAL line, then exit 1 (the phone's failure screen shows it).
+installFatalLog();
 
 /** Answers requests once the app is open; until then, a short "starting". */
 let handle: ReturnType<typeof createHandler> | undefined;

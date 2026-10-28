@@ -49,7 +49,12 @@ files/tmp/        TMPDIR
 - `PiService`: foreground service with a partial wake lock; runs
   `usr/bin/node runtime/src/server/main.ts --host 127.0.0.1 --port 8787 --cwd home/work`
   with `HOME`, `PREFIX`, `PATH`, `LD_LIBRARY_PATH`, `TMPDIR`, `SSL_CERT_FILE`, `LANG` set. Log in
-  `files/log/server.log`.
+  `files/log/server.log` (appended, never cut). An exception nothing caught is written there with its stack under a
+  `FATAL` line before the server exits with 1 (`fatal.ts`).
+- The status screen (`assets/status.html`, `MainActivity.show`): progress, and a failure with its reason, the log's
+  last error on top (a `FATAL` line before any other, with the stack under it), Copy log (its last 256 KB) and Share
+  log (its last 4 MB as a file through the share sheet: `LogProvider`, not exported, read grant on the intent only),
+  then the log's last 64 KB scrolled to its end (PP-198).
 - `MainActivity`: starts the service, waits for `GET /` to stop answering 503, reads `ownerToken` from
   `home/.pi-pocket/config.json`, loads `http://127.0.0.1:8787/login?token=...` in a WebView.
 - Android 12+ phantom-process killer and OEM battery savers can still kill children; document the adb setting.

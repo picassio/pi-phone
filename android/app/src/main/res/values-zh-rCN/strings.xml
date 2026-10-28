@@ -18,6 +18,13 @@
     <string name="updating_note">正在换上新版本。</string>
     <string name="runtime_failed">运行时出错</string>
     <string name="cannot_sign_in">无法登录</string>
+    <string name="last_error">最后的错误</string>
+    <string name="log_end">日志末尾</string>
+    <string name="copy_log">复制日志</string>
+    <string name="share_log">分享日志</string>
+    <string name="share_log_subject">pi-phone server.log</string>
+    <string name="log_copied">已复制日志末尾。</string>
+    <string name="could_not_share_log">无法分享日志</string>
     <string name="update_not_installed">更新未能安装</string>
     <string name="could_not_check_updates">无法检查更新</string>
     <string name="up_to_date">pi 已是最新版本。</string>

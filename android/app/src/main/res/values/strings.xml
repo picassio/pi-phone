@@ -19,6 +19,13 @@
     <string name="updating_note">Swapping in the new version.</string>
     <string name="runtime_failed">The runtime failed</string>
     <string name="cannot_sign_in">Cannot sign in</string>
+    <string name="last_error">Last error</string>
+    <string name="log_end">End of the log</string>
+    <string name="copy_log">Copy log</string>
+    <string name="share_log">Share log</string>
+    <string name="share_log_subject">pi-phone server.log</string>
+    <string name="log_copied">The log\'s end is copied.</string>
+    <string name="could_not_share_log">Could not share the log</string>
     <string name="update_not_installed">The update did not install</string>
     <string name="could_not_check_updates">Could not check for updates</string>
     <string name="up_to_date">pi is up to date.</string>
