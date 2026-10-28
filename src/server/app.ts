@@ -2635,7 +2635,7 @@ export class PocketApp {
 
     /** Change someone's name: shown at once on their messages, in the people lists, and on their avatar. */
     /** The languages the app speaks (`web/i18n.js`); "auto" follows the person's browser. */
-    static readonly LANGUAGES = ["auto", "en", "zh-CN"] as const;
+    static readonly LANGUAGES = ["auto", "en", "zh-CN", "vi"] as const;
 
     /** The app's language for `user` (PP-81), on every device of theirs: their tabs load again in it. */
     async setLanguage(user: User, language: unknown): Promise<void> {

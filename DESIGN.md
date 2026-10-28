@@ -463,6 +463,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   session's folder (`git check-ignore` through `host.run`, here or on the machine; outside a repository nothing is
   ignored). A write that names no file it can read (a variable, a path built in the program) keeps the reminder.
   Relative names are the session folder's; a `cd` in the command is not followed.
+- **Languages** (PP-81, PP-236): English, Simplified Chinese (`zh-CN`) and Vietnamese (`vi`). The list is in
+  `web/i18n.js` (`LANGUAGES`, Auto by the browser's tags), `src/server/i18n.ts` (phone notifications, Auto by Android's
+  locale), `PocketApp.LANGUAGES` and `appearance.language`; Pi's prompt says the person's language (`section("language")`).
+  Each language has `web/i18n/<id>.json` (sentences), `<id>.server.json` (server messages) and Android's
+  `res/values-<qualifier>` (zh-rCN, vi). `scripts/i18n-check.ts` reports each catalog and fails on a placeholder that
+  differs; `--missing <id>` and `--missing <id>.server` list what one lacks. Vietnamese wording: `web/i18n/vi.glossary.md`.
 - **Settings and extensions:** each feature's settings are in Settings (the menu), and follow its module.
   - **Extensions' own rows:** an extension adds its row with `pocket.menu`, which the menu lists with the app's settings
     and drops when the module is off. The wiki's "Wiki" row opens its settings sheet; the Wiki page has no Settings

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { APP_ROOT } from "./config.ts";
 
 /** The languages the app speaks (as web/i18n.js's LANGUAGES). */
-export const LANGUAGES = ["en", "zh-CN"] as const;
+export const LANGUAGES = ["en", "zh-CN", "vi"] as const;
 
 export type Language = (typeof LANGUAGES)[number];
 
@@ -19,7 +19,11 @@ export function resolveLanguage(choice: string | undefined, device: string | und
     }
 
     // Chinese of every script reads Simplified for now: the only Chinese catalog there is.
-    return /^zh\b/i.test(device ?? "") ? "zh-CN" : "en";
+    if (/^zh\b/i.test(device ?? "")) {
+        return "zh-CN";
+    }
+
+    return /^vi\b/i.test(device ?? "") ? "vi" : "en";
 }
 
 const catalogs = new Map<Language, Record<string, string>>();

@@ -1,9 +1,11 @@
 // The app in the person's language (PP-81): sentences by their English, placeholders kept, English where a catalog has
 // none; the language kept with the person and told to every tab of theirs; Pi told when it is Chinese; and the check
 // that finds the sentences and refuses a translation that loses a placeholder.
-import { type App, cleanUp, fakeTab, openApp, owner, scriptedModel } from "./helpers.ts";
+import { type App, cleanUp, fakeTab, home, openApp, owner, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { appSettings } from "../src/server/settings-registry.ts";
 import { after, before, test } from "node:test";
 import { sentences, serverMessages, templatePattern } from "../scripts/i18n-check.ts";
 import { scan, wrap } from "../scripts/i18n-scan.ts";
@@ -106,7 +108,9 @@ test("the language: a choice, else the browser's when the app speaks it, else En
     assert.equal(resolveLanguage("zh-CN", ["en-US"]), "zh-CN");
     assert.equal(resolveLanguage("auto", ["zh-TW", "en"]), "zh-CN", "Chinese of any script reads Simplified for now");
     assert.equal(resolveLanguage("auto", ["fr-FR", "en-GB"]), "en");
-    assert.equal(resolveLanguage("auto", ["vi-VN"]), "en");
+    assert.equal(resolveLanguage("auto", ["vi-VN"]), "vi", "Vietnamese (PP-236)");
+    assert.equal(resolveLanguage("vi", ["en-US"]), "vi");
+    assert.equal(resolveLanguage("auto", ["fr-FR", "vi", "en"]), "vi");
     assert.equal(resolveLanguage("klingon", ["zh-CN"]), "zh-CN", "an unknown choice falls to the browser's");
 });
 
@@ -127,6 +131,9 @@ test("a person's language is kept with them, told to their tabs, in hello, and t
         assert.equal(theirs.last("language"), undefined, "only their own tabs");
         assert.equal((await app.hello(me)).user.language, "zh-CN");
         await assert.rejects(app.setLanguage(me, "fr"), { status: 400 });
+        await app.setLanguage(me, "vi");
+        assert.equal(app.config.userById(me.id)?.language, "vi", "Vietnamese (PP-236)");
+        assert.deepEqual(mine.last("language"), { language: "vi" });
 
         await app.setLanguage(me, "auto");
         assert.equal(app.config.userById(me.id)?.language, undefined, "auto keeps nothing");
@@ -141,6 +148,31 @@ test("Pi's prompt says so when the person's app is in Chinese", () => {
 
     assert.match(source, /section\("language"/);
     assert.match(source, /write to them in Chinese unless they write to you in another language/);
+    assert.match(source, /write to them in Vietnamese unless they write to you in another language/);
+});
+
+test("Vietnamese is a language of the app (PP-236): in the picker, Appearance's setting, and the check's catalogs", async () => {
+    // @ts-expect-error: plain JS, no types.
+    const { LANGUAGES } = await import("../web/i18n.js");
+
+    assert.deepEqual(LANGUAGES.map((each: { id: string }) => each.id), ["en", "zh-CN", "vi"]);
+    assert.equal(LANGUAGES.find((each: { id: string }) => each.id === "vi").name, "Tiếng Việt");
+
+    const setting = appSettings(app).settings.find((each) => each.id === "appearance.language")!;
+
+    assert.deepEqual(await setting.choices?.(), ["auto", "en", "zh-CN", "vi"]);
+
+    // The check knows the vi catalogs: what each lacks, as JSON, and its line in the summary.
+    const check = (...args: string[]) =>
+        execFileSync(process.execPath, [new URL("../scripts/i18n-check.ts", import.meta.url).pathname, ...args], { encoding: "utf8", env: { ...process.env, HOME: home } });
+    const sentencesLacked = JSON.parse(check("--missing", "vi")) as Record<string, string>;
+    const messagesLacked = JSON.parse(check("--missing", "vi.server")) as Record<string, string>;
+    const catalog = JSON.parse(readFileSync(new URL("../web/i18n/vi.json", import.meta.url), "utf8")) as Record<string, string>;
+
+    assert.ok(Object.keys(sentencesLacked).every((each) => catalog[each] === undefined || catalog[each] === ""), "only what vi.json lacks");
+    assert.equal(typeof messagesLacked, "object");
+    assert.match(check(), /^vi: \d+ of \d+ sentences translated/m);
+    assert.match(check(), /^vi\.server: \d+ of \d+ server messages translated/m);
 });
 
 test("the check finds sentences in t(), tx(), tn() and item(), and the scan wraps whole text only", () => {

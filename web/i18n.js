@@ -10,6 +10,7 @@
 export const LANGUAGES = [
     { id: "en", name: "English" },
     { id: "zh-CN", name: "简体中文" },
+    { id: "vi", name: "Tiếng Việt" },
 ];
 
 const KEY = "pocket.language";
@@ -24,6 +25,10 @@ export function resolveLanguage(choice, preferred = []) {
         // Chinese of every script reads Simplified for now: the only Chinese catalog there is.
         if (/^zh\b/i.test(tag)) {
             return "zh-CN";
+        }
+
+        if (/^vi\b/i.test(tag)) {
+            return "vi";
         }
 
         if (/^en\b/i.test(tag)) {
@@ -71,7 +76,7 @@ export function tn(n, one, other, vars = {}) {
     return t(n === 1 ? one : other, { n, ...vars });
 }
 
-/** The language in use: "en" or "zh-CN". */
+/** The language in use: "en", "zh-CN" or "vi". */
 export const currentLanguage = () => language;
 
 /** The person's choice as this browser remembers it ("auto" when none). */

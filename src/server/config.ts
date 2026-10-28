@@ -39,7 +39,7 @@ export interface User {
     tunnel?: string;
     /** The most Pi may spend for this person, in dollars; never for the owner. */
     budget?: number;
-    /** The language of the app for them (PP-81): "en", "zh-CN"; absent: their browser's ("auto"). */
+    /** The language of the app for them (PP-81, PP-236): "en", "zh-CN", "vi"; absent: their browser's ("auto"). */
     language?: string;
 }
 

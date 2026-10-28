@@ -20,7 +20,9 @@ test("the phone's notifications are said in the owner's language: their choice, 
     // Auto follows the phone's own language (Android's locale tag); a choice wins over it.
     assert.equal(resolveLanguage("auto", "zh-Hans-CN"), "zh-CN");
     assert.equal(resolveLanguage(undefined, "zh-TW"), "zh-CN");
-    assert.equal(resolveLanguage("auto", "vi-VN"), "en");
+    assert.equal(resolveLanguage("auto", "vi-VN"), "vi", "Vietnamese (PP-236)");
+    assert.equal(resolveLanguage("auto", "fr-FR"), "en");
+    assert.equal(resolveLanguage("vi", "en-US"), "vi");
     assert.equal(resolveLanguage("en", "zh-CN"), "en");
     assert.equal(resolveLanguage("zh-CN", "en-US"), "zh-CN");
 
@@ -30,6 +32,11 @@ test("the phone's notifications are said in the owner's language: their choice, 
 
     assert.equal(english.heading, "Waiting for you: Fix the build");
     assert.equal(english.text, "Pi has 3 questions: Plan");
+
+    const vietnamese = inLanguage(event, translator("vi"));
+
+    assert.equal(vietnamese.heading, "Đang chờ bạn: Fix the build");
+    assert.equal(vietnamese.text, "Pi có 3 câu hỏi: Plan");
 
     const chinese = inLanguage(event, translator("zh-CN"));
 

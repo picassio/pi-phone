@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- values/strings.xml in Vietnamese (PP-236). Words as web/i18n/vi.glossary.md has them. -->
+<resources>
+    <string name="channel_sessions">Phiên</string>
+    <string name="channel_runtime">pi runtime</string>
+    <string name="runtime_running">runtime của agent đang chạy</string>
+    <string name="saved_to_downloads">Đã lưu vào Tải xuống</string>
+    <string name="saved_name_to_downloads">Đã lưu %1$s vào Tải xuống.</string>
+    <string name="could_not_save">Không lưu được %1$s</string>
+    <string name="downloads_need_android_10">Lưu vào Tải xuống cần Android 10 trở lên.</string>
+    <string name="page_not_signed_in">Trang này chưa đăng nhập.</string>
+    <string name="downloads_no_file">Android không tạo được tệp trong Tải xuống.</string>
+    <string name="starting">Đang khởi động…</string>
+    <string name="starting_server">Đang khởi động máy chủ…</string>
+    <string name="unpacking">Đang giải nén runtime…</string>
+    <string name="unpacking_note">Lần khởi động đầu sau khi cài hoặc cập nhật; mất khoảng một phút.</string>
+    <string name="updating">Đang cập nhật…</string>
+    <string name="updating_note">Đang chuyển sang phiên bản mới.</string>
+    <string name="runtime_failed">Runtime bị lỗi</string>
+    <string name="cannot_sign_in">Không đăng nhập được</string>
+    <string name="last_error">Lỗi gần nhất</string>
+    <string name="log_end">Cuối nhật ký</string>
+    <string name="copy_log">Sao chép nhật ký</string>
+    <string name="share_log">Chia sẻ nhật ký</string>
+    <string name="share_log_subject">pi-phone server.log</string>
+    <string name="log_copied">Đã sao chép phần cuối nhật ký.</string>
+    <string name="could_not_share_log">Không chia sẻ được nhật ký</string>
+    <string name="update_not_installed">Bản cập nhật chưa được cài</string>
+    <string name="could_not_check_updates">Không kiểm tra được bản cập nhật</string>
+    <string name="up_to_date">pi đã là bản mới nhất.</string>
+    <string name="downloading_update">Đang tải bản cập nhật</string>
+    <string name="downloading_app_update">Đang tải bản cập nhật ứng dụng</string>
+    <string name="version">Phiên bản %1$s</string>
+    <string name="installing_update">Đang cài bản cập nhật</string>
+    <string name="installing_update_note">Android sẽ hỏi bạn xác nhận. Các phiên và đăng nhập của bạn vẫn giữ nguyên.</string>
+    <string name="update_failed">Cập nhật thất bại</string>
+    <string name="update_failed_note">%1$s\n\nPhiên bản trước vẫn còn cài: hãy đóng rồi mở lại ứng dụng.</string>
+    <string name="allow_installs_title">Cho phép pi cài bản cập nhật</string>
+    <string name="allow_installs_message">Bật \"Cho phép từ nguồn này\" cho pi, rồi quay lại để cài bản cập nhật.</string>
+    <string name="open_settings">Mở cài đặt</string>
+    <string name="later">Để sau</string>
+    <string name="ok">OK</string>
+    <string name="megabytes">%1$.1f / %2$.1f MB</string>
+    <!-- Phone control (PP-141): the accessibility service, the banner over apps, and the session's notification. -->
+    <string name="phone_control_service_label">pi: điều khiển điện thoại</string>
+    <string name="phone_control_service_summary">Pi đọc và thao tác các ứng dụng bạn chỉ định, trong các phiên bạn duyệt</string>
+    <string name="phone_control_service_description">Cho phép Pi, agent trong pi-phone, đọc màn hình và chạm, gõ, vuốt trong ứng dụng khác, chỉ trong phiên điều khiển bạn duyệt trên một thẻ trong pi-phone: các ứng dụng thẻ nêu (và màn hình chính để mở chúng), trong số phút ghi trên thẻ. Khi đang chạy có biểu ngữ và thông báo, kèm nút Dừng. pi-phone, ứng dụng ngân hàng và thanh toán, trình quản lý mật khẩu và các ứng dụng trong danh sách Không bao giờ của bạn không bao giờ bị đọc hay điều khiển. Không gì rời khỏi điện thoại ngoài những gì Pi đọc trong các ứng dụng đó.</string>
+    <string name="phone_control_banner">Pi đang dùng điện thoại của bạn · %1$d phút</string>
+    <string name="phone_control_stop">Dừng</string>
+    <string name="channel_phone_control">Điều khiển điện thoại</string>
+    <string name="phone_control_title">Pi đang dùng điện thoại của bạn</string>
+    <string name="phone_control_text">%1$s · đến %2$s</string>
+    <!-- The phone's assistant (PP-146): the sheet's lines before its page is there. -->
+    <string name="assistant_label">pi</string>
+    <string name="assistant_starting">pi đang khởi động: vài giây</string>
+    <string name="assistant_locked">Mở khóa điện thoại, rồi giữ phím bên lần nữa</string>
+    <string name="assistant_failed">pi chưa khởi động được. Mở pi-phone để xem lý do</string>
+    <!-- A voice call with Pi (PP-191): its notification. -->
+    <string name="channel_voice">Cuộc gọi thoại</string>
+    <string name="voice_title">Gọi thoại với Pi</string>
+    <string name="voice_title_session">Gọi thoại với Pi · %1$s</string>
+    <string name="voice_on_call">Đang gọi: chạm để mở</string>
+    <string name="voice_muted">Đã tắt mic: Pi không nghe thấy gì</string>
+    <string name="voice_mute">Tắt mic</string>
+    <string name="voice_unmute">Bật mic</string>
+    <string name="voice_end">Kết thúc</string>
+    <string name="voice_caller">Pi</string>
+</resources>

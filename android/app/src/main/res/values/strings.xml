@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- What the app's Android side says itself (PP-85): notifications, the start screen, updates and downloads. In the
-     phone's language (values-zh-rCN for Chinese); the web app and the server's notifications follow the person's choice. -->
+     phone's language (values-zh-rCN for Chinese, values-vi for Vietnamese); the web app and the server's notifications follow the person's choice. -->
 <resources>
     <string name="channel_sessions">Sessions</string>
     <string name="channel_runtime">pi runtime</string>

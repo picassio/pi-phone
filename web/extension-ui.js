@@ -827,7 +827,7 @@ function pocketFor(record) {
          * The app's words in the person's language (PP-84): `t` takes an English sentence with {placeholders} and their
          * values, `tn` a count with its one and other sentences, `tx` a sentence with elements in it; English where the
          * app's catalog has no sentence.
-         * `language()` is the one in use ("en", "zh-CN"). Uncounted, as `html` is: they draw.
+         * `language()` is the one in use ("en", "zh-CN", "vi"). Uncounted, as `html` is: they draw.
          */
         t,
         tn,

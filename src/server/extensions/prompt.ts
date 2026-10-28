@@ -319,7 +319,11 @@ export default function createPrompt(host: PocketHost) {
                 const id = host.requesterOf(input.conversationId);
                 const language = id === undefined ? undefined : host.person(id).language;
 
-                return language === "zh-CN" ? "The person's app is in Simplified Chinese (简体中文): write to them in Chinese unless they write to you in another language." : undefined;
+                if (language === "zh-CN") {
+                    return "The person's app is in Simplified Chinese (简体中文): write to them in Chinese unless they write to you in another language.";
+                }
+
+                return language === "vi" ? "The person's app is in Vietnamese (Tiếng Việt): write to them in Vietnamese unless they write to you in another language." : undefined;
             }),
             section("pocket_docs", () => docs(host.dataDir)),
             section("project_context", (input) => {

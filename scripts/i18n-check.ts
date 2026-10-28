@@ -11,8 +11,10 @@
  *
  *   node scripts/i18n-check.ts            the summary
  *   node scripts/i18n-check.ts web/x.js   what is left in one file, with lines
- *   node scripts/i18n-check.ts --missing zh-CN   the sentences a catalog lacks
- *   node scripts/i18n-check.ts --missing zh-CN.server   the server's messages it lacks
+ *   node scripts/i18n-check.ts --missing zh-CN   the sentences a catalog lacks (zh-CN, vi: every web/i18n/<locale>.json)
+ *   node scripts/i18n-check.ts --missing zh-CN.server   the server's messages it lacks (vi.server too)
+ *
+ * `npm run check` (CI's check job) runs the summary: a line per catalog, and a failure for any placeholder that differs.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";

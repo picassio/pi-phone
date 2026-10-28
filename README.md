@@ -344,9 +344,9 @@ No Termux, no laptop, no cloud VM.
   out of backups.
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
   they finish, so it pushes, ends its turn, and is woken by the result.
-- **In English or Chinese.** Appearance › Language: *Auto* follows the phone or browser, or pick English or 简体中文
-  (Simplified Chinese). The choice is kept with you, so every device of yours follows it, and Pi, told your app is in
-  Chinese, answers in Chinese until you write in another language. The whole app is translated: the session list,
+- **In English, Chinese or Vietnamese.** Appearance › Language: *Auto* follows the phone or browser, or pick English,
+  简体中文 (Simplified Chinese) or Tiếng Việt (Vietnamese). The choice is kept with you, so every device of yours follows
+  it, and Pi, told your app's language, answers in it until you write in another language. The whole app is translated: the session list,
   conversation, menus, launcher, every sheet, the Projects, Wiki, Documents and Sharing pages (extensions get
   `pocket.t` for theirs), the team server's sign-in and admin pages, the server's errors and notices, and the phone's
   notifications (with Auto, in the phone's language). This README is in Chinese too: [README.zh-CN.md](README.zh-CN.md).
@@ -448,7 +448,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Other devices and people | **Access** (Tailscale), **People** (devices, invites, recovery code) | Yes for listing devices, signing one or all out, or changing a person's role. The recovery code is yours |
 | Push notifications in a browser | **Notifications**: Turn on, Send a test, Remove another browser's | No: a browser asks you itself, on that device |
 | Notifications, screen off, backup | **This phone** | Yes for making a backup. Restoring one is yours |
-| The app's language (Auto, English, 简体中文) | **Appearance › Language**, kept with you on every device | "Switch my app to Chinese" |
+| The app's language (Auto, English, 简体中文, Tiếng Việt) | **Appearance › Language**, kept with you on every device | "Switch my app to Chinese", "Switch my app to Vietnamese" |
 | Appearance, dictation language | **Appearance** and **Dictation**, per browser tab | Only the theme new browsers start with ("make lantern the default theme") |
 | The side key's assistant | **Assistant**: where your words go, whether they wait for Send, whether the app you were in is noted | "Make the assistant send by itself". Picking pi as the phone's assistant is yours, in Android's settings |
 | Voice calls and Codex dictation | **Voice** (and **Dictation**'s engine): live and dictation model, voice, language, noise reduction, how soon hands-free answers, who thinks, turn-taking, progress, reader, daily minutes; a session's voice mode in its model menu | "Use gpt-realtime-mini for voice", "Let Codex listen to the mic", "Check the voice models", "I'm on speakerphone in a noisy room", "Let me tap to talk", "Mute the mic after 10 quiet seconds", "Only hear me when I talk loud and close". Models, voice and language are checked with OpenAI first |

@@ -410,11 +410,11 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "appearance.language",
             area: "appearance",
             title: "The app's language for one person",
-            help: "auto (their browser's or phone's), en (English), or zh-CN (简体中文). Target: the person's name. Their open tabs load again in it.",
+            help: "auto (their browser's or phone's), en (English), zh-CN (简体中文), or vi (Tiếng Việt). Target: the person's name. Their open tabs load again in it.",
             owner: true,
             target: "person",
             read: (target) => person(target).language ?? "auto",
-            choices: () => ["auto", "en", "zh-CN"],
+            choices: () => ["auto", "en", "zh-CN", "vi"],
             apply: (_user, value, target) => app.setLanguage(person(target), value.trim()),
         },
         // ─── Themes ───
