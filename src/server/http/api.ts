@@ -216,11 +216,18 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "me" && method === "POST") {
-            const body = await readJson<{ name?: string; language?: unknown }>(request);
+            const body = await readJson<{ name?: string; language?: unknown; welcome?: unknown }>(request);
 
             // The app's language for them (PP-81).
             if (body.language !== undefined && body.name === undefined) {
                 await app.setLanguage(user, body.language);
+
+                return json(response, 200, { ok: true });
+            }
+
+            // The first-run welcome finished or skipped, or to show again (PP-234).
+            if (body.welcome !== undefined && body.name === undefined) {
+                app.setWelcome(user, body.welcome);
 
                 return json(response, 200, { ok: true });
             }

@@ -41,7 +41,15 @@ export interface User {
     budget?: number;
     /** The language of the app for them (PP-81, PP-236): "en", "zh-CN", "vi"; absent: their browser's ("auto"). */
     language?: string;
+    /**
+     * The first-run welcome (PP-234): "done" or "skipped" once they went through it or left it; absent: it shows the next
+     * time they open the app. People here before it existed are marked done (`onboarding` in the config).
+     */
+    welcome?: WelcomeState;
 }
+
+/** Where a person is with the first-run welcome: finished, or skipped (absent: it shows). */
+export type WelcomeState = "done" | "skipped";
 
 /** An invite not yet used, kept by its code's sha256 (the code itself is only shown to whoever made it). */
 export interface StoredInvite {
@@ -93,6 +101,11 @@ export const DEFAULT_LIMIT_WAIT_HOURS = 6;
 
 interface PocketConfig {
     version: 1;
+    /**
+     * 1 once people's welcome state is kept (PP-234). A config without it is from before the welcome: everyone in it is
+     * marked done then, so only people who come after see it.
+     */
+    onboarding?: 1;
     /** Printed in the login URL at every start. Keep this file private. */
     ownerToken: string;
     users: User[];
@@ -210,6 +223,16 @@ export class ConfigStore {
         if (existsSync(this.file)) {
             this.#config = JSON.parse(readFileSync(this.file, "utf8")) as PocketConfig;
 
+            // From before the welcome: the people already here use the app, and are not welcomed again (owner's decision A).
+            if (this.#config.onboarding === undefined) {
+                for (const user of this.#config.users) {
+                    user.welcome ??= "done";
+                }
+
+                this.#config.onboarding = 1;
+                this.save();
+            }
+
             if (given !== undefined && given !== this.#config.ownerToken) {
                 this.#config.ownerToken = given;
                 const owner = this.#config.users.find((user) => user.role === "owner");
@@ -225,6 +248,7 @@ export class ConfigStore {
 
             this.#config = {
                 version: 1,
+                onboarding: 1,
                 ownerToken,
                 users: [
                     {
@@ -603,7 +627,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome">>,
     ): void {
         const user = this.userById(id);
 
@@ -636,6 +660,10 @@ export class ConfigStore {
 
         if (user.language === undefined) {
             delete user.language;
+        }
+
+        if (user.welcome === undefined) {
+            delete user.welcome;
         }
 
         this.save();

@@ -131,6 +131,15 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
 
         return found;
     };
+    const owner = () => {
+        const found = app.config.users.find((user) => user.role === "owner");
+
+        if (found === undefined) {
+            throw new HttpError(500, "This pi-phone has no owner.");
+        }
+
+        return found;
+    };
     const machine = (target: string | undefined) => {
         const found = app.machines.list().find((each) => each.id === target || each.name.toLowerCase() === (target ?? "").trim().toLowerCase());
 
@@ -416,6 +425,17 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             read: (target) => person(target).language ?? "auto",
             choices: () => ["auto", "en", "zh-CN", "vi"],
             apply: (_user, value, target) => app.setLanguage(person(target), value.trim()),
+        },
+        // ─── Onboarding (PP-234) ───
+        {
+            id: "onboarding.welcome",
+            area: "onboarding",
+            title: "The first-run welcome (language, a model, the phone's permissions)",
+            help: "show (it opens again the next time the app opens, and in the open tabs now), done, or skipped. Only the owner has it.",
+            owner: true,
+            read: () => app.welcomeOf(owner()),
+            choices: () => ["show", "done", "skipped"],
+            apply: (user, value) => app.setWelcome(user, value.trim()),
         },
         // ─── Themes ───
         {

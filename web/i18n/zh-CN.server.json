@@ -635,5 +635,8 @@
     "sdp is the page's SDP offer.": "sdp 是页面的 SDP offer。",
     "OpenAI did not name the call.": "OpenAI 没有给出通话的 id。",
     "This call went through the server.": "此通话经由服务器建立。",
-    "rtc is OpenAI's id of the call (rtc_…).": "rtc 是 OpenAI 给通话的 id（rtc_…）。"
+    "rtc is OpenAI's id of the call (rtc_…).": "rtc 是 OpenAI 给通话的 id（rtc_…）。",
+    "The welcome is show, done, or skipped.": "欢迎页的状态为 show、done 或 skipped。",
+    "Only the owner has the welcome.": "只有所有者有欢迎页。",
+    "This pi-phone has no owner.": "这个 pi-phone 没有所有者。"
 }

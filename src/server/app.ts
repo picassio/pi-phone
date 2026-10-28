@@ -61,7 +61,7 @@ import { Attribution, type Missing } from "./attribution.ts";
 import { inBatchOrder } from "./batch-order.ts";
 import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
-import { APP_ROOT, ConfigStore, type User } from "./config.ts";
+import { APP_ROOT, ConfigStore, type User, type WelcomeState } from "./config.ts";
 import {
     ArtifactBodyDoc,
     type ArtifactMeta,
@@ -2652,6 +2652,33 @@ export class PocketApp {
         }
     }
 
+    /** Where `user` is with the first-run welcome: "show", "done" or "skipped" (PP-234). Guests are never welcomed. */
+    welcomeOf(user: User): "show" | WelcomeState {
+        return user.role !== "owner" ? "done" : (user.welcome ?? "show");
+    }
+
+    /**
+     * The welcome finished ("done"), left ("skipped"), or to show again ("show": the next time the app opens, and now in
+     * their open tabs). Their tabs hear it (`welcome`).
+     */
+    setWelcome(user: User, state: unknown): void {
+        if (state !== "show" && state !== "done" && state !== "skipped") {
+            throw new HttpError(400, "The welcome is show, done, or skipped.");
+        }
+
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner has the welcome.");
+        }
+
+        this.config.updateUser(user.id, { welcome: state === "show" ? undefined : state });
+
+        for (const client of this.#clients) {
+            if (client.user.id === user.id) {
+                client.send("welcome", { welcome: state });
+            }
+        }
+    }
+
     rename(user: User, name: string): void {
         this.config.updateUser(user.id, { name });
         this.#peopleChanged();
@@ -3244,6 +3271,9 @@ export class PocketApp {
                 ...(user.sessions === undefined ? {} : { sessions: user.sessions.map(Number) }),
                 // The app's language for them (PP-81): "auto" follows their browser.
                 language: user.language ?? "auto",
+                // The first-run welcome (PP-234): "show" until they finish or skip it. Only for this pi-phone's owner (a
+                // team member owns their own): the model and the phone's permissions are theirs to set.
+                welcome: this.welcomeOf(user),
             },
             users: this.people(user),
             // Removed people's names, for what they wrote.

@@ -732,6 +732,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   Take over: a tap's two mouse events go at once; keys and text go without waiting for the page (Pi's own presses still
   wait for a navigation). `node test/perf/browser-stream.ts [local|tailscale|slow]` measures it (a throttled link to
   a headless Chrome, the panel in another).
+- **Onboarding** (PP-232; plan `projects/pi-phone-onboarding`): the first-run welcome's state is per person in
+  config.json (`User.welcome`: absent shows it, `done`, `skipped`). A config from before it (no `onboarding: 1`)
+  marks everyone done once, so only new pi-phones (a team member's own included) welcome their owner; guests never get
+  it. `hello` sends `user.welcome` (`show` / `done` / `skipped`); `POST /api/me {welcome}` and the setting
+  `onboarding.welcome` (Pi's setting_change) set it, and the person's tabs hear `welcome`.
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a
