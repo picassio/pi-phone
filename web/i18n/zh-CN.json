@@ -1568,7 +1568,7 @@
     "or": "或",
     "In the launcher, start with {actions} for actions, {sessions} for sessions, or {themes} for themes. Arrowing onto colors shows them; Enter keeps them.": "在启动器中，以 {actions} 开头查找操作，以 {sessions} 开头查找会话，以 {themes} 开头查找主题。用方向键移到某个配色即可预览，按 Enter 保留。",
     "Dictation listens for {language}.": "听写将识别{language}。",
-    "Tap the mic beside Send and speak: words show in the message box as they are heard, and nothing is sent by itself. In the app, Android's own speech recognizer listens (Google's, as voice typing uses); in a browser, the browser's. This device keeps its own choice.": "点按“发送”旁的麦克风并说话：识别出的文字会实时出现在消息框中，不会自动发送。在应用中由 Android 自带的语音识别器聆听（即语音输入所用的 Google 识别器）；在浏览器中则使用浏览器自己的识别器。此设备会单独保存自己的选择。",
+    "Tap the mic beside Send and speak: words show in the message box as they are heard, and nothing is sent by itself. In the app, Android's own speech recognizer listens (Google's, as voice typing uses); in a browser, the browser's. The language you pick here goes for all your devices.": "点按“发送”旁的麦克风并说话：识别出的文字会实时出现在消息框中，不会自动发送。在应用中由 Android 自带的语音识别器聆听（即语音输入所用的 Google 识别器）；在浏览器中则使用浏览器自己的识别器。这里选的语言适用于你的所有设备。",
     "The phone's: {language}": "跟随手机：{language}",
     "modified": "已修改",
     "added": "已添加",
@@ -3071,5 +3071,11 @@
     "Show me around.": "带我熟悉一下。",
     "Show me what's new in {version}.": "给我看看 {version} 有什么新功能。",
     "ticks {item}": "勾选 {item}",
-    "unticks {item}": "取消勾选 {item}"
+    "unticks {item}": "取消勾选 {item}",
+    "Shows you": "带你去",
+    "Android's notification settings": "Android 的通知设置",
+    "Android's Accessibility settings": "Android 的无障碍设置",
+    "pi's App info": "pi 的应用信息",
+    "Android's default apps": "Android 的默认应用",
+    "Open this in the pi-phone app on the phone.": "请在手机上的 pi-phone 应用中打开它。"
 }

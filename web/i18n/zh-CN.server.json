@@ -640,5 +640,9 @@
     "Only the owner has the welcome.": "只有所有者有欢迎页。",
     "This pi-phone has no owner.": "这个 pi-phone 没有所有者。",
     "Only the owner has Getting started.": "只有所有者有入门引导。",
-    "Sign in to a model first: Pi needs one to show you around.": "请先登录一个模型：Pi 需要它来带你熟悉应用。"
+    "Sign in to a model first: Pi needs one to show you around.": "请先登录一个模型：Pi 需要它来带你熟悉应用。",
+    "The dictation language is a language tag such as vi-VN or en-US, or auto.": "听写语言是一个语言标签（如 vi-VN 或 en-US），或 auto。",
+    "Notifications are on or off.": "通知只能是 on 或 off。",
+    "Notifications turn on only on the device itself, with a tap: Menu › Notifications there.": "通知只能在设备本身上点按开启：在那里打开 菜单 › 通知。",
+    "No device gets notifications as {1}. Devices: {2}.": "没有名为 {1} 的设备在接收通知。设备：{2}。"
 }

@@ -2652,6 +2652,24 @@ export class PocketApp {
         }
     }
 
+    /**
+     * The language dictation listens for on every device of `user` (a BCP 47 tag such as "vi-VN"), or "auto" for each
+     * device's own. Their tabs hear it (`dictation`).
+     */
+    setDictationLanguage(user: User, language: unknown): void {
+        if (typeof language !== "string" || !(language === "auto" || /^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$/.test(language))) {
+            throw new HttpError(400, "The dictation language is a language tag such as vi-VN or en-US, or auto.");
+        }
+
+        this.config.updateUser(user.id, { dictation: language === "auto" ? undefined : language });
+
+        for (const client of this.#clients) {
+            if (client.user.id === user.id) {
+                client.send("dictation", { dictation: language });
+            }
+        }
+    }
+
     /** Where `user` is with the first-run welcome: "show", "done" or "skipped" (PP-234). Guests are never welcomed. */
     welcomeOf(user: User): "show" | WelcomeState {
         return user.role !== "owner" ? "done" : (user.welcome ?? "show");
@@ -3317,6 +3335,8 @@ export class PocketApp {
                 // The first-run welcome (PP-234): "show" until they finish or skip it. Only for this pi-phone's owner (a
                 // team member owns their own): the model and the phone's permissions are theirs to set.
                 welcome: this.welcomeOf(user),
+                // The language dictation listens for on all their devices, or "auto" for each device's own (PP-235).
+                dictation: user.dictation ?? "auto",
             },
             users: this.people(user),
             // Removed people's names, for what they wrote.

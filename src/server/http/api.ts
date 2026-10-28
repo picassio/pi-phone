@@ -227,7 +227,14 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "me" && method === "POST") {
-            const body = await readJson<{ name?: string; language?: unknown; welcome?: unknown }>(request);
+            const body = await readJson<{ name?: string; language?: unknown; welcome?: unknown; dictation?: unknown }>(request);
+
+            // The language dictation listens for on all their devices (PP-235).
+            if (body.dictation !== undefined && body.name === undefined) {
+                app.setDictationLanguage(user, body.dictation);
+
+                return json(response, 200, { ok: true });
+            }
 
             // The app's language for them (PP-81).
             if (body.language !== undefined && body.name === undefined) {

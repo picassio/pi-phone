@@ -4,6 +4,16 @@ import { onRoute, pushRoute } from "./back.js";
 import { sessionForest } from "./session-tree.js";
 import { liveMessage } from "./live.js";
 import { chooseLanguage, tServer } from "./i18n.js";
+import { DICTATION_LANGUAGE_KEY } from "./android-speech.js";
+
+/** This device's dictation language follows the person's choice (PP-235): a tag, or "auto" for the device's own. */
+function followDictation(choice) {
+    if (typeof choice !== "string" || choice === "auto") {
+        globalThis.localStorage?.removeItem(DICTATION_LANGUAGE_KEY);
+    } else {
+        globalThis.localStorage?.setItem(DICTATION_LANGUAGE_KEY, choice);
+    }
+}
 
 /** A random id. crypto.randomUUID only exists on https and localhost pages; plain-http network addresses lack it. */
 export function uid() {
@@ -805,6 +815,8 @@ const handlers = {
         // Sent again on each connect, mostly as it was: what is the same keeps its identity (`kept`).
         const state = store.state;
 
+        followDictation(data.user.dictation);
+
         setChanged({
             me: kept(state.me, data.user),
             users: keptEach(state.users, data.users),
@@ -827,6 +839,11 @@ const handlers = {
     language: (data) => chooseLanguage(data.language),
     // The first-run welcome finished, skipped, or to show again (PP-234), on this device or another.
     welcome: (data) => store.state.me && store.set({ me: { ...store.state.me, welcome: data.welcome } }),
+    // The language dictation listens for, chosen on any of their devices or by Pi (PP-235): this device follows it.
+    dictation: (data) => {
+        followDictation(data.dictation);
+        store.state.me && store.set({ me: { ...store.state.me, dictation: data.dictation } });
+    },
     // The machines' ports open here changed: one opened, closed, or ended by itself (PP-108). The owner's tabs only.
     forwards: (data) => store.set({ forwards: data.forwards }),
     // A phone control session started or ended (PP-141).

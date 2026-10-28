@@ -82,6 +82,9 @@ export function describeCall(call) {
             return { icon: "⚙", label: t("Reads settings"), subject: args.id ? `${args.id}${args.target ? ` (${args.target})` : ""}` : (args.area ?? t("all")), mono: Boolean(args.id) };
         case "setting_change":
             return { icon: "⚙", label: t("Changes"), subject: `${args.id ?? ""}${args.target ? ` (${args.target})` : ""} → ${short(args.value ?? "", 60)}`, mono: true };
+        // A screen for the person to act on (PP-235): the card below has its button.
+        case "show_screen":
+            return { icon: "↗", label: t("Shows you"), subject: args.screen ?? "" };
         // The Getting started checklist (PP-235).
         case "guide":
             return {

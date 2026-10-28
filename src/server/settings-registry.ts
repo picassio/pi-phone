@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 /** What a setting applies to, when it is not the app as a whole. */
-export type TargetKind = "session" | "person" | "secret" | "machine" | "ssh-key";
+export type TargetKind = "session" | "person" | "secret" | "machine" | "ssh-key" | "device";
 
 export type Setting = {
     /** As Pi names it: `area.name` (`models.default`). */
@@ -425,6 +425,54 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             read: (target) => person(target).language ?? "auto",
             choices: () => ["auto", "en", "zh-CN", "vi"],
             apply: (_user, value, target) => app.setLanguage(person(target), value.trim()),
+        },
+        // ─── Notifications and dictation (PP-235: what a Getting started guide sets up) ───
+        {
+            id: "notifications.device",
+            area: "notifications",
+            title: "Notifications on a browser or device (web push)",
+            help: "on or off, for the device named as the target (as Menu › Notifications lists them). Off forgets that device. On is turned on only on the device itself, with a tap: show the person Menu › Notifications there (show_screen notifications). The pi-phone app has its own notifications (Android's settings).",
+            owner: true,
+            target: "device",
+            read: (target) => {
+                const found = app.webPush.list().find((each) => each.name === (target ?? "").trim());
+
+                return found === undefined ? "off" : found.lastError === undefined ? "on" : `on (the last one did not go: ${found.lastError})`;
+            },
+            choices: () => ["on", "off"],
+            apply: (_user, value, target) => {
+                const wanted = value.trim();
+
+                if (wanted !== "on" && wanted !== "off") {
+                    throw new HttpError(400, "Notifications are on or off.");
+                }
+
+                const found = app.webPush.list().find((each) => each.name === (target ?? "").trim());
+
+                if (wanted === "on") {
+                    if (found === undefined) {
+                        throw new HttpError(400, "Notifications turn on only on the device itself, with a tap: Menu › Notifications there.");
+                    }
+
+                    return;
+                }
+
+                if (found === undefined) {
+                    throw new HttpError(404, `No device gets notifications as ${target ?? ""}. Devices: ${app.webPush.list().map((each) => each.name).join(", ") || "none"}.`);
+                }
+
+                app.webPush.remove(found.id);
+            },
+        },
+        {
+            id: "dictation.language",
+            area: "dictation",
+            title: "The language dictation listens for, on every device of one person",
+            help: "A language tag (vi-VN, en-US, zh-CN, …), or auto for each device's own language. Target: the person's name. Menu › Dictation sets it too.",
+            owner: true,
+            target: "person",
+            read: (target) => person(target).dictation ?? "auto",
+            apply: (_user, value, target) => app.setDictationLanguage(person(target), value.trim()),
         },
         // ─── Onboarding (PP-234) ───
         {
@@ -1276,6 +1324,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
         secret: () => app.secrets.list().map((each) => each.name),
         machine: () => app.machines.list().map((each) => each.name),
         "ssh-key": async () => (await app.sshKeys.list()).map((key) => `${key.id} (${key.name})`),
+        device: () => app.webPush.list().map((each) => each.name),
     };
 
     return { settings, actions, targets };

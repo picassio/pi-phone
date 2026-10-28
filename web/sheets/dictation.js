@@ -34,6 +34,8 @@ export function DictationSheet() {
 
         setPicked(tag);
         notify("info", t("Dictation listens for {language}.", { language: named(tag === "" ? phone : tag) }));
+        // Every device of theirs follows it, and Pi can read and set it (`dictation.language`, PP-235).
+        void attempt(() => api("me", { dictation: tag === "" ? "auto" : tag }));
     };
 
     // Who listens (PP-190): the phone's or browser's recognizer, or Codex on the owner's ChatGPT sign-in (Settings › Voice).
@@ -42,7 +44,7 @@ export function DictationSheet() {
 
     return html`<${Sheet} title=${t("Dictation")} onClose=${closeSheet}>
         <p class="muted small">
-            ${t("Tap the mic beside Send and speak: words show in the message box as they are heard, and nothing is sent by itself. In the app, Android's own speech recognizer listens (Google's, as voice typing uses); in a browser, the browser's. This device keeps its own choice.")}
+            ${t("Tap the mic beside Send and speak: words show in the message box as they are heard, and nothing is sent by itself. In the app, Android's own speech recognizer listens (Google's, as voice typing uses); in a browser, the browser's. The language you pick here goes for all your devices.")}
         </p>
         ${
             voice &&

@@ -14,6 +14,35 @@ import type { PocketHost } from "../host.ts";
 export const ONBOARDING_EXTENSION = "pocket-onboarding";
 /** Where the release notes are, one file a version (`whatsnew/<version>.md`), for the What's new topic. */
 export const WHATS_NEW_DIR = join(APP_ROOT, "whatsnew");
+/**
+ * The screens `show_screen` offers (web/guide.js opens each): the app's own, and Android's that only the pi-phone app on
+ * the phone opens (`android-…`, the microphone's question).
+ */
+export const SCREENS = [
+    "providers",
+    "default-model",
+    "appearance",
+    "notifications",
+    "dictation",
+    "voice",
+    "assistant",
+    "this-phone",
+    "phone-control",
+    "computer-control",
+    "machines",
+    "ssh-keys",
+    "secrets",
+    "pi-browser",
+    "web-access",
+    "spend",
+    "github",
+    "android-notifications",
+    "android-battery",
+    "android-accessibility",
+    "android-app-info",
+    "android-default-apps",
+    "microphone",
+] as const;
 /** The most parts a checklist has, and the longest a part's text is. */
 const MAX_ITEMS = 12;
 const MAX_TEXT = 80;
@@ -101,9 +130,25 @@ export default function createOnboarding(host: PocketHost) {
         },
     });
 
+    const showScreen = defineTool({
+        name: "show_screen",
+        description:
+            "Put a card in the chat with a button that opens one of the app's screens, or one of Android's (in the pi-phone app on the phone), for the person to act there: " +
+            "turn on Accessibility for phone control, allow the microphone, sign in to a provider. Nothing opens until they tap it. " +
+            "screen: providers, default-model, appearance, notifications, dictation, voice, assistant, this-phone, phone-control, computer-control, machines, ssh-keys, secrets, pi-browser, web-access, spend, github; " +
+            "Android's: android-notifications, android-battery (run with the screen off), android-accessibility, android-app-info (Allow restricted settings), android-default-apps (the digital assistant app), microphone.",
+        parameters: Type.Object({
+            screen: Type.Union(SCREENS.map((each) => Type.Literal(each))),
+            why: Type.Optional(Type.String({ description: "What they do there, in a sentence, in their language" })),
+        }),
+        replay: "safe",
+        execute: async (args) =>
+            reply(`A card with a button to open ${args.screen} is in the chat. Nothing opens until they tap it: ask them to say when they are done there.`),
+    });
+
     return defineExtension({
         name: ONBOARDING_EXTENSION,
-        tools: [guide],
+        tools: [guide, showScreen],
         sections: [
             section("getting-started", (input) => {
                 const person = guideOf(input.conversationId);
@@ -112,7 +157,7 @@ export default function createOnboarding(host: PocketHost) {
                     return undefined;
                 }
 
-                return `This is ${person.name}'s Getting started session: you show them around pi-phone. Read the getting-started skill first and follow it: ask what to cover, keep the checklist with the guide tool, change settings only with setting_change and app_action (each asks them on a card), and finish with guide finish. Release notes for the What's new topic: ${WHATS_NEW_DIR}/<version>.md.`;
+                return `This is ${person.name}'s Getting started session: you show them around pi-phone. Read the getting-started skill first and follow it: ask what to cover, keep the checklist with the guide tool, change settings only with setting_change and app_action (each asks them on a card), show a screen they must act on with show_screen, and finish with guide finish. Release notes for the What's new topic: ${WHATS_NEW_DIR}/<version>.md.`;
             }),
         ],
     });

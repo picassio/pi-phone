@@ -28,6 +28,7 @@ import {
 } from "./store.js";
 import { setBrowserOpen } from "./browser-panel.js";
 import { BrowserRunCard } from "./browser-run-card.js";
+import { ScreenCard } from "./guide.js";
 import { openSubagent, stateOf } from "./subagents.js";
 import { prefs } from "./theme.js";
 import {
@@ -1036,6 +1037,7 @@ function ToolStep({
             call.name === "browser_run" &&
             html`<${BrowserRunCard} args=${args} status=${status} resultText=${resultText ?? slot?.output} conversationId=${conversationId} />`
         }
+        ${call.name === "show_screen" && html`<${ScreenCard} args=${args} />`}
         ${
             decision &&
             html`<div

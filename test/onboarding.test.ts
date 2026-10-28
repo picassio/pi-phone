@@ -7,6 +7,7 @@ import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import assert from "node:assert/strict";
+import { createECDH } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -164,4 +165,78 @@ test("the guide tool keeps the checklist the bar shows: set, tick, finish settle
     await app.attach(tab.client);
     await until(() => tab.field("guide") !== undefined, "the view's checklist");
     assert.deepEqual(tab.field("guide"), { items: (await guide())!.items, finished: true });
+});
+
+// ─── What a guide sets up besides the registry's settings (PP-235) ───
+
+test("show_screen puts a card in the chat and opens nothing; a screen it does not know is refused", async () => {
+    const results: string[] = [];
+    const app = await openApp(
+        scriptedModel((context) => {
+            const { role, text } = lastText(context as never);
+
+            if (role === "user" && text.includes("turn on phone control")) {
+                return fauxAssistantMessage([fauxToolCall("show_screen", { screen: "android-accessibility", why: "Turn on pi: phone control." } as never)], { stopReason: "toolUse" });
+            }
+
+            if (role === "user" && text.includes("the kitchen")) {
+                return fauxAssistantMessage([fauxToolCall("show_screen", { screen: "kitchen" } as never)], { stopReason: "toolUse" });
+            }
+
+            if (role === "toolResult") {
+                results.push(text);
+            }
+
+            return fauxAssistantMessage([fauxText("ok")]);
+        }),
+        join(root, "onboarding-screens"),
+    );
+
+    apps.push(app);
+
+    const id = await app.gettingStarted(owner(app), { language: "en" });
+
+    await app.commands.submit(id, owner(app), { text: "turn on phone control", requestId: crypto.randomUUID() });
+    await until(() => results.some((each) => each.includes("open android-accessibility")), "the card's result");
+    assert.match(results.find((each) => each.includes("android-accessibility"))!, /Nothing opens until they tap it/);
+    await app.commands.submit(id, owner(app), { text: "show me the kitchen", requestId: crypto.randomUUID() });
+    await until(() => results.length >= 2, "the refusal");
+    assert.doesNotMatch(results.at(-1)!, /A card with a button/);
+});
+
+test("the dictation language is one person's on all their devices, set in the app or by Pi; notifications on a device can be turned off, not on", async () => {
+    const app = await openApp(scriptedModel(), join(root, "onboarding-settings"));
+
+    apps.push(app);
+
+    const me = owner(app);
+    const tab = fakeTab(undefined, me);
+    const registry = appSettings(app);
+    const dictation = registry.settings.find((each) => each.id === "dictation.language")!;
+
+    await app.attach(tab.client);
+    assert.equal((await app.hello(me)).user.dictation, "auto");
+    await dictation.apply(me, "vi-VN", me.name);
+    assert.equal(await dictation.read(me.name), "vi-VN");
+    assert.equal((await app.hello(me)).user.dictation, "vi-VN");
+    assert.deepEqual(tab.last("dictation"), { dictation: "vi-VN" });
+    await assert.rejects(async () => dictation.apply(me, "Vietnamese please", me.name), /language tag/);
+    app.setDictationLanguage(me, "auto");
+    assert.equal(me.dictation, undefined);
+
+    const notifications = registry.settings.find((each) => each.id === "notifications.device")!;
+
+    assert.equal(notifications.target, "device");
+    assert.equal(await notifications.read("Chrome on Windows"), "off");
+    await assert.rejects(async () => notifications.apply(me, "on", "Chrome on Windows"), /only on the device itself/);
+    await assert.rejects(async () => notifications.apply(me, "off", "Chrome on Windows"), /No device gets notifications/);
+
+    const key = createECDH("prime256v1");
+
+    key.generateKeys();
+    app.webPush.subscribe({ endpoint: "https://push.example.test/one", keys: { p256dh: key.getPublicKey().toString("base64url"), auth: Buffer.from("fedcba9876543210").toString("base64url") } }, { name: "Chrome on Windows", origin: "https://pi.example.test" });
+    assert.equal(await notifications.read("Chrome on Windows"), "on");
+    assert.deepEqual(await registry.targets.device(), ["Chrome on Windows"]);
+    await notifications.apply(me, "off", "Chrome on Windows");
+    assert.equal(app.webPush.list().length, 0);
 });

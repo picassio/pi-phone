@@ -751,6 +751,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   skills folder) and the `guide` tool (set / tick / untick / finish) that keeps `GuideDoc`, which the view sends as
   `guide` and `web/guide.js` shows as a bar under the header (one line on a phone, the list on wide screens); `finish`
   settles the session. Tests: `test/onboarding.test.ts`, `test/getting-started-ui.test.ts` (devbox).
+  `show_screen` (same module, owner's decision C): a card in the chat with an Open button for one of the app's sheets or
+  Android's settings (`SCREENS`; the bridge's `openSettings`, `openNotificationSettings`, `runUnrestricted`, `askMic`,
+  only in the app); nothing opens without the tap. Settings a guide needed: `dictation.language` (per person,
+  `User.dictation`; their devices follow it, Menu › Dictation sets it) and `notifications.device` (target: a web push
+  device; off forgets it, on only on the device itself).
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

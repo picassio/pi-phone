@@ -18790,6 +18790,27 @@ button.welcome-row:hover {
     border-color: var(--accent);
 }
 
+/* Pi's show_screen card (PP-235): a screen for the person to act on, opened by their tap. */
+.screen-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--hair);
+    border-radius: 12px;
+    background: var(--card);
+}
+
+.screen-card .grow {
+    flex: 1;
+    min-width: 0;
+}
+
+.screen-card-title {
+    color: var(--text);
+}
+
 .guide-items li.done .guide-mark {
     border-color: transparent;
     background: color-mix(in srgb, var(--ok) 16%, transparent);

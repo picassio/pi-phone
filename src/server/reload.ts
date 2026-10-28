@@ -178,6 +178,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "computer_act",
     "computer_screenshot",
     "guide",
+    "show_screen",
     "session_stop",
     "session_archive",
     "session_fork",

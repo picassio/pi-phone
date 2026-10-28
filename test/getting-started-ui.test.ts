@@ -49,7 +49,17 @@ const route: FauxResponseStep = (context) => {
     if (role === "toolResult" && text.includes("[x] The basics")) {
         return fauxAssistantMessage(
             [
-                fauxText("The basics are done. Now how the app looks: you said you like light screens, so I can make the app start in its light colors. Approve the card to switch."),
+                fauxText("The basics are done. Now how the app looks: themes and colors are in Appearance."),
+                fauxToolCall("show_screen", { screen: "appearance", why: "Pick a theme and its colors." } as never),
+            ],
+            { stopReason: "toolUse" },
+        );
+    }
+
+    if (role === "toolResult" && text.includes("open appearance")) {
+        return fauxAssistantMessage(
+            [
+                fauxText("You said you like light screens, so I can make the app start in its light colors. Approve the card to switch."),
                 fauxToolCall("setting_change", { id: "themes.default", value: "lantern", reason: "You like light screens: the app starts in its light colors." } as never),
             ],
             { stopReason: "toolUse" },
@@ -138,7 +148,17 @@ test("Menu › Getting started opens the guide; the checklist bar follows Pi's t
     assert.match(await bar(), /Now:\s*How the app looks/);
     assert.doesNotMatch(await bar(), /Voice and dictation/, "one line until opened");
     await until(async () => (await inPage<boolean>(`[...document.querySelectorAll("button")].some((each) => each.innerText.trim() === "Allow")`)), "the setting's card");
+
+    // Pi's show_screen card: the screen, why, and Open, which opens it only when tapped (PP-235).
+    const card = await inPage<string>(`document.querySelector("[data-part=screen-card]")?.innerText ?? ""`);
+
+    assert.match(card, /Appearance[\s\S]*Pick a theme and its colors\.[\s\S]*Open/);
+    assert.equal(await inPage<boolean>(`document.querySelector(".sheet") !== null`), false, "nothing opened by itself");
+    await inPage(`document.querySelector("[data-part=screen-card]").scrollIntoView({ block: "center" })`);
     await shot("session-390");
+    await inPage(`document.querySelector("[data-part=screen-card] button").click()`);
+    await until(async () => (await inPage<string>(`document.querySelector(".sheet")?.innerText ?? ""`)).includes("Appearance"), "Appearance opened by the tap");
+    await inPage(`(async () => (await import("/store.js")).closeSheet())()`);
 
     // Opened: the whole list.
     await inPage(`document.querySelector("[data-part=guide-checklist] .guide-head").click()`);

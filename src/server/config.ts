@@ -48,6 +48,8 @@ export interface User {
     welcome?: WelcomeState;
     /** Their Getting started session (PP-235), by its id: Menu › Getting started opens it again rather than a new one. */
     guide?: string;
+    /** The language dictation listens for on their devices (a tag: "vi-VN"); absent: each device's own. */
+    dictation?: string;
 }
 
 /** Where a person is with the first-run welcome: finished, or skipped (absent: it shows). */
@@ -629,7 +631,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation">>,
     ): void {
         const user = this.userById(id);
 
@@ -666,6 +668,10 @@ export class ConfigStore {
 
         if (user.welcome === undefined) {
             delete user.welcome;
+        }
+
+        if (user.dictation === undefined) {
+            delete user.dictation;
         }
 
         this.save();
