@@ -3,7 +3,8 @@
 // "server exited with code 1" with the cause nowhere in view).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
@@ -14,7 +15,12 @@ const fatal = pathToFileURL(join(import.meta.dirname, "../src/server/fatal.ts"))
 /** Run `body` as an ES module in a new Node after `installFatalLog()`: its exit code and what it wrote. */
 const run = (body: string) => {
     const script = `import { installFatalLog } from ${JSON.stringify(fatal)};\ninstallFatalLog();\n${body}`;
-    const ran = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 60_000 });
+    // A home of its own (test/isolation.test.ts): the child writes nothing, but never into the real one.
+    const ran = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+        encoding: "utf8",
+        timeout: 60_000,
+        env: { ...process.env, HOME: mkdtempSync(join(tmpdir(), "pi-phone-fatal-")) },
+    });
 
     return { code: ran.status, out: `${ran.stdout}${ran.stderr}` };
 };
