@@ -146,7 +146,8 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
     await page.setViewport(VIEWPORTS.desktop);
     await page.navigate(`${base}/s/${id}`);
     await until(async () => inPage<boolean>(`return JSON.stringify(document.querySelector(".topbar button[title=\\"Pi's computer\\"]") !== null)`), "the monitor button");
-    await page.evaluate(`document.querySelector(".topbar button[title=\\"Pi's computer\\"]").click()`);
+    // On a wide screen the panel may already have opened by itself (Pi acted a moment ago): the button would then close it.
+    await page.evaluate(`document.querySelector("[data-part=computer-panel]") || document.querySelector(".topbar button[title=\\"Pi's computer\\"]").click()`);
     await until(async () => (await text("[data-part=computer-panel]")) !== "", "the panel");
     await until(async () => inPage<boolean>(`return JSON.stringify(document.querySelector("[data-part=computer-panel] .pb-frame img") !== null)`), "the picture");
     const panel = await text("[data-part=computer-panel]");
