@@ -419,12 +419,23 @@ export type FrameTuning = {
     backoffMs: number[];
     /** After this many tries without a picture, the panel is told (`pictureError`). */
     failAfter: number;
+    /** How long a frame waits for a tab to take it before Chrome is told to send the next anyway (PP-200). */
+    ackWaitMs: number;
 };
 
-const FRAME_TUNING: FrameTuning = { pictureMs: 5000, firstMs: 4000, backoffMs: [2000, 4000, 8000, 16_000, 30_000], failAfter: 3 };
+const FRAME_TUNING: FrameTuning = { pictureMs: 5000, firstMs: 4000, backoffMs: [2000, 4000, 8000, 16_000, 30_000], failAfter: 3, ackWaitMs: 500 };
 
-/** A frame of the page for the panel: a JPEG (base64) of the viewport. */
-export type BrowserFrame = { jpeg: string; width: number; height: number };
+/**
+ * A frame of the page for the panel: a JPEG (base64) of the viewport, the page's size in CSS pixels, and its number (a
+ * tab fetches the newest by it, `GET /api/browser/frame`).
+ */
+export type BrowserFrame = { jpeg: string; width: number; height: number; seq: number };
+
+/** How big a watching tab draws the picture, in device pixels (its size on screen × its pixel ratio). */
+export type FrameSize = { width: number; height: number };
+
+/** The screencast's JPEG quality. */
+const FRAME_QUALITY = 60;
 
 export type PiBrowserOptions = {
     engine: BrowserEngine;
@@ -469,6 +480,18 @@ export class PiBrowser {
     #frameTries = 0;
     /** The next try's timer, while one waits. */
     #frameRetry: NodeJS.Timeout | undefined;
+    /** Each watching tab's picture size (undefined: it did not say). */
+    readonly #sizes = new Set<{ size: FrameSize | undefined }>();
+    /** The size the screencast was started at. */
+    #castingAt: { maxWidth: number; maxHeight: number } | undefined;
+    /** Frames Chrome waits to have acknowledged, and the timer that does it when no tab takes them. */
+    #unacked: { page: BrowserPage; sessionId: unknown }[] = [];
+    #ackTimer: NodeJS.Timeout | undefined;
+    #frameSeq = 0;
+    /** The newest frame a tab took. */
+    #takenSeq = 0;
+    /** Tabs' requests waiting for the next picture (`nextFrame`). */
+    readonly #frameWaiters = new Set<(frame: BrowserFrame | undefined) => void>();
 
     constructor(options: PiBrowserOptions) {
         this.#options = options;
@@ -1146,7 +1169,10 @@ export class PiBrowser {
     // ─── Watching and taking over ─────────────────────────────────────────────
 
     /** A tab started showing the panel: frames flow while anyone watches. Returns how to stop. */
-    watch(): () => void {
+    watch(size?: FrameSize): { stop(): void; resize(size: FrameSize | undefined): void } {
+        const watcher = { size };
+
+        this.#sizes.add(watcher);
         this.#watchers += 1;
 
         if (this.#watchers === 1) {
@@ -1164,19 +1190,112 @@ export class PiBrowser {
 
         let stopped = false;
 
-        return () => {
-            if (stopped) {
-                return;
-            }
+        return {
+            stop: () => {
+                if (stopped) {
+                    return;
+                }
 
-            stopped = true;
-            this.#watchers -= 1;
-            this.#usedAt = Date.now();
+                stopped = true;
+                this.#sizes.delete(watcher);
+                this.#watchers -= 1;
+                this.#usedAt = Date.now();
 
-            if (this.#watchers === 0) {
-                this.#stopFrames?.();
-            }
+                if (this.#watchers === 0) {
+                    this.#stopFrames?.();
+                } else {
+                    this.#castSizeChanged();
+                }
+            },
+            resize: (next) => {
+                watcher.size = next;
+                this.#castSizeChanged();
+            },
         };
+    }
+
+    /**
+     * How big the screencast's frames are: as big as the largest picture a watching tab draws (its size on screen × its
+     * pixel ratio, PP-200), never bigger than the page at twice its CSS pixels or 1600 × 1720; twice the page's CSS pixels
+     * while no tab said. Smaller frames cross a machine's link (its ssh forward, Tailscale) faster: more of them.
+     */
+    #castSize(): { maxWidth: number; maxHeight: number } {
+        const most = { maxWidth: Math.min(this.#state.viewport.width * 2, 1600), maxHeight: Math.min(this.#state.viewport.height * 2, 1720) };
+        const sizes = [...this.#sizes].map((each) => each.size).filter((each): each is FrameSize => each !== undefined);
+
+        if (sizes.length === 0 || sizes.length < this.#sizes.size) {
+            return most;
+        }
+
+        const width = Math.max(...sizes.map((each) => each.width));
+        const height = Math.max(...sizes.map((each) => each.height));
+
+        return { maxWidth: Math.max(200, Math.min(most.maxWidth, Math.ceil(width))), maxHeight: Math.max(200, Math.min(most.maxHeight, Math.ceil(height))) };
+    }
+
+    /** A watching tab's picture changed size: frames of the new size, when that is a real change (a tenth or more). */
+    #castSizeChanged(): void {
+        const now = this.#castSize();
+        const was = this.#castingAt;
+
+        if (this.#casting === undefined || was === undefined || (Math.abs(now.maxWidth - was.maxWidth) < was.maxWidth / 10 && Math.abs(now.maxHeight - was.maxHeight) < was.maxHeight / 10)) {
+            return;
+        }
+
+        const page = this.#casting;
+        const tab = this.#tab;
+
+        this.#castingAt = now;
+        void page.cdp.send("Page.startScreencast", { format: "jpeg", quality: FRAME_QUALITY, ...now, everyNthFrame: 1 }).catch((error: unknown) => this.#options.log(`browser frames: a new size: ${String(error)}`));
+
+        // A still page sends no frame of the new size: one picture at it now.
+        if (tab?.page === page) {
+            void this.#picture(tab).then(
+                (jpeg) => this.#shown(page, { jpeg, width: this.#state.viewport.width, height: this.#state.viewport.height }),
+                (error: unknown) => this.#options.log(`browser frames: a picture of the new size: ${String(error)}`),
+            );
+        }
+    }
+
+    /**
+     * A picture of `tab` for the panel, at the screencast's size (PP-200: the whole view, scaled down to what the watching
+     * tabs draw). Not from a desktop Chrome's surface: one from there just before the screencast left its clicks and
+     * typing at half the coordinates, once another session's tab was open in it (PP-126).
+     */
+    #picture(tab: Tab): Promise<string> {
+        const { width, height } = this.#state.viewport;
+        const cast = this.#castSize();
+        const scale = Math.min(1, cast.maxWidth / width, cast.maxHeight / height);
+
+        return this.#options.engine.picture(tab.id, tab.page, FRAME_QUALITY, this.#tuning.pictureMs, { surface: false, ...(scale < 1 ? { clip: { x: 0, y: 0, width, height, scale } } : {}) });
+    }
+
+    /**
+     * A watching tab took frame `seq` (`GET /api/browser/frame`): Chrome may send the next one. Frames are acknowledged
+     * only when taken (or after ACK_WAIT_MS, so the last picture stays current with no tab taking): a tab that draws
+     * slowly, or a slow link to it, gets the newest picture each time, never a queue of old ones, and Chrome renders and
+     * sends no frames nobody can show.
+     */
+    frameTaken(seq: number): void {
+        this.#takenSeq = Math.max(this.#takenSeq, seq);
+
+        if (seq >= (this.#lastFrame?.seq ?? Infinity)) {
+            this.#ackFrames();
+        }
+    }
+
+    /** Acknowledge the frames Chrome waits on. */
+    #ackFrames(): void {
+        clearTimeout(this.#ackTimer);
+        this.#ackTimer = undefined;
+
+        const held = this.#unacked;
+
+        this.#unacked = [];
+
+        for (const { page, sessionId } of held) {
+            void page.cdp.send("Page.screencastFrameAck", { sessionId }).catch((error: unknown) => this.#tryAgain(page, `a frame's acknowledgement: ${String(error)}`));
+        }
     }
 
     /** The last picture of the page in front, for a panel opened now (`setBrowserWatch`). */
@@ -1197,13 +1316,46 @@ export class PiBrowser {
         }
     }
 
+    /**
+     * The newest picture after number `after`: at once when there is one, else the next to come, waiting up to
+     * `timeoutMs` (undefined then). A tab keeps one such request waiting while it draws the last picture (PP-200): each
+     * new one reaches it as soon as it comes, and never more than it can draw.
+     */
+    nextFrame(after: number, timeoutMs: number): Promise<BrowserFrame | undefined> {
+        const last = this.#lastFrame;
+
+        if (last !== undefined && last.seq > after) {
+            return Promise.resolve(last);
+        }
+
+        return new Promise((resolve) => {
+            const waiter = (frame: BrowserFrame | undefined) => {
+                clearTimeout(timer);
+                this.#frameWaiters.delete(waiter);
+                resolve(frame);
+            };
+            const timer = setTimeout(() => waiter(undefined), timeoutMs);
+
+            this.#frameWaiters.add(waiter);
+        });
+    }
+
     /** A picture of `page` for those watching: kept as the last one, and the tries are over. */
-    #shown(page: BrowserPage, frame: BrowserFrame): void {
+    #shown(page: BrowserPage, picture: Omit<BrowserFrame, "seq">): void {
         if (this.#casting !== page) {
             return;
         }
 
+        this.#frameSeq += 1;
+
+        const frame = { ...picture, seq: this.#frameSeq };
+
         this.#lastFrame = frame;
+
+        for (const waiter of [...this.#frameWaiters]) {
+            waiter(frame);
+        }
+
         this.#framed = true;
         this.#frameTries = 0;
         clearTimeout(this.#frameRetry);
@@ -1270,7 +1422,12 @@ export class PiBrowser {
             clearTimeout(this.#frameRetry);
             this.#frameRetry = undefined;
             this.#casting = undefined;
+            this.#castingAt = undefined;
             this.#stopFrames = undefined;
+            // Its frames waiting on a tab need no answer now: the cast stops.
+            clearTimeout(this.#ackTimer);
+            this.#ackTimer = undefined;
+            this.#unacked = this.#unacked.filter((each) => each.page !== page);
             void page.cdp.send("Page.stopScreencast").catch(() => {});
         };
 
@@ -1281,9 +1438,7 @@ export class PiBrowser {
         let failed: string | undefined;
 
         try {
-            // Not from a desktop Chrome's surface: one from there just before the screencast left its clicks and typing at
-            // half the coordinates, once another session's tab was open in it (PP-126).
-            const jpeg = await this.#options.engine.picture(tab.id, page, 60, this.#tuning.pictureMs, { surface: false });
+            const jpeg = await this.#picture(tab);
 
             this.#shown(page, { jpeg, width: this.#state.viewport.width, height: this.#state.viewport.height });
         } catch (error) {
@@ -1298,13 +1453,26 @@ export class PiBrowser {
         off = page.cdp.on("Page.screencastFrame", (params) => {
             const metadata = params.metadata as { deviceWidth?: number; deviceHeight?: number } | undefined;
 
+            // Chrome sends the next frame only once this one is acknowledged. While the tabs keep up (they took the frame
+            // before this one), at once: Chrome makes the next while they fetch this one. Else when a tab takes it
+            // (`frameTaken`), or after a moment. One acknowledgement that fails would end the frames.
+            const keptUp = this.#takenSeq >= (this.#lastFrame?.seq ?? 0);
+
+            this.#unacked.push({ page, sessionId: params.sessionId });
+
+            if (keptUp) {
+                this.#ackFrames();
+            } else {
+                this.#ackTimer ??= setTimeout(() => this.#ackFrames(), this.#tuning.ackWaitMs);
+                this.#ackTimer.unref?.();
+            }
+
             this.#shown(page, { jpeg: String(params.data), width: metadata?.deviceWidth ?? this.#state.viewport.width, height: metadata?.deviceHeight ?? this.#state.viewport.height });
-            // Chrome sends the next frame only once this one is acknowledged: one that fails would end the frames.
-            void page.cdp.send("Page.screencastFrameAck", { sessionId: params.sessionId }).catch((error: unknown) => this.#tryAgain(page, `a frame's acknowledgement: ${String(error)}`));
         });
 
         try {
-            await page.cdp.send("Page.startScreencast", { format: "jpeg", quality: 60, maxWidth: Math.min(this.#state.viewport.width * 2, 1600), maxHeight: Math.min(this.#state.viewport.height * 2, 1720), everyNthFrame: 1 });
+            this.#castingAt = this.#castSize();
+            await page.cdp.send("Page.startScreencast", { format: "jpeg", quality: FRAME_QUALITY, ...this.#castingAt, everyNthFrame: 1 });
         } catch (error) {
             this.#options.log(`browser frames: the screencast: ${String(error)}`);
             this.#tryAgain(page, `the screencast: ${String(error)}`);
@@ -1415,7 +1583,7 @@ export class PiBrowser {
      */
     async input(
         event: { type: "tap"; x: number; y: number } | { type: "scroll"; x: number; y: number; dx?: number; dy: number } | { type: "text"; text: string } | { type: "key"; key: string },
-    ): Promise<{ editable: boolean; password: boolean }> {
+    ): Promise<{ editable: boolean; password: boolean } | null> {
         if (!this.#state.takenOver) {
             throw new Error("Take over Pi's browser first.");
         }
@@ -1424,17 +1592,28 @@ export class PiBrowser {
 
         const page = (await this.#ensure()).page;
 
+        // Each command goes at once, in order on the one connection, not one round trip after another: over a machine's
+        // link (an ssh forward, Tailscale) each wait was its whole round trip (PP-200).
         if (event.type === "tap") {
-            for (const type of ["mousePressed", "mouseReleased"]) {
-                await page.cdp.send("Input.dispatchMouseEvent", { type, x: event.x, y: event.y, button: "left", clickCount: 1 });
-            }
+            await Promise.all(
+                ["mousePressed", "mouseReleased"].map((type) => page.cdp.send("Input.dispatchMouseEvent", { type, x: event.x, y: event.y, button: "left", clickCount: 1 })),
+            );
         } else if (event.type === "scroll") {
             // A wheel at the point: the page scrolls what is under it (an open panel's own list first), as a browser does.
             await page.cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: event.x, y: event.y, deltaX: event.dx ?? 0, deltaY: event.dy });
-        } else if (event.type === "text") {
-            await page.cdp.send("Input.insertText", { text: event.text });
         } else {
-            await page.press(event.key);
+            // Typing goes on without waiting for the page's answer: each key keeps its place on the connection, and the
+            // next is sent at once (a key a round trip each was 87 ms on a 25 ms link). A failure is logged.
+            const typed = event.type === "text" ? page.cdp.send("Input.insertText", { text: event.text }) : page.press(event.key, { follow: false });
+
+            void typed.catch((error: unknown) => this.#options.log(`browser: a person's ${event.type === "text" ? "typing" : "key"} did not reach the page: ${String(error)}`));
+
+            return null;
+        }
+
+        // Where the focus is matters after a tap (the panel brings the keyboard up, or a password field); a scroll leaves it.
+        if (event.type !== "tap") {
+            return null;
         }
 
         return await page.evaluate<{ editable: boolean; password: boolean }>(FOCUS_SCRIPT).catch(() => ({ editable: false, password: false }));

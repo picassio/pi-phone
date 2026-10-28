@@ -114,7 +114,7 @@ test("Desktop lays pages out at 1280 as a desktop Chrome without touch, Phone at
         // Left alone it is idle; watched, it is not.
         assert.ok(browser.idleFor(Date.now() + 60_000) >= 60_000);
 
-        const stop = browser.watch();
+        const { stop } = browser.watch();
 
         assert.equal(browser.idleFor(Date.now() + 60_000), 0);
         stop();

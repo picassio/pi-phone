@@ -108,7 +108,7 @@ import { BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
 import { installImageGuard } from "./image-guard.ts";
 import { appSettings } from "./settings-registry.ts";
-import { type BrowserEngine, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
+import { type BrowserEngine, type BrowserFrame, type FrameSize, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
 import { PhoneRequests } from "./phone-requests.ts";
 import { PhoneControl } from "./phone-control.ts";
 import { ComputerControl, type ComputerControlOptions, shellWord } from "./computer-control.ts";
@@ -2929,9 +2929,11 @@ export class PocketApp {
 
     /**
      * A tab opened or closed the Browser panel of one session's browser at a place (`phone` or `machine:<id>`): while
-     * open, it gets that browser's frames (`browser-frame`). The owner's.
+     * open, it hears of that browser's frames (`browser-frame`: the newest's number and size; the picture itself it
+     * fetches, `browserFrame`). `size`: how big it draws them, in device pixels (the frames are made no bigger, PP-200);
+     * a tab already watching that says a new size keeps watching at it. The owner's.
      */
-    setBrowserWatch(user: User, connection: string, place: string, session: number, on: boolean): void {
+    setBrowserWatch(user: User, connection: string, place: string, session: number, on: boolean, size?: FrameSize): void {
         const browser = on ? this.browserAt(place, session) : undefined;
 
         for (const client of this.#clients) {
@@ -2944,8 +2946,16 @@ export class PocketApp {
                 client.browserWatch = undefined;
             }
 
+            if (browser !== undefined && client.browserWatch !== undefined) {
+                client.browserWatch.resize(size);
+
+                continue;
+            }
+
             if (browser !== undefined && client.browserWatch === undefined) {
-                client.browserWatch = { place, session, stop: browser.watch() };
+                const watching = browser.watch(size);
+
+                client.browserWatch = { place, session, stop: watching.stop, resize: watching.resize };
                 client.send("browser", browser.state());
 
                 // The page's last picture at once: a still page sends no frames, and the cast may already run for another
@@ -2953,7 +2963,7 @@ export class PocketApp {
                 const last = browser.lastFrame();
 
                 if (last !== undefined) {
-                    client.send("browser-frame", { ...last, place, session });
+                    client.send("browser-frame", { seq: last.seq, width: last.width, height: last.height, place, session });
                 }
             }
         }
@@ -3010,12 +3020,36 @@ export class PocketApp {
             frame: (frame) => {
                 for (const client of this.#clients) {
                     if (client.browserWatch?.place === place && client.browserWatch.session === session) {
-                        client.send("browser-frame", { ...frame, place, session });
+                        // Its number and size only: the tab fetches the newest picture when it can draw it (PP-200), never a
+                        // queue of old ones in its event stream.
+                        client.send("browser-frame", { seq: frame.seq, width: frame.width, height: frame.height, place, session });
                     }
                 }
             },
             log: (line) => this.#log(line),
         });
+    }
+
+    /**
+     * The newest picture of a session's browser after number `after`, for a tab that watches it (`GET
+     * /api/browser/frame`): at once when there is one, else the next to come, up to `waitMs`. Taking it lets Chrome send
+     * the next (`frameTaken`). Undefined when none came, or for a tab that does not watch it.
+     */
+    async browserFrame(user: User, connection: string, place: string, session: number, after = 0, waitMs = 0): Promise<BrowserFrame | undefined> {
+        const watching = [...this.#clients].some((client) => client.user.id === user.id && client.connection === connection && client.browserWatch?.place === place && client.browserWatch.session === session);
+
+        if (!watching) {
+            return undefined;
+        }
+
+        const browser = this.browserAt(place, session);
+        const frame = await browser.nextFrame(after, waitMs);
+
+        if (frame !== undefined) {
+            browser.frameTaken(frame.seq);
+        }
+
+        return frame;
     }
 
     /** Pi's browser for session `session` working in `cwd`: on its machine for a session on one, else the phone's. */

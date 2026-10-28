@@ -18076,13 +18076,22 @@ pre.gallery-code {
     -webkit-user-drag: none;
 }
 
+/* The Browser panel's live picture (PP-200): a canvas the size of the page's box, drawn at the frame's own pixels. */
+.pb-frame canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    user-select: none;
+}
+
 .pb-frame.live {
     box-shadow: 0 0 0 2px var(--accent), 0 12px 32px -12px rgb(0 0 0 / 0.5);
     cursor: pointer;
 }
 
 /* Taken over (PP-124): a finger's drag on the picture is the page's scroll, never the panel's pan or a swipe back. */
-.pb-frame.live img {
+.pb-frame.live img,
+.pb-frame.live canvas {
     touch-action: none;
 }
 

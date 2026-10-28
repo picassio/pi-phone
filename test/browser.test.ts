@@ -274,7 +274,7 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
         await assert.rejects(browser.screenshot(1, { marks: [{ text: "x", index: goButton }] }), /one of index, text, or area/);
 
         // Frames while someone watches: one at once, so the panel has a picture.
-        const stop = browser.watch();
+        const { stop } = browser.watch();
 
         for (let tries = 0; tries < 50 && frames.length === 0; tries++) {
             await new Promise((resolve) => setTimeout(resolve, 100));
@@ -503,7 +503,7 @@ test("with Chrome: after switching between phone and desktop sizes, clicks and t
     };
 
     // Someone watches the panel all along, as the owner did: frames come through each switch.
-    const unwatch = browser.watch();
+    const { stop: unwatch } = browser.watch();
 
     try {
         await other.open(2, "http://pi.test/two");

@@ -30,17 +30,24 @@ class FakeDevtools {
     readonly #server = new WebSocketServer({ port: 0, host: "127.0.0.1" });
     captures: ("hang" | "ok" | "error")[] = [];
     asked: string[] = [];
+    /** Each command's parameters, in order. */
+    params: { method: string; params: Record<string, unknown> }[] = [];
+    /** How long a method's answer takes (a machine's link), in ms. */
+    delays: Record<string, number> = {};
     #socket: WebSocket | undefined;
+    #frames = 0;
 
     constructor() {
         this.#server.on("connection", (socket) => {
             this.#socket = socket;
             socket.on("message", (raw) => {
-                const { id, method } = JSON.parse(String(raw)) as { id: number; method: string };
+                const { id, method, params } = JSON.parse(String(raw)) as { id: number; method: string; params?: Record<string, unknown> };
 
                 this.asked.push(method);
+                this.params.push({ method, params: params ?? {} });
 
-                const answer = (result: Record<string, unknown>) => socket.send(JSON.stringify({ id, result }));
+                const late = this.delays[method] ?? 0;
+                const answer = (result: Record<string, unknown>) => (late > 0 ? setTimeout(() => socket.send(JSON.stringify({ id, result })), late) : socket.send(JSON.stringify({ id, result })));
 
                 if (method === "Page.captureScreenshot") {
                     const next = this.captures.shift() ?? "ok";
@@ -73,7 +80,18 @@ class FakeDevtools {
 
     /** A screencast frame, as Chrome sends one. */
     cast(): void {
-        this.#socket?.send(JSON.stringify({ method: "Page.screencastFrame", params: { data: "RlJBTUU=", sessionId: 1, metadata: { deviceWidth: 1280, deviceHeight: 800 } } }));
+        this.#frames += 1;
+        this.#socket?.send(JSON.stringify({ method: "Page.screencastFrame", params: { data: "RlJBTUU=", sessionId: this.#frames, metadata: { deviceWidth: 1280, deviceHeight: 800 } } }));
+    }
+
+    /** The frames acknowledged, by their session ids. */
+    acked(): unknown[] {
+        return this.params.filter((each) => each.method === "Page.screencastFrameAck").map((each) => each.params.sessionId);
+    }
+
+    /** The sizes the screencast was started at. */
+    castSizes(): { maxWidth: unknown; maxHeight: unknown }[] {
+        return this.params.filter((each) => each.method === "Page.startScreencast").map((each) => ({ maxWidth: each.params.maxWidth, maxHeight: each.params.maxHeight }));
     }
 
     listening(): Promise<void> {
@@ -122,7 +140,7 @@ const engineOf = (devtools: FakeDevtools): BrowserEngine => ({
         stage: async (name: string) => name,
 });
 
-async function browserOn(devtools: FakeDevtools) {
+async function browserOn(devtools: FakeDevtools, tuning: { ackWaitMs?: number } = {}) {
     await devtools.listening();
 
     const engine = engineOf(devtools);
@@ -137,7 +155,7 @@ async function browserOn(devtools: FakeDevtools) {
         },
         frame: (frame) => frames.push(frame),
         log: () => {},
-        frames: { pictureMs: 150, firstMs: 150, backoffMs: [50, 100], failAfter: 3 },
+        frames: { pictureMs: 150, firstMs: 150, backoffMs: [50, 100], failAfter: 3, ...tuning },
     });
 
     opened.push({ browser, devtools });
@@ -222,10 +240,98 @@ test("a panel opened while another tab watches a still page gets its last pictur
     const captured = devtools.count("Page.captureScreenshot");
 
     app.setBrowserWatch(owner(app), second.client.connection, "phone", session, true);
-    assert.equal(second.last("browser-frame")?.jpeg, "UElDVFVSRQ==", "at once, with no new capture");
+
+    // PP-200: the event stream says a picture is there (its number and size), never the picture itself; the tab fetches
+    // the newest when it can draw it.
+    const notice = second.last("browser-frame");
+
+    assert.ok(notice !== undefined, "at once");
+    assert.equal(notice.jpeg, undefined, "no picture in the event stream");
+    assert.equal((await app.browserFrame(owner(app), second.client.connection, "phone", session, 0))?.jpeg, "UElDVFVSRQ==", "fetched, with no new capture");
     assert.equal(devtools.count("Page.captureScreenshot"), captured);
+
+    // A tab that does not watch gets nothing.
+    const stranger = fakeTab(undefined, owner(app));
+
+    await app.attach(stranger.client);
+    assert.equal(await app.browserFrame(owner(app), stranger.client.connection, "phone", session, 0), undefined);
+
+    // A fetch that waits for the next picture gets it as soon as it comes.
+    const seq = Number(notice.seq);
+    const next = app.browserFrame(owner(app), second.client.connection, "phone", session, seq, 5000);
+
+    devtools.cast();
+    assert.equal((await next)?.jpeg, "RlJBTUU=");
+    assert.equal(await app.browserFrame(owner(app), second.client.connection, "phone", session, seq + 1, 100), undefined, "none newer: undefined after the wait");
     app.setBrowserWatch(owner(app), first.client.connection, "phone", session, false);
     app.setBrowserWatch(owner(app), second.client.connection, "phone", session, false);
+});
+
+// PP-200: Chrome made frames as fast as it drew them, each acknowledged at once: a slow link or a slow tab fell behind.
+test("a frame is acknowledged once the tab took the one before it: never a queue of old ones", async () => {
+    const devtools = new FakeDevtools();
+    const { browser } = await browserOn(devtools, { ackWaitMs: 60_000 });
+
+    devtools.captures = ["ok"];
+    browser.watch();
+    await until(() => browser.lastFrame() !== undefined && devtools.count("Page.startScreencast") === 1, "the first picture and the cast");
+
+    // The first picture is not taken yet: the cast's frame waits for it.
+    devtools.cast();
+    await until(() => browser.lastFrame()?.jpeg === "RlJBTUU=", "the frame");
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.deepEqual(devtools.acked(), [], "not acknowledged while the tab is behind");
+
+    // Taken: acknowledged, and the next frame (the tab keeping up) at once.
+    browser.frameTaken(browser.lastFrame()!.seq);
+    await until(() => devtools.acked().length === 1, "acknowledged once taken");
+    devtools.cast();
+    await until(() => devtools.acked().length === 2, "the next at once: the tab took the one before");
+
+    // Not taken: the third waits again.
+    devtools.cast();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(devtools.acked().length, 2);
+});
+
+test("frames are as big as the largest picture a watching tab draws, at most twice the page", async () => {
+    const devtools = new FakeDevtools();
+    const { browser } = await browserOn(devtools);
+    const panel = browser.watch({ width: 760, height: 475 });
+
+    await until(() => devtools.castSizes().length === 1, "the cast");
+    assert.deepEqual(devtools.castSizes()[0], { maxWidth: 760, maxHeight: 475 });
+
+    // A smaller one watching too: the larger stays. A tab that grows: frames grow with it; a small change is no change.
+    browser.watch({ width: 140, height: 90 });
+    panel.resize({ width: 780, height: 487 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(devtools.castSizes().length, 1);
+    panel.resize({ width: 1200, height: 750 });
+    await until(() => devtools.castSizes().length === 2, "a new size");
+    assert.deepEqual(devtools.castSizes()[1], { maxWidth: 1200, maxHeight: 750 });
+    panel.resize({ width: 5000, height: 4000 });
+    await until(() => devtools.castSizes().length === 3, "the most");
+    assert.deepEqual(devtools.castSizes()[2], { maxWidth: 1600, maxHeight: 1600 });
+});
+
+// PP-200: over a machine's link each of the panel's keys waited for a navigation 300 ms, and each command for its round
+// trip; ten keys took 4.4 s on a 25 ms link.
+test("Take over: a key goes without waiting for a navigation, a tap's two events at once", async () => {
+    const devtools = new FakeDevtools();
+    const { browser } = await browserOn(devtools);
+
+    browser.takeOver(true);
+    devtools.delays = { "Input.dispatchKeyEvent": 50, "Input.dispatchMouseEvent": 100 };
+
+    let started = Date.now();
+
+    assert.equal(await browser.input({ type: "key", key: "Enter" }), null, "no focus read after a key");
+    assert.ok(Date.now() - started < 200, `a key took ${Date.now() - started} ms`);
+
+    started = Date.now();
+    await browser.input({ type: "tap", x: 10, y: 10 });
+    assert.ok(Date.now() - started < 190, `a tap took ${Date.now() - started} ms (two round trips of 100 ms one after the other before)`);
 });
 
 // What holds a capture, found on tuanlh-devbox-01 (headless Chrome 155, 1280×800): a page whose main thread is busy

@@ -41,24 +41,106 @@ export function browserShown(state = store.state) {
     return state.browserOpen && state.conversationId !== null && state.me?.role === "owner";
 }
 
-/** Frames of Pi's page while the component shows: the server sends them to this tab only while it watches. */
-function useFrames(onFrame) {
+/**
+ * Pictures of Pi's page while the component shows (PP-200), as JPEGs, not in the event stream: one request waits at the
+ * server for the next picture (`GET /api/browser/frame?after=<number>`, up to 2 s) while the one before is drawn, so
+ * each comes as soon as it is there, and a slow link or a busy phone gets the newest picture each time, never a queue of
+ * old ones. After 2 s with none, the event stream's word of a new one (its number) starts the requests again.
+ * `onFrame({ bitmap, width, height })`: the picture decoded off the main thread (an ImageBitmap), the page's size in CSS
+ * pixels; the caller draws it, and closes the one it replaces.
+ * `sized`: the element the picture fills: the server makes frames no bigger than it on screen, in device pixels.
+ */
+function useFrames(onFrame, sized) {
     const { streamId, conversationId: session } = store.state;
     const place = browserPlace();
+    const latest = useRef(onFrame);
+
+    latest.current = onFrame;
 
     useEffect(() => {
         if (streamId === undefined || typeof session !== "number") {
             return undefined;
         }
 
-        const off = onBrowserFrame((frame) => (frame.place ?? "phone") === place && frame.session === session && onFrame(frame));
         const path = browserPath("browser/watch");
-        const watch = (on) => api(path, { connection: streamId, on });
+        const framePath = `api/${browserPath("browser/frame")}&connection=${encodeURIComponent(streamId)}`;
+        const size = () => {
+            const box = sized?.current?.getBoundingClientRect();
+            // Twice the CSS pixels at most: sharper hardly shows on a phone, and costs a slow link a third of its frames.
+            const ratio = Math.min(window.devicePixelRatio || 1, 2);
 
+            return box && box.width > 0 && box.height > 0 ? { width: Math.round(box.width * ratio), height: Math.round(box.height * ratio) } : {};
+        };
+        const watch = (on) => api(path, { connection: streamId, on, ...(on ? size() : {}) });
+        /** The newest picture's number this tab has. */
+        let have = 0;
+        let running = false;
+        let stopped = false;
+        /** The picture being decoded and shown, and the one before it. */
+        let showing = Promise.resolve();
+        let previous = Promise.resolve();
+        const pull = async () => {
+            if (running || stopped) {
+                return;
+            }
+
+            running = true;
+
+            try {
+                while (!stopped) {
+                    const response = await fetch(`${framePath}&after=${have}`, { headers: { "X-Pocket": "1" }, cache: "no-store" });
+
+                    // None for 2 s (a still page): the event stream says when the next is there.
+                    if (response.status !== 200) {
+                        break;
+                    }
+
+                    const seq = Number(response.headers.get("x-frame-seq"));
+                    const width = Number(response.headers.get("x-frame-width"));
+                    const height = Number(response.headers.get("x-frame-height"));
+                    // Decoded off the main thread; drawn once the one before is.
+                    const decoded = createImageBitmap(await response.blob());
+                    const before = showing;
+
+                    have = Math.max(have, seq);
+                    showing = Promise.all([decoded, before]).then(
+                        ([bitmap]) => (stopped ? bitmap.close() : latest.current({ bitmap, width, height })),
+                        () => {},
+                    );
+                    // The next request goes at once: it waits at the server while this one decodes. One more goes only
+                    // once the picture before this one is drawn: never more than two wait to be drawn.
+                    await previous;
+                    previous = before;
+                }
+            } catch {
+                // A request that failed (the server restarting): the event stream's next word starts them again.
+            } finally {
+                running = false;
+            }
+        };
+        const off = onBrowserFrame((frame) => {
+            if ((frame.place ?? "phone") === place && frame.session === session && !(Number(frame.seq) <= have)) {
+                void pull();
+            }
+        });
+        // A new size on screen (a turned phone, a resized window): frames of that size.
+        let resized;
+        const observer =
+            typeof ResizeObserver === "function" && sized?.current
+                ? new ResizeObserver(() => {
+                      clearTimeout(resized);
+                      resized = setTimeout(() => void watch(true).catch(() => {}), 300);
+                  })
+                : undefined;
+
+        observer?.observe(sized.current);
         void watch(true).then(setPiBrowser, () => {});
 
         return () => {
+            stopped = true;
             off();
+            observer?.disconnect();
+            clearTimeout(resized);
             void watch(false).catch(() => {});
         };
     }, [streamId, place, session]);
@@ -147,14 +229,28 @@ function Capture({ field, password }) {
 }
 
 /**
- * The last picture of each session's browser (`place#session`): the panel opened again shows it at once, until the next
- * frame comes. In this tab's memory only.
+ * The last picture of each session's browser (`place#session`), an ImageBitmap: the panel opened again shows it at once,
+ * until the next frame comes. In this tab's memory only.
  */
 const lastFrames = new Map();
 
-/** The live picture: an image updated in place (frames skip the store, which would redraw the whole app each time). */
+/** Draw `bitmap` on `canvas`, at the bitmap's own size (the canvas is sized on screen by its box). */
+function draw(canvas, bitmap) {
+    if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+    }
+
+    canvas.getContext("2d").drawImage(bitmap, 0, 0);
+}
+
+/**
+ * The live picture: a canvas drawn in place (frames skip the store, which would redraw the whole app each time; a
+ * canvas takes a picture decoded off the main thread, with no layout, PP-200).
+ */
 function Frame({ interactive, onWheel }) {
     const image = useRef(null);
+    const box = useRef(null);
     const field = useRef(null);
     const key = `${browserPlace()}#${store.state.conversationId}`;
     const [has, setHas] = useState(lastFrames.has(key));
@@ -174,16 +270,30 @@ function Frame({ interactive, onWheel }) {
     };
 
     useFrames((frame) => {
-        const src = `data:image/jpeg;base64,${frame.jpeg}`;
+        const before = lastFrames.get(key);
 
-        lastFrames.set(key, src);
+        lastFrames.set(key, frame.bitmap);
 
         if (image.current) {
-            image.current.src = src;
+            draw(image.current, frame.bitmap);
+        }
+
+        // The picture before is no longer shown anywhere: its memory goes.
+        if (before !== undefined && before !== frame.bitmap) {
+            before.close();
         }
 
         setHas(true);
-    });
+    }, box);
+
+    // Opened again: the last picture at once.
+    useEffect(() => {
+        const kept = lastFrames.get(key);
+
+        if (kept !== undefined && image.current) {
+            draw(image.current, kept);
+        }
+    }, [key]);
 
     /**
      * A pointer on the picture, in the page's CSS pixels: against the frame, which has the page's shape. (On the phone a
@@ -265,14 +375,14 @@ function Frame({ interactive, onWheel }) {
     };
 
     return html`<div
+        ref=${box}
         class=${`pb-frame ${interactive ? "live" : ""}`}
         style=${`aspect-ratio:${viewport.width}/${viewport.height};--ratio:${viewport.width / viewport.height};--frame-max:${state?.size === "desktop" ? "100cqw" : "460px"}`}
     >
-        <img
+        <canvas
             ref=${image}
-            src=${lastFrames.get(key)}
-            alt=${has ? t("Pi's browser, live") : ""}
-            draggable="false"
+            role="img"
+            aria-label=${has ? t("Pi's browser, live") : ""}
             data-no-swipe=${interactive ? "" : undefined}
             onPointerDown=${down}
             onPointerMove=${move}
@@ -295,7 +405,7 @@ function Frame({ interactive, onWheel }) {
                     onWheel?.({ ...at(event), dy: Math.round(event.deltaY) });
                 }
             }}
-        />
+        ></canvas>
         ${!has && !state?.pictureError && html`<span class="pb-wait">${t("Waiting for the page…")}</span>`}
         ${
             state?.pictureError &&
@@ -497,11 +607,13 @@ export function BrowserPreview() {
 function PreviewImage({ image }) {
     useFrames((frame) => {
         if (image.current) {
-            image.current.src = `data:image/jpeg;base64,${frame.jpeg}`;
+            draw(image.current, frame.bitmap);
         }
-    });
 
-    return html`<img ref=${image} alt="" class="pb-thumb" />`;
+        frame.bitmap.close();
+    }, image);
+
+    return html`<canvas ref=${image} aria-hidden="true" class="pb-thumb"></canvas>`;
 }
 
 /**

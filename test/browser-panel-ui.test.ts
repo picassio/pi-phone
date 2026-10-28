@@ -17,7 +17,7 @@ const chromium = findBrowser();
 const real = {
     skip: chromium === undefined ? "no Chromium-based browser on this machine" : false,
 } as const;
-const PICTURE = ".pb-frame.live img";
+const PICTURE = ".pb-frame.live canvas";
 
 let app: App;
 let server: Server;

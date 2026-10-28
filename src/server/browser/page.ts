@@ -212,7 +212,7 @@ export type PictureClip = { x: number; y: number; width: number; height: number 
  * its screencast is taken so (PP-126): one from the surface just before a screencast left that Chrome's input at half
  * the coordinates, once another tab was open in it.
  */
-export type PictureOptions = { png?: boolean; clip?: PictureClip; surface?: boolean };
+export type PictureOptions = { png?: boolean; clip?: PictureClip & { scale?: number }; surface?: boolean };
 
 /**
  * A key to press: a named one, or one printable character (a list's type-ahead: "G" goes to Global Payments). Keys
@@ -903,7 +903,11 @@ export class BrowserPage {
         await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
-    async press(key: string): Promise<void> {
+    /**
+     * Press a key. `follow` (Pi's presses): wait for a navigation it starts. A person's keys from the panel do not wait
+     * (they see the page; each key otherwise held the next 300 ms, PP-200), and both events go at once, in order.
+     */
+    async press(key: string, { follow = true }: { follow?: boolean } = {}): Promise<void> {
         const known = keyOf(key);
 
         if (known === undefined) {
@@ -912,10 +916,17 @@ export class BrowserPage {
 
         const before = this.#loads;
         const keys = { key: known.key, code: known.code, windowsVirtualKeyCode: known.keyCode };
+        const down = this.cdp.send("Input.dispatchKeyEvent", known.text === undefined ? { type: "rawKeyDown", ...keys } : { type: "keyDown", ...keys, text: known.text });
 
-        await this.cdp.send("Input.dispatchKeyEvent", known.text === undefined ? { type: "rawKeyDown", ...keys } : { type: "keyDown", ...keys, text: known.text });
-        await this.cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...keys });
-        await this.#followNavigation(before);
+        if (follow) {
+            await down;
+            await this.cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...keys });
+            await this.#followNavigation(before);
+
+            return;
+        }
+
+        await Promise.all([down, this.cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...keys })]);
     }
 
     /** Back or forward in this tab's history; false when there is nothing that way. */
@@ -952,7 +963,7 @@ export class BrowserPage {
         // A desktop Chrome from its surface, which alone has the device scale (twice the CSS pixels: sharp text).
         const shot = await this.cdp.send<{ data: string }>(
             "Page.captureScreenshot",
-            { format: png ? "png" : "jpeg", ...(png ? {} : { quality }), fromSurface: this.#fromSurface && surface, ...(clip === undefined ? {} : { clip: { ...clip, scale: 1 } }) },
+            { format: png ? "png" : "jpeg", ...(png ? {} : { quality }), fromSurface: this.#fromSurface && surface, ...(clip === undefined ? {} : { clip: { ...clip, scale: clip.scale ?? 1 } }) },
             timeoutMs,
         );
 

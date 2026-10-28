@@ -712,6 +712,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
   panel shows its last picture with a bar, or the error with Retry (`POST /api/browser/frames`). A failed frame
   acknowledgement (which would end the cast) starts it again. The last picture is kept (`lastFrame`) and sent to a tab
   that starts watching, so a panel opened while Pi is not browsing, or while the cast runs for another tab, shows it.
+- **The Browser panel's stream** (PP-200): the event stream says only that a picture is there (`browser-frame`: its
+  number and size); the panel keeps one request waiting at the server for the next (`GET /api/browser/frame?after=N`,
+  a JPEG, up to 2 s, then the event stream's word starts it again), decodes it off the main thread
+  (`createImageBitmap`) and draws it on a canvas, so a slow link or phone gets the newest picture, never a queue. A
+  frame is acknowledged to Chrome at once while the tabs keep up (they took the one before), else when taken or after
+  500 ms. The panel says how big it draws the picture (`POST /api/browser/watch` with `width`/`height`: its box ×
+  `devicePixelRatio`, at most 2) and the cast is that size (the largest watcher's; at most twice the page, 1600 px).
+  Take over: a tap's two mouse events go at once; keys and text go without waiting for the page (Pi's own presses still
+  wait for a navigation). `node test/perf/browser-stream.ts [local|tailscale|slow]` measures it (a throttled link to
+  a headless Chrome, the panel in another).
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

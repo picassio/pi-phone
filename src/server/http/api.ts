@@ -917,11 +917,44 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
 
             if (second === "watch" && method === "POST") {
-                const body = await readJson<{ connection?: unknown; on?: unknown }>(request);
+                const body = await readJson<{ connection?: unknown; on?: unknown; width?: unknown; height?: unknown }>(request);
+                // How big the tab draws the picture, in device pixels (PP-200): the frames are made no bigger.
+                const pixels = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value >= 1 ? Math.min(value, 4000) : undefined);
+                const width = pixels(body.width);
+                const height = pixels(body.height);
 
-                app.setBrowserWatch(user, String(body.connection ?? ""), place, session, body.on === true);
+                app.setBrowserWatch(user, String(body.connection ?? ""), place, session, body.on === true, width === undefined || height === undefined ? undefined : { width, height });
 
                 return json(response, 200, browser().state());
+            }
+
+            // The newest picture after `after`, as a JPEG, for a tab that watches (PP-200): one is waited for up to 2 s, so a
+            // tab keeps one request waiting while it draws, and each picture comes as soon as it is there, never more than
+            // the tab can draw. Taking it lets Chrome send the next.
+            if (second === "frame" && method === "GET") {
+                const after = Number(url.searchParams.get("after") ?? 0);
+                const frame = await app.browserFrame(user, url.searchParams.get("connection") ?? "", place, session, Number.isFinite(after) ? after : 0, 2000);
+
+                if (frame === undefined) {
+                    response.writeHead(204, { "cache-control": "no-store" });
+                    response.end();
+
+                    return;
+                }
+
+                const bytes = Buffer.from(frame.jpeg, "base64");
+
+                response.writeHead(200, {
+                    "content-type": "image/jpeg",
+                    "content-length": String(bytes.length),
+                    "cache-control": "no-store",
+                    "x-frame-seq": String(frame.seq),
+                    "x-frame-width": String(frame.width),
+                    "x-frame-height": String(frame.height),
+                });
+                response.end(bytes);
+
+                return;
             }
 
             // The panel's Retry, when the page's picture does not come (PP-199).
