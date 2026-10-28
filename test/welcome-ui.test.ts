@@ -148,8 +148,8 @@ test("in the pi-phone app: Android's permissions through the bridge, read again 
     assert.equal(await inPage<number>(`document.querySelectorAll("[data-part=welcome-permission].done").length`), 1, "notifications are on already");
     await shot("phone-390");
     await press("Allow");
-    // Back from Android's screen: read again.
-    await inPage(`document.dispatchEvent(new Event("visibilitychange"))`);
+    // Back from Android's screen: the app's window has the focus again, and the page reads them again.
+    await inPage(`window.dispatchEvent(new Event("focus"))`);
     await until(async () => (await inPage<number>(`document.querySelectorAll("[data-part=welcome-permission].done").length`)) === 2, "run unrestricted done");
     await press("Open");
     assert.deepEqual(await inPage<string[]>("window.asked"), ["unrestricted", "settings:assistant"]);

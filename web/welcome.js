@@ -219,13 +219,14 @@ function usePhoneState() {
     const [state, setState] = useState(read);
 
     useEffect(() => {
-        const again = () => document.visibilityState === "visible" && setState(read());
+        const again = () => setState(read());
+        const shown = () => document.visibilityState === "visible" && again();
 
-        document.addEventListener("visibilitychange", again);
+        document.addEventListener("visibilitychange", shown);
         addEventListener("focus", again);
 
         return () => {
-            document.removeEventListener("visibilitychange", again);
+            document.removeEventListener("visibilitychange", shown);
             removeEventListener("focus", again);
         };
     }, []);
