@@ -16,6 +16,7 @@ import type { PocketHost } from "../host.ts";
 import { machinePaths } from "../machine-paths.ts";
 import { toolOffer, toolsToInstall } from "../machine-tools.ts";
 import { namesIn } from "../secrets.ts";
+import { MAX_SAVE_COMMAND } from "./secrets.ts";
 
 type Text = { type: "text"; text: string };
 const text = (value: string): Text => ({ type: "text", text: value });
@@ -75,7 +76,8 @@ export default function createMachines(host: PocketHost) {
     const run = defineTool({
         name: "machine_run",
         description:
-            "Run one shell command on one of the owner's machines, over the app's connection (no ssh needed): to check a log, a disk, a service, or a quick build step there. Secrets work as in bash ($NAME). For longer work on a machine, start a session in a folder there instead.",
+            "Run one shell command on one of the owner's machines, over the app's connection (no ssh needed): to check a log, a disk, a service, or a quick build step there. Secrets work as in bash ($NAME). For longer work on a machine, start a session in a folder there instead. " +
+            "A machine the owner set to ask before each command (Settings › Machines) shows the command on a card first, and runs it only when they allow it.",
         parameters: Type.Object({
             machine: Type.String({ description: "The machine's name (or alias) from your environment section" }),
             command: Type.String({ description: "A shell command, run with sh -c (Git Bash's bash on Windows)" }),
@@ -94,6 +96,34 @@ export default function createMachines(host: PocketHost) {
             const paths = machinePaths(machine.windows ? { platform: "windows" } : undefined);
             const cwd = paths.normal(paths.expandHome(args.cwd ?? machine.home, machine.home));
             const place = `machine:${machine.id}:${cwd}`;
+
+            // The owner's "Pi asks before each command" for this machine (Settings › Machines, PP-230): a card shows the
+            // whole command, where it runs, before it does.
+            if (machine.askRun) {
+                if (args.command.length > MAX_SAVE_COMMAND) {
+                    return failed(
+                        `${machine.alias} asks before each command, and the card shows at most ${MAX_SAVE_COMMAND.toLocaleString("en")} characters; this one is ${args.command.length.toLocaleString("en")}. Use a shorter one (a script it runs, say). Nothing ran.`,
+                    );
+                }
+
+                const answer = await host.approvals.request(
+                    {
+                        id: `machine_run-${String(api.taskId)}-${String(api.callId)}`,
+                        conversationId: api.conversationId as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "machine_run",
+                        subject: args.command,
+                        reason: `On ${machine.alias}, in ${cwd}: it asks before each command (Settings › Machines).`,
+                        createdAt: Date.now(),
+                    },
+                    context as never,
+                );
+
+                if (!answer.allow) {
+                    return failed(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} said no`}: nothing ran on ${machine.alias}.`);
+                }
+            }
             const env = host.envOf(place);
             const secrets = host.secrets.environment(namesIn(args.command), place);
             let out = "";

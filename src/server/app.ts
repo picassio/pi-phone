@@ -990,6 +990,7 @@ export class PocketApp {
                         address: `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`,
                         home: machine.remote!.home,
                         windows: machine.remote!.platform === "windows",
+                        askRun: machine.askRun === true,
                     })),
             home: this.#home,
             resolveModel: (spec) => resolveModel(this.models, spec, this.signInNeeded),

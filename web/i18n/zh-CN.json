@@ -981,6 +981,7 @@
     "Reached: {what}": "已连通：{what}",
     "Tools: {list}": "工具：{list}",
     "Answers now (checked {when})": "当前可连接（{when}检查）",
+    "Pi asks before each command it runs here (machine_run): a card shows the command first": "Pi 在这里运行每条命令（machine_run）前都会先询问：卡片会先显示该命令",
     "Can't connect:": "无法连接：",
     "Check again": "重新检查",
     "The machine presents this host key. Compare it with {command} run on the machine itself, then accept.": "机器出示了这个主机密钥。请在机器本身上运行 {command} 进行比对，然后再接受。",

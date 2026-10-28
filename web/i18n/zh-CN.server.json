@@ -57,6 +57,7 @@
     "There is no such machine.": "没有这台机器。",
     "{1} is not set up: open Settings > Machines and connect it first.": "{1} 尚未设置：请先打开 设置 > 机器 并连接它。",
     "Choose the SSH key for this machine.": "请为这台机器选择 SSH 密钥。",
+    "askRun is true or false.": "askRun 的值是 true 或 false。",
     "Scan the machine first.": "请先扫描这台机器。",
     "{1}'s host key changed since you accepted it. If you know why (the machine was reinstalled), forget the old key and scan again; otherwise do not connect.": "{1} 的主机密钥在你接受后已变更。如果你知道原因（机器重装过），请忘记旧密钥并重新扫描；否则不要连接。",
     "Accept the machine's host key first.": "请先接受这台机器的主机密钥。",

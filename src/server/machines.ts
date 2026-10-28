@@ -62,6 +62,11 @@ export type Machine = {
     /** Tools pi-phone installed there, by id, with their versions, as last seen (`machine-tools.ts`). */
     tools?: Record<string, string>;
     /**
+     * Pi asks before each `machine_run` command here (PP-230): a card shows the command first. Off (unset) by default, as
+     * bash on the phone runs without one.
+     */
+    askRun?: boolean;
+    /**
      * A team machine (PP-82): the team server's, with its id there, who may change it, which roles use it, and its key's
      * public half. Its key is the team server's; its connection and sign-in go through it (`team-machines.ts`).
      */
@@ -439,11 +444,21 @@ export class Machines {
     }
 
     /** Change the name, address, or key. A new address or key forgets the host key and the connection: scan again. */
-    async edit(id: string, body: { name?: unknown; address?: unknown; keyId?: unknown }): Promise<Machine> {
+    async edit(id: string, body: { name?: unknown; address?: unknown; keyId?: unknown; askRun?: unknown }): Promise<Machine> {
         const machine = this.#own(id);
+
+        if (body.askRun !== undefined && typeof body.askRun !== "boolean") {
+            throw new HttpError(400, "askRun is true or false.");
+        }
 
         if (body.name !== undefined) {
             machine.name = checkName(body.name);
+        }
+
+        if (body.askRun === true) {
+            machine.askRun = true;
+        } else if (body.askRun === false) {
+            delete machine.askRun;
         }
 
         if (body.address !== undefined) {

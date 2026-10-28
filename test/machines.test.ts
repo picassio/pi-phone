@@ -55,6 +55,18 @@ test("a machine needs a name, an address, and one of the app's keys; a key in us
     assert.throws(() => machines.get(machine.id), /no such machine/);
 });
 
+test("a machine asks before each machine_run command only when the owner turns it on; off by default, kept across a restart (PP-230)", async () => {
+    const key = await keys.generate("asking");
+    const machine = machines.add({ name: "asking-box", address: "me@asking", keyId: key.id });
+
+    assert.equal(machine.askRun, undefined, "off by default");
+    assert.equal((await machines.edit(machine.id, { askRun: true })).askRun, true);
+    assert.equal(new Machines(join(root, "data"), keys, sshDir, agent, home).get(machine.id).askRun, true, "kept");
+    await assert.rejects(machines.edit(machine.id, { askRun: "yes" }), /askRun is true or false/);
+    assert.equal((await machines.edit(machine.id, { askRun: false })).askRun, undefined);
+    await machines.remove(machine.id);
+});
+
 /** A port nothing listens on. */
 function freePort(): Promise<number> {
     return new Promise((resolve, reject) => {

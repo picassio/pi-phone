@@ -902,6 +902,19 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             },
         },
         {
+            id: "machines.askRun",
+            area: "machines",
+            title: "Pi asks before each command on a machine",
+            help: "on: each machine_run command there waits for a person to allow it on a card that shows it; off (the default): it runs as bash on the phone does. Target: the machine's name or id.",
+            owner: true,
+            target: "machine",
+            read: (target) => (machine(target).askRun === true ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: async (_user, value, target) => {
+                await app.machines.edit(machine(target).id, { askRun: onOff(value) });
+            },
+        },
+        {
             id: "sshKeys.name",
             area: "machines",
             title: "An SSH key's name",

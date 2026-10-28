@@ -224,7 +224,9 @@ No Termux, no laptop, no cloud VM.
   Edge, else the machine tool), watched in the same panel ("Pi's browser on <machine>"). It opens the machine's own
   addresses, so Pi can try the web app you run there (`localhost:3000`), and uploads and PDFs use the machine's files.
   Its sign-ins stay in `~/.pi/mobile/browser` there.
-- **From any session.** `machine_run` and `machine_copy` run a command or copy a file on a machine, and `pi-ssh`
+- **From any session.** `machine_run` and `machine_copy` run a command or copy a file on a machine (with **Pi asks
+  before each command** ticked for a machine in Settings › Machines, each `machine_run` there waits for you to allow it
+  on a card that shows the command; off by default, as bash on the phone), and `pi-ssh`
   gives bash ssh, rsync, scp, and tunnels with the app's keys, which nothing can read out. Pi adds a machine itself with
   `machine_add` (a VM it just made, say): one card shows the address, the SSH key and the host key, checked against the
   one Pi read on the machine when it could, and the tools to install (all ticked); **Approve and connect** adds it,

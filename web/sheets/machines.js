@@ -469,6 +469,26 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             }
             ${state === "connected" && toolsOpen && html`<${MachineToolsPanel} machine=${machine} onClose=${() => { setToolsOpen(false); onChanged(); }} />`}
             ${
+                // PP-230: off by default, as bash on the phone runs without asking; Pi's tool is the setting machines.askRun.
+                !team &&
+                html`<label class="check small machine-ask-run">
+                    <input
+                        type="checkbox"
+                        checked=${machine.askRun === true}
+                        disabled=${busy !== null}
+                        onChange=${(event) => {
+                            const askRun = event.currentTarget.checked;
+
+                            call("askRun", async () => {
+                                await api(`machines/${encodeURIComponent(machine.id)}`, { askRun });
+                                onChanged();
+                            });
+                        }}
+                    />
+                    <span>${t("Pi asks before each command it runs here (machine_run): a card shows the command first")}</span>
+                </label>`
+            }
+            ${
                 state === "connected" &&
                 health !== undefined &&
                 (health.ok

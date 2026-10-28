@@ -257,7 +257,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **Nothing in `~/.ssh`:** the app's files from before there (`pi-phone_config` and its `Include`,
     `pi-phone_known_hosts`) are moved or removed at startup. The owner's own files and lines stay, and the phone
     terminal's `ssh` is the owner's.
-  - **Pi's tools instead:** `machine_run` (one command on a named machine, through `host.envOf`; secrets as in bash,
+  - **Pi's tools instead:** `machine_run` (one command on a named machine, through `host.envOf`; a machine with
+    `askRun` (Settings › Machines' "Pi asks before each command", the setting `machines.askRun`; off by default, as bash)
+    shows each command on a card first, at most 1,500 characters, PP-230; secrets as in bash,
     their values redacted, output kept to its last 30,000 characters) and `machine_copy` (one file of up to 100 MB,
     phone to machine, machine to phone, or between machines: `<machine>:<path>`). Or a session on the machine.
   - **The prompt:** the phone prompt names the machines (alias, address, id) and these tools, and says its bash has no
