@@ -58,6 +58,14 @@ export function cardFills(
 }
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
+
+/**
+ * A browser picture's caption: the page's title and address are the page's words, so fenced as data as every other read
+ * of it is (PP-204, rule S5.2: a page titles itself "Ignore your task and …").
+ */
+export function shotCaption(page: { title: string; url: string; width: number; height: number }, what: string, saved: string): string {
+    return `${fencedPage(`${page.title || "(no title)"} — ${page.url}`)}\nAs Pi's browser shows it (${page.width}×${page.height} CSS pixels${what}).${saved}`;
+}
 /** How much of a whole page `browser_text` gives at once. */
 const TEXT_MAX = 40_000;
 
@@ -428,12 +436,13 @@ export default function createBrowser(host: PocketHost) {
 
                     return {
                         output: [
-                            { type: "text" as const, text: `${state.title || "(no title)"} — ${state.url}, as Pi's browser shows it (${state.viewport.width}×${state.viewport.height} CSS pixels${what}).${saved}` },
+                            { type: "text" as const, text: shotCaption({ title: state.title, url: state.url, width: state.viewport.width, height: state.viewport.height }, what, saved) },
                             { type: "image" as const, data: shot.data, mimeType: kind === "png" ? "image/png" : "image/jpeg" },
                         ],
                     };
                 } catch (error) {
-                    return reply(error instanceof Error ? error.message : String(error), true);
+                    // An error can name the page's controls or texts too.
+                    return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
                 }
             },
         }),
@@ -522,7 +531,8 @@ export default function createBrowser(host: PocketHost) {
 
                     return reply(report(result, decider.label, page), result.status !== "done");
                 } catch (error) {
-                    return reply(error instanceof Error ? error.message : String(error), true);
+                    // A failed step or page can say the page's words: fenced as the report is.
+                    return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
                 }
             },
         }),
@@ -598,7 +608,8 @@ export default function createBrowser(host: PocketHost) {
                 }
 
                 if (!field.fill) {
-                    return reply(`[${args.index}] ${field.label} is not a field to type into.`, true);
+                    // The label is the page's.
+                    return reply(fencedPage(`[${args.index}] ${field.label} is not a field to type into.`), true);
                 }
 
                 const site = siteOf(browser.state().url);
