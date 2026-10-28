@@ -3,7 +3,7 @@
 // a call's set-up for each way, minutes in Spend and the daily limit, and the sign-in's token never reaching the page,
 // the logs, or a refusal's words.
 import { type App, cleanUp, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
-import { DEFAULT_VOICE, readVoice, storedVoice, withVoice, chatgptAccount, callSession, voiceInstructions } from "../src/server/voice.ts";
+import { DEFAULT_VOICE, readVoice, storedVoice, withVoice, chatgptAccount, callSession, dictationSession, voiceInstructions } from "../src/server/voice.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
 import type { User } from "../src/server/config.ts";
 import { createHandler } from "../src/server/http.ts";
@@ -40,7 +40,7 @@ test("a call's configuration: hands-free answers by itself, hold to talk waits, 
     const plan = { mode: "work" as const, instructions: voiceInstructions("work", "Deploy"), tools: [{ type: "function", name: "ask_pi" }] };
     const session = callSession({ ...DEFAULT_VOICE, language: "vi" }, plan) as { audio: { input: { turn_detection: unknown; transcription: unknown }; output: unknown }; tools?: unknown };
 
-    assert.deepEqual(session.audio.input.turn_detection, { type: "semantic_vad", interrupt_response: true, create_response: true });
+    assert.deepEqual(session.audio.input.turn_detection, { type: "semantic_vad", eagerness: "auto", interrupt_response: true, create_response: true });
     assert.deepEqual(session.audio.input.transcription, { model: "gpt-4o-transcribe", language: "vi" });
     assert.deepEqual(session.audio.output, { voice: "marin" });
     assert.deepEqual(session.tools, plan.tools);
@@ -51,6 +51,34 @@ test("a call's configuration: hands-free answers by itself, hold to talk waits, 
     );
     assert.match(voiceInstructions("work"), /ask_pi/);
     assert.match(voiceInstructions("think"), /Read aloud:/);
+});
+
+test("in noise (PP-195): calls and dictation carry the mic's noise reduction, and hands-free its eagerness; hold to talk keeps the noise reduction", () => {
+    type Input = { noise_reduction: unknown; turn_detection: unknown };
+    const input = (session: Record<string, unknown>) => (session as { audio: { input: Input } }).audio.input;
+    const plan = { mode: "work" as const, instructions: "", tools: [] };
+
+    assert.equal(DEFAULT_VOICE.noise, "near_field");
+    assert.equal(DEFAULT_VOICE.eagerness, "auto");
+    assert.deepEqual(input(callSession(DEFAULT_VOICE, plan)).noise_reduction, { type: "near_field" });
+
+    const far = input(callSession(withVoice(DEFAULT_VOICE, { noise: "far_field", eagerness: "low" }), plan));
+
+    assert.deepEqual(far.noise_reduction, { type: "far_field" });
+    assert.deepEqual(far.turn_detection, { type: "semantic_vad", eagerness: "low", interrupt_response: true, create_response: true });
+
+    const held = input(callSession({ ...DEFAULT_VOICE, turns: "hold", noise: "far_field" }, plan));
+
+    assert.equal(held.turn_detection, null);
+    assert.deepEqual(held.noise_reduction, { type: "far_field" });
+    assert.equal(input(callSession({ ...DEFAULT_VOICE, noise: "off" }, plan)).noise_reduction, null);
+    assert.deepEqual(input(dictationSession("gpt-4o-transcribe", "vi", "far_field")).noise_reduction, { type: "far_field" });
+    assert.deepEqual(input(dictationSession("gpt-4o-transcribe", "auto")).noise_reduction, { type: "near_field" });
+
+    assert.throws(() => withVoice(DEFAULT_VOICE, { noise: "loud" }), /near_field, far_field, or off/);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { eagerness: "sometimes" }), /auto, low, medium, or high/);
+    assert.deepEqual(storedVoice({ ...DEFAULT_VOICE, noise: "off", eagerness: "high" }), { noise: "off", eagerness: "high" });
+    assert.equal(readVoice({ noise: "loud" }).noise, "near_field");
 });
 
 let app: App;
@@ -136,6 +164,13 @@ test("a model, voice or language is checked with OpenAI before it is kept, and a
     await registry.settings.find((each) => each.id === "voice.language")!.apply(owner(app), "vi", undefined);
     await registry.settings.find((each) => each.id === "voice.dailyLimit")!.apply(owner(app), "45 min", undefined);
     assert.equal(app.config.voice.dailyLimit, 45);
+    // In noise (PP-195): the mic's noise reduction and hands-free's eagerness, through the same tools.
+    await registry.settings.find((each) => each.id === "voice.noise")!.apply(owner(app), "far-field", undefined);
+    assert.equal(app.config.voice.noise, "far_field");
+    await registry.settings.find((each) => each.id === "voice.eagerness")!.apply(owner(app), "low", undefined);
+    assert.equal(app.config.voice.eagerness, "low");
+    await assert.rejects(Promise.resolve(registry.settings.find((each) => each.id === "voice.eagerness")!.apply(owner(app), "never", undefined)), /auto, low, medium, or high/);
+    await app.setVoice(owner(app), { noise: "near_field", eagerness: "auto" });
     await assert.rejects(Promise.resolve(registry.settings.find((each) => each.id === "voice.mode")!.apply(owner(app), "shout", undefined)), /work, chat, or think/);
 
     const guest: User = { id: "guest-1", name: "Gina", role: "guest" } as User;
@@ -174,10 +209,12 @@ test("a call by key: the page gets a short-lived key with the whole configuratio
     assert.match(start.key, /^ek_test_/);
     assert.equal(start.url, `${openai.endpoints.api}/realtime/calls`);
 
-    const minted = openai.keys.get(start.key) as { model: string; instructions: string; audio: { output: { voice: string } } };
+    const minted = openai.keys.get(start.key) as { model: string; instructions: string; audio: { input: { noise_reduction: unknown; turn_detection: { eagerness: string } }; output: { voice: string } } };
 
     assert.equal(minted.model, "gpt-realtime-2");
     assert.equal(minted.audio.output.voice, "marin");
+    assert.deepEqual(minted.audio.input.noise_reduction, { type: "near_field" }, "the key carries the noise reduction");
+    assert.equal(minted.audio.input.turn_detection.eagerness, "auto");
     assert.match(minted.instructions, /ask_pi/);
 
     // The page posts its offer with the key (as web/voice-call.js does), then names the call.
@@ -252,10 +289,11 @@ test("Codex dictation: a key for a transcription session with the dictation mode
     assert.ok(!answer.text.includes(TOKEN));
 
     const dictation = answer.json as { dictation: string; key: string; model: string };
-    const session = openai.keys.get(dictation.key) as { type: string; audio: { input: { transcription: unknown } } };
+    const session = openai.keys.get(dictation.key) as { type: string; audio: { input: { transcription: unknown; noise_reduction: unknown } } };
 
     assert.equal(session.type, "transcription");
     assert.deepEqual(session.audio.input.transcription, { model: "gpt-4o-transcribe", language: "vi" });
+    assert.deepEqual(session.audio.input.noise_reduction, { type: "near_field" }, "dictation hears with the noise reduction too");
 
     const before = app.spend.voiceSummary().today.dictation;
 

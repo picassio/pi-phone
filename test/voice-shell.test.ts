@@ -107,6 +107,7 @@ const voice = (await import(new URL("../web/voice-call.js", import.meta.url).hre
     startVoice(session: number): Promise<void>;
     endVoice(options?: { quiet?: boolean; handOver?: boolean }): Promise<void>;
     voiceFromShell(session: number, what: string): Promise<void>;
+    setVoiceHold(hold: boolean): void;
 };
 const action = (word: string) => (globalThis as unknown as { __piVoiceAction(word: string): void }).__piVoiceAction(word);
 
@@ -242,4 +243,29 @@ test("Pi thinks with the device's voice, in a browser: its speech synthesis read
     await voice.startVoice(11);
     assert.notEqual(shared.store.state.voiceCall, null);
     await voice.endVoice();
+});
+
+test("switching hands-free and hold to talk in a call keeps the mic's noise reduction, and hands-free its eagerness (PP-195)", async () => {
+    Object.assign(settings, { noise: "far_field", eagerness: "low" });
+    await voice.startVoice(7);
+
+    const updates = () =>
+        (global.__channel as { sent: string[] }).sent
+            .map((data) => JSON.parse(data) as { type: string; session?: { audio: { input: Record<string, unknown> } } })
+            .filter((event) => event.type === "session.update")
+            .map((event) => event.session!.audio.input);
+
+    voice.setVoiceHold(true);
+    assert.deepEqual(updates().at(-1), { noise_reduction: { type: "far_field" }, turn_detection: null });
+    voice.setVoiceHold(false);
+    assert.deepEqual(updates().at(-1), {
+        noise_reduction: { type: "far_field" },
+        turn_detection: { type: "semantic_vad", eagerness: "low", interrupt_response: true, create_response: true },
+    });
+
+    Object.assign(settings, { noise: "off" });
+    voice.setVoiceHold(true);
+    assert.deepEqual(updates().at(-1), { noise_reduction: null, turn_detection: null });
+    await voice.endVoice();
+    Object.assign(settings, { noise: "near_field", eagerness: "auto" });
 });

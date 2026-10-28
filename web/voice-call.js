@@ -486,20 +486,28 @@ export function setVoiceMuted(muted) {
     tellShell("update");
 }
 
+/**
+ * How the call hears, as the server set it (`callSession`, `src/server/voice.ts`, PP-195): Settings › Voice's noise
+ * reduction, and hands-free's eagerness, or no turn detection to hold to talk. A page's update carries both, so it never
+ * drops the noise reduction.
+ */
+export function callInput(hold, mode, settings = store.state.server?.voice?.settings) {
+    const noise = settings?.noise ?? "near_field";
+
+    return {
+        noise_reduction: noise === "off" ? null : { type: noise },
+        turn_detection: hold
+            ? null
+            : { type: "semantic_vad", eagerness: settings?.eagerness ?? "auto", interrupt_response: true, create_response: mode !== "think" },
+    };
+}
+
 /** Hands-free (the voice answers when you pause, and stops when you talk) or hold to talk, for this call. */
 export function setVoiceHold(hold) {
     const mine = engine;
 
     if (mine?.channel?.readyState === "open" && mine.path !== "codex") {
-        mine.channel.send(
-            JSON.stringify({
-                type: "session.update",
-                session: {
-                    type: "realtime",
-                    audio: { input: { turn_detection: hold ? null : { type: "semantic_vad", interrupt_response: true, create_response: mine.mode !== "think" } } },
-                },
-            }),
-        );
+        mine.channel.send(JSON.stringify({ type: "session.update", session: { type: "realtime", audio: { input: callInput(hold, mine.mode) } } }));
     }
 
     if (mine?.mic) {

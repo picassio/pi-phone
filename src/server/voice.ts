@@ -30,6 +30,14 @@ export type VoiceProgress = "text" | "answer";
 export type VoiceReader = "live" | "device";
 export type DictationEngine = "android" | "codex";
 export type VoicePath = "key" | "server" | "codex";
+/**
+ * OpenAI's noise reduction on what the mic hears (PP-195): near_field for a phone at the face or a headset, far_field
+ * for a speakerphone, a laptop or a phone on the table, off for none. Both types checked with the ChatGPT sign-in
+ * (2026-10-28, calls and dictation).
+ */
+export type VoiceNoise = "near_field" | "far_field" | "off";
+/** How readily hands-free takes your turn as ended (semantic VAD's eagerness): low waits longer, which helps in noise. */
+export type VoiceEagerness = "auto" | "low" | "medium" | "high";
 
 export interface VoiceSettings {
     /** The live model of calls. */
@@ -52,6 +60,10 @@ export interface VoiceSettings {
     readonly reader: VoiceReader;
     /** Minutes of voice a day (calls and Codex dictation together); null: no limit. */
     readonly dailyLimit: number | null;
+    /** Noise reduction on the mic, in calls and Codex dictation. */
+    readonly noise: VoiceNoise;
+    /** Hands-free: how readily your turn counts as ended. */
+    readonly eagerness: VoiceEagerness;
 }
 
 export const DEFAULT_VOICE: VoiceSettings = {
@@ -66,6 +78,8 @@ export const DEFAULT_VOICE: VoiceSettings = {
     cueSeconds: 20,
     reader: "live",
     dailyLimit: null,
+    noise: "near_field",
+    eagerness: "auto",
 };
 
 /** The models the check asks about. Others may be set by id; setting one checks it the same way. */
@@ -82,7 +96,9 @@ const READERS: readonly VoiceReader[] = ["live", "device"];
 /** The reader as first named (PP-190): the device's voice. */
 const reader = (value: unknown): unknown => (value === "android" ? "device" : value);
 const ENGINES: readonly DictationEngine[] = ["android", "codex"];
-const KEYS = ["model", "dictationModel", "engine", "voice", "language", "mode", "turns", "progress", "cueSeconds", "reader", "dailyLimit"] as const;
+const NOISES: readonly VoiceNoise[] = ["near_field", "far_field", "off"];
+const EAGERNESS: readonly VoiceEagerness[] = ["auto", "low", "medium", "high"];
+const KEYS = ["model", "dictationModel", "engine", "voice", "language", "mode", "turns", "progress", "cueSeconds", "reader", "dailyLimit", "noise", "eagerness"] as const;
 const MODEL_ID = /^[a-z0-9][a-z0-9.\-]{1,63}$/;
 const LANGUAGE = /^(auto|[a-z]{2,3})$/;
 
@@ -113,6 +129,8 @@ export function readVoice(stored: unknown): VoiceSettings {
         cueSeconds: pick(stored.cueSeconds, (value) => Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 600, DEFAULT_VOICE.cueSeconds),
         reader: pick(reader(stored.reader), (value) => READERS.includes(value as VoiceReader), DEFAULT_VOICE.reader),
         dailyLimit: pick(stored.dailyLimit, (value) => value === null || (Number.isInteger(value) && (value as number) > 0), DEFAULT_VOICE.dailyLimit),
+        noise: pick(stored.noise, (value) => NOISES.includes(value as VoiceNoise), DEFAULT_VOICE.noise),
+        eagerness: pick(stored.eagerness, (value) => EAGERNESS.includes(value as VoiceEagerness), DEFAULT_VOICE.eagerness),
     };
 }
 
@@ -211,6 +229,22 @@ export function withVoice(current: VoiceSettings, patch: unknown): VoiceSettings
         }
 
         next.reader = reader(patch.reader) as VoiceReader;
+    }
+
+    if (patch.noise !== undefined) {
+        if (!NOISES.includes(patch.noise as VoiceNoise)) {
+            throw new HttpError(400, "voice.noise is near_field, far_field, or off.");
+        }
+
+        next.noise = patch.noise as VoiceNoise;
+    }
+
+    if (patch.eagerness !== undefined) {
+        if (!EAGERNESS.includes(patch.eagerness as VoiceEagerness)) {
+            throw new HttpError(400, "voice.eagerness is auto, low, medium, or high.");
+        }
+
+        next.eagerness = patch.eagerness as VoiceEagerness;
     }
 
     if (patch.dailyLimit !== undefined) {
@@ -773,7 +807,7 @@ export class VoiceService {
 
         const settings = this.#options.settings();
         const auth = await this.auth();
-        const minted = await this.mint(auth, dictationSession(settings.dictationModel, settings.language));
+        const minted = await this.mint(auth, dictationSession(settings.dictationModel, settings.language, settings.noise));
 
         if (minted.key === undefined) {
             throw new HttpError(minted.status === 429 ? 429 : 502, `OpenAI did not start dictation: ${minted.why}`);
@@ -818,13 +852,29 @@ export function voiceInstructions(mode: VoiceMode, title?: string): string {
     return `You are the voice of Pi, a coding agent, on a call with its owner in one of Pi's sessions.${where} Pi does the work: hand every action, every fact about their projects or systems, every check and any real reasoning to Pi with the ask_pi tool, in the owner's own words and complete, then say a short acknowledgement. Never claim work Pi has not done, and never make up results. Pi's words reach you as messages starting with "Pi says:"; tell the owner what they mean, briefly. Messages starting with "Pi is working:" are progress: one short sentence at most. Only small talk and questions about this call you answer yourself. Pi's approvals need a tap on the screen: when Pi asks for one, say so. ${speak}`;
 }
 
-/** A transcription session's configuration: the model, and the language unless auto. */
-export function dictationSession(model: string, language: string): Record<string, unknown> {
+/** The noise reduction OpenAI applies to what the mic hears: `{ type }`, or null for none. */
+export function noiseReduction(noise: VoiceNoise): { type: "near_field" | "far_field" } | null {
+    return noise === "off" ? null : { type: noise };
+}
+
+/**
+ * When a call answers: hands-free, semantic VAD at the setting's eagerness, stopping the voice when you talk (and in
+ * "Pi thinks" never answering by itself); hold to talk, none (the page commits what you said).
+ */
+export function turnDetection(settings: Pick<VoiceSettings, "turns" | "eagerness">, mode: VoiceMode): Record<string, unknown> | null {
+    return settings.turns === "hold"
+        ? null
+        : { type: "semantic_vad", eagerness: settings.eagerness, interrupt_response: true, create_response: mode !== "think" };
+}
+
+/** A transcription session's configuration: the model, the language unless auto, and the noise reduction. */
+export function dictationSession(model: string, language: string, noise: VoiceNoise = DEFAULT_VOICE.noise): Record<string, unknown> {
     return {
         type: "transcription",
         audio: {
             input: {
                 transcription: { model, ...(language === "auto" ? {} : { language }) },
+                noise_reduction: noiseReduction(noise),
                 turn_detection: { type: "server_vad" },
             },
         },
@@ -844,10 +894,8 @@ export function callSession(settings: VoiceSettings, plan: CallPlan): Record<str
         audio: {
             input: {
                 transcription: { model: settings.dictationModel, ...(settings.language === "auto" ? {} : { language: settings.language }) },
-                turn_detection:
-                    settings.turns === "hold"
-                        ? null
-                        : { type: "semantic_vad", interrupt_response: true, create_response: plan.mode !== "think" },
+                noise_reduction: noiseReduction(settings.noise),
+                turn_detection: turnDetection(settings, plan.mode),
             },
             output: { voice: settings.voice },
         },

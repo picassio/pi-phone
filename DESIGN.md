@@ -754,7 +754,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **Settings** (`voice.*` in the settings tools, owner only): live and dictation model, engine (android or codex),
     voice, language (auto or a code), mode for new sessions (work, chat, think), turns (hands-free: semantic VAD that
     stops the voice when you talk; hold), progress (text or answer), cueSeconds (20), reader (live or device),
-    dailyLimit (minutes or none). A session's own mode in `SessionMeta.voiceMode` (`sessions.voiceMode`).
+    dailyLimit (minutes or none), noise (near_field, far_field, off) and eagerness (auto, low, medium, high). A session's
+    own mode in `SessionMeta.voiceMode` (`sessions.voiceMode`).
+  - **Hearing in noise** (PP-195): calls and Codex dictation carry `audio.input.noise_reduction` (`{type: near_field |
+    far_field}`, or null for off; `noiseReduction`), and hands-free's semantic VAD the setting's `eagerness`
+    (`turnDetection`; low waits longer for the turn's end, which helps in noise). The page's own `session.update`
+    (Hands-free / Hold to talk, `callInput` in `web/voice-call.js`) carries both from the same settings, so it never
+    drops them. OpenAI took both noise types (calls and dictation), null, and each eagerness with the ChatGPT sign-in
+    (2026-10-28, minting only: `~/work/tmp-ocu/codex-noise-check.mjs`); any other value is a 400, as the fake OpenAI
+    answers too. The page also asks the mic for the browser's echo cancelling, noise suppression and gain control.
   - **Minutes** in `SpendDoc.voice` by day (seconds of calls and of Codex dictation), shown in Spend; a call or a
     dictation is refused once today's minutes reach the daily limit. Calls are in memory: a restart ends them.
   - **Bridge** (`src/server/voice-bridge.ts`, PP-187): once a `key` or `server` call is named, the server joins it by id

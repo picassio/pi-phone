@@ -119,7 +119,20 @@ export class FakeOpenAI {
             }
 
             const session = (JSON.parse(body) as { session: Record<string, unknown> }).session;
-            const audio = session.audio as { input?: { transcription?: { model?: string; language?: string } }; output?: { voice?: string } } | undefined;
+            const audio = session.audio as
+                | { input?: { transcription?: { model?: string; language?: string }; noise_reduction?: { type?: string } | null; turn_detection?: { eagerness?: string } | null }; output?: { voice?: string } }
+                | undefined;
+            const noise = audio?.input?.noise_reduction;
+            const eagerness = audio?.input?.turn_detection?.eagerness;
+
+            // As OpenAI answers (checked 2026-10-28, PP-195).
+            if (noise != null && noise.type !== "near_field" && noise.type !== "far_field") {
+                return this.#error(400, `Invalid value: '${noise.type}'. Supported values are: 'near_field' and 'far_field'.`);
+            }
+
+            if (eagerness !== undefined && !["auto", "low", "medium", "high"].includes(eagerness)) {
+                return this.#error(400, `Invalid value: '${eagerness}'. Supported values are: 'low', 'medium', 'high', and 'auto'.`);
+            }
 
             if (session.type === "transcription") {
                 const transcription = audio?.input?.transcription;

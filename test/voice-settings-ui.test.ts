@@ -132,6 +132,14 @@ test("Settings › Voice: the checked live models with their way, choices that c
     await until(() => app.config.voice.turns === "hold", "turn-taking");
     await press("[data-part=voice-progress]", "Only the answer");
     await until(() => app.config.voice.progress === "answer", "progress");
+    // Hearing in noise (PP-195): the mic's noise reduction, and how soon hands-free takes your turn as ended.
+    await press("[data-part=voice-noise]", "Speaker or table");
+    await until(() => app.config.voice.noise === "far_field", "far-field noise reduction");
+    await press("[data-part=voice-eagerness]", "Waits longer");
+    await until(() => app.config.voice.eagerness === "low", "low eagerness");
+    await shot("voice-hearing-390");
+    await app.setVoice(owner(app), { noise: "near_field", eagerness: "auto" });
+
     // Who reads Pi's answers in Pi thinks (PP-193): the device's own voice, which this browser has.
     await press("[data-part=voice-reader]", "This device's voice");
     await until(() => app.config.voice.reader === "device", "the device's voice");

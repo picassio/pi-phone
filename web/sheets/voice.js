@@ -124,6 +124,12 @@ export function VoiceSheet() {
             />
         </label>
 
+        <div class="phone-section-title">${t("Hearing")}</div>
+        ${segmented(t("Noise reduction"), "voice-noise", [["near_field", t("Phone at your face")], ["far_field", t("Speaker or table")], ["off", t("Off")]], settings.noise ?? "near_field", "noise")}
+        <p class="muted small">${t("Noise reduction on the mic, in calls and Codex dictation: Phone at your face for the phone at your ear or a headset; Speaker or table for a speakerphone, a laptop or a phone lying on a table.")}</p>
+        ${segmented(t("When hands-free answers"), "voice-eagerness", [["auto", t("Auto")], ["low", t("Waits longer")], ["medium", t("Medium")], ["high", t("Soonest")]], settings.eagerness ?? "auto", "eagerness")}
+        <p class="muted small">${t("How soon your turn counts as ended. Waits longer helps in a noisy room.")}</p>
+
         <div class="phone-section-title">${t("New sessions")}</div>
         ${segmented(t("Voice mode"), "voice-mode-default", VOICE_MODES(), settings.mode, "mode")}
         ${segmented(t("Turn-taking"), "voice-turns-default", [["hands-free", t("Hands-free")], ["hold", t("Hold to talk")]], settings.turns, "turns")}
