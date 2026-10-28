@@ -1,4 +1,4 @@
-[English](README.md) | 简体中文
+[English](README.md) | 简体中文 | [Tiếng Việt](README.vi.md)
 
 > 本文是 [README.md](README.md) 的中文译本，以英文版为准；英文版更新后，译文可能会滞后。
 

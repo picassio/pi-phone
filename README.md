@@ -1,4 +1,4 @@
-English | [简体中文](README.zh-CN.md)
+English | [简体中文](README.zh-CN.md) | [Tiếng Việt](README.vi.md)
 
 # pi-phone
 
@@ -349,7 +349,8 @@ No Termux, no laptop, no cloud VM.
   it, and Pi, told your app's language, answers in it until you write in another language. The whole app is translated: the session list,
   conversation, menus, launcher, every sheet, the Projects, Wiki, Documents and Sharing pages (extensions get
   `pocket.t` for theirs), the team server's sign-in and admin pages, the server's errors and notices, and the phone's
-  notifications (with Auto, in the phone's language). This README is in Chinese too: [README.zh-CN.md](README.zh-CN.md).
+  notifications (with Auto, in the phone's language). This README is in Chinese and Vietnamese too: [README.zh-CN.md](README.zh-CN.md),
+  [README.vi.md](README.vi.md).
 - **Quick on a phone.** A streaming answer redraws only its last block, and only what changed in it crosses the wire;
   text and the event stream go compressed, and web files are cached (ETag, 304) and fetched at once (modulepreload).
 - **Updates from GitHub.** Every passing build on `master` is a release, with release notes. The app checks it (at
