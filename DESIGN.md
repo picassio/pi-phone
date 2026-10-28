@@ -784,7 +784,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     voice, language (auto or a code), mode for new sessions (work, chat, think), turns (hands-free: semantic VAD that
     stops the voice when you talk; tap; hold), progress (text or answer), cueSeconds (20), reader (live or device),
     dailyLimit (minutes or none), noise (near_field, far_field, off), eagerness (auto, low, medium, high),
-    autoMuteSeconds (0 to 600, 0), muteKey (off, headset, volume, both; headset) and proximityMute (false). A session's
+    autoMuteSeconds (0 to 600, 0), muteKey (off, headset, volume, both; headset), proximityMute (false), vad (semantic,
+    server; semantic), vadThreshold (0 to 1, two places; 0.7) and vadSilenceMs (200 to 3000; 500). A session's
     own mode in `SessionMeta.voiceMode` (`sessions.voiceMode`).
   - **The mic in a call** (PP-201: people near the owner were heard after he finished). Every change of the mic goes
     through one place (`setMic` in `web/voice-call.js`): the track off (nothing is sent) or on, the view, the
@@ -821,6 +822,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
     drops them. OpenAI took both noise types (calls and dictation), null, and each eagerness with the ChatGPT sign-in
     (2026-10-28, minting only: `~/work/tmp-ocu/codex-noise-check.mjs`); any other value is a 400, as the fake OpenAI
     answers too. The page also asks the mic for the browser's echo cancelling, noise suppression and gain control.
+  - **Turns by loudness** (PP-201, `voice.vad: server`): semantic VAD has no loudness threshold, so people talking
+    near the owner could start a turn. With server, hands-free and tap to talk use `{type: server_vad, threshold:
+    vadThreshold, silence_duration_ms: vadSilenceMs, interrupt_response: true, create_response: mode !== think}`
+    (OpenAI's prefix padding, 300 ms), in the key, the bridge's updates and the page's (`callInput`); Codex dictation's
+    `server_vad` gets the same threshold and silence (with semantic it keeps OpenAI's defaults). 0.7 by default, above
+    OpenAI's 0.5: by loudness is for a noisy place. Semantic stays the default (calls as they were). OpenAI took
+    thresholds 0 to 1 and silences 200 to 5000 for calls and dictation, and `create_response: false`, and refused 1.5
+    and -1 with a 400 (2026-10-28, minting only: `~/work/tmp-ocu/codex-vad-check.mjs`); the fake OpenAI answers the
+    same.
   - **Minutes** in `SpendDoc.voice` by day (seconds of calls and of Codex dictation), shown in Spend; a call or a
     dictation is refused once today's minutes reach the daily limit. Calls are in memory: a restart ends them.
   - **Bridge** (`src/server/voice-bridge.ts`, PP-187): once a `key` or `server` call is named, the server joins it by id

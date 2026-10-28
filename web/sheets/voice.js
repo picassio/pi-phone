@@ -37,6 +37,8 @@ export function VoiceSheet() {
     const [cue, setCue] = useState(null);
     const [limit, setLimit] = useState(null);
     const [quiet, setQuiet] = useState(null);
+    const [loud, setLoud] = useState(null);
+    const [pause, setPause] = useState(null);
 
     useEffect(() => {
         attempt(async () => setUsage((await api("voice")).usage));
@@ -128,8 +130,57 @@ export function VoiceSheet() {
         <div class="phone-section-title">${t("Hearing")}</div>
         ${segmented(t("Noise reduction"), "voice-noise", [["near_field", t("Phone at your face")], ["far_field", t("Speaker or table")], ["off", t("Off")]], settings.noise ?? "near_field", "noise")}
         <p class="muted small">${t("Noise reduction on the mic, in calls and Codex dictation: Phone at your face for the phone at your ear or a headset; Speaker or table for a speakerphone, a laptop or a phone lying on a table.")}</p>
-        ${segmented(t("When hands-free answers"), "voice-eagerness", [["auto", t("Auto")], ["low", t("Waits longer")], ["medium", t("Medium")], ["high", t("Soonest")]], settings.eagerness ?? "auto", "eagerness")}
-        <p class="muted small">${t("How soon your turn counts as ended. Waits longer helps in a noisy room.")}</p>
+        <span class="muted small">${t("Turn detection")}</span>
+        ${segmented(t("Turn detection"), "voice-vad", [["semantic", t("Smart (semantic)")], ["server", t("By loudness")]], settings.vad ?? "semantic", "vad")}
+        ${
+            settings.vad === "server"
+                ? html`<p class="muted small">${t("Your turn starts when the mic hears speech this loud, and ends after this pause: people talking further away do not start one.")}</p>
+                      <label class="assistant-field">
+                          <span class="muted small">${t("How loud you must be: {value}", { value: (loud ?? settings.vadThreshold).toString() })}</span>
+                          <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              data-part="voice-vad-threshold"
+                              aria-label=${t("How loud you must be")}
+                              value=${loud ?? settings.vadThreshold}
+                              onInput=${(event) => setLoud(Number(event.currentTarget.value))}
+                              onChange=${(event) => {
+                                  const value = Number(event.currentTarget.value);
+
+                                  attempt(async () => {
+                                      await api("settings", { voice: { vadThreshold: value } });
+                                      setLoud(null);
+                                  });
+                              }}
+                          />
+                          <span class="muted small">${t("Higher needs louder, closer speech. 0.5 is OpenAI's usual.")}</span>
+                      </label>
+                      <label class="assistant-field">
+                          <span class="muted small">${t("Pause before it answers: {ms} ms", { ms: String(pause ?? settings.vadSilenceMs) })}</span>
+                          <input
+                              type="range"
+                              min="200"
+                              max="3000"
+                              step="100"
+                              data-part="voice-vad-silence"
+                              aria-label=${t("Pause before it answers")}
+                              value=${pause ?? settings.vadSilenceMs}
+                              onInput=${(event) => setPause(Number(event.currentTarget.value))}
+                              onChange=${(event) => {
+                                  const value = Number(event.currentTarget.value);
+
+                                  attempt(async () => {
+                                      await api("settings", { voice: { vadSilenceMs: value } });
+                                      setPause(null);
+                                  });
+                              }}
+                          />
+                      </label>`
+                : html`${segmented(t("When hands-free answers"), "voice-eagerness", [["auto", t("Auto")], ["low", t("Waits longer")], ["medium", t("Medium")], ["high", t("Soonest")]], settings.eagerness ?? "auto", "eagerness")}
+                      <p class="muted small">${t("How soon your turn counts as ended. Waits longer helps in a noisy room; By loudness keeps people further away from starting a turn.")}</p>`
+        }
 
         <div class="phone-section-title">${t("New sessions")}</div>
         ${segmented(t("Voice mode"), "voice-mode-default", VOICE_MODES(), settings.mode, "mode")}

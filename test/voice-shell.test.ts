@@ -274,8 +274,16 @@ test("switching hands-free and hold to talk in a call keeps the mic's noise redu
     Object.assign(settings, { noise: "off" });
     voice.setVoiceHold(true);
     assert.deepEqual(updates().at(-1), { noise_reduction: null, turn_detection: null });
+
+    // By loudness (PP-201): the page's update carries the threshold and the silence, as the server's does.
+    Object.assign(settings, { noise: "near_field", vad: "server", vadThreshold: 0.8, vadSilenceMs: 700 });
+    voice.setVoiceTurns("tap");
+    assert.deepEqual(updates().at(-1), {
+        noise_reduction: { type: "near_field" },
+        turn_detection: { type: "server_vad", threshold: 0.8, silence_duration_ms: 700, interrupt_response: true, create_response: true },
+    });
     await voice.endVoice();
-    Object.assign(settings, { noise: "near_field", eagerness: "auto" });
+    Object.assign(settings, { noise: "near_field", eagerness: "auto", vad: "semantic" });
 });
 
 /** The mic's word to the server, once what is queued went. */

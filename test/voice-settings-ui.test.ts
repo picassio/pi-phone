@@ -140,6 +140,19 @@ test("Settings › Voice: the checked live models with their way, choices that c
     await shot("voice-hearing-390");
     await app.setVoice(owner(app), { noise: "near_field", eagerness: "auto" });
 
+    // Turn detection by loudness (PP-201): how loud you must be, and the pause before it answers.
+    await press("[data-part=voice-vad]", "By loudness");
+    await until(() => app.config.voice.vad === "server", "by loudness");
+    await until(async () => inPage<boolean>(`document.querySelector("[data-part=voice-vad-threshold]") !== null`), "the loudness slider");
+    assert.equal(await inPage<boolean>(`document.querySelector("[data-part=voice-eagerness]") === null`), true, "eagerness is semantic's");
+    for (const [part, value] of [["voice-vad-threshold", "0.85"], ["voice-vad-silence", "800"]] as const) {
+        await inPage(`(() => { const box = document.querySelector("[data-part=${part}]"); box.value = "${value}"; box.dispatchEvent(new Event("input", { bubbles: true })); box.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+    }
+    await until(() => app.config.voice.vadThreshold === 0.85 && app.config.voice.vadSilenceMs === 800, "the threshold and the pause");
+    await inPage(`document.querySelector("[data-part=voice-vad-threshold]").scrollIntoView({ block: "center" })`);
+    await shot("voice-vad-390");
+    await app.setVoice(owner(app), { vad: "semantic", vadThreshold: 0.7, vadSilenceMs: 500 });
+
     // The mic in a call (PP-201): tap to talk for new sessions, the quiet, the mute key, proximity.
     await press("[data-part=voice-turns-default]", "Tap to talk");
     await until(() => app.config.voice.turns === "tap", "tap to talk");

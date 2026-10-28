@@ -50,6 +50,12 @@ export type VoicePath = "key" | "server" | "codex";
 export type VoiceNoise = "near_field" | "far_field" | "off";
 /** How readily hands-free takes your turn as ended (semantic VAD's eagerness): low waits longer, which helps in noise. */
 export type VoiceEagerness = "auto" | "low" | "medium" | "high";
+/**
+ * What starts and ends your turn (PP-201): semantic (OpenAI's semantic VAD: what you say, at `eagerness`; no loudness
+ * threshold) or server (OpenAI's server VAD: loudness above `vadThreshold`, ended by `vadSilenceMs` of silence; a higher
+ * threshold needs louder, closer speech, so people talking further away do not start a turn).
+ */
+export type VoiceVad = "semantic" | "server";
 
 export interface VoiceSettings {
     /** The live model of calls. */
@@ -82,6 +88,12 @@ export interface VoiceSettings {
     readonly muteKey: VoiceMuteKey;
     /** In a call on the phone, the mic is off unless the phone is at your ear (the proximity sensor near, not face down). */
     readonly proximityMute: boolean;
+    /** Turn detection in hands-free and tap to talk: semantic, or by loudness (server). */
+    readonly vad: VoiceVad;
+    /** With server VAD: how loud speech must be to count, 0 to 1 (OpenAI's own default is 0.5). */
+    readonly vadThreshold: number;
+    /** With server VAD: the silence that ends your turn, in milliseconds. */
+    readonly vadSilenceMs: number;
 }
 
 export const DEFAULT_VOICE: VoiceSettings = {
@@ -103,6 +115,11 @@ export const DEFAULT_VOICE: VoiceSettings = {
     muteKey: "headset",
     // Off: it would mute a speakerphone call, where the phone is never at the ear.
     proximityMute: false,
+    // Semantic, as calls were: the owner switches to loudness where others talk near him.
+    vad: "semantic",
+    // Above OpenAI's 0.5: by loudness is for a noisy place, where only the owner's close voice should count.
+    vadThreshold: 0.7,
+    vadSilenceMs: 500,
 };
 
 /** The models the check asks about. Others may be set by id; setting one checks it the same way. */
@@ -115,6 +132,9 @@ export const VOICES = ["marin", "cedar", "alloy", "ash", "ballad", "coral", "ech
 const MODES: readonly VoiceMode[] = ["work", "chat", "think"];
 const TURNS: readonly VoiceTurns[] = ["hands-free", "tap", "hold"];
 const MUTE_KEYS: readonly VoiceMuteKey[] = ["off", "headset", "volume", "both"];
+const VADS: readonly VoiceVad[] = ["semantic", "server"];
+const threshold = (value: unknown): boolean => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
+const silenceMs = (value: unknown): boolean => Number.isInteger(value) && (value as number) >= 200 && (value as number) <= 3000;
 const MIC_CAUSES: readonly MicCause[] = ["you", "tap", "auto", "proximity", "key", "notification", "hold"];
 export const isVoiceTurns = (value: unknown): value is VoiceTurns => TURNS.includes(value as VoiceTurns);
 const PROGRESS: readonly VoiceProgress[] = ["text", "answer"];
@@ -141,6 +161,9 @@ const KEYS = [
     "autoMuteSeconds",
     "muteKey",
     "proximityMute",
+    "vad",
+    "vadThreshold",
+    "vadSilenceMs",
 ] as const;
 const quietSeconds = (value: unknown): boolean => Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 600;
 const MODEL_ID = /^[a-z0-9][a-z0-9.\-]{1,63}$/;
@@ -178,6 +201,9 @@ export function readVoice(stored: unknown): VoiceSettings {
         autoMuteSeconds: pick(stored.autoMuteSeconds, quietSeconds, DEFAULT_VOICE.autoMuteSeconds),
         muteKey: pick(stored.muteKey, (value) => MUTE_KEYS.includes(value as VoiceMuteKey), DEFAULT_VOICE.muteKey),
         proximityMute: pick(stored.proximityMute, (value) => typeof value === "boolean", DEFAULT_VOICE.proximityMute),
+        vad: pick(stored.vad, (value) => VADS.includes(value as VoiceVad), DEFAULT_VOICE.vad),
+        vadThreshold: pick(stored.vadThreshold, threshold, DEFAULT_VOICE.vadThreshold),
+        vadSilenceMs: pick(stored.vadSilenceMs, silenceMs, DEFAULT_VOICE.vadSilenceMs),
     };
 }
 
@@ -316,6 +342,31 @@ export function withVoice(current: VoiceSettings, patch: unknown): VoiceSettings
         }
 
         next.proximityMute = patch.proximityMute;
+    }
+
+    if (patch.vad !== undefined) {
+        if (!VADS.includes(patch.vad as VoiceVad)) {
+            throw new HttpError(400, "voice.vad is semantic or server.");
+        }
+
+        next.vad = patch.vad as VoiceVad;
+    }
+
+    if (patch.vadThreshold !== undefined) {
+        if (!threshold(patch.vadThreshold)) {
+            throw new HttpError(400, "voice.vadThreshold is a number from 0 to 1, like 0.7 (higher needs louder, closer speech).");
+        }
+
+        // Two places are as fine as anyone sets it, and what is kept reads the same.
+        next.vadThreshold = Math.round((patch.vadThreshold as number) * 100) / 100;
+    }
+
+    if (patch.vadSilenceMs !== undefined) {
+        if (!silenceMs(patch.vadSilenceMs)) {
+            throw new HttpError(400, "voice.vadSilenceMs is a whole number of milliseconds from 200 to 3000.");
+        }
+
+        next.vadSilenceMs = patch.vadSilenceMs as number;
     }
 
     if (patch.dailyLimit !== undefined) {
@@ -924,7 +975,7 @@ export class VoiceService {
 
         const settings = this.#options.settings();
         const auth = await this.auth();
-        const minted = await this.mint(auth, dictationSession(settings.dictationModel, settings.language, settings.noise));
+        const minted = await this.mint(auth, dictationSession(settings.dictationModel, settings.language, settings.noise, settings));
 
         if (minted.key === undefined) {
             throw new HttpError(minted.status === 429 ? 429 : 502, `OpenAI did not start dictation: ${minted.why}`);
@@ -975,25 +1026,40 @@ export function noiseReduction(noise: VoiceNoise): { type: "near_field" | "far_f
 }
 
 /**
- * When a call answers: hands-free and tap to talk, semantic VAD at the setting's eagerness, stopping the voice when you
- * talk (and in "Pi thinks" never answering by itself; tap to talk's mic closes when it hears your speech end); hold to
- * talk, none (the page commits what you said).
+ * When a call answers: hands-free and tap to talk, semantic VAD at the setting's eagerness, or server VAD by loudness
+ * (`vadThreshold`, ended by `vadSilenceMs`; OpenAI's prefix padding), stopping the voice when you talk (and in "Pi
+ * thinks" never answering by itself; tap to talk's mic closes when it hears your speech end); hold to talk, none (the
+ * page commits what you said).
  */
-export function turnDetection(settings: Pick<VoiceSettings, "turns" | "eagerness">, mode: VoiceMode): Record<string, unknown> | null {
-    return settings.turns === "hold"
-        ? null
+export function turnDetection(settings: Pick<VoiceSettings, "turns" | "eagerness" | "vad" | "vadThreshold" | "vadSilenceMs">, mode: VoiceMode): Record<string, unknown> | null {
+    if (settings.turns === "hold") {
+        return null;
+    }
+
+    return settings.vad === "server"
+        ? { type: "server_vad", threshold: settings.vadThreshold, silence_duration_ms: settings.vadSilenceMs, interrupt_response: true, create_response: mode !== "think" }
         : { type: "semantic_vad", eagerness: settings.eagerness, interrupt_response: true, create_response: mode !== "think" };
 }
 
-/** A transcription session's configuration: the model, the language unless auto, and the noise reduction. */
-export function dictationSession(model: string, language: string, noise: VoiceNoise = DEFAULT_VOICE.noise): Record<string, unknown> {
+/** Dictation's turns: server VAD, with Settings › Voice's threshold and silence when turns go by loudness. */
+export function dictationTurns(vad: Pick<VoiceSettings, "vad" | "vadThreshold" | "vadSilenceMs">): Record<string, unknown> {
+    return vad.vad === "server" ? { type: "server_vad", threshold: vad.vadThreshold, silence_duration_ms: vad.vadSilenceMs } : { type: "server_vad" };
+}
+
+/** A transcription session's configuration: the model, the language unless auto, the noise reduction, and its turns. */
+export function dictationSession(
+    model: string,
+    language: string,
+    noise: VoiceNoise = DEFAULT_VOICE.noise,
+    vad: Pick<VoiceSettings, "vad" | "vadThreshold" | "vadSilenceMs"> = DEFAULT_VOICE,
+): Record<string, unknown> {
     return {
         type: "transcription",
         audio: {
             input: {
                 transcription: { model, ...(language === "auto" ? {} : { language }) },
                 noise_reduction: noiseReduction(noise),
-                turn_detection: { type: "server_vad" },
+                turn_detection: dictationTurns(vad),
             },
         },
     };

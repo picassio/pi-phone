@@ -158,10 +158,21 @@ export class FakeOpenAI {
 
             const session = (JSON.parse(body) as { session: Record<string, unknown> }).session;
             const audio = session.audio as
-                | { input?: { transcription?: { model?: string; language?: string }; noise_reduction?: { type?: string } | null; turn_detection?: { eagerness?: string } | null }; output?: { voice?: string } }
+                | { input?: { transcription?: { model?: string; language?: string }; noise_reduction?: { type?: string } | null; turn_detection?: { eagerness?: string; threshold?: number; silence_duration_ms?: number } | null }; output?: { voice?: string } }
                 | undefined;
             const noise = audio?.input?.noise_reduction;
             const eagerness = audio?.input?.turn_detection?.eagerness;
+            const threshold = audio?.input?.turn_detection?.threshold;
+            const silence = audio?.input?.turn_detection?.silence_duration_ms;
+
+            // Server VAD, as OpenAI answers (checked 2026-10-28, PP-201: `codex-vad-check.mjs`).
+            if (threshold !== undefined && (threshold < 0 || threshold > 1)) {
+                return this.#error(400, `Invalid 'session.audio.input.turn_detection.threshold': Expected a value <= 1.0, but got ${threshold} instead.`);
+            }
+
+            if (silence !== undefined && silence < 0) {
+                return this.#error(400, `Invalid 'session.audio.input.turn_detection.silence_duration_ms': Expected a value >= 0, but got ${silence} instead.`);
+            }
 
             // As OpenAI answers (checked 2026-10-28, PP-195).
             if (noise != null && noise.type !== "near_field" && noise.type !== "far_field") {

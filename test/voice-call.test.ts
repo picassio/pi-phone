@@ -276,6 +276,64 @@ test("the mic in a call (PP-201): tap to talk, the quiet, the mute key and proxi
     await app.setVoice(owner(app), { autoMuteSeconds: 0, muteKey: "headset", proximityMute: false });
 });
 
+test("turn detection by loudness (PP-201): server VAD with the threshold and the silence in calls and dictation; semantic stays the default", async () => {
+    type Input = { turn_detection: unknown };
+    const input = (session: Record<string, unknown>) => (session as { audio: { input: Input } }).audio.input;
+    const plan = { mode: "work" as const, instructions: "", tools: [] };
+    const loud = withVoice(DEFAULT_VOICE, { vad: "server" });
+
+    assert.deepEqual([DEFAULT_VOICE.vad, DEFAULT_VOICE.vadThreshold, DEFAULT_VOICE.vadSilenceMs], ["semantic", 0.7, 500]);
+    assert.deepEqual(input(callSession(loud, plan)).turn_detection, { type: "server_vad", threshold: 0.7, silence_duration_ms: 500, interrupt_response: true, create_response: true });
+    assert.deepEqual(input(callSession({ ...loud, turns: "tap", vadThreshold: 0.85, vadSilenceMs: 800 }, { ...plan, mode: "think" })).turn_detection, {
+        type: "server_vad",
+        threshold: 0.85,
+        silence_duration_ms: 800,
+        interrupt_response: true,
+        create_response: false,
+    });
+    assert.equal(input(callSession({ ...loud, turns: "hold" }, plan)).turn_detection, null, "hold to talk: none");
+    assert.deepEqual(input(dictationSession("gpt-4o-transcribe", "vi", "near_field", loud)).turn_detection, { type: "server_vad", threshold: 0.7, silence_duration_ms: 500 });
+    assert.deepEqual(input(dictationSession("gpt-4o-transcribe", "vi", "near_field", DEFAULT_VOICE)).turn_detection, { type: "server_vad" }, "semantic: dictation as it was");
+
+    assert.equal(withVoice(DEFAULT_VOICE, { vadThreshold: 0.333 }).vadThreshold, 0.33);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { vad: "loud" }), /semantic or server/);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { vadThreshold: 1.5 }), /from 0 to 1/);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { vadThreshold: "0.7" }), /from 0 to 1/);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { vadSilenceMs: 100 }), /200 to 3000/);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { vadSilenceMs: 500.5 }), /200 to 3000/);
+    assert.deepEqual(readVoice({ vad: "server", vadThreshold: 7, vadSilenceMs: 99999 }), { ...DEFAULT_VOICE, vad: "server" });
+
+    // Pi's settings tools.
+    const settings = appSettings(app).settings;
+    const set = (id: string, value: string) => settings.find((each) => each.id === id)!.apply(owner(app), value, undefined);
+
+    await set("voice.vad", "Server");
+    await set("voice.vadThreshold", "0.8");
+    await set("voice.vadSilenceMs", "700 ms");
+    assert.deepEqual([app.config.voice.vad, app.config.voice.vadThreshold, app.config.voice.vadSilenceMs], ["server", 0.8, 700]);
+    await assert.rejects(async () => set("voice.vadThreshold", ""), /from 0 to 1/);
+    await assert.rejects(async () => set("voice.vadSilenceMs", "forever"), /200 to 3000/);
+
+    // A call's key and a dictation's carry it.
+    const id = await newSession(app);
+    const start = (await call(`c/${id}/voice/call`, {})).json as { call: string; key: string };
+
+    assert.deepEqual((openai.keys.get(start.key) as { audio: { input: Input } }).audio.input.turn_detection, {
+        type: "server_vad",
+        threshold: 0.8,
+        silence_duration_ms: 700,
+        interrupt_response: true,
+        create_response: true,
+    });
+    app.voice.end(start.call);
+
+    const dictation = (await call("voice/dictation", {})).json as { dictation: string; key: string };
+
+    assert.deepEqual((openai.keys.get(dictation.key) as { audio: { input: Input } }).audio.input.turn_detection, { type: "server_vad", threshold: 0.8, silence_duration_ms: 700 });
+    await call(`voice/dictation/${dictation.dictation}/end`, {});
+    await app.setVoice(owner(app), { vad: "semantic", vadThreshold: 0.7, vadSilenceMs: 500 });
+});
+
 test("the server knows a call's mic (PP-201): the page says each time it turns off or on, by whom, and the call's turn-taking", async () => {
     await app.setVoice(owner(app), { turns: "hold" });
 

@@ -660,18 +660,22 @@ function nearEar(near) {
 }
 
 /**
- * How the call hears, as the server set it (`callSession`, `src/server/voice.ts`, PP-195): Settings › Voice's noise
- * reduction, and hands-free's eagerness, or no turn detection to hold to talk. A page's update carries both, so it never
- * drops the noise reduction.
+ * How the call hears, as the server set it (`callSession`, `turnDetection` in `src/server/voice.ts`, PP-195, PP-201):
+ * Settings › Voice's noise reduction, and turn detection: semantic at hands-free's eagerness, or by loudness (server
+ * VAD with the threshold and the silence that ends a turn), or none to hold to talk. A page's update carries all, so it
+ * never drops one.
  */
 export function callInput(hold, mode, settings = store.state.server?.voice?.settings) {
     const noise = settings?.noise ?? "near_field";
+    const answers = { interrupt_response: true, create_response: mode !== "think" };
 
     return {
         noise_reduction: noise === "off" ? null : { type: noise },
         turn_detection: hold
             ? null
-            : { type: "semantic_vad", eagerness: settings?.eagerness ?? "auto", interrupt_response: true, create_response: mode !== "think" },
+            : settings?.vad === "server"
+              ? { type: "server_vad", threshold: settings.vadThreshold ?? 0.7, silence_duration_ms: settings.vadSilenceMs ?? 500, ...answers }
+              : { type: "semantic_vad", eagerness: settings?.eagerness ?? "auto", ...answers },
     };
 }
 

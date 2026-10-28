@@ -295,8 +295,9 @@ No Termux, no laptop, no cloud VM.
 - **Settings › Voice.** The live models your ChatGPT (Codex) sign-in has, as checked with OpenAI (**Check again**),
   each with how its calls are set up: a short-lived key, through pi-phone, or Codex's own `gpt-live` (ChatGPT's private
   endpoint, only when you pick it). Also the voice and the language (checked when picked), noise reduction on the mic
-  (phone at your face, speaker or table, or off) and how soon hands-free takes your turn as ended (waits longer helps in
-  a noisy room), who thinks and turn-taking (hands-free, tap to talk, hold to talk)
+  (phone at your face, speaker or table, or off), turn detection (smart, by what you say, with how soon your turn counts
+  as ended, waits longer helping in a noisy room; or by loudness, with how loud you must be and the pause before it
+  answers, so people talking further away do not start a turn), who thinks and turn-taking (hands-free, tap to talk, hold to talk)
   for new sessions, the mic in a call (mute after so many quiet seconds, off by default; a headset's button, the
   volume keys, both or neither as a mute key, the headset's by default; mute unless the phone is at your ear, off by
   default as it would mute a speakerphone call), what the voice says while Pi works (Pi's words as they come, or only the answer, and a short cue on
@@ -441,7 +442,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | The app's language (Auto, English, 简体中文) | **Appearance › Language**, kept with you on every device | "Switch my app to Chinese" |
 | Appearance, dictation language | **Appearance** and **Dictation**, per browser tab | Only the theme new browsers start with ("make lantern the default theme") |
 | The side key's assistant | **Assistant**: where your words go, whether they wait for Send, whether the app you were in is noted | "Make the assistant send by itself". Picking pi as the phone's assistant is yours, in Android's settings |
-| Voice calls and Codex dictation | **Voice** (and **Dictation**'s engine): live and dictation model, voice, language, noise reduction, how soon hands-free answers, who thinks, turn-taking, progress, reader, daily minutes; a session's voice mode in its model menu | "Use gpt-realtime-mini for voice", "Let Codex listen to the mic", "Check the voice models", "I'm on speakerphone in a noisy room", "Let me tap to talk", "Mute the mic after 10 quiet seconds". Models, voice and language are checked with OpenAI first |
+| Voice calls and Codex dictation | **Voice** (and **Dictation**'s engine): live and dictation model, voice, language, noise reduction, how soon hands-free answers, who thinks, turn-taking, progress, reader, daily minutes; a session's voice mode in its model menu | "Use gpt-realtime-mini for voice", "Let Codex listen to the mic", "Check the voice models", "I'm on speakerphone in a noisy room", "Let me tap to talk", "Mute the mic after 10 quiet seconds", "Only hear me when I talk loud and close". Models, voice and language are checked with OpenAI first |
 | App updates | **Check for app updates**. New builds also offer themselves in an update sheet. Tap **Install** | No |
 
 What stays yours: typing secrets and passwords, signing in to providers and GitHub, the recovery code, accepting a
