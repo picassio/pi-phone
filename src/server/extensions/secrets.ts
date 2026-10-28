@@ -95,43 +95,89 @@ export function redactToolResult(result: ToolExecutionResult, redact: (text: str
     };
 }
 
-export default function createSecrets(host: PocketHost) {
-    const { secrets } = host;
-    // The app's own stores of keys: its ssh folder (keys, its agent's socket), the database (private SSH keys), and the
-    // secrets' file. Pi's tools stay out of them; uploads, in the same data folder, stay Pi's to read.
-    const stores = [join(host.dataDir, "ssh"), join(host.dataDir, "pocket.sqlite"), join(host.dataDir, "secrets.json")];
-    const spelled = stores.flatMap((path) => [path, ...(path.startsWith(`${homedir()}/`) ? [`~${path.slice(homedir().length)}`] : [])]);
+/** A phone path in `machine_copy` (`/…` or `~/…`); `<machine>:<path>` is on a machine, out of the app's stores. */
+const onPhone = (spec: string) => !(spec.indexOf(":") > 0 && !spec.startsWith("/") && !spec.startsWith("~"));
+
+/**
+ * The files a call reads (`read`) and writes (`write`), by the tool's own path arguments: `read`, `write` and `edit`,
+ * and every other tool that takes a file on the phone (an upload to a page, a copy to a machine, a document's image, a
+ * wiki source, a picture saved). Without them, a misled Pi sent the secrets' file to a page with `browser_upload`, or
+ * copied the database (private SSH keys) to a machine, where `read` is refused (PP-204).
+ */
+export function pathsOf(tool: string, args: Record<string, unknown>): { read: string[]; write: string[] } {
+    const one = (value: unknown) => (typeof value === "string" && value.trim() !== "" ? [value] : []);
+
+    switch (tool) {
+        case "read":
+            return { read: one(args.path), write: [] };
+        case "write":
+        case "edit":
+            return { read: one(args.path), write: one(args.path) };
+        case "browser_upload":
+            return { read: Array.isArray(args.paths) ? args.paths.flatMap(one) : [], write: [] };
+        case "file_to_markdown":
+            // It saves the Markdown beside it, too.
+            return { read: one(args.path), write: one(args.path).map((path) => `${path}.md`) };
+        case "doc_image":
+        case "image_markup":
+            return { read: one(args.path), write: one(args.out) };
+        case "wiki_ingest":
+            return { read: one(args.source).filter((source) => !/^https?:\/\//i.test(source) && args.sourceType !== "text"), write: [] };
+        case "interview":
+            return { read: one(args.questions).filter((source) => !source.trim().startsWith("{") && !source.trim().startsWith("`")), write: [] };
+        case "machine_copy":
+            return { read: one(args.from).filter(onPhone), write: one(args.to).filter(onPhone) };
+        case "browser_save_pdf":
+        case "browser_screenshot":
+        case "phone_screenshot":
+        case "computer_screenshot":
+            return { read: [], write: one(args.path) };
+        case "screenshot":
+            return { read: one(args.path), write: one(args.save) };
+        default:
+            return { read: [], write: [] };
+    }
+}
+
+/**
+ * Why a call may not run, if it reaches the app's key stores (its ssh folder, the database with the private SSH keys, the
+ * secrets' file) or writes into the drop-in extensions' folder: a path tool on one, or a command that names one.
+ * `cwd`: the session's folder, for relative paths.
+ */
+export function keyStoreRefusal(tool: string, args: Record<string, unknown>, where: { dataDir: string; home: string; cwd: string }): string | undefined {
+    const stores = [join(where.dataDir, "ssh"), join(where.dataDir, "pocket.sqlite"), join(where.dataDir, "secrets.json")];
+    const spell = (path: string) => [path, ...(path.startsWith(`${where.home}/`) ? [`~${path.slice(where.home.length)}`] : [])];
     const STORES = "The app keeps its keys (SSH keys, its ssh-agent, the secrets) out of Pi's tools: use machine_run, machine_copy, or a session on a machine for machines, and secrets by name in bash.";
     // The owner's drop-in extensions (PP-171): code that runs in the server with the app's host, secrets included, and
     // loads again when its file changes. Only the owner puts files there; Pi's tools do not write or name it.
-    const dropIns = join(host.dataDir, "extensions");
-    const dropInsSpelled = [dropIns, ...(dropIns.startsWith(`${homedir()}/`) ? [`~${dropIns.slice(homedir().length)}`] : [])];
+    const dropIns = join(where.dataDir, "extensions");
     const DROP_INS = `Drop-in extensions (${dropIns}) are the owner's to put in place: Pi's tools do not write there. Write the module elsewhere and install it with extension_install (the owner approves it on a card); it lands off, and Settings > Extensions turns it on.`;
 
-    /** Why a call may not run, if it reaches the app's key stores: a path tool on one, or a command that names one. */
-    const keyStores = (tool: string, args: Record<string, unknown>): string | undefined => {
-        if ((tool === "read" || tool === "write" || tool === "edit") && typeof args.path === "string") {
-            const path = resolve(args.path.replace(/^~(?=\/|$)/, homedir()));
+    if (tool === "bash" && typeof args.command === "string") {
+        const command = args.command;
 
-            if (tool !== "read" && (path === dropIns || path.startsWith(`${dropIns}/`))) {
-                return DROP_INS;
-            }
-
-            return stores.some((store) => path === store || path.startsWith(`${store}/`) || path.startsWith(`${store}-`)) ? STORES : undefined;
+        if (spell(dropIns).some((folder) => command.includes(folder))) {
+            return DROP_INS;
         }
 
-        if (tool === "bash" && typeof args.command === "string") {
-            const command = args.command;
+        return stores.flatMap(spell).some((store) => command.includes(store)) || /\bSSH_AUTH_SOCK\b|\bssh-add\b/.test(command) ? STORES : undefined;
+    }
 
-            if (dropInsSpelled.some((folder) => command.includes(folder))) {
-                return DROP_INS;
-            }
+    const { read, write } = pathsOf(tool, args);
+    const base = where.cwd.startsWith("/") ? where.cwd : process.cwd();
+    const absolute = (path: string) => resolve(base, path.replace(/^~(?=\/|$)/, where.home));
 
-            return spelled.some((store) => command.includes(store)) || /\bSSH_AUTH_SOCK\b|\bssh-add\b/.test(command) ? STORES : undefined;
-        }
+    if (write.map(absolute).some((path) => path === dropIns || path.startsWith(`${dropIns}/`))) {
+        return DROP_INS;
+    }
 
-        return undefined;
-    };
+    return [...read, ...write].map(absolute).some((path) => stores.some((store) => path === store || path.startsWith(`${store}/`) || path.startsWith(`${store}-`))) ? STORES : undefined;
+}
+
+export default function createSecrets(host: PocketHost) {
+    const { secrets } = host;
+    /** Why a call may not run, if it reaches the app's key stores (`keyStoreRefusal`). */
+    const keyStores = (tool: string, args: Record<string, unknown>, cwd: string): string | undefined => keyStoreRefusal(tool, args, { dataDir: host.dataDir, home: homedir(), cwd });
     const cwdOf = async (api: { agent?: (context: never) => Promise<{ cwd?: string }> }, context: unknown) =>
         (await api.agent?.(context as never))?.cwd ?? "";
 
@@ -312,7 +358,11 @@ export default function createSecrets(host: PocketHost) {
             hook(ToolTask, {
                 // A command naming a secret: refused where it may not be used, held for a person where it asks first.
                 beforeTool: async (call, api, context) => {
-                    const guarded = keyStores(call.name, call.arguments as Record<string, unknown>);
+                    const args = call.arguments as Record<string, unknown>;
+                    const paths = pathsOf(call.name, args);
+                    // The session's folder only for a call with paths: relative ones are from there.
+                    const guarded =
+                        call.name === "bash" || paths.read.length + paths.write.length > 0 ? keyStores(call.name, args, paths.read.length + paths.write.length > 0 ? await cwdOf(api as never, context) : "") : undefined;
 
                     if (guarded !== undefined) {
                         return { block: guarded };

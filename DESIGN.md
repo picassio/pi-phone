@@ -263,8 +263,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **The prompt:** the phone prompt names the machines (alias, address, id) and these tools, and says its bash has no
     ssh.
   - **The guard:** the secrets module (required) refuses Pi's `read`, `write`, `edit`, and `bash` on the app's key
-    stores (`<data>/ssh`, `pocket.sqlite`, `secrets.json`; `ssh-add` and `SSH_AUTH_SOCK` in commands), and treats
-    `machine_run` as bash for secrets.
+    stores (`<data>/ssh`, `pocket.sqlite`, `secrets.json`; `ssh-add` and `SSH_AUTH_SOCK` in commands), and every other
+    tool that takes a file on the phone too (`pathsOf`: `browser_upload`, `machine_copy`'s phone side, `file_to_markdown`,
+    `doc_image`, `wiki_ingest`, `interview`, `screenshot`, `image_markup`, the screenshot tools' and `browser_save_pdf`'s
+    paths; none of them writes into `<data>/extensions`; PP-204), and treats `machine_run` as bash for secrets.
   - **The launcher:** it offers "Terminal: <machine>" for each connected machine.
   - **`pi-ssh`:** for what needs ssh itself (rsync, tunnels, scp), `<data>/ssh/bin/pi-ssh` is `exec ssh -F
     <data>/ssh/config "$@"`. The config has a `Host` per machine with an accepted host key, by its alias, with its
