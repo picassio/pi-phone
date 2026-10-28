@@ -68,6 +68,138 @@ export function writesByScript(command: string): boolean {
     ].some((pattern) => pattern.test(command));
 }
 
+/** Where a command starts: the start of the text or a line, or after a pipe, `;`, `&` or `(`; `sudo` before it too. */
+const COMMAND_START = String.raw`(?:^|[|;&(])\s*(?:sudo\s+)?`;
+
+/** A shell word without its quotes. */
+const unquote = (word: string) => word.replace(/^(['"])(.*)\1$/s, "$2");
+
+/** A command's words as the shell splits them (quotes kept whole), for the few commands read here. */
+function words(text: string): string[] {
+    return text.match(/'[^']*'|"(?:\\.|[^"\\])*"|[^\s'"]+(?:(?:'[^']*'|"(?:\\.|[^"\\])*")[^\s'"]*)*/g) ?? [];
+}
+
+/** The files sed -i or perl -i edits: its words after the script (the first word that is not an option, or -e's). */
+function inPlaceFiles(args: string): string[] | undefined {
+    const files: string[] = [];
+    let script = false;
+    let takesNext = false;
+
+    for (const word of words(args)) {
+        if (takesNext) {
+            takesNext = false;
+            script = true;
+        } else if (word.startsWith("-") && word.length > 1) {
+            // -e and -f (sed), or a perl cluster ending in e (-pe, -pie): the next word is the script.
+            takesNext = /^-(?:[a-zA-Z]*e|f)$/.test(word) || word === "--expression" || word === "--file";
+        } else if (!script) {
+            script = true;
+        } else {
+            files.push(unquote(word));
+        }
+    }
+
+    return files.length > 0 ? files : undefined;
+}
+
+/**
+ * The files a bash command writes by script, as it names them (PP-206): `cat > file`, tee's files, sed or perl -i's,
+ * and a program's writeFileSync / open(…, "w") with a quoted name. `unknown`: one of its writes names no file this can
+ * read (a variable, a path built in the program).
+ */
+export function scriptTargets(command: string): { files: string[]; unknown: boolean } {
+    const files: string[] = [];
+    let unknown = false;
+
+    for (const match of command.matchAll(new RegExp(String.raw`${COMMAND_START}cat\b[^|;&\n]*?(?<![0-9&])>>?\s*(?!&|\/dev\/null\b)('[^']*'|"[^"]*"|[^\s|;&<>]+)`, "gm"))) {
+        files.push(unquote(match[1]!));
+    }
+
+    for (const match of command.matchAll(new RegExp(String.raw`${COMMAND_START}tee\b([^|;&\n]*)`, "gm"))) {
+        const named = words(match[1]!.split(/\s[0-9]?>/)[0]!).filter((word) => !word.startsWith("-") && word !== "/dev/null");
+
+        files.push(...named.map(unquote));
+    }
+
+    for (const match of command.matchAll(new RegExp(String.raw`${COMMAND_START}(?:sed|perl)\b([^|;&\n]*)`, "gm"))) {
+        if (!/(?:^|\s)-[a-zA-Z]*i/.test(match[1]!)) {
+            continue;
+        }
+
+        const named = inPlaceFiles(match[1]!);
+
+        if (named === undefined) {
+            unknown = true;
+        } else {
+            files.push(...named);
+        }
+    }
+
+    for (const match of command.matchAll(/\b(?:writeFileSync|appendFileSync|writeFile)\s*\(\s*(?:(['"`])([^'"`]+)\1)?/g)) {
+        if (match[2] === undefined) {
+            unknown = true;
+        } else {
+            files.push(match[2]);
+        }
+    }
+
+    for (const match of command.matchAll(/\bopen\s*\(([^)]*),\s*['"](?:w|a|x)b?\+?['"]/g)) {
+        const name = /^\s*(['"])([^'"]+)\1\s*$/.exec(match[1]!);
+
+        if (name === null) {
+            unknown = true;
+        } else {
+            files.push(name[2]!);
+        }
+    }
+
+    return { files, unknown };
+}
+
+/**
+ * A scratch file the reminder is not about (PP-206): under /tmp or $TMPDIR (as written, or the server's TMPDIR), or a
+ * name with `.local.` in it (a person's own copy, as `settings.local.json`).
+ */
+export function scratchFile(path: string, tmpdir = process.env.TMPDIR): boolean {
+    const name = path.split("/").at(-1) ?? path;
+
+    return (
+        name.includes(".local.") ||
+        /^(?:\/tmp|\$TMPDIR|\$\{TMPDIR\})(?:\/|$)/.test(path) ||
+        (tmpdir !== undefined && tmpdir !== "" && (path === tmpdir || path.startsWith(`${tmpdir.replace(/\/$/, "")}/`)))
+    );
+}
+
+/**
+ * Whether a bash command writes project files by script, so its result gets the reminder (PP-100, PP-206): a script
+ * write, unless every file it names is a scratch file or one git ignores in the command's folder (`ignored`, asked only
+ * when needed: the files git ignores of those given). A write that names no file keeps the reminder.
+ */
+export async function writesProjectFiles(command: string, ignored: (files: string[]) => Promise<ReadonlySet<string>>): Promise<boolean> {
+    if (!writesByScript(command)) {
+        return false;
+    }
+
+    const { files, unknown } = scriptTargets(command);
+
+    if (unknown || files.length === 0) {
+        return true;
+    }
+
+    const left = files.filter((file) => !scratchFile(file));
+
+    if (left.length === 0) {
+        return false;
+    }
+
+    const skipped = await ignored(left);
+
+    return left.some((file) => !skipped.has(file));
+}
+
+/** A word for the shell, quoted. */
+const quoted = (word: string) => `'${word.replace(/'/g, `'\\''`)}'`;
+
 /** Where pi-phone's code and Pi's documentation are, as Pi's prompt says where Pi's is: to read only when needed. */
 function docs(dataDir: string): string {
     const code = resolve(APP_ROOT);
@@ -149,11 +281,25 @@ export default function createPrompt(host: PocketHost) {
         name: "pocket-prompt",
         hooks: [
             // Edits made by scripts in bash show no diff: the result says so, and the command still ran (PP-100).
+            // Not for scratch files: under /tmp or $TMPDIR, named *.local.*, or ignored by git there (PP-206).
             hook(ToolTask, {
-                afterTool: (call, result): ToolExecutionResult | undefined => {
+                afterTool: async (call, result, api): Promise<ToolExecutionResult | undefined> => {
                     const command = (call.arguments as { command?: unknown }).command;
 
-                    if (call.name !== "bash" || typeof command !== "string" || !writesByScript(command)) {
+                    if (call.name !== "bash" || typeof command !== "string") {
+                        return undefined;
+                    }
+
+                    const cwd = host.cwdOf(api.conversationId);
+                    // git check-ignore prints the files it ignores; it exits 1 for none, and 128 outside a repository. A
+                    // folder it cannot run in ignores none: the reminder stays, as for a project file.
+                    const ignored = async (files: string[]) => {
+                        const answer = await host.run(cwd, `git check-ignore -- ${files.map(quoted).join(" ")}`, 20).catch(() => undefined);
+
+                        return new Set(answer?.code === 0 ? answer.stdout.split("\n").filter((line) => line !== "") : []);
+                    };
+
+                    if (!(await writesProjectFiles(command, ignored))) {
                         return undefined;
                     }
 

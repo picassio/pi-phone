@@ -355,6 +355,8 @@ export interface PocketHost {
     sessionTitle(session: number): string | undefined;
     /** The machine a session works on (its name), or undefined when it works here or there is no such session. */
     sessionMachine(session: number): string | undefined;
+    /** A conversation's folder (`machine:<id>:<path>` on a machine), where its bash starts. */
+    cwdOf(conversationId: ConversationId): string;
     /**
      * Teammates' scoped accounts in this pi-phone (PP-55: sessions shared through the team server). `save` makes one
      * (answering its token, once) or changes one: Can write is `guest`, Can watch is `viewer`, each limited to

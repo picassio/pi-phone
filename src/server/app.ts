@@ -1067,6 +1067,7 @@ export class PocketApp {
             },
             sessionTitle: (session) => this.sessionMeta(session as unknown as ConversationId)?.title,
             sessionMachine: (session) => (this.sessionMeta(session as unknown as ConversationId) === undefined ? undefined : this.places.machineOf(this.cwdOf(session as unknown as ConversationId))?.name),
+            cwdOf: (id) => this.cwdOf(id),
             sharedCopy: {
                 export: (session) => this.piHandoff.sessionFile(session as unknown as ConversationId),
                 import: async (name, text) => {

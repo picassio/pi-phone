@@ -452,6 +452,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   it in the round (`LiveDoc.tools`, in the model's order, read at the call's start; `waitForTask`, so a restart keeps
   the order). Other tools stay parallel, with these too. Not `executionMode: sequential`: that would serialize every
   tool of the round. Code mode's nested calls are not round slots; a script awaits them in its own order.
+- **The reminder on edits by script** (PP-100, PP-206; `extensions/prompt.ts`): a bash result gets one line ("this
+  command wrote files by script…") when the command writes files by script (`writesByScript`: sed or perl -i, `cat >`,
+  tee, a program's writeFileSync or open(…, "w")) and one of the files it names is a project file. Not a project
+  file: under /tmp or $TMPDIR (as written, or the server's TMPDIR), a name with `.local.`, or one git ignores in the
+  session's folder (`git check-ignore` through `host.run`, here or on the machine; outside a repository nothing is
+  ignored). A write that names no file it can read (a variable, a path built in the program) keeps the reminder.
+  Relative names are the session folder's; a `cd` in the command is not followed.
 - **Settings and extensions:** each feature's settings are in Settings (the menu), and follow its module.
   - **Extensions' own rows:** an extension adds its row with `pocket.menu`, which the menu lists with the app's settings
     and drops when the module is off. The wiki's "Wiki" row opens its settings sheet; the Wiki page has no Settings

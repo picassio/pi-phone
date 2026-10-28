@@ -35,8 +35,9 @@ No Termux, no laptop, no cloud VM.
   Settle and Un-settle by hand too (and `session_settle` for Pi). Rows show where, the time (or how long it has been
   working), the title, the branch or task, and the status.
 - **Edits you can review.** Pi changes files with its edit and write tools, so every change shows as a diff; a bash
-  command that writes files by script (`sed -i`, `cat > file`, `writeFileSync`, `tee`) still runs, with a reminder in
-  its result to use edit.
+  command that writes project files by script (`sed -i`, `cat > file`, `writeFileSync`, `tee`) still runs, with a
+  reminder in its result to use edit; scratch files get none (under /tmp or $TMPDIR, named `*.local.*`, or ignored by
+  git there).
 - **Auto-compact when you want.** A session compacts its context by itself just before the model's limit; it can
   happen sooner, at a percentage of the context you pick (10–95%), for every session or one (Menu › Compact context).
   The context meter marks where. Pi changes both on a card (`sessions.compactAt`, `sessions.sessionCompactAt`).
