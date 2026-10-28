@@ -1,7 +1,7 @@
 // pi-phone's own screens in a real browser: the terminal (a shell through the local pi-env daemon, its key row, Paste
 // and Select, and taking the shell up again after the sheet closed), the Files panel's upload and empty folder, and
 // the Continue in Pi sheet of a session that has not gone to Pi.
-import { type App, cleanUp, home, owner, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, home, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -77,6 +77,7 @@ before(async () => {
         home,
         configureModels: (models) => models.registerNativeProvider(faux.provider),
     });
+    pastWelcome(app);
     server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
     closeTerminals = attachTerminals(server, app, new Auth(app.config));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

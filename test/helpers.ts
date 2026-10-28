@@ -93,8 +93,7 @@ export function openApp(
         ...extra,
     }).then((app) => {
         if (!welcome) {
-            // As for someone who has used it: past the welcome, and the app's newest release's card seen (PP-235).
-            app.config.updateUser(owner(app).id, { welcome: "done", whatsNewSeen: newestBig(WHATS_NEW_DIR)?.version });
+            pastWelcome(app);
         }
 
         return app;
@@ -137,6 +136,14 @@ export async function recordCost(app: App, id: ConversationId, dollars: number, 
 }
 
 export const owner = (app: App) => app.config.users.find((user) => user.role === "owner")!;
+
+/**
+ * The owner as someone who has used the app: past the first-run welcome (PP-234), and the newest release's What's new
+ * card seen (PP-235). For tests that open the app themselves: the welcome would cover what they test.
+ */
+export function pastWelcome(app: App): void {
+    app.config.updateUser(owner(app).id, { welcome: "done", whatsNewSeen: newestBig(WHATS_NEW_DIR)?.version });
+}
 
 /** A session in `cwd` with the scripted model, no thinking. */
 export async function newSession(app: App, cwd = work): Promise<ConversationId> {

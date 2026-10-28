@@ -1,4 +1,4 @@
-import { type App, cleanUp, home, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, home, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -181,6 +181,7 @@ before(async () => {
             models.registerNativeProvider(stepped as never);
         },
     });
+    pastWelcome(app);
     server = createServer(
         createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
     );

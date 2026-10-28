@@ -2,7 +2,7 @@
 // again, with Retry now and Stop; the session's row has the limited square; the account card offers the other account
 // and Move sends the request there; the Providers sheet has the longest wait and the notice switch. On a phone the line
 // and the card stay inside the column. With LIMITS_SHOTS set to a folder, screenshots at 390 and 1280 px go there.
-import { type App, cleanUp, home, owner, root, work } from "./helpers.ts";
+import { type App, cleanUp, home, owner, pastWelcome, root, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -66,6 +66,7 @@ before(async () => {
         limits: { minWaitMs: 50, resetJitterMs: [0, 0] },
         officecli: { runs: false },
     });
+    pastWelcome(app);
     app.accounts.add("anthropic", "Work");
     app.accounts.add("anthropic", "Home");
     // As the API does after adding an account: the tabs' model lists get them.

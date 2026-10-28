@@ -219,13 +219,14 @@ test("a session lists them as /skill: commands and in its system prompt", async 
     const app = await started();
     const id = await newSession(app, project);
 
-    // The project's and the user's, then the app's own (Effective HTML's, third_party/), after them.
+    // The project's and the user's, then the app's own (pi-phone's getting-started, src/skills/; Effective HTML's,
+    // third_party/), after them.
     const commands = app.skillCommands(id).map((each) => each.name);
 
     assert.deepEqual(commands.filter((name) => ["everywhere", "here"].includes(name)).sort(), ["everywhere", "here"]);
     assert.deepEqual(
         commands.filter((name) => !["everywhere", "here"].includes(name)).sort(),
-        ["big-pics-little-words", "design-artifact", "html", "html-diagram", "html-plan", "html-prototype", "html-wireframe"],
+        ["big-pics-little-words", "design-artifact", "getting-started", "html", "html-diagram", "html-plan", "html-prototype", "html-wireframe"],
     );
     await say(app, id, "hello");
     assert.match(prompt, /<name>everywhere<\/name>/);
