@@ -924,6 +924,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, browser().state());
             }
 
+            // The panel's Retry, when the page's picture does not come (PP-199).
+            if (second === "frames" && method === "POST") {
+                browser().retryFrames();
+
+                return json(response, 200, browser().state());
+            }
+
             if (second === "take-over" && method === "POST") {
                 const body = await readJson<{ on?: unknown }>(request);
 

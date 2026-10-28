@@ -691,6 +691,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   in the server's zone (the phone's own for the app's notification) and, for a web push, in the zone the browser told
   when it turned notifications on (`PushSubscriptionRecord.zone`). The team server never waits: `/internal/llm/stream` adds the provider's status and limit headers to an error line
   (`facts`), and the pi-phone marks the failed message with them (`withFacts`) for its gate.
+- **The Browser panel's pictures** (`PiBrowser.#startFrames`, PP-199): while a tab watches, a capture first (`surface:
+  false`, 5 s), then the screencast. A capture is held as long as the page's main thread is busy (headless Chrome, a
+  big dialog rendering), and a still page's screencast sends nothing: when no picture came 4 s after the cast started,
+  the frames start again after 2, 4, 8, 16, then every 30 s; after 3 tries the state says why (`pictureError`) and the
+  panel shows its last picture with a bar, or the error with Retry (`POST /api/browser/frames`). A failed frame
+  acknowledgement (which would end the cast) starts it again. The last picture is kept (`lastFrame`) and sent to a tab
+  that starts watching, so a panel opened while Pi is not browsing, or while the cast runs for another tab, shows it.
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

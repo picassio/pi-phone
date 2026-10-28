@@ -296,7 +296,15 @@ function Frame({ interactive, onWheel }) {
                 }
             }}
         />
-        ${!has && html`<span class="pb-wait">${t("Waiting for the page…")}</span>`}
+        ${!has && !state?.pictureError && html`<span class="pb-wait">${t("Waiting for the page…")}</span>`}
+        ${
+            state?.pictureError &&
+            html`<div class=${`pb-picture-error ${has ? "over" : ""}`} role="status">
+                <span>${has ? t("The picture is not live: this is the last one.") : t("The page's picture did not come.")}</span>
+                ${!has && html`<small>${state.pictureError}</small>`}
+                <button class="button small" type="button" onClick=${() => attempt(async () => setPiBrowser(await browserApi("browser/frames", {})))}>${t("Retry")}</button>
+            </div>`
+        }
         ${interactive && html`<${Capture} field=${field} password=${password} />`}
     </div>`;
 }

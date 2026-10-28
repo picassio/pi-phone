@@ -1733,6 +1733,8 @@
     "Type into the page": "在页面中输入",
     "Pi's browser, live": "Pi 的浏览器（实时）",
     "Waiting for the page…": "正在等待页面…",
+    "The picture is not live: this is the last one.": "画面没有实时更新：这是最后一张。",
+    "The page's picture did not come.": "页面画面没有传来。",
     "Page size": "页面尺寸",
     "Phone": "手机",
     "Desktop": "桌面",

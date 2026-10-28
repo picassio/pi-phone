@@ -402,7 +402,26 @@ export type BrowserState = {
     viewport: { width: number; height: number };
     /** Phone or Desktop: the size its pages are laid out at. */
     size: BrowserSize;
+    /**
+     * Why the panel has no live picture of the page after several tries (a capture that does not come, a screencast
+     * that sends nothing: PP-199), or null. The panel shows its last picture, or this with Retry; tries go on meanwhile.
+     */
+    pictureError: string | null;
 };
+
+/** How the panel's pictures are retried (PP-199); tests shorten it. */
+export type FrameTuning = {
+    /** How long the first picture (a capture) may take. */
+    pictureMs: number;
+    /** How long after the screencast starts a picture must have come, before trying again. */
+    firstMs: number;
+    /** The waits before each next try, the last one repeated. */
+    backoffMs: number[];
+    /** After this many tries without a picture, the panel is told (`pictureError`). */
+    failAfter: number;
+};
+
+const FRAME_TUNING: FrameTuning = { pictureMs: 5000, firstMs: 4000, backoffMs: [2000, 4000, 8000, 16_000, 30_000], failAfter: 3 };
 
 /** A frame of the page for the panel: a JPEG (base64) of the viewport. */
 export type BrowserFrame = { jpeg: string; width: number; height: number };
@@ -422,6 +441,7 @@ export type PiBrowserOptions = {
     /** A frame for those watching. */
     frame(frame: BrowserFrame): void;
     log(line: string): void;
+    frames?: Partial<FrameTuning>;
 };
 
 /** A tab Pi has: its page, and what it read there last (for the next action's numbers). */
@@ -435,15 +455,24 @@ export class PiBrowser {
     #opening: Promise<Tab> | undefined;
     /** Pi's actions, one after another. */
     #queue: Promise<unknown> = Promise.resolve();
-    #state: BrowserState = { place: "phone", where: "the phone", open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height }, size: "phone" };
+    #state: BrowserState = { place: "phone", where: "the phone", open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height }, size: "phone", pictureError: null };
     #watchers = 0;
     /** When Pi or a person last used it (an action, a tap, a tab shown): idle tabs close (`idleFor`). */
     #usedAt = Date.now();
     #casting: BrowserPage | undefined;
     #stopFrames: (() => void) | undefined;
+    readonly #tuning: FrameTuning;
+    /** The last picture of the page in front: a panel opened later shows it at once (a still page sends no frames). */
+    #lastFrame: BrowserFrame | undefined;
+    /** Whether a picture came since the frames (re)started, and how many tries in a row brought none. */
+    #framed = false;
+    #frameTries = 0;
+    /** The next try's timer, while one waits. */
+    #frameRetry: NodeJS.Timeout | undefined;
 
     constructor(options: PiBrowserOptions) {
         this.#options = options;
+        this.#tuning = { ...FRAME_TUNING, ...options.frames };
         const size = options.size ?? "phone";
 
         this.#state = { ...this.#state, place: options.place ?? "phone", where: options.where ?? "the phone", session: options.session ?? null, size, viewport: { width: SIZES[size].width, height: SIZES[size].height } };
@@ -516,6 +545,13 @@ export class PiBrowser {
 
         this.#stopFrames?.();
         this.#tab = tab;
+        // Another page: its own pictures, its own tries.
+        this.#lastFrame = undefined;
+        this.#frameTries = 0;
+
+        if (this.#state.pictureError !== null) {
+            this.#set({ pictureError: null });
+        }
 
         // Pictures for those watching are extra: their failure never fails Pi's work.
         if (tab !== undefined && this.#watchers > 0) {
@@ -1089,6 +1125,7 @@ export class PiBrowser {
 
     async #closeAll(): Promise<void> {
         this.#stopFrames?.();
+        this.#lastFrame = undefined;
 
         for (const tab of this.#tabs) {
             tab.page.cdp.close();
@@ -1112,6 +1149,15 @@ export class PiBrowser {
     watch(): () => void {
         this.#watchers += 1;
 
+        if (this.#watchers === 1) {
+            // Watched again: the tries start anew.
+            this.#frameTries = 0;
+
+            if (this.#state.pictureError !== null) {
+                this.#set({ pictureError: null });
+            }
+        }
+
         if (this.#tab !== undefined && !this.#tab.page.cdp.closed) {
             void this.#startFrames().catch((error: unknown) => this.#options.log(`browser frames: ${String(error)}`));
         }
@@ -1133,6 +1179,76 @@ export class PiBrowser {
         };
     }
 
+    /** The last picture of the page in front, for a panel opened now (`setBrowserWatch`). */
+    lastFrame(): BrowserFrame | undefined {
+        return this.#lastFrame;
+    }
+
+    /** The panel's Retry: pictures start again now, the tries counted anew. */
+    retryFrames(): void {
+        this.#frameTries = 0;
+        clearTimeout(this.#frameRetry);
+        this.#frameRetry = undefined;
+        this.#set({ pictureError: null });
+
+        if (this.#watchers > 0 && this.#tab !== undefined && !this.#tab.page.cdp.closed) {
+            this.#stopFrames?.();
+            void this.#startFrames().catch((error: unknown) => this.#options.log(`browser frames: ${String(error)}`));
+        }
+    }
+
+    /** A picture of `page` for those watching: kept as the last one, and the tries are over. */
+    #shown(page: BrowserPage, frame: BrowserFrame): void {
+        if (this.#casting !== page) {
+            return;
+        }
+
+        this.#lastFrame = frame;
+        this.#framed = true;
+        this.#frameTries = 0;
+        clearTimeout(this.#frameRetry);
+        this.#frameRetry = undefined;
+
+        if (this.#state.pictureError !== null) {
+            this.#set({ pictureError: null });
+        }
+
+        this.#options.frame(frame);
+    }
+
+    /**
+     * No picture came (`why`): start the frames again after a wait that grows, and after `failAfter` tries tell the panel,
+     * which shows its last picture or the error with Retry (PP-199: the panel stayed on "Waiting for the page…" for good
+     * after one capture timed out). Tries go on while anyone watches.
+     */
+    #tryAgain(page: BrowserPage, why: string): void {
+        if (this.#casting !== page || this.#frameRetry !== undefined) {
+            return;
+        }
+
+        this.#frameTries += 1;
+        this.#options.log(`browser frames: no picture yet (try ${this.#frameTries}): ${why}`);
+
+        if (this.#frameTries >= this.#tuning.failAfter && this.#state.pictureError === null) {
+            this.#set({ pictureError: why });
+        }
+
+        const backoff = this.#tuning.backoffMs;
+        const wait = backoff[Math.min(this.#frameTries - 1, backoff.length - 1)] ?? 0;
+
+        this.#frameRetry = setTimeout(() => {
+            this.#frameRetry = undefined;
+
+            if (this.#casting !== page || this.#watchers === 0) {
+                return;
+            }
+
+            this.#stopFrames?.();
+            void this.#startFrames().catch((error: unknown) => this.#options.log(`browser frames: ${String(error)}`));
+        }, wait);
+        this.#frameRetry.unref?.();
+    }
+
     async #startFrames(): Promise<void> {
         const tab = this.#tab;
         const page = tab?.page;
@@ -1143,36 +1259,67 @@ export class PiBrowser {
 
         this.#stopFrames?.();
         this.#casting = page;
+        this.#framed = false;
+
+        let off = () => {};
+        let watchdog: NodeJS.Timeout | undefined;
+
+        this.#stopFrames = () => {
+            off();
+            clearTimeout(watchdog);
+            clearTimeout(this.#frameRetry);
+            this.#frameRetry = undefined;
+            this.#casting = undefined;
+            this.#stopFrames = undefined;
+            void page.cdp.send("Page.stopScreencast").catch(() => {});
+        };
 
         // A still page sends no new frames: one first, so the panel has a picture at once. Before the screencast: the
         // phone's WebView does not answer a capture while it casts (the panel opened again showed nothing, 30 s later
-        // an error). A capture that does not come in 5 s is left out; the cast's frames follow.
+        // an error). A capture that does not come in time (a page whose main thread is busy holds it: PP-199) is left
+        // out; the cast's frames follow, and when none come either, the frames start again.
+        let failed: string | undefined;
+
         try {
             // Not from a desktop Chrome's surface: one from there just before the screencast left its clicks and typing at
             // half the coordinates, once another session's tab was open in it (PP-126).
-            this.#options.frame({ jpeg: await this.#options.engine.picture(tab.id, page, 60, 5000, { surface: false }), width: this.#state.viewport.width, height: this.#state.viewport.height });
+            const jpeg = await this.#options.engine.picture(tab.id, page, 60, this.#tuning.pictureMs, { surface: false });
+
+            this.#shown(page, { jpeg, width: this.#state.viewport.width, height: this.#state.viewport.height });
         } catch (error) {
-            this.#options.log(`browser frames: the first picture: ${String(error)}`);
+            failed = `the first picture: ${String(error)}`;
+            this.#options.log(`browser frames: ${failed}`);
         }
 
         if (this.#casting !== page) {
             return;
         }
 
-        const off = page.cdp.on("Page.screencastFrame", (params) => {
+        off = page.cdp.on("Page.screencastFrame", (params) => {
             const metadata = params.metadata as { deviceWidth?: number; deviceHeight?: number } | undefined;
 
-            this.#options.frame({ jpeg: String(params.data), width: metadata?.deviceWidth ?? this.#state.viewport.width, height: metadata?.deviceHeight ?? this.#state.viewport.height });
-            void page.cdp.send("Page.screencastFrameAck", { sessionId: params.sessionId }).catch(() => {});
+            this.#shown(page, { jpeg: String(params.data), width: metadata?.deviceWidth ?? this.#state.viewport.width, height: metadata?.deviceHeight ?? this.#state.viewport.height });
+            // Chrome sends the next frame only once this one is acknowledged: one that fails would end the frames.
+            void page.cdp.send("Page.screencastFrameAck", { sessionId: params.sessionId }).catch((error: unknown) => this.#tryAgain(page, `a frame's acknowledgement: ${String(error)}`));
         });
 
-        this.#stopFrames = () => {
-            off();
-            this.#casting = undefined;
-            this.#stopFrames = undefined;
-            void page.cdp.send("Page.stopScreencast").catch(() => {});
-        };
-        await page.cdp.send("Page.startScreencast", { format: "jpeg", quality: 60, maxWidth: Math.min(this.#state.viewport.width * 2, 1600), maxHeight: Math.min(this.#state.viewport.height * 2, 1720), everyNthFrame: 1 });
+        try {
+            await page.cdp.send("Page.startScreencast", { format: "jpeg", quality: 60, maxWidth: Math.min(this.#state.viewport.width * 2, 1600), maxHeight: Math.min(this.#state.viewport.height * 2, 1720), everyNthFrame: 1 });
+        } catch (error) {
+            this.#options.log(`browser frames: the screencast: ${String(error)}`);
+            this.#tryAgain(page, `the screencast: ${String(error)}`);
+
+            return;
+        }
+
+        if (!this.#framed && this.#casting === page) {
+            watchdog = setTimeout(() => {
+                if (!this.#framed) {
+                    this.#tryAgain(page, failed ?? "the page sent no picture");
+                }
+            }, this.#tuning.firstMs);
+            watchdog.unref?.();
+        }
     }
 
     /**

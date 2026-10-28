@@ -18042,6 +18042,36 @@ pre.gallery-code {
     color: #667;
 }
 
+/* No live picture after several tries (PP-199): the error with Retry in place of "Waiting", or a bar over the last one. */
+.pb-picture-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
+    text-align: center;
+    font-size: 13px;
+    color: #445;
+}
+
+.pb-picture-error small {
+    max-width: 32em;
+    color: #778;
+    overflow-wrap: anywhere;
+}
+
+.pb-picture-error.over {
+    inset: auto 0 0 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    background: rgb(255 255 255 / 0.92);
+    border-top: 1px solid var(--hair);
+}
+
 .pb-empty {
     display: flex;
     flex-direction: column;

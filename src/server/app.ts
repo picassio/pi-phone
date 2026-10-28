@@ -2944,6 +2944,14 @@ export class PocketApp {
             if (browser !== undefined && client.browserWatch === undefined) {
                 client.browserWatch = { place, session, stop: browser.watch() };
                 client.send("browser", browser.state());
+
+                // The page's last picture at once: a still page sends no frames, and the cast may already run for another
+                // tab (PP-199: a panel opened after Pi stopped browsing stayed on "Waiting for the page…").
+                const last = browser.lastFrame();
+
+                if (last !== undefined) {
+                    client.send("browser-frame", { ...last, place, session });
+                }
             }
         }
     }
