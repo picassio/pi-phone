@@ -16,6 +16,7 @@ import { defineExtension, defineTool, section } from "@earendil-works/pi-durable
 import type { ComputerApp, ComputerSession } from "../computer-control.ts";
 import { MINUTES } from "../computer-control.ts";
 import type { DesktopApp } from "../computer-outline.ts";
+import { fencedScreen } from "../fence.ts";
 import type { PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 import { type Mark, markUp } from "../markup.ts";
@@ -281,9 +282,10 @@ export default function createComputer(host: PocketHost) {
                 const session = sessionOf(api.conversationId, args.machine);
                 const { text } = await control.screen(session, args.app, args.full === true);
 
-                return reply(`${text}\n${footer(session)}`);
+                // What the window shows reaches Pi fenced as data (PP-204, S5.2); an error can quote it too.
+                return reply(`${fencedScreen(text)}\n${footer(session)}`);
             } catch (error) {
-                return reply(message(error), true);
+                return reply(fencedScreen(message(error)), true);
             }
         },
     });
@@ -332,7 +334,7 @@ export default function createComputer(host: PocketHost) {
                     await pause(Math.max(0, Math.min(10, args.seconds ?? 2)) * 1000);
                     const { text } = await control.screen(session, args.app);
 
-                    return reply(`Waited.\n\n${text}\n${footer(session)}`);
+                    return reply(`${fencedScreen(`Waited.\n\n${text}`)}\n${footer(session)}`);
                 }
 
                 const needIndex = (what: string): number => {
@@ -445,9 +447,10 @@ export default function createComputer(host: PocketHost) {
 
                 const joined = done.joined.length === 0 ? "" : `\n${done.joined.map((each) => `${each.label} (${each.name})`).join(", ")} opened from it and joined the session.`;
 
-                return reply(`${done.did}${joined}\n\n${done.text}\n${footer(session)}`);
+                // What Pi did names the element by the window's words: inside the fence, with the window.
+                return reply(`${fencedScreen(`${done.did}${joined}\n\n${done.text}`)}\n${footer(session)}`);
             } catch (error) {
-                return reply(message(error), true);
+                return reply(fencedScreen(message(error)), true);
             }
         },
     });
