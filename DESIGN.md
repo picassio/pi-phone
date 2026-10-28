@@ -676,6 +676,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   in the server's zone (the phone's own for the app's notification) and, for a web push, in the zone the browser told
   when it turned notifications on (`PushSubscriptionRecord.zone`). The team server never waits: `/internal/llm/stream` adds the provider's status and limit headers to an error line
   (`facts`), and the pi-phone marks the failed message with them (`withFacts`) for its gate.
+- **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
+  model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
+  scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a
+  SHA-256 of its base64 in an LRU of 32 MB and 128 images (`ImageCache`): scaled once per process (PP-198: 15 images
+  scaled on every request, until the phone's server died). A failure in the guard (the Photon worker, WebAssembly out
+  of memory) never fails the request or the server: one log line, the image goes as it was, or, in an Anthropic request
+  of more than 20 images, a text note takes its place; the failure is cached too.
 - **Downloads**: the viewer's Download asks `GET /api/c/<id>/download` (here or on the machine, up to 200 MB); in the
   app the bridge's `download` saves it to Downloads through MediaStore and notifies, elsewhere it is a browser download.
 - **Ports** (`src/server/forwards.ts`, `web/sheets/forwards.js`): `ssh -N -L 127.0.0.1:<free>:127.0.0.1:<port>`

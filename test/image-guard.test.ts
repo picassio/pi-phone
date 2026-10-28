@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { crc32, deflateSync } from "node:zlib";
 import { createNodePhotonImages } from "@earendil-works/pi-durable/images/node";
-import { fitImages, imageSize } from "../src/server/image-guard.ts";
+import { fitImages, ImageCache, imageSize, installImageGuard } from "../src/server/image-guard.ts";
 
 /** A PNG's first bytes: its signature and IHDR, with the size. */
 const png = (width: number, height: number) => {
@@ -66,7 +66,7 @@ test("a request's images over 2000 px a side are scaled, anywhere in it; smaller
         ],
     };
 
-    assert.equal(await fitImages(payload, images), 2);
+    assert.equal((await fitImages(payload, images)).scaled, 2);
     assert.deepEqual(asked, ["image/jpeg 4000 → 2000", "image/png 1000 → 2000"]);
     assert.equal((payload.messages[0]!.content[0] as { source: { data: string } }).source.data, small, "within the limit: as it was");
     assert.equal((payload.messages[1]!.content[0] as { content: { source?: { data: string } }[] }).content[1]!.source!.data, "U01BTEw=");
@@ -111,6 +111,121 @@ test("a small blank image over 2000 px is scaled by the Photon worker without fa
     const payload = { messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/png", data: page.toString("base64") } }] }] };
     const block = payload.messages[0]!.content[0]!;
 
-    assert.equal(await fitImages(payload, await createNodePhotonImages()), 1);
+    assert.equal((await fitImages(payload, await createNodePhotonImages())).scaled, 1);
     assert.deepEqual(imageSize(Buffer.from(block.source.data, "base64")), { width: 1333, height: 2000 });
+});
+
+type Prepare = (bytes: Uint8Array, mimeType: string, limits: { maxWidth: number; maxHeight: number }) => Promise<{ data: string; mimeType: string } | undefined>;
+type Payload = { messages: { role: string; content: Record<string, unknown>[] }[] };
+
+/** A model runtime whose stream only runs the request's `onPayload` and answers what would be sent. */
+const guarded = (prepare: Prepare) => {
+    const lines: string[] = [];
+    let request: Payload = { messages: [] };
+    const models = {
+        streamSimple: (model: { provider: string; id: string }, _context: unknown, options?: { onPayload?: (payload: unknown, model: unknown) => Promise<unknown> }) =>
+            options!.onPayload!(structuredClone(request), model),
+    };
+
+    installImageGuard(models as unknown as Parameters<typeof installImageGuard>[0], { prepare }, (line) => lines.push(line));
+
+    return {
+        lines,
+        send: async (payload: Payload) => {
+            request = payload;
+
+            return (await models.streamSimple({ provider: "anthropic", id: "claude-opus-5-5" }, {}, {})) as Payload;
+        },
+    };
+};
+
+/** A request of `count` Anthropic images, each over the limit and each its own. */
+const bigImages = (count: number): Payload => ({
+    messages: [
+        {
+            role: "user",
+            content: Array.from({ length: count }, (_, at) => ({ type: "image", source: { type: "base64", media_type: "image/png", data: png(2100 + at, 4000).toString("base64") } })),
+        },
+    ],
+});
+
+// PP-198: a session with 15 big images scaled all 15 on every request ("image guard: scaled 15 image(s)" again and
+// again), until the phone's server died.
+test("an image is scaled once per process: the next request with the same images takes them from the cache", async () => {
+    let prepared = 0;
+    let running = 0;
+    let most = 0;
+    const guard = guarded(async (_bytes, mimeType) => {
+        prepared += 1;
+        running += 1;
+        most = Math.max(most, running);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        running -= 1;
+
+        return { data: "U01BTEw=", mimeType };
+    });
+    const first = await guard.send(bigImages(15));
+
+    assert.equal(prepared, 15);
+    assert.equal(most, 1, "one image at a time");
+
+    const second = await guard.send(bigImages(15));
+
+    assert.equal(prepared, 15, "no second prepare() for the same images");
+    assert.deepEqual(second, first, "the cached images are the same as the scaled ones");
+    assert.equal(guard.lines.length, 1, `one log line, for the first request only: ${guard.lines.join(" | ")}`);
+
+    await guard.send(bigImages(16));
+    assert.equal(prepared, 16, "only the new image");
+});
+
+test("a prepare() that throws leaves the request going: the image as it was, or a note where Anthropic would refuse it", async () => {
+    let prepared = 0;
+    const guard = guarded(async () => {
+        prepared += 1;
+
+        throw new RangeError("WebAssembly.Memory(): could not allocate memory");
+    });
+    const few = bigImages(2);
+    const sent = await guard.send(structuredClone(few));
+
+    assert.deepEqual(sent, few, "two images: sent as they were");
+    assert.equal(prepared, 2);
+    assert.ok(guard.lines.every((line) => line.includes("could not scale")) && guard.lines.length === 2, guard.lines.join(" | "));
+
+    await guard.send(structuredClone(few));
+    assert.equal(prepared, 2, "a failed image is not tried again");
+
+    const many = await guard.send(bigImages(21));
+    const blocks = many.messages[0]!.content;
+
+    assert.equal(blocks.filter((block) => block.type === "image").length, 0, "over 20 images: none left over 2000 px");
+    assert.match(String(blocks[0]!.text), /left out of this request/);
+});
+
+test("the guard never fails a request, whatever goes wrong inside it", async () => {
+    const guard = guarded(async () => {
+        throw new Error("The Photon image worker exited with code 1");
+    });
+    const broken = { messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/png", data: png(2400, 4000).toString("base64") } }] }] };
+
+    assert.deepEqual(await guard.send(structuredClone(broken)), broken);
+});
+
+test("the image cache keeps the newest within its bytes and count", () => {
+    const cache = new ImageCache(10, 3);
+
+    cache.set("a", { data: "aaaa", mimeType: "image/png" });
+    cache.set("b", { data: "bbbb", mimeType: "image/png" });
+    assert.ok(cache.get("a") !== undefined, "a is now the newest");
+    cache.set("c", { data: "cccc", mimeType: "image/png" });
+    assert.equal(cache.get("b"), undefined, "over 10 bytes: the least recently used left");
+    assert.equal(cache.bytes, 8);
+    cache.set("d", { failed: "x" });
+    cache.set("e", { failed: "y" });
+    assert.equal(cache.size, 3);
+    assert.equal(cache.get("a"), undefined);
+    cache.set("huge", { data: "x".repeat(11), mimeType: "image/png" });
+    assert.equal(cache.get("huge"), undefined, "bigger than the cache: not kept");
+    assert.notEqual(ImageCache.key("abc", "image/png"), ImageCache.key("abd", "image/png"));
 });
