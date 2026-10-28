@@ -8,6 +8,7 @@ import { canSteer, navigate, openSheet, scoped, store, workspaceOrder } from "./
 import { lookLabel, prefs } from "./theme.js";
 import { html, Icon, Keys, shortPath, timeAgo } from "./ui.js";
 import { VoiceNewButton } from "./voice-view.js";
+import { WhatsNewCard } from "./guide.js";
 
 /** pi-phone's mark (web/icon.svg's, which is Pi's logo), where fastfetch puts a machine's logo. */
 const LOGO = html`<svg class="fetch-logo" data-part="home-logo" viewBox="150 150 500 500" aria-hidden="true">
@@ -125,6 +126,7 @@ export function Splash() {
                 </div>
             </div>
         </div>
+        <${WhatsNewCard} />
         <div class="splash-actions" data-part="home-actions">
             ${
                 canStart &&

@@ -227,7 +227,14 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "me" && method === "POST") {
-            const body = await readJson<{ name?: string; language?: unknown; welcome?: unknown; dictation?: unknown }>(request);
+            const body = await readJson<{ name?: string; language?: unknown; welcome?: unknown; dictation?: unknown; whatsNew?: unknown }>(request);
+
+            // The What's new card dismissed, or to show again (PP-235).
+            if (body.whatsNew !== undefined && body.name === undefined) {
+                app.setWhatsNew(user, body.whatsNew);
+
+                return json(response, 200, { ok: true });
+            }
 
             // The language dictation listens for on all their devices (PP-235).
             if (body.dictation !== undefined && body.name === undefined) {

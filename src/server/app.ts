@@ -93,6 +93,7 @@ import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
 import { clockText, inLanguage, inZone, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
 import { resolveLanguage, translator } from "./i18n.ts";
+import { newestBig, WHATS_NEW_DIR, type WhatsNew } from "./whats-new.ts";
 import { WebPush } from "./web-push.ts";
 import { Forwards } from "./forwards.ts";
 import { SessionControl } from "./session-control.ts";
@@ -302,6 +303,8 @@ export interface OpenOptions {
     officecli?: Omit<OfficeCliOptions, "dataDir">;
     /** Where Pi's browser comes from: the phone's WebView unless a test or a computer gives another (a Chrome). */
     browserEngine?: BrowserEngine;
+    /** Where the release notes are (`whatsnew/<version>.md`, PP-235); tests give their own. Default: the app's. */
+    whatsNewDir?: string;
     /** Computer control's machines and how it runs a script on one (PP-178): the app's machines and ssh, unless a test gives its own. */
     computer?: Pick<ComputerControlOptions, "machines" | "launch" | "idleEndMs" | "refreshMs">;
     /** The owner token to have (`ConfigStore`): the server edition's gateway gives each person's container its own. */
@@ -356,6 +359,7 @@ export class PocketApp {
     /** Pi's browser on the phone (`browser/pi-browser.ts`): the pages Pi uses, that the owner watches and can take over. */
     /** The phone's browser engine (`PiBrowser.java`'s WebViews), shared by every session's browser on the phone. */
     readonly #phoneEngine: BrowserEngine;
+    readonly #whatsNewDir: string;
     /** pi-phone's own settings (`phone.json`): the Claude Code billing patch. */
     readonly phoneSettings: PhoneSettingsFile;
     /** Start the server again (the HTTP layer's, under the pi-phone app): Pi's server.restart action. */
@@ -648,6 +652,7 @@ export class PocketApp {
             }
         });
         this.#phoneEngine = options.browserEngine ?? new PhoneEngine(this.browserRequests);
+        this.#whatsNewDir = options.whatsNewDir ?? WHATS_NEW_DIR;
         this.phoneControl = new PhoneControl({ dataDir: options.dataDir, gateway: this.gateway, now: this.now, log: (line) => this.log(line) });
         // The owner's tabs show a session's live line while Pi uses the phone, and its Stop.
         this.phoneControl.onChange(() => {
@@ -2670,6 +2675,38 @@ export class PocketApp {
         }
     }
 
+    /**
+     * The newest release marked big whose What's new card `user` has not seen (PP-235): for the owner, once past the
+     * welcome (a new person starts with the welcome, not with what changed).
+     */
+    whatsNewFor(user: User): WhatsNew | undefined {
+        if (user.role !== "owner" || this.welcomeOf(user) === "show") {
+            return undefined;
+        }
+
+        const newest = newestBig(this.#whatsNewDir);
+
+        return newest === undefined || user.whatsNewSeen === newest.version ? undefined : newest;
+    }
+
+    /**
+     * The What's new card dismissed (`seen`: the newest big release as seen) or to show again (`show`). Their tabs hear
+     * the card as it is now (`whats-new`).
+     */
+    setWhatsNew(user: User, state: unknown): void {
+        if (state !== "show" && state !== "seen") {
+            throw new HttpError(400, "What's new is show or seen.");
+        }
+
+        this.config.updateUser(user.id, { whatsNewSeen: state === "show" ? undefined : newestBig(this.#whatsNewDir)?.version });
+
+        for (const client of this.#clients) {
+            if (client.user.id === user.id) {
+                client.send("whats-new", { whatsNew: this.whatsNewFor(user) ?? null });
+            }
+        }
+    }
+
     /** Where `user` is with the first-run welcome: "show", "done" or "skipped" (PP-234). Guests are never welcomed. */
     welcomeOf(user: User): "show" | WelcomeState {
         return user.role !== "owner" ? "done" : (user.welcome ?? "show");
@@ -2688,7 +2725,11 @@ export class PocketApp {
             throw new HttpError(403, "Only the owner has the welcome.");
         }
 
-        this.config.updateUser(user.id, { welcome: state === "show" ? undefined : state });
+        // Past the welcome, a new person has nothing new to see yet: the newest release counts as seen.
+        this.config.updateUser(user.id, {
+            welcome: state === "show" ? undefined : state,
+            ...(state === "show" || user.whatsNewSeen !== undefined ? {} : { whatsNewSeen: newestBig(this.#whatsNewDir)?.version }),
+        });
 
         for (const client of this.#clients) {
             if (client.user.id === user.id) {
@@ -3337,6 +3378,8 @@ export class PocketApp {
                 welcome: this.welcomeOf(user),
                 // The language dictation listens for on all their devices, or "auto" for each device's own (PP-235).
                 dictation: user.dictation ?? "auto",
+                // A big release's card they have not seen yet (PP-235), or null.
+                whatsNew: this.whatsNewFor(user) ?? null,
             },
             users: this.people(user),
             // Removed people's names, for what they wrote.

@@ -839,6 +839,8 @@ const handlers = {
     language: (data) => chooseLanguage(data.language),
     // The first-run welcome finished, skipped, or to show again (PP-234), on this device or another.
     welcome: (data) => store.state.me && store.set({ me: { ...store.state.me, welcome: data.welcome } }),
+    // A big release's What's new card, or none once dismissed or seen (PP-235), on this device or another.
+    "whats-new": (data) => store.state.me && store.set({ me: { ...store.state.me, whatsNew: data.whatsNew } }),
     // The language dictation listens for, chosen on any of their devices or by Pi (PP-235): this device follows it.
     dictation: (data) => {
         followDictation(data.dictation);

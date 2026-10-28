@@ -55,6 +55,7 @@ COPY --from=build /app/src ./src
 COPY --from=build /app/web ./web
 COPY --from=build /app/native ./native
 COPY --from=build /app/third_party ./third_party
+COPY --from=build /app/whatsnew ./whatsnew
 COPY --from=build /app/node_modules ./node_modules
 COPY --chmod=755 deploy/entrypoint.sh /app/deploy/entrypoint.sh
 RUN for tool in rg fd officecli; do ln -s /app/native/linux-*/"$tool"/"$tool" /usr/local/bin/"$tool"; done \

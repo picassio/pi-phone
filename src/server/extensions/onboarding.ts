@@ -5,15 +5,12 @@
  */
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
-import { join } from "node:path";
-import { APP_ROOT } from "../config.ts";
 import { GuideDoc, type GuideItem } from "../docs.ts";
 import type { PocketHost } from "../host.ts";
+import { WHATS_NEW_DIR } from "../whats-new.ts";
 
 /** The extension's name; its module is `onboarding.ts`. */
 export const ONBOARDING_EXTENSION = "pocket-onboarding";
-/** Where the release notes are, one file a version (`whatsnew/<version>.md`), for the What's new topic. */
-export const WHATS_NEW_DIR = join(APP_ROOT, "whatsnew");
 /**
  * The screens `show_screen` offers (web/guide.js opens each): the app's own, and Android's that only the pi-phone app on
  * the phone opens (`android-…`, the microphone's question).

@@ -485,6 +485,20 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["show", "done", "skipped"],
             apply: (user, value) => app.setWelcome(user, value.trim()),
         },
+        {
+            id: "onboarding.whatsNew",
+            area: "onboarding",
+            title: "The What's new card of the newest big release (home screen and session list)",
+            help: "show (the card comes back), or seen (dismissed). The card opens the Getting started session's What's new topic.",
+            owner: true,
+            read: () => {
+                const card = app.whatsNewFor(owner());
+
+                return card === undefined ? "seen" : `show (${card.version}: ${card.title})`;
+            },
+            choices: () => ["show", "seen"],
+            apply: (user, value) => app.setWhatsNew(user, value.trim()),
+        },
         // ─── Themes ───
         {
             id: "themes.default",

@@ -756,6 +756,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   only in the app); nothing opens without the tap. Settings a guide needed: `dictation.language` (per person,
   `User.dictation`; their devices follow it, Menu › Dictation sets it) and `notifications.device` (target: a web push
   device; off forgets it, on only on the device itself).
+  What's new (owner's decision G): release notes in `whatsnew/<version>.md` (packaged with the runtime and the Docker
+  image), a header of `title`, `date`, `big` (`whats-new.ts`). The newest big release's card (`hello`'s
+  `user.whatsNew`; `User.whatsNewSeen`) shows on the session list (phone) and the home screen (wide) for the owner
+  past the welcome; a new owner's welcome counts it as seen. Show me marks it seen and opens Getting started with
+  `whatsNew` (Pi reads the file, the skill's What's new topic); Dismiss marks it seen; `onboarding.whatsNew` shows it
+  again.
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

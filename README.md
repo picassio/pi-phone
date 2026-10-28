@@ -417,7 +417,8 @@ Then **Getting started** (the welcome's last step, or Menu › Getting started a
 you want to cover (the basics, the app's look and language, voice, Pi's browser, machines, phone control, secrets and
 backup, boards and the wiki), shows you only those, changes settings on cards you approve, and ticks a checklist under
 the session's header as it goes. Where you must act yourself (Android's Accessibility, the microphone, a sign-in), Pi
-puts a card with an **Open** button in the chat; nothing opens until you tap it.
+puts a card with an **Open** button in the chat; nothing opens until you tap it. After a big update, a **What's new**
+card on the session list (and the home screen on a wide screen) offers a tour of it in the same session.
 
 ### Every day
 - **Start a session:** **+ New** in the session list, then pick a folder on the phone or on a machine; inside a

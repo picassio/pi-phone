@@ -18,7 +18,7 @@ import { basename, join, resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "..");
 const ASSETS = join(ROOT, "android/app/src/main/assets");
 /** What the server reads at runtime, relative to the repository. */
-const CONTENTS = ["package.json", "DESIGN.md", "AGENTS.md", "src", "web", "native", "third_party", "node_modules"];
+const CONTENTS = ["package.json", "DESIGN.md", "AGENTS.md", "src", "web", "native", "third_party", "whatsnew", "node_modules"];
 /** Files and folders, by name, that the runtime never uses on the phone (see above). */
 const LEFT_OUT = /^(\.bin|better-sqlite3|node-addon-api|tree-sitter-(go|javascript|python|rust|typescript))$/;
 

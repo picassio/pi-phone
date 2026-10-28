@@ -176,3 +176,38 @@ test("Menu › Getting started opens the guide; the checklist bar follows Pi's t
     await inPage(`(async () => { const { openGettingStarted } = await import("/guide.js"); await openGettingStarted(); })()`);
     await until(async () => (await inPage<number | null>(`(async () => (await import("/store.js")).store.state.conversationId)()`)) === id, "the same session");
 });
+
+const card = () => inPage<string>(`document.querySelector("[data-part=whats-new]")?.innerText ?? ""`);
+const home = async (width: number) => {
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width, height: width < 600 ? 844 : 800, deviceScaleFactor: 2, mobile: width < 600 });
+    await inPage(`(async () => { const { navigate } = await import("/store.js"); navigate(null); })()`);
+};
+
+// What's new (PP-235): the app's newest big release (whatsnew/), shown until dismissed.
+test("after a big update: the card on the session list and the home screen; Show me opens the guide on its notes; Dismiss hides it", real, async () => {
+    const me = owner(app);
+
+    // The guide's run before still waits on its setting card: stopped, so the next message goes to Pi at once.
+    await app.commands.abort(Number(me.guide) as never, me);
+    app.setWhatsNew(me, "show");
+    await home(390);
+    await until(async () => (await card()).includes("A welcome, and Getting started with Pi"), "the card on the session list");
+    assert.match(await card(), /What's new[\s\S]*Dismiss[\s\S]*Show me/i);
+    await shot("whats-new-390");
+    await home(1280);
+    await until(async () => (await inPage<boolean>(`document.querySelector("[data-part=home] [data-part=whats-new]") !== null`)), "the card on the home screen");
+    await shot("whats-new-1280");
+
+    await inPage(`[...document.querySelectorAll("[data-part=whats-new] button")].find((each) => each.innerText.trim() === "Show me").click()`);
+    await until(async () => (await inPage<number | null>(`(async () => (await import("/store.js")).store.state.conversationId)()`)) === Number(me.guide), "the guide session");
+    await until(async () => (await inPage<string>(`document.querySelector(".transcript")?.innerText ?? ""`)).includes("Show me what's new in 2026-10-28."), "the What's new message");
+    assert.equal((await app.hello(me)).user.whatsNew, null, "seen");
+
+    // Dismiss, after it is shown again.
+    app.setWhatsNew(me, "show");
+    await home(390);
+    await until(async () => (await card()) !== "", "the card again");
+    await inPage(`[...document.querySelectorAll("[data-part=whats-new] button")].find((each) => each.innerText.trim() === "Dismiss").click()`);
+    await until(async () => (await card()) === "", "dismissed");
+    assert.equal((await app.hello(me)).user.whatsNew, null);
+});

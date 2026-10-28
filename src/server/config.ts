@@ -50,6 +50,8 @@ export interface User {
     guide?: string;
     /** The language dictation listens for on their devices (a tag: "vi-VN"); absent: each device's own. */
     dictation?: string;
+    /** The release (`whatsnew/<version>.md`) whose What's new card they dismissed or saw (PP-235). */
+    whatsNewSeen?: string;
 }
 
 /** Where a person is with the first-run welcome: finished, or skipped (absent: it shows). */
@@ -631,7 +633,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen">>,
     ): void {
         const user = this.userById(id);
 
@@ -672,6 +674,10 @@ export class ConfigStore {
 
         if (user.dictation === undefined) {
             delete user.dictation;
+        }
+
+        if (user.whatsNewSeen === undefined) {
+            delete user.whatsNewSeen;
         }
 
         this.save();

@@ -10,6 +10,7 @@ import { type ConversationId, UsageDoc } from "@earendil-works/pi-durable";
 import type { Attachment } from "../src/server/commands.ts";
 import type { User } from "../src/server/config.ts";
 import type { Client } from "../src/server/room.ts";
+import { newestBig, WHATS_NEW_DIR } from "../src/server/whats-new.ts";
 
 export const context = BACKGROUND_CONTEXT;
 
@@ -92,7 +93,8 @@ export function openApp(
         ...extra,
     }).then((app) => {
         if (!welcome) {
-            app.config.updateUser(owner(app).id, { welcome: "done" });
+            // As for someone who has used it: past the welcome, and the app's newest release's card seen (PP-235).
+            app.config.updateUser(owner(app).id, { welcome: "done", whatsNewSeen: newestBig(WHATS_NEW_DIR)?.version });
         }
 
         return app;

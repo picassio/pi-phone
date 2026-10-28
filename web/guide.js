@@ -74,6 +74,31 @@ export function ScreenCard({ args }) {
     </div>`;
 }
 
+/**
+ * After a big update (PP-235): the release's card, until it is dismissed. Show me opens the Getting started session on
+ * the release's notes; either button marks it seen on every device.
+ */
+export function WhatsNewCard() {
+    const card = store.state.me?.whatsNew;
+
+    if (!card) {
+        return null;
+    }
+
+    const seen = () => api("me", { whatsNew: "seen" });
+
+    return html`<section class="whats-new" data-part="whats-new" aria-label=${t("What's new")}>
+        <div class="whats-new-text">
+            <span class="whats-new-tag">${t("What's new")}</span>
+            <b>${card.title}</b>
+        </div>
+        <div class="whats-new-actions">
+            <button class="button small ghost" type="button" onClick=${() => attempt(seen)}>${t("Dismiss")}</button>
+            <button class="button small primary" type="button" onClick=${() => attempt(async () => (await seen(), await openGettingStarted({ whatsNew: card.version })))}>${t("Show me")}</button>
+        </div>
+    </section>`;
+}
+
 /** The checklist bar, in a session whose view has one. */
 export function GuideBar() {
     const guide = store.state.view.guide;

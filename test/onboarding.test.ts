@@ -14,6 +14,7 @@ import { after, test } from "node:test";
 import { ConfigStore } from "../src/server/config.ts";
 import { GuideDoc } from "../src/server/docs.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
+import { newestBig, parseWhatsNew, readWhatsNew, WHATS_NEW_DIR } from "../src/server/whats-new.ts";
 
 const apps: App[] = [];
 
@@ -239,4 +240,57 @@ test("the dictation language is one person's on all their devices, set in the ap
     assert.deepEqual(await registry.targets.device(), ["Chrome on Windows"]);
     await notifications.apply(me, "off", "Chrome on Windows");
     assert.equal(app.webPush.list().length, 0);
+});
+
+// ─── What's new (PP-235) ───
+
+const notes = (title: string, date: string, big: boolean) => `---\ntitle: ${title}\ndate: ${date}\nbig: ${big}\n---\n\n- something new\n`;
+
+test("release notes: their header read, newest first; the app's own parse", () => {
+    const dir = join(root, "whatsnew-read");
+
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "0.9.md"), notes("Onboarding", "2026-10-28", true));
+    writeFileSync(join(dir, "0.10.md"), notes("Small fixes", "2026-11-02", false));
+    writeFileSync(join(dir, "notes.txt"), "not a release");
+    assert.deepEqual(readWhatsNew(dir).map((each) => [each.version, each.big]), [["0.10", false], ["0.9", true]]);
+    assert.equal(newestBig(dir)?.title, "Onboarding");
+    assert.throws(() => parseWhatsNew("1.0", "- no header"), /header/);
+    assert.throws(() => parseWhatsNew("1.0", "---\ntitle: x\n---"), /date/);
+    assert.ok(readWhatsNew(WHATS_NEW_DIR).length > 0, "the app's own notes parse");
+});
+
+test("a big release's card shows to people past the welcome, until dismissed; Show me goes to the guide; a new person starts without it", async () => {
+    const dir = join(root, "whatsnew-card");
+
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "0.9.md"), notes("Onboarding", "2026-10-28", true));
+    writeFileSync(join(dir, "0.10.md"), notes("Small fixes", "2026-11-02", false));
+
+    const app = await openApp(scriptedModel(), join(root, "whatsnew-app"), undefined, { whatsNewDir: dir });
+
+    apps.push(app);
+
+    const me = owner(app);
+    const tab = fakeTab(undefined, me);
+    const setting = appSettings(app).settings.find((each) => each.id === "onboarding.whatsNew")!;
+
+    await app.attach(tab.client);
+    // Someone who used the app before this release: the big one's card, not the small one's.
+    assert.deepEqual((await app.hello(me)).user.whatsNew, { version: "0.9", title: "Onboarding", date: "2026-10-28", big: true });
+    assert.match(await setting.read(undefined), /^show \(0\.9: Onboarding\)/);
+
+    app.setWhatsNew(me, "seen");
+    assert.equal((await app.hello(me)).user.whatsNew, null);
+    assert.deepEqual(tab.last("whats-new"), { whatsNew: null });
+    await setting.apply(me, "show", undefined);
+    assert.equal((await app.hello(me)).user.whatsNew?.version, "0.9");
+    assert.throws(() => app.setWhatsNew(me, "later"), /show or seen/);
+
+    // A new person: the welcome first, and past it nothing new to see.
+    app.setWelcome(me, "show");
+    app.config.updateUser(me.id, { whatsNewSeen: undefined });
+    assert.equal((await app.hello(me)).user.whatsNew, null, "the welcome, not the card");
+    app.setWelcome(me, "done");
+    assert.equal((await app.hello(me)).user.whatsNew, null, "the newest release counts as seen");
 });
