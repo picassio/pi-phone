@@ -83,7 +83,7 @@ import { describe, HttpError } from "./errors.ts";
 import { ExtensionCommands } from "./extension-commands.ts";
 import { ExtensionWebs, mayUse } from "./extension-web.ts";
 import { defang, quoted } from "./fence.ts";
-import { cardFills } from "./extensions/browser.ts";
+import { cardFills, savedSignIn } from "./extensions/browser.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
 import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
@@ -3707,7 +3707,11 @@ export class PocketApp {
                 throw new HttpError(409, `No sign-in for ${form.site} is kept in Secrets.`);
             }
 
-            values = JSON.parse(saved) as Record<string, string>;
+            try {
+                values = savedSignIn(saved, form.site);
+            } catch (error) {
+                throw new HttpError(409, error instanceof Error ? error.message : String(error));
+            }
         } else {
             values = typeof body.values === "object" && body.values !== null ? (body.values as Record<string, string>) : {};
         }

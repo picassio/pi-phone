@@ -57,6 +57,28 @@ export function cardFills(
     }));
 }
 
+/**
+ * A sign-in kept in Secrets (Remember on a sign-in card: `{"username": …, "password": …}`), read for "Use the saved
+ * one". Anything else under that name (a value typed in Settings, or one Pi asked for with secret_request) is refused in
+ * fixed words: the JSON parser's message quotes the value, and it went to the card's error and the server's log
+ * (PP-204; rule G20, as pi-pocket's review of our secrets port found for a broken file, TannerMidd/pi-pocket-extensions#28).
+ */
+export function savedSignIn(saved: string, site: string): Record<string, string> {
+    let parsed: unknown;
+
+    try {
+        parsed = JSON.parse(saved);
+    } catch {
+        parsed = undefined;
+    }
+
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed) || !Object.values(parsed).every((value) => typeof value === "string")) {
+        throw new Error(`The secret kept for ${site}'s sign-in is not a sign-in Pi's browser saved: type it on the card, or save it again with Remember.`);
+    }
+
+    return parsed as Record<string, string>;
+}
+
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 
 /**

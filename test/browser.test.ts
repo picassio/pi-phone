@@ -9,7 +9,7 @@ import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
 import { addressOf, describe, elementsOf, isLocalAddress, type Observed } from "../src/server/browser/page.ts";
 import { blockedInPlanMode } from "../src/server/extensions/plan.ts";
-import { cardFills, shotCaption, signInFields } from "../src/server/extensions/browser.ts";
+import { cardFills, savedSignIn, shotCaption, signInFields } from "../src/server/extensions/browser.ts";
 import { type BrowserFrame, type BrowserState, ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
 import { SessionEngine, TabOwners } from "../src/server/browser/session-engine.ts";
 
@@ -57,6 +57,18 @@ test("a sign-in card names its fields in its own words, not the page's; what the
         { index: 2, value: "tuan@example.com", hide: "[username for accounts.example.com]" },
         { index: 3, value: "hunter2", hide: true },
     ]);
+});
+
+test("a kept sign-in that is not one Pi's browser saved is refused in fixed words, never the parser's, which quote the value (PP-204, G20)", () => {
+    assert.deepEqual(savedSignIn('{"username":"tuan@example.com","password":"hunter2-pass"}', "example.com"), { username: "tuan@example.com", password: "hunter2-pass" });
+
+    for (const saved of ["plain-password-value-123", '{"password": "half-written-value', "12345678", '["a"]', '{"password": 42}']) {
+        assert.throws(
+            () => savedSignIn(saved, "example.com"),
+            (error: Error) => /not a sign-in Pi's browser saved/.test(error.message) && !error.message.includes("value") && !error.message.includes("1234"),
+            saved,
+        );
+    }
 });
 
 test("a picture's caption gives the page's title and address fenced as the page's, not as the tool's words (PP-204)", () => {
