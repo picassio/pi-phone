@@ -151,6 +151,7 @@ public final class PiService extends Service {
             while (true) {
                 swapInPending(log);
                 state = State.STARTING;
+                stopEarlierServer(files, log);
                 server = start(files, log);
                 int code = server.waitFor();
                 server = null;
@@ -331,10 +332,125 @@ public final class PiService extends Service {
         wakeLock.acquire();
     }
 
+    // ─── A server before this one (PP-198) ───
+
+    /**
+     * How long a server asked to stop (SIGTERM) may take before it is killed: its own limit is 10 s (`STOP_LIMIT_MS` in
+     * main.ts), so a server that keeps it is never killed.
+     */
+    private static final long STOP_GRACE_MS = 11_000;
+    /** The server a destroyed service asked to stop: the next service waits for it (same app process). */
+    private static volatile Process stopping;
+
+    /** Ask `running` to stop (SIGTERM), and kill it if it has not after STOP_GRACE_MS; the next start waits for it. */
+    private static void end(Process running) {
+        stopping = running;
+        running.destroy();
+        Thread killer = new Thread(() -> {
+            try {
+                if (!running.waitFor(STOP_GRACE_MS, java.util.concurrent.TimeUnit.MILLISECONDS)) running.destroyForcibly();
+            } catch (InterruptedException e) {
+                running.destroyForcibly();
+            }
+        }, "pi-server-end");
+        killer.setDaemon(true);
+        killer.start();
+    }
+
+    /**
+     * Before a server starts: no other server of this app may be running on its data. The server a destroyed service
+     * stopped is waited for; and a server left running when Android ended the app's process but not its child (some
+     * phones do) holds the data's lock (`harness.lock`, its pid): when that pid is this app's node running this
+     * runtime's main.ts, it is asked to stop (SIGTERM), and killed (SIGKILL) if it has not after STOP_GRACE_MS. Without
+     * this the new server finds the lock held and exits ("server exited with code 1"). A pid that is not ours is never
+     * signalled.
+     */
+    private void stopEarlierServer(File files, File log) throws InterruptedException {
+        Process earlier = stopping;
+        if (earlier != null) {
+            if (!earlier.waitFor(STOP_GRACE_MS + 2_000, java.util.concurrent.TimeUnit.MILLISECONDS)) earlier.destroyForcibly().waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+            stopping = null;
+        }
+        int pid = lockPid(new File(files, "home/.pi-pocket/harness.lock"));
+        if (pid <= 0 || pid == android.os.Process.myPid() || !isOurServer(pid, files)) return;
+        note(log, "stopping an earlier pi-phone server left running (pid " + pid + ")");
+        android.os.Process.sendSignal(pid, 15);
+        if (!gone(pid, files, STOP_GRACE_MS)) {
+            android.os.Process.sendSignal(pid, 9);
+            gone(pid, files, 3_000);
+        }
+        note(log, (gone(pid, files, 0) ? "stopped" : "could not stop") + " an earlier pi-phone server left running (pid " + pid + ")");
+    }
+
+    /** The pid in a lock file, or 0 when there is none (no lock: no server holds the data). */
+    private static int lockPid(File lock) {
+        try (InputStream in = new FileInputStream(lock)) {
+            return Integer.parseInt(readAll(in).trim());
+        } catch (IOException | NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /** Whether `pid` is a live (not zombie) process of this app running this runtime's server. */
+    private static boolean isOurServer(int pid, File files) {
+        try {
+            String cmdline;
+            String status;
+            try (InputStream in = new FileInputStream("/proc/" + pid + "/cmdline")) {
+                cmdline = readAll(in);
+            }
+            try (InputStream in = new FileInputStream("/proc/" + pid + "/status")) {
+                status = readAll(in);
+            }
+            return isServer(cmdline, status, new File(files, "usr/bin/node").getAbsolutePath(),
+                    new File(files, "runtime/src/server/main.ts").getAbsolutePath(), android.os.Process.myUid());
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Whether a process's `/proc/<pid>/cmdline` (NUL-separated) and `/proc/<pid>/status` say it is `node` running
+     * `main` (as `start` runs it), alive (not a zombie), with the real uid `uid`.
+     */
+    static boolean isServer(String cmdline, String status, String node, String main, int uid) {
+        String[] args = cmdline.split("\0");
+        if (args.length < 2 || !args[0].equals(node) || !args[1].equals(main)) return false;
+        boolean ours = false;
+        for (String line : status.split("\n")) {
+            if (line.startsWith("State:") && line.substring(6).trim().startsWith("Z")) return false;
+            if (line.startsWith("Uid:")) {
+                String[] ids = line.substring(4).trim().split("\\s+");
+                ours = ids.length > 0 && ids[0].equals(String.valueOf(uid));
+            }
+        }
+        return ours;
+    }
+
+    /** Wait up to `ms` for `pid` to be gone (or no longer our server); whether it is. */
+    private static boolean gone(int pid, File files, long ms) throws InterruptedException {
+        long until = System.currentTimeMillis() + ms;
+        while (true) {
+            if (!isOurServer(pid, files)) return true;
+            if (System.currentTimeMillis() >= until) return false;
+            Thread.sleep(200);
+        }
+    }
+
+    /** A line of the app's own in server.log, beside the server's. */
+    private static void note(File log, String line) {
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(log, true)) {
+            out.write(("pi-phone app: " + line + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            Log.w(TAG, "server.log: " + e);
+        }
+    }
+
     @Override
     public void onDestroy() {
         Process running = server;
-        if (running != null) running.destroy();
+        // Asked to stop, and killed if it has not in time: never left running without its service.
+        if (running != null) end(running);
         if (runner != null) runner.interrupt();
         if (notifier != null) notifier.interrupt();
         if (renderer != null) renderer.interrupt();

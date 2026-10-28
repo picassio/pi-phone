@@ -51,6 +51,16 @@ files/tmp/        TMPDIR
   with `HOME`, `PREFIX`, `PATH`, `LD_LIBRARY_PATH`, `TMPDIR`, `SSL_CERT_FILE`, `LANG` set. Log in
   `files/log/server.log` (appended, never cut). An exception nothing caught is written there with its stack under a
   `FATAL` line before the server exits with 1 (`fatal.ts`).
+- One server per data directory, also on phones that end the app's process but not its child (PP-198: the new server
+  found `harness.lock` held by a live pid and exited 1). Before each start `PiService.stopEarlierServer` waits for the
+  server a destroyed service stopped, and when the lock's pid is this app's `node` running this runtime's `main.ts`
+  (`/proc/<pid>/cmdline`, real uid in `/proc/<pid>/status`, not a zombie) it sends SIGTERM, then SIGKILL after 11 s
+  (the server's own stop limit is 10 s), writing a `pi-phone app:` line to server.log; another pid is never signalled.
+  `onDestroy` stops the server the same way (SIGTERM, SIGKILL after 11 s). The server itself waits up to 10 s for a
+  live lock holder (`waitForLock`, the holder's pid and command line logged), then fails with "pi-phone is still
+  stopping its earlier server (pid N), so it cannot start. Restart the app." (never a file to delete). Closing, the
+  app ends every voice call's sideband first (`VoiceBridge.closeAll`: a close OpenAI does not answer is ended after
+  1.5 s, not ws's 30 s) and keeps what was said before the storage closes.
 - The status screen (`assets/status.html`, `MainActivity.show`): progress, and a failure with its reason, the log's
   last error on top (a `FATAL` line before any other, with the stack under it), Copy log (its last 256 KB) and Share
   log (its last 4 MB as a file through the share sheet: `LogProvider`, not exported, read grant on the intent only),
