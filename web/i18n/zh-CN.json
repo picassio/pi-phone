@@ -1493,6 +1493,7 @@
     "About a second and $0.00003 a step. Needs your OpenRouter sign-in, with TypeSafe allowed in OpenRouter's settings (privacy, allowed providers).": "每步约 1 秒、$0.00003。需要你登录 OpenRouter，并在 OpenRouter 设置（隐私、允许的提供方）中允许 TypeSafe。",
     "It answered {choice} in {ms} ms, for ${cost}.": "它在 {ms} 毫秒内回答了 {choice}，花费 ${cost}。",
     "browser_run carries out a goal in Pi's browser on its own, deciding each step with the run model: the session's own model, or Jev, a small, fast decision model.": "browser_run 会在 Pi 的浏览器中自行完成一个目标，每一步由运行模型决定：会话自己的模型，或 Jev（一个小而快的决策模型）。",
+    "Each step sends the run model the goal, the values Pi gave (a secret by its name only), the page's address, title and visible text, and its controls with their values: with Jev, to OpenRouter (openrouter.ai) with your OpenRouter key; with the session's model, to its provider. A run clicks and types without asking, on pages you may be signed in to.": "每一步都会把目标、Pi 提供的值（密钥只给名称）、页面的地址、标题和可见文字，以及页面上的控件及其值发送给运行模型：使用 Jev 时，用你的 OpenRouter 密钥发送到 OpenRouter（openrouter.ai）；使用会话的模型时，发送到该模型的提供方。运行会直接点击和输入而不先询问，所在页面可能已用你的账号登录。",
     "Run model": "运行模型",
     "Reading the setting": "正在读取设置",
     "This session": "本会话",

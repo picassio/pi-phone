@@ -483,7 +483,9 @@ export default function createBrowser(host: PocketHost) {
             description:
                 "Carry out one concrete goal in Pi's browser on its own, a step at a time, each step decided by the run model the owner picked (Settings › Browser: this session's model, or Jev). " +
                 "Give every text it may type in values (a name for each: {\"from\": \"Zurich\"}); it never types anything else. Optionally a url to open first. " +
-                "Answers how it ended (done, or why it stopped: needs_value, blocked, stuck_loop, unverified_done, budget, decision_error), its steps, time and cost, and the page as it is.",
+                "Answers how it ended (done, or why it stopped: needs_value, blocked, stuck_loop, unverified_done, budget, decision_error), its steps, time and cost, and the page as it is. " +
+                "What each step sends: with Jev, OpenRouter (openrouter.ai) gets, with the owner's OpenRouter key, the goal, the values (a secret by its name only), the page's address, title and visible text, the controls in view with their values, and the recent steps; with this session's model, its provider gets the same. " +
+                "A run clicks and types without asking anyone, on a page that may be signed in, so a hostile page can steer it: never give it a goal that pays, sends, books or deletes.",
             parameters: Type.Object({
                 goal: Type.String({ description: "One concrete goal, with everything it requires (\"Search one-way flights Zurich to London on 3 November, and stop when results show\")" }),
                 values: Type.Optional(

@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { keyStoreRefusal } from "../src/server/extensions/secrets.ts";
 import { fenceIngestSource } from "../src/server/extensions/para.ts";
+import createBrowser from "../src/server/extensions/browser.ts";
 
 const where = { dataDir: "/home/me/.pi-pocket", home: "/home/me", cwd: "/home/me/work" };
 
@@ -39,6 +40,15 @@ test("the app's key stores are refused to every tool that takes a file on the ph
     assert.equal(keyStoreRefusal("interview", { questions: '{"questions": []}' }, where), undefined);
     assert.equal(keyStoreRefusal("browser_upload", { paths: ["report.pdf", "/home/me/.pi-pocket/uploads/a.png"] }, where), undefined);
     assert.equal(keyStoreRefusal("browser_click", { index: 2 }, where), undefined);
+});
+
+test("browser_run's description names the third party each step goes to, what it sends, and that it acts without asking (S1.2, S5.5)", () => {
+    const extension = createBrowser({} as never) as unknown as { tools: { name: string; description: string }[] };
+    const run = extension.tools.find((tool) => tool.name === "browser_run")!;
+
+    assert.match(run.description, /with Jev, OpenRouter \(openrouter\.ai\) gets, with the owner's OpenRouter key, the goal, the values \(a secret by its name only\), the page's address, title and visible text/);
+    assert.match(run.description, /with this session's model, its provider gets the same/);
+    assert.match(run.description, /clicks and types without asking anyone, on a page that may be signed in/);
 });
 
 test("wiki_ingest's source is fenced as data: a page that writes </source-content> does not end it and speak as the tool (S5.2)", () => {

@@ -107,6 +107,9 @@ export function BrowserSheet() {
         <p class="muted small">
             ${t("browser_run carries out a goal in Pi's browser on its own, deciding each step with the run model: the session's own model, or Jev, a small, fast decision model.")}
         </p>
+        <p class="muted small">
+            ${t("Each step sends the run model the goal, the values Pi gave (a secret by its name only), the page's address, title and visible text, and its controls with their values: with Jev, to OpenRouter (openrouter.ai) with your OpenRouter key; with the session's model, to its provider. A run clicks and types without asking, on pages you may be signed in to.")}
+        </p>
         <div class="label">${t("Run model")}</div>
         ${
             global === null
