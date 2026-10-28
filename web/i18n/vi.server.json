@@ -634,5 +634,15 @@
     "Give the fingerprint that was accepted.": "Đưa fingerprint đã được chấp nhận.",
     "Give the system the connection found.": "Đưa hệ điều hành mà kết nối tìm thấy.",
     "This team machine's key is missing on the team server.": "Máy chủ nhóm đang thiếu khóa của máy nhóm này.",
-    "The team server signs only a sign-in to the machine with its key.": "Máy chủ nhóm chỉ ký bằng khóa của máy cho việc đăng nhập vào máy đó."
+    "The team server signs only a sign-in to the machine with its key.": "Máy chủ nhóm chỉ ký bằng khóa của máy cho việc đăng nhập vào máy đó.",
+    "The dictation language is a language tag such as vi-VN or en-US, or auto.": "Ngôn ngữ nhập giọng nói là một mã ngôn ngữ như vi-VN hay en-US, hoặc auto.",
+    "What's new is show or seen.": "Thẻ Có gì mới chỉ là show hoặc seen.",
+    "The welcome is show, done, or skipped.": "Màn hình chào mừng chỉ là show, done hoặc skipped.",
+    "Only the owner has the welcome.": "Chỉ chủ sở hữu mới có màn hình chào mừng.",
+    "Only the owner has Getting started.": "Chỉ chủ sở hữu mới có phần Bắt đầu.",
+    "Sign in to a model first: Pi needs one to show you around.": "Hãy đăng nhập một mô hình trước: Pi cần nó để dẫn bạn làm quen.",
+    "This pi-phone has no owner.": "pi-phone này không có chủ sở hữu.",
+    "Notifications are on or off.": "Thông báo chỉ là on hoặc off.",
+    "Notifications turn on only on the device itself, with a tap: Menu › Notifications there.": "Thông báo chỉ bật được trên chính thiết bị đó, bằng một lần chạm: Menu › Thông báo trên thiết bị đó.",
+    "No device gets notifications as {1}. Devices: {2}.": "Không có thiết bị nào nhận thông báo với tên {1}. Các thiết bị: {2}."
 }

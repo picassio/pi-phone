@@ -430,6 +430,18 @@ hai cách chạy:
 
 ## Cách dùng
 
+### Lần đầu tiên
+pi-phone mới mở ra với một màn hình chào mừng ngắn gồm ba bước, bước nào cũng bỏ qua được: ngôn ngữ của ứng dụng; đăng nhập một mô
+hình (Claude, ChatGPT, GitHub Copilot, OpenRouter, hoặc khóa API; trên máy chủ nhóm là các mô hình nhóm cấp cho bạn);
+và quyền của điện thoại (thông báo, chạy khi tắt màn hình, micro, phím cạnh), còn trong trình duyệt là thông báo và cài
+như ứng dụng. Nó không cần mô hình. Pi có thể hiện lại nó: cứ bảo Pi, hoặc đặt `onboarding.welcome`.
+Sau đó là **Bắt đầu** (bước cuối của màn hình chào mừng, hoặc Menu › Bắt đầu bất cứ lúc nào): một phiên mà Pi hỏi
+bạn muốn tìm hiểu gì (cơ bản, giao diện và ngôn ngữ, giọng nói, trình duyệt của Pi, máy tính, điều khiển điện thoại, bí
+mật và sao lưu, bảng công việc và wiki), chỉ cho bạn đúng những phần đó, đổi cài đặt qua các thẻ bạn duyệt, và đánh dấu
+một danh sách kiểm dưới đầu phiên. Chỗ nào bạn phải tự thao tác (Hỗ trợ tiếp cận của Android, micro, đăng nhập), Pi đặt
+một thẻ có nút **Mở** trong cuộc trò chuyện; không gì mở ra nếu bạn chưa chạm. Sau một bản cập nhật lớn, thẻ **Có gì
+mới** trên danh sách phiên (và màn hình chính khi màn hình rộng) mời bạn đi một vòng xem các điểm mới trong cùng phiên đó.
+
 ### Hằng ngày
 - **Bắt đầu một phiên:** **+ Mới** trong danh sách phiên, rồi chọn một thư mục trên điện thoại hoặc trên một máy; trong
   một phiên, bộ chọn mở ngay thư mục của phiên đó, và **Phiên mới tại đây** của trình khởi chạy mở một phiên ở đó ngay
