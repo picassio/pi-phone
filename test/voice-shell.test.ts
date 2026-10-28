@@ -46,6 +46,8 @@ type State = {
 
 const told: Record<string, unknown>[] = [];
 const asked: string[] = [];
+/** What the page told the server of its mic (`voice/calls/:id/mic`). */
+const micWords: Record<string, unknown>[] = [];
 const track = { enabled: true, stop() {} };
 const shared = {
     navigated: [] as number[],
@@ -63,8 +65,12 @@ const shared = {
             Object.assign(this.state, typeof patch === "function" ? patch(this.state) : patch);
         },
     },
-    async api(path: string) {
+    async api(path: string, body?: Record<string, unknown>) {
         asked.push(path);
+
+        if (path.endsWith("/mic")) {
+            micWords.push(body ?? {});
+        }
 
         if (path.endsWith("/voice/call")) {
             return { call: `call-${asked.length}`, path: "key", url: "https://openai.test/v1/realtime/calls", key: "ek_test", model: "gpt-realtime-2" };
@@ -108,19 +114,21 @@ const voice = (await import(new URL("../web/voice-call.js", import.meta.url).hre
     endVoice(options?: { quiet?: boolean; handOver?: boolean }): Promise<void>;
     voiceFromShell(session: number, what: string): Promise<void>;
     setVoiceHold(hold: boolean): void;
+    setVoiceTurns(turns: string): void;
+    setVoiceMuted(muted: boolean): void;
 };
 const action = (word: string) => (globalThis as unknown as { __piVoiceAction(word: string): void }).__piVoiceAction(word);
 
 test("a call tells the window it started, was muted and ended; the notification's Mute and End reach the call", async () => {
     await voice.startVoice(7);
 
-    assert.deepEqual(told, [{ state: "start", session: 7, title: "AHA deploy", muted: false }]);
+    assert.deepEqual(told, [{ state: "start", session: 7, title: "AHA deploy", muted: false, muteKey: "headset", proximity: false }]);
     assert.ok(asked.includes("voice/calls/call-1/joined"));
 
     // The notification's Mute: the mic's track goes silent, and the notification says muted.
     action("mute");
     assert.equal(track.enabled, false);
-    assert.deepEqual(told.at(-1), { state: "update", session: 7, title: "AHA deploy", muted: true });
+    assert.deepEqual(told.at(-1), { state: "update", session: 7, title: "AHA deploy", muted: true, muteKey: "headset", proximity: false });
     action("mute");
     assert.equal(track.enabled, true);
 
@@ -146,7 +154,7 @@ test("the window starts a call in a session (the sheet's, handed over), or shows
     await voice.voiceFromShell(9, "start");
 
     assert.deepEqual(shared.navigated, [9]);
-    assert.deepEqual(told, [{ state: "start", session: 9, title: "Voice", muted: false }]);
+    assert.deepEqual(told, [{ state: "start", session: 9, title: "Voice", muted: false, muteKey: "headset", proximity: false }]);
     shared.store.set({ voiceOpen: false, conversationId: 9 });
     await voice.voiceFromShell(9, "show");
     assert.equal(shared.store.state.voiceOpen, true);
@@ -268,4 +276,140 @@ test("switching hands-free and hold to talk in a call keeps the mic's noise redu
     assert.deepEqual(updates().at(-1), { noise_reduction: null, turn_detection: null });
     await voice.endVoice();
     Object.assign(settings, { noise: "near_field", eagerness: "auto" });
+});
+
+/** The mic's word to the server, once what is queued went. */
+const lastMicWord = async () => {
+    await new Promise((resolve) => setImmediate(resolve));
+
+    return micWords.at(-1);
+};
+const sentTypes = () => (global.__channel as { sent: string[] }).sent.map((data) => (JSON.parse(data) as { type: string }).type);
+
+test("tap to talk (PP-201): the mic is open for one turn and closes when the model hears your speech end; a tap opens it again; the view, the notification and the server know", async () => {
+    Object.assign(settings, { turns: "tap" });
+    micWords.length = 0;
+    await voice.startVoice(7);
+
+    assert.equal(track.enabled, true, "open for the first turn: starting the call was the tap");
+    assert.deepEqual(await lastMicWord(), { muted: false, by: "tap", turns: "tap" });
+    channelEvent({ type: "input_audio_buffer.speech_started" });
+    assert.equal(track.enabled, true);
+    channelEvent({ type: "input_audio_buffer.speech_stopped" });
+    assert.equal(track.enabled, false, "nothing more is sent: who talks near you is not heard");
+    assert.equal(shared.store.state.voiceCall?.muted, true);
+    assert.equal((shared.store.state.voiceCall as { mutedBy?: string }).mutedBy, "tap");
+    assert.equal(told.at(-1)?.muted, true, "the notification says Unmute");
+    assert.deepEqual(await lastMicWord(), { muted: true, by: "tap", turns: "tap" });
+
+    // The headset's button (or the notification's Unmute) is a tap: the next turn.
+    action("mic");
+    assert.equal(track.enabled, true);
+    assert.deepEqual(await lastMicWord(), { muted: false, by: "key", turns: "tap" });
+    channelEvent({ type: "input_audio_buffer.committed" });
+    assert.equal(track.enabled, false, "a committed turn closes it too");
+
+    // The model's turn detection stays on in tap to talk: it is what ends the turn.
+    voice.setVoiceTurns("hands-free");
+    voice.setVoiceTurns("tap");
+
+    const update = (global.__channel as { sent: string[] }).sent.map((data) => JSON.parse(data) as { type: string; session?: { audio: { input: Record<string, unknown> } } }).filter((event) => event.type === "session.update").at(-1);
+
+    assert.deepEqual(update?.session?.audio.input, {
+        noise_reduction: { type: "near_field" },
+        turn_detection: { type: "semantic_vad", eagerness: "auto", interrupt_response: true, create_response: true },
+    });
+    assert.equal(track.enabled, false, "switched to tap to talk mid-call: closed until the tap");
+    await voice.endVoice();
+    Object.assign(settings, { turns: "hands-free" });
+});
+
+test("hands-free's quiet (PP-201): once the voice has answered, autoMuteSeconds with nothing said mute the mic; talking stops the count; 0 never mutes", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    Object.assign(settings, { autoMuteSeconds: 10 });
+    await voice.startVoice(7);
+    micWords.length = 0;
+
+    channelEvent({ type: "response.done" });
+    t.mock.timers.tick(9_000);
+    channelEvent({ type: "input_audio_buffer.speech_started" });
+    t.mock.timers.tick(30_000);
+    assert.equal(track.enabled, true, "you talked: no count");
+
+    // The voice answers; its audio ends after its response: the count starts from the end of what it said.
+    channelEvent({ type: "response.created" });
+    channelEvent({ type: "output_audio_buffer.started" });
+    channelEvent({ type: "response.done" });
+    t.mock.timers.tick(5_000);
+    channelEvent({ type: "output_audio_buffer.stopped" });
+    t.mock.timers.tick(9_000);
+    assert.equal(track.enabled, true);
+    t.mock.timers.tick(1_000);
+    assert.equal(track.enabled, false, "10 quiet seconds after the voice stopped");
+    assert.equal((shared.store.state.voiceCall as { mutedBy?: string }).mutedBy, "auto");
+    assert.equal(told.at(-1)?.muted, true);
+    t.mock.timers.reset();
+    assert.deepEqual(await lastMicWord(), { muted: true, by: "auto", turns: "hands-free" });
+
+    // Mute (or a key) turns it on again.
+    voice.setVoiceMuted(false);
+    assert.equal(track.enabled, true);
+    await voice.endVoice();
+
+    // 0: never.
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    Object.assign(settings, { autoMuteSeconds: 0 });
+    await voice.startVoice(7);
+    channelEvent({ type: "response.done" });
+    t.mock.timers.tick(3_600_000);
+    assert.equal(track.enabled, true);
+    await voice.endVoice();
+});
+
+test("keys and the proximity sensor (PP-201): the window gets Settings › Voice's mute key and proximity; a key toggles the mic, hold to talk's presses and sends; away mutes, the ear unmutes only what it muted", async () => {
+    Object.assign(settings, { muteKey: "both", proximityMute: true });
+    told.length = 0;
+    await voice.startVoice(7);
+    assert.deepEqual(told[0], { state: "start", session: 7, title: "AHA deploy", muted: false, muteKey: "both", proximity: true });
+
+    action("mic");
+    assert.equal(track.enabled, false);
+    assert.equal(told.at(-1)?.muted, true);
+    action("mic");
+    assert.equal(track.enabled, true);
+
+    // The phone leaves the ear: muted; back at the ear: on again.
+    action("away");
+    assert.equal(track.enabled, false);
+    assert.equal((shared.store.state.voiceCall as { mutedBy?: string }).mutedBy, "proximity");
+    assert.deepEqual(await lastMicWord(), { muted: true, by: "proximity", turns: "hands-free" });
+    action("ear");
+    assert.equal(track.enabled, true);
+
+    // Muted by you: the ear leaves it muted.
+    voice.setVoiceMuted(true);
+    action("away");
+    action("ear");
+    assert.equal(track.enabled, false, "your Mute stays");
+    voice.setVoiceMuted(false);
+
+    // Hold to talk: a key press opens the mic as holding does, the next sends; the sensor leaves it.
+    voice.setVoiceTurns("hold");
+    assert.equal(track.enabled, false);
+    action("away");
+    action("ear");
+    assert.equal(track.enabled, false);
+    action("mic");
+    assert.equal(track.enabled, true);
+    assert.deepEqual(sentTypes().slice(-2), ["response.cancel", "input_audio_buffer.clear"]);
+    action("mic");
+    assert.equal(track.enabled, false);
+    assert.deepEqual(sentTypes().slice(-2), ["input_audio_buffer.commit", "response.create"]);
+    assert.deepEqual(await lastMicWord(), { muted: true, by: "key", turns: "hold" });
+
+    // No sensor on this phone: said, with where to turn it off.
+    action("no-proximity");
+    assert.match(String(shared.notices.at(-1)), /no proximity sensor/);
+    await voice.endVoice();
+    Object.assign(settings, { muteKey: "headset", proximityMute: false });
 });

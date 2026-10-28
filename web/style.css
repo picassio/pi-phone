@@ -4293,10 +4293,63 @@ pre.diff .del {
     color: var(--bg);
 }
 
-.voice-ctl.on {
-    color: var(--accent);
-    background: var(--accent-soft);
+/* The mic in a call (PP-201): one wide button in words; red while off, the accent for tap to talk. */
+.voice-mic {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 56px;
+    margin: 4px 0 10px;
+    padding: 8px 16px;
+    border: 1px solid var(--hair);
     border-radius: var(--r-control);
+    background: var(--card-2);
+    color: var(--text);
+    text-align: left;
+    transition:
+        background-color var(--t-hover) var(--ease-out),
+        border-color var(--t-hover) var(--ease-out);
+}
+
+.voice-mic-words {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.voice-mic-words b {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.voice-mic-words small {
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.voice-mic.off {
+    background: var(--err-soft);
+    border-color: var(--err-line);
+    color: var(--err);
+}
+
+.voice-mic.talk {
+    background: var(--accent-fill);
+    border-color: var(--accent-line);
+    color: var(--accent-ink);
+}
+
+.voice-mic.talk small {
+    color: inherit;
+    opacity: 0.85;
+}
+
+.voice-mic.open {
+    background: var(--accent-soft);
+    border-color: var(--accent-line);
+    color: var(--accent);
 }
 
 .voice-end-small {

@@ -15,6 +15,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.service.voice.VoiceInteractionSession;
+import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -169,6 +170,17 @@ final class PiAssistantSession extends VoiceInteractionSession {
         main.post(() -> {
             if (web != null) web.evaluateJavascript("globalThis.__piAssistFrom && globalThis.__piAssistFrom(" + told + ")", null);
         });
+    }
+
+    /** The volume keys turn the sheet's call's mic off and on, when Settings › Voice says so (PP-201). */
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        return VoiceCallService.volumeKey(keyCode, event) || super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        return VoiceCallService.volumeKey(keyCode, event) || super.onKeyUp(keyCode, event);
     }
 
     @Override

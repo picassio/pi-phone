@@ -1531,6 +1531,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     return json(response, 200, { ok: true });
                 }
 
+                // The mic turned off or on, or the call's turn-taking changed (PP-201): `{ muted, by, turns? }`.
+                if (parts[3] === "mic") {
+                    const kept = app.voice.mic(user.id, third, await readJson<unknown>(request));
+
+                    return json(response, 200, { muted: kept.muted, by: kept.micBy, turns: kept.turns });
+                }
+
                 if (parts[3] === "end") {
                     app.voice.end(call.id);
 

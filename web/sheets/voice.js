@@ -6,7 +6,7 @@ import { useEffect, useState } from "preact/hooks";
 import { t } from "../i18n.js";
 import { api, attempt, closeSheet, openSheet, store } from "../store.js";
 import { Choice, html, Icon, Sheet, Switch } from "../ui.js";
-import { VOICE_MODES } from "../voice-view.js";
+import { VOICE_MODES, VOICE_TURNS } from "../voice-view.js";
 import { deviceVoice } from "../voice-call.js";
 
 /** Languages people pick most; any other two-letter code the model takes works through Pi's settings. */
@@ -36,6 +36,7 @@ export function VoiceSheet() {
     const [checking, setChecking] = useState(false);
     const [cue, setCue] = useState(null);
     const [limit, setLimit] = useState(null);
+    const [quiet, setQuiet] = useState(null);
 
     useEffect(() => {
         attempt(async () => setUsage((await api("voice")).usage));
@@ -132,8 +133,41 @@ export function VoiceSheet() {
 
         <div class="phone-section-title">${t("New sessions")}</div>
         ${segmented(t("Voice mode"), "voice-mode-default", VOICE_MODES(), settings.mode, "mode")}
-        ${segmented(t("Turn-taking"), "voice-turns-default", [["hands-free", t("Hands-free")], ["hold", t("Hold to talk")]], settings.turns, "turns")}
-        <p class="muted small">${t("A session can change its own in the model menu or in the call.")}</p>
+        ${segmented(t("Turn-taking"), "voice-turns-default", VOICE_TURNS(), settings.turns, "turns")}
+        <p class="muted small">${t("Tap to talk: a tap opens the mic for one turn, and it closes when you stop talking, so people near you are not heard. A session can change its own in the model menu or in the call.")}</p>
+
+        <div class="phone-section-title">${t("The mic in a call")}</div>
+        <label class="assistant-field">
+            <span class="muted small">${t("Hands-free: mute the mic after this many quiet seconds once the voice has answered (0: never)")}</span>
+            <input
+                type="number"
+                min="0"
+                max="600"
+                inputmode="numeric"
+                data-part="voice-auto-mute"
+                value=${quiet ?? settings.autoMuteSeconds ?? 0}
+                onInput=${(event) => setQuiet(event.currentTarget.value)}
+                onChange=${() => quiet !== null && attempt(async () => {
+                    await api("settings", { voice: { autoMuteSeconds: Number(quiet) } });
+                    setQuiet(null);
+                })}
+            />
+        </label>
+        ${segmented(
+            t("A key turns the mic off and on"),
+            "voice-mute-key",
+            [["headset", t("Headset button")], ["volume", t("Volume keys")], ["both", t("Both")], ["off", t("Off")]],
+            settings.muteKey ?? "headset",
+            "muteKey",
+        )}
+        <p class="muted small">${t("A Bluetooth or wired headset's button, or the volume keys while pi-phone is in front (they then do not change the volume during a call).")}</p>
+        <div class="limit-wait-notice" data-part="voice-proximity">
+            <div>
+                <div class="small">${t("Mute unless the phone is at your ear")}</div>
+                <div class="muted small">${t("The mic turns off when the phone leaves your ear or lies face down, and on again at your ear. Not for speakerphone calls.")}</div>
+            </div>
+            <${Switch} on=${settings.proximityMute === true} label=${t("Mute unless the phone is at your ear")} onChange=${() => change({ proximityMute: settings.proximityMute !== true })} />
+        </div>
 
         <div class="phone-section-title">${t("While Pi works")}</div>
         ${segmented(t("Progress"), "voice-progress", [["text", t("Pi's words as they come")], ["answer", t("Only the answer")]], settings.progress, "progress")}

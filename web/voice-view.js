@@ -6,7 +6,7 @@ import { useBack } from "./back.js";
 import { t } from "./i18n.js";
 import { api, attempt, navigate, panelsBeside, store } from "./store.js";
 import { html, Icon } from "./ui.js";
-import { endVoice, hideVoice, sessionVoiceMode, setVoiceHold, setVoiceMode, setVoiceMuted, startVoice, voiceAvailable, voiceLevel, voicePress } from "./voice-call.js";
+import { endVoice, hideVoice, sessionVoiceMode, setVoiceMode, setVoiceMuted, setVoiceTurns, startVoice, toggleMic, voiceAvailable, voiceLevel, voicePress } from "./voice-call.js";
 
 const BARS = 26;
 
@@ -236,6 +236,46 @@ export function VoicePanel({ leaving = false }) {
     </section>`;
 }
 
+/** How you take turns in a call (PP-201), as people choose them. */
+export const VOICE_TURNS = () => [
+    ["hands-free", t("Hands-free")],
+    ["tap", t("Tap to talk")],
+    ["hold", t("Hold to talk")],
+];
+
+/**
+ * The mic, big and in words (PP-201): hands-free's Mute ("Mic off" in red while off), tap to talk's "Tap to talk" (and
+ * "Listening" while the mic is open for your turn). Hold to talk has its own button.
+ */
+function MicButton({ call }) {
+    if (call.hold) {
+        return null;
+    }
+
+    const tap = call.turns === "tap";
+    const off = call.muted;
+    const look = tap ? (off ? "talk" : "open") : off ? "off" : "on";
+    const words = {
+        on: [t("Mute"), t("The mic is on")],
+        off: [t("Mic off"), call.mutedBy === "auto" ? t("Muted after a quiet spell · tap to unmute") : call.mutedBy === "proximity" ? t("Away from your ear · tap to unmute") : t("Tap to unmute")],
+        talk: [t("Tap to talk"), t("The mic is off until you tap")],
+        open: [t("Listening"), t("The mic closes when you stop · tap to mute")],
+    }[look];
+
+    return html`<button
+        type="button"
+        class=${`voice-mic ${look}`}
+        data-part="voice-mute"
+        data-mic=${off ? "off" : "on"}
+        aria-pressed=${off}
+        aria-label=${tap ? (off ? t("Tap to talk") : t("Mute")) : off ? t("Unmute") : t("Mute")}
+        onClick=${() => (tap ? toggleMic("tap") : setVoiceMuted(!off))}
+    >
+        <${Icon} name=${off && !tap ? "micoff" : "mic"} size=${22} />
+        <span class="voice-mic-words"><b>${words[0]}</b><small>${words[1]}</small></span>
+    </button>`;
+}
+
 /** The session's voice modes to pick from, with what the one chosen does. */
 function ModeChoice({ session, mode, onDone }) {
     return html`<div class="assistant-choice voice-modes" data-part="voice-modes">
@@ -262,8 +302,9 @@ function ModeChoice({ session, mode, onDone }) {
 
 /**
  * A call's controls (the voice view's foot, and the assistant sheet's during a call, PP-192): what you say and what the
- * voice says, the wave, Mute (or End while holding to talk), End (or Hold to talk), Type instead, the status with the
- * time, and Hands-free / Hold to talk. `onShow`: where a pending approval is seen (null: here).
+ * voice says, the wave, the big Mute (Tap to talk in tap to talk; none in hold to talk, whose button is the mic), End
+ * (small beside Hold to talk), Type instead, the status with the time, and Hands-free / Tap to talk / Hold to talk.
+ * `onShow`: where a pending approval is seen (null: here).
  */
 export function CallControls({ call, onType, onShow = null }) {
     const [, tick] = useState(0);
@@ -277,21 +318,30 @@ export function CallControls({ call, onType, onShow = null }) {
     const { view } = store.state;
     const speaking = call.status === "speaking";
     const busy = view.live.busy;
-    const quiet = call.muted || call.status === "connecting" || (call.hold && !call.pressing && !speaking);
+    const turns = call.turns ?? (call.hold ? "hold" : "hands-free");
+    const quiet = call.status === "connecting" || (call.muted && !speaking);
     const status =
         call.status === "connecting"
             ? t("Connecting…")
-            : call.muted
-              ? t("Muted")
-              : speaking
-                ? t("Speaking · talk to interrupt")
-                : call.hold
-                  ? call.pressing
-                      ? t("Listening · let go to send")
-                      : t("Hold to talk")
-                  : busy
-                    ? t("Pi working · you can keep talking")
-                    : t("Listening · speak any time");
+            : turns === "hold"
+              ? call.pressing
+                  ? t("Listening · let go to send")
+                  : speaking
+                    ? t("Speaking · hold to talk")
+                    : t("Hold to talk")
+              : call.muted
+                ? turns === "tap"
+                    ? speaking
+                        ? t("Speaking · tap to talk")
+                        : t("Mic off · tap to talk")
+                    : t("Muted · the voice hears nothing")
+                : speaking
+                  ? t("Speaking · talk to interrupt")
+                  : turns === "tap"
+                    ? t("Listening · the mic closes when you stop")
+                    : busy
+                      ? t("Pi working · you can keep talking")
+                      : t("Listening · speak any time");
     const words = speaking || (call.voice !== "" && call.you === "") ? call.voice : call.you;
     const who = speaking || (call.voice !== "" && call.you === "") ? `${t("Voice")} · ${call.model}` : t("You");
     const approvals = view.approvals?.length ?? 0;
@@ -310,22 +360,14 @@ export function CallControls({ call, onType, onShow = null }) {
                 ${words === "" ? html`<span class="assist-hint">${call.status === "connecting" ? t("Connecting…") : t("Listening…")}</span>` : words}
             </div>
             <${Wave} speaking=${speaking} quiet=${quiet} />
+            <${MicButton} call=${call} />
             <div class="assist-controls">
                 ${
                     call.hold
                         ? html`<button class="icon-button voice-end-small" aria-label=${t("End the call")} title=${t("End the call")} data-part="voice-end" onClick=${() => attempt(() => endVoice())}>
                               <${Icon} name="close" size=${20} />
                           </button>`
-                        : html`<button
-                              class=${`icon-button voice-ctl ${call.muted ? "on" : ""}`}
-                              aria-pressed=${call.muted}
-                              aria-label=${call.muted ? t("Unmute") : t("Mute")}
-                              title=${call.muted ? t("Unmute") : t("Mute")}
-                              data-part="voice-mute"
-                              onClick=${() => setVoiceMuted(!call.muted)}
-                          >
-                              <${Icon} name=${call.muted ? "micoff" : "mic"} size=${20} />
-                          </button>`
+                        : html`<span></span>`
                 }
                 ${
                     call.hold
@@ -359,8 +401,9 @@ export function CallControls({ call, onType, onShow = null }) {
             <div class="assist-sub" data-part="voice-status">${status} · ${clock(Date.now() - call.startedAt)}</div>
             <div class="assistant-choice voice-turns">
                 <div class="segmented" role="group" aria-label=${t("Turn-taking")}>
-                    <button class=${call.hold ? "" : "on"} aria-pressed=${!call.hold} onClick=${() => setVoiceHold(false)}>${t("Hands-free")}</button>
-                    <button class=${call.hold ? "on" : ""} aria-pressed=${call.hold} onClick=${() => setVoiceHold(true)}>${t("Hold to talk")}</button>
+                    ${VOICE_TURNS().map(
+                        ([value, label]) => html`<button class=${turns === value ? "on" : ""} aria-pressed=${turns === value} onClick=${() => turns !== value && setVoiceTurns(value)}>${label}</button>`,
+                    )}
                 </div>
             </div>`;
 }

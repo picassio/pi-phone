@@ -237,6 +237,69 @@ test("a call by key: the page gets a short-lived key with the whole configuratio
     assert.equal(spend.voice?.month.call, 90);
 });
 
+test("the mic in a call (PP-201): tap to talk, the quiet, the mute key and proximity are settings, checked; tap to talk keeps turn detection", async () => {
+    assert.equal(DEFAULT_VOICE.turns, "hands-free");
+    assert.equal(DEFAULT_VOICE.autoMuteSeconds, 0, "no surprise: hands-free as it was");
+    assert.equal(DEFAULT_VOICE.muteKey, "headset");
+    assert.equal(DEFAULT_VOICE.proximityMute, false);
+    assert.equal(withVoice(DEFAULT_VOICE, { turns: "tap" }).turns, "tap");
+    assert.deepEqual(withVoice(DEFAULT_VOICE, { autoMuteSeconds: 10, muteKey: "both", proximityMute: true }), { ...DEFAULT_VOICE, autoMuteSeconds: 10, muteKey: "both", proximityMute: true });
+    assert.throws(() => withVoice(DEFAULT_VOICE, { turns: "push" }), /hands-free, tap, or hold/);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { autoMuteSeconds: -1 }), /0 \(never\) to 600/);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { autoMuteSeconds: 2.5 }), /0 \(never\) to 600/);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { muteKey: "power" }), /off, headset, volume, or both/);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { proximityMute: "yes" }), /true or false/);
+    assert.deepEqual(readVoice({ turns: "tap", autoMuteSeconds: 9999, muteKey: "x", proximityMute: true }), { ...DEFAULT_VOICE, turns: "tap", proximityMute: true });
+    assert.deepEqual(storedVoice({ ...DEFAULT_VOICE, muteKey: "volume" }), { muteKey: "volume" });
+
+    const plan = { mode: "work" as const, instructions: "", tools: [] };
+
+    assert.deepEqual((callSession({ ...DEFAULT_VOICE, turns: "tap" }, plan) as { audio: { input: { turn_detection: unknown } } }).audio.input.turn_detection, {
+        type: "semantic_vad",
+        eagerness: "auto",
+        interrupt_response: true,
+        create_response: true,
+    });
+
+    // Pi's settings tools: the same values, checked.
+    const settings = appSettings(app).settings;
+    const set = (id: string, value: string) => settings.find((each) => each.id === id)!.apply(owner(app), value, undefined);
+
+    assert.deepEqual(settings.find((each) => each.id === "voice.turns")!.choices?.(), ["hands-free", "tap", "hold"]);
+    await set("voice.autoMuteSeconds", "10 s");
+    await set("voice.muteKey", "Volume");
+    await set("voice.proximityMute", "on");
+    assert.deepEqual([app.config.voice.autoMuteSeconds, app.config.voice.muteKey, app.config.voice.proximityMute], [10, "volume", true]);
+    await assert.rejects(async () => set("voice.muteKey", "power"), /off, headset, volume, or both/);
+    await assert.rejects(async () => set("voice.autoMuteSeconds", "forever"), /0 \(never\) to 600/);
+    assert.equal((await call("settings", { voice: { muteKey: "loud" } })).status, 400);
+    await app.setVoice(owner(app), { autoMuteSeconds: 0, muteKey: "headset", proximityMute: false });
+});
+
+test("the server knows a call's mic (PP-201): the page says each time it turns off or on, by whom, and the call's turn-taking", async () => {
+    await app.setVoice(owner(app), { turns: "hold" });
+
+    const id = await newSession(app);
+    const start = (await call(`c/${id}/voice/call`, {})).json as { call: string };
+    const kept = () => app.voice.calls().find((each) => each.id === start.call)!;
+
+    assert.deepEqual([kept().turns, kept().muted], ["hold", true], "hold to talk begins silent");
+    await app.setVoice(owner(app), { turns: "hands-free" });
+
+    const said = await call(`voice/calls/${start.call}/mic`, { muted: false, by: "tap", turns: "tap" });
+
+    assert.equal(said.status, 200, said.text);
+    assert.deepEqual(said.json, { muted: false, by: "tap", turns: "tap" });
+    assert.deepEqual([kept().turns, kept().muted, kept().micBy], ["tap", false, "tap"]);
+    assert.equal((await call(`voice/calls/${start.call}/mic`, { muted: true, by: "proximity" })).status, 200);
+    assert.deepEqual([kept().turns, kept().muted, kept().micBy], ["tap", true, "proximity"], "the turns stay as they were");
+    assert.equal((await call(`voice/calls/${start.call}/mic`, { muted: "yes", by: "you" })).status, 400);
+    assert.equal((await call(`voice/calls/${start.call}/mic`, { muted: true, by: "someone" })).status, 400);
+    assert.equal((await call(`voice/calls/${start.call}/mic`, { muted: true, by: "you", turns: "push" })).status, 400);
+    assert.equal((await call(`voice/calls/nope/mic`, { muted: true, by: "you" })).status, 404);
+    app.voice.end(start.call);
+});
+
 test("a call through pi-phone: the server posts the page's offer with the sign-in and gives back only the answer", async () => {
     await app.setVoice(owner(app), { model: "gpt-realtime-1.5" });
 

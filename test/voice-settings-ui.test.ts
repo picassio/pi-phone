@@ -140,6 +140,22 @@ test("Settings › Voice: the checked live models with their way, choices that c
     await shot("voice-hearing-390");
     await app.setVoice(owner(app), { noise: "near_field", eagerness: "auto" });
 
+    // The mic in a call (PP-201): tap to talk for new sessions, the quiet, the mute key, proximity.
+    await press("[data-part=voice-turns-default]", "Tap to talk");
+    await until(() => app.config.voice.turns === "tap", "tap to talk");
+    // Typed, then left (the field keeps what is typed until it changes, as a person's typing does).
+    await inPage(`(() => { const box = document.querySelector("[data-part=voice-auto-mute]"); box.value = "10"; box.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await inPage(`document.querySelector("[data-part=voice-auto-mute]").dispatchEvent(new Event("change", { bubbles: true }))`);
+    await until(() => app.config.voice.autoMuteSeconds === 10, "mute after 10 quiet seconds");
+    await press("[data-part=voice-mute-key]", "Volume keys");
+    await until(() => app.config.voice.muteKey === "volume", "the volume keys");
+    await inPage(`document.querySelector("[data-part=voice-proximity] [role=switch]").click()`);
+    await until(() => app.config.voice.proximityMute, "mute unless at the ear");
+    await inPage(`document.querySelector("[data-part=voice-mute-key]").scrollIntoView({ block: "center" })`);
+    await shot("voice-mic-settings-390");
+    await app.setVoice(owner(app), { autoMuteSeconds: 0, muteKey: "headset", proximityMute: false });
+
     // Who reads Pi's answers in Pi thinks (PP-193): the device's own voice, which this browser has.
     await press("[data-part=voice-reader]", "This device's voice");
     await until(() => app.config.voice.reader === "device", "the device's voice");

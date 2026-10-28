@@ -180,7 +180,7 @@ class CallBridge {
         const auth = await this.#host.service.auth();
         const plan = await this.#host.plan(this.call.session);
         const settings = this.#host.settings();
-        const { model: _model, ...session } = callSession({ ...settings, model: this.call.model }, plan);
+        const { model: _model, ...session } = callSession({ ...settings, model: this.call.model, turns: this.call.turns }, plan);
 
         if (this.#closed) {
             // Ended (the app closing) while it joined: no connection to leave open.
@@ -565,7 +565,8 @@ class CallBridge {
         }
 
         const plan = await this.#host.plan(this.call.session);
-        const { model: _model, ...session } = callSession({ ...this.#host.settings(), model: this.call.model }, plan);
+        // The call's own turn-taking (the page may have changed it: tap or hold to talk), not Settings › Voice's.
+        const { model: _model, ...session } = callSession({ ...this.#host.settings(), model: this.call.model, turns: this.call.turns }, plan);
 
         this.#link?.send({ type: "session.update", session: { ...session, tools: plan.tools } });
     }

@@ -782,9 +782,38 @@ so Pi changes them through the settings tools; "the last session" is the one the
     and nothing is kept. Kept in `config.json` (`voice`, only what differs from the defaults; `voiceCheck`).
   - **Settings** (`voice.*` in the settings tools, owner only): live and dictation model, engine (android or codex),
     voice, language (auto or a code), mode for new sessions (work, chat, think), turns (hands-free: semantic VAD that
-    stops the voice when you talk; hold), progress (text or answer), cueSeconds (20), reader (live or device),
-    dailyLimit (minutes or none), noise (near_field, far_field, off) and eagerness (auto, low, medium, high). A session's
+    stops the voice when you talk; tap; hold), progress (text or answer), cueSeconds (20), reader (live or device),
+    dailyLimit (minutes or none), noise (near_field, far_field, off), eagerness (auto, low, medium, high),
+    autoMuteSeconds (0 to 600, 0), muteKey (off, headset, volume, both; headset) and proximityMute (false). A session's
     own mode in `SessionMeta.voiceMode` (`sessions.voiceMode`).
+  - **The mic in a call** (PP-201: people near the owner were heard after he finished). Every change of the mic goes
+    through one place (`setMic` in `web/voice-call.js`): the track off (nothing is sent) or on, the view, the
+    notification (`update`: Muted / Unmute), and the server (`POST /api/voice/calls/:call/mic {muted, by, turns}`, in
+    order; `VoiceCall.muted`, `micBy`, `turns`; a call begins with Settings › Voice's turns, muted for hold). The
+    bridge's `session.update` on a mode change uses the call's turns, not Settings › Voice's. `by` says who: you, tap,
+    auto, proximity, key, notification, hold.
+    - **Tap to talk** (`turns: tap`): turn detection stays semantic VAD (it is what ends the turn); the mic opens with
+      a tap and closes at `input_audio_buffer.speech_stopped` or `committed`, so what is said after the owner's turn is
+      never sent. A call starts open for its first turn (starting it was the tap); switching to tap in a call starts
+      closed. With Codex's `gpt-live` the turn ends only if its channel sends those events (untested).
+    - **The quiet** (`autoMuteSeconds`, hands-free only): counted from the voice's end (`response.done`, again at
+      `output_audio_buffer.stopped`; the device reader's last reading) and from the mic turning on; talking
+      (`speech_started`) or the voice starting again stops it; still speaking when it ends counts again. Off (0) by
+      default: hands-free stays as it was, and the owner turns it on where he wants it.
+    - **Keys** (`muteKey`): "mic" from the app toggles the mic (tap: a tap; hold: the first press opens as holding
+      does, the next commits and asks for the answer). A headset's button: `VoiceCallService` holds a `MediaSession`
+      only during the call (playing state, so Android routes media buttons to it), HEADSETHOOK / PLAY_PAUSE / PLAY /
+      PAUSE. The volume keys: only while the app's window (`dispatchKeyEvent`) or the side-key sheet
+      (`onKeyDown`/`onKeyUp`) is in front, and then they do not change the volume; not a `VolumeProvider` (that would
+      take the volume keys away everywhere). The notification's Mute toggles the same way.
+    - **Proximity** (`proximityMute`, off by default: a speakerphone call is never at the ear). The rule: at the ear =
+      the proximity sensor near (below its own range, at most 5 cm) and the phone not face down (accelerometer z above
+      -7 m/s²). Away for 0.5 s is "away": the mic mutes (`by: proximity`); at the ear for 0.3 s is "ear": it turns on
+      again only if the sensor muted it, never a mic the owner, tap to talk or the quiet muted. Hold to talk ignores it.
+      A phone without the sensor says so once (a notice naming the setting); the call goes on.
+    - **The view**: a wide mic button in words above End (Mute / "Mic off · Tap to unmute" on `--err-soft`; in tap to
+      talk "Tap to talk" in the accent / "Listening"), in the voice view, the side panel and the assistant sheet (one
+      `CallControls`); the status says why it is off (the quiet, the ear); Hands-free / Tap to talk / Hold to talk.
   - **Hearing in noise** (PP-195): calls and Codex dictation carry `audio.input.noise_reduction` (`{type: near_field |
     far_field}`, or null for off; `noiseReduction`), and hands-free's semantic VAD the setting's `eagerness`
     (`turnDetection`; low waits longer for the turn's end, which helps in noise). The page's own `session.update`
@@ -848,7 +877,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `onPermissionRequest` grants `RESOURCE_AUDIO_CAPTURE` only to the app's own origin (`http://127.0.0.1:8787`), only
     for audio (anything else asked is denied whole), and only once Android allows pi `RECORD_AUDIO` (asked then, the
     first time; the request waits for the answer). The page tells the window of its call through `PiPhoneApp.voiceCall`
-    (`{state: start | update | end, session, title, muted, handOver}`, `web/voice-call.js`): a foreground service
+    (`{state: start | update | end, session, title, muted, muteKey, proximity, handOver}`, `web/voice-call.js`): a foreground service
     (`foregroundServiceType="microphone"` and `FOREGROUND_SERVICE_MICROPHONE` declared for a later targetSdk; at 28 a
     plain foreground service keeps the mic) shows the call's notification (`Notification.CallStyle.forOngoingCall` from
     Android 12, with Mute; before, an ongoing notification with Mute and End; a chronometer; a tap shows the call), and

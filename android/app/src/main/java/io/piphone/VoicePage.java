@@ -31,8 +31,9 @@ final class VoicePage {
     }
 
     /**
-     * The page's call changed: `{"state": "start" | "update" | "end", "session", "title", "muted", "handOver"}`. Returns
-     * the state. A call handed over to the app's window (`handOver`) keeps its notification: the window's call takes it.
+     * The page's call changed: `{"state": "start" | "update" | "end", "session", "title", "muted", "muteKey", "proximity",
+     * "handOver"}`. Returns the state. A call handed over to the app's window (`handOver`) keeps its notification: the
+     * window's call takes it. `muteKey` (off, headset, volume, both) and `proximity` are Settings › Voice's (PP-201).
      */
     static String tell(Context context, String json) throws JSONException {
         JSONObject call = new JSONObject(json);
@@ -43,11 +44,15 @@ final class VoicePage {
         }
         if (!"start".equals(state) && !"update".equals(state)) throw new JSONException("no call state " + state);
         VoiceCallService.tell(context, "start".equals(state) ? VoiceCallService.ACTION_START : VoiceCallService.ACTION_UPDATE,
-                call.optString("title", ""), call.optInt("session", -1), call.optBoolean("muted", false));
+                call.optString("title", ""), call.optInt("session", -1), call.optBoolean("muted", false),
+                call.optString("muteKey", "off"), call.optBoolean("proximity", false));
         return state;
     }
 
-    /** The script that gives the page a notification button's word: "mute" or "end". */
+    /**
+     * The script that gives the page a word for its call: a notification button's ("mute", "end"), a key's ("mic"), or
+     * the proximity sensor's ("ear", "away", "no-proximity").
+     */
     static String action(String action) {
         return "globalThis.__piVoiceAction && globalThis.__piVoiceAction(" + JSONObject.quote(action) + ")";
     }

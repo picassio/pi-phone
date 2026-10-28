@@ -222,18 +222,38 @@ test("on a phone: the voice button starts a call by key, full screen; words, mut
     await shot("voice-speaking-390");
     await channel({ type: "response.done" });
 
-    // Mute: the call stays, the mic sends nothing.
+    // Mute (PP-201): a wide button in words; the call stays, the mic sends nothing, the server knows.
+    assert.match(await text("[data-part=voice-mute]"), /Mute/);
     await click("[data-part=voice-mute]");
     assert.equal(await inPage<boolean>("window.__voice.track.enabled"), false);
     await until(async () => (await text("[data-part=voice-status]")).includes("Muted"), "muted");
+    assert.match(await text("[data-part=voice-mute]"), /Mic off/);
+    assert.equal(await inPage<string>(`document.querySelector("[data-part=voice-mute]").dataset.mic`), "off");
+    assert.ok(await inPage<number>(`document.querySelector("[data-part=voice-mute]").getBoundingClientRect().width`) > 300, "as wide as the view");
+    await until(() => app.voice.calls()[0]?.muted === true && app.voice.calls()[0]?.micBy === "you", "the server knows");
     await shot("voice-muted-390");
     await click("[data-part=voice-mute]");
     assert.equal(await inPage<boolean>("window.__voice.track.enabled"), true);
+    await until(() => app.voice.calls()[0]?.muted === false, "the server knows it is on");
+
+    // Tap to talk (PP-201): closed until a tap; the turn's end closes it again.
+    await inPage(`[...document.querySelectorAll(".voice-turns button")].find((each) => each.innerText.includes("Tap to talk")).click()`);
+    await until(async () => (await text("[data-part=voice-mute]")).includes("Tap to talk"), "tap to talk");
+    assert.equal(await inPage<boolean>("window.__voice.track.enabled"), false);
+    await until(() => app.voice.calls()[0]?.turns === "tap", "the server knows the turns");
+    await shot("voice-tap-390");
+    await click("[data-part=voice-mute]");
+    assert.equal(await inPage<boolean>("window.__voice.track.enabled"), true);
+    await until(async () => (await text("[data-part=voice-mute]")).includes("Listening"), "listening for the turn");
+    await channel({ type: "input_audio_buffer.speech_started" });
+    await channel({ type: "input_audio_buffer.speech_stopped" });
+    assert.equal(await inPage<boolean>("window.__voice.track.enabled"), false, "closed after the turn");
+    await until(async () => (await text("[data-part=voice-status]")).includes("tap to talk"), "waiting for the tap");
 
     // Hold to talk: no turn detection; pressing clears, letting go commits and asks for an answer.
     await inPage(`[...document.querySelectorAll(".voice-turns button")].find((each) => each.innerText.includes("Hold to talk")).click()`);
     await until(async () => exists("[data-part=voice-hold]"), "the hold button");
-    assert.deepEqual(await inPage<unknown>(`window.__voice.sent.find((each) => each.type === "session.update")?.session.audio.input.turn_detection`), null);
+    assert.deepEqual(await inPage<unknown>(`window.__voice.sent.findLast((each) => each.type === "session.update")?.session.audio.input.turn_detection`), null);
     assert.equal(await inPage<boolean>("window.__voice.track.enabled"), false, "silent until held");
     await shot("voice-hold-390");
     await inPage(`document.querySelector("[data-part=voice-hold]").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))`);

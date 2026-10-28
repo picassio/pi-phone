@@ -13,6 +13,7 @@ import android.content.ContentValues;
 import android.os.Build;
 import android.os.PowerManager;
 import android.view.InputDevice;
+import android.view.KeyEvent;
 import android.provider.MediaStore;
 import android.webkit.CookieManager;
 import java.io.OutputStream;
@@ -883,6 +884,13 @@ public final class MainActivity extends Activity {
         }
         pendingFiles.onReceiveValue(picked);
         pendingFiles = null;
+    }
+
+    /** The volume keys turn a call's mic off and on while this window is in front, when Settings › Voice says so (PP-201). */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (VoiceCallService.volumeKey(event.getKeyCode(), event)) return true;
+        return super.dispatchKeyEvent(event);
     }
 
     @Override

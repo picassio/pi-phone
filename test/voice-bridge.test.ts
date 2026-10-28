@@ -221,6 +221,21 @@ test("the session's voice mode changed during a call: the call's instructions, t
     app.voice.end(live.start.call);
 });
 
+test("the mode changed in a call whose turn-taking the page changed (PP-201): the update keeps the call's own, not Settings › Voice's", async () => {
+    const id = await newSession(app);
+    const live = await call(id);
+
+    app.voice.mic(owner(app).id, live.start.call, { muted: true, by: "hold", turns: "hold" });
+    await app.setSessionVoiceMode(id, owner(app), "chat");
+    await until(() => live.sent("session.update").length === 2, "a second session.update");
+
+    const update = live.sent("session.update")[1]!.session as { audio: { input: { turn_detection: unknown; noise_reduction: unknown } } };
+
+    assert.equal(update.audio.input.turn_detection, null, "still hold to talk");
+    assert.deepEqual(update.audio.input.noise_reduction, { type: "near_field" });
+    app.voice.end(live.start.call);
+});
+
 test("Codex's own voice: the page passes the data channel; a delegation reaches Pi and Pi's words go to its context", async () => {
     await app.setVoice(owner(app), { model: "gpt-live-1.1-codex" });
 

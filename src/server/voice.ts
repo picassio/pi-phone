@@ -20,7 +20,19 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { HttpError } from "./errors.ts";
 
 export type VoiceMode = "work" | "chat" | "think";
-export type VoiceTurns = "hands-free" | "hold";
+/**
+ * How the owner takes turns (PP-201): hands-free (the mic stays open; the voice answers when you pause), tap (a tap opens
+ * the mic for one turn, and it closes itself when the model hears your speech end), or hold (the mic is open while held).
+ */
+export type VoiceTurns = "hands-free" | "tap" | "hold";
+/** What turns the mic on and off besides the screen (PP-201): a headset's button, the volume keys, both, or neither. */
+export type VoiceMuteKey = "off" | "headset" | "volume" | "both";
+/**
+ * Who turned the mic off or on last (PP-201): you (the Mute button), tap (tap to talk's turn ended or began), auto (the
+ * hands-free quiet), proximity (the phone left the ear or came back), key (a headset or volume key), notification (its
+ * Mute), hold (hold to talk let go or pressed).
+ */
+export type MicCause = "you" | "tap" | "auto" | "proximity" | "key" | "notification" | "hold";
 export type VoiceProgress = "text" | "answer";
 /**
  * Who reads Pi's answers in "Pi thinks" (PP-193): the live model, or the device's own voice (Android's text-to-speech
@@ -64,6 +76,12 @@ export interface VoiceSettings {
     readonly noise: VoiceNoise;
     /** Hands-free: how readily your turn counts as ended. */
     readonly eagerness: VoiceEagerness;
+    /** Hands-free: once the voice has answered, the mic mutes itself after this many quiet seconds; 0: never. */
+    readonly autoMuteSeconds: number;
+    /** In a call, a headset's button or the volume keys turn the mic off and on. */
+    readonly muteKey: VoiceMuteKey;
+    /** In a call on the phone, the mic is off unless the phone is at your ear (the proximity sensor near, not face down). */
+    readonly proximityMute: boolean;
 }
 
 export const DEFAULT_VOICE: VoiceSettings = {
@@ -80,6 +98,11 @@ export const DEFAULT_VOICE: VoiceSettings = {
     dailyLimit: null,
     noise: "near_field",
     eagerness: "auto",
+    // Off: hands-free stays as it was, a mic open until you mute it; who wants it muted after a quiet spell turns it on.
+    autoMuteSeconds: 0,
+    muteKey: "headset",
+    // Off: it would mute a speakerphone call, where the phone is never at the ear.
+    proximityMute: false,
 };
 
 /** The models the check asks about. Others may be set by id; setting one checks it the same way. */
@@ -90,7 +113,10 @@ export const DICTATION_MODELS = ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", 
 export const VOICES = ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"] as const;
 
 const MODES: readonly VoiceMode[] = ["work", "chat", "think"];
-const TURNS: readonly VoiceTurns[] = ["hands-free", "hold"];
+const TURNS: readonly VoiceTurns[] = ["hands-free", "tap", "hold"];
+const MUTE_KEYS: readonly VoiceMuteKey[] = ["off", "headset", "volume", "both"];
+const MIC_CAUSES: readonly MicCause[] = ["you", "tap", "auto", "proximity", "key", "notification", "hold"];
+export const isVoiceTurns = (value: unknown): value is VoiceTurns => TURNS.includes(value as VoiceTurns);
 const PROGRESS: readonly VoiceProgress[] = ["text", "answer"];
 const READERS: readonly VoiceReader[] = ["live", "device"];
 /** The reader as first named (PP-190): the device's voice. */
@@ -98,7 +124,25 @@ const reader = (value: unknown): unknown => (value === "android" ? "device" : va
 const ENGINES: readonly DictationEngine[] = ["android", "codex"];
 const NOISES: readonly VoiceNoise[] = ["near_field", "far_field", "off"];
 const EAGERNESS: readonly VoiceEagerness[] = ["auto", "low", "medium", "high"];
-const KEYS = ["model", "dictationModel", "engine", "voice", "language", "mode", "turns", "progress", "cueSeconds", "reader", "dailyLimit", "noise", "eagerness"] as const;
+const KEYS = [
+    "model",
+    "dictationModel",
+    "engine",
+    "voice",
+    "language",
+    "mode",
+    "turns",
+    "progress",
+    "cueSeconds",
+    "reader",
+    "dailyLimit",
+    "noise",
+    "eagerness",
+    "autoMuteSeconds",
+    "muteKey",
+    "proximityMute",
+] as const;
+const quietSeconds = (value: unknown): boolean => Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 600;
 const MODEL_ID = /^[a-z0-9][a-z0-9.\-]{1,63}$/;
 const LANGUAGE = /^(auto|[a-z]{2,3})$/;
 
@@ -131,6 +175,9 @@ export function readVoice(stored: unknown): VoiceSettings {
         dailyLimit: pick(stored.dailyLimit, (value) => value === null || (Number.isInteger(value) && (value as number) > 0), DEFAULT_VOICE.dailyLimit),
         noise: pick(stored.noise, (value) => NOISES.includes(value as VoiceNoise), DEFAULT_VOICE.noise),
         eagerness: pick(stored.eagerness, (value) => EAGERNESS.includes(value as VoiceEagerness), DEFAULT_VOICE.eagerness),
+        autoMuteSeconds: pick(stored.autoMuteSeconds, quietSeconds, DEFAULT_VOICE.autoMuteSeconds),
+        muteKey: pick(stored.muteKey, (value) => MUTE_KEYS.includes(value as VoiceMuteKey), DEFAULT_VOICE.muteKey),
+        proximityMute: pick(stored.proximityMute, (value) => typeof value === "boolean", DEFAULT_VOICE.proximityMute),
     };
 }
 
@@ -201,7 +248,7 @@ export function withVoice(current: VoiceSettings, patch: unknown): VoiceSettings
 
     if (patch.turns !== undefined) {
         if (!TURNS.includes(patch.turns as VoiceTurns)) {
-            throw new HttpError(400, "voice.turns is hands-free or hold.");
+            throw new HttpError(400, "voice.turns is hands-free, tap, or hold.");
         }
 
         next.turns = patch.turns as VoiceTurns;
@@ -245,6 +292,30 @@ export function withVoice(current: VoiceSettings, patch: unknown): VoiceSettings
         }
 
         next.eagerness = patch.eagerness as VoiceEagerness;
+    }
+
+    if (patch.autoMuteSeconds !== undefined) {
+        if (!quietSeconds(patch.autoMuteSeconds)) {
+            throw new HttpError(400, "voice.autoMuteSeconds is a whole number of seconds from 0 (never) to 600.");
+        }
+
+        next.autoMuteSeconds = patch.autoMuteSeconds as number;
+    }
+
+    if (patch.muteKey !== undefined) {
+        if (!MUTE_KEYS.includes(patch.muteKey as VoiceMuteKey)) {
+            throw new HttpError(400, "voice.muteKey is off, headset, volume, or both.");
+        }
+
+        next.muteKey = patch.muteKey as VoiceMuteKey;
+    }
+
+    if (patch.proximityMute !== undefined) {
+        if (typeof patch.proximityMute !== "boolean") {
+            throw new HttpError(400, "voice.proximityMute is true or false.");
+        }
+
+        next.proximityMute = patch.proximityMute;
     }
 
     if (patch.dailyLimit !== undefined) {
@@ -380,6 +451,12 @@ export interface VoiceCall {
     readonly path: VoicePath;
     /** Who thinks: the session's mode as the call began, changed with it during the call (`VoiceBridge.modeChanged`). */
     mode: VoiceMode;
+    /** How the owner takes turns in this call: Settings › Voice's as it began, then as the page says (`mic`). */
+    turns: VoiceTurns;
+    /** The mic sends nothing (its track is off, PP-201): as the page says; hold to talk begins so. */
+    muted: boolean;
+    /** Who turned the mic off or on last; undefined until the page says. */
+    micBy?: MicCause;
     readonly startedAt: number;
     /** OpenAI's id for the call (`rtc_…`), once the SDP went through. */
     rtc?: string;
@@ -689,7 +766,17 @@ export class VoiceService {
         const settings = this.#options.settings();
         const auth = await this.auth();
         const path = await this.#pathOf(auth, settings.model);
-        const call: VoiceCall = { id: randomUUID(), session, userId, model: settings.model, path, mode: plan.mode, startedAt: this.#now() };
+        const call: VoiceCall = {
+            id: randomUUID(),
+            session,
+            userId,
+            model: settings.model,
+            path,
+            mode: plan.mode,
+            turns: settings.turns,
+            muted: settings.turns === "hold",
+            startedAt: this.#now(),
+        };
 
         if (path === "key") {
             const minted = await this.mint(auth, callSession(settings, plan));
@@ -780,6 +867,36 @@ export class VoiceService {
         return call;
     }
 
+    /**
+     * The page's word on a call's mic (PP-201): `{ muted, by, turns? }`, every time it turns the mic's track off or on
+     * (the Mute button, tap to talk, the quiet, the phone's sensor or keys, the notification, hold to talk), and when the
+     * call's turn-taking changes. The server keeps it: the bridge follows the call's turns when it updates the call.
+     */
+    mic(userId: string, id: string, body: unknown): VoiceCall {
+        const call = this.call(userId, id);
+
+        if (!isRecord(body) || typeof body.muted !== "boolean") {
+            throw new HttpError(400, "muted is true or false.");
+        }
+
+        if (!MIC_CAUSES.includes(body.by as MicCause)) {
+            throw new HttpError(400, `by is ${MIC_CAUSES.join(", ")}.`);
+        }
+
+        if (body.turns !== undefined && !isVoiceTurns(body.turns)) {
+            throw new HttpError(400, "turns is hands-free, tap, or hold.");
+        }
+
+        call.muted = body.muted;
+        call.micBy = body.by as MicCause;
+
+        if (body.turns !== undefined) {
+            call.turns = body.turns;
+        }
+
+        return call;
+    }
+
     /** End a call: its minutes are counted. Ending one that ended is nothing. */
     end(id: string): void {
         const call = this.#calls.get(id);
@@ -858,8 +975,9 @@ export function noiseReduction(noise: VoiceNoise): { type: "near_field" | "far_f
 }
 
 /**
- * When a call answers: hands-free, semantic VAD at the setting's eagerness, stopping the voice when you talk (and in
- * "Pi thinks" never answering by itself); hold to talk, none (the page commits what you said).
+ * When a call answers: hands-free and tap to talk, semantic VAD at the setting's eagerness, stopping the voice when you
+ * talk (and in "Pi thinks" never answering by itself; tap to talk's mic closes when it hears your speech end); hold to
+ * talk, none (the page commits what you said).
  */
 export function turnDetection(settings: Pick<VoiceSettings, "turns" | "eagerness">, mode: VoiceMode): Record<string, unknown> | null {
     return settings.turns === "hold"
