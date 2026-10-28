@@ -959,7 +959,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     its own memory), as `ssh <pi-env's sshArguments> sh -c '<script>'` with the machine's key: JSON-RPC lines over its
     stdin and stdout (`ocu-client.ts`, calls one at a time). The script checks the ocu wrapper
     (`~/.pi/mobile/tools/bin/ocu`), runs the machine's **desktop setup line** (Menu › Computer control, or Pi's
-    `computer_control setup`; kept in `computer-control.json`: the owner never edits a file) and execs `ocu mcp`. ocu
+    `computer_control setup`, whose new line waits for the owner's card, PP-230; kept in `computer-control.json`: the
+    owner never edits a file) and execs `ocu mcp`. ocu
     finds the desktop's display and buses itself; a virtual desktop's environment script goes in the setup line.
     Linux only for now: Windows' sshd runs in session 0, where UI Automation sees no window, so it waits for PP-179 (a
     task in the desktop session); the tools say so.

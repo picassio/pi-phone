@@ -3929,7 +3929,8 @@ export class PocketApp {
         }
 
         // Pi's computer_control card (PP-178): the same, for a computer.
-        if (allow && request.form?.type === "computer" && user.role !== "owner") {
+        // computer_control setup's card (PP-230): a shell line kept and run on the machine, the owner's too.
+        if (allow && (request.form?.type === "computer" || request.tool === "computer_control") && user.role !== "owner") {
             throw new HttpError(403, "Controlling a computer is the owner's.");
         }
 

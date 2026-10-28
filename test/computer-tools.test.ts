@@ -32,6 +32,8 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "picture it": ["computer_screenshot", {}],
     "how is it": ["computer_control", { action: "status", machine: "tuanlh-sandbox-01" }],
     "stop it": ["computer_control", { action: "stop" }],
+    "set it up": ["computer_control", { action: "setup", machine: "tuanlh-sandbox-01", prepare: ". ~/desktop-env.sh", reason: "Its desktop needs its environment" }],
+    "clear the setup": ["computer_control", { action: "setup", machine: "tuanlh-sandbox-01", prepare: "" }],
 };
 /** Every request the model was sent, whole. */
 const requests: string[] = [];
@@ -166,6 +168,35 @@ test("computer_control start: only apps the machine has, never a password manage
     assert.match(shot.said, /Pi OCU Demo on tuanlh-sandbox-01 \(420x220 px/);
     assert.match((await turn(id, "stop it")).said, /Computer control on tuanlh-sandbox-01 is stopped/);
     assert.equal(app.computerControl.view().length, 0);
+});
+
+test("computer_control setup asks the owner on a card with the machine and the whole line; only the owner approves; Deny keeps the line as it was (PP-230)", async () => {
+    const id = await newSession(app);
+    const guest = app.config.addUser("Lan", "guest").user;
+    const denied = await turn(id, "set it up", false);
+
+    assert.equal(denied.card?.tool, "computer_control");
+    assert.equal(denied.card?.subject, "On tuanlh-sandbox-01, run this before ocu starts, each time: . ~/desktop-env.sh");
+    assert.equal(denied.card?.reason, "Its desktop needs its environment");
+    assert.match(denied.said, /said no: tuanlh-sandbox-01's desktop setup stays none/);
+    assert.equal(app.computerControl.prepareOf("m1"), "");
+
+    // A guest cannot approve it; the owner does, and the line is kept.
+    const { submissionId } = await app.commands.submit(id as never, owner(app), { text: "set it up", requestId: crypto.randomUUID() });
+
+    await until(() => app.approvals.forConversation(id as never).length > 0, "the card", 20_000);
+    const card = app.approvals.forConversation(id as never)[0]!;
+
+    await assert.rejects(app.answerApproval(card.id, true, guest), /Controlling a computer is the owner's/);
+    assert.equal(app.computerControl.prepareOf("m1"), "");
+    await app.answerApproval(card.id, true, owner(app));
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    assert.equal(app.computerControl.prepareOf("m1"), ". ~/desktop-env.sh");
+    assert.match((await modelTexts(app, id as never)).at(-1)!, /desktop setup is \\". ~\/desktop-env\.sh\\"/);
+
+    // Clearing it runs nothing: no card.
+    assert.match((await turn(id, "clear the setup")).said, /desktop setup is none/);
+    assert.equal(app.computerControl.prepareOf("m1"), "");
 });
 
 test("Deny starts nothing", async () => {

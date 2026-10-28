@@ -97,7 +97,7 @@ export default function createComputer(host: PocketHost) {
             "Start, stop, or check a computer control session: Pi reads and operates desktop apps on one of the owner's machines (Linux for now) through Computer use (ocu, a machine tool). " +
             "start shows the owner one card with the machine, the apps (their window titles or names, as status lists them) and the minutes you need (5 to 60; for more, ask again); on Approve, a window on the machine says Pi is using it, with Stop. " +
             "Only those apps may be read or touched; another needs a new card, unless you ask with follow: true, which lets an app the named ones open while you act in them join (one step). pi-phone itself, banking and payment apps, password managers and the owner's Never list are refused either way. " +
-            "status: each machine's state and its apps (with machine). setup: the shell line run on a machine before ocu starts, for its desktop (e.g. a virtual desktop's environment script), as the owner may set it in Menu › Computer control. " +
+            "status: each machine's state and its apps (with machine). setup: the shell line run on a machine before ocu starts, for its desktop (e.g. a virtual desktop's environment script), as the owner may set it in Menu › Computer control; a new line waits for the owner to approve it on a card. " +
             "It ends at its time, on Stop (on the machine, in the panel or the menu), with stop, or shortly after your turn ends. Owner only.",
         parameters: Type.Object({
             action: Type.Union([Type.Literal("start"), Type.Literal("stop"), Type.Literal("status"), Type.Literal("setup")]),
@@ -105,7 +105,7 @@ export default function createComputer(host: PocketHost) {
             apps: Type.Optional(Type.Array(Type.String(), { description: "start: the apps, by window title or name as status lists them" })),
             minutes: Type.Optional(Type.Integer({ minimum: MINUTES.min, maximum: MINUTES.max, description: `start: how long you need, ${MINUTES.min} to ${MINUTES.max}` })),
             follow: Type.Optional(Type.Boolean({ description: "start: also the apps the named ones open while you act in them (default false)" })),
-            reason: Type.Optional(Type.String({ description: "start: what you will do, in a sentence: shown on the card" })),
+            reason: Type.Optional(Type.String({ description: "start and setup: what you will do, in a sentence: shown on the card" })),
             prepare: Type.Optional(Type.String({ description: "setup: one shell line run before ocu starts (empty: none)" })),
         }),
         execute: async (args, api, context) => {
@@ -148,6 +148,33 @@ export default function createComputer(host: PocketHost) {
                     }
 
                     const found = await control.ready(args.machine);
+                    const line = args.prepare.trim();
+
+                    if (/[\r\n]/.test(args.prepare) || line.length > 500) {
+                        return reply("Give the desktop's setup as one shell line of at most 500 characters.", true);
+                    }
+
+                    // A shell line Pi chose, kept and run on the machine before every ocu start: the owner reads it on a
+                    // card first (PP-230, rule G17). Clearing it, or setting what is set, runs nothing new.
+                    if (line !== "" && line !== control.prepareOf(found.id)) {
+                        const answer = await host.approvals.request(
+                            {
+                                id: `computer_setup-${String(api.conversationId)}-${String(api.callId)}`,
+                                conversationId: Number(api.conversationId) as never,
+                                taskId: api.taskId as never,
+                                ...(api.callId === undefined ? {} : { callId: api.callId }),
+                                tool: "computer_control",
+                                subject: `On ${found.name}, run this before ocu starts, each time: ${line}`,
+                                reason: args.reason ?? `The desktop setup line for computer control on ${found.name}`,
+                                createdAt: Date.now(),
+                            },
+                            context as never,
+                        );
+
+                        if (!answer.allow) {
+                            return reply(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} said no`}: ${found.name}'s desktop setup stays ${control.prepareOf(found.id) === "" ? "none" : JSON.stringify(control.prepareOf(found.id))}.`, true);
+                        }
+                    }
 
                     control.setPrepare(found.id, args.prepare);
                     const apps = await control.apps(found.id);
