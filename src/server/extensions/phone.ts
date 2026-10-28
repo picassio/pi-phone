@@ -12,6 +12,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { ASSISTANT_PROMPT } from "../assistant.ts";
+import { fencedScreen } from "../fence.ts";
 import type { PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 import { type Mark, markUp } from "../markup.ts";
@@ -58,15 +59,21 @@ export default function createPhone(host: PocketHost) {
 
     const left = (session: ControlSession) => `${Math.max(0, Math.ceil((session.until - Date.now()) / 60_000))} min left, until ${clockText(session.until)}`;
 
-    /** The screen in words, with the session's time; a screen Pi may not read says why instead. */
-    const screenText = async (session: ControlSession): Promise<string> => {
-        try {
-            const outline = await control.screen(session);
+    /**
+     * The screen in words, fenced as the app's (`fencedScreen`), with the session's time; a screen Pi may not read says
+     * why instead (that names the app in front, or a hidden screen's title: the phone's words too). `done`: what Pi did,
+     * which names the element by the app's words, inside the fence.
+     */
+    const screenText = async (session: ControlSession, done?: string): Promise<string> => {
+        let shown: string;
 
-            return `${outline.text}\n(Phone control: ${left(session)}.)`;
+        try {
+            shown = (await control.screen(session)).text;
         } catch (error) {
-            return `${message(error)}\n(Phone control: ${left(session)}.)`;
+            shown = message(error);
         }
+
+        return `${fencedScreen(done === undefined ? shown : `${done}\n\n${shown}`)}\n(Phone control: ${left(session)}.)`;
     };
 
     /** An app of the phone by its name or package. */
@@ -243,7 +250,7 @@ export default function createPhone(host: PocketHost) {
 
                 return reply(await screenText(session));
             } catch (error) {
-                return reply(message(error), true);
+                return reply(fencedScreen(message(error)), true);
             }
         },
     });
@@ -410,9 +417,10 @@ export default function createPhone(host: PocketHost) {
                     await pause(SETTLE_MS);
                 }
 
-                return reply(`${done}\n\n${await screenText(session)}`);
+                return reply(await screenText(session, done));
             } catch (error) {
-                return reply(message(error), true);
+                // An error can name the screen's elements too.
+                return reply(fencedScreen(message(error)), true);
             }
         },
     });
