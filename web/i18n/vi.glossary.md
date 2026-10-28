@@ -81,6 +81,10 @@ paths, commands, keys (Ctrl K), units (MB, KB, px).
 | failed | thất bại |
 | idle | rảnh |
 | settle / un-settle (a session) | cất / bỏ cất |
+| Active (the session list) | Đang hoạt động |
+| take turns, drive (shared session) | luân phiên, cầm lái |
+| steer (a run) | điều hướng (message), điều khiển (rights) |
+| capture (wiki) | ghi nhận |
 | pin / unpin | ghim / bỏ ghim |
 | archive | lưu trữ |
 | fork | rẽ nhánh (fork) |
@@ -98,5 +102,9 @@ Yes Có · No Không · OK OK · Next Tiếp · Skip Bỏ qua · Search Tìm ki�
 
 - Spelling: modern accents (`hòa`, `xóa`, `hủy`, `khóa`).
 - Address the person as "bạn"; Pi is "Pi" (never "anh/chị/em").
-- Times: "5 phút trước"; short forms in lists: "5ph", "2g", "3ng".
+- Times: whole words, also in lists: "5 phút", "2 giờ", "3 ngày", "5 phút trước"; "vừa xong" for now.
+- Ordinals: "thứ 2" ("lần chạy thứ 2"). Weekday marks: T2…T7, CN; the calendar's one-letter row is "234567C".
+- Months: "Tháng 1"… and short "Th1"….
+- Group summaries of Pi's calls are past-tense phrases: "đã đọc 2 tệp", "đã chạy 1 lệnh".
+- Server messages keep field names and values as code (`voice.turns`, `true`, `null`); only the sentence is Vietnamese.
 - Quotes: “…” inside a sentence, so the JSON needs no escapes.
