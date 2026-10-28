@@ -114,7 +114,7 @@
   **使用密钥中的密码：** 对于保存在密钥中（并允许在该文件夹使用）的登录信息，Pi 按名称输入（`browser_type` 搭配 `secret`，或 `browser_run` 的 values
   写 `{ secret }`）：值直接填进页面，Pi 和运行模型都看不到；设为“先询问”的密钥仍会通过卡片征求你的同意。**除此之外，登录始终由你来做：**
   Pi 从不以明文输入密码或验证码。`browser_sign_in` 会在对话中放一张卡片，你在上面输入用户名和密码（或用“记住”选项使用保存在密钥中的那组），
-  它们直接填入页面；`browser_ask_code` 对一次性验证码做同样的事；`browser_ask_user` 把页面交给你处理 CAPTCHA 或在手机上确认登录，
+  它们直接填入页面；`browser_ask_code` 对一次性验证码做同样的事。你在卡片上输入的内容不会到达 Pi：Pi 读到的页面显示为 `[typed by the person]`，发给模型的截图会把这些字段（以及该值出现的地方）涂黑；太短而无法隐藏的值（一两个字符）在提交前不会把页面给 Pi；`browser_ask_user` 把页面交给你处理 CAPTCHA 或在手机上确认登录，
   你点“完成”后 Pi 继续。那里无法使用通行密钥（Android 只允许白名单中的浏览器使用）：Pi 会改走网站的其他登录方式，或请你处理。
 - **网络访问。** `web_search` 使用你选择的搜索提供方（共 37 个，包括 DeepSeek），`fetch_content` 可读取网页、PDF 和 Office 文件、
   GitHub 仓库、issue 和 pull request。

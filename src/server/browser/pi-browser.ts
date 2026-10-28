@@ -11,7 +11,19 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type { PhoneRequests } from "../phone-requests.ts";
 import { Cdp } from "./cdp.ts";
-import { BrowserPage, type Element, type Observed, type PictureClip, type PictureOptions, describe, elementsOf, StalePage } from "./page.ts";
+import {
+    BrowserPage,
+    cardHideTargets,
+    type Element,
+    type Observed,
+    type PictureClip,
+    type PictureOptions,
+    describe,
+    elementsOf,
+    SHORT_VALUE_NOTE,
+    shortCardValueShowing,
+    StalePage,
+} from "./page.ts";
 import { type Mark, type MarkArea, markUp } from "../markup.ts";
 
 /** A mark on a page's picture (PP-119): on a control by its number, on a text shown, or on an area of the view (CSS pixels). */
@@ -409,6 +421,16 @@ export type BrowserState = {
     pictureError: string | null;
 };
 
+/**
+ * Solid hides over where the person's card typing is (`cardHideTargets`, found by `areasOf`: null or none where it is
+ * gone or out of view), as areas of the picture: of the view, or of `clip` (PP-228).
+ */
+export function typedHideMarks(found: readonly (readonly MarkArea[] | null)[], clip: PictureClip | undefined): Mark[] {
+    return found.flatMap((areas) =>
+        (areas ?? []).map((area) => ({ area: clip === undefined ? { ...area } : { ...area, x: area.x - clip.x, y: area.y - clip.y }, hide: "solid" as const, box: false })),
+    );
+}
+
 /** How the panel's pictures are retried (PP-199); tests shorten it. */
 export type FrameTuning = {
     /** How long the first picture (a capture) may take. */
@@ -681,6 +703,11 @@ export class PiBrowser {
         tab.title = observed.title;
         this.#set({});
 
+        // A short value the person typed on a card shows: no page for Pi (PP-228).
+        if (shortCardValueShowing(page.cardFills(), observed)) {
+            return SHORT_VALUE_NOTE;
+        }
+
         // The dialogs it showed: answered in the page (most), or by DevTools (one the page did not answer itself).
         const dialogs = (await page.takeDialogs()).map((each) => `The page showed a dialog (${each.text}); it was ${each.accepted ? "accepted" : "declined"}.\n`);
 
@@ -878,8 +905,15 @@ export class PiBrowser {
         });
     }
 
-    text(session: number, max: number): Promise<{ title: string; url: string; text: string; cut: boolean }> {
-        return this.#run(session, "Reading the whole page", ({ page }) => page.text(max));
+    text(session: number, max: number): Promise<{ title: string; url: string; text: string; cut: boolean } | { withheld: string }> {
+        return this.#run(session, "Reading the whole page", async ({ page }) => {
+            // A short value the person typed on a card shows: no page for Pi (PP-228).
+            if (page.cardFills().length > 0 && shortCardValueShowing(page.cardFills(), await page.observe())) {
+                return { withheld: SHORT_VALUE_NOTE };
+            }
+
+            return page.text(max);
+        });
     }
 
     /**
@@ -889,10 +923,17 @@ export class PiBrowser {
     screenshot(
         session: number,
         { png = false, index, marks = [] }: { png?: boolean; index?: number; marks?: PageMark[] } = {},
-    ): Promise<{ data: string; whole?: string; title: string; url: string; viewport: { width: number; height: number } }> {
+    ): Promise<{ data: string; whole?: string; title: string; url: string; viewport: { width: number; height: number } } | { withheld: string }> {
         return this.#run(session, index === undefined ? "Looking at the page" : this.#doing("Looking at", index), async ({ id, page }) => {
             let clip: PictureClip | undefined;
             let whole: string | undefined;
+            // What the person typed on a card is blacked out of every picture a model gets (PP-228); a value too short
+            // to find by its text withholds the picture while it shows.
+            const fills = page.cardFills();
+
+            if (fills.length > 0 && shortCardValueShowing(fills, await page.observe())) {
+                return { withheld: SHORT_VALUE_NOTE };
+            }
 
             if (index !== undefined) {
                 const { observed, element } = this.#element(index);
@@ -900,8 +941,11 @@ export class PiBrowser {
                 ({ clip, whole } = await page.area(observed, element));
             }
 
-            // Where each mark goes, read just before the picture (PP-119).
-            const placed = marks.length === 0 ? [] : await this.#place(page, marks, clip);
+            // Where each mark goes, read just before the picture (PP-119); the card's hides last, over every other mark.
+            const placed = [
+                ...(marks.length === 0 ? [] : await this.#place(page, marks, clip)),
+                ...(fills.length === 0 ? [] : typedHideMarks(await page.areasOf(cardHideTargets(fills)), clip)),
+            ];
             const data = await this.#options.engine.picture(id, page, placed.length === 0 ? (index === undefined ? 70 : 80) : 92, undefined, { png, ...(clip === undefined ? {} : { clip }) });
             // The page the picture is of, read in the same step (PP-129): the caption says what the picture shows, even
             // when other calls change the page right after.
@@ -1066,6 +1110,11 @@ export class PiBrowser {
     run(session: number, options: { goal: string; values: Record<string, string>; secrets?: readonly string[]; maxSteps: number; decider: Decider }): Promise<{ result: RunResult; page: string }> {
         return this.#run(session, `Running: ${options.goal.slice(0, 80)}`, async (tab) => {
             const page = tab.page;
+
+            // A short value the person typed on a card shows: the run model would read it (PP-228).
+            if (page.cardFills().length > 0 && shortCardValueShowing(page.cardFills(), await page.observe())) {
+                throw new Error(SHORT_VALUE_NOTE);
+            }
             const element = (observed: Observed, node: number): Element => {
                 const found = elementsOf(observed).find((each) => each.node === node);
 
@@ -1107,7 +1156,7 @@ export class PiBrowser {
             tab.title = result.observed.title;
             this.#set({});
 
-            return { result, page: describe(result.observed, tab.elements) };
+            return { result, page: shortCardValueShowing(page.cardFills(), result.observed) ? SHORT_VALUE_NOTE : describe(result.observed, tab.elements) };
         });
     }
 

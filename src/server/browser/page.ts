@@ -94,6 +94,41 @@ export type Element = {
     options?: { label: string; value: string }[];
 };
 
+/** The shortest value text hiding (`Page.hideTyped`) covers: a shorter one would hide every "42" on the page. */
+export const MIN_TYPED_HIDDEN = 3;
+
+/** A field the person filled from a sign-in or code card (PP-228): its node, what they typed, and whether it is a password field. */
+export type CardFill = { node: number; value: string; password: boolean };
+
+/**
+ * Whether a value the person typed on a card that text hiding cannot cover (under `MIN_TYPED_HIDDEN` characters, in a
+ * field that is not a password field) still shows on the page as read: its field is there, holding it (PP-228). Then Pi
+ * gets no page, neither text nor picture, only a fixed note (`SHORT_VALUE_NOTE`).
+ */
+export function shortCardValueShowing(fills: readonly CardFill[], observed: Observed): boolean {
+    return fills.some(
+        (fill) =>
+            !fill.password &&
+            fill.value.length < MIN_TYPED_HIDDEN &&
+            observed.actions.some((action) => action.node === fill.node && (action.value === fill.value || action.current_value === fill.value)),
+    );
+}
+
+/**
+ * What a picture of the page sent to a model has blacked out (PP-228): every field the person filled from a card (by
+ * its node), and every place a value they typed shows (by its text, in fields and on the page: "Welcome tuan@…"), for
+ * values text hiding covers; a shorter one withholds the page instead (`shortCardValueShowing`).
+ */
+export function cardHideTargets(fills: readonly CardFill[]): ({ node: number } | { text: string })[] {
+    const texts = [...new Set(fills.map((fill) => fill.value).filter((value) => value.length >= MIN_TYPED_HIDDEN))];
+
+    return [...fills.map((fill) => ({ node: fill.node })), ...texts.map((text) => ({ text }))];
+}
+
+/** What Pi gets instead of the page while a short value the person typed shows (`shortCardValueShowing`). */
+export const SHORT_VALUE_NOTE =
+    "The page is not shown: a field shows what the person typed on the card, too short to hide from you. Submit it with browser_press Enter (the field has the focus), or ask the person to with browser_ask_user; then read the page again.";
+
 /** The page changed (or the element moved, or something covers it) since it was read: read it again. */
 /**
  * In every document Pi's browser loads (PP-79): alert, confirm and prompt answer at once, as Pi asked for the click or
@@ -292,6 +327,13 @@ export class BrowserPage {
      * code in a plain text field would otherwise show in the next read.
      */
     readonly #typed = new Map<string, string>();
+    /** The fields filled from a card on this page, as they were filled (PP-228): for pictures and short values. */
+    readonly #cardFills: CardFill[] = [];
+
+    /** The fields filled from a card on this page (`CardFill`). */
+    cardFills(): readonly CardFill[] {
+        return this.#cardFills;
+    }
 
     /** `text` with what the person typed through a card taken out, longest first. */
     hideTyped(text: string): string {
@@ -792,9 +834,14 @@ export class BrowserPage {
             throw new Error(`[${element.index}] ${element.label} is not a field to type into.`);
         }
 
-        // Kept before it is typed: a read the typing sets off already hides it. Very short values would hide too much.
-        if (hide !== false && text.length >= 3) {
+        // Kept before it is typed: a read the typing sets off already hides it. Very short values would hide too much:
+        // those withhold the page instead, while they show (`shortCardValueShowing`).
+        if (hide !== false && text.length >= MIN_TYPED_HIDDEN) {
             this.#typed.set(text, hide === true ? "[typed by the person]" : hide);
+        }
+
+        if (hide !== false) {
+            this.#cardFills.push({ node: element.node, value: text, password: element.role === "password" });
         }
 
         if (!(await this.#fresh(observed, element.node))) {

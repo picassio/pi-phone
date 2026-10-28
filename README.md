@@ -159,7 +159,10 @@ No Termux, no laptop, no cloud VM.
   model, and an "ask first" secret still asks you on a card. **Otherwise signing in stays yours:** Pi never types a password
   or a code as text. `browser_sign_in` puts a card in the
   conversation where you type the username and password (or use one kept in Secrets with Remember), and they go
-  straight into the page (the card names the fields in its own words, never the page's); `browser_ask_code` does the same for a one-time code; `browser_ask_user` hands you the page
+  straight into the page (the card names the fields in its own words, never the page's); `browser_ask_code` does the same for a one-time code.
+  What you type there never reaches Pi: its reads of the page show it as `[typed by the person]`, its pictures have
+  those fields (and anywhere the value shows) blacked out, and a value too short to hide (one or two characters) gives
+  Pi no page at all until it is submitted. `browser_ask_user` hands you the page
   for a CAPTCHA or an approval on your phone, and Pi goes on when you say Done. Passkeys are not possible there
   (Android allows them only in allowlisted browsers): Pi takes the site's other way, or asks you.
 - **Web access.** `web_search` through the provider you pick (37 of them, DeepSeek included), and `fetch_content` for

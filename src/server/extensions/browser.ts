@@ -393,6 +393,10 @@ export default function createBrowser(host: PocketHost) {
                 act(api, context, async (browser, session) => {
                     const page = await browser.text(session, TEXT_MAX);
 
+                    if ("withheld" in page) {
+                        return page.withheld;
+                    }
+
                     return `${page.title} — ${page.url}\n\n${page.text}${page.cut ? `\n\n(cut at ${TEXT_MAX} characters)` : ""}`;
                 }),
         }),
@@ -434,6 +438,12 @@ export default function createBrowser(host: PocketHost) {
                 try {
                     // The caption is of the page as pictured, read with it (PP-129), not the browser's state afterwards.
                     const shot = await browser.screenshot(Number(api.conversationId), { png: kind === "png", index: args.index, marks: args.marks ?? [] });
+
+                    // A short value the person typed on a card shows: no picture, nothing saved (PP-228).
+                    if ("withheld" in shot) {
+                        return reply(shot.withheld, true);
+                    }
+
                     const state = shot;
                     const what = shot.whole === undefined ? "" : shot.whole === "control" ? `, only [${args.index}]` : `, only the ${shot.whole} that [${args.index}] is in`;
                     let saved = "";

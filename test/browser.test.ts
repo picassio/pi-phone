@@ -7,13 +7,50 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
-import { addressOf, describe, elementsOf, isLocalAddress, type Observed } from "../src/server/browser/page.ts";
+import { addressOf, cardHideTargets, describe, elementsOf, isLocalAddress, type Observed, SHORT_VALUE_NOTE, shortCardValueShowing } from "../src/server/browser/page.ts";
 import { blockedInPlanMode } from "../src/server/extensions/plan.ts";
 import { cardFills, savedSignIn, shotCaption, signInFields } from "../src/server/extensions/browser.ts";
-import { type BrowserFrame, type BrowserState, ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
+import { type BrowserFrame, type BrowserState, ChromeEngine, PiBrowser, typedHideMarks } from "../src/server/browser/pi-browser.ts";
 import { SessionEngine, TabOwners } from "../src/server/browser/session-engine.ts";
 
 after(() => cleanUp());
+
+/** A read or a picture that was not withheld (PP-228). */
+function shown<T extends object>(value: T | { withheld: string }): T {
+    if ("withheld" in value) {
+        assert.fail(`withheld: ${value.withheld}`);
+    }
+
+    return value;
+}
+
+test("what the person typed on a card is blacked out of pictures: its fields and every place its text shows; a short value withholds the page (PP-228)", () => {
+    const fills = [
+        { node: 4, value: "tuan@example.com", password: false },
+        { node: 5, value: "hunter2", password: true },
+        { node: 9, value: "42", password: false },
+    ];
+
+    // Each card field by its node; each value that text hiding covers by its text too (an echo on the page); "42" only by its field.
+    assert.deepEqual(cardHideTargets(fills), [{ node: 4 }, { node: 5 }, { node: 9 }, { text: "tuan@example.com" }, { text: "hunter2" }]);
+    // As picture areas: solid, unboxed, shifted into a clip; gone or out of view adds none.
+    assert.deepEqual(typedHideMarks([[{ x: 10, y: 20, width: 100, height: 30 }], null, [], [{ x: 50, y: 60, width: 5, height: 5 }, { x: 70, y: 60, width: 5, height: 5 }]], { x: 5, y: 10, width: 300, height: 300 }), [
+        { area: { x: 5, y: 10, width: 100, height: 30 }, hide: "solid", box: false },
+        { area: { x: 45, y: 50, width: 5, height: 5 }, hide: "solid", box: false },
+        { area: { x: 65, y: 50, width: 5, height: 5 }, hide: "solid", box: false },
+    ]);
+
+    const page = (actions: Observed["actions"]): Observed => ({ url: "https://x.test/", title: "x", w: 412, h: 860, text: "", scroll: { y: 0, height: 860 }, actions, marker: [], page_key: [], guards: {}, omitted: 0 });
+    const rect = { x: 0, y: 0, w: 10, h: 10 };
+
+    // The short code shows in its field: withheld. Submitted (the field gone, or holding something else): shown again.
+    assert.equal(shortCardValueShowing(fills, page([{ node: 9, role: "textbox", label: "Code", rect, kind: "fill", value: "42" }])), true);
+    assert.equal(shortCardValueShowing(fills, page([{ node: 9, role: "textbox", label: "Code", rect, kind: "fill", value: "" }])), false);
+    assert.equal(shortCardValueShowing(fills, page([{ node: 3, role: "button", label: "42", rect, kind: "click" }])), false);
+    // A short password shows only as dots, never read: not withheld.
+    assert.equal(shortCardValueShowing([{ node: 5, value: "ab", password: true }], page([{ node: 5, role: "password", label: "Password", rect, kind: "fill", value: "ab" }])), false);
+    assert.match(SHORT_VALUE_NOTE, /^The page is not shown: a field shows what the person typed on the card, too short to hide from you\./);
+});
 
 test("an address as typed: a page opens as it is, a bare name gets https, words become a search, other schemes are refused", () => {
     assert.equal(addressOf("https://example.com/a?b=1"), "https://example.com/a?b=1");
@@ -271,25 +308,25 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
 
         assert.match(next, /^Two — /);
 
-        const all = await browser.text(1, 1000);
+        const all = shown(await browser.text(1, 1000));
 
         assert.equal(all.cut, true);
         assert.match(all.text, /^Page two/);
         assert.match(await browser.history(1, -1), /^Shop — /);
 
-        const picture = await browser.screenshot(1);
+        const picture = shown(await browser.screenshot(1));
 
         assert.ok(Buffer.from(picture.data, "base64").subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])), "a JPEG");
-        assert.ok(Buffer.from((await browser.screenshot(1, { png: true })).data, "base64").subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])), "a PNG, to keep (PP-118)");
+        assert.ok(Buffer.from(shown(await browser.screenshot(1, { png: true })).data, "base64").subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])), "a PNG, to keep (PP-118)");
 
         // Marks (PP-119): a text hidden wherever it shows, a control boxed with a badge; what is not in view is refused.
         await browser.open(1, "http://pi.test/");
         const goButton = Number(/\[(\d+)\] button "Go"/.exec(await browser.snapshot(1))![1]);
-        const marked = Buffer.from((await browser.screenshot(1, { png: true, marks: [{ text: "Nothing yet", hide: "solid" }, { index: goButton, number: 1, label: "Search" }] })).data, "base64");
-        const shown = await browser.screenshot(1, { png: true });
+        const marked = Buffer.from(shown(await browser.screenshot(1, { png: true, marks: [{ text: "Nothing yet", hide: "solid" }, { index: goButton, number: 1, label: "Search" }] })).data, "base64");
+        const plain = shown(await browser.screenshot(1, { png: true }));
 
         assert.ok(marked.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])));
-        assert.notDeepEqual(marked, Buffer.from(shown.data, "base64"));
+        assert.notDeepEqual(marked, Buffer.from(plain.data, "base64"));
         await assert.rejects(browser.screenshot(1, { marks: [{ text: "not on this page", hide: "solid" }] }), /does not show in view/);
         await assert.rejects(browser.screenshot(1, { marks: [{ text: "x", index: goButton }] }), /one of index, text, or area/);
 
@@ -328,7 +365,7 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
         // Shown back by the page: as what it reads as, in later reads and the whole text too.
         assert.match(welcomed, /Hello \[username for pi\.test\], signed in/);
         assert.doesNotMatch(welcomed, /tuan@example\.com/);
-        assert.doesNotMatch((await browser.text(1, 10_000)).text, /tuan@example\.com/);
+        assert.doesNotMatch(shown(await browser.text(1, 10_000)).text, /tuan@example\.com/);
 
         // Taken over: Pi waits; handed back: Pi goes on.
         browser.takeOver(true);
@@ -349,7 +386,15 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
 
         assert.match(checked, /Checked \[typed by the person\]/);
         assert.doesNotMatch(checked, /493817/);
-        assert.doesNotMatch((await browser.text(1, 10_000)).text, /493817/, "nor in the whole page's text");
+        assert.doesNotMatch(shown(await browser.text(1, 10_000)).text, /493817/, "nor in the whole page's text");
+
+        // A code too short to hide by its text (PP-228): while its field shows it, Pi gets no page, no text, no picture.
+        const shortPage = await browser.open(1, "http://pi.test/code");
+
+        await browser.fillFields(1, [{ index: Number(/\[(\d+)\] textbox "Code"/.exec(shortPage)![1]), value: "42", hide: true }]);
+        assert.equal(await browser.snapshot(1), SHORT_VALUE_NOTE);
+        assert.deepEqual(await browser.text(1, 10_000), { withheld: SHORT_VALUE_NOTE });
+        assert.deepEqual(await browser.screenshot(1), { withheld: SHORT_VALUE_NOTE });
 
         // Dialogs (PP-79): declined unless asked; accepted when asked, and the page gets the answer it was told.
         const dialogs = await browser.open(1, "http://pi.test/dialogs");
@@ -388,7 +433,7 @@ test("with Chrome: icons get names, hover, uploads to a field and through its bu
         // A desktop Chrome presents itself as a phone's, at the phone's width, with pictures at twice its CSS pixels.
         assert.match(await browser.open(1, "http://pi.test/ua"), /phone 412 touch 5/);
 
-        const picture = Buffer.from((await browser.screenshot(1)).data, "base64");
+        const picture = Buffer.from(shown(await browser.screenshot(1)).data, "base64");
 
         assert.equal(picture.readUInt16BE(picture.indexOf(Buffer.from([0xff, 0xc0])) + 7), 824, "824 pixels wide");
         await browser.open(1, "http://pi.test/tools");
@@ -458,7 +503,7 @@ test("with Chrome: a list with its own scroll area (Radix's select): every optio
 
         // A picture of the open list alone, from one of its options (PP-118): 240 CSS pixels and its border, 8 around
         // each side, at twice the CSS pixels.
-        const list = await browser.screenshot(1, { png: true, index: number(open, /\[(\d+)\] option "Org 2"/) });
+        const list = shown(await browser.screenshot(1, { png: true, index: number(open, /\[(\d+)\] option "Org 2"/) }));
         const png = Buffer.from(list.data, "base64");
 
         assert.equal(list.whole, "listbox");
@@ -579,7 +624,8 @@ test("with Chrome: a picture's caption is of the page pictured, though another c
         await browser.open(1, "http://pi.test/aim");
 
         // As two calls in one batch: the picture first, then an open that the browser takes right after it.
-        const [shot] = await Promise.all([browser.screenshot(1), browser.open(1, "http://pi.test/two")]);
+        const [taken] = await Promise.all([browser.screenshot(1), browser.open(1, "http://pi.test/two")]);
+        const shot = shown(taken);
 
         assert.equal(browser.state().url, "http://pi.test/two");
         assert.deepEqual([shot.title, shot.url], ["Aim", "http://pi.test/aim"], "the caption of the page in the picture");
