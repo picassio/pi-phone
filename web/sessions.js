@@ -48,7 +48,9 @@ import {
     usePresence,
     useSide,
     useSlide,
+    WIDE,
 } from "./ui.js";
+import { WhatsNewCard } from "./guide.js";
 
 /**
  * Back to the session list, where it is not beside the conversation: back past the sessions opened from it, as a
@@ -1639,6 +1641,10 @@ function AllSessions({ compact = false }) {
             }
             ${canStart && html`<${VoiceNewButton} />`}
         </div>
+        ${
+            // After a big update (PP-235): on a phone's list; a wide screen has it on the home screen.
+            !compact && !WIDE.matches && html`<${WhatsNewCard} />`
+        }
         <label class=${`search ${query ? "filled" : ""}`} data-part="session-search">
             <${Icon} name="search" size=${14} />
             <input

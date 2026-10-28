@@ -18808,6 +18808,10 @@ button.welcome-row:hover {
     width: min(100%, 520px);
 }
 
+.sessions .whats-new {
+    margin: 4px 0 10px;
+}
+
 .whats-new-text {
     display: flex;
     flex: 1;

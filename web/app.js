@@ -41,7 +41,7 @@ import { Sheets } from "./sheets.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
 import { SignIn } from "./signin.js";
 import { Welcome } from "./welcome.js";
-import { GuideBar, WhatsNewCard } from "./guide.js";
+import { GuideBar } from "./guide.js";
 import { openSubagents } from "./subagents.js";
 import { SubagentsBoard } from "./subagents-board.js";
 import {
@@ -531,7 +531,6 @@ function App() {
                     }`
                         : html`<div class="home-list" data-part="home-list">
                           <${RailNav} />
-                          ${!sidebar && html`<${WhatsNewCard} />`}
                           <${SessionList} />
                       </div>
                       ${sidebar && html`<${Splash} />`}`
