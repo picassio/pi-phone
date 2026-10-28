@@ -445,6 +445,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `plan_mode` while plan mode is off (`SUGGEST_PLAN` in `plan.ts`: suggest it before large or risky changes; only a
   person turns it on). They were added after Pi asked a multi-part decision in chat and researched with `gh` and `npm`
   though the tools were there: a tool's description alone did not change the habit, as the wiki's rules had shown.
+- **A batch's file and shell calls in order** (PP-203, `batch-order.ts`): Pi Durable runs one answer's calls at once,
+  or the whole round one at a time when any tool of it is `sequential`; so `bash` in [edit X, bash `cat X`] could run
+  before the edit landed (seen on machine folders, each call a round trip over ssh). `edit`, `write` and `bash` are
+  wrapped (`inBatchOrder`): before running, each waits for the tool tasks of the `edit`, `write` and `bash` calls before
+  it in the round (`LiveDoc.tools`, in the model's order, read at the call's start; `waitForTask`, so a restart keeps
+  the order). Other tools stay parallel, with these too. Not `executionMode: sequential`: that would serialize every
+  tool of the round. Code mode's nested calls are not round slots; a script awaits them in its own order.
 - **Settings and extensions:** each feature's settings are in Settings (the menu), and follow its module.
   - **Extensions' own rows:** an extension adds its row with `pocket.menu`, which the menu lists with the app's settings
     and drops when the module is off. The wiki's "Wiki" row opens its settings sheet; the Wiki page has no Settings

@@ -29,6 +29,8 @@ const skip = sshdPath === undefined ? "no sshd on this machine" : false;
 let told = "";
 /** Asks the scripted model answers with one tool call, set by the tests. */
 const calls: Record<string, [string, Record<string, unknown>]> = {};
+/** Asks answered with several tool calls in one answer (a batch). */
+const batches: Record<string, [string, Record<string, unknown>][]> = {};
 let preamble = "";
 let skillsTold = "";
 
@@ -53,6 +55,15 @@ const route: FauxResponseStep = (request) => {
 
     // The last message may be a system one (a section that changed, such as the secrets'): the ask is the last non-system one.
     const asked = lastText({ messages: messages.filter((message) => message.role !== "system") } as never);
+
+    for (const [ask, batch] of Object.entries(batches)) {
+        if (asked.role === "user" && asked.text.endsWith(ask)) {
+            return fauxAssistantMessage(
+                batch.map(([tool, args]) => fauxToolCall(tool, args as never)),
+                { stopReason: "toolUse" },
+            );
+        }
+    }
 
     for (const [ask, [tool, args]] of Object.entries(calls)) {
         // With guests (an earlier test adds one), a message comes as "[from: Owner] …".
@@ -324,6 +335,32 @@ test("a machine that does not answer is refused in seconds by the folder picker 
         assert.ok(Date.now() - started < 10_000, `refused in ${Date.now() - started} ms`);
     } finally {
         await app.machines.remove(gone.id);
+    }
+});
+
+test("one batch [edit X, bash `head X`] on a machine: bash reads the edited text (PP-203)", { skip }, async () => {
+    const file = join(remoteHome, "project", "batch-order.txt");
+
+    writeFileSync(file, `first: old\n${"a line that is only there to make the file long\n".repeat(50_000)}`);
+
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${join(remoteHome, "project")}` });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    batches["batch on the machine: edit, then read it"] = [
+        ["edit", { path: file, edits: [{ oldText: "first: old", newText: "first: new" }] }],
+        ["bash", { command: `head -c 10 ${file}` }],
+    ];
+
+    try {
+        const { submissionId } = await app.commands.submit(id, owner(app), { text: "batch on the machine: edit, then read it", requestId: crypto.randomUUID() });
+
+        await (await app.harness.submission(submissionId, context))!.wait(context);
+
+        const texts = await modelTexts(app, id);
+
+        assert.match(texts.findLast((each) => each.includes("first: "))!, /first: new/, texts.slice(-3).join("\n"));
+    } finally {
+        delete batches["batch on the machine: edit, then read it"];
     }
 });
 

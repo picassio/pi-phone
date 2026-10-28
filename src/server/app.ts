@@ -58,6 +58,7 @@ import {
     createWriteTool,
 } from "@earendil-works/pi-durable/tools";
 import { Attribution, type Missing } from "./attribution.ts";
+import { inBatchOrder } from "./batch-order.ts";
 import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
 import { APP_ROOT, ConfigStore, type User } from "./config.ts";
@@ -875,7 +876,8 @@ export class PocketApp {
         // Pi Durable's coding tools, as `createCodingTools()` makes them, but for two things. `read` returns images as
         // images, oriented and shrunk to the model's limits by Photon (WebAssembly), in a worker. And `bash` runs a command
         // that names a secret (`$NPM_TOKEN`) with its value in the environment, where the session may use it: the command
-        // keeps the name, so the value is in no transcript (`secrets.ts`).
+        // keeps the name, so the value is in no transcript (`secrets.ts`). `edit`, `write` and `bash` run in their batch's
+        // order with each other (`batch-order.ts`): a bash after an edit sees the edit.
         const images = await createNodePhotonImages();
 
         // No image over 2000 px a side reaches a model: one would fail every request after it (`image-guard.ts`).
@@ -886,9 +888,9 @@ export class PocketApp {
                 name: "coding-tools",
                 tools: [
                     createReadTool({ images }),
-                    createWriteTool(),
-                    createEditTool(),
-                    createBashTool({
+                    inBatchOrder(createWriteTool()),
+                    inBatchOrder(createEditTool()),
+                    inBatchOrder(createBashTool({
                         prepare: async (execution, api, context) => {
                             const cwd = (await api.agent(context)).cwd ?? this.defaultCwd;
 
@@ -911,7 +913,7 @@ export class PocketApp {
                             Object.assign(execution.env, env);
                             this.secrets.used(Object.keys(env));
                         },
-                    }),
+                    })),
                 ],
             }),
         );
