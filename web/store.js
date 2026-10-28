@@ -822,6 +822,8 @@ const handlers = {
     },
     // The person chose another language, on this device or another (PP-81).
     language: (data) => chooseLanguage(data.language),
+    // The first-run welcome finished, skipped, or to show again (PP-234), on this device or another.
+    welcome: (data) => store.state.me && store.set({ me: { ...store.state.me, welcome: data.welcome } }),
     // The machines' ports open here changed: one opened, closed, or ended by itself (PP-108). The owner's tabs only.
     forwards: (data) => store.set({ forwards: data.forwards }),
     // A phone control session started or ended (PP-141).

@@ -737,6 +737,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   marks everyone done once, so only new pi-phones (a team member's own included) welcome their owner; guests never get
   it. `hello` sends `user.welcome` (`show` / `done` / `skipped`); `POST /api/me {welcome}` and the setting
   `onboarding.welcome` (Pi's setting_change) set it, and the person's tabs hear `welcome`.
+  The welcome (`web/welcome.js`, over the app at z-index 18, under the sheets so a sign-in's dialog and Providers open
+  on top): 1 language (`POST /api/me {language}`; the page loads again in it), 2 a model (the providers' OAuth
+  sign-in for anthropic, openai-codex, github-copilot, openrouter, "An API key" opens Providers; behind the gateway with
+  team models, a radio list sets `defaultModel`), 3 this phone (the bridge: notifications, run unrestricted, mic, the
+  side key; read again on `visibilitychange`) or this browser (web push, the install prompt). Full screen on a phone, a
+  card when `min-width: 960px`. Test: `test/welcome-ui.test.ts` (devbox).
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

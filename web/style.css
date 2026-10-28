@@ -18474,3 +18474,215 @@ pre.gallery-code {
     background: var(--warn-soft);
     color: var(--text);
 }
+
+/* The first-run welcome (PP-234, web/welcome.js): the whole screen on a phone; a card over the dimmed app when wide.
+   Under the sheets (a sign-in's dialog and Providers open over it). */
+.welcome {
+    position: fixed;
+    inset: 0;
+    z-index: 18;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+    background: var(--bg);
+    color: var(--body);
+}
+
+.welcome-card {
+    width: 100%;
+    max-width: 560px;
+    padding: max(24px, env(safe-area-inset-top)) 22px max(22px, env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+@media (min-width: 960px) {
+    .welcome {
+        justify-content: center;
+        padding: 24px;
+        background: color-mix(in srgb, var(--desk) 82%, transparent);
+        backdrop-filter: blur(2px);
+    }
+
+    .welcome-card {
+        margin: auto;
+        padding: 30px 30px 24px;
+        border: 1px solid var(--hair);
+        border-radius: 16px;
+        background: var(--bg);
+        box-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.6);
+    }
+}
+
+.welcome-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text);
+}
+
+.welcome-logo {
+    width: 32px;
+    height: 32px;
+}
+
+.welcome-dots {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.welcome-dots i {
+    width: 7px;
+    height: 7px;
+    border-radius: 4px;
+    background: var(--line-strong);
+}
+
+.welcome-dots i.on {
+    width: 18px;
+    background: var(--accent);
+}
+
+.welcome-step {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.welcome h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    color: var(--text);
+}
+
+.welcome p {
+    margin: 0;
+}
+
+.welcome-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--hair);
+    border-radius: 12px;
+}
+
+.welcome-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 13px 14px;
+    border: 0;
+    border-top: 1px solid var(--hair);
+    background: var(--card);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+}
+
+.welcome-row:first-child,
+.welcome-list > li:first-child {
+    border-top: 0;
+}
+
+.welcome-list > li + li {
+    border-top: 1px solid var(--hair);
+}
+
+button.welcome-row {
+    cursor: pointer;
+}
+
+button.welcome-row:hover {
+    background: var(--hover);
+}
+
+.welcome-row .grow {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.welcome-title {
+    color: var(--text);
+}
+
+.welcome-radio {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid var(--line-strong);
+    border-radius: 50%;
+}
+
+.welcome-row.on .welcome-radio {
+    border-color: var(--accent);
+}
+
+.welcome-row.on .welcome-radio::after {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.welcome-mark {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.welcome-mark-more {
+    background: var(--raised);
+    color: var(--muted);
+}
+
+.welcome-done {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--ok);
+    font-size: 13px;
+}
+
+.welcome-note {
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.welcome-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.welcome-actions .grow {
+    flex: 1;
+}
+
+.welcome-actions-end {
+    flex-direction: column;
+    align-items: stretch;
+}

@@ -408,6 +408,12 @@ headless Chrome inside it, built on the machine itself; see [deploy/README.md](d
 
 ## Use it
 
+### The first time
+A new pi-phone opens with a short welcome, three steps you can each skip: the app's language, signing in to a model
+(Claude, ChatGPT, GitHub Copilot, OpenRouter, or an API key; on a team server, the models your team gives you), and the
+phone's permissions (notifications, running with the screen off, the microphone, the side key), or in a browser,
+notifications and installing the app. It needs no model. Pi can show it again: ask it, or set `onboarding.welcome`.
+
 ### Every day
 - **Start a session:** **+ New** in the session list, then pick a folder on the phone or on a machine; inside a
   session the picker opens in that session's folder, and the launcher's **New session here** starts one there at once.

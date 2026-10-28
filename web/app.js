@@ -40,6 +40,7 @@ import "./rich.js";
 import { Sheets } from "./sheets.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
 import { SignIn } from "./signin.js";
+import { Welcome } from "./welcome.js";
 import { openSubagents } from "./subagents.js";
 import { SubagentsBoard } from "./subagents-board.js";
 import {
@@ -549,6 +550,10 @@ function App() {
         <${ComputerWatcher} />
         ${inConversation && html`<${PeopleHost} shown=${people} replaced=${filing} />`}
         <${Drawer} />
+        ${
+            // The first-run welcome (PP-234): over the app, under its sheets (a sign-in's dialog, Providers).
+            state.me.welcome === "show" && html`<${Welcome} />`
+        }
         <${Sheets} />
         <${LauncherHost} />
         <${Notices} />
