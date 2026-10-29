@@ -2,7 +2,7 @@
 // the app's language, a model for Pi, and this phone's permissions (or, in a browser, notifications and installing the
 // app). It needs no model: it is the app's own screens. Full screen on a phone, a card over the app on a wide screen.
 // Where the person is with it is the server's (`user.welcome`: show, done, skipped); Menu › Getting started shows it again.
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useState } from "preact/hooks";
 import { LANGUAGES, resolveLanguage, t } from "./i18n.js";
 import { pushId, pushSupport, turnPushOn } from "./push.js";
 import { actions, api, attempt, notify, openSheet, store } from "./store.js";
@@ -218,7 +218,8 @@ function usePhoneState() {
     });
     const [state, setState] = useState(read);
 
-    useEffect(() => {
+    // Listening from the render itself (a layout effect): an effect waits for the next frame, and a return before it would be missed.
+    useLayoutEffect(() => {
         const again = () => setState(read());
         const shown = () => document.visibilityState === "visible" && again();
 
