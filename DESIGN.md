@@ -615,6 +615,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
   phone session (`SkillSources.builtIn`, first among the app's, after the owner's). Each gets one marked note: publish with
   the `artifact` tool, self-contained, phone widths first, say what could not be checked. Plan mode's prompt points long
   plans to `html-plan`, as an artifact beside the numbered list.
+- **OpenDesign** (`third_party/open-design/`, PP-238; owner's choice of 2026-10-29: options A + D of PP-182, the
+  content without the daemon): nexu-io/open-design (Apache-2.0) at commit `fa19ff40`, copied by
+  `scripts/sync-open-design.ts` from a clone at that commit (it refuses another commit or local changes).
+  - **Kept skills** (PP-242): 10 of the 69 upstream folders that ship their own licence, all MIT: five HTML deck
+    templates (`html-ppt-zhangzara-*`: signal, blue-professional, monochrome, editorial-tri-tone, neo-grid-bold) and five
+    GSAP skills (core, timeline, scrolltrigger, plugins, performance). Left out: the 128 that name an `upstream:` with no
+    licence file, those overlapping pi-phone's own (pptx, docx, pdf, slides, frontend-design, web-artifacts-builder,
+    Effective HTML, OfficeCLI), and those needing fal, Replicate or Venice keys or the OpenDesign daemon. Built-in skills
+    after Effective HTML's. Each gets one marked note (publish with `artifact`, check with `screenshot`; GSAP from
+    jsDelivr at 3.15.0), and a deck's description is rewritten from its `template.json` (upstream's describes an example
+    subject, which would make Pi pick it for that subject). The table of skills, sources and licences is the folder's
+    README.
 - **Machine tools** (`src/server/machine-tools.ts`; owner's decisions of 2026-10-18): command-line programs run where
   bash runs, which in a session on a machine is the machine, so OfficeCLI, ripgrep, and fd are installed there.
   - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT

@@ -4458,11 +4458,12 @@ export class PocketApp {
         }
 
         // The app's skills: after Pi's own, so a skill of the owner's by the same name comes first.
-        // pi-phone's own (`src/skills/`: getting-started), Effective HTML's (artifacts), and OfficeCLI's where it runs
-        // (`third_party/`).
+        // pi-phone's own (`src/skills/`: getting-started), Effective HTML's (artifacts), OpenDesign's deck templates and
+        // GSAP (PP-242), and OfficeCLI's where it runs (`third_party/`).
         const builtIn = [
             join(APP_ROOT, "src", "skills"),
             join(APP_ROOT, "third_party", "effective-html", "skills"),
+            join(APP_ROOT, "third_party", "open-design", "skills"),
             ...(this.officecli.available() ? [this.officecli.skillsDir] : []),
         ];
 

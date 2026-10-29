@@ -123,6 +123,8 @@
   并配有制作演示文稿、仪表板、财务模型、论文和表单的技能；文件查看器可以预览它们。
 - **丰富的回复。** 数学公式（KaTeX）、Mermaid 图表、在沙箱中运行的 HTML 产物（带 [effective-html](https://github.com/plannotator/effective-html)
   的设计技能），以及 **交互式回答**：带地图的行程、计算器、检查清单等，以能保留状态、可以直接操作的界面呈现。
+- **演示模板与动效。** 来自 [OpenDesign](https://github.com/nexu-io/open-design) 的五个 HTML 幻灯片模板和 GSAP 动画技能，
+  各自采用 MIT 许可证：Pi 从其中一个模板开始制作演示文稿，并以产物形式发布。
 - **Pi 看得见自己的成果。** `screenshot` 在手机自己的 WebView 中，以手机和桌面两种宽度渲染产物、HTML 或 Office 文件或网页，即使屏幕关闭也可以，
   这样 Pi 在宣布完成前会先检查页面。HTML 文件会从它自己的文件夹加载样式表、脚本和图片，所以链接了应用 CSS 的页面也会带样式显示。
 - **带测量数据的截图。** 每个宽度的 `screenshot` 都附带一份布局检查，在页面绘制前运行：哪些内容溢出了自身的框或父元素，页面是否比屏幕更宽，
@@ -432,6 +434,8 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[OfficeCLI](https://github.com/iOfficeAI/OfficeCLI)**，作者 iOfficeAI（Apache-2.0）：Office 文件处理，在我们的分叉
   [picassio/OfficeCLI](https://github.com/picassio/OfficeCLI) 中为 Android（NativeAOT）构建，其技能位于 `third_party/officecli/`。
 - **[effective-html](https://github.com/plannotator/effective-html)**，作者 plannotator（MIT）：位于 `third_party/effective-html/` 的 HTML 设计技能。
+- **[OpenDesign](https://github.com/nexu-io/open-design)**，作者 nexu-io（Apache-2.0）：其设计系统、五个演示模板（作者 Zara Zhang，MIT）
+  和 GSAP 技能（作者 GreenSock，MIT），连同各自的许可证位于 `third_party/open-design/`。
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)**（MIT 或 Unlicense）和 **[fd](https://github.com/sharkdp/fd)**
   （MIT 或 Apache-2.0）：从它们各自的发布版安装到机器上。
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)**，作者 Leo（iFurySt）（MIT，Copyright (c) 2026 Leo）：

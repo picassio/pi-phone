@@ -219,14 +219,33 @@ test("a session lists them as /skill: commands and in its system prompt", async 
     const app = await started();
     const id = await newSession(app, project);
 
-    // The project's and the user's, then the app's own (pi-phone's getting-started, src/skills/; Effective HTML's,
-    // third_party/), after them.
+    // The project's and the user's, then the app's own (pi-phone's getting-started, src/skills/; Effective HTML's and
+    // OpenDesign's kept skills, third_party/), after them.
     const commands = app.skillCommands(id).map((each) => each.name);
 
     assert.deepEqual(commands.filter((name) => ["everywhere", "here"].includes(name)).sort(), ["everywhere", "here"]);
     assert.deepEqual(
         commands.filter((name) => !["everywhere", "here"].includes(name)).sort(),
-        ["big-pics-little-words", "design-artifact", "getting-started", "html", "html-diagram", "html-plan", "html-prototype", "html-wireframe"],
+        [
+            "big-pics-little-words",
+            "design-artifact",
+            "getting-started",
+            "gsap-core",
+            "gsap-performance",
+            "gsap-plugins",
+            "gsap-scrolltrigger",
+            "gsap-timeline",
+            "html",
+            "html-diagram",
+            "html-plan",
+            "html-ppt-zhangzara-blue-professional",
+            "html-ppt-zhangzara-editorial-tri-tone",
+            "html-ppt-zhangzara-monochrome",
+            "html-ppt-zhangzara-neo-grid-bold",
+            "html-ppt-zhangzara-signal",
+            "html-prototype",
+            "html-wireframe",
+        ],
     );
     await say(app, id, "hello");
     assert.match(prompt, /<name>everywhere<\/name>/);
@@ -234,6 +253,8 @@ test("a session lists them as /skill: commands and in its system prompt", async 
     // Effective HTML's: in the prompt, except the one that asks to be invoked by name only.
     assert.match(prompt, /<name>html<\/name>[^]*third_party\/effective-html\/skills\/html\/SKILL\.md/);
     assert.doesNotMatch(prompt, /<name>big-pics-little-words<\/name>/);
+    // OpenDesign's (PP-242): a deck template described by its look, with its path.
+    assert.match(prompt, /<name>html-ppt-zhangzara-signal<\/name>[^<]*<description>HTML slide deck template &quot;Signal&quot;[^]*third_party\/open-design\/skills\/html-ppt-zhangzara-signal\/SKILL\.md/);
     assert.ok(prompt.includes(join(project, ".agents", "skills", "here", "SKILL.md")));
     await say(app, id, "/skill:here do the thing");
     assert.match((await modelTexts(app, id)).join("\n"), /<skill name=\\"here\\" location=/);

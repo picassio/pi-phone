@@ -185,6 +185,9 @@ dự án thật.</sub>
 - **Câu trả lời phong phú.** Công thức toán (KaTeX), sơ đồ và biểu đồ Mermaid, artifact HTML trong sandbox (cùng các
   skill thiết kế của [effective-html](https://github.com/plannotator/effective-html)), và **câu trả lời tương tác**:
   một chuyến đi kèm bản đồ, một máy tính, một danh sách kiểm, được vẽ thành giao diện dùng được và giữ trạng thái.
+- **Mẫu trình chiếu và chuyển động.** Năm mẫu bản trình chiếu HTML và các skill hoạt ảnh GSAP từ
+  [OpenDesign](https://github.com/nexu-io/open-design), mỗi cái theo giấy phép MIT riêng: Pi bắt đầu một bản trình chiếu
+  từ một mẫu và xuất bản nó thành artifact.
 - **Pi nhìn thấy việc mình làm.** `screenshot` dựng một artifact, một tệp HTML hoặc Office, hay một trang web trong
   WebView của chính điện thoại, ở độ rộng điện thoại và máy tính, kể cả khi tắt màn hình, nên Pi kiểm tra trang trước khi
   coi là xong. Một tệp HTML tải stylesheet, script và hình ảnh từ chính thư mục của nó, nên trang liên kết tới CSS của
@@ -574,6 +577,9 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   `third_party/officecli/`.
 - **[effective-html](https://github.com/plannotator/effective-html)** của plannotator (MIT): các skill thiết kế HTML trong
   `third_party/effective-html/`.
+- **[OpenDesign](https://github.com/nexu-io/open-design)** của nexu-io (Apache-2.0): các hệ thống thiết kế và năm mẫu
+  trình chiếu (của Zara Zhang, MIT) cùng các skill GSAP (của GreenSock, MIT), trong `third_party/open-design/` kèm giấy
+  phép của chúng.
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT hoặc Unlicense) và **[fd](https://github.com/sharkdp/fd)**
   (MIT hoặc Apache-2.0): được cài lên các máy từ bản phát hành của chính chúng.
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)** của Leo (iFurySt) (MIT, Copyright (c) 2026 Leo):

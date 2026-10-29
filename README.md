@@ -175,6 +175,9 @@ No Termux, no laptop, no cloud VM.
 - **Rich replies.** Math (KaTeX), Mermaid diagrams and charts, HTML artifacts in a sandbox (with
   [effective-html](https://github.com/plannotator/effective-html)'s design skills), and **interactive answers**: a
   trip with a map, a calculator, a checklist, drawn as a working UI that keeps its state.
+- **Deck templates and motion.** Five HTML slide deck templates and GSAP's animation skills from
+  [OpenDesign](https://github.com/nexu-io/open-design), each under its own MIT licence: Pi starts a deck from one and
+  publishes it as an artifact.
 - **Pi sees its work.** `screenshot` renders an artifact, an HTML or Office file, or a web page in the phone's own
   WebView, at phone and desktop widths, even with the screen off, so Pi checks a page before calling it done. An HTML
   file loads its stylesheets, scripts and pictures from its own folder, so a page linking the app's CSS shows styled.
@@ -552,6 +555,9 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   `third_party/officecli/`.
 - **[effective-html](https://github.com/plannotator/effective-html)** by plannotator (MIT): the HTML design skills in
   `third_party/effective-html/`.
+- **[OpenDesign](https://github.com/nexu-io/open-design)** by nexu-io (Apache-2.0): its design systems and five deck
+  templates (by Zara Zhang, MIT) and GSAP's skills (by GreenSock, MIT), in `third_party/open-design/` with their
+  licences.
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT or Unlicense) and **[fd](https://github.com/sharkdp/fd)**
   (MIT or Apache-2.0): installed on machines from their own releases.
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)** by Leo (iFurySt) (MIT, Copyright (c) 2026
