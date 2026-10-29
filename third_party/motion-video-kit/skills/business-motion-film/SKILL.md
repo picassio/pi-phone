@@ -5,10 +5,11 @@ description: Plan, build and quality-check a premium short commercial for a real
 
 <!-- pi-phone: added (third_party/motion-video-kit/README.md). -->
 > **In pi-phone:** the phone does not render video. Render on one of the person's machines with the HyperFrames
-> machine tool (install it there from Menu › Machines › Install tools), and work there with `machine_run` or a session in
-> a folder on that machine; copy finished files back with `machine_copy`. The `scripts/` (in this skill's folder) need
-> ffmpeg, numpy and scipy on that machine: check with `ffmpeg -version` and `python3 -c 'import numpy, scipy'`, and
-> say what is missing rather than working around it. Each critic of the Gauntlet is a fresh subagent that sees only the
+> machine tool (with ffmpeg; the person installs them from Settings › Machines › Install tools: `hyperframes render
+> <folder> -o <file>.mp4` from `~/.pi/mobile/tools/bin`, never `npx hyperframes`), and work there with `machine_run` or a
+> session in a folder on that machine; copy finished files back with `machine_copy`. The `scripts/` (in this skill's
+> folder) need ffmpeg, numpy and scipy on that machine: run them with `PATH=~/.pi/mobile/tools/bin:$PATH`, check with
+> `ffmpeg -version` and `python3 -c 'import numpy, scipy'` there, and say what is missing rather than working around it. Each critic of the Gauntlet is a fresh subagent that sees only the
 > render, the brief and the references, never your session. Stills of a component or a frame come from the `screenshot`
 > tool (an HTML file, or a page the machine serves through a forwarded port); publish previews with the `artifact` tool.
 
