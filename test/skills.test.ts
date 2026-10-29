@@ -228,6 +228,7 @@ test("a session lists them as /skill: commands and in its system prompt", async 
         commands.filter((name) => !["everywhere", "here"].includes(name)).sort(),
         [
             "big-pics-little-words",
+            "business-motion-film",
             "design-artifact",
             "design-system",
             "getting-started",
@@ -254,6 +255,8 @@ test("a session lists them as /skill: commands and in its system prompt", async 
     // Effective HTML's: in the prompt, except the one that asks to be invoked by name only.
     assert.match(prompt, /<name>html<\/name>[^]*third_party\/effective-html\/skills\/html\/SKILL\.md/);
     assert.doesNotMatch(prompt, /<name>big-pics-little-words<\/name>/);
+    // Motion Video Kit's (PP-245), from its own folder.
+    assert.match(prompt, /<name>business-motion-film<\/name>[^]*third_party\/motion-video-kit\/skills\/business-motion-film\/SKILL\.md/);
     // OpenDesign's (PP-242): a deck template described by its look, with its path.
     assert.match(prompt, /<name>html-ppt-zhangzara-signal<\/name>[^<]*<description>HTML slide deck template &quot;Signal&quot;[^]*third_party\/open-design\/skills\/html-ppt-zhangzara-signal\/SKILL\.md/);
     assert.ok(prompt.includes(join(project, ".agents", "skills", "here", "SKILL.md")));

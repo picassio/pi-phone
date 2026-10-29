@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- Isolated lab for one Three.js component (HyperFrames-compatible).
+     1. Put your module next to this file as ./assets/my-scene.js exporting createScene(canvas) -> {render(t), anchors?(t)}.
+     2. Set DURATION. 3. Snapshot stills:  npx hyperframes snapshot . --at 0,1.2,2.4 -o shots
+        Motion proof:                       npx hyperframes render . --fps 60 --output proof.mp4
+     4. Send proof.mp4 to a fresh component critic (references/critic-prompts.md). -->
+<html><head><meta charset="utf-8">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+<style>html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#f4f0e5;font-family:system-ui,sans-serif}
+#lab{position:relative;width:1920px;height:1080px;overflow:hidden}canvas{position:absolute;inset:0;width:1920px;height:1080px}
+#ov{position:absolute;inset:0}.title{position:absolute;left:84px;top:110px;font-size:118px;line-height:1.05;letter-spacing:-5px;font-weight:650;color:#0a211d}</style></head>
+<body><div id="lab" data-composition-id="lab" data-width="1920" data-height="1080" data-duration="3.6">
+<canvas id="c" width="1920" height="1080" data-layout-allow-overflow></canvas>
+<div class="title">Your title<br>in context.</div><div id="ov"></div></div>
+<script type="module">
+import { createScene } from './assets/my-scene.js';
+import { mountLabels, updateLabels, OVERLAY_CSS } from './projected-overlays.js';
+const DURATION = 3.6;
+document.head.insertAdjacentHTML('beforeend', `<style>${OVERLAY_CSS}</style>`);
+window.__hf = window.__hf || {}; window.__hf.buildReady = window.__hf.buildReady || {};
+window.__hf.buildReady.lab = createScene(document.getElementById('c')).then(scene => {
+  const labels = scene.anchors ? mountLabels(document.getElementById('ov'), [['a','01','Layer one'],['b','02','Layer two']]) : null;
+  const draw = t => { const a = scene.anchors?.(t); scene.render(t); if (labels && a) updateLabels(labels, t, a, 1.2); };
+  window.__timelines = window.__timelines || {};
+  const st = { t: 0 };
+  window.__timelines.lab = gsap.timeline({ paused: true }).to(st, { t: DURATION, duration: DURATION, ease: 'none', onUpdate: () => draw(st.t) });
+  draw(0); window.addEventListener('hf-seek', e => draw(e.detail.time));
+});
+</script></body></html>

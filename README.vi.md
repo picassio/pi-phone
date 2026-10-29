@@ -192,6 +192,10 @@ dự án thật.</sub>
 - **Mẫu trình chiếu và chuyển động.** Năm mẫu bản trình chiếu HTML và các skill hoạt ảnh GSAP từ
   [OpenDesign](https://github.com/nexu-io/open-design), mỗi cái theo giấy phép MIT riêng: Pi bắt đầu một bản trình chiếu
   từ một mẫu và xuất bản nó thành artifact.
+- **Phim chuyển động cho doanh nghiệp.** Skill của [Motion Video Kit](https://github.com/echris6/motion-video-kit) để
+  làm quảng cáo ngắn kiểu phim ra mắt sản phẩm bằng chuyển động dựng từ mã (HTML, GSAP, Three.js), được các subagent
+  phê bình mới hoàn toàn đánh giá; Pi dựng video trên một máy của bạn bằng công cụ máy HyperFrames (cần ffmpeg, numpy và
+  scipy trên máy đó).
 - **Pi nhìn thấy việc mình làm.** `screenshot` dựng một artifact, một tệp HTML hoặc Office, hay một trang web trong
   WebView của chính điện thoại, ở độ rộng điện thoại và máy tính, kể cả khi tắt màn hình, nên Pi kiểm tra trang trước khi
   coi là xong. Một tệp HTML tải stylesheet, script và hình ảnh từ chính thư mục của nó, nên trang liên kết tới CSS của
@@ -585,6 +589,8 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
 - **[OpenDesign](https://github.com/nexu-io/open-design)** của nexu-io (Apache-2.0): các hệ thống thiết kế và năm mẫu
   trình chiếu (của Zara Zhang, MIT) cùng các skill GSAP (của GreenSock, MIT), trong `third_party/open-design/` kèm giấy
   phép của chúng.
+- **[motion-video-kit](https://github.com/echris6/motion-video-kit)** của echris6 (MIT): skill `business-motion-film`
+  trong `third_party/motion-video-kit/`.
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT hoặc Unlicense) và **[fd](https://github.com/sharkdp/fd)**
   (MIT hoặc Apache-2.0): được cài lên các máy từ bản phát hành của chính chúng.
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)** của Leo (iFurySt) (MIT, Copyright (c) 2026 Leo):

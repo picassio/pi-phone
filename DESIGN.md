@@ -646,6 +646,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     section (phone sessions only, where the files are) names it, its summary and both file paths; Pi uses it unless
     asked otherwise. A default whose folder is gone is said so in the prompt and the sheet, not replaced. The
     setting lists no choices (152 would flood `settings`); the skill finds ids.
+- **Motion Video Kit** (`third_party/motion-video-kit/`, PP-245): echris6/motion-video-kit (MIT) at `e4b1c00`, its
+  `business-motion-film/` whole (SKILL.md, references, scripts, templates; 113 KB) in `skills/`, a built-in skill after
+  OpenDesign's. One marked note: render on a machine with the HyperFrames machine tool (PP-246), never on the phone;
+  the scripts need ffmpeg, numpy and scipy there (say what is missing, no workaround); each Gauntlet critic is a fresh
+  subagent; stills from `screenshot`.
 - **Machine tools** (`src/server/machine-tools.ts`; owner's decisions of 2026-10-18): command-line programs run where
   bash runs, which in a session on a machine is the machine, so OfficeCLI, ripgrep, and fd are installed there.
   - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT

@@ -182,6 +182,9 @@ No Termux, no laptop, no cloud VM.
 - **Deck templates and motion.** Five HTML slide deck templates and GSAP's animation skills from
   [OpenDesign](https://github.com/nexu-io/open-design), each under its own MIT licence: Pi starts a deck from one and
   publishes it as an artifact.
+- **Business motion films.** [Motion Video Kit](https://github.com/echris6/motion-video-kit)'s skill for short
+  launch-style commercials in code-built motion (HTML, GSAP, Three.js), judged by fresh critic subagents; Pi renders
+  them on one of your machines with the HyperFrames machine tool (with ffmpeg, numpy and scipy there).
 - **Pi sees its work.** `screenshot` renders an artifact, an HTML or Office file, or a web page in the phone's own
   WebView, at phone and desktop widths, even with the screen off, so Pi checks a page before calling it done. An HTML
   file loads its stylesheets, scripts and pictures from its own folder, so a page linking the app's CSS shows styled.
@@ -563,6 +566,8 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
 - **[OpenDesign](https://github.com/nexu-io/open-design)** by nexu-io (Apache-2.0): its design systems and five deck
   templates (by Zara Zhang, MIT) and GSAP's skills (by GreenSock, MIT), in `third_party/open-design/` with their
   licences.
+- **[motion-video-kit](https://github.com/echris6/motion-video-kit)** by echris6 (MIT): the `business-motion-film`
+  skill in `third_party/motion-video-kit/`.
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT or Unlicense) and **[fd](https://github.com/sharkdp/fd)**
   (MIT or Apache-2.0): installed on machines from their own releases.
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)** by Leo (iFurySt) (MIT, Copyright (c) 2026
