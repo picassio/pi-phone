@@ -622,8 +622,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     templates (`html-ppt-zhangzara-*`: signal, blue-professional, monochrome, editorial-tri-tone, neo-grid-bold) and five
     GSAP skills (core, timeline, scrolltrigger, plugins, performance). Left out: the 128 that name an `upstream:` with no
     licence file, those overlapping pi-phone's own (pptx, docx, pdf, slides, frontend-design, web-artifacts-builder,
-    Effective HTML, OfficeCLI), and those needing fal, Replicate or Venice keys or the OpenDesign daemon. Built-in skills
-    after Effective HTML's. Each gets one marked note (publish with `artifact`, check with `screenshot`; GSAP from
+    Effective HTML, OfficeCLI), and those needing fal, Replicate or Venice keys or the OpenDesign daemon. Design &
+    video's skills (below). Each gets one marked note (publish with `artifact`, check with `screenshot`; GSAP from
     jsDelivr at 3.15.0), and a deck's description is rewritten from its `template.json` (upstream's describes an example
     subject, which would make Pi pick it for that subject). The table of skills, sources and licences is the folder's
     README.
@@ -631,11 +631,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `tokens.css` and `manifest.json` each (2.8 MB of 41 MB: no previews, translations or derived files), and an
     `index.json` the sync script writes (id, name, category, and a one-line summary from under DESIGN.md's title, as
     upstream's manifest descriptions are mostly a generic "Bundled OpenDesign package for X"). The person's own are
-    `<data>/design-systems/<id>/` in the same shape (brand-extract writes them), listed first and winning over a
+    `<data>/design-systems/<id>/` in the same shape (Pi writes them when asked; brand-extract, PP-240, waits for
+    `browser_eval`, PP-244), listed first and winning over a
     bundled id; a folder there missing a file or a valid manifest is listed as a problem, never skipped silently. Every
     tokens.css binds the schema's core tokens (`REQUIRED_TOKENS`: colour roles, three font stacks, type scale, spacing,
     radii; all bundled ones do).
-  - **The `design-system` skill** (`src/skills/design-system/`): a SKILL.md and `systems.ts`, run with node from Pi's
+  - **The `design-system` skill** (`src/design/skills/design-system/`): a SKILL.md and `systems.ts`, run with node from Pi's
     bash (`list [category]`, `search <words>`, `show`, `tokens` with `var()` resolved for Office's plain hex, `check`).
     It reads the person's folder from `PI_POCKET_DIR`, which `main.ts` sets for every child process. A command rather
     than a tool: no extra tool in every session's list, and Pi reads the files itself. The skill says how to apply one:
@@ -647,10 +648,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
     asked otherwise. A default whose folder is gone is said so in the prompt and the sheet, not replaced. The
     setting lists no choices (152 would flood `settings`); the skill finds ids.
 - **Motion Video Kit** (`third_party/motion-video-kit/`, PP-245): echris6/motion-video-kit (MIT) at `e4b1c00`, its
-  `business-motion-film/` whole (SKILL.md, references, scripts, templates; 113 KB) in `skills/`, a built-in skill after
-  OpenDesign's. One marked note: render on a machine with the HyperFrames machine tool (PP-246), never on the phone;
+  `business-motion-film/` whole (SKILL.md, references, scripts, templates; 113 KB) in `skills/`, one of Design &
+  video's skills. One marked note: render on a machine with the HyperFrames machine tool (PP-246), never on the phone;
   the scripts need ffmpeg, numpy and scipy there (say what is missing, no workaround); each Gauntlet critic is a fresh
   subagent; stills from `screenshot`.
+- **Design & video** (`extensions/design.ts`, PP-247; owner's decision of 2026-10-29): the built-in extension that
+  owns all of the above, so the owner can drop it in one switch (Settings › Extensions, or `extensions.design.ts` with
+  `setting_change`). On by default. While on, `PocketApp.builtInSkills()` adds `DESIGN_SKILLS` (`src/design/skills/`,
+  `third_party/open-design/skills/`, `third_party/motion-video-kit/skills/`: 12 skills) after Effective HTML's; the
+  `design.default` setting is listed; the module's `design_system` section names the default; the menu shows Design
+  system (`pocket-design` among `hello`'s extensions). Off: none of them, so sessions carry none of the 12
+  descriptions, and `setDesignSystem` and `GET /api/design-systems` answer 409. The prompt's skills cache keys on the
+  app's skill folders (`host.builtInSkills()`), so the switch shows from the next request, not after its 30 s. The
+  person's design systems and the chosen id stay on disk while it is off.
 - **Machine tools** (`src/server/machine-tools.ts`; owner's decisions of 2026-10-18): command-line programs run where
   bash runs, which in a session on a machine is the machine, so OfficeCLI, ripgrep, and fd are installed there.
   - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT

@@ -647,5 +647,6 @@
     "No device gets notifications as {1}. Devices: {2}.": "没有名为 {1} 的设备在接收通知。设备：{2}。",
     "What's new is show or seen.": "新功能卡片的状态为 show 或 seen。",
     "A design system is named by its id (lowercase letters, digits and hyphens), or null for none.": "设计系统以其 id 命名（小写字母、数字和连字符），或用 null 表示无。",
-    "There is no design system \"{1}\".": "没有名为“{1}”的设计系统。"
+    "There is no design system \"{1}\".": "没有名为“{1}”的设计系统。",
+    "Design & video is off: turn it on in Settings › Extensions first.": "设计与视频已关闭：请先在设置 › 扩展中打开它。"
 }

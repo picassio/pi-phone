@@ -14,8 +14,8 @@ three above.
 
 `design-systems/index.json` is written by the sync script: each system's id, name and category (its manifest's) and a
 one-line summary, the first line under its DESIGN.md's title that is not its category or surface. pi-phone's
-`design-system` skill (`src/skills/design-system/`) lists and searches it, with the person's own systems
-(`<data>/design-systems/<id>/`, written by the `brand-extract` skill), and the app's Design system setting picks a
+`design-system` skill (`src/design/skills/design-system/`) lists and searches it, with the person's own systems
+(`<data>/design-systems/<id>/`, in the same shape), and the app's Design system setting picks a
 default (`src/server/design-systems.ts`).
 
 Upstream calls them "OpenDesign curated" and synced from the `getdesign` npm package. Many are "inspired by" a
@@ -46,8 +46,9 @@ The deck templates are self-contained HTML decks (`example.html`, Google Fonts o
 skill text only: the GSAP library itself, loaded from a CDN by the pages Pi makes, has its own licence (GreenSock's
 standard "no charge" licence).
 
-pi-phone offers them to Pi in every session on the phone (`SkillSources.builtIn`, after the owner's own skills, so a
-skill of theirs by the same name comes first).
+pi-phone offers them to Pi in every session on the phone while its Design & video extension is on (the default;
+`DESIGN_SKILLS` in `src/server/design-systems.ts`), after the owner's own skills, so a skill of theirs by the same name
+comes first.
 
 ## pi-phone's change
 
@@ -61,9 +62,8 @@ skill of theirs by the same name comes first).
 Nothing else is changed. To update: change `COMMIT` in `scripts/sync-open-design.ts`, run it on a clone at that
 commit, check that every kept skill still ships its licence, and update this file.
 
-## Borrowed ideas
+## Not taken
 
-pi-phone's own `brand-extract` skill (`src/skills/brand-extract/`) follows the method of OpenDesign's
-`skills/brand-extract` (Apache-2.0, part of this repository's licence): measure the live page's computed colours and
-fonts rather than guess, then write a DESIGN.md and tokens.css. Its text is pi-phone's own. OpenDesign's `design-md`
-skill only points to an upstream without a licence file (google-labs-code/skills), so nothing is taken from it.
+OpenDesign's `skills/brand-extract` (under this repository's Apache-2.0) drives its daemon's browser; a pi-phone
+brand-extract (PP-240) waits for Pi's `browser_eval` (PP-244) and would credit its method here. OpenDesign's
+`design-md` skill only points to an upstream without a licence file (google-labs-code/skills): nothing is taken from it.

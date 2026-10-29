@@ -7,10 +7,10 @@
  *   node systems.ts search <words>
  *   node systems.ts show <id>
  *   node systems.ts tokens <id>    its tokens.css's values, each var() resolved (for Office files)
- *   node systems.ts check <id>     whether a system of the person's is complete (after brand-extract writes one)
+ *   node systems.ts check <id>     whether a system of the person's is complete (after one is written there)
  */
 import { readFileSync } from "node:fs";
-import { dataDir } from "../../server/config.ts";
+import { dataDir } from "../../../server/config.ts";
 import {
     type DesignSystem,
     findDesignSystem,
@@ -19,7 +19,7 @@ import {
     ownDesignSystems,
     readTokens,
     searchDesignSystems,
-} from "../../server/design-systems.ts";
+} from "../../../server/design-systems.ts";
 
 const line = (system: DesignSystem) => `${system.id}: ${system.name} · ${system.mine ? "yours" : system.category} · ${system.summary}`;
 

@@ -646,5 +646,6 @@
     "Notifications turn on only on the device itself, with a tap: Menu › Notifications there.": "Thông báo chỉ bật được trên chính thiết bị đó, bằng một lần chạm: Menu › Thông báo trên thiết bị đó.",
     "No device gets notifications as {1}. Devices: {2}.": "Không có thiết bị nào nhận thông báo với tên {1}. Các thiết bị: {2}.",
     "A design system is named by its id (lowercase letters, digits and hyphens), or null for none.": "Một hệ thống thiết kế được gọi bằng id của nó (chữ thường, chữ số và dấu gạch nối), hoặc null để không dùng.",
-    "There is no design system \"{1}\".": "Không có hệ thống thiết kế \"{1}\"."
+    "There is no design system \"{1}\".": "Không có hệ thống thiết kế \"{1}\".",
+    "Design & video is off: turn it on in Settings › Extensions first.": "Thiết kế & video đang tắt: hãy bật nó trước trong Cài đặt › Tiện ích."
 }

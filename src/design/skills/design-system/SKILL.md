@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: "Find and apply a design system (a brand's or a style's colours, fonts, spacing and component rules: 152 bundled from OpenDesign, such as Stripe, Airbnb, Linear, editorial or brutalist, plus the person's own from brand-extract) to HTML pages, artifacts, and Office decks, documents and sheets. Use when the person names a brand or style to design in, asks which design systems there are, or has a default design system in the prompt."
+description: "Find and apply a design system (a brand's or a style's colours, fonts, spacing and component rules: 152 bundled from OpenDesign, such as Stripe, Airbnb, Linear, editorial or brutalist, plus the person's own) to HTML pages, artifacts, and Office decks, documents and sheets. Use when the person names a brand or style to design in, asks which design systems there are, or has a default design system in the prompt."
 ---
 
 # Design systems
@@ -8,7 +8,7 @@ description: "Find and apply a design system (a brand's or a style's colours, fo
 A design system is a folder with `DESIGN.md` (the prose: atmosphere, colour roles, type rules, components, layout,
 do's and don'ts, an agent prompt guide), `tokens.css` (the same values as CSS custom properties in one `:root` block)
 and `manifest.json` (id, name, category, description). pi-phone bundles OpenDesign's (Apache-2.0); the person's own
-live in the app's data folder, written by the `brand-extract` skill, and come first.
+live in the app's data folder and come first.
 
 ## Find one
 
@@ -62,6 +62,12 @@ and don'ts; 9 is a prompt guide), then its `tokens.css`.
 
 ## The person's own
 
-`brand-extract` writes them to the folder `list` names. `node <this folder>/systems.ts check <id>` says whether one is
-complete. A folder there that is not a design system is listed under "Not a design system" with what it lacks: tell
-the person, or fix it if you wrote it.
+They live in the folder `list` names ("yours in …"), one folder per system, named by its id (lowercase letters,
+digits, hyphens). When the person asks for one of their own (their brand's colours and fonts, from what they give
+you), write the same three files there, modelled on a bundled one (`show` gives its paths): a `manifest.json` with
+`schemaVersion` `od-design-system-project/v1`, `id` (the folder's name), `name`, `category`, `description` (one line:
+the look), `source` and `files`; a `tokens.css` whose `:root` binds every token the bundled ones do; and a DESIGN.md
+with the same sections. Never invent a brand's values: use what the person gives, and say what you chose to fit.
+
+`node <this folder>/systems.ts check <id>` says whether one is complete. A folder there that is not a design system
+is listed under "Not a design system" with what it lacks: tell the person, or fix it if you wrote it.

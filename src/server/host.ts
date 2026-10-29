@@ -282,6 +282,8 @@ export interface PocketHost {
     skillPaths(): string[];
     /** Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`). */
     skills(cwd: string): Skill[];
+    /** The app's own skill folders now: those of extensions that are on (Design & video's) among them. */
+    builtInSkills(): string[];
     /** What the prompt says of the person's default design system (`design-systems.ts`), or undefined for none. */
     designSystem(): string | undefined;
     /**

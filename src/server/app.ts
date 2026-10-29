@@ -94,7 +94,15 @@ import { PiHandoff } from "./pi-handoff.ts";
 import { clockText, inLanguage, inZone, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
 import { resolveLanguage, translator } from "./i18n.ts";
 import { newestBig, WHATS_NEW_DIR, type WhatsNew } from "./whats-new.ts";
-import { DESIGN_SYSTEM_ID, designSystemPrompt, findDesignSystem, listDesignSystems, type DesignSystems } from "./design-systems.ts";
+import {
+    DESIGN_MODULE,
+    DESIGN_SKILLS,
+    DESIGN_SYSTEM_ID,
+    designSystemPrompt,
+    findDesignSystem,
+    listDesignSystems,
+    type DesignSystems,
+} from "./design-systems.ts";
 import { WebPush } from "./web-push.ts";
 import { Forwards } from "./forwards.ts";
 import { SessionControl } from "./session-control.ts";
@@ -947,6 +955,7 @@ export class PocketApp {
                 }
             },
             skills: (cwd) => this.skills(cwd),
+            builtInSkills: () => this.builtInSkills(),
             designSystem: () => this.designSystemPrompt(),
             machineOf: (cwd) => {
                 const machine = this.places.machineOf(cwd);
@@ -4461,19 +4470,22 @@ export class PocketApp {
             // Unreadable settings: the default folders still count, and no project is trusted unasked.
         }
 
-        // The app's skills: after Pi's own, so a skill of the owner's by the same name comes first.
-        // pi-phone's own (`src/skills/`: getting-started, design-system), Effective HTML's (artifacts),
-        // OpenDesign's deck templates and GSAP (PP-242), Motion Video Kit's business-motion-film (PP-245), and OfficeCLI's
-        // where it runs (`third_party/`).
-        const builtIn = [
+        return { agentDir: getAgentDir(), home: this.#home, settingsPaths, defaultProjectTrust, builtIn: this.builtInSkills() };
+    }
+
+    /**
+     * The app's skill folders, after Pi's own places, so a skill of the owner's by the same name comes first: pi-phone's
+     * own (`src/skills/`: getting-started), Effective HTML's (artifacts), the Design & video extension's while it is on
+     * (PP-247: design-system, OpenDesign's deck templates and GSAP, Motion Video Kit's business-motion-film), and
+     * OfficeCLI's where it runs (`third_party/`).
+     */
+    builtInSkills(): string[] {
+        return [
             join(APP_ROOT, "src", "skills"),
             join(APP_ROOT, "third_party", "effective-html", "skills"),
-            join(APP_ROOT, "third_party", "open-design", "skills"),
-            join(APP_ROOT, "third_party", "motion-video-kit", "skills"),
+            ...(this.loader.enabled(DESIGN_MODULE) ? DESIGN_SKILLS : []),
             ...(this.officecli.available() ? [this.officecli.skillsDir] : []),
         ];
-
-        return { agentDir: getAgentDir(), home: this.#home, settingsPaths, defaultProjectTrust, builtIn };
     }
 
     /** Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`). */
@@ -4801,7 +4813,16 @@ export class PocketApp {
      */
     /** The design systems Pi may design with (Menu › Design system): the person's own first, then OpenDesign's. */
     designSystems(): DesignSystems {
+        this.#designOn();
+
         return listDesignSystems(this.dataDir);
+    }
+
+    /** Design systems are the Design & video extension's (PP-247): with it off, there is no setting to change. */
+    #designOn(): void {
+        if (!this.loader.enabled(DESIGN_MODULE)) {
+            throw new HttpError(409, "Design & video is off: turn it on in Settings › Extensions first.");
+        }
     }
 
     /** The design system Pi uses unless asked otherwise (`design.default`), by its id, or null for none. */
@@ -4809,6 +4830,8 @@ export class PocketApp {
         if (user.role !== "owner") {
             throw new HttpError(403, "Only the owner can do that");
         }
+
+        this.#designOn();
 
         if (id !== null && (typeof id !== "string" || !DESIGN_SYSTEM_ID.test(id))) {
             throw new HttpError(400, "A design system is named by its id (lowercase letters, digits and hyphens), or null for none.");

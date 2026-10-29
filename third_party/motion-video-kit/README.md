@@ -6,8 +6,9 @@ commit `e4b1c0004080fe6a0deb883631bad5eba1e5f339`: its `business-motion-film/` f
 of code-built motion (HTML/GSAP, selective Three.js), with an independent-critic loop ("the Gauntlet"), a quality bar,
 audio rules and a business-offer playbook. The 28 reference films are only linked; no footage is redistributed.
 
-pi-phone offers it to Pi in every session on the phone (`SkillSources.builtIn`, after the owner's own skills, so a
-skill of theirs by the same name comes first).
+pi-phone offers it to Pi in every session on the phone while its Design & video extension is on (the default;
+`DESIGN_SKILLS` in `src/server/design-systems.ts`), after the owner's own skills, so a skill of theirs by the same name
+comes first.
 
 ## pi-phone's change
 

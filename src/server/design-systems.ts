@@ -1,11 +1,13 @@
 /**
  * Design systems Pi designs with (PP-241): OpenDesign's 152, bundled in `third_party/open-design/design-systems/`
  * (`scripts/sync-open-design.ts` writes their `index.json`), and the person's own in `<data>/design-systems/<id>/`,
- * which the `brand-extract` skill writes in the same shape: `DESIGN.md` (the prose: colours and their roles, type,
- * spacing, components), `tokens.css` (the same as CSS custom properties) and `manifest.json` (id, name, category,
- * description). A person's system by a bundled one's id comes first, as their skills do.
+ * in the same shape: `DESIGN.md` (the prose: colours and their roles, type, spacing, components), `tokens.css` (the
+ * same as CSS custom properties) and `manifest.json` (id, name, category, description). A person's system by a
+ * bundled one's id comes first, as their skills do. (A brand-extract skill, PP-240, is to write them from a website.)
  *
- * The `design-system` skill lists and searches them (`src/skills/design-system/systems.ts`), and the app's Design
+ * All of it is the Design & video extension's (PP-247, `extensions/design.ts`): when it is on, its skills load
+ * (`DESIGN_SKILLS`: the `design-system` skill, which lists and searches them with `src/design/skills/design-system/
+ * systems.ts`, OpenDesign's deck templates and GSAP skills, Motion Video Kit's business-motion-film), and its Design
  * system setting (`design.default`, Menu › Design system) names the one Pi uses unless asked otherwise, in its prompt.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -14,7 +16,18 @@ import { APP_ROOT } from "./config.ts";
 
 export const BUNDLED_DESIGN_SYSTEMS = join(APP_ROOT, "third_party", "open-design", "design-systems");
 
-/** The person's own design systems, as brand-extract writes them. */
+/** The Design & video extension's module (`extensions/design.ts`), and its name as it installs. */
+export const DESIGN_MODULE = "design.ts";
+export const DESIGN_EXTENSION = "pocket-design";
+
+/** The skill folders the extension adds, while it is on. */
+export const DESIGN_SKILLS = [
+    join(APP_ROOT, "src", "design", "skills"),
+    join(APP_ROOT, "third_party", "open-design", "skills"),
+    join(APP_ROOT, "third_party", "motion-video-kit", "skills"),
+];
+
+/** The person's own design systems. */
 export const ownDesignSystems = (dataDir: string): string => join(dataDir, "design-systems");
 
 /** A design system's id: its folder's name. */
@@ -151,7 +164,7 @@ export function searchDesignSystems(systems: DesignSystem[], query: string): Des
 
 /**
  * The tokens every design system's tokens.css binds (OpenDesign's token schema, which all bundled ones follow): colour
- * roles, the three font stacks, the type scale, spacing and radii. brand-extract writes them all.
+ * roles, the three font stacks, the type scale, spacing and radii. A person's own binds them all too.
  */
 export const REQUIRED_TOKENS = [
     "--bg",

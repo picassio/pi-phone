@@ -1,6 +1,6 @@
 // Menu › Design system (PP-241, src/server/design-systems.ts): the design system Pi designs pages, artifacts and Office
-// files with unless asked otherwise, from OpenDesign's and the person's own (brand-extract writes those), or none.
-// Pi changes it with setting_change (design.default).
+// files with unless asked otherwise, from OpenDesign's and the person's own, or none. Pi changes it with setting_change
+// (design.default). Shown while the Design & video extension is on (PP-247).
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet } from "../store.js";
 import { html, Icon, Loader, Sheet } from "../ui.js";
@@ -47,7 +47,7 @@ export function DesignSystemSheet() {
 
     return html`<${Sheet} title=${t("Design system")} onClose=${closeSheet}>
         <p class="muted small">
-            ${t("The look Pi uses for pages, artifacts, and Office files unless you ask for another: colours, fonts, and spacing. Ask Pi to extract one from a website to add your own.")}
+            ${t("The look Pi uses for pages, artifacts, and Office files unless you ask for another: colours, fonts, and spacing. Ask Pi to make one of your own: yours come first.")}
         </p>
         ${!state && html`<${Loader} label=${t("Loading design systems")} />`}
         ${

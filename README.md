@@ -185,6 +185,8 @@ No Termux, no laptop, no cloud VM.
 - **Business motion films.** [Motion Video Kit](https://github.com/echris6/motion-video-kit)'s skill for short
   launch-style commercials in code-built motion (HTML, GSAP, Three.js), judged by fresh critic subagents; Pi renders
   them on one of your machines with the HyperFrames machine tool (with ffmpeg, numpy and scipy there).
+- **Design & video.** The three above are one extension, on by default: turn it off in **Extensions** (or ask Pi), and
+  sessions carry none of its skills and Menu › Design system goes away until it is on again.
 - **Pi sees its work.** `screenshot` renders an artifact, an HTML or Office file, or a web page in the phone's own
   WebView, at phone and desktop widths, even with the screen off, so Pi checks a page before calling it done. An HTML
   file loads its stylesheets, scripts and pictures from its own folder, so a page linking the app's CSS shows styled.
@@ -466,7 +468,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | The design system Pi designs with | **Design system**: search, pick one, or *None* | "Design in the Stripe style from now on", "No default design system" |
 | API keys and tokens | **Secrets**. Pi asks for a missing one with a hidden field on a card, never in the chat | Pi can ask for one, change a secret's flags, or delete one. You type the value |
 | Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
-| Extensions (Projects, Wiki, Pi's browser, …) | **Extensions** | "Turn on Projects" |
+| Extensions (Projects, Wiki, Pi's browser, Design & video, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
 | Other devices and people | **Access** (Tailscale), **People** (devices, invites, recovery code) | Yes for listing devices, signing one or all out, or changing a person's role. The recovery code is yours |

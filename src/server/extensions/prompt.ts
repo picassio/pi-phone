@@ -215,6 +215,8 @@ const STALE_MS = 30_000;
 type Resources = {
     at: number;
     trust: number;
+    /** The app's skill folders it was loaded with: an extension that adds some, turned on or off, loads again. */
+    places: string;
     context: string | undefined;
     skills: string | undefined;
 };
@@ -237,8 +239,9 @@ export default function createPrompt(host: PocketHost) {
     const load = (cwd: string): Resources => {
         const cached = resources.get(cwd);
         const trust = trustChanged();
+        const places = host.builtInSkills().join("\n");
 
-        if (cached !== undefined && Date.now() - cached.at < STALE_MS && cached.trust === trust) {
+        if (cached !== undefined && Date.now() - cached.at < STALE_MS && cached.trust === trust && cached.places === places) {
             return cached;
         }
 
@@ -265,7 +268,7 @@ export default function createPrompt(host: PocketHost) {
             host.notice("warning", `Could not load skills for ${cwd}: ${String(error)}`);
         }
 
-        const fresh = { at: Date.now(), trust, context, skills };
+        const fresh = { at: Date.now(), trust, places, context, skills };
 
         resources.set(cwd, fresh);
 
@@ -337,8 +340,6 @@ export default function createPrompt(host: PocketHost) {
                 // On a machine: the skills of tools pi-phone installed there (OfficeCLI's), at their paths there.
                 return cwd === undefined ? host.machineSkills(cwdOf(input)) : load(cwd).skills;
             }, { tag: false }),
-            // The person's default design system (PP-241, Menu › Design system): on the phone, where its files are.
-            section("design_system", (input) => (localCwd(input) === undefined ? undefined : host.designSystem())),
             section("environment", (input) => {
                 // The date only, so the prompt stays cache-friendly through the day.
                 const today = new Date().toISOString().slice(0, 10);

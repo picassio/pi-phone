@@ -14,6 +14,7 @@ import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
 import { MAX_COMPACT_AT, MIN_COMPACT_AT } from "./auto-compact.ts";
 import { makeBackup } from "./backup.ts";
+import { DESIGN_MODULE } from "./design-systems.ts";
 import { type VoiceCheck, VOICES } from "./voice.ts";
 import { copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -518,16 +519,20 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 return app.setThemeDefault(user, { look, colors: colors ?? look });
             },
         },
-        // ─── Design ───
-        {
-            id: "design.default",
-            area: "design",
-            title: "Design system Pi designs with",
-            help: "A design system's id (the design-system skill lists them: OpenDesign's and the person's own), used for pages, artifacts and Office files unless asked otherwise; or none.",
-            owner: true,
-            read: () => app.config.designSystem ?? "none",
-            apply: (user, value) => app.setDesignSystem(user, NONE.test(value.trim()) ? null : value.trim()),
-        },
+        // ─── Design: the Design & video extension's, while it is on (PP-247) ───
+        ...(app.loader.enabled(DESIGN_MODULE)
+            ? [
+                  {
+                      id: "design.default",
+                      area: "design",
+                      title: "Design system Pi designs with",
+                      help: "A design system's id (the design-system skill lists them: OpenDesign's and the person's own), used for pages, artifacts and Office files unless asked otherwise; or none.",
+                      owner: true,
+                      read: () => app.config.designSystem ?? "none",
+                      apply: (user: User, value: string) => app.setDesignSystem(user, NONE.test(value.trim()) ? null : value.trim()),
+                  } satisfies Setting,
+              ]
+            : []),
         // ─── People and access ───
         {
             id: "people.role",

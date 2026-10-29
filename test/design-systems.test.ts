@@ -25,7 +25,7 @@ import { createHandler } from "../src/server/http.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
 
 const data = join(root, "design-data");
-const COMMAND = join(APP_ROOT, "src", "skills", "design-system", "systems.ts");
+const COMMAND = join(APP_ROOT, "src", "design", "skills", "design-system", "systems.ts");
 const TOKENS = `:root {\n  /* the brand's */\n  --brand: #112233;\n${REQUIRED_TOKENS.map((name) => `  ${name}: ${name === "--accent" ? "var(--brand)" : "1px"};`).join("\n")}\n}\n`;
 
 /** A system of the person's, `files` written of the three. */
@@ -146,4 +146,24 @@ test("design.default names one for Pi's prompt, refuses one that is not there, a
     } finally {
         server.close();
     }
+});
+
+test("the setting is Design & video's: with it off there is none, the app refuses a pick, and the prompt names no system", async () => {
+    const id = await newSession(app!);
+
+    await appSettings(app!).settings.find((each) => each.id === "design.default")!.apply(owner(app!), "stripe", undefined);
+    await app!.setExtensionEnabled(owner(app!), "design.ts", false);
+
+    try {
+        assert.equal(appSettings(app!).settings.find((each) => each.id === "design.default"), undefined);
+        await assert.rejects(app!.setDesignSystem(owner(app!), "linear-app"), /Design & video is off: turn it on in Settings › Extensions first\./);
+        assert.throws(() => app!.designSystems(), /Design & video is off/);
+        await say(app!, id, "design off");
+        assert.doesNotMatch(prompt, /design_system/);
+    } finally {
+        await app!.setExtensionEnabled(owner(app!), "design.ts", true);
+    }
+
+    await say(app!, id, "design on");
+    assert.match(prompt, /Our Stripe \(stripe, their own\)/);
 });
