@@ -627,6 +627,25 @@ so Pi changes them through the settings tools; "the last session" is the one the
     jsDelivr at 3.15.0), and a deck's description is rewritten from its `template.json` (upstream's describes an example
     subject, which would make Pi pick it for that subject). The table of skills, sources and licences is the folder's
     README.
+  - **Design systems** (PP-241, `src/server/design-systems.ts`): all 152 of upstream's, but only `DESIGN.md`,
+    `tokens.css` and `manifest.json` each (2.8 MB of 41 MB: no previews, translations or derived files), and an
+    `index.json` the sync script writes (id, name, category, and a one-line summary from under DESIGN.md's title, as
+    upstream's manifest descriptions are mostly a generic "Bundled OpenDesign package for X"). The person's own are
+    `<data>/design-systems/<id>/` in the same shape (brand-extract writes them), listed first and winning over a
+    bundled id; a folder there missing a file or a valid manifest is listed as a problem, never skipped silently. Every
+    tokens.css binds the schema's core tokens (`REQUIRED_TOKENS`: colour roles, three font stacks, type scale, spacing,
+    radii; all bundled ones do).
+  - **The `design-system` skill** (`src/skills/design-system/`): a SKILL.md and `systems.ts`, run with node from Pi's
+    bash (`list [category]`, `search <words>`, `show`, `tokens` with `var()` resolved for Office's plain hex, `check`).
+    It reads the person's folder from `PI_POCKET_DIR`, which `main.ts` sets for every child process. A command rather
+    than a tool: no extra tool in every session's list, and Pi reads the files itself. The skill says how to apply one:
+    paste the `:root` block into an artifact and style only through `var(--*)`; in officecli, map `--bg`, `--fg`,
+    `--muted`, `--border`, `--accent` and the first font family of each stack.
+  - **Default** (`design.default`, `config.designSystem`; Menu › Design system, `sheets/design-system.js`, `GET
+    /api/design-systems`, `POST /api/settings { designSystem }`): none by default. When set, a `design_system` prompt
+    section (phone sessions only, where the files are) names it, its summary and both file paths; Pi uses it unless
+    asked otherwise. A default whose folder is gone is said so in the prompt and the sheet, not replaced. The
+    setting lists no choices (152 would flood `settings`); the skill finds ids.
 - **Machine tools** (`src/server/machine-tools.ts`; owner's decisions of 2026-10-18): command-line programs run where
   bash runs, which in a session on a machine is the machine, so OfficeCLI, ripgrep, and fd are installed there.
   - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT

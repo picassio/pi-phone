@@ -173,6 +173,8 @@ interface PocketConfig {
      * Jev model's OpenRouter id ("typesafe/jev-1.13"). Absent: "session"; Jev runs only once the owner picks it.
      */
     browserRunModel?: string;
+    /** The design system Pi designs with unless asked otherwise (`design-systems.ts`), by its id. Absent: none. */
+    designSystem?: string;
     /** The model that describes images in documents (PP-49), provider/modelId; none when unset. */
     docsImageModel?: string;
     /** Also listen on the phone's Tailscale address, for people on the owner's tailnet (`tailnet.ts`). Absent: off. */
@@ -537,6 +539,20 @@ export class ConfigStore {
             delete this.#config.browserRunModel;
         } else {
             this.#config.browserRunModel = model;
+        }
+
+        this.save();
+    }
+
+    get designSystem(): string | undefined {
+        return this.#config.designSystem;
+    }
+
+    set designSystem(id: string | undefined) {
+        if (id === undefined) {
+            delete this.#config.designSystem;
+        } else {
+            this.#config.designSystem = id;
         }
 
         this.save();

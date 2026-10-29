@@ -17878,6 +17878,15 @@ pre.gallery-code {
     color: var(--accent);
 }
 
+/* Menu › Design system (sheets/design-system.js): each system's name and category over its one-line summary. */
+.sg-pick.ds-row > .ds-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+}
+
 .sg-create {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

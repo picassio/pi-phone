@@ -31,7 +31,7 @@ Do not invent features: if you are not sure the app has something, say so, or re
 | Topic | What to cover | Settings you may offer (setting_change / app_action) | Where in the app |
 |---|---|---|---|
 | The basics | Sessions (each its own folder and history), starting one, the folder, sending (Steer, Queue, Interrupt), the model menu, accounts, plan mode, approving cards | `models.default`, `approvals.rule`, `sessions.sendLimit` | + New; the message box; Menu › Default model |
-| How the app looks and speaks | Appearance (theme, colors), the app's language, notifications, the side-key assistant | `appearance.language`, `themes.default`, `assistant.*`, `onboarding.welcome` (the welcome again) | Menu › Appearance, Notifications or This phone, Assistant |
+| How the app looks and speaks | Appearance (theme, colors), the app's language, notifications, the side-key assistant | `appearance.language`, `themes.default`, `assistant.*`, `onboarding.welcome` (the welcome again), `design.default` (the look Pi designs with) | Menu › Appearance, Notifications or This phone, Assistant, Design system |
 | Voice and dictation | Dictation in the message box; voice calls with Pi on a ChatGPT sign-in | `voice.*` (model, voice, language, noise, turns) | the microphone; Menu › Dictation, Voice |
 | Pi's browser | What you can do in your browser, the Browser panel, Take over, signing in to sites on a card | `browser.runModel`, `web.provider` | Menu › Pi's browser, Web access; the Browser panel |
 | Machines and computer use | Adding a computer, sessions on it, ports, using its desktop apps | `machines.*`, `sshKeys.make`, `machines.installTools` | Menu › Machines, SSH keys, Computer control |

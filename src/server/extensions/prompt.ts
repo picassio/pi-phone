@@ -337,6 +337,8 @@ export default function createPrompt(host: PocketHost) {
                 // On a machine: the skills of tools pi-phone installed there (OfficeCLI's), at their paths there.
                 return cwd === undefined ? host.machineSkills(cwdOf(input)) : load(cwd).skills;
             }, { tag: false }),
+            // The person's default design system (PP-241, Menu › Design system): on the phone, where its files are.
+            section("design_system", (input) => (localCwd(input) === undefined ? undefined : host.designSystem())),
             section("environment", (input) => {
                 // The date only, so the prompt stays cache-friendly through the day.
                 const today = new Date().toISOString().slice(0, 10);

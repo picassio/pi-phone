@@ -525,6 +525,7 @@ export function MenuSheet({ places = true }) {
             ${me?.role === "owner" && allowed("machines.use") && item("Machines", () => openSheet({ type: "machines" }), "run sessions on other computers")}
             ${me?.role === "owner" && allowed("machines.use") && item("SSH keys", () => openSheet({ type: "ssh-keys" }), "for machines")}
             ${me?.role === "owner" && allowed("web.search") && webAvailable() && item("Web access", () => openSheet({ type: "web-access" }), "search provider for Pi")}
+            ${me?.role === "owner" && allowed("settings.change") && item("Design system", () => openSheet({ type: "design-system" }), server?.designSystem ?? "none: Pi picks a look")}
             ${me?.role === "owner" && allowed("browser.use") && item("Pi's browser", () => openSheet({ type: "browser" }), "how browser_run decides each step")}
             ${
                 // Pi uses this phone's apps (PP-141): the phone's own pi-phone only, never the team server.

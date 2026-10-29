@@ -3079,5 +3079,14 @@
     "Android's default apps": "Android 的默认应用",
     "Open this in the pi-phone app on the phone.": "请在手机上的 pi-phone 应用中打开它。",
     "What's new": "新功能",
-    "Show me": "带我看看"
+    "Show me": "带我看看",
+    "Design system": "设计系统",
+    "The look Pi uses for pages, artifacts, and Office files unless you ask for another: colours, fonts, and spacing. Ask Pi to extract one from a website to add your own.": "除非你另有要求，Pi 制作网页、产物和 Office 文件时使用的外观：颜色、字体和间距。让 Pi 从某个网站提取一套，即可添加你自己的设计系统。",
+    "Loading design systems": "正在加载设计系统",
+    "The design system {id} is gone; pick another or none.": "设计系统 {id} 已不存在；请另选一个或选择无。",
+    "Not a design system: {problem}": "不是设计系统：{problem}",
+    "Search design systems": "搜索设计系统",
+    "Pi picks a look for each piece of work": "由 Pi 为每项工作选择外观",
+    "No design system matches.": "没有匹配的设计系统。",
+    "none: Pi picks a look": "无：由 Pi 选择外观"
 }

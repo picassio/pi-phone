@@ -3059,5 +3059,14 @@
     "pi-phone runs as an app here.": "pi-phone đang chạy như một ứng dụng ở đây.",
     "Its own window and icon. In a browser that offers no button, use its menu: Install app, or Add to Home Screen.": "Có cửa sổ và biểu tượng riêng. Nếu trình duyệt không có nút, hãy dùng menu của nó: Cài đặt ứng dụng, hoặc Thêm vào Màn hình chính.",
     "Show me around.": "Dẫn tôi làm quen nhé.",
-    "Show me what's new in {version}.": "Cho tôi xem {version} có gì mới."
+    "Show me what's new in {version}.": "Cho tôi xem {version} có gì mới.",
+    "Design system": "Hệ thống thiết kế",
+    "The look Pi uses for pages, artifacts, and Office files unless you ask for another: colours, fonts, and spacing. Ask Pi to extract one from a website to add your own.": "Phong cách Pi dùng cho trang, artifact và tệp Office trừ khi bạn yêu cầu kiểu khác: màu, phông chữ và khoảng cách. Nhờ Pi trích một hệ thống từ một trang web để thêm hệ thống của riêng bạn.",
+    "Loading design systems": "Đang tải các hệ thống thiết kế",
+    "The design system {id} is gone; pick another or none.": "Hệ thống thiết kế {id} không còn nữa; hãy chọn hệ thống khác hoặc không dùng.",
+    "Not a design system: {problem}": "Không phải hệ thống thiết kế: {problem}",
+    "Search design systems": "Tìm hệ thống thiết kế",
+    "Pi picks a look for each piece of work": "Pi tự chọn phong cách cho từng việc",
+    "No design system matches.": "Không có hệ thống thiết kế nào khớp.",
+    "none: Pi picks a look": "không: Pi tự chọn phong cách"
 }

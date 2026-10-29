@@ -94,6 +94,7 @@ import { PiHandoff } from "./pi-handoff.ts";
 import { clockText, inLanguage, inZone, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
 import { resolveLanguage, translator } from "./i18n.ts";
 import { newestBig, WHATS_NEW_DIR, type WhatsNew } from "./whats-new.ts";
+import { DESIGN_SYSTEM_ID, designSystemPrompt, findDesignSystem, listDesignSystems, type DesignSystems } from "./design-systems.ts";
 import { WebPush } from "./web-push.ts";
 import { Forwards } from "./forwards.ts";
 import { SessionControl } from "./session-control.ts";
@@ -946,6 +947,7 @@ export class PocketApp {
                 }
             },
             skills: (cwd) => this.skills(cwd),
+            designSystem: () => this.designSystemPrompt(),
             machineOf: (cwd) => {
                 const machine = this.places.machineOf(cwd);
 
@@ -3455,6 +3457,8 @@ export class PocketApp {
                 defaultModel: this.config.defaultModel ?? null,
                 // The theme and colors of browsers that have not chosen their own, or null for the app's own.
                 themeDefault: this.config.themeDefault ?? null,
+                // The design system Pi designs with unless asked otherwise (Menu › Design system), by its id, or null.
+                designSystem: this.config.designSystem ?? null,
                 // The models Pi may start subagents on besides their session's own: the owner's to see and change.
                 ...(user.role === "owner"
                     ? { subagentModels: [...this.config.subagentModels] }
@@ -4793,6 +4797,34 @@ export class PocketApp {
      * The model that describes images in documents (PP-49): one of the person's signed-in models that reads images, or
      * none. Nobody's model is used for it unless chosen here.
      */
+    /** The design systems Pi may design with (Menu › Design system): the person's own first, then OpenDesign's. */
+    designSystems(): DesignSystems {
+        return listDesignSystems(this.dataDir);
+    }
+
+    /** The design system Pi uses unless asked otherwise (`design.default`), by its id, or null for none. */
+    async setDesignSystem(user: User, id: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (id !== null && (typeof id !== "string" || !DESIGN_SYSTEM_ID.test(id))) {
+            throw new HttpError(400, "A design system is named by its id (lowercase letters, digits and hyphens), or null for none.");
+        }
+
+        if (id !== null && findDesignSystem(this.dataDir, id) === undefined) {
+            throw new HttpError(404, `There is no design system "${id}".`);
+        }
+
+        this.config.designSystem = id ?? undefined;
+        await this.#refreshClients();
+    }
+
+    /** What Pi's prompt says of the default design system, or undefined for none. */
+    designSystemPrompt(): string | undefined {
+        return designSystemPrompt(this.dataDir, this.config.designSystem);
+    }
+
     async setDocsImageModel(user: User, model: unknown): Promise<void> {
         if (user.role !== "owner") {
             throw new HttpError(403, "Only the owner can do that");

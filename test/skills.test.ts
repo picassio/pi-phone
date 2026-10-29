@@ -229,6 +229,7 @@ test("a session lists them as /skill: commands and in its system prompt", async 
         [
             "big-pics-little-words",
             "design-artifact",
+            "design-system",
             "getting-started",
             "gsap-core",
             "gsap-performance",

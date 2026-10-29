@@ -185,6 +185,10 @@ dự án thật.</sub>
 - **Câu trả lời phong phú.** Công thức toán (KaTeX), sơ đồ và biểu đồ Mermaid, artifact HTML trong sandbox (cùng các
   skill thiết kế của [effective-html](https://github.com/plannotator/effective-html)), và **câu trả lời tương tác**:
   một chuyến đi kèm bản đồ, một máy tính, một danh sách kiểm, được vẽ thành giao diện dùng được và giữ trạng thái.
+- **Hệ thống thiết kế.** 152 phong cách từ [OpenDesign](https://github.com/nexu-io/open-design) (phong cách công khai của
+  các thương hiệu như Stripe hay Linear, và các phong cách như editorial hay brutalist), mỗi cái là một DESIGN.md và
+  các token CSS của nó: nêu tên một cái, hoặc chọn mặc định ở **Menu › Hệ thống thiết kế**, và Pi dùng màu, phông chữ và
+  khoảng cách của nó cho trang, artifact, bản trình chiếu và tài liệu Office.
 - **Mẫu trình chiếu và chuyển động.** Năm mẫu bản trình chiếu HTML và các skill hoạt ảnh GSAP từ
   [OpenDesign](https://github.com/nexu-io/open-design), mỗi cái theo giấy phép MIT riêng: Pi bắt đầu một bản trình chiếu
   từ một mẫu và xuất bản nó thành artifact.
@@ -478,6 +482,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Tìm kiếm theo ngữ nghĩa của **Wiki** | **Wiki** (hoặc *Cài đặt wiki* từ trình khởi chạy tìm kiếm) **› Tìm theo ngữ nghĩa**: chọn một mô hình embedding của OpenRouter, ví dụ `openai/text-embedding-3-small`. Tắt nghĩa là chỉ tìm theo từ khóa | “Đặt mô hình embedding của wiki là openai/text-embedding-3-small” |
 | Ghi nhận wiki và ngữ cảnh prompt | **Wiki**: số phút rảnh trước khi ghi nhận một phiên, mô hình viết phần ghi nhận, số token wiki trong mỗi prompt, tùy chọn lint | “Ghi nhận phiên rảnh sau 30 phút”, “dùng claude-haiku để ghi nhận wiki” |
 | Tìm kiếm web | **Truy cập web**: một nhà cung cấp, và khóa của nó (gõ ở đó hoặc lưu trong Bí mật) | “Chuyển tìm kiếm web sang exa”. Khóa thì bạn tự gõ |
+| Hệ thống thiết kế Pi dùng | **Hệ thống thiết kế**: tìm, chọn một cái, hoặc *Không* | “Từ giờ thiết kế theo phong cách Stripe”, “Bỏ hệ thống thiết kế mặc định” |
 | Khóa API và token | **Bí mật**. Pi xin bí mật còn thiếu qua một ô ẩn trên thẻ, không bao giờ trong cuộc trò chuyện | Pi có thể xin một bí mật, đổi cờ của bí mật, hoặc xóa nó. Giá trị thì bạn tự gõ |
 | Máy tính khác | **Khóa SSH**, rồi **Máy** (**Cài công cụ** ở đó thêm OfficeCLI, ripgrep, fd, Chrome, Computer use) | Có với đổi tên, cài công cụ, cổng, hoặc gỡ máy. Chấp nhận host key mới là việc của bạn |
 | Tiện ích (Dự án, Wiki, Trình duyệt của Pi, …) | **Tiện ích** | “Bật Dự án” |

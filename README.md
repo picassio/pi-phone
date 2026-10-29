@@ -175,6 +175,10 @@ No Termux, no laptop, no cloud VM.
 - **Rich replies.** Math (KaTeX), Mermaid diagrams and charts, HTML artifacts in a sandbox (with
   [effective-html](https://github.com/plannotator/effective-html)'s design skills), and **interactive answers**: a
   trip with a map, a calculator, a checklist, drawn as a working UI that keeps its state.
+- **Design systems.** 152 looks from [OpenDesign](https://github.com/nexu-io/open-design) (brands' public styles such
+  as Stripe or Linear, and styles such as editorial or brutalist), each a DESIGN.md and its CSS tokens: name one, or
+  pick a default in **Menu › Design system**, and Pi uses its colours, fonts, and spacing in pages, artifacts, and
+  Office decks and documents.
 - **Deck templates and motion.** Five HTML slide deck templates and GSAP's animation skills from
   [OpenDesign](https://github.com/nexu-io/open-design), each under its own MIT licence: Pi starts a deck from one and
   publishes it as an artifact.
@@ -456,6 +460,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | **Wiki** search by meaning | **Wiki** (or *Wiki settings* from the search launcher) **› Search by meaning**: pick an OpenRouter embedding model, such as `openai/text-embedding-3-small`. Off means keyword search only | "Set the wiki embedding model to openai/text-embedding-3-small" |
 | Wiki capture and prompt context | **Wiki**: minutes idle before a session is captured, the model that writes captures, tokens of wiki in each prompt, lint options | "Capture idle sessions after 30 minutes", "use claude-haiku for wiki captures" |
 | Web search | **Web access**: a provider, and its key (typed there or kept in Secrets) | "Switch web search to exa". The key itself is yours to type |
+| The design system Pi designs with | **Design system**: search, pick one, or *None* | "Design in the Stripe style from now on", "No default design system" |
 | API keys and tokens | **Secrets**. Pi asks for a missing one with a hidden field on a card, never in the chat | Pi can ask for one, change a secret's flags, or delete one. You type the value |
 | Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
 | Extensions (Projects, Wiki, Pi's browser, …) | **Extensions** | "Turn on Projects" |

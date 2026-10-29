@@ -518,6 +518,16 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 return app.setThemeDefault(user, { look, colors: colors ?? look });
             },
         },
+        // ─── Design ───
+        {
+            id: "design.default",
+            area: "design",
+            title: "Design system Pi designs with",
+            help: "A design system's id (the design-system skill lists them: OpenDesign's and the person's own), used for pages, artifacts and Office files unless asked otherwise; or none.",
+            owner: true,
+            read: () => app.config.designSystem ?? "none",
+            apply: (user, value) => app.setDesignSystem(user, NONE.test(value.trim()) ? null : value.trim()),
+        },
         // ─── People and access ───
         {
             id: "people.role",

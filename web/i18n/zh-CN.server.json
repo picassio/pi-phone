@@ -645,5 +645,7 @@
     "Notifications are on or off.": "通知只能是 on 或 off。",
     "Notifications turn on only on the device itself, with a tap: Menu › Notifications there.": "通知只能在设备本身上点按开启：在那里打开 菜单 › 通知。",
     "No device gets notifications as {1}. Devices: {2}.": "没有名为 {1} 的设备在接收通知。设备：{2}。",
-    "What's new is show or seen.": "新功能卡片的状态为 show 或 seen。"
+    "What's new is show or seen.": "新功能卡片的状态为 show 或 seen。",
+    "A design system is named by its id (lowercase letters, digits and hyphens), or null for none.": "设计系统以其 id 命名（小写字母、数字和连字符），或用 null 表示无。",
+    "There is no design system \"{1}\".": "没有名为“{1}”的设计系统。"
 }

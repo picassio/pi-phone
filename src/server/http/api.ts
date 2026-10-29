@@ -1221,6 +1221,20 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, await app.tailnet.set(body.tailscale));
         }
 
+        // Menu › Design system (PP-241): the systems to pick from, the person's own first, and what is wrong with any of
+        // their folders. The pick is POST /api/settings { designSystem }.
+        if (first === "design-systems" && second === undefined && method === "GET") {
+            requireOwner(user);
+
+            const { systems, problems } = app.designSystems();
+
+            return json(response, 200, {
+                chosen: app.config.designSystem ?? null,
+                systems: systems.map(({ id, name, category, summary, mine }) => ({ id, name, category, summary, mine })),
+                problems,
+            });
+        }
+
         if (first === "web-access" && second === undefined && method === "GET") {
             requireOwner(user);
 
@@ -1479,6 +1493,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 limitNotice?: unknown;
                 assistant?: unknown;
                 voice?: unknown;
+                designSystem?: unknown;
             }>(request);
 
             // One at a time: a second that fails must not leave the first changed.
@@ -1494,6 +1509,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.limitNotice,
                     body.assistant,
                     body.voice,
+                    body.designSystem,
                 ].filter((value) => value !== undefined).length > 1
             ) {
                 throw new HttpError(400, "Change one setting at a time.");
@@ -1543,6 +1559,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
             // Null clears it: new sessions start with the last model picked again.
             if (body.defaultModel !== undefined) {
                 await app.setDefaultModel(user, body.defaultModel);
+            }
+
+            // Menu › Design system (PP-241): an id, or null for none.
+            if (body.designSystem !== undefined) {
+                await app.setDesignSystem(user, body.designSystem);
             }
 
             return json(response, 200, { ok: true });
