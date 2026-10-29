@@ -9,6 +9,10 @@
  * (OfficeCLI: never update or install itself); that folder is first on the PATH of bash in sessions on the machine
  * (`app.ts`). OfficeCLI's skills go with it, so Pi there reads them where they are. rg and fd are offered only when the
  * machine has none of its own. Nothing is installed without the owner's tick.
+ *
+ * A tool may be more than one program (ffmpeg and ffprobe), need others installed first (HyperFrames: Chrome and
+ * ffmpeg), or be an npm app run by a Node of its own (HyperFrames: Node's release, then the app's pinned lockfile from
+ * the phone's `third_party/`, installed with `npm ci --ignore-scripts`).
  */
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { execFileSync } from "node:child_process";
@@ -26,8 +30,14 @@ export const TOOLS_DIR = ".pi/mobile/tools";
 export const TOOLS_BIN = `${TOOLS_DIR}/bin`;
 
 type Target = `${"linux" | "darwin" | "android" | "windows"}-${"x64" | "arm64"}`;
-/** The binary inside a .tar.gz (or a .zip, by the url); absent: the download is the binary. */
-type Asset = { url: string; sha256: string; member?: string };
+/** A download, checked by its sha256. */
+type Download = { url: string; sha256: string };
+/**
+ * The program inside a .tar.gz, .tar.xz, or .zip (by the url); absent: the download is the program. `more`: further
+ * programs of the tool, each with a wrapper of its own (ffprobe beside ffmpeg), a member of this download or of their own
+ * (`from`).
+ */
+type Asset = Download & { member?: string; more?: readonly { command: string; member: string; from?: Download }[] };
 
 export type ToolSpec = {
     id: string;
@@ -51,6 +61,20 @@ export type ToolSpec = {
     whole?: boolean;
     /** It works in the machine's desktop: on Linux it needs a signed-in (or virtual) desktop session (ocu). */
     desktop?: boolean;
+    /** What makes it say its version, when not `--version` (ffmpeg: `-version`). */
+    versionArg?: string;
+    /** Not ticked in the lists until the owner ticks it (a big one: ffmpeg, HyperFrames). */
+    optIn?: boolean;
+    /** Tools (ids) installed before it when they are not, at their versions, even where the machine has its own. */
+    needs?: string[];
+    /** Set for the program to the wrapper of another tool's command in the tools' bin (HyperFrames: Chrome, ffmpeg). */
+    envCommands?: Record<string, string>;
+    /**
+     * An npm app, run by the Node of its download (`whole`, `member` is `bin/node`): `dir` (relative to APP_ROOT, or
+     * absolute in tests) holds its package.json and pinned package-lock.json, installed into `<version>/app/` with `npm ci
+     * --ignore-scripts`; `bin` is its script there.
+     */
+    npm?: { dir: string; bin: string };
     assets: Partial<Record<Target, Asset>>;
 };
 
@@ -58,6 +82,12 @@ const OFFICECLI = "https://github.com/iOfficeAI/OfficeCLI/releases/download/v1.0
 const RG = "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0";
 const FD = "https://github.com/sharkdp/fd/releases/download/v10.5.0";
 const CHROME = "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.84";
+/** BtbN's FFmpeg-Builds: the 9.0 release branch (n9.0.2 and 17 fixes), the month's last build, which it keeps two years. */
+const BTBN = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08";
+const BTBN_NAME = "ffmpeg-n9.0.2-17-g2a571b6068";
+/** Martin Riedl's macOS release builds of FFmpeg 9.0.2 (signed), one zip per program. */
+const RIEDL = "https://ffmpeg.martin-riedl.de/download/macos";
+const NODE = "https://nodejs.org/dist/v24.22.2";
 
 /** Where Chrome, Chromium, and Edge are put on macOS and Windows (Git Bash's paths), which no PATH may name. */
 export const CHROME_PATHS = [
@@ -118,6 +148,110 @@ export const OCU_TOOL: ToolSpec = {
         "linux-x64": { url: `${OCU}/open-computer-use-linux-x64`, sha256: "a1550551f64e5fd4fb68501dc6edca977519c888ec8d5e5d7742fcd93902eb70" },
         "linux-arm64": { url: `${OCU}/open-computer-use-linux-arm64`, sha256: "4bd5f231a1416445db2eaf383c641fe773d65b46e0fa7b86b838e1a7723b6d5c" },
         "windows-x64": { url: `${OCU}/open-computer-use-windows-x64.exe`, sha256: "abfda45584dbde65b5b4dfce115f3bde619ebdd17dc2ecb3dee98b100f57e960" },
+    },
+};
+
+/**
+ * ffmpeg and ffprobe (PP-246), for HyperFrames and video work: static builds, GPL. Linux and Windows: BtbN's (GPLv3), sums
+ * from the release's checksums.sha256; macOS: Martin Riedl's (GPL, built with --enable-nonfree, so not to be passed on;
+ * the machine downloads it for itself), sums from his .sha256 files. Windows on Arm has BtbN's own arm64 build.
+ */
+export const FFMPEG_TOOL: ToolSpec = {
+    id: "ffmpeg",
+    name: "ffmpeg",
+    command: "ffmpeg",
+    version: "9.0.2",
+    description: "ffmpeg and ffprobe: encode, cut, and measure video and audio (static GPL builds)",
+    size: "about 350 MB (150 MB on macOS)",
+    onlyIfMissing: true,
+    optIn: true,
+    versionArg: "-version",
+    assets: {
+        "linux-x64": {
+            url: `${BTBN}/${BTBN_NAME}-linux64-gpl-9.0.tar.xz`,
+            sha256: "68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269",
+            member: `${BTBN_NAME}-linux64-gpl-9.0/bin/ffmpeg`,
+            more: [{ command: "ffprobe", member: `${BTBN_NAME}-linux64-gpl-9.0/bin/ffprobe` }],
+        },
+        "linux-arm64": {
+            url: `${BTBN}/${BTBN_NAME}-linuxarm64-gpl-9.0.tar.xz`,
+            sha256: "91afcd7695d4bbbb9e0057aa10baaf9875ec4e1a97303f9059ec971336a2ab46",
+            member: `${BTBN_NAME}-linuxarm64-gpl-9.0/bin/ffmpeg`,
+            more: [{ command: "ffprobe", member: `${BTBN_NAME}-linuxarm64-gpl-9.0/bin/ffprobe` }],
+        },
+        "windows-x64": {
+            url: `${BTBN}/${BTBN_NAME}-win64-gpl-9.0.zip`,
+            sha256: "a0e45723c72141975f51d8666302e614711745f3102b704ca3f82c897a58d278",
+            member: `${BTBN_NAME}-win64-gpl-9.0/bin/ffmpeg.exe`,
+            more: [{ command: "ffprobe", member: `${BTBN_NAME}-win64-gpl-9.0/bin/ffprobe.exe` }],
+        },
+        "windows-arm64": {
+            url: `${BTBN}/${BTBN_NAME}-winarm64-gpl-9.0.zip`,
+            sha256: "6dcd0626f9f6d6c7323565e57410e9f37ed14a85946ec9ea9caff294ca32f5c0",
+            member: `${BTBN_NAME}-winarm64-gpl-9.0/bin/ffmpeg.exe`,
+            more: [{ command: "ffprobe", member: `${BTBN_NAME}-winarm64-gpl-9.0/bin/ffprobe.exe` }],
+        },
+        "darwin-arm64": {
+            url: `${RIEDL}/arm64/1789931890_9.0.2/ffmpeg.zip`,
+            sha256: "c8ed4c4e6978a03c485edbfe4e0a5dc2380f8a30bba5150531b31b094492d924",
+            member: "ffmpeg",
+            more: [
+                {
+                    command: "ffprobe",
+                    member: "ffprobe",
+                    from: { url: `${RIEDL}/arm64/1789931890_9.0.2/ffprobe.zip`, sha256: "fcbe839537485eaee7a7a8bc5cbc0f90d53617e80943e8a5b2e31cb851197ea6" },
+                },
+            ],
+        },
+        "darwin-x64": {
+            url: `${RIEDL}/amd64/1789931006_9.0.2/ffmpeg.zip`,
+            sha256: "7c6b4125b191cbf773832dc51f424cf2b6bb7da43007d1e066f95909e47cacd4",
+            member: "ffmpeg",
+            more: [
+                {
+                    command: "ffprobe",
+                    member: "ffprobe",
+                    from: { url: `${RIEDL}/amd64/1789931006_9.0.2/ffprobe.zip`, sha256: "2322438ed2f6319a691291b247d09c69dcaa3a982460d1f269a7e1af335cfdfd" },
+                },
+            ],
+        },
+    },
+};
+
+/**
+ * HyperFrames (HeyGen, Apache-2.0; PP-246): HTML and GSAP compositions rendered to MP4, frame by frame in Chrome headless
+ * shell, encoded by ffmpeg. An npm app (Node >= 22) run by Node 24.22.2 LTS of its own (nodejs.org's release, sums from
+ * its SHASUMS256.txt), from `third_party/hyperframes/`'s lockfile (hyperframes 0.8.216 and every dependency pinned with
+ * its integrity). It needs no install scripts (esbuild's only checks its binary). The wrapper turns off its telemetry
+ * (PostHog), update checks, self-installs (of itself, its skills, and optional packages), and points it at pi-phone's
+ * Chrome headless shell and ffmpeg, installed before it. Bumping Node or the lockfile bumps `version`.
+ */
+export const HYPERFRAMES_TOOL: ToolSpec = {
+    id: "hyperframes",
+    name: "HyperFrames",
+    command: "hyperframes",
+    version: "0.8.216",
+    description: "Render HTML and GSAP compositions to MP4 (HeyGen's HyperFrames, telemetry off); installs Chrome (headless) and ffmpeg with it",
+    size: "about 320 MB; with Chrome and ffmpeg about 920 MB",
+    optIn: true,
+    needs: ["chrome", "ffmpeg"],
+    env: {
+        HYPERFRAMES_NO_TELEMETRY: "1",
+        DO_NOT_TRACK: "1",
+        HYPERFRAMES_NO_UPDATE_CHECK: "1",
+        HYPERFRAMES_NO_AUTO_INSTALL: "1",
+        HYPERFRAMES_NO_OPTIONAL_INSTALL: "1",
+        HYPERFRAMES_SKIP_SKILLS: "1",
+    },
+    envCommands: { HYPERFRAMES_BROWSER_PATH: "chrome-headless-shell", HYPERFRAMES_FFMPEG_PATH: "ffmpeg", HYPERFRAMES_FFPROBE_PATH: "ffprobe" },
+    npm: { dir: "third_party/hyperframes", bin: "node_modules/hyperframes/bin/hyperframes.mjs" },
+    whole: true,
+    // Linux and macOS only: on Windows it is untried, and Node there cannot start the Chrome wrapper (a sh script).
+    assets: {
+        "linux-x64": { url: `${NODE}/node-v24.22.2-linux-x64.tar.gz`, sha256: "361718c444e49af2ca5a110c83ba6a8901143f23ab285ebbef0341f391f482a9", member: "node-v24.22.2-linux-x64/bin/node" },
+        "linux-arm64": { url: `${NODE}/node-v24.22.2-linux-arm64.tar.gz`, sha256: "95c264150aceb7f3437a29fd6984924f5f8d1511ea3cbd6c508b83f6c555dae2", member: "node-v24.22.2-linux-arm64/bin/node" },
+        "darwin-arm64": { url: `${NODE}/node-v24.22.2-darwin-arm64.tar.gz`, sha256: "aa9549349e47dffaa42dcf95d6e06ade8c4bdafc980979883b88767670df385a", member: "node-v24.22.2-darwin-arm64/bin/node" },
+        "darwin-x64": { url: `${NODE}/node-v24.22.2-darwin-x64.tar.gz`, sha256: "d5e336d588c45be0c37dbd52cc29895593009ca4997a77a1fd02815131ed0e52", member: "node-v24.22.2-darwin-x64/bin/node" },
     },
 };
 
@@ -186,6 +320,9 @@ export const TOOLS: readonly ToolSpec[] = [
     },
     CHROME_TOOL,
     OCU_TOOL,
+    // After Chrome and ffmpeg, which it needs.
+    FFMPEG_TOOL,
+    HYPERFRAMES_TOOL,
 ];
 
 /** One tool on one machine, as the list shows it. */
@@ -197,6 +334,8 @@ export type ToolStatus = {
     size: string;
     /** It needs a desktop session on Linux (ocu). */
     desktop: boolean;
+    /** Not ticked until the owner ticks it (`ToolSpec.optIn`). */
+    optIn: boolean;
     /** The machine has no build of it: not offered. */
     supported: boolean;
     /** Installed by pi-phone, and which version. */
@@ -209,8 +348,8 @@ export type ToolStatus = {
 
 export type InstallResult = { id: string; ok: boolean; version?: string; said: string };
 
-/** A tool as the lists before connecting offer it (Settings › Machines, the machine_add card): every one, ticked. */
-export type ToolOffer = { id: string; name: string; version: string; description: string; size: string; onlyIfMissing: boolean; desktop: boolean };
+/** A tool as the lists before connecting offer it (Settings › Machines, the machine_add card): ticked, unless `optIn`. */
+export type ToolOffer = { id: string; name: string; version: string; description: string; size: string; onlyIfMissing: boolean; desktop: boolean; optIn: boolean };
 
 export const toolOffer = (tool: ToolSpec): ToolOffer => ({
     id: tool.id,
@@ -220,6 +359,7 @@ export const toolOffer = (tool: ToolSpec): ToolOffer => ({
     size: tool.size,
     onlyIfMissing: tool.onlyIfMissing === true,
     desktop: tool.desktop === true,
+    optIn: tool.optIn === true,
 });
 
 /**
@@ -265,29 +405,100 @@ export function statusScript(catalog: readonly ToolSpec[]): string {
     ].join("\n");
 }
 
-/** The wrapper bash runs as the tool's command: its marker names the tool and version (`statusScript`). */
-export function wrapperOf(tool: ToolSpec, binary: string): string {
+/**
+ * The wrapper bash runs as the tool's command: its marker names the tool and version (`statusScript`). It runs `binary`
+ * with `args` first (an npm app's script, for its Node), and sets `envCommands` to wrappers in the tools' bin under `home`.
+ */
+export function wrapperOf(tool: ToolSpec, binary: string, home: string, args: readonly string[] = []): string {
     return [
         "#!/bin/sh",
         `# pi-phone-tool ${tool.id} ${tool.version}`,
         ...Object.entries(tool.env ?? {}).map(([name, value]) => `export ${name}=${q(value)}`),
+        ...Object.entries(tool.envCommands ?? {}).map(([name, command]) => `export ${name}=${q(`${home}/${TOOLS_BIN}/${command}`)}`),
         // Android's OfficeCLI needs Termux's OpenSSL (Android's own libssl aborts it); elsewhere $PREFIX is unset.
         ...(tool.id === "officecli" ? ['if [ -n "$PREFIX" ] && [ -d "$PREFIX/lib" ]; then export LD_LIBRARY_PATH="$PREFIX/lib"; fi'] : []),
-        `exec ${q(binary)} "$@"`,
+        `exec ${[binary, ...args].map(q).join(" ")} "$@"`,
         "",
     ].join("\n");
 }
 
-/** The script that installs one tool's asset, checks it, and writes its wrapper; its last line is the tool's version. */
+/** How a downloaded archive unpacks, by its url: tar's flag for a .tar.gz or .tar.xz, "zip", or none (the program). */
+function packOf(url: string): "z" | "J" | "zip" | undefined {
+    return url.endsWith(".zip") ? "zip" : url.endsWith(".tar.gz") || url.endsWith(".tgz") ? "z" : url.endsWith(".tar.xz") ? "J" : undefined;
+}
+
+/**
+ * The script that installs one tool's asset (its downloads, each checked), and writes its wrappers, one per program; its
+ * last line is the tool's version. An npm app's package.json and package-lock.json are in `<version>/app/` before it runs
+ * (`MachineTools.install` copies them there).
+ */
 export function installScript(tool: ToolSpec, asset: Asset, home: string, windows = false): string {
     const dir = `"$T/${tool.id}/${tool.version}"`;
+    const base = `${home}/${TOOLS_DIR}/${tool.id}/${tool.version}`;
     // On Windows a program keeps its .exe: Windows runs files by it. Git Bash (Pi's shell there) runs the wrapper.
-    const file = windows ? `${tool.command}.exe` : tool.command;
+    const fileOf = (command: string) => (windows ? `${command}.exe` : command);
+    const file = fileOf(tool.command);
+    const whole = tool.whole === true && asset.member !== undefined;
     // A whole archive's program stays among its files (Chrome needs those beside it); the wrapper runs it there.
-    const program = tool.whole === true && asset.member !== undefined ? `files/${asset.member}` : file;
-    const wrapper = wrapperOf(tool, `${home}/${TOOLS_DIR}/${tool.id}/${tool.version}/${program}`);
+    const program = whole ? `files/${asset.member}` : file;
+    const npm = tool.npm;
 
-    if (wrapper.includes("PI_PHONE_TOOL_END")) {
+    if (npm !== undefined && (!whole || !asset.member!.endsWith("/bin/node"))) {
+        throw new Error(`${tool.name} is an npm app: its download must be Node's, unpacked whole, with bin/node as its member.`);
+    }
+
+    // Each download once, by its url: the asset's, and those of further programs that have their own.
+    const downloads: (Download & { path: string })[] = [{ url: asset.url, sha256: asset.sha256, path: "$tmp/download" }];
+
+    for (const more of asset.more ?? []) {
+        if (more.from !== undefined && !downloads.some((each) => each.url === more.from!.url)) {
+            downloads.push({ ...more.from, path: `$tmp/download-${downloads.length}` });
+        }
+    }
+
+    const pathOf = (url: string) => downloads.find((each) => each.url === url)!.path;
+    const packs = downloads.map((each) => packOf(each.url));
+    // The programs, each out of its download into the version's folder; a tar's members come out in one go.
+    const programs = [
+        { download: asset as Download, member: asset.member, to: file },
+        ...(asset.more ?? []).map((more) => ({ download: more.from ?? asset, member: more.member as string | undefined, to: fileOf(more.command) })),
+    ];
+    const extract = (): string[] => {
+        const lines: string[] = [];
+
+        for (const download of downloads) {
+            const pack = packOf(download.url);
+            const members = programs.filter((each) => each.download.url === download.url && each.member !== undefined).map((each) => each.member!);
+
+            if (members.length > 0 && pack === undefined) {
+                throw new Error(`${download.url} is no .tar.gz, .tar.xz, or .zip to take ${members.join(", ")} from.`);
+            }
+
+            if (members.length > 0 && pack !== "zip") {
+                lines.push(`tar -x${pack}f "${download.path}" -C "$tmp" ${members.map(q).join(" ")}`);
+            }
+        }
+
+        for (const { download, member, to } of programs) {
+            const from = pathOf(download.url);
+
+            lines.push(
+                member === undefined
+                    ? `cp "${from}" ${dir}/${to}`
+                    : packOf(download.url) === "zip"
+                      ? `unzip -p "${from}" ${q(member)} > ${dir}/${to}`
+                      : `cp "$tmp/${member}" ${dir}/${to}`,
+            );
+        }
+
+        return lines;
+    };
+    const wrappers = [
+        { command: tool.command, text: wrapperOf(tool, `${base}/${program}`, home, npm === undefined ? [] : [`${base}/app/${npm.bin}`]) },
+        ...(asset.more ?? []).map((more) => ({ command: more.command, text: wrapperOf(tool, `${base}/${fileOf(more.command)}`, home) })),
+    ];
+
+    if (wrappers.some((wrapper) => wrapper.text.includes("PI_PHONE_TOOL_END"))) {
         throw new Error("A wrapper may not hold its own heredoc's end.");
     }
 
@@ -303,35 +514,51 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
         'if command -v sha256sum >/dev/null 2>&1; then sum() { sha256sum "$1" | cut -d" " -f1; }',
         'elif command -v shasum >/dev/null 2>&1; then sum() { shasum -a 256 "$1" | cut -d" " -f1; }',
         'else echo "This machine has neither sha256sum nor shasum to check the download with." >&2; exit 3; fi',
-        `fetch ${q(asset.url)} "$tmp/download"`,
-        `got=$(sum "$tmp/download")`,
-        `if [ "$got" != ${q(asset.sha256)} ]; then echo "The download's sha256 is $got, not ${asset.sha256}: nothing was installed." >&2; exit 4; fi`,
-        ...(tool.whole === true && asset.member !== undefined
+        ...(packs.includes("J") ? ['if ! command -v xz >/dev/null 2>&1; then echo "This machine has no xz to unpack the .tar.xz download with." >&2; exit 3; fi'] : []),
+        ...downloads.flatMap((download) => [
+            `fetch ${q(download.url)} "${download.path}"`,
+            `got=$(sum "${download.path}")`,
+            `if [ "$got" != ${q(download.sha256)} ]; then echo "The download's sha256 is $got, not ${download.sha256}: nothing was installed." >&2; exit 4; fi`,
+        ]),
+        ...(whole
             ? [
-                  // Unzip keeps the programs' modes; Python's zipfile does not, so they are set after.
                   `rm -rf ${dir}/files && mkdir -p ${dir}/files`,
-                  `if command -v unzip >/dev/null 2>&1; then unzip -q "$tmp/download" -d ${dir}/files;`,
-                  `elif command -v python3 >/dev/null 2>&1; then python3 -m zipfile -e "$tmp/download" ${dir}/files && chmod -R u+x ${dir}/files;`,
-                  'else echo "This machine has neither unzip nor python3 to unpack the download with." >&2; exit 3; fi',
+                  ...(packOf(asset.url) === "zip"
+                      ? [
+                            // Unzip keeps the programs' modes; Python's zipfile does not, so they are set after.
+                            `if command -v unzip >/dev/null 2>&1; then unzip -q "$tmp/download" -d ${dir}/files;`,
+                            `elif command -v python3 >/dev/null 2>&1; then python3 -m zipfile -e "$tmp/download" ${dir}/files && chmod -R u+x ${dir}/files;`,
+                            'else echo "This machine has neither unzip nor python3 to unpack the download with." >&2; exit 3; fi',
+                        ]
+                      : [`tar -x${packOf(asset.url) === "J" ? "J" : "z"}f "$tmp/download" -C ${dir}/files`]),
                   // A program that needs libraries the machine lacks says which, rather than failing when first run.
-                  ...(windows ? [] : [`if command -v ldd >/dev/null 2>&1 && ldd ${dir}/files/${q(asset.member)} 2>/dev/null | grep -q "not found"; then`]),
-                  ...(windows ? [] : [`  echo "It needs libraries this machine lacks: $(ldd ${dir}/files/${q(asset.member)} | grep "not found" | awk '{print $1}' | tr '\\n' ' ')- install them (Ubuntu: sudo apt install libnss3 libatk-bridge2.0-0 libgbm1 libasound2t64, or the packages that have them), then install it again." >&2; exit 7; fi`]),
+                  ...(windows ? [] : [`if command -v ldd >/dev/null 2>&1 && ldd ${dir}/files/${q(asset.member!)} 2>/dev/null | grep -q "not found"; then`]),
+                  ...(windows
+                      ? []
+                      : [
+                            `  echo "It needs libraries this machine lacks: $(ldd ${dir}/files/${q(asset.member!)} | grep "not found" | awk '{print $1}' | tr '\\n' ' ')- install them${tool.id === "chrome" ? " (Ubuntu: sudo apt install libnss3 libatk-bridge2.0-0 libgbm1 libasound2t64, or the packages that have them)" : ""}, then install it again." >&2; exit 7; fi`,
+                        ]),
               ]
-            : asset.member === undefined
-            ? [`cp "$tmp/download" ${dir}/${file}`]
-            : asset.url.endsWith(".zip")
-              ? [`unzip -p "$tmp/download" ${q(asset.member)} > ${dir}/${file}`]
-              : [`tar -xzf "$tmp/download" -C "$tmp"`, `cp "$tmp/${asset.member}" ${dir}/${file}`]),
-        ...(tool.whole === true ? [] : [`chmod 755 ${dir}/${file}`]),
-        // The wrapper, as written (a quoted heredoc expands nothing).
-        `cat > "$T/bin/${tool.command}.new" <<'PI_PHONE_TOOL_END'`,
-        wrapper.trimEnd(),
-        "PI_PHONE_TOOL_END",
-        `chmod 755 "$T/bin/${tool.command}.new"`,
-        `mv "$T/bin/${tool.command}.new" "$T/bin/${tool.command}"`,
+            : [...extract(), ...programs.map((each) => `chmod 755 ${dir}/${each.to}`)]),
+        // An npm app: its pinned lockfile, installed by its own Node's npm, every package checked by its integrity, no
+        // install scripts; npm's cache is the download folder's, gone after.
+        ...(npm === undefined
+            ? []
+            : [
+                  `if [ ! -f ${dir}/app/package-lock.json ]; then echo "${tool.name}'s package-lock.json is not in ${base}/app: nothing was installed." >&2; exit 5; fi`,
+                  `(cd ${dir}/app && rm -rf node_modules && ${dir}/files/${q(asset.member!)} ${dir}/files/${q(asset.member!.replace(/bin\/node$/, "lib/node_modules/npm/bin/npm-cli.js"))} ci --ignore-scripts --omit=dev --no-audit --no-fund --no-update-notifier --loglevel=error --cache "$tmp/npm-cache")`,
+              ]),
+        // The wrappers, as written (a quoted heredoc expands nothing).
+        ...wrappers.flatMap((wrapper) => [
+            `cat > "$T/bin/${wrapper.command}.new" <<'PI_PHONE_TOOL_END'`,
+            wrapper.text.trimEnd(),
+            "PI_PHONE_TOOL_END",
+            `chmod 755 "$T/bin/${wrapper.command}.new"`,
+            `mv "$T/bin/${wrapper.command}.new" "$T/bin/${wrapper.command}"`,
+        ]),
         // Older versions of it go.
         `for old in "$T/${tool.id}"/*; do [ "$old" = "$T/${tool.id}/${tool.version}" ] || rm -rf "$old"; done`,
-        `"$T/bin/${tool.command}" --version | head -n 1`,
+        `"$T/bin/${tool.command}" ${tool.versionArg ?? "--version"} | head -n 1`,
     ].join("\n");
 }
 
@@ -413,6 +640,7 @@ export class MachineTools {
                 description: tool.description,
                 size: tool.size,
                 desktop: tool.desktop === true,
+                optIn: tool.optIn === true,
                 supported,
                 ...(version === undefined ? {} : { installed: version }),
                 ...(own === undefined ? {} : { own }),
@@ -427,18 +655,29 @@ export class MachineTools {
 
     /**
      * Install the tools named, one after another, each checked before it is kept: what each said. A tool the machine has
-     * no build of, or has its own of (rg, fd), is refused by name. Skills go with OfficeCLI.
+     * no build of is refused by name. The tools one needs come first, when they are not installed at their versions; one
+     * whose needs did not install is not tried. Skills go with OfficeCLI; an npm app's lockfile goes before its script.
      */
     async install(id: string, ids: readonly string[]): Promise<{ results: InstallResult[]; tools: ToolStatus[] }> {
         const machine = this.#connected(id);
         const target = targetOf(machine);
         const results: InstallResult[] = [];
+        const unknown = ids.find((toolId) => !this.catalog.some((each) => each.id === toolId));
 
-        for (const toolId of ids) {
-            const tool = this.catalog.find((each) => each.id === toolId);
+        if (unknown !== undefined) {
+            throw new HttpError(400, `No tool "${unknown}". The tools are ${this.catalog.map((each) => each.id).join(", ")}.`);
+        }
 
-            if (tool === undefined) {
-                throw new HttpError(400, `No tool "${toolId}". The tools are ${this.catalog.map((each) => each.id).join(", ")}.`);
+        const needy = ids.some((toolId) => (this.catalog.find((each) => each.id === toolId)!.needs ?? []).length > 0);
+        const order = installOrder(ids, needy ? await this.status(id) : [], this.catalog);
+
+        for (const toolId of order) {
+            const tool = this.catalog.find((each) => each.id === toolId)!;
+            const missing = (tool.needs ?? []).filter((need) => results.some((result) => result.id === need && !result.ok));
+
+            if (missing.length > 0) {
+                results.push({ id: tool.id, ok: false, said: `${tool.name} needs ${missing.join(", ")}, which did not install.` });
+                continue;
             }
 
             const asset = target === undefined ? undefined : tool.assets[target];
@@ -448,10 +687,14 @@ export class MachineTools {
                 continue;
             }
 
+            if (tool.npm !== undefined) {
+                await this.#placeApp(machine, tool, tool.npm.dir);
+            }
+
             const { code, out } = await this.#run(
                 machine,
                 installScript(tool, asset, machine.remote.home, machine.remote.platform === "windows"),
-                600,
+                tool.npm === undefined ? 600 : 1200,
             );
             const said = out.trim().split("\n").slice(-6).join("\n");
 
@@ -468,6 +711,25 @@ export class MachineTools {
         }
 
         return { results, tools: await this.status(id) };
+    }
+
+    /** An npm app's package.json and package-lock.json, from the phone's copy, in `<tool>/<version>/app/` there. */
+    async #placeApp(machine: Machine & { remote: NonNullable<Machine["remote"]> }, tool: ToolSpec, dir: string): Promise<void> {
+        const env = this.#places.env(`machine:${machine.id}:${machine.remote.home}`);
+        const remote = `${machine.remote.home}/${TOOLS_DIR}/${tool.id}/${tool.version}/app`;
+        const made = await env.createDir(remote, { recursive: true }, BACKGROUND_CONTEXT);
+
+        if (!made.ok) {
+            throw new HttpError(502, `Could not make ${remote} on ${machine.name}: ${made.error.message}`);
+        }
+
+        for (const name of ["package.json", "package-lock.json"]) {
+            const written = await env.writeFile(`${remote}/${name}`, readFileSync(resolve(APP_ROOT, dir, name)), BACKGROUND_CONTEXT);
+
+            if (!written.ok) {
+                throw new HttpError(502, `Could not copy ${tool.name}'s ${name} to ${machine.name}: ${written.error.message}`);
+            }
+        }
     }
 
     /** A tool's skills, from the phone's copy, beside it on the machine: `<tool>/<version>/skills/`. */
@@ -505,6 +767,58 @@ export class MachineTools {
             rmSync(work, { recursive: true, force: true });
         }
     }
+}
+
+/**
+ * The order to install tools in: each one's needs before it (once), unless the machine has them at their versions
+ * (`statuses`, `installed`); then the tool.
+ */
+export function installOrder(ids: readonly string[], statuses: readonly ToolStatus[], catalog: readonly ToolSpec[] = TOOLS): string[] {
+    const order: string[] = [];
+    const current = (toolId: string) => {
+        const status = statuses.find((each) => each.id === toolId);
+
+        return status !== undefined && status.installed === status.version;
+    };
+
+    for (const toolId of ids) {
+        for (const need of catalog.find((each) => each.id === toolId)?.needs ?? []) {
+            if (!order.includes(need) && !current(need)) {
+                order.push(need);
+            }
+        }
+
+        if (!order.includes(toolId)) {
+            order.push(toolId);
+        }
+    }
+
+    return order;
+}
+
+/**
+ * What the environment section of a session on a machine says of the tools pi-phone installed there (`Machine.tools`):
+ * which, at which versions, and how to use those that need it (OfficeCLI never updates itself; how HyperFrames renders).
+ */
+export function toolsNote(tools: Readonly<Record<string, string>>): string | undefined {
+    if (Object.keys(tools).length === 0) {
+        return undefined;
+    }
+
+    const hyperframes = tools[HYPERFRAMES_TOOL.id];
+
+    return [
+        `pi-phone installed these tools there, first on bash's PATH (~/${TOOLS_BIN}): ${Object.entries(tools)
+            .map(([tool, version]) => `${tool} ${version}`)
+            .join(", ")}.`,
+        ...(tools.officecli === undefined ? [] : ["officecli never installs or updates itself: never run its installers or officecli install."]),
+        ...(hyperframes === undefined
+            ? []
+            : [
+                  "HyperFrames renders an HTML and GSAP composition to MP4 here: `hyperframes render <project folder> -o <folder>/<name>.mp4` (the folder holds index.html, the root composition; `-c <file>.html` renders one file of it), into the working directory unless the person names a place; check the result with ffprobe (duration, fps, size), and copy it to the phone with machine_copy when they want it there.",
+                  `Its guide to writing compositions is ~/${TOOLS_DIR}/hyperframes/${hyperframes}/app/node_modules/hyperframes/dist/skills/hyperframes/SKILL.md: read it before writing one. Run \`hyperframes\`, never \`npx hyperframes\` (that fetches another version, with its telemetry on), also where the guide says npx. Its telemetry, update checks, and self-installs are off: never turn them on.`,
+              ]),
+    ].join(" ");
 }
 
 /** Where a tool's skills are on a machine, for the prompt of sessions there. */

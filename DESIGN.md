@@ -674,22 +674,46 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `allow_password_input: true`, which pi-phone sends only for the owner's take-over input and a saved secret by name), linux-x64,
     linux-arm64 and windows-x64, pinned to the release's SHA256SUMS; command `ocu`; `desktop: true` puts "needs a
     desktop session on Linux" beside it in every list. Computer control (`computer-control.ts`) runs `ocu mcp`.
+    **ffmpeg and HyperFrames** (PP-246, 2026-10-29), both `optIn` (listed, not ticked: big). `FFMPEG_TOOL` 9.0.2:
+    ffmpeg and ffprobe, static GPL builds, `onlyIfMissing`; Linux and Windows (x64, arm64) from BtbN's FFmpeg-Builds
+    (GPLv3, the 9.0 branch at n9.0.2-17, the month-end autobuild of 2026-09-30, which BtbN keeps two years; sums from
+    its checksums.sha256; a `.tar.xz`, so the machine needs xz), macOS from Martin Riedl's 9.0.2 release builds (signed;
+    `--enable-nonfree`, so not ours to pass on: each machine downloads its own; sums from his `.sha256` files, one zip
+    per program). An asset's `more` names further programs (ffprobe), each with its wrapper, from the same download or
+    one of its own (`from`); a tar's members come out in one `tar -x`. `versionArg: "-version"`. Android has none.
+    `HYPERFRAMES_TOOL` 0.8.216 (HeyGen, Apache-2.0), Linux and macOS: an npm app (`npm`), its download Node 24.22.2 LTS
+    (nodejs.org, SHASUMS256.txt) unpacked whole; `third_party/hyperframes/` holds a package.json naming hyperframes
+    exactly and its package-lock.json (every package pinned with its sha512 integrity), copied to `<version>/app/` before
+    the script, which runs that Node's npm: `npm ci --ignore-scripts --omit=dev` with a throwaway cache. HyperFrames
+    needs no install script (esbuild's only checks its binary). `needs: ["chrome", "ffmpeg"]`: `install` puts them first
+    when they are not installed at their versions, even where the machine has its own (HyperFrames wants the headless
+    shell, whose BeginFrame capture is deterministic); a tool whose needs failed is not tried. The wrapper sets
+    `HYPERFRAMES_NO_TELEMETRY=1`, `DO_NOT_TRACK=1` (its PostHog telemetry), `HYPERFRAMES_NO_UPDATE_CHECK`,
+    `HYPERFRAMES_NO_AUTO_INSTALL`, `HYPERFRAMES_NO_OPTIONAL_INSTALL`, `HYPERFRAMES_SKIP_SKILLS` (no self-updates or
+    installs at run time: a feature needing an optional package fails, naming it), and (`envCommands`)
+    `HYPERFRAMES_BROWSER_PATH`, `HYPERFRAMES_FFMPEG_PATH`, `HYPERFRAMES_FFPROBE_PATH` at pi-phone's wrappers in the
+    tools' bin. Checked on tuanlh-devbox-01 (2026-10-29): a 5 s 1080p30 render in 10 s, BeginFrame capture; tcpdump saw
+    no PostHog name or address, only cdn.jsdelivr.net (the composition's GSAP) and Google Fonts (HyperFrames' font
+    localization). Windows is left out: untried, and its Chrome would be a wrapper Node cannot spawn.
   - **Install:** the machine downloads each itself (curl or wget), checks the sha256 (sha256sum or shasum) before
     keeping anything, into `~/.pi/mobile/tools/<tool>/<version>/`, and a wrapper `~/.pi/mobile/tools/bin/<command>`
     (marked `# pi-phone-tool <id> <version>`, written by a quoted heredoc) runs it with what it needs (OfficeCLI: no
     self-update, no self-install; Termux's OpenSSL on Android). Older versions are removed. OfficeCLI's skills are copied
     with it (`<version>/skills/`, a tar from the phone's `third_party/`).
-  - **Where it shows:** adding a machine lists the tools, ticked, under "Install and connect"; after connecting, the
+  - **Where it shows:** adding a machine lists the tools, ticked but for the `optIn` ones, under "Install and connect"; after connecting, the
     ticked ones the machine has a build of (and, for rg and fd, has none of) are installed. Pi's `machine_add` card lists
-    them too, ticked (`form.tools`, PP-177); Approve sends the ticked ids (`POST /api/approvals/<id>` `{allow, tools}`,
+    them too, ticked the same way (`form.tools`, PP-177); Approve sends the ticked ids (`POST /api/approvals/<id>` `{allow, tools}`,
     refused when the card did not offer one), and the tool installs those the machine offers once connected
     (`toolsToInstall`). A tool that fails leaves the machine added and says why. A connected machine has
     Install tools: each tool's state there (installed and its version, the machine's own, not installed, no build),
     offered ones ticked. `GET /api/machines/tools` is the catalog; `POST /api/machines/<id>/tools` the status, or
     `{install: [...]}`. What is installed is kept as `Machine.tools` (machines.json).
   - **Sessions there:** bash's command gets `PATH="$HOME/.pi/mobile/tools/bin:$PATH"` first (`prepare` in `app.ts`);
-    the environment section names the installed tools; the skills section lists the installed tools' skills at their
-    paths on the machine (`machineToolSkills`), which Pi reads there.
+    the environment section names the installed tools (`toolsNote`), with how to render with HyperFrames where it is
+    (`hyperframes render <folder> -o <file>.mp4`, check with ffprobe, its own SKILL.md inside the package, never
+    `npx hyperframes`); the skills section lists the installed tools' skills at their paths on the machine
+    (`machineToolSkills`), which Pi reads there. `machine_run`'s description says the tools are in
+    `~/.pi/mobile/tools/bin`, not on its PATH.
   - **Tests:** `remote-session.test.ts` serves a tool from a local HTTP server; its sshd runs with `SetEnv HOME=` the
     test's folder, so nothing reaches the real home.
   - **Tests** stand in a script for the binary (`test/officecli.test.ts`); `openApp` turns OfficeCLI off, as on the

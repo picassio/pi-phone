@@ -1587,9 +1587,10 @@ function MachineAddCard({ approval }) {
     const { me } = store.state;
     const form = approval.form;
     const [busy, setBusy] = useState(false);
-    // The tools to install once it is connected (PP-177): every one ticked, as Settings › Machines offers them.
+    // The tools to install once it is connected (PP-177): ticked but the big ones (`optIn`: ffmpeg, HyperFrames), as
+    // Settings › Machines offers them.
     const offered = form.tools ?? [];
-    const [wanted, setWanted] = useState(() => new Set(offered.map((tool) => tool.id)));
+    const [wanted, setWanted] = useState(() => new Set(offered.filter((tool) => !tool.optIn).map((tool) => tool.id)));
     const answer = (allow) => {
         setBusy(true);
         attempt(() => actions.approve(approval.id, allow, allow ? { tools: [...wanted] } : {})).finally(() => setBusy(false));

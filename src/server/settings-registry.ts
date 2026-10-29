@@ -1087,9 +1087,9 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "machines.installTools",
             area: "machines",
             title: "Install tools on a machine",
-            help: "Machine tools (officecli, rg, fd, chrome), each checked by its SHA-256 before it is kept; only those the machine has no own copy of are offered.",
+            help: "Machine tools (officecli, rg, fd, chrome, ocu, ffmpeg, hyperframes), each checked by its SHA-256 before it is kept; rg, fd, chrome and ffmpeg are offered only where the machine has none of its own. hyperframes installs chrome and ffmpeg first.",
             owner: true,
-            args: { machine: "The machine's name or id", tools: "Tool ids, comma-separated (officecli, rg, fd, chrome)" },
+            args: { machine: "The machine's name or id", tools: "Tool ids, comma-separated (officecli, rg, fd, chrome, ocu, ffmpeg, hyperframes)" },
             describe: (args) => `Install ${args.tools ?? ""} on ${args.machine ?? ""}`,
             run: async (_user, args) => {
                 const found = machine(args.machine);

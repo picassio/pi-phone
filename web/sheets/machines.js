@@ -203,7 +203,7 @@ function toolState(tool) {
 
 /**
  * Tools pi-phone installs on a connected machine (src/server/machine-tools.ts): each one's state there, the ones offered
- * ticked, and Install for those ticked.
+ * ticked (but for the big ones, `optIn`: ffmpeg, HyperFrames), and Install for those ticked.
  */
 function MachineToolsPanel({ machine, onClose }) {
     const [tools, setTools] = useState(null);
@@ -212,7 +212,7 @@ function MachineToolsPanel({ machine, onClose }) {
     const path = `machines/${encodeURIComponent(machine.id)}/tools`;
     const show = (list) => {
         setTools(list);
-        setTicked(new Set(list.filter((tool) => tool.offered).map((tool) => tool.id)));
+        setTicked(new Set(list.filter((tool) => tool.offered && !tool.optIn).map((tool) => tool.id)));
     };
 
     useEffect(() => {
@@ -292,7 +292,8 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
     const [busy, setBusy] = useState(null);
     const [checked, setChecked] = useState(null);
     const [toolsOpen, setToolsOpen] = useState(false);
-    // Tools to install once it connects: every tool, ticked, as the owner chose (they untick what they don't want).
+    // Tools to install once it connects: every tool ticked but the big ones (`optIn`), as the owner chose (they untick
+    // what they don't want).
     const [catalog, setCatalog] = useState(null);
     const [wanted, setWanted] = useState(new Set());
 
@@ -302,7 +303,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 const list = (await api("machines/tools")).tools;
 
                 setCatalog(list);
-                setWanted(new Set(list.map((tool) => tool.id)));
+                setWanted(new Set(list.filter((tool) => !tool.optIn).map((tool) => tool.id)));
             });
         }
     }, [machine.hostKey, machine.remote]);

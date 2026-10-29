@@ -44,7 +44,7 @@ test("ocu installs as the download itself, checked, with a wrapper named ocu tha
 });
 
 test("a machine just connected installs the ticked tools it offers; an id that is no tool is refused", () => {
-    const status = (id: string, offered: boolean): ToolStatus => ({ id, name: id, version: "1", description: "", size: "", desktop: false, supported: true, offered });
+    const status = (id: string, offered: boolean): ToolStatus => ({ id, name: id, version: "1", description: "", size: "", desktop: false, optIn: false, supported: true, offered });
     const statuses = [status("officecli", true), status("rg", false), status("fd", true), status("ocu", true)];
 
     assert.deepEqual(toolsToInstall(statuses, ["ocu", "rg", "officecli"]), ["officecli", "ocu"]);

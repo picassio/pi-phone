@@ -231,7 +231,11 @@ No Termux, no laptop, no cloud VM.
 - **Machine tools.** OfficeCLI, ripgrep, fd, Chrome (headless, for Pi's browser where a machine has no Chrome), and
   Computer use (ocu, for Pi to operate desktop apps there; on Linux it needs a desktop session) installed on a machine
   from the app (Windows included), checked by their SHA-256. They are listed, ticked, when you add a machine, in
-  **Install tools**, and on the `machine_add` card.
+  **Install tools**, and on the `machine_add` card. Two more are listed unticked, as they are big: **ffmpeg** (with
+  ffprobe; static GPL builds, about 350 MB) and **HyperFrames** (Linux and macOS), which renders HTML and GSAP
+  compositions to MP4 there and installs Chrome (headless) and ffmpeg with it (about 920 MB in all). Pi renders with
+  `hyperframes render <folder> -o film.mp4` and checks the file with ffprobe; HyperFrames' telemetry, update checks and
+  self-installs are always off.
 - **Pi's browser on a machine.** A session on a machine browses in a headless Chrome there (its own Chrome, Chromium or
   Edge, else the machine tool), watched in the same panel ("Pi's browser on <machine>"). It opens the machine's own
   addresses, so Pi can try the web app you run there (`localhost:3000`), and uploads and PDFs use the machine's files.
@@ -241,7 +245,7 @@ No Termux, no laptop, no cloud VM.
   on a card that shows the command; off by default, as bash on the phone), and `pi-ssh`
   gives bash ssh, rsync, scp, and tunnels with the app's keys, which nothing can read out. Pi adds a machine itself with
   `machine_add` (a VM it just made, say): one card shows the address, the SSH key and the host key, checked against the
-  one Pi read on the machine when it could, and the tools to install (all ticked); **Approve and connect** adds it,
+  one Pi read on the machine when it could, and the tools to install (ticked, but for ffmpeg and HyperFrames); **Approve and connect** adds it,
   installs pi-env, connects, and installs the ticked tools; Deny saves nothing.
 - **Ports** of a machine (a dev server there) open in the phone's browser.
 - **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's
@@ -467,7 +471,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Web search | **Web access**: a provider, and its key (typed there or kept in Secrets) | "Switch web search to exa". The key itself is yours to type |
 | The design system Pi designs with | **Design system**: search, pick one, or *None* | "Design in the Stripe style from now on", "No default design system" |
 | API keys and tokens | **Secrets**. Pi asks for a missing one with a hidden field on a card, never in the chat | Pi can ask for one, change a secret's flags, or delete one. You type the value |
-| Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
+| Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
 | Extensions (Projects, Wiki, Pi's browser, Design & video, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
@@ -572,6 +576,13 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   skill in `third_party/motion-video-kit/`.
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT or Unlicense) and **[fd](https://github.com/sharkdp/fd)**
   (MIT or Apache-2.0): installed on machines from their own releases.
+- **[FFmpeg](https://ffmpeg.org)** (these builds GPL): installed on machines, downloaded by each machine from
+  [BtbN's FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) (Linux, Windows; GPLv3) and
+  [Martin Riedl's builds](https://ffmpeg.martin-riedl.de) (macOS; GPL, built with `--enable-nonfree`, so for the
+  machine's own use only). pi-phone does not carry or pass them on.
+- **[HyperFrames](https://github.com/heygen-com/hyperframes)** by HeyGen (Apache-2.0): rendering HTML to video,
+  installed on machines from npm with its pinned lockfile in `third_party/hyperframes/`, run by
+  **[Node.js](https://nodejs.org)** (MIT) from nodejs.org.
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)** by Leo (iFurySt) (MIT, Copyright (c) 2026
   Leo): computer use on machines (ocu), built in our fork
   [picassio/open-computer-use](https://github.com/picassio/open-computer-use) (password fields marked and refused) and

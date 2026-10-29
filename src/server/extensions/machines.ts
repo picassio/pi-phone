@@ -77,6 +77,7 @@ export default function createMachines(host: PocketHost) {
         name: "machine_run",
         description:
             "Run one shell command on one of the owner's machines, over the app's connection (no ssh needed): to check a log, a disk, a service, or a quick build step there. Secrets work as in bash ($NAME). For longer work on a machine, start a session in a folder there instead. " +
+            "The tools pi-phone installed there (Settings › Machines › Install tools) are in ~/.pi/mobile/tools/bin, not on this command's PATH: run them by that path, e.g. ~/.pi/mobile/tools/bin/hyperframes render <project folder> -o <file>.mp4 (HTML and GSAP to MP4) and ~/.pi/mobile/tools/bin/ffprobe <file>.mp4. " +
             "A machine the owner set to ask before each command (Settings › Machines) shows the command on a card first, and runs it only when they allow it.",
         parameters: Type.Object({
             machine: Type.String({ description: "The machine's name (or alias) from your environment section" }),

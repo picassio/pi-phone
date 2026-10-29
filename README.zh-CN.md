@@ -165,13 +165,16 @@
   应用会给你一个负责配置的 PowerShell 脚本）。
 - **机器工具。** 可以从应用中在机器上安装 OfficeCLI、ripgrep、fd、Chrome（无头模式，供没有 Chrome 的机器运行 Pi 的浏览器）
   和电脑操作（ocu，让 Pi 操作那里的桌面应用；在 Linux 上需要桌面会话），Windows 也支持，安装时校验 SHA-256。添加机器时、
-  **安装工具** 里以及 `machine_add` 卡片上都会列出它们，默认全部勾选。
+  **安装工具** 里以及 `machine_add` 卡片上都会列出它们，默认勾选。另有两个因体积大而默认不勾选：**ffmpeg**
+  （含 ffprobe；静态 GPL 构建，约 350 MB）和 **HyperFrames**（Linux 和 macOS），在那台机器上把 HTML 和 GSAP 合成渲染成
+  MP4，并同时安装 Chrome（无头模式）和 ffmpeg（合计约 920 MB）。Pi 用 `hyperframes render <文件夹> -o film.mp4` 渲染，
+  再用 ffprobe 检查文件；HyperFrames 的遥测、更新检查和自动安装始终关闭。
 - **机器上的 Pi 浏览器。** 机器上的会话在那里的无头 Chrome 中浏览（优先用机器自带的 Chrome、Chromium 或 Edge，否则用机器工具安装的），
   在同一个面板中观看（“<machine> 上的 Pi 浏览器”）。它能打开机器本地的地址，因此 Pi 可以试用你在那里运行的网页应用（`localhost:3000`），
   上传和 PDF 也使用机器上的文件。其登录状态保存在那台机器的 `~/.pi/mobile/browser` 中。
 - **在任意会话中。** `machine_run` 和 `machine_copy` 可在机器上运行命令或复制文件（在设置 › 机器中为某台机器勾选“Pi 在每条命令前询问”后，那里的每个 `machine_run` 都会等你在显示该命令的卡片上允许；默认关闭，与手机上的 bash 一样）；`pi-ssh` 让 bash 能用应用的密钥执行 ssh、rsync、scp
   和端口隧道，而这些密钥任何程序都读不出来。Pi 还能用 `machine_add` 自己添加机器（比如它刚建好的虚拟机）：一张卡片列出地址、
-  SSH 密钥和主机密钥（如果 Pi 在机器上读到了主机密钥，会与之核对），以及要安装的工具（默认全部勾选），点 **同意并连接** 即添加、
+  SSH 密钥和主机密钥（如果 Pi 在机器上读到了主机密钥，会与之核对），以及要安装的工具（除 ffmpeg 和 HyperFrames 外默认勾选），点 **同意并连接** 即添加、
   安装 pi-env、连接并安装勾选的工具；
   拒绝则什么都不保存。
 - **端口：** 机器上的端口（比如那里的开发服务器）可以在手机浏览器中打开。
@@ -342,7 +345,7 @@ Pi 会在对话里放一张带 **打开** 按钮的卡片；不点按就不会�
 | 网页搜索 | **网络访问**：选择提供方并填写其密钥（直接输入或保存在密钥中） | “把网页搜索换成 exa”。密钥本身要你自己输入 |
 | Pi 使用的设计系统 | **设计系统**：搜索、选一个，或选 *无* | “以后都用 Stripe 风格设计”、“不要默认设计系统” |
 | API 密钥和令牌 | **密钥**。缺少某个密钥时，Pi 会通过卡片上的隐藏输入框向你索取，从不在聊天中索要 | Pi 可以索取密钥、修改密钥的标记或删除密钥。值由你输入 |
-| 其他电脑 | 先 **SSH 密钥**，再 **机器**（在那里点 **安装工具** 可安装 OfficeCLI、ripgrep、fd、Chrome、电脑操作） | 重命名、安装工具、端口或移除都可以。接受新的主机密钥要你自己来 |
+| 其他电脑 | 先 **SSH 密钥**，再 **机器**（在那里点 **安装工具** 可安装 OfficeCLI、ripgrep、fd、Chrome、电脑操作、ffmpeg、HyperFrames） | 重命名、安装工具、端口或移除都可以。接受新的主机密钥要你自己来 |
 | 扩展（项目、知识库、Pi 的浏览器、设计与视频等） | **扩展** | “打开项目功能”、“关闭设计与视频” |
 | 花费与上限 | **花费** | “这个会话最多花 5 美元” |
 | 会话何时自动压缩 | **菜单 › 压缩上下文**，可针对当前会话或所有会话 | “这个会话在 60% 时压缩” |
@@ -447,6 +450,12 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[motion-video-kit](https://github.com/echris6/motion-video-kit)**，作者 echris6（MIT）：位于 `third_party/motion-video-kit/` 的 `business-motion-film` 技能。
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)**（MIT 或 Unlicense）和 **[fd](https://github.com/sharkdp/fd)**
   （MIT 或 Apache-2.0）：从它们各自的发布版安装到机器上。
+- **[FFmpeg](https://ffmpeg.org)**（这些构建为 GPL）：安装到机器上，由各机器自行从
+  [BtbN 的 FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds)（Linux、Windows；GPLv3）和
+  [Martin Riedl 的构建](https://ffmpeg.martin-riedl.de)（macOS；GPL，以 `--enable-nonfree` 构建，因此仅供该机器自用）下载。
+  pi-phone 不携带也不再分发它们。
+- **[HyperFrames](https://github.com/heygen-com/hyperframes)**，作者 HeyGen（Apache-2.0）：把 HTML 渲染成视频，按
+  `third_party/hyperframes/` 中固定的 lockfile 从 npm 安装到机器上，由来自 nodejs.org 的 **[Node.js](https://nodejs.org)**（MIT）运行。
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)**，作者 Leo（iFurySt）（MIT，Copyright (c) 2026 Leo）：
   机器上的电脑操作（ocu），在我们的分叉 [picassio/open-computer-use](https://github.com/picassio/open-computer-use) 中构建
   （标出并拒绝密码框），作为机器工具安装；其许可证和声明见 `third_party/open-computer-use/`。

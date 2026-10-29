@@ -194,7 +194,32 @@ test("tools on a machine: offered, installed checked against their sha256, first
     execFileSync("tar", ["-czf", join(build, "hello.tar.gz"), "-C", build, "hello-1.0"]);
     const archive = readFileSync(join(build, "hello.tar.gz"));
     const sha256 = createHash("sha256").update(archive).digest("hex");
-    const server = createHttp((_request, response) => response.end(archive));
+    // A tool of two programs (PP-246, as ffmpeg and ffprobe), which needs hello: pair-1.0/one and pair-1.0/two.
+    mkdirSync(join(build, "pair-1.0"), { recursive: true });
+    writeFileSync(join(build, "pair-1.0", "one"), "#!/bin/sh\necho one 1.0\n");
+    writeFileSync(join(build, "pair-1.0", "two"), "#!/bin/sh\necho two 1.0\n");
+    execFileSync("tar", ["-czf", join(build, "pair.tar.gz"), "-C", build, "pair-1.0"]);
+    const pairArchive = readFileSync(join(build, "pair.tar.gz"));
+    // An npm app (as HyperFrames): a "Node" of its own whose npm-cli.js stands in for `npm ci` (it needs the lockfile the
+    // app copied, and says how it was run), and whose app script says that.
+    mkdirSync(join(build, "node-1.0", "bin"), { recursive: true });
+    mkdirSync(join(build, "node-1.0", "lib", "node_modules", "npm", "bin"), { recursive: true });
+    writeFileSync(
+        join(build, "node-1.0", "bin", "node"),
+        '#!/bin/sh\ncase "$1" in\n*npm-cli.js) shift; [ -f package.json ] && [ -f package-lock.json ] || exit 9; mkdir -p node_modules/app/bin; echo "npm $*" > node_modules/app/bin/ran;;\n*) echo "app $(cat "$(dirname "$1")/ran") browser=$APP_BROWSER";;\nesac\n',
+    );
+    chmodSync(join(build, "node-1.0", "bin", "node"), 0o755);
+    writeFileSync(join(build, "node-1.0", "lib", "node_modules", "npm", "bin", "npm-cli.js"), "");
+    execFileSync("tar", ["-czf", join(build, "node.tar.gz"), "-C", build, "node-1.0"]);
+    const nodeArchive = readFileSync(join(build, "node.tar.gz"));
+    const appDir = join(build, "app");
+
+    mkdirSync(appDir);
+    writeFileSync(join(appDir, "package.json"), '{"name":"app","private":true}\n');
+    writeFileSync(join(appDir, "package-lock.json"), '{"name":"app","lockfileVersion":3}\n');
+    const server = createHttp((request, response) =>
+        response.end(request.url === "/pair.tar.gz" ? pairArchive : request.url === "/node.tar.gz" ? nodeArchive : archive),
+    );
 
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/hello.tar.gz`;
@@ -264,6 +289,65 @@ test("tools on a machine: offered, installed checked against their sha256, first
         assert.ok(skillsTold.includes(join(toolsDir, "officecli", "1.0.157", "skills", "officecli", "SKILL.md")), skillsTold.slice(0, 400));
         assert.doesNotMatch(skillsTold, /third_party/, "never the phone's paths");
         assert.match(told, /officecli 1\.0\.157\. officecli never installs or updates itself/);
+
+        // A tool that needs another installs it first, unless it is there at its version; each program gets a wrapper.
+        const pairAsset = {
+            url: url.replace(/hello\.tar\.gz$/, "pair.tar.gz"),
+            sha256: createHash("sha256").update(pairArchive).digest("hex"),
+            member: "pair-1.0/one",
+            more: [{ command: "two", member: "pair-1.0/two" }],
+        };
+        const pairSpec = {
+            id: "pair",
+            name: "Pair",
+            command: "one",
+            version: "1.0",
+            description: "A test tool of two programs",
+            size: "tiny",
+            needs: ["hello"],
+            assets: { "linux-x64": pairAsset, "linux-arm64": pairAsset, "android-arm64": pairAsset, "darwin-arm64": pairAsset, "darwin-x64": pairAsset },
+        };
+
+        rmSync(toolsDir, { recursive: true, force: true });
+        const broken = new MachineTools(app.places, (id) => app.machines.get(id), () => {}, [spec("0".repeat(64)), pairSpec]);
+        const unmet = await broken.install(machineId, ["pair"]);
+
+        assert.deepEqual(unmet.results.map((each) => [each.id, each.ok]), [["hello", false], ["pair", false]]);
+        assert.equal(unmet.results[1]!.said, "Pair needs hello, which did not install.");
+        assert.equal(existsSync(join(toolsDir, "bin", "one")), false);
+
+        const both = new MachineTools(app.places, (id) => app.machines.get(id), () => {}, [spec(sha256), pairSpec]);
+        const paired = await both.install(machineId, ["pair"]);
+
+        assert.deepEqual(paired.results.map((each) => [each.id, each.ok, each.said]), [["hello", true, "hello 1.0 skip=1"], ["pair", true, "one 1.0"]]);
+        assert.equal(execFileSync(join(toolsDir, "bin", "two"), { encoding: "utf8" }), "two 1.0\n");
+        assert.match(readFileSync(join(toolsDir, "bin", "two"), "utf8"), /^#!\/bin\/sh\n# pi-phone-tool pair 1\.0\n/);
+        // hello is there at its version now: only pair again.
+        assert.deepEqual((await both.install(machineId, ["pair"])).results.map((each) => each.id), ["pair"]);
+
+        // An npm app: its package.json and lockfile copied to <version>/app/, then its own Node's npm runs ci there with
+        // no install scripts; the wrapper runs the app's script with that Node, a needed tool's wrapper in its env.
+        const nodeAsset = { url: url.replace(/hello\.tar\.gz$/, "node.tar.gz"), sha256: createHash("sha256").update(nodeArchive).digest("hex"), member: "node-1.0/bin/node" };
+        const appSpec = {
+            id: "app",
+            name: "App",
+            command: "app",
+            version: "2.0",
+            description: "A test npm app",
+            size: "tiny",
+            needs: ["hello"],
+            envCommands: { APP_BROWSER: "hello" },
+            npm: { dir: appDir, bin: "node_modules/app/bin/app.mjs" },
+            whole: true,
+            assets: { "linux-x64": nodeAsset, "linux-arm64": nodeAsset, "android-arm64": nodeAsset, "darwin-arm64": nodeAsset, "darwin-x64": nodeAsset },
+        };
+        const apps = new MachineTools(app.places, (id) => app.machines.get(id), () => {}, [spec(sha256), appSpec]);
+        const installedApp = await apps.install(machineId, ["app"]);
+
+        assert.deepEqual(installedApp.results.map((each) => [each.id, each.ok]), [["app", true]], "hello is there already");
+        assert.match(installedApp.results[0]!.said, /^app npm ci --ignore-scripts --omit=dev --no-audit --no-fund --no-update-notifier --loglevel=error --cache \S+\/npm-cache browser=\S+\/\.pi\/mobile\/tools\/bin\/hello$/);
+        assert.ok(existsSync(join(toolsDir, "app", "2.0", "app", "package-lock.json")), "the lockfile went first");
+        assert.ok(existsSync(join(toolsDir, "app", "2.0", "files", "node-1.0", "bin", "node")), "its Node, unpacked whole");
     } finally {
         // Its asks go: the route matches the end of any later message.
         delete calls["machine tools: say hello"];

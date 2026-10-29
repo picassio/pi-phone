@@ -244,7 +244,11 @@ dự án thật.</sub>
 - **Công cụ trên máy.** OfficeCLI, ripgrep, fd, Chrome (headless, cho trình duyệt của Pi khi máy không có Chrome), và
   Computer use (ocu, để Pi thao tác ứng dụng máy tính ở đó; trên Linux cần một phiên desktop) được cài lên máy từ ứng
   dụng (kể cả Windows), đối chiếu SHA-256. Chúng được liệt kê sẵn và được chọn khi bạn thêm máy, trong **Cài công cụ**,
-  và trên thẻ `machine_add`.
+  và trên thẻ `machine_add`. Hai công cụ nữa được liệt kê nhưng không chọn sẵn, vì chúng lớn: **ffmpeg** (kèm
+  ffprobe; bản dựng tĩnh GPL, khoảng 350 MB) và **HyperFrames** (Linux và macOS), dựng bố cục HTML và GSAP thành
+  MP4 ngay trên máy đó, cài kèm Chrome (headless) và ffmpeg (tổng khoảng 920 MB). Pi dựng bằng
+  `hyperframes render <thư mục> -o film.mp4` và kiểm tra tệp bằng ffprobe; telemetry, kiểm tra cập nhật và việc tự
+  cài đặt của HyperFrames luôn tắt.
 - **Trình duyệt của Pi trên một máy.** Phiên trên máy duyệt web bằng Chrome headless ở đó (Chrome, Chromium hoặc Edge
   của máy, nếu không thì công cụ trên máy), xem trong cùng khung (“Trình duyệt của Pi trên <máy>”). Nó mở các địa
   chỉ của chính máy, nên Pi thử được ứng dụng web bạn chạy ở đó (`localhost:3000`), và việc tải lên cùng PDF dùng tệp
@@ -253,8 +257,8 @@ dự án thật.</sub>
   được chọn **Pi hỏi trước mỗi lệnh** trong Cài đặt › Máy, mỗi `machine_run` ở đó chờ bạn cho phép trên một thẻ hiện
   lệnh; mặc định tắt, như bash trên điện thoại), và `pi-ssh` cho bash dùng ssh, rsync, scp và tunnel bằng khóa của ứng
   dụng, thứ không gì đọc ra được. Pi tự thêm máy bằng `machine_add` (ví dụ một máy ảo nó vừa tạo): một thẻ hiện
-  địa chỉ, khóa SSH và host key, đối chiếu với khóa Pi đọc trên chính máy khi có thể, cùng các công cụ cần cài (đều được
-  chọn sẵn); **Duyệt và kết nối** thêm máy, cài pi-env, kết nối và cài các công cụ đã chọn; Từ chối thì không lưu gì.
+  địa chỉ, khóa SSH và host key, đối chiếu với khóa Pi đọc trên chính máy khi có thể, cùng các công cụ cần cài (được chọn
+  sẵn, trừ ffmpeg và HyperFrames); **Duyệt và kết nối** thêm máy, cài pi-env, kết nối và cài các công cụ đã chọn; Từ chối thì không lưu gì.
 - **Cổng** của một máy (một dev server ở đó) mở được trong trình duyệt của điện thoại.
 - **Tiếp tục phiên Pi.** Tiếp tục một phiên từ Pi trên điện thoại này, một tệp `.jsonl`, hoặc `~/.pi/agent/sessions`
   của một máy, kèm lịch sử; hoặc gửi một phiên sang `pi` trên máy và mang về những gì đã làm ở đó. Pi tự làm được cả
@@ -490,7 +494,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Tìm kiếm web | **Truy cập web**: một nhà cung cấp, và khóa của nó (gõ ở đó hoặc lưu trong Bí mật) | “Chuyển tìm kiếm web sang exa”. Khóa thì bạn tự gõ |
 | Hệ thống thiết kế Pi dùng | **Hệ thống thiết kế**: tìm, chọn một cái, hoặc *Không* | “Từ giờ thiết kế theo phong cách Stripe”, “Bỏ hệ thống thiết kế mặc định” |
 | Khóa API và token | **Bí mật**. Pi xin bí mật còn thiếu qua một ô ẩn trên thẻ, không bao giờ trong cuộc trò chuyện | Pi có thể xin một bí mật, đổi cờ của bí mật, hoặc xóa nó. Giá trị thì bạn tự gõ |
-| Máy tính khác | **Khóa SSH**, rồi **Máy** (**Cài công cụ** ở đó thêm OfficeCLI, ripgrep, fd, Chrome, Computer use) | Có với đổi tên, cài công cụ, cổng, hoặc gỡ máy. Chấp nhận host key mới là việc của bạn |
+| Máy tính khác | **Khóa SSH**, rồi **Máy** (**Cài công cụ** ở đó thêm OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames) | Có với đổi tên, cài công cụ, cổng, hoặc gỡ máy. Chấp nhận host key mới là việc của bạn |
 | Tiện ích (Dự án, Wiki, Trình duyệt của Pi, Thiết kế & video, …) | **Tiện ích** | “Bật Dự án”, “Tắt Thiết kế & video” |
 | Chi tiêu và giới hạn | **Chi tiêu** | “Giới hạn phiên này ở $5” |
 | Khi nào phiên tự nén | **Menu › Nén ngữ cảnh**, cho phiên này hoặc mọi phiên | “Nén phiên này ở 60%” |
@@ -595,6 +599,13 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   trong `third_party/motion-video-kit/`.
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT hoặc Unlicense) và **[fd](https://github.com/sharkdp/fd)**
   (MIT hoặc Apache-2.0): được cài lên các máy từ bản phát hành của chính chúng.
+- **[FFmpeg](https://ffmpeg.org)** (các bản dựng này theo GPL): cài lên các máy, mỗi máy tự tải về từ
+  [FFmpeg-Builds của BtbN](https://github.com/BtbN/FFmpeg-Builds) (Linux, Windows; GPLv3) và
+  [bản dựng của Martin Riedl](https://ffmpeg.martin-riedl.de) (macOS; GPL, dựng với `--enable-nonfree`, nên chỉ để
+  máy đó tự dùng). pi-phone không mang theo hay phân phối lại chúng.
+- **[HyperFrames](https://github.com/heygen-com/hyperframes)** của HeyGen (Apache-2.0): dựng HTML thành video, cài lên
+  các máy từ npm theo lockfile đã ghim trong `third_party/hyperframes/`, chạy bằng **[Node.js](https://nodejs.org)**
+  (MIT) từ nodejs.org.
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)** của Leo (iFurySt) (MIT, Copyright (c) 2026 Leo):
   computer use trên các máy (ocu), dựng trong bản fork [picassio/open-computer-use](https://github.com/picassio/open-computer-use)
   (ô mật khẩu được đánh dấu và từ chối) và cài dưới dạng công cụ trên máy; giấy phép và các thông báo của nó trong

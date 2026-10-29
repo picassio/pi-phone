@@ -53,6 +53,7 @@
     "Connect {1} first.": "请先连接 {1}。",
     "No tool \"{1}\". The tools are {2}.": "没有工具 \"{1}\"。可用的工具：{2}。",
     "Could not copy {1}'s skills to {2}: {3}": "无法将 {1} 的技能复制到 {2}：{3}",
+    "Could not copy {1}'s {2} to {3}: {4}": "无法将 {1} 的 {2} 复制到 {3}：{4}",
     "Could not unpack {1}'s skills on {2}: {3}": "无法在 {2} 上解压 {1} 的技能：{3}",
     "There is no such machine.": "没有这台机器。",
     "{1} is not set up: open Settings > Machines and connect it first.": "{1} 尚未设置：请先打开 设置 > 机器 并连接它。",

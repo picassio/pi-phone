@@ -15,6 +15,7 @@ import {
 import { defineExtension, hook, type PromptInput, section, type ToolExecutionResult, ToolTask } from "@earendil-works/pi-durable";
 import { APP_ROOT } from "../config.ts";
 import type { PocketHost } from "../host.ts";
+import { toolsNote } from "../machine-tools.ts";
 
 /** What every session's preamble ends with. */
 const DURABLE = `Your work is durable: if the server restarts, you continue where you left off. A tool call cut off by a restart comes back as an "interrupted" error when it was not safe to repeat; check what actually happened before you retry it.`;
@@ -370,13 +371,7 @@ export default function createPrompt(host: PocketHost) {
                           ]
                         : []),
                     "A command stops about 30 seconds after the phone's connection to the machine drops, with an error; check what happened before running it again.",
-                    ...(Object.keys(machine.tools).length === 0
-                        ? []
-                        : [
-                              `pi-phone installed these tools there, first on bash's PATH (~/.pi/mobile/tools/bin): ${Object.entries(machine.tools)
-                                  .map(([tool, version]) => `${tool} ${version}`)
-                                  .join(", ")}.${machine.tools.officecli === undefined ? "" : " officecli never installs or updates itself: never run its installers or officecli install."}`,
-                          ]),
+                    ...[toolsNote(machine.tools)].filter((note) => note !== undefined),
                     `Today: ${today}`,
                 ].join("\n");
             }),
