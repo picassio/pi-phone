@@ -182,7 +182,8 @@ final class PiBrowser {
 
         @Override
         public boolean onJsBeforeUnload(WebView view, String url, String message, JsResult result) {
-            result.cancel();
+            // Leave the page, as without a WebChromeClient: cancelling would keep Pi on a page that asks before leaving.
+            result.confirm();
             return true;
         }
 
