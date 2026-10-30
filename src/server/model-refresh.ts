@@ -57,6 +57,16 @@ export class ModelRefresh {
         return this.#pending;
     }
 
+    /**
+     * A refresh that reads the model configuration after a change the app just made to it (`custom-providers.ts`): one
+     * already under way may have read it before, so it is waited for and a new one started.
+     */
+    async refreshAfterChange(): Promise<ModelRefreshResult> {
+        await this.#pending?.catch(() => undefined);
+
+        return this.refresh();
+    }
+
     async #refresh(): Promise<ModelRefreshResult> {
         // Scope belongs to Pi settings, not models.json. Read it before publishing refreshed choices.
         await this.#app.settings.reload();

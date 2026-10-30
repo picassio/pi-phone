@@ -56,6 +56,7 @@ export const CATALOGUE = [
             "secrets.use": "Secrets",
             "terminal.use": "The terminal",
             "providers.signin": "Sign in to model providers of their own",
+            "providers.custom": "Add OpenAI-compatible providers of their own (their pi-phone calls the address they give)",
             "settings.change": "Change their pi-phone's settings",
             "extensions.manage": "Turn extensions on and off",
         },
@@ -106,8 +107,9 @@ const member: Permission[] = ["pi.use", "browser.use", "web.search", "machines.u
 
 /** The roles a new gateway starts with (the owner's decision, 2026-10-20): editable and deletable. */
 export const SEEDED: readonly Role[] = [
-    // Not server.manage: its downloads hold everyone's sign-ins and secrets (the owner's to give).
-    { id: "admin", name: "Admin", permissions: PERMISSIONS.filter((each) => each !== "roles.manage" && each !== "projects.view_all" && each !== "server.manage"), memoryMb: 4096, cpus: 2, models: [], spendLimit: null, builtin: false },
+    // Not server.manage: its downloads hold everyone's sign-ins and secrets (the owner's to give). Not providers.custom:
+    // a provider of any address is the owner's to allow (PP-248).
+    { id: "admin", name: "Admin", permissions: PERMISSIONS.filter((each) => each !== "roles.manage" && each !== "projects.view_all" && each !== "server.manage" && each !== "providers.custom"), memoryMb: 4096, cpus: 2, models: [], spendLimit: null, builtin: false },
     { id: "member", name: "Member", permissions: member, memoryMb: 2048, cpus: 1, models: [], spendLimit: null, builtin: false },
     { id: "viewer", name: "Viewer", permissions: [], memoryMb: 512, cpus: 0.5, models: [], spendLimit: null, builtin: false },
 ];

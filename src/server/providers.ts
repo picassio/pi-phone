@@ -243,6 +243,8 @@ export class Providers {
     /** Every provider and its sign-in. What a provider said when it refused to renew one is for the `owner` only. */
     list(owner = false) {
         const models = this.#app.models;
+        // The OpenAI-compatible providers the owner added (`custom-providers.ts`): listed in their own part of the sheet.
+        const custom = this.#app.customProviders.ids();
 
         return models.getProviders().map((provider) => {
             const status = models.getProviderAuthStatus(provider.id);
@@ -261,6 +263,7 @@ export class Providers {
                 // An account (`accounts.ts`): whose, and its name; a provider that may have more: so it says.
                 ...(account === undefined ? {} : { account: { name: account.name, of: account.provider } }),
                 ...(this.#app.accounts.providers().includes(provider.id) ? { accounts: true } : {}),
+                ...(custom.has(provider.id) ? { custom: true } : {}),
                 configured: status.configured,
                 source: status.source ?? null,
                 label: status.label ?? null,

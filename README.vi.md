@@ -59,6 +59,12 @@ dự án thật.</sub>
   git, gh, ssh, Node, npm, ripgrep và fd trong userland đi kèm.
 - **Đăng nhập một lần.** Claude Pro/Max, OAuth của các nhà cung cấp khác, hoặc khóa API, từ bảng Nhà cung cấp. GitHub
   qua mã thiết bị (Cài đặt › GitHub), được `git` và `gh` của agent dùng.
+- **Máy chủ tương thích OpenAI của riêng bạn.** Nhà cung cấp › **Thêm nhà cung cấp tương thích OpenAI**: tên, URL gốc
+  (LM Studio, Ollama, vLLM, OpenRouter, một proxy), khóa API hoặc không có khóa cho máy chủ cục bộ, và header bổ sung.
+  **Tìm mô hình** hỏi `/models` của máy chủ rồi bạn đánh dấu các mô hình cần dùng, hoặc gõ id; mỗi mô hình có cửa sổ ngữ
+  cảnh, đầu ra tối đa, nhận hình ảnh và suy luận. Các mô hình của nó xuất hiện trong mọi bộ chọn mô hình. Khóa được lưu
+  trong Bí mật: cấu hình mô hình của Pi chỉ ghi tên của nó. Sau này có thể sửa hoặc xóa ở đó; Pi cũng làm được, qua một
+  thẻ duyệt, nhưng khóa luôn do bạn gõ.
 - **Nhiều hơn một tài khoản.** Thêm tài khoản Claude, Codex hoặc Copilot thứ hai (hay thứ ba) trong Nhà cung cấp; mỗi
   tài khoản có đăng nhập riêng, và mô hình của nó được liệt kê theo tài khoản ("Claude Opus · Work"). Một phiên dùng
   tài khoản của mô hình bạn chọn cho nó, nên bạn có thể mở phiên trên bất kỳ tài khoản nào hoặc chuyển phiên sang tài
@@ -484,6 +490,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Cái gì | Ở đâu | Nhờ Pi? |
 |---|---|---|
 | Nhà cung cấp mô hình (Claude, Codex, Copilot, OpenRouter, …) | **Nhà cung cấp**: đăng nhập, hoặc **Khóa API**; **Thêm tài khoản** cho tài khoản thứ hai | Không với việc đăng nhập, đó là việc của bạn. Có với việc gỡ một tài khoản phụ hoặc đăng xuất |
+| Máy chủ tương thích OpenAI (LM Studio, Ollama, vLLM, một proxy) | **Nhà cung cấp › Thêm nhà cung cấp tương thích OpenAI**: tên, URL gốc, khóa (lưu trong Bí mật) hoặc không có, header, **Tìm mô hình** | “Thêm LM Studio của tôi ở http://192.168.1.20:1234/v1 với qwen3-coder”. Pi nhờ bạn gõ khóa trên thẻ bí mật |
 | Mô hình mặc định cho phiên mới | **Mô hình mặc định** | “Đặt mô hình mặc định là anthropic/claude-opus-… high” |
 | Chờ hạn mức của nhà cung cấp | **Nhà cung cấp › Chờ hạn mức**: thời gian chờ lâu nhất, và thông báo khi chờ lâu; **Thử lại ngay**, **Dừng** và thẻ tài khoản của một phiên đang chờ | “Chờ hạn mức tối đa 12 giờ”, “Thử lại phiên 12 ngay”, “Chuyển phiên 12 sang tài khoản Work” |
 | GitHub cho `git` và `gh` của Pi | **GitHub**: một mã thiết bị | Không với việc đăng nhập. Có với việc đăng xuất |

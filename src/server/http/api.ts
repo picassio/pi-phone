@@ -12,6 +12,7 @@ import QRCode from "qrcode";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { MAX_PEEKS } from "../app.ts";
 import type { SecretPatch } from "../secrets.ts";
+import { idFromName, keyChoice } from "../custom-providers.ts";
 import { openUiRoute } from "../openui.ts";
 import {
     type Auth,
@@ -2038,6 +2039,55 @@ export function createApi(options: HttpOptions, auth: Auth) {
             app.providers.modelsChanged();
 
             return json(response, 200, { ok: true });
+        }
+
+        // OpenAI-compatible providers (`custom-providers.ts`, PP-248): the owner's, in Pi's models.json, keys in Secrets.
+        if (first === "custom-providers") {
+            requireOwner(user);
+
+            if (second === undefined && method === "GET") {
+                return json(response, 200, { providers: app.customProviders.list(), secrets: app.secrets.list().map((each) => each.name) });
+            }
+
+            if (second === "discover" && third === undefined && method === "POST") {
+                const body = await readJson<{ baseUrl?: unknown; headers?: unknown; key?: unknown; id?: unknown }>(request);
+
+                return json(response, 200, {
+                    models: await app.customProviders.findModels({
+                        baseUrl: body.baseUrl,
+                        headers: body.headers,
+                        key: keyChoice(body.key, true),
+                        ...(typeof body.id === "string" ? { id: body.id } : {}),
+                    }),
+                });
+            }
+
+            if (second === undefined && method === "POST") {
+                const body = await readJson<{ id?: unknown; name?: unknown; baseUrl?: unknown; key?: unknown; headers?: unknown; models?: unknown }>(request);
+                const id = typeof body.id === "string" && body.id.trim() !== "" ? body.id.trim() : idFromName(typeof body.name === "string" ? body.name : "");
+
+                if (id === "") {
+                    throw new HttpError(400, "Give the provider an id: lower-case letters, digits and -.");
+                }
+
+                return json(response, 200, {
+                    provider: await app.customProviders.save(id, { name: body.name, baseUrl: body.baseUrl, key: keyChoice(body.key, true), headers: body.headers ?? [], models: body.models }, true),
+                });
+            }
+
+            if (second !== undefined && third === undefined && method === "PUT") {
+                const body = await readJson<{ name?: unknown; baseUrl?: unknown; key?: unknown; headers?: unknown; models?: unknown }>(request);
+
+                return json(response, 200, {
+                    provider: await app.customProviders.save(decodeURIComponent(second), { name: body.name, baseUrl: body.baseUrl, key: keyChoice(body.key, true), headers: body.headers, models: body.models }, false),
+                });
+            }
+
+            if (second !== undefined && third === undefined && method === "DELETE") {
+                await app.customProviders.remove(decodeURIComponent(second));
+
+                return json(response, 200, { ok: true });
+            }
         }
 
         if (

@@ -7844,6 +7844,115 @@ pre.diff .del {
     overflow-wrap: anywhere;
 }
 
+/* OpenAI-compatible providers (custom-providers.js, PP-248): their rows, Add, and the form in place. */
+.custom-providers {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.6rem 0 0.8rem;
+    margin-bottom: 0.4rem;
+    border-bottom: 1px solid var(--hair);
+}
+
+.custom-providers > p {
+    margin: 0;
+}
+
+.custom-providers .cp-add {
+    align-self: flex-start;
+}
+
+.cp-url {
+    overflow-wrap: anywhere;
+}
+
+.cp-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.cp-form p {
+    margin: 0;
+}
+
+.cp-form select {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.cp-id {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cp-id input {
+    flex: 1;
+    min-width: 0;
+}
+
+.cp-header input {
+    min-width: 0;
+}
+
+.cp-find {
+    flex-wrap: wrap;
+}
+
+.cp-typed input {
+    min-width: 0;
+}
+
+.cp-models {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cp-model {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+}
+
+.cp-model-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.cp-model-head .mono {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.cp-model-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+}
+
+.cp-model-fields .check {
+    margin-bottom: 0;
+}
+
+.cp-tokens {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cp-tokens input {
+    width: 7.5rem;
+}
+
 /* Shared refresh feedback stays visible after a request and wraps provider messages as plain text. */
 .model-refresh {
     margin-block: 0.5rem;

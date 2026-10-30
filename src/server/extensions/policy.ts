@@ -19,7 +19,7 @@ export default function createPolicy(host: PocketHost) {
                     return "";
                 }
 
-                const missing = [...new Set([...Object.values(EXTENSIONS), ...Object.values(TOOLS), "terminal.use", "providers.signin"])].filter((permission) => !policy.permissions.includes(permission));
+                const missing = [...new Set([...Object.values(EXTENSIONS), ...Object.values(TOOLS), "terminal.use", "providers.signin", "providers.custom"])].filter((permission) => !policy.permissions.includes(permission));
                 const models = policy.models.length === 0 ? "" : ` Models you may use: ${policy.models.join(", ")}.`;
                 const cap = policy.spendLimit === null ? "" : ` Spend is capped at $${policy.spendLimit} a month.`;
 

@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { sshArguments } from "@earendil-works/pi-env";
 import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
+import { CustomProviders } from "./custom-providers.ts";
 import { TeamAccountsClient } from "./team-accounts.ts";
 import { TeamMachinesClient } from "./team-machines.ts";
 import { machinePaths } from "./machine-paths.ts";
@@ -451,6 +452,8 @@ export class PocketApp {
     readonly machines: Machines;
     /** More accounts of a subscription provider, each a provider of its own (`accounts.ts`). */
     readonly accounts: Accounts;
+    /** OpenAI-compatible providers the owner adds in Providers, in Pi's models.json, keys from Secrets (`custom-providers.ts`). */
+    readonly customProviders: CustomProviders;
     /** The team's provider accounts on the team server (`team-accounts.ts`, PP-69). */
     readonly teamAccounts: TeamAccountsClient;
     readonly teamMachines: TeamMachinesClient;
@@ -564,6 +567,13 @@ export class PocketApp {
         // The team server's machines this person may use (PP-82): into Machines, reached through its relay and agent.
         this.teamMachines = new TeamMachinesClient(this.#teamServer, sshDir, (line) => this.log(line), (entries, manage) => this.machines.setTeam(entries, manage));
         this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
+        this.customProviders = new CustomProviders({
+            secrets: this.secrets,
+            models: () => this.models,
+            reload: () => this.providers.modelRefresh.refreshAfterChange(),
+            changed: () => this.providers.modelsChanged(),
+            log: (line) => this.log(line),
+        });
         // A team account's sign-in steps go to this pi-phone's person, as their own sign-ins' do (not to teammates).
         const phoneSettings = new PhoneSettingsFile(options.dataDir);
 
@@ -874,6 +884,9 @@ export class PocketApp {
         this.#configureModels?.(this.models);
         // Before anything reads the models: sessions on an account's models resume with it there.
         this.accounts.registerAll();
+        // And the OpenAI-compatible providers' keys, from the secrets (PP-248): again whenever the secrets change.
+        await this.customProviders.sync();
+        this.secrets.onChange(() => void this.customProviders.sync().catch((error: unknown) => this.log(`custom providers: ${describe(error)}`)));
         // And the team's accounts this person may use, on the team server (PP-69): before sessions on them resume too.
         await this.syncTeamAccounts(false);
         // The team's machines (PP-82): their relay and agent, then the list, before sessions on them resume.

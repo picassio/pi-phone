@@ -333,6 +333,29 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `secret_request` are allowed in plan mode, as are `wiki_query`, `wiki_read` and `wiki_summarize`. None of this
   is a boundary against a model set on leaking a value; it keeps values out by accident. The approval card's heading
   is now "Pi asks before this … call", no longer Lancet Guard's.
+- **OpenAI-compatible providers** (PP-248, picassio/pi-phone#4; `custom-providers.ts`, `web/sheets/custom-providers.js`):
+  Providers › Add an OpenAI-compatible provider writes Pi's own custom provider into `~/.pi/agent/models.json`
+  (`api: "openai-completions"`, `baseUrl`, `headers`, `models` with `contextWindow`, `maxTokens`, `input`,
+  `reasoning`). Listed and editable: the file's `openai-completions` providers with a base URL that are not Pi's
+  built-ins; everything else in the file (other providers, `$schema`, a model's other fields) is kept. **Writes:** only
+  a plain-JSON file is rewritten (one with comments is refused, not stripped); each change is loaded first by a
+  throwaway `ModelRuntime.create({ modelsPath: <temp>, refreshOnCreate: false })` and refused on a schema error or a
+  composition error of the changed provider, then written atomically and reloaded with
+  `ModelRefresh.refreshAfterChange()` (waits out a refresh already under way, which may have read the old file).
+  **The key:** typed into the form, it goes into Secrets as `<ID>_API_KEY` (an unrelated secret of that name is not
+  overwritten), or a saved secret is picked; the file gets `"apiKey": "$NAME"` only. Pi resolves `$NAME` from
+  `process.env` alone (pi-ai's default auth context; `ModelRuntime.create` takes none), where secrets never are, so
+  `CustomProviders.sync()` gives Pi the value with `setRuntimeApiKey(id, value)`, in memory, first in Pi's order:
+  as the app opens (before sessions resume), after each change, and on every Secrets change; a secret removed takes
+  the key away and the models with it. No key: the literal `no-key` (Pi lists a provider's models only when it has
+  one; local servers ignore it). Header values are written escaped (`$` as `$$`, a leading `!` as `$!`), so they
+  are sent as typed; one unchanged keeps its form. **Find models:** `GET <base>/models` from the server with the key
+  (typed, a secret, or the provider's own through `models.getAuth`), 15 s, read as `{ data: [...] }`, with what
+  OpenRouter, Groq, vLLM and LM Studio say of context, output, image input and reasoning; errors carry the status,
+  never the key or the body. **Who:** `/api/custom-providers` is the owner's; on the team server the role needs
+  `providers.custom` too (policy `ROUTES`; the owner's role only, not the seeded Admin or Member). **Pi:** app_action
+  `providers.customSave`, `providers.customFind`, `providers.customRemove`, each on a card; `key` is only a secret's
+  name (the person types the value on a `secret_request` card), and the help lists the providers there are.
 - **Extension points for people's values** (from pi-pocket 0.22.0, PP-167; `hidden.ts`, `extension-points.ts`):
   `host.hide`, `host.commandEnv` and `host.ask`, with pi-pocket's names and signatures, beside Secrets rather than in
   its place. **One redaction:** `Secrets` holds the app's `HiddenValues`; given a session, `redact`, `longest` and

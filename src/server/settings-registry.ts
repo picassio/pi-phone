@@ -15,6 +15,7 @@ import { HttpError } from "./errors.ts";
 import { MAX_COMPACT_AT, MIN_COMPACT_AT } from "./auto-compact.ts";
 import { makeBackup } from "./backup.ts";
 import { DESIGN_MODULE } from "./design-systems.ts";
+import { type CustomProviderView, idFromName, type KeyChoice } from "./custom-providers.ts";
 import { type VoiceCheck, VOICES } from "./voice.ts";
 import { copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -160,6 +161,70 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
         return found;
     };
     const wiki = async <K extends keyof Awaited<ReturnType<PocketApp["para"]["settings"]>>>(key: K) => (await app.para.settings())[key];
+    // OpenAI-compatible providers (`custom-providers.ts`, PP-248): the owner's, and on the team server only a role with
+    // providers.custom (the owner's). Pi gives a key only as a secret's name: the person types the value on a card.
+    const mayAddProviders = () => {
+        const refusal = app.policy.refusal("providers.custom");
+
+        if (refusal !== undefined) {
+            throw new HttpError(403, refusal);
+        }
+    };
+    const customKey = (value: string | undefined): KeyChoice | undefined => {
+        if (value === undefined || value.trim() === "") {
+            return undefined;
+        }
+
+        if (NONE.test(value.trim())) {
+            return { kind: "none" };
+        }
+
+        const name = value.trim().replace(/^\$\{?|\}$/g, "");
+
+        if (!app.secrets.has(name)) {
+            // Said to Pi alone (these actions are its tools), so in English.
+            throw new Error(`There is no secret ${name}: ask the person to type the key with secret_request first, then give its name.`);
+        }
+
+        return { kind: "secret", name };
+    };
+    const customHeaders = (value: string | undefined): unknown => {
+        if (value === undefined || value.trim() === "") {
+            return undefined;
+        }
+
+        if (NONE.test(value.trim())) {
+            return [];
+        }
+
+        try {
+            return JSON.parse(value) as unknown;
+        } catch {
+            throw new Error('Headers are a JSON object: {"X-Title": "pi-phone"}, or none.');
+        }
+    };
+    const customModels = (value: string): unknown => {
+        if (value.trim().startsWith("[")) {
+            try {
+                return JSON.parse(value) as unknown;
+            } catch {
+                throw new Error('Models are ids, comma-separated, or a JSON list: [{"id": "qwen3", "contextWindow": 32768, "maxTokens": 8192, "images": false, "reasoning": true}].');
+            }
+        }
+
+        return value.split(",").map((each) => each.trim()).filter(Boolean);
+    };
+    const customLine = (provider: CustomProviderView) =>
+        `${provider.id} (${provider.name}, ${provider.baseUrl}, key: ${provider.key.kind === "secret" ? `secret ${provider.key.name}${provider.key.missing ? " (missing)" : ""}` : provider.key.kind === "none" ? "none" : "set by hand"}, ${provider.configured ? "usable" : "not usable: no key"}, models: ${provider.models.map((model) => model.id).join(", ")})`;
+    const customNow = () => {
+        try {
+            const list = app.customProviders.list();
+
+            return list.length === 0 ? "none yet" : list.map(customLine).join("; ");
+        } catch (error) {
+            return `(the model configuration cannot be read: ${error instanceof Error ? error.message : String(error)})`;
+        }
+    };
 
     const settings: Setting[] = [
         // ─── Models ───
@@ -1273,6 +1338,75 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 app.providers.modelsChanged();
 
                 return `Removed ${args.account}.`;
+            },
+        },
+        {
+            id: "providers.customSave",
+            area: "providers",
+            title: "Add or change an OpenAI-compatible provider",
+            help: `A server with an OpenAI-compatible API (LM Studio, Ollama, vLLM, OpenRouter, a proxy), as Settings › Providers adds it; its models join the model pickers. models: ids, comma-separated, or a JSON list of {id, contextWindow, maxTokens, images, reasoning} (find them with providers.customFind). Optional: id (an existing one changes it; a new one is made from the name otherwise), key (the name of a secret holding the API key: ask the person to type it with secret_request first, never type a key yourself; or none for a server without one; left out, an existing provider keeps its key), headers (a JSON object of extra headers, or none). Now: ${customNow()}.`,
+            owner: true,
+            args: { name: "Its name, as the pickers show it", baseUrl: "The API's base URL, http(s), often ending in /v1", models: "Model ids, comma-separated, or a JSON list" },
+            describe: (args) => {
+                const changing = args.id !== undefined && app.customProviders.ids().has(args.id);
+                const key = args.key === undefined || args.key.trim() === "" ? (changing ? "its key as it is" : "no key given") : NONE.test(args.key.trim()) ? "no key" : `the key in secret ${args.key.trim()}`;
+
+                return `${changing ? `Change the provider ${args.id}` : "Add an OpenAI-compatible provider"}: ${args.name ?? ""} at ${args.baseUrl ?? ""}, with ${key}; models ${args.models ?? ""}${args.headers === undefined ? "" : `; headers ${args.headers}`}`;
+            },
+            run: async (_user, args) => {
+                mayAddProviders();
+
+                const name = args.name ?? "";
+                const changing = args.id !== undefined && app.customProviders.ids().has(args.id);
+                const id = args.id?.trim() || idFromName(name);
+                const key = customKey(args.key) ?? (changing ? { kind: "keep" as const } : undefined);
+
+                if (key === undefined) {
+                    throw new Error("Give key: a secret's name (the person types the key with secret_request), or none for a server without a key.");
+                }
+
+                const saved = await app.customProviders.save(id, { name, baseUrl: args.baseUrl, key, headers: customHeaders(args.headers) ?? (changing ? undefined : []), models: customModels(args.models ?? "") }, !changing);
+
+                return `${changing ? "Changed" : "Added"} ${customLine(saved)}. Its models are ${saved.models.map((model) => `${saved.id}/${model.id}`).join(", ")}.`;
+            },
+        },
+        {
+            id: "providers.customFind",
+            area: "providers",
+            title: "Find an OpenAI-compatible server's models",
+            help: "Ask the server (GET <baseUrl>/models) which models it has, as the Find models button does: their ids, context windows, most output, image input and reasoning where it says. Optional: id (a provider here: its key and headers), key (a secret's name, or none), headers (a JSON object).",
+            owner: true,
+            args: { baseUrl: "The API's base URL, http(s)" },
+            describe: (args) => `Ask ${args.baseUrl ?? ""}/models which models it has${args.key === undefined || NONE.test(args.key.trim()) ? "" : `, with the key in secret ${args.key.trim()}`}`,
+            run: async (_user, args) => {
+                mayAddProviders();
+
+                const known = args.id !== undefined && app.customProviders.ids().has(args.id);
+                const found = await app.customProviders.findModels({
+                    baseUrl: args.baseUrl,
+                    headers: customHeaders(args.headers) ?? (known ? app.customProviders.get(args.id!).headers : []),
+                    key: customKey(args.key) ?? (known ? { kind: "keep" } : { kind: "none" }),
+                    ...(known ? { id: args.id! } : {}),
+                });
+
+                return found.length === 0
+                    ? "The server lists no models."
+                    : `${found.length} models:\n${found.map((model) => `- ${model.id}${model.contextWindow === undefined ? "" : `, context ${model.contextWindow}`}${model.maxTokens === undefined ? "" : `, output ${model.maxTokens}`}${model.images ? ", images" : ""}${model.reasoning ? ", reasoning" : ""}`).join("\n")}`;
+            },
+        },
+        {
+            id: "providers.customRemove",
+            area: "providers",
+            title: "Remove an OpenAI-compatible provider",
+            help: "Take it out of the model configuration: sessions on its models need another model. Its key's secret stays in Secrets.",
+            owner: true,
+            args: { id: "The provider's id" },
+            describe: (args) => `Remove the provider ${args.id ?? ""} (sessions on its models need another model)`,
+            run: async (_user, args) => {
+                mayAddProviders();
+                await app.customProviders.remove(args.id ?? "");
+
+                return `Removed ${args.id}.`;
             },
         },
         {

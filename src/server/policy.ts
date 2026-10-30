@@ -69,6 +69,8 @@ export const ROUTES: readonly { first: string; permission: string; writes: boole
     { first: "browser", permission: "browser.use", writes: false },
     { first: "web-access", permission: "web.search", writes: true },
     { first: "providers", permission: "providers.signin", writes: true },
+    // Seeing them too: they name the secrets keys are in, and finding models makes the server call any address.
+    { first: "custom-providers", permission: "providers.custom", writes: false },
     { first: "accounts", permission: "providers.signin", writes: true },
     { first: "auth", permission: "providers.signin", writes: true },
     { first: "github", permission: "providers.signin", writes: true },
@@ -91,6 +93,7 @@ const WORDS: Readonly<Record<string, string>> = {
     "browser.use": "Pi's browser",
     "web.search": "web access",
     "providers.signin": "signing in to providers",
+    "providers.custom": "adding OpenAI-compatible providers",
     "extensions.manage": "turning extensions on and off",
     "settings.change": "changing settings",
     "terminal.use": "the terminal",

@@ -2,10 +2,11 @@
 // sign-in uses to ask for a code or a key.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { t, tn, tx } from "../i18n.js";
-import { api, attempt, closeSheet, closeSignIn, loadUsage, signInAnswered, store } from "../store.js";
+import { api, attempt, closeSheet, closeSignIn, loadUsage, roleAllows, signInAnswered, store } from "../store.js";
 import { UsageBars } from "../usage.js";
 import { html, Icon, Loader, Sheet, Switch } from "../ui.js";
 import { RefreshModels } from "../model-refresh.js";
+import { CustomProviders } from "./custom-providers.js";
 
 /** How long a run waits for a provider's limit to clear, at most (`limit-gate.ts`, PP-135): hours, 0 is off. */
 const LIMIT_WAIT = [0, 1, 6, 12, 24];
@@ -222,6 +223,8 @@ export function ProvidersSheet() {
     // A provider's accounts (accounts.ts) come right after it, by name: the family sorts as its original does.
     const family = (provider) => (provider.account ? (byId.get(provider.account.of) ?? provider) : provider);
     const list = (providers ?? [])
+        // The OpenAI-compatible ones the owner added have a part of their own (custom-providers.js).
+        .filter((provider) => !provider.custom)
         .filter(
             (provider) =>
                 needle === "" ||
@@ -323,6 +326,7 @@ export function ProvidersSheet() {
             />`
         }
         ${store.state.auth && html`<${AuthDialog} inline=${true} />`}
+        ${owner && roleAllows("providers.custom") && html`<${CustomProviders} changed=${store.state.models} />`}
         <label class="search">
             <${Icon} name="search" size=${16} />
             <input

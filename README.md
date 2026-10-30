@@ -54,6 +54,11 @@ No Termux, no laptop, no cloud VM.
   with git, gh, ssh, Node, npm, ripgrep, and fd in the bundled userland.
 - **Sign in once.** Claude Pro/Max, other providers' OAuth, or API keys, from the Providers sheet. GitHub through a
   device code (Settings › GitHub), used by the agent's `git` and `gh`.
+- **Your own OpenAI-compatible server.** Providers › **Add an OpenAI-compatible provider**: a name, a base URL
+  (LM Studio, Ollama, vLLM, OpenRouter, a proxy), an API key or none for a local server, and extra headers. **Find
+  models** asks the server's `/models` and you tick the ones you want, or type ids; each takes a context window, the
+  most output, image input and reasoning. Its models join every model picker. The key is kept in Secrets: Pi's model
+  configuration only names it. Edit or remove it there later; Pi can too, on a card, but the key is always yours to type.
 - **More than one account.** Add a second (or third) Claude, Codex, or Copilot account in Providers; each has its
   own sign-in, and its models are listed per account ("Claude Opus · Work"). A session uses the account of the
   model you pick for it, so you can start a session on any account or move one to another.
@@ -461,6 +466,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | What | Where | Ask Pi? |
 |---|---|---|
 | Model providers (Claude, Codex, Copilot, OpenRouter, …) | **Providers**: sign in, or **API key**; **Add account** for a second one | No for signing in, which is yours. Yes for removing an extra account or signing out |
+| An OpenAI-compatible server (LM Studio, Ollama, vLLM, a proxy) | **Providers › Add an OpenAI-compatible provider**: name, base URL, key (kept in Secrets) or none, headers, **Find models** | "Add my LM Studio at http://192.168.1.20:1234/v1 with qwen3-coder". Pi asks you to type the key on a secret card |
 | Default model for new sessions | **Default model** | "Set the default model to anthropic/claude-opus-… high" |
 | Waiting for a provider's limit | **Providers › Wait for a limit**: the longest wait, and the notice of a long one; a waiting session's **Retry now**, **Stop**, and its account card | "Wait at most 12 hours for limits", "Retry session 12 now", "Move session 12 to the Work account" |
 | GitHub for Pi's `git` and `gh` | **GitHub**: a device code | No for signing in. Yes for signing out |
