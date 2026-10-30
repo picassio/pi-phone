@@ -84,13 +84,14 @@ async function takenOver(): Promise<void> {
         const fetched = window.fetch;
 
         window.sent = [];
+        window.answer = { editable: false, password: false };
         window.fetch = async (input, init) => {
             const url = String(input);
 
             if (url.includes("/browser/input")) {
                 window.sent.push(JSON.parse(init.body));
 
-                return Response.json({ editable: false, password: false });
+                return Response.json(window.answer);
             }
 
             // Its state, and watching its frames (which answers the state too).
@@ -219,6 +220,42 @@ test("no picture after several tries: the panel says so with Retry, which starts
     await page.evaluate(`document.querySelector(".pb-picture-error button").click()`);
     await until(async () => (await inPage<number>(`return JSON.stringify(window.retried)`)) === 1, "Retry sent");
     await until(async () => await inPage<boolean>(`return JSON.stringify(document.querySelector(".pb-picture-error") === null && document.querySelector(".pb-wait") !== null)`), "waiting again after Retry");
+});
+
+// PP-181: a press on the picture focused the panel (its default) before the tap's click gave the focus back to the hidden
+// field the phone's keyboard types into; on a phone the keyboard goes when the focus leaves a text field, so a second tap
+// on a text field dropped it. Real taps (touch emulation at the phone's size), each landing on a field of the page.
+test("taken over on a phone: taps on text fields one after another never take the focus from the keyboard's field", real, async () => {
+    await takenOver();
+    await page.evaluate(`
+        window.answer = { editable: true, password: false };
+        window.left = [];
+        document.addEventListener("focusout", (event) => event.target.matches(".pb-capture") && window.left.push(event.relatedTarget?.className ?? null), true);
+        // No picture comes here: "Waiting for the page…" lies over it, and must not take the finger.
+        const style = document.createElement("style");
+
+        style.textContent = ".pb-wait { pointer-events: none; }";
+        document.head.append(style);
+    `);
+    const at = await inPage<{ x: number; y: number; h: number }>(`
+        const box = document.querySelector(${JSON.stringify(PICTURE)}).getBoundingClientRect();
+
+        return JSON.stringify({ x: box.left + box.width / 2, y: box.top + box.height / 3, h: box.height });
+    `);
+    const focused = () => inPage<string>(`return JSON.stringify(document.activeElement?.className ?? "")`);
+
+    await page.tap(at);
+    await until(async () => (await sent()).length === 1, "the first tap sent");
+    assert.equal(await focused(), "pb-capture", "the keyboard's field has the focus after a tap on a field");
+    await page.tap({ x: at.x, y: at.y + at.h / 4 });
+    await until(async () => (await sent()).length === 2, "the second tap sent");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.equal(await focused(), "pb-capture", "the keyboard's field has the focus after the next tap");
+    assert.deepEqual(await inPage<unknown[]>(`return JSON.stringify(window.left)`), [], "the keyboard's field never lost the focus");
+    assert.deepEqual(
+        (await sent()).map((event) => event.type),
+        ["tap", "tap"],
+    );
 });
 
 test("taken over on a phone: a finger that barely moves is a tap", real, async () => {

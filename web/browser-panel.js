@@ -331,8 +331,19 @@ function Frame({ interactive, onWheel }) {
             scroll();
         });
     };
+    /**
+     * A press on the picture leaves the focus where it is, as the take-over keys do (PP-181): the press's default would
+     * focus the panel before the tap's click gives it back to the field, and on a phone the keyboard goes when the focus
+     * leaves a text field, even for that moment. The click still comes.
+     */
     const down = (event) => {
-        if (!interactive || event.pointerType === "mouse") {
+        if (!interactive) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (event.pointerType === "mouse") {
             return;
         }
 
