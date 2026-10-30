@@ -1775,6 +1775,80 @@ function ComputerControlCard({ approval }) {
     </div>`;
 }
 
+/** A computer sign-in card's field, in the app's own words: never the window's (it could put its own on the card). */
+const computerFieldName = (name) => (name === "username" ? t("Username") : name === "password" ? t("Password") : t("Code"));
+
+/**
+ * Pi asks the owner to sign in in a window of its computer control session (`computer_sign_in`, PP-183): the username,
+ * the password or a code, each straight into the element Pi named through ocu, never into the conversation. A sign-in
+ * can be kept in Secrets (Remember) and used from there next time. The owner's to answer; anyone who can steer may say
+ * not now.
+ */
+function ComputerSignInCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [values, setValues] = useState({});
+    const [remember, setRemember] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const owner = me?.role === "owner";
+    const run = (work) => {
+        setBusy(true);
+        attempt(work).finally(() => setBusy(false));
+    };
+    const filled = form.fields.every((field) => (values[field.name] ?? "") !== "");
+    const send = (body) => run(() => actions.answerComputerSignIn(approval.id, body));
+    const codeOnly = form.fields.every((field) => field.name === "code");
+
+    return html`<div class="approval computer-sign-in-card" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="key" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${t("Sign in to {app} on {machine}", { app: form.app.label, machine: form.machineName })}</span>
+                <span class="approval-reason">${t("What you type goes into the window on the computer; Pi never sees it.")}</span>
+            </div>
+        </div>
+        ${
+            !owner
+                ? html`<div class="muted small">${t("Signing in on the computer is the owner's: waiting for them.")}</div>`
+                : html`<form
+                      class="browser-ask-fields"
+                      onSubmit=${(event) => {
+                          event.preventDefault();
+
+                          if (filled) {
+                              send({ values, remember });
+                          }
+                      }}
+                  >
+                      ${form.fields.map(
+                          (field) => html`<input
+                              type=${field.name === "username" ? "text" : "password"}
+                              autocomplete=${field.name === "username" ? "username" : field.name === "password" ? "current-password" : "one-time-code"}
+                              inputmode=${field.name === "code" ? "numeric" : undefined}
+                              aria-label=${computerFieldName(field.name)}
+                              placeholder=${computerFieldName(field.name)}
+                              value=${values[field.name] ?? ""}
+                              onInput=${(event) => setValues({ ...values, [field.name]: event.currentTarget.value })}
+                          />`,
+                      )}
+                      ${
+                          form.secret &&
+                          html`<label class="check small"><input type="checkbox" checked=${remember} onChange=${(event) => setRemember(event.currentTarget.checked)} /> ${t("Remember in Secrets for next time")}</label>`
+                      }
+                      <button type="submit" hidden></button>
+                  </form>`
+        }
+        ${
+            canSteer() &&
+            html`<div class="approval-actions">
+                <button class="button deny" disabled=${busy} onClick=${() => run(() => actions.approve(approval.id, false))}>${t("Not now")}</button>
+                ${owner && form.saved && !form.fields.some((field) => field.name === "code") && html`<button class="button" disabled=${busy} onClick=${() => send({ useSaved: true })}>${t("Use the kept sign-in")}</button>`}
+                ${owner && html`<button class="button primary" disabled=${busy || !filled} onClick=${() => send({ values, remember })}>${codeOnly ? t("Enter code") : t("Sign in")}</button>`}
+            </div>`
+        }
+    </div>`;
+}
+
 /** While Pi uses a phone for this session (PP-141): which apps, the minutes left, and Stop. The owner's tabs only. */
 function PhoneControlLine({ conversationId }) {
     const [, tick] = useState(0);
@@ -1950,6 +2024,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "computer") {
         return html`<${ComputerControlCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "computer-sign-in") {
+        return html`<${ComputerSignInCard} approval=${approval} />`;
     }
 
     if (approval.form?.type === "machine") {

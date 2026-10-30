@@ -3124,5 +3124,9 @@
     "You answer a card before a window a page opens becomes a tab.": "Bạn trả lời một thẻ trước khi cửa sổ mà trang mở ra thành một tab.",
     "Pages get no windows: a sign-in that opens one does not work.": "Trang không mở được cửa sổ nào: đăng nhập nào cần mở cửa sổ sẽ không chạy.",
     "Windows pages open": "Cửa sổ trang mở ra",
-    "Windows on the phone": "Cửa sổ trên điện thoại"
+    "Windows on the phone": "Cửa sổ trên điện thoại",
+    "Username": "Tên đăng nhập",
+    "Sign in to {app} on {machine}": "Đăng nhập {app} trên {machine}",
+    "What you type goes into the window on the computer; Pi never sees it.": "Những gì bạn gõ đi thẳng vào cửa sổ trên máy tính; Pi không bao giờ thấy.",
+    "Signing in on the computer is the owner's: waiting for them.": "Đăng nhập trên máy tính là việc của chủ sở hữu: đang chờ họ."
 }

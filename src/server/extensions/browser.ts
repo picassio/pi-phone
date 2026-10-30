@@ -63,7 +63,7 @@ export function cardFills(
  * fixed words: the JSON parser's message quotes the value, and it went to the card's error and the server's log
  * (PP-204; rule G20, as pi-pocket's review of our secrets port found for a broken file, TannerMidd/pi-pocket-extensions#28).
  */
-export function savedSignIn(saved: string, site: string): Record<string, string> {
+export function savedSignIn(saved: string, site: string, keeper = "Pi's browser"): Record<string, string> {
     let parsed: unknown;
 
     try {
@@ -73,7 +73,7 @@ export function savedSignIn(saved: string, site: string): Record<string, string>
     }
 
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed) || !Object.values(parsed).every((value) => typeof value === "string")) {
-        throw new Error(`The secret kept for ${site}'s sign-in is not a sign-in Pi's browser saved: type it on the card, or save it again with Remember.`);
+        throw new Error(`The secret kept for ${site}'s sign-in is not a sign-in ${keeper} saved: type it on the card, or save it again with Remember.`);
     }
 
     return parsed as Record<string, string>;

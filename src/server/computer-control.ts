@@ -13,7 +13,9 @@
  * typing or character keys from Pi into a password field (ocu's outline marks them `[password]`, and pi-phone's ocu
  * build refuses them too); an element number only while it is still the element Pi read. While the owner has taken the
  * computer over (the panel's Take over), Pi's calls are refused until they hand it back, and what the owner types goes
- * to the field in focus, a password field too: only those calls tell ocu `allow_password_input`.
+ * to the field in focus, a password field too: only those calls, Pi's fills with a saved secret by name, and the values
+ * the owner types on a computer_sign_in card (`fill`) tell ocu `allow_password_input`. A card's values never come back
+ * in what Pi reads of the windows (`computer-typed.ts`).
  *
  * The panel (`web/computer-panel.js`) shows the session's windows: a picture of one after each action and every 3 s while
  * a tab watches, with a box on the element Pi acted on. Only the owner sees it.
@@ -21,6 +23,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type ComputerOutline, type DesktopApp, type Frame, parseApps, parseOutline, pngSize } from "./computer-outline.ts";
+import { hideTyped, SHORT_TYPED_NOTE, shortTypedShowing, type TypedFill, typedAreas } from "./computer-typed.ts";
 import { imageOf, OcuClient, type OcuProcess, type OcuResult, textOf } from "./ocu-client.ts";
 import { clockText } from "./phone-events.ts";
 import { IDLE_END_MS, MINUTES } from "./phone-control.ts";
@@ -184,6 +187,8 @@ type Live = {
     takenOver: boolean;
     /** Calls in flight: the panel does not read again meanwhile. */
     busy: number;
+    /** What the owner typed on computer_sign_in cards (PP-183): kept out of all Pi reads of the windows (`computer-typed.ts`). */
+    typed: TypedFill[];
 };
 
 export type ComputerControlOptions = {
@@ -541,6 +546,7 @@ export class ComputerControl {
             doing: null,
             takenOver: false,
             busy: 0,
+            typed: [],
         });
         this.#save();
         this.#arm(session);
@@ -806,12 +812,14 @@ export class ComputerControl {
         const text = textOf(result);
 
         if (result.isError) {
-            throw new Error(`ocu could not read ${app.label}: ${text}`);
+            throw new Error(`ocu could not read ${app.label}: ${hideTyped(text, live.typed)}`);
         }
 
-        live.piOutlines.set(app.name, parseOutline(text));
+        const outline = parseOutline(text);
 
-        return { app, text };
+        live.piOutlines.set(app.name, outline);
+
+        return { app, text: shortTypedShowing(live.typed, outline) ? SHORT_TYPED_NOTE : hideTyped(text, live.typed) };
     }
 
     /** An element of the window as Pi read it last, still the same element in ocu's newest read: or why not. */
@@ -890,7 +898,7 @@ export class ComputerControl {
             // the only call of Pi's that tells ocu `allow_password_input`. What it did says the name, never the value.
             case "set_value": {
                 if (element!.password && action.secret === undefined) {
-                    throw new Error(`[${element!.index}] is a password field: Pi never types a password as text. Fill it with a saved secret by name (secret: "NAME", secrets_list), or ask the owner to type it (Take over in Pi's computer).`);
+                    throw new Error(`[${element!.index}] is a password field: Pi never types a password as text. Fill it with a saved secret by name (secret: "NAME", secrets_list), or ask the owner to type it with computer_sign_in.`);
                 }
 
                 tool = "set_value";
@@ -901,7 +909,7 @@ export class ComputerControl {
 
             case "type_text": {
                 if (outline?.focusedPassword === true && action.secret === undefined) {
-                    throw new Error(`The field in focus is a password field: Pi never types a password as text. Fill it with a saved secret by name (secret: "NAME", secrets_list), or ask the owner to type it (Take over in Pi's computer).`);
+                    throw new Error(`The field in focus is a password field: Pi never types a password as text. Fill it with a saved secret by name (secret: "NAME", secrets_list), or ask the owner to type it with computer_sign_in.`);
                 }
 
                 tool = "type_text";
@@ -912,7 +920,7 @@ export class ComputerControl {
 
             case "press_key": {
                 if (typesCharacter(action.key) && outline?.focusedPassword === true) {
-                    throw new Error(`The field in focus is a password field: Pi never types a password as text, a key at a time either. Fill it with a saved secret by name (secret: "NAME", secrets_list), or ask the owner to type it (Take over in Pi's computer).`);
+                    throw new Error(`The field in focus is a password field: Pi never types a password as text, a key at a time either. Fill it with a saved secret by name (secret: "NAME", secrets_list), or ask the owner to type it with computer_sign_in.`);
                 }
 
                 tool = "press_key";
@@ -946,16 +954,19 @@ export class ComputerControl {
         const result = await this.#call(session, app, tool, args, `${did}`, hit);
         const filled = action.op === "set_value" ? action.value : action.op === "type_text" ? action.text : "";
         // A secret's value never comes back in what Pi reads (ocu does not read password fields; elsewhere, its name).
-        const text = "secret" in action && action.secret !== undefined && filled !== "" ? textOf(result).split(filled).join(`[secret ${action.secret}]`) : textOf(result);
+        // What the owner typed on a sign-in card never either (`computer-typed.ts`).
+        const text = hideTyped("secret" in action && action.secret !== undefined && filled !== "" ? textOf(result).split(filled).join(`[secret ${action.secret}]`) : textOf(result), live.typed);
 
         if (result.isError) {
             throw new Error(`ocu: ${text}`);
         }
 
-        live.piOutlines.set(app.name, parseOutline(text));
+        const after = parseOutline(textOf(result));
+
+        live.piOutlines.set(app.name, after);
         const joined = before === undefined ? [] : await this.#follow(session, live, before);
 
-        return { app, did: `${did}.`, text, joined };
+        return { app, did: `${did}.`, text: shortTypedShowing(live.typed, after) ? SHORT_TYPED_NOTE : text, joined };
     }
 
     async #appNames(live: Live): Promise<Set<string>> {
@@ -983,8 +994,11 @@ export class ComputerControl {
         return joined;
     }
 
-    /** A picture of an app's window (PNG), read now, with the window's size in its picture's pixels. */
-    async picture(session: ComputerSession, wanted?: string): Promise<{ app: ComputerApp; png: string; width: number; height: number; text: string }> {
+    /**
+     * A picture of an app's window (PNG), read now, with the window's size in its picture's pixels, and where it must be
+     * blacked out before a model gets it (`hidden`, window points: what the owner typed on a sign-in card).
+     */
+    async picture(session: ComputerSession, wanted?: string): Promise<{ app: ComputerApp; png: string; width: number; height: number; text: string; hidden: Frame[] }> {
         const live = this.#liveOf(session);
 
         this.#mayAct(live);
@@ -994,12 +1008,50 @@ export class ComputerControl {
         const size = png === undefined ? undefined : pngSize(png);
 
         if (result.isError || png === undefined || size === undefined) {
-            throw new Error(`ocu sent no picture of ${app.label}${result.isError ? `: ${textOf(result)}` : " (its window may be hidden or too small)"}.`);
+            throw new Error(`ocu sent no picture of ${app.label}${result.isError ? `: ${hideTyped(textOf(result), live.typed)}` : " (its window may be hidden or too small)"}.`);
         }
 
-        live.piOutlines.set(app.name, parseOutline(textOf(result)));
+        const outline = parseOutline(textOf(result));
 
-        return { app, png, ...size, text: textOf(result) };
+        live.piOutlines.set(app.name, outline);
+
+        if (shortTypedShowing(live.typed, outline)) {
+            throw new Error(SHORT_TYPED_NOTE);
+        }
+
+        return { app, png, ...size, text: hideTyped(textOf(result), live.typed), hidden: typedAreas(live.typed, outline) };
+    }
+
+    /**
+     * The owner's values from a computer_sign_in card (PP-183), each into the element Pi named, as ocu's set_value with
+     * `allow_password_input` (the owner's own, a password field too). Each is kept first, so it stays out of all Pi reads
+     * of the window from then on (`computer-typed.ts`), whatever ocu answers; an error never quotes it.
+     */
+    async fill(session: ComputerSession, wanted: string, fields: readonly { name: "username" | "password" | "code"; index: number; value: string }[]): Promise<void> {
+        const live = this.#liveOf(session);
+        const app = this.app(session, wanted);
+
+        for (const field of fields) {
+            const element = this.element(session, app, field.index);
+
+            if (field.name === "username" && element.password) {
+                throw new Error(`[${field.index}] in ${app.label} is a password field, not a username field.`);
+            }
+
+            live.typed.push({ what: element.what, value: field.value, password: element.password, mask: `[${field.name} for ${app.label}]` });
+            const result = await this.#call(
+                session,
+                app,
+                "set_value",
+                { element_index: String(element.index), value: field.value, allow_password_input: true },
+                `Filling in the sign-in in ${app.label}`,
+                element.frame === undefined ? undefined : { frame: element.frame, label: `set [${element.index}]` },
+            );
+
+            if (result.isError) {
+                throw new Error(`ocu could not fill [${element.index}] in ${app.label}: ${hideTyped(textOf(result), live.typed)}`);
+            }
+        }
     }
 
     // ─── The panel ──────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@
 // the picture with the box on what Pi clicked, the minutes left and Stop; Take over makes a tap a click and refuses Pi;
 // Menu › Computer control lists the machine, keeps the Never list and stops the session. With PHONE_SHOTS set to a
 // folder, screenshots at 390 and 1280 px go there.
-import { type App, cleanUp, lastText, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
+import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -31,6 +31,10 @@ const route: FauxResponseStep = (request) => {
             [fauxToolCall("computer_control", { action: "start", machine: "tuanlh-sandbox-01", apps: ["Pi OCU Demo", "Text Editor"], minutes: 15, follow: true, reason: "Fill in the name in Pi OCU Demo and press Greet." } as never)],
             { stopReason: "toolUse" },
         );
+    }
+
+    if (role === "user" && text.endsWith("sign me in on the sandbox")) {
+        return fauxAssistantMessage([fauxToolCall("computer_sign_in", { username: 2, password: 3 } as never)], { stopReason: "toolUse" });
     }
 
     return fauxAssistantMessage([fauxText(role === "toolResult" ? `told: ${text.slice(0, 200)}` : "ok")]);
@@ -276,4 +280,80 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
     await shot("computer-sheet-390");
     await page.evaluate(`[...document.querySelectorAll(".computer-control-sheet [data-part=computer-machine] .button")].find((each) => each.innerText === "Stop").click()`);
     await until(() => app.computerControl.view().length === 0, "stopped");
+});
+
+// computer_sign_in's card (PP-183): the app and the machine, the fields in the app's own words, Remember; what the owner
+// types goes into the window through ocu (set_value with allow_password_input) and stays nowhere on the page or in what
+// Pi was told.
+test("computer_sign_in's card on a phone: fixed labels, the values into the window through ocu, none of them on the page", { skip }, async () => {
+    await app.computerControl.end("m1", "the test before");
+    const id = Number(await newSession(app));
+    const start = await app.commands.submit(id as never, owner(app), { text: "greet me on the sandbox", requestId: crypto.randomUUID() });
+
+    await until(() => app.approvals.forConversation(id as never).length > 0, "the control card", 30_000);
+    await app.answerApproval(app.approvals.forConversation(id as never)[0]!.id, true, owner(app));
+    await (await app.harness.submission(start.submissionId, context))!.wait(context);
+    const session = app.computerControl.sessionOfConversation(id)!;
+
+    // Pi read the window (its numbers), then asks.
+    await app.computerControl.screen(session, "Pi OCU Demo");
+    const asked = await app.commands.submit(id as never, owner(app), { text: "sign me in on the sandbox", requestId: crypto.randomUUID() });
+
+    await until(() => app.approvals.forConversation(id as never).length > 0, "the sign-in card", 30_000);
+    await page.setViewport(VIEWPORTS.mobile);
+    await page.navigate(`${base}/s/${id}`);
+    await until(async () => (await text(".computer-sign-in-card")) !== "", "the card on a phone");
+    const card = await text(".computer-sign-in-card");
+
+    assert.match(card, /Sign in to Pi OCU Demo on tuanlh-sandbox-01/);
+    assert.match(card, /What you type goes into the window on the computer; Pi never sees it\./);
+    assert.match(card, /Remember in Secrets for next time/);
+    assert.match(card, /Not now/);
+    assert.deepEqual(
+        await inPage<{ type: string; placeholder: string; autocomplete: string }[]>(`return JSON.stringify([...document.querySelectorAll(".computer-sign-in-card form input:not([type=checkbox])")].map((each) => ({ type: each.type, placeholder: each.placeholder, autocomplete: each.autocomplete })))`),
+        [
+            { type: "text", placeholder: "Username", autocomplete: "username" },
+            { type: "password", placeholder: "Password", autocomplete: "current-password" },
+        ],
+    );
+    const primary = () => inPage<{ text: string; disabled: boolean }>(`const b = document.querySelector(".computer-sign-in-card .button.primary"); return JSON.stringify({ text: b.innerText, disabled: b.disabled })`);
+
+    assert.deepEqual(await primary(), { text: "Sign in", disabled: true }, "Sign in waits for both fields");
+    const fits = await inPage<{ right: number; column: number; page: number; screen: number }>(`
+        const box = document.querySelector(".computer-sign-in-card").getBoundingClientRect();
+
+        return JSON.stringify({ right: box.right, column: document.querySelector(".computer-sign-in-card").parentElement.getBoundingClientRect().right, page: document.documentElement.scrollWidth, screen: innerWidth });
+    `);
+
+    assert.ok(fits.right <= fits.column + 1 && fits.page <= fits.screen, JSON.stringify(fits));
+    await shot("computer-sign-in-390");
+    await page.evaluate(`
+        const [user, password] = document.querySelectorAll(".computer-sign-in-card form input:not([type=checkbox])");
+
+        user.value = "ui-user@example.test";
+        user.dispatchEvent(new Event("input", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        password.value = "ui-pass-31337";
+        password.dispatchEvent(new Event("input", { bubbles: true }));
+    `);
+    await until(async () => !(await primary()).disabled, "Sign in enabled");
+    await page.evaluate(`document.querySelector(".computer-sign-in-card .button.primary").click()`);
+    await until(
+        () =>
+            ocuCalls().some((each) => each.tool === "set_value" && each.args.value === "ui-user@example.test" && each.args.allow_password_input === true) &&
+            ocuCalls().some((each) => each.tool === "set_value" && each.args.value === "ui-pass-31337" && each.args.allow_password_input === true),
+        "both values as ocu's set_value",
+    );
+    await (await app.harness.submission(asked.submissionId, context))!.wait(context);
+    await until(async () => (await text(".computer-sign-in-card")) === "", "the card answered");
+    const shown = await inPage<string>(`return JSON.stringify(document.body.innerText + [...document.querySelectorAll("input")].map((each) => each.value).join(" "))`);
+    const told = JSON.stringify(await modelTexts(app, id as never));
+
+    for (const value of ["ui-user@example.test", "ui-pass-31337"]) {
+        assert.ok(!shown.includes(value), `${value} stayed on the page`);
+        assert.ok(!told.includes(value), `${value} reached Pi`);
+    }
+
+    assert.match(told, /\[username for Pi OCU Demo\]/);
+    await app.computerControl.end("m1", "the test is done");
 });

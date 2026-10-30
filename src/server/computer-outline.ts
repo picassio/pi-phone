@@ -22,6 +22,8 @@ export type ComputerElement = {
     what: string;
     /** Its role and name, for saying what Pi acted on. */
     name: string;
+    /** What it holds, as ocu shows it (`Value: …`), if it shows one. */
+    value?: string;
     frame?: Frame;
     password: boolean;
 };
@@ -56,11 +58,13 @@ export function parseOutline(text: string): ComputerOutline {
             const frame = FRAME.exec(rest);
 
             const what = rest.replace(FRAME, "").replace(/ Value: .*?(?= Secondary Actions: |$)/, "").trim();
+            const value = / Value: (.*?)(?= Secondary Actions: |$)/.exec(rest.replace(FRAME, ""))?.[1];
 
             elements.push({
                 index: Number(element[1]),
                 what,
                 name: what.replace(/\s*Secondary Actions:.*$/, "").trim(),
+                ...(value === undefined ? {} : { value }),
                 ...(frame === null ? {} : { frame: { x: Number(frame[1]), y: Number(frame[2]), width: Number(frame[3]), height: Number(frame[4]) } }),
                 password: rest.includes(PASSWORD) || /^password text\b/.test(rest),
             });

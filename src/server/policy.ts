@@ -53,6 +53,7 @@ export const TOOLS: Readonly<Record<string, string>> = {
     computer_screen: "computer.control",
     computer_act: "computer.control",
     computer_screenshot: "computer.control",
+    computer_sign_in: "computer.control",
     web_search: "web.search",
     fetch_content: "web.search",
 };

@@ -687,5 +687,8 @@
     "This provider's key could not be read: give a key, or pick a saved secret.": "无法读取这个提供方的密钥：请输入密钥，或选择一个已保存的密钥。",
     "Windows pages open are allow, ask or off.": "页面打开的窗口取值为 allow、ask 或 off。",
     "Pi's browser here is not the phone's.": "这里 Pi 的浏览器不是手机上的。",
-    "A window is asked for with opener, tab and gesture.": "请求打开窗口需提供 opener、tab 和 gesture。"
+    "A window is asked for with opener, tab and gesture.": "请求打开窗口需提供 opener、tab 和 gesture。",
+    "Only the owner signs in on their computer.": "只有所有者能在自己的电脑上登录。",
+    "No sign-in for this window is kept in Secrets.": "密钥里没有保存这个窗口的登录信息。",
+    "This asks you to sign in: type it on the card.": "这里需要你登录：请在卡片上输入。"
 }

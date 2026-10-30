@@ -686,5 +686,8 @@
     "This provider's key could not be read: give a key, or pick a saved secret.": "Không đọc được khóa của nhà cung cấp này: hãy nhập một khóa, hoặc chọn một bí mật đã lưu.",
     "Windows pages open are allow, ask or off.": "Cửa sổ trang mở ra là allow, ask hoặc off.",
     "Pi's browser here is not the phone's.": "Trình duyệt của Pi ở đây không phải của điện thoại.",
-    "A window is asked for with opener, tab and gesture.": "Yêu cầu mở cửa sổ cần có opener, tab và gesture."
+    "A window is asked for with opener, tab and gesture.": "Yêu cầu mở cửa sổ cần có opener, tab và gesture.",
+    "Only the owner signs in on their computer.": "Chỉ chủ sở hữu đăng nhập trên máy tính của họ.",
+    "No sign-in for this window is kept in Secrets.": "Không có thông tin đăng nhập nào của cửa sổ này được lưu trong Bí mật.",
+    "This asks you to sign in: type it on the card.": "Yêu cầu này cần bạn đăng nhập: hãy gõ trên thẻ."
 }

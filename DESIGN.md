@@ -1141,9 +1141,23 @@ so Pi changes them through the settings tools; "the last session" is the one the
     module's hook checks the folder, machines and ask-first (`browserSecretNames` covers `computer_act`), the value goes
     to ocu alone with `allow_password_input: true`, and what Pi reads, the panel's status and the card say
     `[secret NAME]`. A password field takes only that: plain text or a character key there is refused before ocu,
-    pointing to `secret` or the owner's Take over. A card for the owner to type into a field (as `browser_sign_in`) is
-    not built yet),
-    `computer_screenshot` (PNG, marks by element or area). ocu cannot start apps: Pi asks the owner to open one.
+    pointing to `secret` or `computer_sign_in`),
+    `computer_screenshot` (PNG, marks by element or area; what the owner typed on a sign-in card blacked out over
+    every mark), and `computer_sign_in` (PP-183, modelled on `browser_sign_in`): Pi names the username, password or
+    code field by its number from its newest read (each still the element it read; a username that is a password
+    field is refused), in the session's apps (Never list included); a card, `form.type: "computer-sign-in"` (machine,
+    app, fields with fixed labels Username, Password, Code: never the window's words; for a sign-in, not a code alone,
+    the Secrets name `LOGIN_<MACHINE>_<APP>` and whether one is kept). The owner answers it at
+    `POST /api/computer/asks/<id>` (`answerComputerSignIn`, owner only; a plain Allow is refused): typed values or
+    the kept sign-in go through `ComputerControl.fill`, ocu's set_value with `allow_password_input: true` per element,
+    only while the asking conversation's session controls the machine; Remember saves the username and password as
+    JSON in Secrets with ask-first. Not now fills nothing. The values never reach Pi, the transcript, the model or the
+    log: `computer-typed.ts` keeps each (with the element it went into) for the session, and every ocu text Pi gets
+    afterwards (`screen`, `act`, `picture`, errors) reads it as `[username for <app>]`, `[password for <app>]`,
+    `[code for <app>]`; `computer_screenshot` blacks out that field and every element whose name or value shows a
+    value; a value under 3 characters in a field that shows it withholds the window (text and picture) while it shows,
+    as PP-228 does in Pi's browser. The panel's pictures are the owner's own view and are not masked, as the browser
+    panel's are not. ocu cannot start apps: Pi asks the owner to open one.
   - **The panel** (`web/computer-panel.js`), built from the browser panel's parts and classes (`pb-*`): the top bar's
     monitor button, docked where Files and the browser go (one panel at a time; `computerOpen`), covering the screen on
     phones with the small preview above the message box while Pi acts. Tabs are the session's windows; the status line

@@ -76,6 +76,21 @@ export interface ApprovalRequest {
          */
         | { type: "computer"; machine: string; machineName: string; platform: string; ocu: string; apps: ComputerApp[]; minutes: number; follow: boolean }
         /**
+         * Pi asks the owner to sign in in a window of its computer control session (`computer_sign_in`, PP-183): the
+         * machine, the app, and the elements (by Pi's numbers) the username, password or code go into, named in the
+         * app's own words (`label`), never the window's. What the owner types goes into the window through ocu, never to
+         * Pi; a sign-in may be kept in Secrets as `secret` and used again from there.
+         */
+        | {
+              type: "computer-sign-in";
+              machine: string;
+              machineName: string;
+              app: ComputerApp;
+              fields: { name: "username" | "password" | "code"; index: number; label: string }[];
+              secret?: string;
+              saved?: boolean;
+          }
+        /**
          * Pi's browser asks the person (`extensions/browser.ts`): to sign in (a username and a password, typed into the
          * page's fields `fields` name), for a one-time code, or to do something on the page themselves. What they type
          * goes into the page, never to Pi; a sign-in may be kept in Secrets as `secret` and used again from there.

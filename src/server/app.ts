@@ -3912,6 +3912,67 @@ export class PocketApp {
         return this.answerApproval(id, true, user, true);
     }
 
+    /**
+     * Answer a computer_sign_in card (PP-183): what the owner typed (or a sign-in kept in Secrets) goes into the window's
+     * elements through ocu (`ComputerControl.fill`), never into the conversation, and the call goes on. Only while the
+     * session that asked still controls the machine, in its apps. A sign-in kept with Remember is saved in Secrets,
+     * asking before any use. The owner's.
+     */
+    async answerComputerSignIn(id: string, body: { values?: unknown; remember?: unknown; useSaved?: unknown }, user: User): Promise<boolean> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner signs in on their computer.");
+        }
+
+        const request = this.approvals.all().find((each) => each.id === id);
+
+        if (request?.form?.type !== "computer-sign-in") {
+            return false;
+        }
+
+        const form = request.form;
+        const where = `${form.app.label} on ${form.machineName}`;
+        let values: Record<string, unknown>;
+
+        if (body.useSaved === true) {
+            const saved = form.secret === undefined ? undefined : this.secrets.value(form.secret);
+
+            if (saved === undefined || form.fields.some((field) => field.name === "code")) {
+                throw new HttpError(409, "No sign-in for this window is kept in Secrets.");
+            }
+
+            try {
+                values = savedSignIn(saved, where, "Pi's computer");
+            } catch (error) {
+                throw new HttpError(409, error instanceof Error ? error.message : String(error));
+            }
+        } else {
+            values = typeof body.values === "object" && body.values !== null ? (body.values as Record<string, unknown>) : {};
+        }
+
+        const fields = form.fields.map((field) => ({ name: field.name, index: field.index, value: values[field.name] }));
+        const filled = fields.filter((field): field is typeof field & { value: string } => typeof field.value === "string" && field.value !== "");
+
+        if (filled.length !== fields.length) {
+            throw new HttpError(400, `Fill in ${form.fields.map((field) => field.label).join(" and ")}.`);
+        }
+
+        try {
+            await this.computerControl.fill(this.computerControl.sessionFor(form.machine, Number(request.conversationId)), form.app.name, filled);
+        } catch (error) {
+            throw new HttpError(409, error instanceof Error ? error.message : String(error));
+        }
+
+        if (body.remember === true && form.secret !== undefined && body.useSaved !== true) {
+            this.secrets.set(form.secret, {
+                value: JSON.stringify(Object.fromEntries(filled.filter((field) => field.name !== "code").map((field) => [field.name, field.value]))),
+                description: `Sign-in for ${where}, kept by Pi's computer`,
+                ask: true,
+            });
+        }
+
+        return this.answerApproval(id, true, user, true);
+    }
+
     /** What was typed and picked in one of a conversation's interactive answers (`openui.ts`), or null. */
     async answerState(id: ConversationId, key: string, user: User): Promise<Record<string, unknown> | null> {
         this.requireSee(user, id);
@@ -4118,7 +4179,9 @@ export class PocketApp {
                     ? "This asks for a secret: type it into the card's field."
                     : request.form.type === "ask"
                       ? "This is a question: fill in its card, then send it."
-                      : "This is an interview: answer it in its form, then submit.",
+                      : request.form.type === "computer-sign-in"
+                        ? "This asks you to sign in: type it on the card."
+                        : "This is an interview: answer it in its form, then submit.",
             );
         }
 

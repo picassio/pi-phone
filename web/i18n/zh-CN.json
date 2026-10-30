@@ -3144,5 +3144,9 @@
     "You answer a card before a window a page opens becomes a tab.": "页面打开的窗口成为标签页之前，你先在卡片上作答。",
     "Pages get no windows: a sign-in that opens one does not work.": "页面无法打开窗口：需要打开窗口的登录将无法完成。",
     "Windows pages open": "页面打开的窗口",
-    "Windows on the phone": "手机上的窗口"
+    "Windows on the phone": "手机上的窗口",
+    "Username": "用户名",
+    "Sign in to {app} on {machine}": "在 {machine} 上登录 {app}",
+    "What you type goes into the window on the computer; Pi never sees it.": "你输入的内容直接填入电脑上的窗口，Pi 看不到。",
+    "Signing in on the computer is the owner's: waiting for them.": "在电脑上登录归所有者：等待他们处理。"
 }

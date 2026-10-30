@@ -279,12 +279,17 @@ No Termux, no laptop, no cloud VM.
 - **Pi uses desktop apps on your machines** (Linux for now; Windows next). In a control session you approve on one card
   (the machine, the apps it names by their windows, for the minutes Pi asks for, 5 to 60; for more it asks again), Pi
   reads a window as numbered elements and clicks, sets values, types, presses keys and scrolls, and takes pictures of
-  it (`computer_control`, `computer_screen`, `computer_act`, `computer_screenshot`), through Computer use (ocu, a
-  machine tool) running there over the app's own ssh. A small window on the machine says Pi is using it, with **Stop**;
+  it (`computer_control`, `computer_screen`, `computer_act`, `computer_screenshot`, `computer_sign_in`), through
+  Computer use (ocu, a machine tool) running there over the app's own ssh. A small window on the machine says Pi is using it, with **Stop**;
   the session ends at its time, soon after Pi's turn ends, or on Stop. Following along (when Pi asks) lets an app the
   named ones open join. Password fields are marked in what Pi reads, and Pi never types a password as text: it fills one
   with a saved secret by name (`computer_act` with `secret`, the same folder and ask-first rules as everywhere; the value
-  goes into the field, Pi reads `[secret NAME]`), or you type it on Take over.
+  goes into the field, Pi reads `[secret NAME]`), or it asks you to sign in (`computer_sign_in`): a card with the app
+  and the machine and fixed fields (Username, Password, Code), where you type them (or use a sign-in you kept), each
+  straight into the field Pi named; **Not now** fills nothing, and **Remember in Secrets** keeps the sign-in (asking
+  before each use). Pi never sees what you type: it reads `[username for <app>]`, `[password for <app>]` and so on,
+  the field is blacked out of the pictures Pi gets, and a value too short to hide keeps the window from Pi while it
+  shows. You can also type it yourself on Take over.
   pi-phone itself, banking and payment apps, password managers and authenticators, and the apps on your Never list are
   never read or touched.
 - **Pi's computer**, a panel like Pi's browser: the top bar's monitor button opens it beside the conversation (on a

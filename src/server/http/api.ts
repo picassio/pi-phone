@@ -936,6 +936,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, await failing(() => control.input(session, given)));
             }
 
+            // What the owner typed on a computer_sign_in card (PP-183): into the window through ocu, not to Pi.
+            if (second === "asks" && parts.length > 2 && method === "POST") {
+                const body = await readJson<{ values?: unknown; remember?: unknown; useSaved?: unknown }>(request);
+
+                if (!(await app.answerComputerSignIn(parts.slice(2).join("/"), body, user))) {
+                    throw new HttpError(404, "That request is no longer waiting");
+                }
+
+                return json(response, 200, { ok: true });
+            }
+
             if (second === "stop" && method === "POST") {
                 const found = control.panelOfSession(session);
                 const ended = found === undefined ? false : await control.end(found.panel.machine, `${user.name} stopped it in the app`);

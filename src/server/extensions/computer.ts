@@ -8,7 +8,9 @@
  *   element's other action, wait; answers with the window after it. A password field only by a saved secret's name
  *   (`secret`, as Pi's browser's `browser_type`): the secrets module checks the folder and asks first when the secret
  *   says so (`extensions/secrets.ts`), and its value reaches ocu alone, never Pi.
- * - `computer_screenshot`: a picture of the window, with marks.
+ * - `computer_screenshot`: a picture of the window, with marks; what the owner typed on a sign-in card blacked out.
+ * - `computer_sign_in`: the owner types a username, a password or a one-time code on a card (PP-183), each straight into
+ *   the element Pi named through ocu; Pi never sees them, and reads `[password for <app>]` and the like in their place.
  * The owner's alone; never on the team server, never in plan mode.
  */
 import { Type } from "@earendil-works/pi-ai";
@@ -26,8 +28,14 @@ const reply = (text: string, isError = false) => ({ output: [{ type: "text" as c
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The sign-in card's field names: fixed, never the window's (a window could put its own words on the card). */
+export const SIGN_IN_LABELS = { username: "Username", password: "Password", code: "Code" } as const;
+
+/** The Secrets name a sign-in to an app on a machine is kept under (Remember on the card). */
+export const signInSecret = (machineName: string, app: string) => `LOGIN_${`${machineName}_${app}`.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`;
+
 /** In every prompt while the module is on. */
-export const COMPUTER = `Computer control: you can see and operate desktop apps on the owner's machines (Linux for now), in a control session the owner approves on a card. computer_control start names the machine, the apps (as computer_control status or the card's error lists them: their window titles or names) and the minutes you need (5 to 60; ask again with a new card for more); only those apps may be read or touched, so ask with a new card for another, or with follow: true when the work opens other apps (a dialog of another program). Then computer_screen reads an app's window as numbered elements, computer_act clicks, sets values, types, presses keys and scrolls, and answers with the window after it (use the newest numbers), and computer_screenshot shows the window as a picture. Prefer set_value and elements to points. Never type a password as text: fill a password field ([password] in the outline) with set_value or type_text and secret: "NAME" (one of the owner's saved secrets you may use, secrets_list), whose value goes into the field and never to you; otherwise ask the owner to type it (Take over in Pi's computer). pi-phone itself, banking and payment apps, password managers and the owner's Never list are never read or controlled. While the owner has taken the computer over (the panel's Take over), wait until they hand it back. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with computer_control stop as soon as you are done; it also ends shortly after your turn ends. A window on the machine shows that you are using it, with Stop. Say plainly what you read or did, and what you could not.`;
+export const COMPUTER = `Computer control: you can see and operate desktop apps on the owner's machines (Linux for now), in a control session the owner approves on a card. computer_control start names the machine, the apps (as computer_control status or the card's error lists them: their window titles or names) and the minutes you need (5 to 60; ask again with a new card for more); only those apps may be read or touched, so ask with a new card for another, or with follow: true when the work opens other apps (a dialog of another program). Then computer_screen reads an app's window as numbered elements, computer_act clicks, sets values, types, presses keys and scrolls, and answers with the window after it (use the newest numbers), and computer_screenshot shows the window as a picture. Prefer set_value and elements to points. Never type a password or a one-time code as text: fill a password field ([password] in the outline) with set_value or type_text and secret: "NAME" (one of the owner's saved secrets you may use, secrets_list), whose value goes into the field and never to you; otherwise call computer_sign_in with the fields' numbers (username, password, code): the owner types them on a card, they go straight into the window, and you read [password for <app>] and the like in their place. Never ask for a password or a code in the chat. pi-phone itself, banking and payment apps, password managers and the owner's Never list are never read or controlled. While the owner has taken the computer over (the panel's Take over), wait until they hand it back. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with computer_control stop as soon as you are done; it also ends shortly after your turn ends. A window on the machine shows that you are using it, with Stop. Say plainly what you read or did, and what you could not.`;
 
 export default function createComputer(host: PocketHost) {
     const control = host.computer;
@@ -326,7 +334,7 @@ export default function createComputer(host: PocketHost) {
             "Either takes secret: \"NAME\" (one of the owner's saved secrets, secrets_list) instead of value or text: its value goes into the field and never to you; a password field takes only that. " +
             "press_key: key, like Return, Tab, Escape, ctrl+a, Down. " +
             "scroll: the element index, direction up, down, left or right, pages. secondary_action: the element's action name (from its Secondary Actions). wait: seconds (default 2, at most 10). " +
-            "Never type a password as text: a saved secret by name, or the owner types it (Take over). Only in the session's apps.",
+            "Never type a password as text: a saved secret by name, or the owner types it on a card (computer_sign_in). Only in the session's apps.",
         parameters: Type.Object({
             action: Type.Union([
                 Type.Literal("click"),
@@ -526,10 +534,12 @@ export default function createComputer(host: PocketHost) {
 
                     return { ...style, area: { x: frame.x * scale, y: frame.y * scale, width: frame.width * scale, height: frame.height * scale } };
                 });
+                // What the owner typed on a sign-in card is blacked out, over every other mark (PP-183, as PP-228 in Pi's browser).
+                const hidden: Mark[] = shot.hidden.map((frame) => ({ area: { x: frame.x * scale, y: frame.y * scale, width: frame.width * scale, height: frame.height * scale }, hide: "solid", box: false }));
                 let bytes: Uint8Array = Buffer.from(shot.png, "base64");
 
-                if (marks.length > 0) {
-                    bytes = markUp(bytes, marks, { png: true }).bytes;
+                if (marks.length + hidden.length > 0) {
+                    bytes = markUp(bytes, [...marks, ...hidden], { png: true }).bytes;
                 }
 
                 let saved = "";
@@ -563,9 +573,94 @@ export default function createComputer(host: PocketHost) {
         },
     });
 
+    const signInTool = defineTool({
+        name: "computer_sign_in",
+        description:
+            "Ask the owner to sign in in an app's window of a computer control session: they type the username, the password or a one-time code on a card (or use a sign-in kept in Secrets), and each goes straight into the element you name, by its number from the newest computer_screen. " +
+            "You never see them: what you read of the window shows [username for <app>], [password for <app>] or [code for <app>] instead. " +
+            "Use it whenever a window asks for a password or a code and no saved secret of yours fits; never ask for one in the chat. The owner can say Not now. Then submit the form yourself (its sign-in button, or computer_act press_key Return).",
+        parameters: Type.Object({
+            machine,
+            app: appParam,
+            username: Type.Optional(Type.Integer({ minimum: 0, description: "The username or email field's number, if the window has one" })),
+            password: Type.Optional(Type.Integer({ minimum: 0, description: "The password field's number, if the window has one" })),
+            code: Type.Optional(Type.Integer({ minimum: 0, description: "The one-time code field's number, if the window has one" })),
+        }),
+        execute: async (args, api, context) => {
+            try {
+                const session = sessionOf(api.conversationId, args.machine);
+                const app = control.app(session, args.app);
+                const named = (["username", "password", "code"] as const).flatMap((name) => {
+                    const index = args[name];
+
+                    return index === undefined ? [] : [{ name, index }];
+                });
+
+                if (named.length === 0) {
+                    return reply("Name the username field, the password field or the code field (or several), by their numbers from the newest computer_screen.", true);
+                }
+
+                if (new Set(named.map((field) => field.index)).size !== named.length) {
+                    return reply("Name a different element for each field.", true);
+                }
+
+                for (const field of named) {
+                    // Still the element Pi read (or why not, in the window's words: fenced below).
+                    const element = control.element(session, app, field.index);
+
+                    if (field.name === "username" && element.password) {
+                        return reply(`[${field.index}] is a password field: name it as password.`, true);
+                    }
+                }
+
+                // A sign-in (not a code alone) may be kept in Secrets, and used from there next time.
+                const secret = named.some((field) => field.name !== "code") ? signInSecret(session.machineName, app.name) : undefined;
+                const answer = await host.approvals.request(
+                    {
+                        id: `computer_sign_in-${String(api.taskId)}-${String(api.callId)}`,
+                        conversationId: Number(api.conversationId) as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "computer_sign_in",
+                        subject: `Sign in to ${app.label} on ${session.machineName}`,
+                        reason: "What the owner types goes into the window; Pi never sees it.",
+                        form: {
+                            type: "computer-sign-in",
+                            machine: session.machine,
+                            machineName: session.machineName,
+                            app,
+                            fields: named.map((field) => ({ ...field, label: SIGN_IN_LABELS[field.name] })),
+                            ...(secret === undefined ? {} : { secret, saved: host.secrets.has(secret) }),
+                        },
+                        createdAt: Date.now(),
+                    },
+                    context as never,
+                );
+
+                if (!answer.allow) {
+                    return reply(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} said not now`}: nothing was filled in.`, true);
+                }
+
+                let window: string;
+
+                try {
+                    window = (await control.screen(session, app.name)).text;
+                } catch (error) {
+                    window = `The window could not be read again: ${message(error)}`;
+                }
+
+                return reply(
+                    `The owner filled in the card's fields; you never see what. Submit the form yourself (its sign-in button, or computer_act press_key Return).\n${fencedScreen(`Filled ${named.map((field) => `[${field.name} for ${app.label}] into [${field.index}]`).join(", ")}.\n\n${window}`)}\n${footer(session)}`,
+                );
+            } catch (error) {
+                return reply(fencedScreen(message(error)), true);
+            }
+        },
+    });
+
     return defineExtension({
         name: "pocket-computer",
-        tools: [controlTool, screenTool, actTool, shotTool],
+        tools: [controlTool, screenTool, actTool, shotTool, signInTool],
         sections: [section("computer", () => (control.unavailable() === undefined ? COMPUTER : ""))],
     });
 }
