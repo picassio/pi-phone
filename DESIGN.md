@@ -1114,8 +1114,41 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `computer_control setup`, whose new line waits for the owner's card, PP-230; kept in `computer-control.json`: the
     owner never edits a file) and execs `ocu mcp`. ocu
     finds the desktop's display and buses itself; a virtual desktop's environment script goes in the setup line.
-    Linux only for now: Windows' sshd runs in session 0, where UI Automation sees no window, so it waits for PP-179 (a
-    task in the desktop session); the tools say so.
+  - **Windows** (PP-179, `computer-windows.ts`): Windows' sshd runs what pi-phone starts in session 0, where UI
+    Automation sees no window. So ocu runs in the owner's signed-in desktop session behind pi-phone's **bridge**:
+    - **The task:** "pi-phone ocu", a per-user scheduled task registered with `Register-ScheduledTask` as the user ssh
+      signs in as, `LogonType Interactive` ("run only when the user is logged on": no password is stored or asked) and
+      `RunLevel Limited` (never SYSTEM, never elevated); triggers at that user's logon, and pi-phone starts it on demand
+      (`Start-ScheduledTask`) when a connection finds no bridge. Settings: on battery too (a `schtasks` task stays Queued
+      on battery: wiki `resources/1password-cli-windows-laptop`), no time limit, `IgnoreNew`. The action is
+      `conhost.exe --headless powershell.exe -File bridge.ps1 -Tools <machine tools>`: Windows PowerShell 5.1, on every
+      Windows, so no new runtime; a console without a window, which ocu and the PowerShell it starts per call share.
+    - **The bridge** (`BRIDGE`, ASCII, as PowerShell 5.1 reads a file without a BOM as ANSI): a TcpListener on
+      127.0.0.1 alone, on a port the system picks; at each start a new 32-byte random token, written with the port and
+      its pid to `bridge.json`, whose ACL is the user's alone (no inherited entries). A connection's first line is JSON
+      with the token (compared in constant time; a wrong one is refused and logged without it). `run: "mcp"` starts
+      `tools\ocu\<version>\ocu.exe mcp` (the version checked to be only a version) with its own window-less console and
+      passes bytes both ways until either end closes: the same MCP as over ssh's stdio, one ocu per connection, so
+      `OcuClient` is unchanged. `run: "sign"` shows the sign: a Windows Forms window (C# through `Add-Type`), topmost,
+      `ShowWithoutActivation` and `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW` (it never takes the focus from the app Pi
+      works in), titled `pi-phone` (so never controlled), with Stop; it speaks the GTK window's `ready`/`stop` and goes
+      when the connection closes. Each connection runs in a runspace of an STA pool; a mutex keeps one bridge per
+      session. Its log (`bridge.log`) never has the token.
+    - **The connection:** `connectScript` (Git Bash, then PowerShell by `-EncodedCommand`, so no quoting) reads how the
+      machine stands and the bridge's port and token, starting the task first when the user is signed in; it exits 20
+      (not set up) or 21 (nobody signed in: explorer.exe of that user in a session other than 0), else prints `bridge
+      <port> <token>`. pi-phone opens the port through `forwards.ts` (to 127.0.0.1, as for Chrome's DevTools; one
+      forward per bridge port, closed after its last connection) and `connectBridge` makes the connection a process
+      (`OcuProcess`) for `OcuClient` and the sign. The token is only in memory and that connection: never logged, in an
+      error, or in what Pi reads. Every check above is the same; Linux is unchanged.
+    - **Status:** ready, not set up, or not logged on (`windowsState`: the task, explorer of the user in a desktop
+      session, LogonUI there for a locked screen, the bridge's pid alive); `computer_control status` and Menu ›
+      Computer control show it. A locked screen is ready, said so: UI Automation reads, input does not arrive.
+    - **Setup:** `computer_control setup` with `task: install | remove` asks the owner on a card whose subject is
+      `taskPlan` (what is made, for whom, and the registration's PowerShell whole); only then the install script writes
+      `bridge.ps1` from its input and registers and starts the task, or the remove script unregisters it, stops the
+      bridge by its command line and deletes `~/.pi/mobile/computer`. The owner's tap on Set up or Remove in Menu ›
+      Computer control is their yes (`POST /api/computer-control/windows`). A desktop setup line is refused on Windows.
   - **Server** (`computer-control.ts`): sessions per machine (one at a time), kept in memory; a restart ends them (their
     ocu and window went with the server; `ended` says so) while the Never list and setup lines stay. Every call is
     checked before ocu gets it: the session's apps by name or window title (and, with `follow`, apps that appear in
@@ -1125,7 +1158,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     element, no `type_text` or character key while the focused element is one (ocu's outline, `computer-outline.ts`;
     pi-phone's ocu build refuses too); an element number only while ocu's newest read still has the same element there
     (the panel's reads renumber: Pi reads again when it moved); and nothing while the owner has taken it over.
-  - **The window on the machine** (`SIGN`): a GTK 3 window through python3-gi (which ocu needs on Linux anyway), on
+  - **The window on the machine** (`SIGN`; on Windows the bridge's, above): a GTK 3 window through python3-gi (which ocu needs on Linux anyway), on
     top, never taking the focus, "Pi is using this computer until HH:MM" and Stop, its app named `pi-phone` (so never
     controlled). It is a second ssh process: `ready` when shown (the session starts only then, else nothing starts),
     `stop` when pressed; it goes when its input closes. Stop pressed while ocu still starts ends the session at once.

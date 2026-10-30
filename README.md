@@ -276,7 +276,7 @@ No Termux, no laptop, no cloud VM.
   alone; not on the team server.
 
 ### Your machines' apps
-- **Pi uses desktop apps on your machines** (Linux for now; Windows next). In a control session you approve on one card
+- **Pi uses desktop apps on your machines** (Linux and Windows). In a control session you approve on one card
   (the machine, the apps it names by their windows, for the minutes Pi asks for, 5 to 60; for more it asks again), Pi
   reads a window as numbered elements and clicks, sets values, types, presses keys and scrolls, and takes pictures of
   it (`computer_control`, `computer_screen`, `computer_act`, `computer_screenshot`, `computer_sign_in`), through
@@ -298,9 +298,17 @@ No Termux, no laptop, no cloud VM.
   what Pi acted on; the foot has the minutes left and Stop. **Take over**: Pi waits; tap the picture to click there, and
   your keys go to the field in focus, a password field too (the keyboard is in password mode there, and what you type
   is never shown to Pi, kept in the panel, or logged), until you **Hand back**.
-- **Menu › Computer control**: each machine and where it stands, a line run before ocu starts for a machine whose
-  desktop needs its environment set (with **Check**, what ocu reads there), the Never list, and how cards work. The
-  owner's alone; not on the team server.
+- **Computer control on Windows.** Windows' ssh has no desktop, so ocu runs in your signed-in desktop through
+  **pi-phone's task**: a scheduled task as you, "pi-phone ocu", run only while you are signed in (no password, never as
+  administrator or SYSTEM), at your sign-in and when a session starts. It runs a small bridge (Windows PowerShell, in
+  `~/.pi/mobile/computer`) that listens on 127.0.0.1 only, with a new random token in a file only you can read; pi-phone
+  reaches it through its own ssh. The window that says Pi is using the computer, with **Stop**, is the bridge's, on top.
+  **Set up** and **Remove** are in Menu › Computer control; Pi asks with `computer_control setup` (`task: install` or
+  `remove`) on a card that shows what is made. A machine shows as ready, not set up, or not logged on (nobody signed in:
+  sign in on the computer first); with its screen locked, ocu reads windows but clicks and keys do not reach them.
+- **Menu › Computer control**: each machine and where it stands, a line run before ocu starts for a Linux machine whose
+  desktop needs its environment set (with **Check**, what ocu reads there), Windows' **Set up** and **Remove**, the Never
+  list, and how cards work. The owner's alone; not on the team server.
 
 ### People and devices
 - **Other devices and people** over your Tailscale network (Settings › Access): your laptop's browser signs in as you

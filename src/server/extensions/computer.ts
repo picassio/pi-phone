@@ -35,7 +35,7 @@ export const SIGN_IN_LABELS = { username: "Username", password: "Password", code
 export const signInSecret = (machineName: string, app: string) => `LOGIN_${`${machineName}_${app}`.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`;
 
 /** In every prompt while the module is on. */
-export const COMPUTER = `Computer control: you can see and operate desktop apps on the owner's machines (Linux for now), in a control session the owner approves on a card. computer_control start names the machine, the apps (as computer_control status or the card's error lists them: their window titles or names) and the minutes you need (5 to 60; ask again with a new card for more); only those apps may be read or touched, so ask with a new card for another, or with follow: true when the work opens other apps (a dialog of another program). Then computer_screen reads an app's window as numbered elements, computer_act clicks, sets values, types, presses keys and scrolls, and answers with the window after it (use the newest numbers), and computer_screenshot shows the window as a picture. Prefer set_value and elements to points. Never type a password or a one-time code as text: fill a password field ([password] in the outline) with set_value or type_text and secret: "NAME" (one of the owner's saved secrets you may use, secrets_list), whose value goes into the field and never to you; otherwise call computer_sign_in with the fields' numbers (username, password, code): the owner types them on a card, they go straight into the window, and you read [password for <app>] and the like in their place. Never ask for a password or a code in the chat. pi-phone itself, banking and payment apps, password managers and the owner's Never list are never read or controlled. While the owner has taken the computer over (the panel's Take over), wait until they hand it back. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with computer_control stop as soon as you are done; it also ends shortly after your turn ends. A window on the machine shows that you are using it, with Stop. Say plainly what you read or did, and what you could not.`;
+export const COMPUTER = `Computer control: you can see and operate desktop apps on the owner's machines (Linux, and Windows with pi-phone's task: computer_control status says), in a control session the owner approves on a card. computer_control start names the machine, the apps (as computer_control status or the card's error lists them: their window titles or names) and the minutes you need (5 to 60; ask again with a new card for more); only those apps may be read or touched, so ask with a new card for another, or with follow: true when the work opens other apps (a dialog of another program). Then computer_screen reads an app's window as numbered elements, computer_act clicks, sets values, types, presses keys and scrolls, and answers with the window after it (use the newest numbers), and computer_screenshot shows the window as a picture. Prefer set_value and elements to points. Never type a password or a one-time code as text: fill a password field ([password] in the outline) with set_value or type_text and secret: "NAME" (one of the owner's saved secrets you may use, secrets_list), whose value goes into the field and never to you; otherwise call computer_sign_in with the fields' numbers (username, password, code): the owner types them on a card, they go straight into the window, and you read [password for <app>] and the like in their place. Never ask for a password or a code in the chat. pi-phone itself, banking and payment apps, password managers and the owner's Never list are never read or controlled. While the owner has taken the computer over (the panel's Take over), wait until they hand it back. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with computer_control stop as soon as you are done; it also ends shortly after your turn ends. A window on the machine shows that you are using it, with Stop. Say plainly what you read or did, and what you could not.`;
 
 export default function createComputer(host: PocketHost) {
     const control = host.computer;
@@ -102,10 +102,11 @@ export default function createComputer(host: PocketHost) {
     const controlTool = defineTool({
         name: "computer_control",
         description:
-            "Start, stop, or check a computer control session: Pi reads and operates desktop apps on one of the owner's machines (Linux for now) through Computer use (ocu, a machine tool). " +
+            "Start, stop, or check a computer control session: Pi reads and operates desktop apps on one of the owner's machines (Linux and Windows) through Computer use (ocu, a machine tool). " +
             "start shows the owner one card with the machine, the apps (their window titles or names, as status lists them) and the minutes you need (5 to 60; for more, ask again); on Approve, a window on the machine says Pi is using it, with Stop. " +
             "Only those apps may be read or touched; another needs a new card, unless you ask with follow: true, which lets an app the named ones open while you act in them join (one step). pi-phone itself, banking and payment apps, password managers and the owner's Never list are refused either way. " +
             "status: each machine's state and its apps (with machine). setup: the shell line run on a machine before ocu starts, for its desktop (e.g. a virtual desktop's environment script), as the owner may set it in Menu › Computer control; a new line waits for the owner to approve it on a card. " +
+            "On Windows, ocu runs in the owner's signed-in desktop through pi-phone's task (a per-user scheduled task and a bridge on 127.0.0.1): setup with task: install makes it, task: remove removes it, each after the owner approves a card that shows what changes. " +
             "It ends at its time, on Stop (on the machine, in the panel or the menu), with stop, or shortly after your turn ends. Owner only.",
         parameters: Type.Object({
             action: Type.Union([Type.Literal("start"), Type.Literal("stop"), Type.Literal("status"), Type.Literal("setup")]),
@@ -115,6 +116,7 @@ export default function createComputer(host: PocketHost) {
             follow: Type.Optional(Type.Boolean({ description: "start: also the apps the named ones open while you act in them (default false)" })),
             reason: Type.Optional(Type.String({ description: "start and setup: what you will do, in a sentence: shown on the card" })),
             prepare: Type.Optional(Type.String({ description: "setup: one shell line run before ocu starts (empty: none)" })),
+            task: Type.Optional(Type.Union([Type.Literal("install"), Type.Literal("remove")], { description: "setup on Windows: make or remove pi-phone's task there" })),
         }),
         execute: async (args, api, context) => {
             const refused = refusedFor(api.conversationId);
@@ -127,18 +129,22 @@ export default function createComputer(host: PocketHost) {
                 const conversationId = Number(api.conversationId);
 
                 if (args.action === "status") {
-                    const lines = control.machinesView().map((each) => {
-                        const state = !each.connected
-                            ? "not connected"
-                            : each.platform !== "linux"
-                              ? `${each.platform ?? "unknown system"}: not yet`
-                              : each.ocu === null
-                                ? "ocu not installed (Settings › Machines › Install tools)"
-                                : `ocu ${each.ocu}${each.prepare === "" ? "" : `, desktop setup: ${each.prepare}`}`;
-                        const session = each.session === null ? "" : `; session #${each.session.session} controls it until ${clockText(each.session.until)}`;
+                    const lines = await Promise.all(
+                        control.machinesView().map(async (each) => {
+                            const state = !each.connected
+                                ? "not connected"
+                                : each.platform !== "linux" && each.platform !== "windows"
+                                  ? `${each.platform ?? "unknown system"}: not yet`
+                                  : each.ocu === null
+                                    ? "ocu not installed (Settings › Machines › Install tools)"
+                                    : each.platform === "windows"
+                                      ? `Windows, ocu ${each.ocu}, ${await control.windowsState(each.id).then((found) => control.describeWindows(control.machine(each.id), found), (error: unknown) => `its state unknown: ${message(error)}`)}`
+                                      : `ocu ${each.ocu}${each.prepare === "" ? "" : `, desktop setup: ${each.prepare}`}`;
+                            const session = each.session === null ? "" : `; session #${each.session.session} controls it until ${clockText(each.session.until)}`;
 
-                        return `- ${each.name}: ${state}${session}`;
-                    });
+                            return `- ${each.name}: ${state}${session}`;
+                        }),
+                    );
 
                     if (args.machine !== undefined) {
                         const found = await control.ready(args.machine);
@@ -148,6 +154,14 @@ export default function createComputer(host: PocketHost) {
                     }
 
                     return reply(lines.join("\n") || "No machines: add one in Settings › Machines.");
+                }
+
+                if (args.action === "setup" && args.task !== undefined) {
+                    if (args.machine === undefined) {
+                        return reply("setup with task needs machine (a Windows machine).", true);
+                    }
+
+                    return reply(await control.setupTask(args.machine, args.task, args.reason ?? "", (request) => host.approvals.request({ ...request, id: `computer_setup-${String(api.conversationId)}-${String(api.callId)}`, conversationId: Number(api.conversationId) as never, taskId: api.taskId as never, ...(api.callId === undefined ? {} : { callId: api.callId }), createdAt: Date.now() }, context as never)));
                 }
 
                 if (args.action === "setup") {
@@ -227,7 +241,9 @@ export default function createComputer(host: PocketHost) {
                     available = await control.apps(found.id);
                 } catch (error) {
                     return reply(
-                        `ocu could not read ${found.name}'s desktop: ${message(error)}\nIt needs a signed-in (or virtual) desktop session there. If its desktop needs its environment set first, the owner sets that line in Menu › Computer control (or you, with computer_control setup).`,
+                        found.platform === "windows"
+                            ? `ocu could not read ${found.name}'s desktop: ${message(error)}`
+                            : `ocu could not read ${found.name}'s desktop: ${message(error)}\nIt needs a signed-in (or virtual) desktop session there. If its desktop needs its environment set first, the owner sets that line in Menu › Computer control (or you, with computer_control setup).`,
                         true,
                     );
                 }

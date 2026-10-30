@@ -290,7 +290,7 @@ dự án thật.</sub>
   nơi bạn cũng quản lý danh sách Không bao giờ. Chỉ dành cho chủ sở hữu; không có trên máy chủ nhóm.
 
 ### Ứng dụng trên máy của bạn
-- **Pi dùng ứng dụng máy tính trên máy của bạn** (hiện là Linux; sắp tới Windows). Trong một phiên điều khiển bạn
+- **Pi dùng ứng dụng máy tính trên máy của bạn** (Linux và Windows). Trong một phiên điều khiển bạn
   duyệt trên một thẻ (máy, các ứng dụng nêu theo cửa sổ, trong số phút Pi xin, 5 đến 60; cần thêm thì xin lại), Pi đọc
   một cửa sổ dưới dạng các phần tử đánh số và nhấp, đặt giá trị, gõ, nhấn phím và cuộn, và chụp hình cửa sổ
   (`computer_control`, `computer_screen`, `computer_act`, `computer_screenshot`, `computer_sign_in`), qua Computer use (ocu, một công cụ
@@ -312,9 +312,18 @@ dự án thật.</sub>
   quanh thứ Pi vừa thao tác; chân khung có số phút còn lại và nút Dừng. **Tiếp quản**: Pi chờ; chạm vào hình để nhấp
   vào đó, và phím của bạn đi vào ô đang được chọn, kể cả ô mật khẩu (bàn phím ở chế độ mật khẩu tại đó, và những gì bạn
   gõ không bao giờ hiện cho Pi, không lưu trong khung, không ghi nhật ký), cho đến khi bạn **Trả lại**.
-- **Menu › Điều khiển máy tính**: từng máy và tình trạng của nó, một dòng chạy trước khi ocu khởi động cho máy có màn
-  hình cần thiết lập môi trường (kèm **Kiểm tra**, xem ocu đọc được gì ở đó), danh sách Không bao giờ, và cách thẻ hoạt
-  động. Chỉ dành cho chủ sở hữu; không có trên máy chủ nhóm.
+- **Điều khiển máy tính trên Windows.** ssh của Windows không có màn hình, nên ocu chạy trong màn hình bạn đã đăng nhập
+  nhờ **tác vụ của pi-phone**: một tác vụ theo lịch dưới tên bạn, "pi-phone ocu", chỉ chạy khi bạn đã đăng nhập (không cần
+  mật khẩu, không bao giờ với quyền quản trị hay SYSTEM), lúc bạn đăng nhập và khi một phiên bắt đầu. Nó chạy một cầu nối
+  nhỏ (Windows PowerShell, trong `~/.pi/mobile/computer`) chỉ nghe trên 127.0.0.1, với một token ngẫu nhiên mới trong một
+  tệp chỉ bạn đọc được; pi-phone tới được nó qua ssh riêng của ứng dụng. Cửa sổ báo Pi đang dùng máy, có nút **Dừng**, là
+  của cầu nối, luôn nằm trên. **Thiết lập** và **Gỡ** nằm trong Menu › Điều khiển máy tính; Pi xin bằng
+  `computer_control setup` (`task: install` hoặc `remove`) trên một thẻ cho thấy những gì được tạo. Một máy hiện là sẵn
+  sàng, chưa thiết lập, hoặc chưa đăng nhập (không ai đăng nhập: hãy đăng nhập trên máy tính trước); khi màn hình khóa, ocu
+  đọc được cửa sổ nhưng cú nhấp và phím không tới được chúng.
+- **Menu › Điều khiển máy tính**: từng máy và tình trạng của nó, một dòng chạy trước khi ocu khởi động cho máy Linux có
+  màn hình cần thiết lập môi trường (kèm **Kiểm tra**, xem ocu đọc được gì ở đó), **Thiết lập** và **Gỡ** cho Windows,
+  danh sách Không bao giờ, và cách thẻ hoạt động. Chỉ dành cho chủ sở hữu; không có trên máy chủ nhóm.
 
 ### Người dùng và thiết bị
 - **Thiết bị và người khác** qua mạng Tailscale của bạn (Cài đặt › Truy cập): trình duyệt trên laptop của bạn đăng nhập

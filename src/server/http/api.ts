@@ -876,6 +876,18 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 }
             }
 
+            // A Windows machine (PP-179): how pi-phone's task stands there, and the owner's Set up or Remove (their tap is
+            // their yes; Pi's computer_control setup asks on a card).
+            if (second === "windows" && method === "POST") {
+                const body = await readJson<{ machine?: unknown; task?: unknown }>(request);
+                const machine = await failing(() => control.ready(String(body.machine ?? "")));
+                const state = await failing(() =>
+                    body.task === "install" ? control.installTask(machine.id) : body.task === "remove" ? control.removeTask(machine.id) : control.windowsState(machine.id),
+                );
+
+                return json(response, 200, { state, text: control.describeWindows(machine, state) });
+            }
+
             if (second === "stop" && method === "POST") {
                 const body = await readJson<{ machine?: unknown }>(request);
                 const ended = await control.end(String(body.machine ?? ""), `${user.name} stopped it in the app`);

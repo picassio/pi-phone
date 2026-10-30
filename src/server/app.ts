@@ -315,8 +315,8 @@ export interface OpenOptions {
     browserEngine?: BrowserEngine;
     /** Where the release notes are (`whatsnew/<version>.md`, PP-235); tests give their own. Default: the app's. */
     whatsNewDir?: string;
-    /** Computer control's machines and how it runs a script on one (PP-178): the app's machines and ssh, unless a test gives its own. */
-    computer?: Pick<ComputerControlOptions, "machines" | "launch" | "idleEndMs" | "refreshMs">;
+    /** Computer control's machines, how it runs a script on one (PP-178) and opens a port of one (PP-179): the app's machines, ssh and forwards, unless a test gives its own. */
+    computer?: Pick<ComputerControlOptions, "machines" | "launch" | "forward" | "run" | "writeFile" | "idleEndMs" | "refreshMs">;
     /** The owner token to have (`ConfigStore`): the server edition's gateway gives each person's container its own. */
     ownerToken?: string;
     /**
@@ -702,11 +702,56 @@ export class PocketApp {
                     ...(machine.remote === undefined ? {} : { platform: machine.remote.platform }),
                     connected: machine.remote !== undefined,
                     ...(machine.tools === undefined ? {} : { tools: machine.tools }),
+                    user: machine.user,
                 })),
             launch: (id, script) =>
                 spawn("ssh", [...sshArguments(this.machines.target(this.machines.ready(id))), `sh -c ${shellWord(script)}`], { stdio: ["pipe", "pipe", "pipe"] }),
             refreshTools: async (id) => {
                 await this.machineTools.status(id);
+            },
+            // Windows (PP-179): its scripts run with Git Bash through pi-env's daemon (as the machine tools' do: Windows'
+            // sshd's own shell may be cmd.exe), and the bridge in the desktop session listens on 127.0.0.1 alone, as
+            // Chrome's DevTools does.
+            run: async (id, script, timeout) => {
+                const machine = this.machines.ready(id);
+                const remote = machine.remote!;
+                let out = "";
+                const result = await this.places
+                    .env(`machine:${id}:${remote.home}`)
+                    .exec(remote.platform === "windows" ? script : ["sh", "-c", script], { cwd: remote.home, timeout, onOutput: (chunk) => (out += chunk) }, context);
+
+                if (!result.ok) {
+                    throw new Error(`${machine.name}: ${result.error.message}`);
+                }
+
+                return { code: result.value.exitCode, out };
+            },
+            writeFile: async (id, path, text) => {
+                const machine = this.machines.ready(id);
+                const remote = machine.remote!;
+                const env = this.places.env(`machine:${id}:${remote.home}`);
+                const absolute = `${remote.home}/${path}`;
+                const folder = absolute.slice(0, absolute.lastIndexOf("/"));
+                const made = await env.exec(remote.platform === "windows" ? `mkdir -p '${folder}'` : ["mkdir", "-p", folder], { cwd: remote.home, timeout: 30 }, context);
+                const written = made.ok ? await env.writeFile(absolute, Buffer.from(text), context) : made;
+
+                if (!written.ok) {
+                    throw new Error(`Could not write ${path} on ${machine.name}: ${written.error.message}`);
+                }
+            },
+            forward: async (id, port) => {
+                const forward = await this.forwards.open(id, port, "127.0.0.1");
+
+                return {
+                    port: forward.localPort,
+                    close: () => {
+                        try {
+                            this.forwards.close(forward.id);
+                        } catch {
+                            // Closed already (its ssh ended).
+                        }
+                    },
+                };
             },
             ...options.computer,
         });

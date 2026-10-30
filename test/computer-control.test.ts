@@ -111,18 +111,21 @@ test("the outline: elements with frames, password fields, the focus, the window'
     assert.equal(typesCharacter("Return") || typesCharacter("ctrl+a") || typesCharacter("BackSpace"), false);
 });
 
-test("a machine must be connected, Linux, with ocu; its desktop setup line runs before ocu", async () => {
+test("a machine must be connected, Linux or Windows, with ocu; its desktop setup line runs before ocu", async () => {
     const { control } = make({
         machines: [
             SANDBOX,
             { id: "m2", name: "laptop", platform: "windows", connected: true, tools: { ocu: "1.1.2-pp.1" } },
             { id: "m3", name: "devbox", platform: "linux", connected: true, tools: {} },
             { id: "m4", name: "off", connected: false },
+            { id: "m5", name: "mac", platform: "darwin", connected: true, tools: { ocu: "1.1.2-pp.1" } },
         ],
     });
 
     assert.equal(control.machine("TUANLH-SANDBOX-01").id, "m1");
-    assert.throws(() => control.machine("laptop"), /Windows needs pi-phone's task/);
+    // Windows through pi-phone's task (PP-179, computer-windows.test.ts).
+    assert.equal(control.machine("laptop").id, "m2");
+    assert.throws(() => control.machine("mac"), /Computer control runs on Linux and Windows machines; mac is darwin/);
     assert.throws(() => control.machine("devbox"), /ocu\) is not installed on devbox: install it in Settings › Machines › Install tools/);
     assert.throws(() => control.machine("off"), /off is not connected/);
     assert.throws(() => control.machine("nope"), /There is no machine nope/);

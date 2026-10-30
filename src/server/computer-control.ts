@@ -19,12 +19,30 @@
  *
  * The panel (`web/computer-panel.js`) shows the session's windows: a picture of one after each action and every 3 s while
  * a tab watches, with a box on the element Pi acted on. Only the owner sees it.
+ *
+ * On Windows (PP-179) ocu runs in the owner's desktop session behind pi-phone's bridge (`computer-windows.ts`), started by
+ * a per-user scheduled task the owner allows on a card, and reached through the app's ssh forward; the sign is the
+ * bridge's small topmost window. Every check here is the same.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type ComputerOutline, type DesktopApp, type Frame, parseApps, parseOutline, pngSize } from "./computer-outline.ts";
 import { hideTyped, SHORT_TYPED_NOTE, shortTypedShowing, type TypedFill, typedAreas } from "./computer-typed.ts";
 import { imageOf, OcuClient, type OcuProcess, type OcuResult, textOf } from "./ocu-client.ts";
+import {
+    CONNECT_EXIT,
+    connectBridge,
+    connectScript,
+    describeWindowsState,
+    installScript as windowsInstallScript,
+    parseWindowsState,
+    removeScript as windowsRemoveScript,
+    statusScript as windowsStatusScript,
+    taskPlan,
+    BRIDGE,
+    BRIDGE_FILE,
+    type WindowsState,
+} from "./computer-windows.ts";
 import { clockText } from "./phone-events.ts";
 import { IDLE_END_MS, MINUTES } from "./phone-control.ts";
 
@@ -63,7 +81,7 @@ export const NEVER_GROUPS = [
 
 export type ComputerApp = { label: string; name: string };
 
-export type ComputerMachine = { id: string; name: string; platform?: string; connected: boolean; tools?: Record<string, string> };
+export type ComputerMachine = { id: string; name: string; platform?: string; connected: boolean; tools?: Record<string, string>; user?: string };
 
 export type ComputerSession = {
     machine: string;
@@ -200,6 +218,15 @@ export type ComputerControlOptions = {
     launch: (machine: string, script: string) => OcuProcess;
     /** Ask a machine again which tools it has, and keep the answer (`machines()` then has it). */
     refreshTools?: (machine: string) => Promise<void>;
+    /** Windows (PP-179): port `port` of the machine's 127.0.0.1, open here (the app's ssh forward): its port here, and how to close it. */
+    forward?: (machine: string, port: number) => Promise<{ port: number; close(): void }>;
+    /**
+     * Windows: run a script with Git Bash on the machine, through pi-env's daemon (Windows' sshd's own shell may be
+     * cmd.exe): its exit code and output (stdout and stderr together).
+     */
+    run?: (machine: string, script: string, timeoutSeconds: number) => Promise<{ code: number; out: string }>;
+    /** Windows: write a file under the machine's home (a `/`-separated path relative to it), its folder made first. */
+    writeFile?: (machine: string, path: string, text: string) => Promise<void>;
     now?: () => number;
     log?: (line: string) => void;
     idleEndMs?: number;
@@ -222,6 +249,8 @@ export class ComputerControl {
     /** Tabs watching each machine's panel, and its refresh timer. */
     readonly #watchers = new Map<string, number>();
     readonly #refresh = new Map<string, NodeJS.Timeout>();
+    /** Windows: each bridge's forward here (by machine and port there), and the connections through it; it closes after the last. */
+    readonly #tunnels = new Map<string, { forward: Promise<{ port: number; close(): void }>; users: number }>();
 
     constructor(options: ComputerControlOptions) {
         this.#options = options;
@@ -300,12 +329,8 @@ export class ComputerControl {
             throw new Error(`${machine.name} is not connected: connect it in Settings › Machines.`);
         }
 
-        if (machine.platform === "windows") {
-            throw new Error(`Computer control on Windows needs pi-phone's task in your desktop session there, which is not built yet: ${machine.name} cannot be controlled now.`);
-        }
-
-        if (machine.platform !== "linux") {
-            throw new Error(`Computer control runs on Linux machines for now; ${machine.name} is ${machine.platform ?? "of an unknown system"}.`);
+        if (machine.platform !== "linux" && machine.platform !== "windows") {
+            throw new Error(`Computer control runs on Linux and Windows machines; ${machine.name} is ${machine.platform ?? "of an unknown system"}.`);
         }
 
         if (machine.tools?.ocu === undefined) {
@@ -342,6 +367,10 @@ export class ComputerControl {
 
     /** Set it (Menu › Computer control, or Pi's `computer_control setup`): one line, or empty. */
     setPrepare(machine: string, line: string): void {
+        if (line.trim() !== "" && this.#options.machines().find((each) => each.id === machine)?.platform === "windows") {
+            throw new Error("A desktop setup line is for Linux: on Windows, ocu runs in your desktop session through pi-phone's task (computer_control setup with task: install).");
+        }
+
         if (/[\r\n]/.test(line) || line.length > 500) {
             throw new Error("Give the desktop's setup as one shell line of at most 500 characters.");
         }
@@ -366,9 +395,14 @@ export class ComputerControl {
         ].join("\n");
     }
 
-    /** A new ocu on a machine, started (its handshake done). */
+    /** A new ocu on a machine, started (its handshake done): on Windows, through the bridge in its desktop session. */
     async #ocu(machine: string, onEnd: (why: string) => void = () => {}): Promise<OcuClient> {
-        const client = new OcuClient(this.#options.launch(machine, this.#script(machine, `exec ${OCU} mcp`)), onEnd);
+        const found = this.machine(machine);
+        const process =
+            found.platform === "windows"
+                ? await this.#bridge(found, (token) => ({ token, run: "mcp", ocu: found.tools!.ocu! }))
+                : this.#options.launch(machine, this.#script(machine, `exec ${OCU} mcp`));
+        const client = new OcuClient(process, onEnd);
 
         try {
             await client.start();
@@ -379,6 +413,177 @@ export class ComputerControl {
         }
 
         return client;
+    }
+
+    // ─── Windows (PP-179) ─────────────────────────────────────────────────────
+
+    /** Run a script on a Windows machine with Git Bash: its exit code and output. */
+    #run(machine: string, script: string, timeoutSeconds = 90): Promise<{ code: number; out: string }> {
+        if (this.#options.run === undefined) {
+            throw new Error("Computer control on Windows needs pi-env's daemon to run its scripts, which this server has not got.");
+        }
+
+        return this.#options.run(machine, script, timeoutSeconds);
+    }
+
+    /** The last lines of a script's output, for an error (never a connect script's success line: it holds the token). */
+    #tail(out: string, lines = 4): string {
+        return out
+            .trim()
+            .split("\n")
+            .filter((line) => !line.startsWith("bridge "))
+            .slice(-lines)
+            .join(" ");
+    }
+
+    /** A Windows machine by name or id, or why it is not one. */
+    #windows(wanted: string): ComputerMachine {
+        const machine = this.machine(wanted);
+
+        if (machine.platform !== "windows") {
+            throw new Error(`${machine.name} is not a Windows machine: pi-phone's task is for Windows. On Linux, ocu runs in its desktop session itself (with a desktop setup line where needed).`);
+        }
+
+        return machine;
+    }
+
+    /** How a Windows machine stands: pi-phone's task, someone signed in to its desktop, its bridge. */
+    async windowsState(wanted: string): Promise<WindowsState> {
+        const machine = this.#windows(wanted);
+        const { out } = await this.#run(machine.id, windowsStatusScript());
+
+        try {
+            return parseWindowsState(out);
+        } catch (error) {
+            throw new Error(`${machine.name}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    /** That state as a line, for Pi and the menu. */
+    describeWindows(machine: ComputerMachine, state: WindowsState): string {
+        return describeWindowsState(machine.name, state);
+    }
+
+    /** Make pi-phone's task on a Windows machine (after the owner's yes: a card, or their tap in the menu): how it stands then. */
+    async installTask(wanted: string): Promise<WindowsState> {
+        const machine = this.#windows(wanted);
+
+        if (this.#options.writeFile === undefined) {
+            throw new Error("Computer control on Windows needs pi-env's daemon to write its bridge, which this server has not got.");
+        }
+
+        await this.#options.writeFile(machine.id, BRIDGE_FILE, BRIDGE);
+        const { code, out } = await this.#run(machine.id, windowsInstallScript());
+
+        if (code !== 0) {
+            throw new Error(`pi-phone's task could not be made on ${machine.name}: ${this.#tail(out) || `exit ${code}`}`);
+        }
+
+        this.#log(`Computer control: pi-phone's task was made on ${machine.name}.`);
+
+        return parseWindowsState(out);
+    }
+
+    /**
+     * Pi's `computer_control setup` with task (install or remove) on a Windows machine: the owner reads on a card exactly
+     * what changes there (`taskPlan`) and approves it first; then it is done. What to tell Pi.
+     */
+    async setupTask(
+        wanted: string,
+        what: "install" | "remove",
+        reason: string,
+        ask: (request: { tool: string; subject: string; reason: string }) => Promise<{ allow: boolean; by: string }>,
+    ): Promise<string> {
+        const machine = this.#windows(wanted);
+        const answer = await ask({
+            tool: "computer_control",
+            subject: taskPlan(machine.name, machine.user ?? "the user pi-phone signs in as", what),
+            reason: reason || (what === "install" ? `Let Pi use ${machine.name}'s desktop apps, in sessions you approve` : `Remove computer control from ${machine.name}`),
+        });
+
+        if (!answer.allow) {
+            return `${answer.by === "superseded" ? "The request was replaced" : `${answer.by} said no`}: nothing changed on ${machine.name}.`;
+        }
+
+        const state = what === "install" ? await this.installTask(machine.id) : await this.removeTask(machine.id);
+
+        return what === "install"
+            ? `pi-phone's task is on ${machine.name}. It is ${describeWindowsState(machine.name, state)}.`
+            : `pi-phone's task, its bridge and ~/.pi/mobile/computer are gone from ${machine.name} (ocu stays installed).`;
+    }
+
+    /** Remove pi-phone's task, its bridge and its folder from a Windows machine (its sessions end first). */
+    async removeTask(wanted: string): Promise<WindowsState> {
+        const machine = this.#windows(wanted);
+
+        await this.end(machine.id, "pi-phone's task was removed");
+        const { code, out } = await this.#run(machine.id, windowsRemoveScript());
+
+        if (code !== 0) {
+            throw new Error(`pi-phone's task could not be removed from ${machine.name}: ${this.#tail(out) || `exit ${code}`}`);
+        }
+
+        this.#log(`Computer control: pi-phone's task was removed from ${machine.name}.`);
+
+        return parseWindowsState(out);
+    }
+
+    /**
+     * A connection to the bridge on a Windows machine: its port and token read over ssh (the task started first when the
+     * owner is signed in and it is not running), its port opened here, then what to run said with the token.
+     */
+    async #bridge(machine: ComputerMachine, hello: (token: string) => Parameters<typeof connectBridge>[1]): Promise<OcuProcess> {
+        if (this.#options.forward === undefined) {
+            throw new Error("Computer control on Windows needs the app's ssh forwards, which this server has not got.");
+        }
+
+        const { code, out } = await this.#run(machine.id, connectScript());
+
+        if (code === CONNECT_EXIT.notSetUp) {
+            throw new Error(describeWindowsState(machine.name, { task: false, loggedOn: false, locked: false, running: false }));
+        }
+
+        if (code === CONNECT_EXIT.notLoggedOn) {
+            throw new Error(describeWindowsState(machine.name, { task: true, loggedOn: false, locked: false, running: false }));
+        }
+
+        const found = /^bridge (\d+) ([0-9a-f]{64})\s*$/m.exec(out);
+
+        if (code !== 0 || found === null) {
+            throw new Error(`pi-phone's bridge on ${machine.name} is not running: ${this.#tail(out, 6) || `exit ${code}`}`);
+        }
+
+        const remote = Number(found[1]);
+        const key = `${machine.id}:${remote}`;
+        let tunnel = this.#tunnels.get(key);
+
+        if (tunnel === undefined) {
+            tunnel = { forward: this.#options.forward(machine.id, remote), users: 0 };
+            this.#tunnels.set(key, tunnel);
+        }
+
+        tunnel.users += 1;
+        const release = () => {
+            const now = this.#tunnels.get(key);
+
+            if (now !== undefined && (now.users -= 1) <= 0) {
+                this.#tunnels.delete(key);
+                void now.forward.then((forward) => forward.close()).catch(() => {});
+            }
+        };
+
+        try {
+            const local = (await tunnel.forward).port;
+            const connection = await connectBridge(local, hello(found[2]!), `pi-phone's bridge on ${machine.name}`);
+
+            connection.once("exit", release);
+
+            return connection;
+        } catch (error) {
+            release();
+
+            throw error;
+        }
     }
 
     /** The apps with a window on a machine's desktop now, as ocu lists them (each with why it is never controlled). */
@@ -567,7 +772,11 @@ export class ComputerControl {
     /** The window on the machine that says Pi is using it, with Stop: shown, or why not. */
     async #sign(session: ComputerSession, onStop: () => void): Promise<OcuProcess> {
         const text = `Pi is using this computer until ${clockText(session.until)} (pi-phone)`;
-        const sign = this.#options.launch(session.machine, this.#script(session.machine, `exec python3 -c ${q(SIGN)} ${q(text)}`));
+        const machine = this.machine(session.machine);
+        const windows = machine.platform === "windows";
+        const sign = windows
+            ? await this.#bridge(machine, (token) => ({ token, run: "sign", text }))
+            : this.#options.launch(session.machine, this.#script(session.machine, `exec python3 -c ${q(SIGN)} ${q(text)}`));
         let said = "";
 
         sign.stderr.on("data", (chunk: Buffer) => {
@@ -583,7 +792,7 @@ export class ComputerControl {
                 sign.kill();
                 reject(
                     new Error(
-                        `${session.machineName} could not show that Pi is using it, so the session did not start: ${said.trim().split("\n").at(-1) || why}. It needs python3 with GTK 3 (python3-gi) on its desktop, as ocu does.`,
+                        `${session.machineName} could not show that Pi is using it, so the session did not start: ${said.trim().split("\n").at(-1) || why}. ${windows ? "pi-phone's bridge shows it with Windows Forms, in the signed-in desktop." : "It needs python3 with GTK 3 (python3-gi) on its desktop, as ocu does."}`,
                     ),
                 );
             };

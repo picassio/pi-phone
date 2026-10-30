@@ -28,7 +28,7 @@ function machineState(machine) {
     }
 
     if (machine.platform === "windows") {
-        return t("Windows · not yet: it needs pi-phone's task in your desktop session");
+        return machine.ocu === null ? t("Windows · ocu not installed") : t("Windows · ocu {version}", { version: machine.ocu });
     }
 
     if (machine.platform !== "linux") {
@@ -38,12 +38,60 @@ function machineState(machine) {
     return machine.ocu === null ? t("Linux · ocu not installed") : t("Linux · ocu {version}", { version: machine.ocu });
 }
 
+/** A Windows machine's state for computer control (PP-179), in words. */
+function windowsWords(state) {
+    if (!state.task) {
+        return t("pi-phone's task is not set up");
+    }
+
+    if (!state.loggedOn) {
+        return t("not logged on: sign in on the computer");
+    }
+
+    return state.locked ? t("ready, but its screen is locked") : t("ready");
+}
+
+/**
+ * A Windows machine with ocu: how pi-phone's task in its desktop session (a scheduled task as you, run only while you
+ * are signed in, and a bridge on 127.0.0.1) stands, asked when the row shows, and Set up or Remove (your tap is your
+ * yes): `{ state, problem, busy, ask }`.
+ */
+function useWindowsTask(machine, on) {
+    const [state, setState] = useState(null);
+    const [busy, setBusy] = useState("");
+    const [problem, setProblem] = useState("");
+    const ask = (task) =>
+        attempt(async () => {
+            setBusy(task ?? "check");
+            setProblem("");
+
+            try {
+                setState((await api("computer-control/windows", task === undefined ? { machine: machine.id } : { machine: machine.id, task })).state);
+            } catch (error) {
+                setProblem(error instanceof Error ? error.message : String(error));
+            } finally {
+                setBusy("");
+            }
+        });
+
+    useEffect(() => {
+        if (on) {
+            ask();
+        }
+    }, [machine.id, on]);
+
+    return { state, problem, busy, ask };
+}
+
 /** One machine: its state, its desktop's setup line (Linux with ocu), what ocu reads there, and its session's Stop. */
 function MachineRow({ machine, onChanged }) {
     const [prepare, setPrepare] = useState(machine.prepare);
     const [checked, setChecked] = useState(null);
     const [busy, setBusy] = useState(false);
-    const ready = machine.connected && machine.platform === "linux" && machine.ocu !== null;
+    const linux = machine.connected && machine.platform === "linux" && machine.ocu !== null;
+    const onWindows = machine.connected && machine.platform === "windows" && machine.ocu !== null;
+    const windows = useWindowsTask(machine, onWindows);
+    const ready = linux || (onWindows && windows.state !== null && windows.state.task && windows.state.loggedOn);
     const check = () =>
         attempt(async () => {
             setBusy(true);
@@ -63,7 +111,21 @@ function MachineRow({ machine, onChanged }) {
                 ${machine.session && ` · ${t("in use by session #{n} until {time}", { n: machine.session.session, time: clockTime(new Date(machine.session.until)) })}`}
             </div>
             ${
-                ready &&
+                onWindows &&
+                html`<div class=${`small ${windows.problem ? "machine-problem" : "muted"}`} data-part="computer-windows">
+                    ${windows.problem || (windows.state === null ? t("Checking…") : windowsWords(windows.state))}
+                </div>`
+            }
+            ${
+                onWindows &&
+                windows.state !== null &&
+                !windows.state.task &&
+                html`<div class="muted small">
+                    ${t("Set up makes a scheduled task as you, run only while you are signed in (no password, never as administrator), and a bridge on 127.0.0.1 only, in ~/.pi/mobile/computer there.")}
+                </div>`
+            }
+            ${
+                linux &&
                 html`<label class="field">
                     <span class="label">${t("Before ocu starts (one shell line, for its desktop)")}</span>
                     <input class="mono" value=${prepare} placeholder=${PREPARE_EXAMPLE} spellcheck="false" onInput=${(event) => setPrepare(event.currentTarget.value)} />
@@ -71,6 +133,7 @@ function MachineRow({ machine, onChanged }) {
             }
             ${
                 checked &&
+                ready &&
                 html`<div class=${`small ${checked.ok ? "muted" : "machine-problem"}`}>
                     ${
                         checked.ok
@@ -83,10 +146,27 @@ function MachineRow({ machine, onChanged }) {
             }
         </div>
         ${
-            (ready || machine.session) &&
+            (ready || machine.session || (onWindows && windows.state !== null)) &&
             html`<div class="provider-actions">
                 ${
-                    ready &&
+                    onWindows &&
+                    windows.state !== null &&
+                    !windows.state.task &&
+                    html`<button class="button small primary" disabled=${windows.busy !== ""} onClick=${() => windows.ask("install")}>
+                        ${windows.busy === "install" ? t("Setting up…") : t("Set up")}
+                    </button>`
+                }
+                ${onWindows && ready && html`<button class="button small" disabled=${busy} onClick=${check}>${busy ? t("Checking…") : t("Check")}</button>`}
+                ${
+                    onWindows &&
+                    windows.state !== null &&
+                    windows.state.task &&
+                    html`<button class="button small" disabled=${windows.busy !== ""} onClick=${() => windows.ask("remove")}>
+                        ${windows.busy === "remove" ? t("Removing…") : t("Remove")}
+                    </button>`
+                }
+                ${
+                    linux &&
                     html`<button
                             class="button small"
                             disabled=${busy || prepare === machine.prepare}
@@ -159,7 +239,7 @@ export function ComputerControlSheet() {
                 number="2"
                 done=${false}
                 title=${t("A desktop to work in")}
-                text=${t("Linux: a signed-in desktop session, or a virtual one; if its environment must be set first, give that line below (Check shows what ocu reads). Windows comes next.")}
+                text=${t("Linux: a signed-in desktop session, or a virtual one; if its environment must be set first, give that line below (Check shows what ocu reads). Windows: Set up below makes pi-phone's task, which runs ocu in your desktop while you are signed in.")}
             />
         </ol>
 
