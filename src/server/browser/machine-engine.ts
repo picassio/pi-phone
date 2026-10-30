@@ -122,6 +122,7 @@ const request = (port: number, path: string, method = "GET"): Promise<string> =>
 export class MachineEngine implements BrowserEngine {
     readonly label: string;
     readonly popups = true;
+    readonly asksWindows = false;
     readonly local = true;
     readonly actAsPhone = true;
     readonly reopensToResize = false;
@@ -133,6 +134,11 @@ export class MachineEngine implements BrowserEngine {
     constructor(machine: MachineAccess) {
         this.#machine = machine;
         this.label = `Chrome on ${machine.name}`;
+    }
+
+    /** Chrome asks about no window: it opens one a click opens, and blocks one without. */
+    watchWindows(): () => void {
+        return () => {};
     }
 
     /** Chrome's DevTools port here: started on the machine if it is not running, and forwarded. */

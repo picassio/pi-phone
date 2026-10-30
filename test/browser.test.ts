@@ -234,6 +234,13 @@ const PAGES: Record<string, string> = {
         <input id="name" aria-label="Signer" class="at" style="left:300px;top:300px;width:200px;height:40px">
         <button class="at" style="left:300px;top:360px;width:120px;height:40px" onclick="out.textContent='Hit '+innerWidth+' '+devicePixelRatio+' '+visualViewport.scale">Hit</button>`,
     "/two": `<!doctype html><title>Two</title><p>Page two</p><article>${"A long article. ".repeat(400)}</article>`,
+    // A sign-in in a window, as MSAL's popup (PP-249): the window tells the page that opened it, and closes itself.
+    "/sign": `<!doctype html><title>App</title><p id="out">Signed out</p>
+        <button onclick="window.open('/popup', 'msal', 'width=480,height=640')">Sign in again</button>
+        <script>addEventListener('message', (event) => { out.textContent = 'Got ' + event.data; });</script>`,
+    "/popup": `<!doctype html><title>Popup</title><p>Signing in</p><script>setTimeout(() => { window.opener.postMessage('signed-in', '*'); window.close(); }, 1500);</script>`,
+    // A window opened with no click: Chrome blocks it.
+    "/pushy": `<!doctype html><title>Pushy</title><p>Hello</p><script>window.open('/two');</script>`,
     // A dialog whose box cancels mousedown (as dialogs and editors do to keep their focus): a click there focuses no
     // field, and Select All then took the whole page (#71257). Below it, a field that will not keep the focus.
     "/dialog": `<!doctype html><title>Dialog</title><p id="intro">Some page text</p>
@@ -464,7 +471,7 @@ test("with Chrome: icons get names, hover, uploads to a field and through its bu
         // A link to a new window opens a tab, brought to the front, as a person's browser does.
         const opened = await browser.click(1, number(await browser.snapshot(1), /\[(\d+)\] link "Open in a new tab"/));
 
-        assert.match(opened, /opened a new tab; now on tab 2 of 2/);
+        assert.match(opened, /^The page opened a window: http:\/\/pi\.test\/two; it is tab 2 now \(in front\)\.\n/);
         assert.match(opened, /Two — /);
 
         const third = await browser.newTab(1, "http://pi.test/");
@@ -632,6 +639,42 @@ test("with Chrome: a picture's caption is of the page pictured, though another c
         assert.deepEqual(shot.viewport, { width: 412, height: 860 });
     } finally {
         await browser.close();
+    }
+});
+
+test("with Chrome: a sign-in window (window.open) is a tab in front that talks to its opener; when it closes itself, the opener is in front again; one with no click is blocked (PP-249)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+    const states: BrowserState[] = [];
+    const browser = new PiBrowser({ engine: new SessionEngine(engine, "phone", 1, new TabOwners(undefined)), session: 1, changed: (state) => states.push(state), frame: () => {}, log: () => {} });
+
+    try {
+        const page = await browser.open(1, "http://pi.test/sign");
+        const opened = await browser.click(1, Number(/\[(\d+)\] button "Sign in again"/.exec(page)![1]));
+
+        assert.match(opened, /^The page opened a window: http:\/\/pi\.test\/popup; it is tab 2 now \(in front\)\.\nTab 2 of 2\. Popup — http:\/\/pi\.test\/popup\n/);
+        assert.match(await browser.tabs(1), /^Tabs \(→ in front\):\n {2}1\. App — http:\/\/pi\.test\/sign\n→ 2\. Popup — http:\/\/pi\.test\/popup$/);
+
+        // The window posts to its opener (window.opener kept) and closes itself: one tab again, the opener in front.
+        const until = Date.now() + 10_000;
+
+        while (states.at(-1)?.tabs.length !== 1 && Date.now() < until) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+
+        assert.equal(states.at(-1)?.tabs.length, 1);
+
+        const back = await browser.snapshot(1);
+
+        assert.match(back, /^The window http:\/\/pi\.test\/popup closed itself; tab 1, the page that opened it, is in front again\.\nApp — http:\/\/pi\.test\/sign\n/);
+        assert.match(back, /Visible text:\nGot signed-in/);
+        assert.match(await browser.tabs(1), /^Tabs \(→ in front\):\n→ 1\. App — http:\/\/pi\.test\/sign$/);
+
+        // No click opened it: Chrome blocks it, and Pi hears.
+        assert.match(await browser.open(1, "http://pi.test/pushy"), /^The page tried to open a window: http:\/\/pi\.test\/two; Chrome blocked it, as no click opened it\.\nPushy — /);
+        assert.equal(states.at(-1)?.tabs.length, 1);
+    } finally {
+        await browser.close();
+        await engine.close();
     }
 });
 

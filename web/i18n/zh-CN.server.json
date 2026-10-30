@@ -684,5 +684,8 @@
     "{1} did not answer with JSON: is this the API's base URL (it often ends in /v1)?": "{1} 没有返回 JSON：这是 API 的基础 URL 吗（通常以 /v1 结尾）？",
     "Pi would not accept this provider: {1}": "Pi 不接受这个提供方：{1}",
     "Give the provider an id: lower-case letters, digits and -.": "请为提供方设置 ID：小写字母、数字和 -。",
-    "This provider's key could not be read: give a key, or pick a saved secret.": "无法读取这个提供方的密钥：请输入密钥，或选择一个已保存的密钥。"
+    "This provider's key could not be read: give a key, or pick a saved secret.": "无法读取这个提供方的密钥：请输入密钥，或选择一个已保存的密钥。",
+    "Windows pages open are allow, ask or off.": "页面打开的窗口取值为 allow、ask 或 off。",
+    "Pi's browser here is not the phone's.": "这里 Pi 的浏览器不是手机上的。",
+    "A window is asked for with opener, tab and gesture.": "请求打开窗口需提供 opener、tab 和 gesture。"
 }

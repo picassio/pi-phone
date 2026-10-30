@@ -140,6 +140,10 @@ No Termux, no laptop, no cloud VM.
   pictures with `save`. It uploads files from where
   the session works (`browser_upload`, to a file field or its Upload button), saves a page as a PDF there
   (`browser_save_pdf`), and keeps up to six tabs (`browser_new_tab`, `browser_tabs`; the panel shows them as a strip).
+  A window a page opens (a sign-in popup such as Microsoft's on Teams, a link to a new window) becomes a tab in front
+  that still talks to its page, and Pi is told; when it closes itself, the page comes back to the front. **Settings ›
+  Pi's browser › Windows pages open** (`browser.popups`): *Allow*, *Ask* (a card first) or *Off* (pages get none).
+  A machine's Chrome opens a window a click opens, as Chrome does.
   **Each session has its own tabs**, and its panel shows only those; sign-ins are shared by every session on the phone
   (or on a machine). A session's tabs close after 30 minutes unused (not while you watch or have taken over), and at once
   when it is archived or deleted; the sign-ins stay. Pages are laid out as a phone's, or as a desktop's (1280 px, a
@@ -472,6 +476,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | GitHub for Pi's `git` and `gh` | **GitHub**: a device code | No for signing in. Yes for signing out |
 | **OpenRouter** (needed for Jev, the wiki's search by meaning, and OpenRouter web search) | **Providers › OpenRouter**: sign in, or **API key** | No, signing in is yours |
 | **Jev** as the model for `browser_run` | **Pi's browser › Run model**: *Jev*, id `typesafe/jev-1.13`, for every session or only this one (*Session model* uses each session's own model) | "Use Jev for browser runs" (or "…in this session only") |
+| Windows pages open in Pi's browser on the phone (sign-in popups) | **Pi's browser › Windows pages open**: *Allow* (a tab in front, the default), *Ask* (a card first), *Off* | "Ask me before a page opens a window" |
 | **Wiki** search by meaning | **Wiki** (or *Wiki settings* from the search launcher) **› Search by meaning**: pick an OpenRouter embedding model, such as `openai/text-embedding-3-small`. Off means keyword search only | "Set the wiki embedding model to openai/text-embedding-3-small" |
 | Wiki capture and prompt context | **Wiki**: minutes idle before a session is captured, the model that writes captures, tokens of wiki in each prompt, lint options | "Capture idle sessions after 30 minutes", "use claude-haiku for wiki captures" |
 | Web search | **Web access**: a provider, and its key (typed there or kept in Secrets) | "Switch web search to exa". The key itself is yours to type |

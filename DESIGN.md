@@ -808,6 +808,27 @@ so Pi changes them through the settings tools; "the last session" is the one the
   in the server's zone (the phone's own for the app's notification) and, for a web push, in the zone the browser told
   when it turned notifications on (`PushSubscriptionRecord.zone`). The team server never waits: `/internal/llm/stream` adds the provider's status and limit headers to an error line
   (`facts`), and the pi-phone marks the failed message with them (`withFacts`) for its gate.
+- **Windows pages open in Pi's browser** (PP-249: MSAL's sign-in popup on Teams web did nothing, the WebView had no
+  multiple windows). A window becomes a tab in front, with `window.opener` kept, and every answer starts with what
+  happened: "The page opened a window: <url>; it is tab N now (in front)", "The page tried to open a window: <url>
+  (why)", "The window <url> closed itself; tab N, the page that opened it, is in front again" (`#notes`). The page's
+  `Page.windowOpen` gives the address and whether a click did it (fired for blocked windows too).
+  - **Phone** (`PhoneEngine.asksWindows`): `PiBrowser.java` supports multiple windows; `onCreateWindow` keeps the
+    page's `WebViewTransport` message, posts `POST /api/phone/browser-window` {opener, tab, gesture}, and waits for a
+    `window` request: `open` makes a fresh tab (same profile, settings, scheme and local-address rules, not loaded:
+    the page loads it) and hands it over; refused, the transport gets null and the page's window closes.
+    `onCloseWindow` closes the tab. The server finds the window's DevTools target as the one whose `openerId` is the
+    opener's (`Target.getTargets` on a second connection to the opener), as its page never loads a marker.
+    `SessionEngine.watchWindows` gives the ask to the session owning the opener; the action that clicked waits for
+    it (`#settleWindows`, 3 s). The setting `browser.popups` (Settings › Pi's browser, `setting_change`): allow;
+    ask: the tool that acted shows the generic approval card (its own name, the address) and `answerWindow` opens or
+    refuses (while taken over, the person's own window opens); off: `setJavaScriptCanOpenWindowsAutomatically(false)`
+    (window.open without a click returns null) and `onCreateWindow` refuses (with a click the page's window is
+    closed at once). The WebView is told the setting with each `tabs`/`open` request and a `popups` request when it
+    changes. A WebChromeClient now exists: its dialogs are cancelled, as with none.
+  - **Chrome** (a machine's, the server edition's): Chrome opens a window a click opens and blocks one without (no
+    setting); a `Page.windowOpen` takes the new tab in at once (`#adoptPopupsOnce`, between actions too), its opener
+    from `Target.getTargetInfo`'s `openerId`.
 - **The Browser panel's pictures** (`PiBrowser.#startFrames`, PP-199): while a tab watches, a capture first (`surface:
   false`, 5 s), then the screencast. A capture is held as long as the page's main thread is busy (headless Chrome, a
   big dialog rendering), and a still page's screencast sends nothing: when no picture came 4 s after the cast started,

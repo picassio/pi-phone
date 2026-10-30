@@ -17,6 +17,7 @@ import { makeBackup } from "./backup.ts";
 import { DESIGN_MODULE } from "./design-systems.ts";
 import { type CustomProviderView, idFromName, type KeyChoice } from "./custom-providers.ts";
 import { type VoiceCheck, VOICES } from "./voice.ts";
+import { POPUP_MODES } from "./browser/pi-browser.ts";
 import { copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -354,6 +355,16 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             target: "session",
             read: (target) => app.sessionMeta(session(target))?.browserRunModel ?? "inherit",
             apply: (user, value, target) => app.setBrowserRunModel(user, value.trim(), session(target)),
+        },
+        {
+            id: "browser.popups",
+            area: "browser",
+            title: "Windows pages open in Pi's browser on the phone",
+            help: "allow (a window a page opens, such as a sign-in popup, becomes a tab in front, its opener kept), ask (the person answers a card first), or off (the page gets no window). A machine's Chrome opens a window a click opens, as Chrome does.",
+            owner: true,
+            read: () => app.config.browserPopups,
+            choices: () => [...POPUP_MODES],
+            apply: (user, value) => app.setBrowserPopups(user, value.trim().toLowerCase()),
         },
         // ─── Web access ───
         {

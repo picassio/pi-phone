@@ -127,6 +127,8 @@ after(async () => {
 const engineOf = (devtools: FakeDevtools): BrowserEngine => ({
         label: "the fake Chrome",
         popups: false,
+        asksWindows: false,
+        watchWindows: () => () => {},
         local: true,
         actAsPhone: false,
         reopensToResize: false,

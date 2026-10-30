@@ -888,6 +888,7 @@ if (new URLSearchParams(location.search).has("chat")) {
 const LINKED_SHEETS = new Set([
     "access",
     "appearance",
+    "browser",
     "dictation",
     "extensions",
     "github",

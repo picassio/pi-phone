@@ -92,7 +92,7 @@ export function shotCaption(page: { title: string; url: string; width: number; h
 const TEXT_MAX = 40_000;
 
 /** In every prompt while the module is on. */
-export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code as text. When a page asks to sign in and the sign-in is saved as secrets you may use (secrets_list), type them by name: browser_type with secret: "NAME" (a password field too), or browser_run values {"password": {"secret": "NAME"}}; their values go into the page, never to you. Otherwise call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
+export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; a window a page opens (a sign-in popup) becomes a tab in front, and when it closes itself the page that opened it comes back; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code as text. When a page asks to sign in and the sign-in is saved as secrets you may use (secrets_list), type them by name: browser_type with secret: "NAME" (a password field too), or browser_run values {"password": {"secret": "NAME"}}; their values go into the page, never to you. Otherwise call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
 
 export default function createBrowser(host: PocketHost) {
     /** The session's own browser at the place it works in: the phone's, or its machine's Chrome (its own tabs there). */
@@ -105,9 +105,38 @@ export default function createBrowser(host: PocketHost) {
 
         return person?.role === "owner" ? true : "Pi's browser is the owner's: it works only for what the owner asks.";
     };
-    /** Run a browser action for a session: its answer, or the error in words (a stale page reads the page again). */
+    /**
+     * Windows a page asked to open while `browser.popups` is ask (PP-249): a card each, on this call of `tool`; each opened
+     * as a tab in front or refused as the person answers. Answers what Pi is told: the page as it is after, or `text` when
+     * none waited.
+     */
+    const windowCards = async (api: { conversationId: unknown; taskId: unknown; callId?: string }, context: unknown, tool: string, browser: PiBrowser, session: number, text: string): Promise<string> => {
+        let now = text;
+
+        for (const window of browser.windowAsks()) {
+            const answer = await host.approvals.request(
+                {
+                    id: `browser-window-${String(api.taskId)}-${String(api.callId)}-${window.id}`,
+                    conversationId: api.conversationId as never,
+                    taskId: api.taskId as never,
+                    ...(api.callId === undefined ? {} : { callId: api.callId }),
+                    tool,
+                    subject: window.url || "(the page named no address yet)",
+                    reason: "The page asks to open a window (a sign-in popup, a link to a new window). Allow opens it as a tab in front; Deny gives the page none. Settings › Pi's browser › Windows pages open: Ask.",
+                    createdAt: Date.now(),
+                },
+                context as never,
+            );
+
+            now = await browser.answerWindow(session, window.id, answer.allow, answer.by);
+        }
+
+        return now;
+    };
+    /** Run a browser action of `tool` for a session: its answer, or the error in words (a stale page reads the page again). */
     const act = async (
-        api: { conversationId: unknown; agent(context: never): Promise<{ cwd?: string }> },
+        tool: string,
+        api: { conversationId: unknown; taskId: unknown; callId?: string; agent(context: never): Promise<{ cwd?: string }> },
         context: unknown,
         work: (browser: PiBrowser, session: number) => Promise<string>,
     ) => {
@@ -124,7 +153,7 @@ export default function createBrowser(host: PocketHost) {
             browser = await browserOf(api, context);
 
             // What the page shows, and what was done there (names of its controls), reach Pi fenced as data.
-            return reply(fencedPage(await work(browser, session)));
+            return reply(fencedPage(await windowCards(api, context, tool, browser, session, await work(browser, session))));
         } catch (error) {
             if (error instanceof StalePage && browser !== undefined) {
                 try {
@@ -183,7 +212,7 @@ export default function createBrowser(host: PocketHost) {
         }
 
         try {
-            return reply(`${done}\n${fencedPage(`The page now:\n${await browser.snapshot(session)}`)}`);
+            return reply(`${done}\n${fencedPage(`The page now:\n${await windowCards(api, context, tool, browser, session, await browser.snapshot(session))}`)}`);
         } catch (error) {
             return reply(`${done} ${fencedPage(`The page could not be read again: ${error instanceof Error ? error.message : String(error)}`)}`);
         }
@@ -204,7 +233,7 @@ export default function createBrowser(host: PocketHost) {
                     return reply(error instanceof Error ? error.message : String(error), true);
                 }
 
-                return act(api, context, (browser, session) => browser.open(session, url));
+                return act("browser_open", api, context, (browser, session) => browser.open(session, url));
             },
         }),
         defineTool({
@@ -212,13 +241,13 @@ export default function createBrowser(host: PocketHost) {
             description: "Read the page in Pi's browser again: its title, address, scroll position, numbered controls, and visible text.",
             parameters: Type.Object({}),
             replay: "safe",
-            execute: async (_args, api, context) => act(api, context, (browser, session) => browser.snapshot(session)),
+            execute: async (_args, api, context) => act("browser_snapshot", api, context, (browser, session) => browser.snapshot(session)),
         }),
         defineTool({
             name: "browser_click",
             description: "Click the control with this number from the newest read of the page.",
             parameters: Type.Object({ index, accept_dialog: acceptDialog }),
-            execute: async (args, api, context) => act(api, context, (browser, session) => browser.click(session, args.index, args.accept_dialog ?? false)),
+            execute: async (args, api, context) => act("browser_click", api, context, (browser, session) => browser.click(session, args.index, args.accept_dialog ?? false)),
         }),
         defineTool({
             name: "browser_type",
@@ -240,7 +269,7 @@ export default function createBrowser(host: PocketHost) {
                 }
 
                 if (args.secret === undefined) {
-                    return act(api, context, (browser, session) => browser.type(session, args.index, args.text!, options));
+                    return act("browser_type", api, context, (browser, session) => browser.type(session, args.index, args.text!, options));
                 }
 
                 // The secrets module checked the folder and asked a person when the secret says so (`extensions/secrets.ts`).
@@ -253,20 +282,20 @@ export default function createBrowser(host: PocketHost) {
 
                 host.secrets.used([name]);
 
-                return act(api, context, (browser, session) => browser.typeSecret(session, args.index, name, value, options));
+                return act("browser_type", api, context, (browser, session) => browser.typeSecret(session, args.index, name, value, options));
             },
         }),
         defineTool({
             name: "browser_select",
             description: "Choose an option, by its text or value, in the drop-down list with this number: a native one, or one the page draws (a button that opens a list of options), which it opens and picks from.",
             parameters: Type.Object({ index, option: Type.String() }),
-            execute: async (args, api, context) => act(api, context, (browser, session) => browser.select(session, args.index, args.option)),
+            execute: async (args, api, context) => act("browser_select", api, context, (browser, session) => browser.select(session, args.index, args.option)),
         }),
         defineTool({
             name: "browser_hover",
             description: "Move the pointer over the control with this number without clicking (menus and tooltips that open on hover).",
             parameters: Type.Object({ index }),
-            execute: async (args, api, context) => act(api, context, (browser, session) => browser.hover(session, args.index)),
+            execute: async (args, api, context) => act("browser_hover", api, context, (browser, session) => browser.hover(session, args.index)),
         }),
         defineTool({
             name: "browser_upload",
@@ -277,7 +306,7 @@ export default function createBrowser(host: PocketHost) {
                 paths: Type.Array(Type.String(), { minItems: 1, maxItems: 10, description: "The files, absolute or relative to this session's folder" }),
             }),
             execute: async (args, api, context) =>
-                act(api, context, async (browser, session) => {
+                act("browser_upload", api, context, async (browser, session) => {
                     const env = host.envOf((await api.agent(context)).cwd ?? "");
                     const files: { name: string; bytes: Uint8Array }[] = [];
 
@@ -300,7 +329,7 @@ export default function createBrowser(host: PocketHost) {
             description: "Save the page in Pi's browser as a PDF (as printing it would), to a file where this session works.",
             parameters: Type.Object({ path: Type.String({ description: "Where to save it, ending in .pdf: absolute or relative to this session's folder" }) }),
             execute: async (args, api, context) =>
-                act(api, context, async (browser, session) => {
+                act("browser_save_pdf", api, context, async (browser, session) => {
                     if (!args.path.toLowerCase().endsWith(".pdf")) {
                         throw new Error("Give a path ending in .pdf.");
                     }
@@ -335,7 +364,7 @@ export default function createBrowser(host: PocketHost) {
                     return reply(error instanceof Error ? error.message : String(error), true);
                 }
 
-                return act(api, context, (browser, session) => browser.newTab(session, url));
+                return act("browser_new_tab", api, context, (browser, session) => browser.newTab(session, url));
             },
         }),
         defineTool({
@@ -346,7 +375,7 @@ export default function createBrowser(host: PocketHost) {
                 close: Type.Optional(Type.Integer({ minimum: 1, description: "The tab to close" })),
             }),
             execute: async (args, api, context) =>
-                act(api, context, (browser, session) =>
+                act("browser_tabs", api, context, (browser, session) =>
                     args.close !== undefined ? browser.closeTab(session, args.close) : args.switch_to !== undefined ? browser.switchTab(session, args.switch_to) : browser.tabs(session),
                 ),
         }),
@@ -354,7 +383,7 @@ export default function createBrowser(host: PocketHost) {
             name: "browser_size",
             description: "Lay this session's pages in Pi's browser out as a phone's (412×860, touch: the default) or a desktop's (1280×800, a desktop Chrome): for a site whose phone page lacks what you need, or a desktop layout to check. Open pages load again at the new size; answers the page.",
             parameters: Type.Object({ size: Type.Union([Type.Literal("phone"), Type.Literal("desktop")]) }),
-            execute: async (args, api, context) => act(api, context, (browser, session) => browser.resize(session, args.size)),
+            execute: async (args, api, context) => act("browser_size", api, context, (browser, session) => browser.resize(session, args.size)),
         }),
         defineTool({
             name: "browser_scroll",
@@ -364,25 +393,25 @@ export default function createBrowser(host: PocketHost) {
                 screens: Type.Optional(Type.Number({ minimum: 0.25, maximum: 10, description: "How many screens (default 1)" })),
                 index: Type.Optional(Type.Integer({ minimum: 1, description: "A control inside the area to scroll, like an option of an open list" })),
             }),
-            execute: async (args, api, context) => act(api, context, (browser, session) => browser.scroll(session, args.direction, args.screens ?? 1, args.index)),
+            execute: async (args, api, context) => act("browser_scroll", api, context, (browser, session) => browser.scroll(session, args.direction, args.screens ?? 1, args.index)),
         }),
         defineTool({
             name: "browser_press",
             description: `Press a key on the focused control: ${PRESSABLE.join(", ")}, or one character (a list's type-ahead: "G" jumps to the first option starting with G). For text, use browser_type.`,
             parameters: Type.Object({ key: Type.String(), accept_dialog: acceptDialog }),
-            execute: async (args, api, context) => act(api, context, (browser, session) => browser.press(session, args.key, args.accept_dialog ?? false)),
+            execute: async (args, api, context) => act("browser_press", api, context, (browser, session) => browser.press(session, args.key, args.accept_dialog ?? false)),
         }),
         defineTool({
             name: "browser_back",
             description: "Go back a page in Pi's browser.",
             parameters: Type.Object({}),
-            execute: async (_args, api, context) => act(api, context, (browser, session) => browser.history(session, -1)),
+            execute: async (_args, api, context) => act("browser_back", api, context, (browser, session) => browser.history(session, -1)),
         }),
         defineTool({
             name: "browser_forward",
             description: "Go forward a page in Pi's browser.",
             parameters: Type.Object({}),
-            execute: async (_args, api, context) => act(api, context, (browser, session) => browser.history(session, 1)),
+            execute: async (_args, api, context) => act("browser_forward", api, context, (browser, session) => browser.history(session, 1)),
         }),
         defineTool({
             name: "browser_text",
@@ -390,7 +419,7 @@ export default function createBrowser(host: PocketHost) {
             parameters: Type.Object({}),
             replay: "safe",
             execute: async (_args, api, context) =>
-                act(api, context, async (browser, session) => {
+                act("browser_text", api, context, async (browser, session) => {
                     const page = await browser.text(session, TEXT_MAX);
 
                     if ("withheld" in page) {
@@ -486,7 +515,7 @@ export default function createBrowser(host: PocketHost) {
                 seconds: Type.Optional(Type.Number({ minimum: 0, maximum: 10 })),
             }),
             execute: async (args, api, context) =>
-                act(api, context, (browser, session) => browser.wait(session, { ...(args.text === undefined ? {} : { text: args.text }), ...(args.seconds === undefined ? {} : { seconds: args.seconds }) })),
+                act("browser_wait", api, context, (browser, session) => browser.wait(session, { ...(args.text === undefined ? {} : { text: args.text }), ...(args.seconds === undefined ? {} : { seconds: args.seconds }) })),
         }),
         defineTool({
             name: "browser_run",
@@ -563,7 +592,10 @@ export default function createBrowser(host: PocketHost) {
                         await host.chargeSession(api.conversationId as never, `openrouter/${model}`, { ...result.tokens, cost: result.cost });
                     }
 
-                    return reply(report(result, decider.label, page), result.status !== "done");
+                    // Windows the pages asked to open during the run, while popups is ask: the person's cards now (PP-249).
+                    const windows = browser.windowAsks().length === 0 ? "" : `\n${fencedPage(await windowCards(api, context, "browser_run", browser, session, ""))}`;
+
+                    return reply(report(result, decider.label, page) + windows, result.status !== "done");
                 } catch (error) {
                     // A failed step or page can say the page's words: fenced as the report is.
                     return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);

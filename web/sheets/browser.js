@@ -1,6 +1,6 @@
 // Pi's browser (src/server/browser/): the run model browser_run decides each step with. The owner's default for every
 // session (this session's own model, or a Jev model through OpenRouter, tested with one decision), and the session open
-// now can have its own.
+// now can have its own. And what the phone's browser does with a window a page opens (PP-249: browser.popups).
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet, store } from "../store.js";
 import { html, Loader, Sheet } from "../ui.js";
@@ -89,6 +89,46 @@ function RunModelRows({ title, detail, value, onSave, inherit = false }) {
         }`;
 }
 
+/** What the phone's browser does with a window a page opens (a sign-in popup): a segmented choice that saves when tapped. */
+function PopupsRow() {
+    const [popups, setPopups] = useState(null);
+    const choices = [
+        ["allow", t("Allow")],
+        ["ask", t("Ask")],
+        ["off", t("Off")],
+    ];
+    const details = {
+        allow: t("A window a page opens, such as a sign-in popup, becomes a tab in front; the page can talk to it."),
+        ask: t("You answer a card before a window a page opens becomes a tab."),
+        off: t("Pages get no windows: a sign-in that opens one does not work."),
+    };
+
+    useEffect(() => {
+        void attempt(async () => setPopups((await api("browser/popups")).popups));
+    }, []);
+
+    if (popups === null) {
+        return html`<${Loader} label=${t("Reading the setting")} />`;
+    }
+
+    return html`<div class="sheet-list">
+        <${Row} title=${t("Windows pages open")} detail=${details[popups]}>
+            <div class="segmented">
+                ${choices.map(
+                    ([key, label]) =>
+                        html`<button
+                            class=${popups === key ? "on" : ""}
+                            aria-pressed=${popups === key}
+                            onClick=${() => key !== popups && attempt(async () => setPopups((await api("browser/popups", { popups: key }, { method: "PUT" })).popups))}
+                        >
+                            ${label}
+                        </button>`,
+                )}
+            </div>
+        <//>
+    </div>`;
+}
+
 export function BrowserSheet() {
     const conversation = store.state.view.conversation;
     const id = store.state.conversationId;
@@ -135,5 +175,7 @@ export function BrowserSheet() {
                       }
                   </div>`
         }
+        <div class="label">${t("Windows on the phone")}</div>
+        <${PopupsRow} />
     <//>`;
 }

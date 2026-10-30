@@ -119,7 +119,7 @@ import { BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
 import { installImageGuard } from "./image-guard.ts";
 import { appSettings } from "./settings-registry.ts";
-import { type BrowserEngine, type BrowserFrame, type FrameSize, PhoneEngine, PiBrowser } from "./browser/pi-browser.ts";
+import { type BrowserEngine, type BrowserFrame, type FrameSize, PhoneEngine, PiBrowser, POPUP_MODES, type PopupMode } from "./browser/pi-browser.ts";
 import { PhoneRequests } from "./phone-requests.ts";
 import { PhoneControl } from "./phone-control.ts";
 import { ComputerControl, type ComputerControlOptions, shellWord } from "./computer-control.ts";
@@ -369,6 +369,8 @@ export class PocketApp {
     /** Pi's browser on the phone (`browser/pi-browser.ts`): the pages Pi uses, that the owner watches and can take over. */
     /** The phone's browser engine (`PiBrowser.java`'s WebViews), shared by every session's browser on the phone. */
     readonly #phoneEngine: BrowserEngine;
+    /** The same, when it is the phone's own WebViews (not a Chrome given instead: tests, the server edition). */
+    readonly #phoneWebView: PhoneEngine | undefined;
     readonly #whatsNewDir: string;
     /** pi-phone's own settings (`phone.json`): the Claude Code billing patch. */
     readonly phoneSettings: PhoneSettingsFile;
@@ -670,7 +672,13 @@ export class PocketApp {
                 }
             }
         });
-        this.#phoneEngine = options.browserEngine ?? new PhoneEngine(this.browserRequests);
+        if (options.browserEngine === undefined) {
+            this.#phoneWebView = new PhoneEngine(this.browserRequests, () => this.config.browserPopups);
+            this.#phoneEngine = this.#phoneWebView;
+        } else {
+            this.#phoneWebView = undefined;
+            this.#phoneEngine = options.browserEngine;
+        }
         this.#whatsNewDir = options.whatsNewDir ?? WHATS_NEW_DIR;
         this.phoneControl = new PhoneControl({ dataDir: options.dataDir, gateway: this.gateway, now: this.now, log: (line) => this.log(line) });
         // The owner's tabs show a session's live line while Pi uses the phone, and its Stop.
@@ -3163,6 +3171,7 @@ export class PocketApp {
             session,
             size: this.#browserSizes.of(`${place}#${session}`),
             sized: (size) => this.#browserSizes.set(`${place}#${session}`, size),
+            popups: () => this.config.browserPopups,
             // Only the owner sees Pi's browser: it may be signed in to the owner's accounts.
             changed: (state) => {
                 for (const client of this.#clients) {
@@ -4925,6 +4934,39 @@ export class PocketApp {
         }
 
         return { model: chosen, text: reply.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("").trim() };
+    }
+
+    /**
+     * What Pi's browser on the phone does when a page opens a window (Settings › Pi's browser, PP-249): allow, ask or off.
+     * The phone's WebView is told at once. The owner's.
+     */
+    setBrowserPopups(user: User, mode: unknown): void {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (!POPUP_MODES.includes(mode as PopupMode)) {
+            throw new HttpError(400, "Windows pages open are allow, ask or off.");
+        }
+
+        this.config.browserPopups = mode as PopupMode;
+        void this.#phoneWebView?.popupsChanged().catch((error: unknown) => this.#log(`browser: telling the phone popups is ${String(mode)}: ${String(error)}`));
+    }
+
+    /**
+     * The phone's WebView says a page asks to open a window (`POST /api/phone/browser-window`, PiBrowser.java): the
+     * browser whose tab asked decides (PP-249).
+     */
+    phoneBrowserWindow(body: { opener?: unknown; tab?: unknown; gesture?: unknown }): void {
+        if (this.#phoneWebView === undefined) {
+            throw new HttpError(409, "Pi's browser here is not the phone's.");
+        }
+
+        if (typeof body.opener !== "string" || typeof body.tab !== "string" || !/^pi-browser-[0-9a-f-]{36}$/.test(body.tab) || typeof body.gesture !== "boolean") {
+            throw new HttpError(400, "A window is asked for with opener, tab and gesture.");
+        }
+
+        this.#phoneWebView.windowAsked({ opener: body.opener, tab: body.tab, gesture: body.gesture });
     }
 
     /** The run model for `browser_run` (Settings › Browser), for every session, or one session's own ("inherit": none). */

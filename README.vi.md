@@ -150,6 +150,10 @@ dự án thật.</sub>
   mạnh cho tên); `image_markup` làm tương tự trên bất kỳ tệp hình nào, và `screenshot` lưu hình của nó bằng `save`.
   Nó tải tệp lên từ nơi phiên làm việc (`browser_upload`, vào một ô tệp hoặc nút Upload của nó), lưu trang dạng PDF
   ở đó (`browser_save_pdf`), và giữ tối đa sáu tab (`browser_new_tab`, `browser_tabs`; khung hiện chúng thành một dải).
+  Cửa sổ mà trang mở ra (cửa sổ đăng nhập như của Microsoft trên Teams, một liên kết mở cửa sổ mới) thành một tab ở
+  trước, vẫn trao đổi được với trang đã mở nó, và Pi được báo; khi nó tự đóng, trang đó trở lại phía trước. **Cài đặt ›
+  Trình duyệt của Pi › Cửa sổ trang mở ra** (`browser.popups`): *Cho phép*, *Hỏi* (một thẻ trước) hoặc *Tắt* (trang
+  không mở được cửa sổ nào). Chrome trên một máy mở cửa sổ do một cú bấm mở, như Chrome vẫn làm.
   **Mỗi phiên có các tab riêng**, và khung của nó chỉ hiện các tab đó; đăng nhập thì dùng chung cho mọi phiên trên
   điện thoại (hoặc trên một máy). Tab của một phiên đóng sau 30 phút không dùng (không đóng khi bạn đang xem hoặc đang
   tiếp quản), và đóng ngay khi phiên bị lưu trữ hoặc xóa; đăng nhập vẫn giữ. Trang được dàn trang như trên điện
@@ -496,6 +500,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | GitHub cho `git` và `gh` của Pi | **GitHub**: một mã thiết bị | Không với việc đăng nhập. Có với việc đăng xuất |
 | **OpenRouter** (cần cho Jev, tìm kiếm theo ngữ nghĩa của wiki, và tìm kiếm web qua OpenRouter) | **Nhà cung cấp › OpenRouter**: đăng nhập, hoặc **Khóa API** | Không, đăng nhập là việc của bạn |
 | **Jev** làm mô hình cho `browser_run` | **Trình duyệt của Pi › Mô hình chạy**: *Jev*, id `typesafe/jev-1.13`, cho mọi phiên hoặc chỉ phiên này (*Mô hình của phiên* dùng mô hình riêng của từng phiên) | “Dùng Jev cho browser run” (hoặc “…chỉ trong phiên này”) |
+| Cửa sổ trang mở ra trong trình duyệt của Pi trên điện thoại (cửa sổ đăng nhập) | **Trình duyệt của Pi › Cửa sổ trang mở ra**: *Cho phép* (một tab ở trước, mặc định), *Hỏi* (một thẻ trước), *Tắt* | “Hỏi tôi trước khi trang mở cửa sổ” |
 | Tìm kiếm theo ngữ nghĩa của **Wiki** | **Wiki** (hoặc *Cài đặt wiki* từ trình khởi chạy tìm kiếm) **› Tìm theo ngữ nghĩa**: chọn một mô hình embedding của OpenRouter, ví dụ `openai/text-embedding-3-small`. Tắt nghĩa là chỉ tìm theo từ khóa | “Đặt mô hình embedding của wiki là openai/text-embedding-3-small” |
 | Ghi nhận wiki và ngữ cảnh prompt | **Wiki**: số phút rảnh trước khi ghi nhận một phiên, mô hình viết phần ghi nhận, số token wiki trong mỗi prompt, tùy chọn lint | “Ghi nhận phiên rảnh sau 30 phút”, “dùng claude-haiku để ghi nhận wiki” |
 | Tìm kiếm web | **Truy cập web**: một nhà cung cấp, và khóa của nó (gõ ở đó hoặc lưu trong Bí mật) | “Chuyển tìm kiếm web sang exa”. Khóa thì bạn tự gõ |

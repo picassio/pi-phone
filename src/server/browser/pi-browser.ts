@@ -50,12 +50,41 @@ export type BrowserSize = keyof typeof SIZES;
 /** Tabs open at once, at most (each is a WebView on the phone). */
 export const MAX_TABS = 6;
 
+/** What Pi's browser on the phone does when a page opens a window (window.open, a link to a new window): `browser.popups` (PP-249). */
+export type PopupMode = "allow" | "ask" | "off";
+export const POPUP_MODES: readonly PopupMode[] = ["allow", "ask", "off"];
+/** How long an answer waits for a window the page asked for (`Page.windowOpen`) to open, or the phone to ask about it. */
+const WINDOW_WAIT_MS = 3000;
+
+/**
+ * A window a page asks to open, before it opens (the phone's WebView asks the app first, PP-249): the tab whose page
+ * asked, the id its tab will have, and whether a click opened it. `open` makes its tab, laid out at `size`, and gives it
+ * to the page (window.opener and postMessage work); `refuse` gives the page none, and its window closes.
+ */
+export type WindowAsk = {
+    opener: string;
+    tab: string;
+    gesture: boolean;
+    open(size: { width: number; height: number }): Promise<void>;
+    refuse(): Promise<void>;
+};
+
 /** Where Pi's tabs come from. */
 export interface BrowserEngine {
     /** What it is, for messages ("the phone's browser"). */
     readonly label: string;
-    /** Whether pages open tabs of their own (a link to a new window): Chrome's do; the phone's WebView opens them in place. */
+    /** Whether pages open tabs of their own (window.open, a link to a new window): Chrome's and the phone's WebView's do. */
     readonly popups: boolean;
+    /**
+     * Whether a window a page opens waits for Pi's browser to open it (`watchWindows`): the phone's WebView asks the app
+     * first, so `browser.popups` decides (PP-249). Chrome opens a window a click opens, and blocks one without.
+     */
+    readonly asksWindows: boolean;
+    /**
+     * The windows its pages ask to open, while `asksWindows`: `asked` takes one that is its own (true) or leaves it
+     * (false); one nobody takes is refused. Returns how to stop.
+     */
+    watchWindows(asked: (ask: WindowAsk) => boolean): () => void;
     /** Whether it may open local addresses: a machine's own Chrome may (its dev servers); the phone's WebView never. */
     readonly local: boolean;
     /** Whether its pages present themselves as a phone's (a desktop Chrome does; the phone's WebView is one). */
@@ -136,19 +165,66 @@ export function stageLocally(name: string, bytes: Uint8Array): string {
  */
 export class PhoneEngine implements BrowserEngine {
     readonly label = "the phone's browser";
-    readonly popups = false;
+    readonly popups = true;
+    readonly asksWindows = true;
     readonly local = false;
     readonly actAsPhone = false;
     readonly reopensToResize = true;
     readonly #requests: PhoneRequests;
+    readonly #popups: () => PopupMode;
     #pid = 0;
     /** Each tab's address as the phone last said (a tab kept from before has moved on from its marker). */
     readonly #urls = new Map<string, string>();
     /** The DevTools target each connected tab is, so two tabs at one address are told apart. */
     readonly #targets = new Map<string, string>();
+    /** A window's tab, until it is connected: the tab whose page opened it, by which its target is found (PP-249). */
+    readonly #openers = new Map<string, string>();
+    readonly #windowWatchers = new Set<(ask: WindowAsk) => boolean>();
 
-    constructor(requests: PhoneRequests) {
+    /** `popups`: the setting `browser.popups` now; the phone's WebView is told it with each request that makes tabs. */
+    constructor(requests: PhoneRequests, popups: () => PopupMode) {
         this.#requests = requests;
+        this.#popups = popups;
+    }
+
+    watchWindows(asked: (ask: WindowAsk) => boolean): () => void {
+        this.#windowWatchers.add(asked);
+
+        return () => this.#windowWatchers.delete(asked);
+    }
+
+    /**
+     * The phone says a page asks to open a window (`POST /api/phone/browser-window`): for the browser whose tab asked,
+     * which opens it or not (the setting, the person's card). One no browser takes is refused.
+     */
+    windowAsked({ opener, tab, gesture }: { opener: string; tab: string; gesture: boolean }): void {
+        const ask: WindowAsk = {
+            opener,
+            tab,
+            gesture,
+            open: async (size) => {
+                this.#socket(await this.#requests.request({ op: "window", marker: tab, open: true, width: size.width, height: size.height }));
+                this.#openers.set(tab, opener);
+            },
+            refuse: async () => {
+                await this.#requests.request({ op: "window", marker: tab, open: false });
+            },
+        };
+
+        for (const watcher of this.#windowWatchers) {
+            if (watcher(ask)) {
+                return;
+            }
+        }
+
+        void ask.refuse().catch(() => {});
+    }
+
+    /** The setting `browser.popups` changed: the phone's WebView is told now, for the tabs it has. */
+    async popupsChanged(): Promise<void> {
+        if (this.#requests.present()) {
+            await this.#requests.request({ op: "popups", popups: this.#popups() });
+        }
     }
 
     #socket(answer: Record<string, unknown>): string {
@@ -164,7 +240,7 @@ export class PhoneEngine implements BrowserEngine {
     }
 
     async tabs(): Promise<string[]> {
-        const answer = await this.#requests.request({ op: "tabs" });
+        const answer = await this.#requests.request({ op: "tabs", popups: this.#popups() });
         const tabs = (answer.tabs ?? []) as { marker: string; url: string }[];
 
         this.#socket(answer);
@@ -179,7 +255,7 @@ export class PhoneEngine implements BrowserEngine {
     async newTab(size: { width: number; height: number } = VIEWPORT): Promise<string> {
         const marker = `pi-browser-${crypto.randomUUID()}`;
 
-        this.#socket(await this.#requests.request({ op: "open", marker, width: size.width, height: size.height }));
+        this.#socket(await this.#requests.request({ op: "open", marker, width: size.width, height: size.height, popups: this.#popups() }));
         this.#urls.set(marker, `about:blank#${marker}`);
 
         return marker;
@@ -188,6 +264,11 @@ export class PhoneEngine implements BrowserEngine {
     async connect(id: string): Promise<Cdp> {
         const socket = `\0webview_devtools_remote_${this.#pid}`;
         const until = Date.now() + 10_000;
+        const opener = this.#openers.get(id);
+
+        if (opener !== undefined) {
+            return this.#connectWindow(id, opener, socket, until);
+        }
 
         // A new tab shows in the DevTools list once it loaded `about:blank#<marker>`; one kept from before, at its address.
         while (Date.now() < until) {
@@ -208,15 +289,52 @@ export class PhoneEngine implements BrowserEngine {
         throw new Error("The phone made the tab, but its page did not show up to connect to.");
     }
 
+    /**
+     * A window's tab: its page loads what the page that opened it asked, not a marker, so its target is the one DevTools
+     * says that page opened (`openerId`), not yet connected. Asked over a connection of its own to the opener's target.
+     */
+    async #connectWindow(id: string, opener: string, socket: string, until: number): Promise<Cdp> {
+        const openerTarget = this.#targets.get(opener);
+
+        if (openerTarget === undefined) {
+            throw new Error("The page that opened the window is not connected.");
+        }
+
+        const asking = await Cdp.connect({ socket, path: `/devtools/page/${openerTarget}` });
+
+        try {
+            while (Date.now() < until) {
+                const { targetInfos } = await asking.send<{ targetInfos: { targetId: string; type: string; openerId?: string }[] }>("Target.getTargets");
+                const taken = new Set(this.#targets.values());
+                const target = targetInfos.find((each) => each.type === "page" && each.openerId === openerTarget && !taken.has(each.targetId));
+
+                if (target !== undefined) {
+                    this.#targets.set(id, target.targetId);
+                    this.#openers.delete(id);
+
+                    return await Cdp.connect({ socket, path: `/devtools/page/${target.targetId}` });
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 200));
+            }
+        } finally {
+            asking.close();
+        }
+
+        throw new Error("The phone opened the window, but its page did not show up to connect to.");
+    }
+
     async closeTab(id: string): Promise<void> {
         this.#targets.delete(id);
         this.#urls.delete(id);
+        this.#openers.delete(id);
         await this.#requests.request({ op: "close", marker: id });
     }
 
     async close(): Promise<void> {
         this.#targets.clear();
         this.#urls.clear();
+        this.#openers.clear();
         await this.#requests.request({ op: "close" }).catch(() => {});
     }
 
@@ -259,6 +377,7 @@ export class PhoneEngine implements BrowserEngine {
 export class ChromeEngine implements BrowserEngine {
     readonly label = "Chrome";
     readonly popups = true;
+    readonly asksWindows = false;
     readonly local = false;
     readonly actAsPhone = true;
     readonly reopensToResize: boolean = false;
@@ -274,6 +393,11 @@ export class ChromeEngine implements BrowserEngine {
         this.#binary = binary;
         this.#flags = flags;
         this.#kept = profile;
+    }
+
+    /** Chrome asks about no window: it opens one a click opens, and blocks one without. */
+    watchWindows(): () => void {
+        return () => {};
     }
 
     async #start(): Promise<number> {
@@ -475,10 +599,17 @@ export type PiBrowserOptions = {
     frame(frame: BrowserFrame): void;
     log(line: string): void;
     frames?: Partial<FrameTuning>;
+    /** The setting `browser.popups` now (PP-249), for an engine whose windows wait (`asksWindows`); absent: allow, its default. */
+    popups?(): PopupMode;
 };
 
-/** A tab Pi has: its page, and what it read there last (for the next action's numbers). */
-type Tab = { id: string; page: BrowserPage; observed: Observed | undefined; elements: Element[]; url: string; title: string };
+/**
+ * A tab Pi has: its page, and what it read there last (for the next action's numbers). A window a page opened knows that
+ * page's tab (`opener`): when the window closes itself, that tab comes back to the front.
+ */
+type Tab = { id: string; page: BrowserPage; observed: Observed | undefined; elements: Element[]; url: string; title: string; opener?: Tab };
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class PiBrowser {
     readonly #options: PiBrowserOptions;
@@ -514,6 +645,16 @@ export class PiBrowser {
     #takenSeq = 0;
     /** Tabs' requests waiting for the next picture (`nextFrame`). */
     readonly #frameWaiters = new Set<(frame: BrowserFrame | undefined) => void>();
+    /** Windows the pages asked to open (`Page.windowOpen`: what, and whether a click did it), not yet opened or refused. */
+    #windowOpens: { tab: Tab; url: string; gesture: boolean }[] = [];
+    /** Windows that wait for the person's card (`browser.popups` is ask), by the id their tab will have. */
+    #asks: { id: string; url: string; ask: WindowAsk }[] = [];
+    /** Windows being opened now, from the phone's asks. */
+    readonly #windowWork = new Set<Promise<void>>();
+    /** What the next answer tells Pi first: windows opened, refused, closed (PP-249). */
+    #notes: string[] = [];
+    /** Chrome's windows being taken in now (`#adoptPopupsOnce`). */
+    #adopting: Promise<void> | undefined;
 
     constructor(options: PiBrowserOptions) {
         this.#options = options;
@@ -521,6 +662,7 @@ export class PiBrowser {
         const size = options.size ?? "phone";
 
         this.#state = { ...this.#state, place: options.place ?? "phone", where: options.where ?? "the phone", session: options.session ?? null, size, viewport: { width: SIZES[size].width, height: SIZES[size].height } };
+        options.engine.watchWindows((ask) => this.#windowAsked(ask));
     }
 
     /** Which browser this is: `phone`, or `machine:<id>`. */
@@ -560,13 +702,30 @@ export class PiBrowser {
             }
 
             this.#tabs = this.#tabs.filter((each) => each !== tab);
+            this.#windowOpens = this.#windowOpens.filter((each) => each.tab !== tab);
 
-            if (this.#tab === tab) {
+            // A window that closed itself (a sign-in done): the page that opened it comes back to the front, and Pi hears.
+            const opener = tab.opener !== undefined && this.#tabs.includes(tab.opener) ? tab.opener : undefined;
+
+            if (opener !== undefined) {
+                this.#front(opener);
+                this.#notes.push(`The window ${tab.url || "(blank)"} closed itself; tab ${this.#tabs.indexOf(opener) + 1}, the page that opened it, is in front again.\n`);
+            } else if (this.#tab === tab) {
                 this.#front(this.#tabs.at(-1));
             }
 
             this.#set({ ...(this.#tabs.length === 0 ? { doing: null } : {}) });
         };
+        // A window the page asks to open (window.open, a link to a new window), with or without a click (PP-249).
+        cdp.on("Page.windowOpen", (params) => {
+            this.#windowOpens.push({ tab, url: String(params.url ?? ""), gesture: params.userGesture === true });
+
+            // Chrome's window is taken in at once, between Pi's actions too (the person's tap while taken over): the panel
+            // shows it, and one that closes itself soon after is known as a window. The phone's asks first.
+            if (this.#options.engine.popups && !this.#options.engine.asksWindows) {
+                void this.#adoptPopupsOnce().catch((error: unknown) => this.#options.log(`browser: a window: ${String(error)}`));
+            }
+        });
         cdp.on("Page.frameNavigated", (params) => {
             const frame = params.frame as { parentId?: string; url?: string } | undefined;
 
@@ -638,33 +797,220 @@ export class PiBrowser {
         return this.#opening;
     }
 
+    #popupMode(): PopupMode {
+        return this.#options.popups?.() ?? "allow";
+    }
+
     /**
-     * Tabs a page opened (a link to a new window, in Chrome): kept, and the newest brought to the front, as a person's
-     * browser shows it. Answers what to tell Pi.
+     * The windows the pages asked to open by now (PP-249), before Pi is told the page: each opened as a tab in front, as a
+     * person's browser shows it, or refused, in `#notes`. On the phone, each window's ask comes a moment after the page
+     * asked (the app's service): the answer waits for it. In Chrome, a window a click opened shows in its list.
      */
-    async #adoptPopups(): Promise<string> {
-        if (!this.#options.engine.popups || this.#tabs.length === 0) {
-            return "";
+    async #settleWindows(): Promise<void> {
+        const engine = this.#options.engine;
+
+        if (!engine.popups || this.#tabs.length === 0) {
+            this.#windowOpens = [];
+
+            return;
         }
 
-        const listed = (await this.#options.engine.tabs()).filter((id) => !this.#tabs.some((tab) => tab.id === id));
-        const fresh: string[] = [];
+        if (!engine.asksWindows) {
+            await this.#adoptPopupsOnce();
 
-        for (const id of listed) {
-            // One gone by the time it is reached (closing, PP-126) is no tab the page opened.
-            const tab = await this.#attach(id).catch((error: unknown) => {
-                this.#options.log(`browser: a listed tab is gone: ${String(error)}`);
+            return;
+        }
 
-                return undefined;
-            });
+        const mode = this.#popupMode();
+        const until = Date.now() + WINDOW_WAIT_MS;
 
-            if (tab !== undefined) {
-                fresh.push(id);
+        while (mode !== "off" && this.#windowOpens.length > 0 && Date.now() < until) {
+            await sleep(50);
+        }
+
+        // What the phone did not ask about did not open: refused by the WebView itself while popups is off.
+        for (const each of this.#windowOpens.splice(0)) {
+            this.#notes.push(`The page tried to open a window: ${each.url}${mode === "off" ? " (Pi's browser › popups is off)." : "; it did not open."}\n`);
+        }
+
+        while (this.#windowWork.size > 0) {
+            await Promise.all([...this.#windowWork]);
+        }
+    }
+
+    /** `#adoptPopups`, one at a time: a window the page opens while it runs is taken in by it. */
+    #adoptPopupsOnce(): Promise<void> {
+        this.#adopting ??= this.#adoptPopups().finally(() => {
+            this.#adopting = undefined;
+        });
+
+        return this.#adopting;
+    }
+
+    /**
+     * Tabs a page opened in Chrome (window.open, a link to a new window): kept, each brought to the front, and the tab
+     * whose page opened it known (DevTools' `openerId`; Chrome's tab ids are its targets'). A window a click opened shows
+     * in Chrome's list a moment later; one without a click Chrome blocks.
+     */
+    async #adoptPopups(): Promise<void> {
+        if (this.#tabs.length === 0) {
+            return;
+        }
+
+        const until = Date.now() + (this.#windowOpens.some((each) => each.gesture) ? WINDOW_WAIT_MS : 0);
+
+        for (;;) {
+            const listed = (await this.#options.engine.tabs()).filter((id) => !this.#tabs.some((tab) => tab.id === id));
+
+            for (const id of listed) {
+                // One gone by the time it is reached (closing, PP-126) is no tab the page opened.
+                const tab = await this.#attach(id).catch((error: unknown) => {
+                    this.#options.log(`browser: a listed tab is gone: ${String(error)}`);
+
+                    return undefined;
+                });
+
+                if (tab === undefined) {
+                    continue;
+                }
+
+                const { targetInfo } = await tab.page.cdp.send<{ targetInfo: { openerId?: string } }>("Target.getTargetInfo");
+
+                tab.opener = this.#tabs.find((each) => each.id === targetInfo.openerId);
+
+                const asked = this.#windowOpens.findIndex((each) => each.tab === tab.opener);
+                const open = asked < 0 ? undefined : this.#windowOpens.splice(asked, 1)[0];
+
                 this.#front(tab);
+                this.#set({});
+                this.#notes.push(`The page opened a window: ${open?.url || tab.url}; it is tab ${this.#tabs.indexOf(tab) + 1} now (in front).\n`);
             }
+
+            if (!this.#windowOpens.some((each) => each.gesture) || Date.now() >= until) {
+                break;
+            }
+
+            await sleep(100);
         }
 
-        return fresh.length === 0 ? "" : `The page opened ${fresh.length === 1 ? "a new tab" : `${fresh.length} new tabs`}; now on tab ${this.#tabs.length} of ${this.#tabs.length}.\n`;
+        for (const each of this.#windowOpens.splice(0)) {
+            this.#notes.push(`The page tried to open a window: ${each.url}; ${each.gesture ? "it did not open" : "Chrome blocked it, as no click opened it"}.\n`);
+        }
+    }
+
+    /**
+     * The phone asks whether a page of this browser's may open a window (PP-249): taken when that page is one of its tabs.
+     * Opened, refused, or kept for the person's card (`#takeWindow`), out of the queue: the action whose page asked waits
+     * for it in `#settleWindows`.
+     */
+    #windowAsked(ask: WindowAsk): boolean {
+        const opener = this.#tabs.find((each) => each.id === ask.opener);
+
+        if (opener === undefined) {
+            return false;
+        }
+
+        const work: Promise<void> = this.#takeWindow(opener, ask).finally(() => this.#windowWork.delete(work));
+
+        this.#windowWork.add(work);
+
+        return true;
+    }
+
+    /**
+     * A window the phone asks about: by `browser.popups`, opened as a tab in front, refused, or (ask) kept for the person's
+     * card, which the tool that acted shows (`windowAsks`). While the person has taken the browser over, the window is
+     * theirs: it opens. What the page asked to open comes from its `Page.windowOpen`.
+     */
+    async #takeWindow(opener: Tab, ask: WindowAsk): Promise<void> {
+        const url = await this.#windowOpenOf(opener);
+        const mode = this.#popupMode();
+        const refuse = async (why: string) => {
+            await ask.refuse().catch((error: unknown) => this.#options.log(`browser: refusing a window: ${String(error)}`));
+            this.#notes.push(`The page tried to open a window: ${url} (${why}).\n`);
+        };
+
+        if (mode === "off") {
+            return refuse("Pi's browser › popups is off");
+        }
+
+        if (this.#tabs.length >= MAX_TABS) {
+            return refuse(`Pi's browser has ${MAX_TABS} tabs open, the most it keeps`);
+        }
+
+        if (mode === "ask" && !this.#state.takenOver) {
+            this.#asks.push({ id: ask.tab, url, ask });
+
+            return;
+        }
+
+        await this.#openWindow(opener, ask, url);
+    }
+
+    /** What the page of `opener` asked to open (its `Page.windowOpen`, which comes before the phone's ask), or "". */
+    async #windowOpenOf(opener: Tab): Promise<string> {
+        const until = Date.now() + 1000;
+
+        for (;;) {
+            const at = this.#windowOpens.findIndex((each) => each.tab === opener);
+
+            if (at >= 0) {
+                return this.#windowOpens.splice(at, 1)[0]!.url;
+            }
+
+            if (Date.now() >= until) {
+                return "";
+            }
+
+            await sleep(25);
+        }
+    }
+
+    /** Open a window the page asked for as a tab, in front, its opener known. */
+    async #openWindow(opener: Tab, ask: WindowAsk, url: string): Promise<void> {
+        try {
+            await ask.open(SIZES[this.#state.size]);
+
+            const tab = await this.#attach(ask.tab);
+
+            tab.opener = opener;
+            this.#front(tab);
+            this.#set({});
+            this.#notes.push(`The page opened a window: ${url || tab.url}; it is tab ${this.#tabs.indexOf(tab) + 1} now (in front).\n`);
+        } catch (error) {
+            this.#options.log(`browser: a window: ${String(error)}`);
+            this.#notes.push(`The page opened a window: ${url}, but Pi's browser could not take it: ${error instanceof Error ? error.message : String(error)}\n`);
+        }
+    }
+
+    /** Windows the pages asked to open that wait for the person (`browser.popups` is ask): what the tool shows on its card. */
+    windowAsks(): { id: string; url: string }[] {
+        return this.#asks.map(({ id, url }) => ({ id, url }));
+    }
+
+    /** The person's answer to a window's card: opened as a tab in front, or refused. Answers the page as it is then. */
+    answerWindow(session: number, id: string, allow: boolean, by: string): Promise<string> {
+        return this.#run(session, allow ? "Opening the window the page asked for" : "Refusing the window the page asked for", async () => {
+            const at = this.#asks.findIndex((each) => each.id === id);
+
+            if (at < 0) {
+                throw new Error("That window no longer waits for an answer.");
+            }
+
+            const { ask, url } = this.#asks.splice(at, 1)[0]!;
+            const opener = this.#tabs.find((each) => each.id === ask.opener);
+
+            if (!allow || opener === undefined || this.#tabs.length >= MAX_TABS) {
+                await ask.refuse().catch((error: unknown) => this.#options.log(`browser: refusing a window: ${String(error)}`));
+                this.#notes.push(
+                    `The page tried to open a window: ${url} (${!allow ? `${by} said no` : opener === undefined ? "the page that asked is closed" : `Pi's browser has ${MAX_TABS} tabs open, the most it keeps`}).\n`,
+                );
+            } else {
+                await this.#openWindow(opener, ask, url);
+            }
+
+            return this.#read();
+        });
     }
 
     /** Run one of Pi's actions after the ones before, on the tab in front, with what it is doing shown in the panel. */
@@ -692,7 +1038,7 @@ export class PiBrowser {
 
     /** Read the tab in front (after taking in tabs the page opened), keep what was read, and describe it for Pi. */
     async #read(): Promise<string> {
-        const opened = await this.#adoptPopups();
+        await this.#settleWindows();
         const tab = this.#tab ?? (await this.#ensure());
         const page = tab.page;
         const observed = await page.observe();
@@ -716,7 +1062,9 @@ export class PiBrowser {
             page.dialog = undefined;
         }
 
-        return `${opened}${this.#tabs.length > 1 ? `Tab ${this.#tabs.indexOf(tab) + 1} of ${this.#tabs.length}. ` : ""}${dialogs.join("")}${describe(observed, tab.elements)}`;
+        const notes = this.#notes.splice(0).join("");
+
+        return `${notes}${this.#tabs.length > 1 ? `Tab ${this.#tabs.indexOf(tab) + 1} of ${this.#tabs.length}. ` : ""}${dialogs.join("")}${describe(observed, tab.elements)}`;
     }
 
     #element(index: number): { observed: Observed; element: Element } {
@@ -1198,6 +1546,14 @@ export class PiBrowser {
     async #closeAll(): Promise<void> {
         this.#stopFrames?.();
         this.#lastFrame = undefined;
+
+        // Windows waiting for the person go with the tabs that asked.
+        for (const { ask } of this.#asks.splice(0)) {
+            void ask.refuse().catch(() => {});
+        }
+
+        this.#windowOpens = [];
+        this.#notes = [];
 
         for (const tab of this.#tabs) {
             tab.page.cdp.close();

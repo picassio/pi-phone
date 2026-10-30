@@ -3119,5 +3119,10 @@
     "A server that speaks OpenAI's API, on your network or the web. Its models join the model pickers; its key is kept in Secrets.": "Một máy chủ dùng API của OpenAI, trong mạng của bạn hoặc trên web. Mô hình của nó xuất hiện trong các bộ chọn mô hình; khóa được lưu trong Bí mật.",
     "Add an OpenAI-compatible provider": "Thêm nhà cung cấp tương thích OpenAI",
     "{n} model chosen": "Đã chọn {n} mô hình",
-    "{n} models chosen": "Đã chọn {n} mô hình"
+    "{n} models chosen": "Đã chọn {n} mô hình",
+    "A window a page opens, such as a sign-in popup, becomes a tab in front; the page can talk to it.": "Cửa sổ mà trang mở ra, như cửa sổ đăng nhập, thành một tab ở trước; trang vẫn trao đổi được với nó.",
+    "You answer a card before a window a page opens becomes a tab.": "Bạn trả lời một thẻ trước khi cửa sổ mà trang mở ra thành một tab.",
+    "Pages get no windows: a sign-in that opens one does not work.": "Trang không mở được cửa sổ nào: đăng nhập nào cần mở cửa sổ sẽ không chạy.",
+    "Windows pages open": "Cửa sổ trang mở ra",
+    "Windows on the phone": "Cửa sổ trên điện thoại"
 }

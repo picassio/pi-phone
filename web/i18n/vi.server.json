@@ -683,5 +683,8 @@
     "{1} did not answer with JSON: is this the API's base URL (it often ends in /v1)?": "{1} không trả lời bằng JSON: đây có phải URL gốc của API không (thường kết thúc bằng /v1)?",
     "Pi would not accept this provider: {1}": "Pi không chấp nhận nhà cung cấp này: {1}",
     "Give the provider an id: lower-case letters, digits and -.": "Hãy đặt id cho nhà cung cấp: chữ thường, chữ số và -.",
-    "This provider's key could not be read: give a key, or pick a saved secret.": "Không đọc được khóa của nhà cung cấp này: hãy nhập một khóa, hoặc chọn một bí mật đã lưu."
+    "This provider's key could not be read: give a key, or pick a saved secret.": "Không đọc được khóa của nhà cung cấp này: hãy nhập một khóa, hoặc chọn một bí mật đã lưu.",
+    "Windows pages open are allow, ask or off.": "Cửa sổ trang mở ra là allow, ask hoặc off.",
+    "Pi's browser here is not the phone's.": "Trình duyệt của Pi ở đây không phải của điện thoại.",
+    "A window is asked for with opener, tab and gesture.": "Yêu cầu mở cửa sổ cần có opener, tab và gesture."
 }

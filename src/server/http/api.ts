@@ -712,6 +712,15 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, await app.browserRequests.after(Number(url.searchParams.get("after") ?? -1), abort.signal));
         }
 
+        // A page in Pi's browser on the phone asks to open a window (PP-249): the browser whose tab asked decides, and the
+        // service hears with a `window` request.
+        if (first === "phone" && second === "browser-window" && third === undefined && method === "POST") {
+            requireOwner(user);
+            app.phoneBrowserWindow(await readJson<{ opener?: unknown; tab?: unknown; gesture?: unknown }>(request));
+
+            return json(response, 200, { ok: true });
+        }
+
         if (first === "phone" && second === "browser" && third !== undefined && method === "POST") {
             requireOwner(user);
 
@@ -1078,6 +1087,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 await browser().close();
 
                 return json(response, 200, browser().state());
+            }
+
+            // What the phone's browser does with a window a page opens (Settings › Pi's browser, PP-249).
+            if (second === "popups" && third === undefined && method === "GET") {
+                return json(response, 200, { popups: app.config.browserPopups });
+            }
+
+            if (second === "popups" && third === undefined && method === "PUT") {
+                app.setBrowserPopups(user, (await readJson<{ popups?: unknown }>(request)).popups);
+
+                return json(response, 200, { popups: app.config.browserPopups });
             }
 
             // The run model `browser_run` decides with (Settings › Browser), and a test of a Jev model: one decision.

@@ -15,11 +15,16 @@ import android.media.ImageReader;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Message;
 import android.os.Process;
 import android.print.PiPdf;
 import android.util.Base64;
 import android.util.Log;
 import android.view.ViewGroup;
+import android.webkit.GeolocationPermissions;
+import android.webkit.JsPromptResult;
+import android.webkit.JsResult;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -32,6 +37,7 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
@@ -43,8 +49,11 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
@@ -64,6 +73,11 @@ import java.util.function.Supplier;
  * tab is in the WebView profile PROFILE: its cookies, storage, and sign-ins are its own, apart from the app's (whose
  * sign-in to this server a page must never ride on), and they stay across restarts. It never
  * loads this device or its local network: the app's own server is there, and a page could act as the owner.
+ *
+ * A window a page opens (window.open, a link to a new window: an MSAL sign-in, PP-249) becomes a tab of its own, in the
+ * same profile, handed to the page through its WebViewTransport so window.opener and postMessage work. The server decides
+ * first (`POST /api/phone/browser-window`; the setting browser.popups, perhaps the person's card) and answers with a
+ * `window` request; a window that closes itself (window.close) closes its tab.
  */
 final class PiBrowser {
 
@@ -90,6 +104,93 @@ final class PiBrowser {
 
     /** Pi's tabs by marker, oldest first (main thread). */
     private final Map<String, Tab> tabs = new LinkedHashMap<>();
+
+    /** What a page's window.open may do, as the server last said (its setting browser.popups: allow, ask, off; main thread). */
+    private String popups = "allow";
+
+    /** A window a page asked to open, waiting for the server's answer: the message that gives the page its window, and its tab. */
+    private static final class Window {
+        final Message message;
+        final String opener;
+
+        Window(Message message, String opener) {
+            this.message = message;
+            this.opener = opener;
+        }
+    }
+
+    /** Windows waiting for the server, by the marker their tab will have (main thread). */
+    private final Map<String, Window> windows = new HashMap<>();
+
+    /**
+     * Every tab's windows and dialogs (main thread). Dialogs are cancelled, as with no WebChromeClient: the page's own
+     * alert, confirm and prompt are answered in the page (page.ts), and a display of Pi's has no one to answer one.
+     */
+    private final WebChromeClient chrome = new WebChromeClient() {
+        @Override
+        public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+            String opener = markerOf(view);
+
+            // Off: the page gets no window (without a click, window.open has returned null already).
+            if (opener == null || "off".equals(popups)) return false;
+            String marker = "pi-browser-" + UUID.randomUUID();
+            JSONObject asked = new JSONObject();
+            try {
+                asked.put("opener", opener).put("tab", marker).put("gesture", isUserGesture);
+            } catch (JSONException e) {
+                return false;
+            }
+            windows.put(marker, new Window(resultMsg, opener));
+            // The server answers with a "window" request: open it as a tab, or not.
+            new Thread(() -> {
+                try {
+                    int code = send("/api/phone/browser-window", asked);
+                    if (code != 200) throw new IOException("HTTP " + code);
+                } catch (Exception e) {
+                    Log.w(TAG, "browser window: " + e);
+                    main.post(() -> refuse(marker));
+                }
+            }, "pi-browser-window").start();
+            return true;
+        }
+
+        @Override
+        public void onCloseWindow(WebView window) {
+            String marker = markerOf(window);
+
+            // After this call returns: a view is not destroyed inside its own callback.
+            if (marker != null) main.post(() -> close(marker));
+        }
+
+        @Override
+        public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+            result.cancel();
+            return true;
+        }
+
+        @Override
+        public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+            result.cancel();
+            return true;
+        }
+
+        @Override
+        public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, JsPromptResult result) {
+            result.cancel();
+            return true;
+        }
+
+        @Override
+        public boolean onJsBeforeUnload(WebView view, String url, String message, JsResult result) {
+            result.cancel();
+            return true;
+        }
+
+        @Override
+        public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+            callback.invoke(origin, false, false);
+        }
+    };
 
     PiBrowser(Context context, Supplier<String> token, BooleanSupplier serving) {
         this.context = context;
@@ -158,8 +259,15 @@ final class PiBrowser {
                             list.put(new JSONObject().put("marker", tab.getKey()).put("url", url == null ? "" : url));
                         }
                         reply.put("tabs", list);
+                        popups(request.getString("popups"));
                     } else if (op.equals("open")) {
+                        popups(request.getString("popups"));
                         open(request.getString("marker"), request.getInt("width"), request.getInt("height"));
+                    } else if (op.equals("popups")) {
+                        popups(request.getString("popups"));
+                    } else if (op.equals("window")) {
+                        boolean open = request.getBoolean("open");
+                        window(request.getString("marker"), open, open ? request.getInt("width") : 0, open ? request.getInt("height") : 0);
                     } else if (op.equals("close")) {
                         if (request.has("marker")) close(request.getString("marker"));
                         else for (String marker : tabs.keySet().toArray(new String[0])) close(marker);
@@ -206,9 +314,69 @@ final class PiBrowser {
         post(id, reply);
     }
 
-    /** Make a tab: a WebView of its own, on a display of its own (main thread). */
+    /** Make a tab, and load its marker: the server finds its page by it (main thread). */
     private void open(String marker, int width, int height) {
         if (tabs.containsKey(marker)) return;
+        make(marker, width, height).page.loadUrl("about:blank#" + marker);
+    }
+
+    /** What pages may do with window.open (browser.popups): allow, ask or off (main thread). */
+    private void popups(String mode) {
+        if (!("allow".equals(mode) || "ask".equals(mode) || "off".equals(mode))) {
+            throw new IllegalArgumentException("popups is allow, ask or off, not " + mode);
+        }
+        popups = mode;
+        for (Tab tab : tabs.values()) tab.page.getSettings().setJavaScriptCanOpenWindowsAutomatically(!"off".equals(mode));
+    }
+
+    /** The marker of a tab's view, or null for none of Pi's (main thread). */
+    private String markerOf(WebView view) {
+        for (Map.Entry<String, Tab> tab : tabs.entrySet()) {
+            if (tab.getValue().page == view) return tab.getKey();
+        }
+        return null;
+    }
+
+    /**
+     * The server's answer to a window a page asked to open: a tab of its own, at `width` × `height`, given to the page
+     * (window.opener stays), or none, and the page's window closes (main thread).
+     */
+    private void window(String marker, boolean open, int width, int height) {
+        Window asked = windows.remove(marker);
+        if (asked == null) throw new IllegalArgumentException("no window waits as " + marker);
+        WebView.WebViewTransport transport = (WebView.WebViewTransport) asked.message.obj;
+        if (!open) {
+            transport.setWebView(null);
+            asked.message.sendToTarget();
+            return;
+        }
+        if (!tabs.containsKey(asked.opener)) throw new IllegalStateException("the tab that asked for the window is closed");
+        Tab tab;
+        try {
+            // Not loaded: the page that opened it loads it.
+            tab = make(marker, width, height);
+        } catch (RuntimeException failed) {
+            transport.setWebView(null);
+            asked.message.sendToTarget();
+            throw failed;
+        }
+        transport.setWebView(tab.page);
+        asked.message.sendToTarget();
+    }
+
+    /** A window the server could not be asked about: the page's window closes (main thread). */
+    private void refuse(String marker) {
+        Window asked = windows.remove(marker);
+        if (asked == null || !tabs.containsKey(asked.opener)) return;
+        ((WebView.WebViewTransport) asked.message.obj).setWebView(null);
+        asked.message.sendToTarget();
+    }
+
+    /**
+     * Make a tab: a WebView of its own, on a display of its own, not loaded yet (a window's WebView must be fresh for the
+     * page that opens it). Main thread.
+     */
+    private Tab make(String marker, int width, int height) {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
             throw new IllegalStateException("Pi's browser needs a newer Android System WebView (110 or later): update it in the Play Store");
         }
@@ -246,8 +414,11 @@ final class PiBrowser {
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
-        settings.setSupportMultipleWindows(false);
+        // Windows pages open become tabs (onCreateWindow); without a click only while browser.popups is not off.
+        settings.setSupportMultipleWindows(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(!"off".equals(popups));
         settings.setMediaPlaybackRequiresUserGesture(true);
+        view.setWebChromeClient(chrome);
         view.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -269,7 +440,7 @@ final class PiBrowser {
         tab.frames = frames;
         tab.window = window;
         tabs.put(marker, tab);
-        view.loadUrl("about:blank#" + marker);
+        return tab;
     }
 
     /** This device or its local network, by the address written: the app's server, the owner's machines. */
@@ -294,6 +465,10 @@ final class PiBrowser {
     private void close(String marker) {
         Tab tab = tabs.remove(marker);
         if (tab == null) return;
+        // Windows its page asked for go with it, unanswered: their opener is gone.
+        for (Iterator<Window> each = windows.values().iterator(); each.hasNext(); ) {
+            if (each.next().opener.equals(marker)) each.remove();
+        }
         tab.page.destroy();
         tab.window.dismiss();
         tab.display.release();
@@ -346,7 +521,13 @@ final class PiBrowser {
     }
 
     private void post(String id, JSONObject reply) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) new URL(BASE + "/api/phone/browser/" + id).openConnection();
+        int code = send("/api/phone/browser/" + id, reply);
+        if (code != 200) Log.w(TAG, "browser answer: HTTP " + code);
+    }
+
+    /** POST `body` to the server at `path`: its HTTP status. */
+    private int send(String path, JSONObject body) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(BASE + path).openConnection();
         connection.setConnectTimeout(3000);
         connection.setReadTimeout(30_000);
         connection.setDoOutput(true);
@@ -354,13 +535,13 @@ final class PiBrowser {
         connection.setRequestProperty("Authorization", "Bearer " + token.get());
         connection.setRequestProperty("X-Pocket", "1");
         connection.setRequestProperty("Content-Type", "application/json");
-        byte[] body = reply.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
         try (OutputStream out = connection.getOutputStream()) {
-            out.write(body);
+            out.write(bytes);
         }
         int code = connection.getResponseCode();
-        if (code != 200) Log.w(TAG, "browser answer: HTTP " + code);
         connection.disconnect();
+        return code;
     }
 
     private static String readAll(InputStream in) throws IOException {

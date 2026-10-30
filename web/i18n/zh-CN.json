@@ -3139,5 +3139,10 @@
     "A server that speaks OpenAI's API, on your network or the web. Its models join the model pickers; its key is kept in Secrets.": "使用 OpenAI API 的服务器，可在你的网络中或网上。它的模型会出现在模型选择器中；密钥保存在密钥中。",
     "Add an OpenAI-compatible provider": "添加 OpenAI 兼容提供方",
     "{n} model chosen": "已选 {n} 个模型",
-    "{n} models chosen": "已选 {n} 个模型"
+    "{n} models chosen": "已选 {n} 个模型",
+    "A window a page opens, such as a sign-in popup, becomes a tab in front; the page can talk to it.": "页面打开的窗口（如登录弹窗）会成为前台的一个标签页；页面仍可与它通信。",
+    "You answer a card before a window a page opens becomes a tab.": "页面打开的窗口成为标签页之前，你先在卡片上作答。",
+    "Pages get no windows: a sign-in that opens one does not work.": "页面无法打开窗口：需要打开窗口的登录将无法完成。",
+    "Windows pages open": "页面打开的窗口",
+    "Windows on the phone": "手机上的窗口"
 }

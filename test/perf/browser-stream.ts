@@ -127,6 +127,8 @@ const json = async (path: string, method = "GET") => (await fetch(`http://127.0.
 const engine: BrowserEngine = {
     label: "the machine's Chrome",
     popups: false,
+    asksWindows: false,
+    watchWindows: () => () => {},
     local: true,
     actAsPhone: true,
     reopensToResize: false,

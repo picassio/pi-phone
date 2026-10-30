@@ -9,7 +9,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import type { Cdp } from "./cdp.ts";
 import type { BrowserPage, PictureOptions } from "./page.ts";
-import type { BrowserEngine, BrowserSize } from "./pi-browser.ts";
+import type { BrowserEngine, BrowserSize, WindowAsk } from "./pi-browser.ts";
 
 /** Which session owns each tab, by place and tab id, kept in a JSON file. */
 export class TabOwners {
@@ -137,6 +137,23 @@ export class SessionEngine implements BrowserEngine {
 
     get popups(): boolean {
         return this.#engine.popups;
+    }
+
+    get asksWindows(): boolean {
+        return this.#engine.asksWindows;
+    }
+
+    /** Windows the pages of this session's tabs ask to open; the window's tab is this session's too (PP-249). */
+    watchWindows(asked: (ask: WindowAsk) => boolean): () => void {
+        return this.#engine.watchWindows((ask) => {
+            if (this.#owners.owner(this.#place, ask.opener) !== this.#session || !asked(ask)) {
+                return false;
+            }
+
+            this.#owners.set(this.#place, ask.tab, this.#session);
+
+            return true;
+        });
     }
 
     get local(): boolean {

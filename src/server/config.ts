@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type AssistantSettings, readAssistant, storedAssistant } from "./assistant.ts";
+import type { PopupMode } from "./browser/pi-browser.ts";
 import { readVoice, readVoiceCheck, storedVoice, type VoiceCheck, type VoiceSettings } from "./voice.ts";
 
 /** The repository root: `web/`, `src/`, and `node_modules/` live here. */
@@ -173,6 +174,11 @@ interface PocketConfig {
      * Jev model's OpenRouter id ("typesafe/jev-1.13"). Absent: "session"; Jev runs only once the owner picks it.
      */
     browserRunModel?: string;
+    /**
+     * What Pi's browser on the phone does when a page opens a window (PP-249): "allow" (a tab in front), "ask" (a card
+     * first), or "off" (the page gets none). Absent: allow.
+     */
+    browserPopups?: PopupMode;
     /** The design system Pi designs with unless asked otherwise (`design-systems.ts`), by its id. Absent: none. */
     designSystem?: string;
     /** The model that describes images in documents (PP-49), provider/modelId; none when unset. */
@@ -539,6 +545,20 @@ export class ConfigStore {
             delete this.#config.browserRunModel;
         } else {
             this.#config.browserRunModel = model;
+        }
+
+        this.save();
+    }
+
+    get browserPopups(): PopupMode {
+        return this.#config.browserPopups ?? "allow";
+    }
+
+    set browserPopups(mode: PopupMode) {
+        if (mode === "allow") {
+            delete this.#config.browserPopups;
+        } else {
+            this.#config.browserPopups = mode;
         }
 
         this.save();
