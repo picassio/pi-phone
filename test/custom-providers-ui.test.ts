@@ -146,7 +146,8 @@ test("add a provider with Find models, see its models in the pickers, edit it an
     await page.setViewport(VIEWPORTS.mobile);
     await page.navigate(`${base}/`);
     await inPage(`const { openSheet } = await import("/store.js"); openSheet({ type: "providers" }); return "1"`);
-    await until(async () => /OpenAI-compatible providers/.test(await text(".custom-providers")), "the part of the sheet");
+    // The heading shows at once; the Add button once the list has loaded.
+    await until(async () => (await count(".custom-providers .cp-add")) === 1, "the part of the sheet, loaded");
     await shot("provider-custom-empty-390", ".custom-providers");
 
     assert.ok(await press(".custom-providers", "Add an OpenAI-compatible provider"));
