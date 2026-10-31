@@ -97,6 +97,7 @@ import { type CallPlan, type CallStart, chatgptAccount, type VoiceEndpoints, typ
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
 import { clockText, inLanguage, inZone, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
+import { Progress } from "./progress.ts";
 import { resolveLanguage, translator } from "./i18n.ts";
 import { newestBig, WHATS_NEW_DIR, type WhatsNew } from "./whats-new.ts";
 import {
@@ -376,6 +377,34 @@ export class PocketApp {
     readonly approvals = new Approvals((id) => this.attribution.requesterOf(id));
     /** What the app's background service notifies the owner of (`phone-events.ts`). */
     readonly phoneEvents = new PhoneEvents();
+    /** What Pi does in every session, for the phone's notification and floating board (`progress.ts`, PP-283). */
+    readonly progress = new Progress({
+        busy: () => this.busyConversations(),
+        approvals: () => this.approvals.all(),
+        title: (id) => this.#progressTitle(id),
+        rootOf: (id) => this.rootOf(id),
+        since: (id) => this.#busySince.get(id),
+        peek: async (id) => {
+            // Its newest steps, as a peek tile reads them: from its view, opened for this when no tab has it open.
+            const open = this.openRoom(id);
+
+            try {
+                const room = await (open ?? this.room(id));
+
+                try {
+                    return room.peek()?.lines;
+                } finally {
+                    if (open === undefined) {
+                        this.releaseRoom(room);
+                    }
+                }
+            } catch {
+                return undefined;
+            }
+        },
+        doneSince: (at) => this.phoneEvents.countSince("done", at),
+        now: () => Date.now(),
+    });
     /** The same, as push notifications to the browsers that turned them on (`web-push.ts`, PP-127). */
     readonly webPush: WebPush;
     /** Pictures of pages, rendered by the app's service on the phone (`screenshots.ts`). */
@@ -2316,6 +2345,27 @@ export class PocketApp {
         await this.#refreshClients();
     }
 
+    /**
+     * One of the progress board's settings on the phone (PP-283): its rows in the notification, the floating bubble, and
+     * hiding the bubble when nothing runs. The phone's service reads them with the board.
+     */
+    async setProgressBoard(user: User, part: unknown, on: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (part !== "notification" && part !== "bubble" && part !== "hideIdle") {
+            throw new HttpError(400, "The progress board's settings are notification, bubble and hideIdle.");
+        }
+
+        if (typeof on !== "boolean") {
+            throw new HttpError(400, "Send on: true or false.");
+        }
+
+        this.config.setProgressBoard(part, on);
+        await this.#refreshClients();
+    }
+
     /** The owner changes what the phone's assistant sheet does (PP-146): `patch` names only the settings to change. */
     async setAssistant(user: User, patch: unknown): Promise<void> {
         if (user.role !== "owner") {
@@ -3002,6 +3052,29 @@ export class PocketApp {
                 ...[...this.#agents.keys()].filter((id) => this.rootOf(id) === root),
             ]),
         ];
+    }
+
+    /**
+     * A conversation's name on the progress board (PP-283): a session's title, a subagent's "session · name"; undefined
+     * for a conversation that is neither (the wiki's capture, and the like).
+     */
+    #progressTitle(id: ConversationId): string | undefined {
+        const meta = this.sessionMeta(id);
+
+        if (meta !== undefined) {
+            return meta.title ?? "New session";
+        }
+
+        const parent = this.parentOf(id);
+
+        if (parent === undefined) {
+            return undefined;
+        }
+
+        const name = Object.entries(this.#subagents.get(parent)?.agents ?? {}).find(([, record]) => record.conversationId === id)?.[0] ?? "subagent";
+        const root = this.sessionMeta(this.rootOf(id));
+
+        return `${root?.title ?? "New session"} · ${name}`;
     }
 
     /** The conversation that spawned a subagent's; undefined for any other conversation. */
@@ -3911,6 +3984,8 @@ export class PocketApp {
                 compactAt: this.config.compactAt,
                 // What of the wiki, secrets, and skills goes into every session's prompt (`context-policy.ts`).
                 contextPolicy: resolveContextPolicy(this.config.contextPolicy, undefined),
+                // The progress board on the phone (PP-283): the notification's rows, the floating bubble, hidden when idle.
+                progressBoard: this.config.progressBoard,
                 // The model and thinking level subagents start on in every session (PP-281); a part absent: the session's own.
                 subagentDefaults: this.config.subagentDefaults,
                 // Minutes idle before a session is captured into the wiki, or null (`para-capture.ts`).

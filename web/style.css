@@ -2468,6 +2468,107 @@ pre.diff .del {
     overflow-wrap: anywhere;
 }
 
+/* ─── The floating progress board (PP-283, board.js): the pi bubble's board over the app in front ─── */
+
+:root.board-mode,
+:root.board-mode body {
+    background: transparent;
+}
+
+.pgb {
+    margin: 0;
+    background: var(--bg);
+    border: 1px solid var(--hair-2);
+    border-radius: 20px;
+    overflow: hidden;
+    color: var(--text);
+}
+
+.pgb-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 8px 8px 12px;
+    border-bottom: 1px solid var(--hair);
+}
+
+.pgb-head b {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pgb-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--hair);
+    color: var(--muted);
+}
+
+.pgb-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--ok);
+}
+
+.pgb-dot.waiting {
+    background: var(--warn);
+}
+
+.pgb-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 4px 0;
+    text-align: left;
+    color: var(--text);
+}
+
+.pgb-text b,
+.pgb-text small {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pgb-text b {
+    font-weight: 500;
+    font-size: 0.88rem;
+}
+
+.pgb-text small {
+    color: var(--muted);
+}
+
+.pgb-answer {
+    display: flex;
+    gap: 6px;
+    flex: none;
+}
+
+.pgb-empty {
+    margin: 0;
+    padding: 10px 12px;
+}
+
+.pgb-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px 6px 12px;
+}
+
 /* ─── The phone's assistant sheet (PP-146, assist.js) ─────────────────────────────────── */
 
 /* Over the app in front: the page is see-through, and the backdrop dims that app. */

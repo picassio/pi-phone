@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The progress board in the pi notification, expanded (Progress.java, PP-283): a row per session at work or waiting for
+     the owner, up to five, each opening its session; Progress shows the ones it has and fills them in. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/progress_row0"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/progress_dot0"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:contentDescription="@null"
+            android:src="@drawable/progress_dot" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/progress_title0"
+                style="@android:style/TextAppearance.Material.Notification.Title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/progress_doing0"
+                style="@android:style/TextAppearance.Material.Notification"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/progress_when0"
+            style="@android:style/TextAppearance.Material.Notification.Time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/progress_row1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/progress_dot1"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:contentDescription="@null"
+            android:src="@drawable/progress_dot" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/progress_title1"
+                style="@android:style/TextAppearance.Material.Notification.Title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/progress_doing1"
+                style="@android:style/TextAppearance.Material.Notification"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/progress_when1"
+            style="@android:style/TextAppearance.Material.Notification.Time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/progress_row2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/progress_dot2"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:contentDescription="@null"
+            android:src="@drawable/progress_dot" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/progress_title2"
+                style="@android:style/TextAppearance.Material.Notification.Title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/progress_doing2"
+                style="@android:style/TextAppearance.Material.Notification"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/progress_when2"
+            style="@android:style/TextAppearance.Material.Notification.Time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/progress_row3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/progress_dot3"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:contentDescription="@null"
+            android:src="@drawable/progress_dot" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/progress_title3"
+                style="@android:style/TextAppearance.Material.Notification.Title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/progress_doing3"
+                style="@android:style/TextAppearance.Material.Notification"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/progress_when3"
+            style="@android:style/TextAppearance.Material.Notification.Time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/progress_row4"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/progress_dot4"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:contentDescription="@null"
+            android:src="@drawable/progress_dot" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/progress_title4"
+                style="@android:style/TextAppearance.Material.Notification.Title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/progress_doing4"
+                style="@android:style/TextAppearance.Material.Notification"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/progress_when4"
+            style="@android:style/TextAppearance.Material.Notification.Time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/progress_more"
+        style="@android:style/TextAppearance.Material.Notification"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="2dp"
+        android:textSize="12sp"
+        android:visibility="gone" />
+</LinearLayout>

@@ -161,6 +161,11 @@ export class PhoneEvents {
         return { seq: this.#seq, events: this.#events.filter((event) => event.seq > after) };
     }
 
+    /** How many events of `kind` the phone was told since `at` (the progress board's "done", PP-283). */
+    countSince(kind: PhoneEvent["kind"], at: number): number {
+        return this.#events.filter((event) => event.kind === kind && event.at >= at).length;
+    }
+
     /** For notifications: a session's id as the app's routes have it. */
     static session(id: ConversationId): number {
         return Number(id);

@@ -66,6 +66,7 @@ import { prefs, setPrefs, startTheme } from "./theme.js";
 import { Transcript } from "./transcript.js";
 import { installAndroidSpeech } from "./android-speech.js";
 import { ASSIST, AssistView, rememberLastSession } from "./assist.js";
+import { BOARD, BoardView } from "./board.js";
 import { installAppUpdates } from "./sheets/update.js";
 import { toggleDictation } from "./voice.js";
 import {
@@ -457,6 +458,11 @@ function App() {
         return html`<${AssistView} /><${Notices} />`;
     }
 
+    // The floating progress board (PP-283): only the board, over the app in front.
+    if (BOARD) {
+        return html`<${BoardView} /><${Notices} />`;
+    }
+
     if (state.me === undefined) {
         return html`<${Boot}
             caption=${state.notices.some((notice) => notice.level === "error") ? t("waiting for the server") : t("starting")}
@@ -816,8 +822,8 @@ installAppUpdates();
 // goes to the list rather than out of the app.
 // The assistant's sheet has no history of its own, nor the app's edge gestures; the app's window keeps the session the
 // owner is in, for the sheet's "last session".
-if (ASSIST) {
-    document.documentElement.classList.add("assist-mode");
+if (ASSIST || BOARD) {
+    document.documentElement.classList.add(BOARD ? "board-mode" : "assist-mode");
 } else {
     startHistory({ home: !wide() });
     startEdgeBack();
@@ -828,7 +834,7 @@ if (ASSIST) {
 startSwipes((where) => {
     const { conversationId, view, missing } = store.state;
 
-    if (ASSIST) {
+    if (ASSIST || BOARD) {
         return {};
     }
 

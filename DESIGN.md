@@ -331,6 +331,20 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `bash` commands that name the wiki folder (on the phone; a session on a machine works on that machine's files), naming
   the wiki tool to use. It keeps Pi honest rather than being a security boundary; nothing watches the folder, as only
   the tools, the Wiki page, and capture change it.
+- **The progress board** (PP-283, GitHub issue #5; `progress.ts`, `web/board.js`, `Progress.java`,
+  `ProgressBubble.java`; owner's mockup v4, 2026-10-31): `Progress` reads the app's busy conversations and pending
+  approvals (sessions and subagents; others such as the wiki's capture are left out), each one's newest peek line as
+  "what it does now" (`doingText`, from its room, opened for it when no tab has it), and the sessions done in the last
+  hour (`PhoneEvents.countSince`): what waits first, then the longest at work, five rows, a heading with the counts.
+  A new version only when what it says (times aside) changes; `GET /api/phone/progress?after=` long-polls it, read
+  again every 1.5 s, with `config.progressBoard` (notification on, bubble off, hideIdle on). PiService's `Progress`
+  thread shows it, at most every 2 s, in the always-on notification (id 1, its quiet channel): title and first row
+  collapsed, `DecoratedCustomViewStyle` rows (`progress_rows.xml`) each opening its session, Approve for a simple card
+  (`ACTION_APPROVE` to PiService, `POST /api/approvals/<id>`). With the bubble on and `Settings.canDrawOverlays`,
+  `ProgressBubble` adds a `TYPE_APPLICATION_OVERLAY` circle (pi's mark `pi_mark.xml`, a turning ring while Pi works, the
+  count, an amber badge), dragged to the nearest side; a tap opens `/?board=1` in a WebView window (bridge `PiBoard`:
+  open, openApp, fold; a tap outside folds). Hidden a minute after the last run when hideIdle. This phone has the switches;
+  the bubble's turns on once Android allows it (`PiPhoneApp.overlayAllowed`, `askOverlay`).
 - **Subagents' model and thinking** (PP-281; `subagent-defaults.ts`, `extensions/subagents.ts`,
   `web/sheets/subagent-settings.js`; owner's mockup v2, 2026-10-31): `config.subagentDefaults` (every session's) and
   `SessionMeta.subagentDefaults` (a session's own, `session` for its own model or level), each part on its own;

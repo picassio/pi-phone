@@ -33,6 +33,8 @@ public final class PiService extends Service {
     static final int PORT = 8787;
     private static final int RESTART_CODE = 75;
     private static final String CHANNEL = "pi-runtime";
+    /** The always-on notification's channel, quiet: the progress board (Progress.java) updates it. */
+    static final String RUNTIME_CHANNEL = CHANNEL;
     /** Sessions that finished, failed, or ask for an approval (phone-events.ts), and files saved to Downloads. */
     static final String EVENTS_CHANNEL = "pi-events";
     /** The session a notification opens: MainActivity reads it. */
@@ -84,6 +86,9 @@ public final class PiService extends Service {
     /** Pi controls this phone (PhoneControl.java). */
     private Thread control;
     private PhoneControl phoneControl;
+    /** What Pi does in every session, in the notification and the floating bubble (Progress.java, PP-283). */
+    private Thread progressThread;
+    private Progress progress;
     private volatile Process server;
 
     @Override
@@ -125,6 +130,18 @@ public final class PiService extends Service {
             }, () -> state == State.RUNNING || state == State.STARTING);
             control = new Thread(phoneControl::loop, "pi-phone-control");
             control.start();
+            progress = new Progress(this, () -> {
+                try {
+                    return ownerToken(this);
+                } catch (Exception e) {
+                    throw new IllegalStateException("no owner token: " + e, e);
+                }
+            }, () -> state == State.RUNNING || state == State.STARTING, this::notification);
+            progressThread = new Thread(progress::loop, "pi-progress");
+            progressThread.start();
+        } else if (intent != null && Progress.ACTION_APPROVE.equals(intent.getAction())) {
+            String id = intent.getStringExtra(Progress.EXTRA_APPROVAL);
+            if (id != null && progress != null) progress.approve(id);
         } else if (intent != null && ACTION_PHONE_STOP.equals(intent.getAction())) {
             phoneControl.stopFromPhone();
         } else if (intent != null && ACTION_UPDATE.equals(intent.getAction())) {
@@ -456,6 +473,8 @@ public final class PiService extends Service {
         if (renderer != null) renderer.interrupt();
         if (browser != null) browser.interrupt();
         if (control != null) control.interrupt();
+        if (progressThread != null) progressThread.interrupt();
+        if (progress != null) progress.stop();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         super.onDestroy();
     }

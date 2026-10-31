@@ -631,6 +631,29 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             apply: (_user, value, target) => app.setLanguage(person(target), value.trim()),
         },
         // ─── Notifications and dictation (PP-235: what a Getting started guide sets up) ───
+        // The progress board on the phone (PP-283): the notification's rows, the floating bubble, hidden when idle.
+        ...([
+            ["notification", "notifications.progress", "Progress in the pi notification", "on: the always-on pi notification lists the sessions at work and waiting, each with what it does now; off: it only says pi runs."],
+            ["bubble", "notifications.bubble", "Floating board over other apps", "on: a pi bubble over other apps with how many sessions work and a badge when one waits; a tap opens the board. Android asks the owner once for Display over other apps (on the phone itself)."],
+            ["hideIdle", "notifications.bubbleHide", "Hide the floating board when nothing runs", "on: the bubble hides a minute after the last run ends, and comes back when one starts."],
+        ] as const).map(([part, id, title, help]): Setting => ({
+            id,
+            area: "notifications",
+            title,
+            help,
+            owner: true,
+            read: () => (app.config.progressBoard[part] ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (user, value) => {
+                const wanted = value.trim();
+
+                if (wanted !== "on" && wanted !== "off") {
+                    throw new HttpError(400, `${title} is on or off.`);
+                }
+
+                return app.setProgressBoard(user, part, wanted === "on");
+            },
+        })),
         {
             id: "notifications.device",
             area: "notifications",

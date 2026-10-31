@@ -216,6 +216,19 @@ public final class MainActivity extends Activity {
             return ((PowerManager) getSystemService(POWER_SERVICE)).isIgnoringBatteryOptimizations(getPackageName());
         }
 
+        /** Whether Android lets pi display over other apps: the floating progress board's bubble (PP-283). */
+        @JavascriptInterface
+        public boolean overlayAllowed() {
+            return Settings.canDrawOverlays(MainActivity.this);
+        }
+
+        /** Android's Display over other apps page for pi: the owner allows the bubble there, once. */
+        @JavascriptInterface
+        public void askOverlay() {
+            runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()))));
+        }
+
         @JavascriptInterface
         public void runUnrestricted() {
             runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,

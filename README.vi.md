@@ -33,6 +33,12 @@ dự án thật.</sub>
 - **Subagent trong nháy mắt.** Một ô xem nhanh liệt kê các subagent đang làm việc trong phiên của nó (tối đa 3, trên
   dải của điện thoại là 1; **N nữa** mở bảng ở đó), và bảng subagent có một ô con cho mỗi subagent (6 mỗi phiên, 3 trên
   điện thoại). Một yêu cầu duyệt trên ô sẽ nêu tên subagent đang hỏi.
+- **Pi đang làm gì, xem từ bất kỳ ứng dụng nào.** Thông báo pi luôn hiện giờ là bảng tiến độ: tiêu đề đếm số phiên đang
+  chạy, đang chờ bạn và đã xong trong giờ qua; mở rộng ra, mỗi phiên một dòng với việc đang làm ("đang sửa …", "đang chạy
+  npm test"), chạm để mở phiên đó, và nút Duyệt cho thẻ đơn giản. Bật bảng nổi (Điện thoại này › Bảng nổi trên ứng dụng
+  khác; Android hỏi một lần để cho pi hiển thị trên ứng dụng khác): logo pi trong một bong bóng trên mọi ứng dụng, vòng
+  quay khi Pi làm việc, số đếm và huy hiệu khi có việc chờ bạn; chạm để mở bảng. Pi đổi được qua thẻ
+  (`notifications.progress`, `notifications.bubble`, `notifications.bubbleHide`). Từ GitHub issue #5.
 - **Subagent chạy trên mô hình bạn chọn.** Menu › Subagent đặt mô hình và mức suy nghĩ Pi dùng khi tạo subagent, cho mọi
   phiên; menu của một phiên (Mô hình của subagent) đặt riêng cho phiên đó. Pi chỉ dùng mô hình khác khi bạn yêu cầu trong
   chat: trong các mô hình bạn cho phép ở đó (thêm nhiều cái cùng lúc, mỗi cái hiện ngữ cảnh và hạn mức gói), hoặc sau khi

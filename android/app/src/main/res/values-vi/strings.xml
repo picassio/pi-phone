@@ -65,4 +65,8 @@
     <string name="voice_unmute">Bật mic</string>
     <string name="voice_end">Kết thúc</string>
     <string name="voice_caller">Pi</string>
+    <string name="progress_approve">Duyệt</string>
+    <string name="progress_open_app">Mở pi-phone</string>
+    <string name="progress_more">và %1$d mục nữa</string>
+    <string name="progress_bubble">pi: đang chạy gì</string>
 </resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A row's state on the progress board in the pi notification (Progress.java, PP-283): tinted per state. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <size android:width="8dp" android:height="8dp" />
+    <solid android:color="#FFFFFFFF" />
+</shape>

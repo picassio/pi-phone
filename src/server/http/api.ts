@@ -646,6 +646,21 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ...found, events: found.events.map((event) => inLanguage(event, t)) });
         }
 
+        // The progress board (`progress.ts`, PP-283): the app's service and its floating board, a long poll for a new version.
+        if (first === "phone" && second === "progress" && method === "GET") {
+            if (user.role !== "owner") {
+                throw new HttpError(403, "Only the owner gets the phone's notifications.");
+            }
+
+            const abort = new AbortController();
+
+            request.on("close", () => abort.abort());
+            const language = resolveLanguage(user.language, url.searchParams.get("lang") ?? undefined);
+            const board = await app.progress.after(Number(url.searchParams.get("after") ?? -1), translator(language), language, abort.signal);
+
+            return json(response, 200, { ...board, settings: app.config.progressBoard });
+        }
+
         // Screenshots (`screenshots.ts`): the app's service takes what to render (a long poll), and answers with pictures.
         if (first === "phone" && second === "renders" && third === undefined && method === "GET") {
             requireOwner(user);
@@ -1579,6 +1594,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 compactAt?: unknown;
                 contextPolicy?: unknown;
                 subagentDefault?: unknown;
+                progressBoard?: unknown;
                 limitWaitHours?: unknown;
                 limitNotice?: unknown;
                 assistant?: unknown;
@@ -1597,6 +1613,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.compactAt,
                     body.contextPolicy,
                     body.subagentDefault,
+                    body.progressBoard,
                     body.limitWaitHours,
                     body.limitNotice,
                     body.assistant,
@@ -1637,6 +1654,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
 
             // The model and thinking level subagents start on in every session (PP-281): { part, value }.
+            // The progress board on the phone (PP-283): { part, on }.
+            if (body.progressBoard !== undefined) {
+                const { part, on } = (body.progressBoard ?? {}) as { part?: unknown; on?: unknown };
+
+                await app.setProgressBoard(user, part, on);
+            }
+
             if (body.subagentDefault !== undefined) {
                 const { part, value } = (body.subagentDefault ?? {}) as { part?: unknown; value?: unknown };
 

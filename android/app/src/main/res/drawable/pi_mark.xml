@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pi's logo in its colors (https://pi.dev/logo.svg, the Pi project's), its paths as web/icon.svg has them, cropped to
+     the mark: the floating progress board's bubble (ProgressBubble.java, PP-283). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="470"
+    android:viewportHeight="470">
+    <group
+        android:translateX="-105"
+        android:translateY="-105">
+        <path
+            android:fillColor="#F09082"
+            android:pathData="M165.29,165.29H517.36V400H400V282.65H165.29Z" />
+        <path
+            android:fillColor="#4D9ABF"
+            android:pathData="M165.29,282.65H282.65V400H400V517.36H282.65V634.72H165.29Z" />
+        <path
+            android:fillColor="#F1BE58"
+            android:pathData="M517.36,400H634.72V634.72H517.36Z" />
+    </group>
+</vector>

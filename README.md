@@ -29,6 +29,12 @@ No Termux, no laptop, no cloud VM.
 - **Subagents at a glance.** A peek tile lists the subagents at work in its session (3 at most, 1 in the phone's
   strip; **N more** opens the board there), and the subagents board shows a sub-tile for each (6 a session, 3 on a
   phone). An approval on a tile names the subagent that asks.
+- **What Pi does, from any app.** The always-on pi notification is a progress board: its title counts the sessions at
+  work, waiting for you, and done in the last hour; expanded, a row per session with what it does now ("editing …",
+  "running npm test"), each opening its session, and Approve for a simple card. Turn on the floating board (This phone ›
+  Floating board over other apps; Android asks once to let pi display over other apps): the pi logo in a bubble over any
+  app, a ring turning while Pi works, a count, and a badge when something waits; tap it for the board. Pi changes these
+  on a card (`notifications.progress`, `notifications.bubble`, `notifications.bubbleHide`). From GitHub issue #5.
 - **Subagents on the model you pick.** Menu › Subagents sets the model and thinking level Pi starts subagents on, for
   every session; a session's menu (Subagents' model) sets its own over that. Pi uses another only when you ask in the
   chat: from the models you allow there (added several at once, each shown with its context and plan limit), or after

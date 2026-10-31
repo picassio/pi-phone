@@ -66,4 +66,9 @@
     <string name="voice_unmute">Unmute</string>
     <string name="voice_end">End</string>
     <string name="voice_caller">Pi</string>
+    <!-- The progress board (Progress.java, ProgressBubble.java, PP-283). -->
+    <string name="progress_approve">Approve</string>
+    <string name="progress_open_app">Open pi-phone</string>
+    <string name="progress_more">and %1$d more</string>
+    <string name="progress_bubble">pi: what runs now</string>
 </resources>

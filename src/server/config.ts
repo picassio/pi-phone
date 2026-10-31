@@ -7,6 +7,11 @@ import { type AssistantSettings, readAssistant, storedAssistant } from "./assist
 import type { PopupMode } from "./browser/pi-browser.ts";
 import { type ContextPart, type ContextPolicy, DEFAULT_CONTEXT_POLICY } from "./context-policy.ts";
 import { type SubagentDefaults, type SubagentPart, withPart } from "./subagent-defaults.ts";
+
+/** The progress board on the phone (PP-283): the notification's rows, the floating bubble, and hiding it when idle. */
+export type ProgressBoardSettings = { notification: boolean; bubble: boolean; hideIdle: boolean };
+
+export const DEFAULT_PROGRESS_BOARD: ProgressBoardSettings = { notification: true, bubble: false, hideIdle: true };
 import { readVoice, readVoiceCheck, storedVoice, type VoiceCheck, type VoiceSettings } from "./voice.ts";
 
 /** The repository root: `web/`, `src/`, and `node_modules/` live here. */
@@ -162,6 +167,11 @@ interface PocketConfig {
     limitWaitHours?: number;
     /** False: no phone notice when a run begins to wait 10 minutes or more for a limit. Absent: on. */
     limitNotice?: boolean;
+    /**
+     * The progress board on the phone (`progress.ts`, PP-283): only what differs from its defaults (the notification on,
+     * the floating bubble off, the bubble hidden when nothing runs).
+     */
+    progressBoard?: Partial<ProgressBoardSettings>;
     /** The phone's assistant sheet (`assistant.ts`): only the settings that differ from its defaults. */
     assistant?: Partial<AssistantSettings>;
     /** Voice with the ChatGPT sign-in (`voice.ts`): only the settings that differ from its defaults. */
@@ -541,6 +551,29 @@ export class ConfigStore {
 
     set voiceCheck(check: VoiceCheck) {
         this.#config.voiceCheck = check;
+        this.save();
+    }
+
+    /** The progress board's settings on the phone (PP-283), over their defaults. */
+    get progressBoard(): ProgressBoardSettings {
+        return { ...DEFAULT_PROGRESS_BOARD, ...this.#config.progressBoard };
+    }
+
+    setProgressBoard(part: keyof ProgressBoardSettings, on: boolean): void {
+        const next: Partial<ProgressBoardSettings> = { ...this.#config.progressBoard };
+
+        if (on === DEFAULT_PROGRESS_BOARD[part]) {
+            delete next[part];
+        } else {
+            next[part] = on;
+        }
+
+        if (Object.keys(next).length === 0) {
+            delete this.#config.progressBoard;
+        } else {
+            this.#config.progressBoard = next;
+        }
+
         this.save();
     }
 

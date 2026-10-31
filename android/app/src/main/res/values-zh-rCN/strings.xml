@@ -58,4 +58,8 @@
     <string name="voice_unmute">取消静音</string>
     <string name="voice_end">结束</string>
     <string name="voice_caller">Pi</string>
+    <string name="progress_approve">批准</string>
+    <string name="progress_open_app">打开 pi-phone</string>
+    <string name="progress_more">还有 %1$d 个</string>
+    <string name="progress_bubble">pi：正在运行的任务</string>
 </resources>
