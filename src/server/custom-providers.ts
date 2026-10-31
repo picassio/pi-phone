@@ -47,6 +47,11 @@ export type CustomModel = {
     contextWindow?: number;
     maxTokens?: number;
     images: boolean;
+    /**
+     * It writes images in its answers (PP-275), so `image_generate` may use it: `output: ["text", "image"]` in the file,
+     * as Pi's own image models say it. Only what the owner marks (or a server's list says) counts.
+     */
+    makesImages: boolean;
     reasoning: boolean;
 };
 
@@ -208,7 +213,7 @@ function flag(given: unknown): boolean {
     }
 
     if (typeof given !== "boolean") {
-        throw new HttpError(400, "Image input and reasoning are true or false.");
+        throw new HttpError(400, "Image input, making images and reasoning are true or false.");
     }
 
     return given;
@@ -248,6 +253,7 @@ export function checkModels(given: unknown): CustomModel[] {
             ...(contextWindow === undefined ? {} : { contextWindow }),
             ...(maxTokens === undefined ? {} : { maxTokens }),
             images: flag(model.images),
+            makesImages: flag(model.makesImages),
             reasoning: flag(model.reasoning),
         };
     });
@@ -327,6 +333,7 @@ export function modelsOfAnswer(answer: unknown): FoundModel[] {
         const capabilities = words(each.capabilities);
         const parameters = words(each.supported_parameters);
         const inputs = [...words(architecture.input_modalities), ...words(each.input_modalities)];
+        const outputs = [...words(architecture.output_modalities), ...words(each.output_modalities)];
         const contextWindow = firstCount(each.context_length, each.context_window, each.max_context_length, each.max_model_len, top.context_length);
         const maxTokens = firstCount(top.max_completion_tokens, each.max_completion_tokens, each.max_output_tokens);
         const name = typeof each.name === "string" && each.name.trim() !== "" && each.name.trim() !== each.id ? each.name.trim() : undefined;
@@ -337,6 +344,7 @@ export function modelsOfAnswer(answer: unknown): FoundModel[] {
             ...(contextWindow === undefined ? {} : { contextWindow }),
             ...(maxTokens === undefined ? {} : { maxTokens }),
             images: inputs.includes("image") || capabilities.includes("vision"),
+            makesImages: outputs.includes("image"),
             reasoning: parameters.includes("reasoning") || capabilities.includes("reasoning") || capabilities.includes("thinking"),
         });
     }
@@ -435,6 +443,7 @@ export class CustomProviders {
                 ...(contextWindow === undefined ? {} : { contextWindow }),
                 ...(maxTokens === undefined ? {} : { maxTokens }),
                 images: words(model.input).includes("image"),
+                makesImages: words(model.output).includes("image"),
                 reasoning: model.reasoning === true,
             };
         });
@@ -564,6 +573,12 @@ export class CustomProviders {
                     next.input = ["text", "image"];
                 } else if (words(next.input).includes("image")) {
                     delete next.input;
+                }
+
+                if (model.makesImages) {
+                    next.output = ["text", "image"];
+                } else if (words(next.output).includes("image")) {
+                    delete next.output;
                 }
 
                 if (model.reasoning) {

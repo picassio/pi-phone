@@ -658,7 +658,7 @@
     "The base URL has no query or fragment (? or #).": "基础 URL 不能包含查询或片段（? 或 #）。",
     "A provider's name is 1 to 60 characters.": "提供方名称为 1 到 60 个字符。",
     "{1} is a whole number of tokens, or empty.": "{1} 是整数个 token，或留空。",
-    "Image input and reasoning are true or false.": "图片输入和推理为 true 或 false。",
+    "Image input, making images and reasoning are true or false.": "图片输入、生成图片和推理为 true 或 false。",
     "Pick or type at least one model.": "请至少选择或输入一个模型。",
     "A provider has at most {1} models here.": "这里每个提供方最多 {1} 个模型。",
     "A model's id is 1 to 200 characters, without spaces.": "模型 ID 为 1 到 200 个字符，不含空格。",
@@ -710,5 +710,7 @@
     "Nothing answers as a browser's DevTools on port {1} of {2} (127.0.0.1): {3}. If Chrome asked on {4} to allow remote debugging, allow it there and try again.": "{2}（127.0.0.1）的端口 {1} 上没有浏览器 DevTools 应答：{3}。如果 Chrome 在 {4} 上询问是否允许远程调试，请在那里允许后重试。",
     "No Chrome, Chromium, Edge or Brave on {1} has remote debugging on in its own profile: turn it on there at chrome://inspect/#remote-debugging, or give the port or DevToolsActivePort file of the browser to attach to.": "{1} 上没有 Chrome、Chromium、Edge 或 Brave 在其自己的配置文件中打开远程调试：请在那里的 chrome://inspect/#remote-debugging 打开它，或给出要附加的浏览器的端口或 DevToolsActivePort 文件。",
     "This session's browser is not attached to another browser.": "此会话的浏览器没有附加到其他浏览器。",
-    "browserMode is headless or window.": "browserMode 只能是 headless 或 window。"
+    "browserMode is headless or window.": "browserMode 只能是 headless 或 window。",
+    "The image model is provider/model, or null for the default.": "图片模型为 provider/model，或 null 表示默认。",
+    "{1} is not an image model of a provider signed in now. Pick one of: {2}.": "{1} 不是当前已登录提供商的图片模型。请从以下选择：{2}。"
 }

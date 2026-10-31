@@ -28,6 +28,7 @@ import type { SshKeys } from "./ssh-keys.ts";
 import type { PhoneApp, PhoneControl } from "./phone-control.ts";
 import type { ComputerApp, ComputerControl } from "./computer-control.ts";
 import type { WebSearch } from "./web/access.ts";
+import type { ImageGen } from "./image-gen.ts";
 import type { CommandEnvProvider, HiddenValue } from "./hidden.ts";
 import type { DropInPackage } from "./drop-in-install.ts";
 
@@ -508,6 +509,8 @@ export interface PocketHost {
     readonly computer: ComputerControl;
     /** The session a conversation belongs to: itself, or a subagent's session. */
     rootOf(conversationId: number): number;
+    /** Image generation (`image-gen.ts`, PP-275): its providers and models, as Settings › Images has them. */
+    readonly images: ImageGen;
     /** Web search's provider and keys (`web/access.ts`), as Settings › Web access has them. */
     readonly web: WebSearch;
     /**

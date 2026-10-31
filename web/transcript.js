@@ -537,6 +537,8 @@ function stepWords(call) {
             };
         case "watch_pr":
             return { label: "watch PR", subject: [args.action, args.pr].filter(Boolean).join(" ") };
+        case "image_generate":
+            return { label: call.name, subject: args.prompt ? short(args.prompt) : "" };
 
         default: {
             const described = describeCall(call);
@@ -644,6 +646,19 @@ function outcome({ call, result, details, status }) {
                 : null;
         case "codemode":
             return Array.isArray(details?.calls) ? { text: tn(details.calls.length, "{n} call", "{n} calls"), tone: "" } : null;
+        // Images made (PP-275): how many, and what they cost (a count on the ChatGPT plan).
+        case "image_generate":
+            return Array.isArray(details?.images)
+                ? {
+                      text: [
+                          tn(details.images.length, "{n} image", "{n} images"),
+                          typeof details.cost === "number" ? `$${details.cost < 0.01 && details.cost > 0 ? details.cost.toFixed(4) : details.cost.toFixed(2)}` : details.plan === "chatgpt" ? t("ChatGPT plan") : "",
+                      ]
+                          .filter(Boolean)
+                          .join(" · "),
+                      tone: "",
+                  }
+                : null;
 
         case "subagent": {
             const agent = store.state.view.subagents?.find((each) => each.name === args.name);
@@ -992,7 +1007,9 @@ function ToolStep({
     const artifactSrc = artifact
         ? `a/${view.conversation.id}/${encodeURIComponent(artifact.id)}/${artifact.version}`
         : null;
-    const extras = result?.images > 0 || artifact;
+    // The images image_generate saved (PP-275): shown from their files, as Pi got only their paths.
+    const made = call.name === "image_generate" && Array.isArray(details?.images) ? details.images : [];
+    const extras = result?.images > 0 || artifact || made.length > 0;
 
     return html`<div
         class=${`step ${open ? "open" : ""} ${settled ? "settled" : ""}`}
@@ -1059,6 +1076,14 @@ function ToolStep({
                         count=${result.images}
                         label=${`${call.name} image`}
                     />`
+                }
+                ${
+                    made.length > 0 &&
+                    html`<div class="thumbs made-images" data-part="made-images">
+                        ${made.map(
+                            (image) => html`<${Thumb} src=${fileUrl(image.path, conversationId)} alt=${image.path.split("/").pop()} />`,
+                        )}
+                    </div>`
                 }
                 ${
                     artifactType === "svg" &&

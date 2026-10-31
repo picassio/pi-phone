@@ -17,6 +17,7 @@ import { makeBackup } from "./backup.ts";
 import { DESIGN_MODULE } from "./design-systems.ts";
 import { type CustomProviderView, idFromName, type KeyChoice } from "./custom-providers.ts";
 import { type VoiceCheck, VOICES } from "./voice.ts";
+import { ImageGen } from "./image-gen.ts";
 import { POPUP_MODES } from "./browser/pi-browser.ts";
 import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
 import { copyFileSync, rmSync } from "node:fs";
@@ -436,6 +437,31 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             read: () => app.config.docsImageModel ?? "none",
             choices: () => app.imageModels(),
             apply: (user, value) => app.setDocsImageModel(user, NONE.test(value.trim()) ? null : value.trim()),
+        },
+        {
+            id: "image.model",
+            area: "images",
+            title: "Model image_generate makes images with",
+            help: "provider/model of an image model of a signed-in provider (ChatGPT: openai-codex/gpt-image-2.5; OpenRouter: openrouter/google/gemini-2.5-flash-image and others; your own provider's models marked as making images), or auto: ChatGPT's when signed in, else OpenRouter's first. Pi may name another for one call (image_generate's model).",
+            owner: true,
+            read: async () => {
+                const chosen = app.config.imageModel;
+
+                if (chosen !== null) {
+                    return chosen;
+                }
+
+                const { models } = await app.images.models();
+                const found = ImageGen.defaultOf(models);
+
+                return `auto (now ${found?.id ?? "none: sign in to ChatGPT or OpenRouter"})`;
+            },
+            choices: async () => {
+                const { models, problems } = await app.images.models();
+
+                return ["auto", ...models.map((model) => `${model.id}${model.price?.imageOut === undefined ? "" : ` ($${model.price.imageOut}/M image tokens)`}`), ...problems.map((problem) => `(${problem})`)];
+            },
+            apply: (user, value) => app.setImageModel(user, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim().replace(/\s+\(.*\)$/, "")),
         },
         {
             id: "wiki.contextTokens",
@@ -1367,7 +1393,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "providers.customSave",
             area: "providers",
             title: "Add or change an OpenAI-compatible provider",
-            help: `A server with an OpenAI-compatible API (LM Studio, Ollama, vLLM, OpenRouter, a proxy), as Settings › Providers adds it; its models join the model pickers. models: ids, comma-separated, or a JSON list of {id, contextWindow, maxTokens, images, reasoning} (find them with providers.customFind). Optional: id (an existing one changes it; a new one is made from the name otherwise), key (the name of a secret holding the API key: ask the person to type it with secret_request first, never type a key yourself; or none for a server without one; left out, an existing provider keeps its key), headers (a JSON object of extra headers, or none). Now: ${customNow()}.`,
+            help: `A server with an OpenAI-compatible API (LM Studio, Ollama, vLLM, OpenRouter, a proxy), as Settings › Providers adds it; its models join the model pickers. models: ids, comma-separated, or a JSON list of {id, contextWindow, maxTokens, images, makesImages, reasoning} (makesImages: it writes images, so image_generate may use it) (find them with providers.customFind). Optional: id (an existing one changes it; a new one is made from the name otherwise), key (the name of a secret holding the API key: ask the person to type it with secret_request first, never type a key yourself; or none for a server without one; left out, an existing provider keeps its key), headers (a JSON object of extra headers, or none). Now: ${customNow()}.`,
             owner: true,
             args: { name: "Its name, as the pickers show it", baseUrl: "The API's base URL, http(s), often ending in /v1", models: "Model ids, comma-separated, or a JSON list" },
             describe: (args) => {
@@ -1414,7 +1440,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
 
                 return found.length === 0
                     ? "The server lists no models."
-                    : `${found.length} models:\n${found.map((model) => `- ${model.id}${model.contextWindow === undefined ? "" : `, context ${model.contextWindow}`}${model.maxTokens === undefined ? "" : `, output ${model.maxTokens}`}${model.images ? ", images" : ""}${model.reasoning ? ", reasoning" : ""}`).join("\n")}`;
+                    : `${found.length} models:\n${found.map((model) => `- ${model.id}${model.contextWindow === undefined ? "" : `, context ${model.contextWindow}`}${model.maxTokens === undefined ? "" : `, output ${model.maxTokens}`}${model.images ? ", images" : ""}${model.makesImages ? ", makes images" : ""}${model.reasoning ? ", reasoning" : ""}`).join("\n")}`;
             },
         },
         {

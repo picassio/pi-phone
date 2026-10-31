@@ -45,6 +45,7 @@ const ORDER = [
     "prompt.ts",
     "artifacts.ts",
     "screenshot.ts",
+    "images.ts",
     "browser.ts",
     "subagents.ts",
     "agent-teams.ts",
@@ -90,6 +91,7 @@ const OFF_BY_DEFAULT = new Set(["guard.ts", "agent-teams.ts", "projects.ts"]);
 const TITLES: Record<string, string> = {
     "prompt.ts": "System prompt",
     "artifacts.ts": "Artifacts",
+    "images.ts": "Images",
     "browser.ts": "Browser",
     "subagents.ts": "Subagents",
     "agent-teams.ts": "Agent Teams",
@@ -257,6 +259,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "session_unshare",
     "screenshot",
     "image_markup",
+    "image_generate",
     "browser_open",
     "browser_snapshot",
     "browser_click",

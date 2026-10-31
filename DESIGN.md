@@ -336,7 +336,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
 - **OpenAI-compatible providers** (PP-248, picassio/pi-phone#4; `custom-providers.ts`, `web/sheets/custom-providers.js`):
   Providers › Add an OpenAI-compatible provider writes Pi's own custom provider into `~/.pi/agent/models.json`
   (`api: "openai-completions"`, `baseUrl`, `headers`, `models` with `contextWindow`, `maxTokens`, `input`,
-  `reasoning`). Listed and editable: the file's `openai-completions` providers with a base URL that are not Pi's
+  `reasoning`, and `output: ["text", "image"]` for a model marked *Makes images*, PP-275). Listed and editable: the file's `openai-completions` providers with a base URL that are not Pi's
   built-ins; everything else in the file (other providers, `$schema`, a model's other fields) is kept. **Writes:** only
   a plain-JSON file is rewritten (one with comments is refused, not stripped); each change is loaded first by a
   throwaway `ModelRuntime.create({ modelsPath: <temp>, refreshOnCreate: false })` and refused on a schema error or a
@@ -529,6 +529,36 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `officecli view <file> html` with no resident process), in the artifacts' sandbox CSP. `hello`'s
     `server.officecli` says whether it runs.
   - **Machines:** see Machine tools.
+- **Images** (PP-275; owner's request of 2026-10-31: pi-codex-imagegen only, with OpenRouter's Nano Banana or any model
+  that supports images, and a setting for the model; `image-gen.ts`, `extensions/images.ts`, `web/sheets/images.js`):
+  `image_generate({ prompt, images?: path[] (at most 5, an edit), aspect?: 1:1|16:9|9:16|4:3|3:4, n?: 1..4, model?,
+  person? })`. No model runs here. **ChatGPT sign-in:** ported from IgorWarzocha's pi-codex-imagegen (MIT,
+  `third_party/pi-codex-imagegen/`): `POST chatgpt.com/backend-api/codex/images/generations` or `/images/edits`
+  (`images: [{ image_url: <data URL> }]`), `model: gpt-image-2.5`, `size: auto`, its headers (`ChatGPT-Account-ID` from
+  the token, `originator: codex_cli_rs`), answer `{ data: [{ b64_json }] }`. It ignores `size` (a 1024x1024 ask came
+  back 1536x1024, 2026-10-31), so the aspect goes in the prompt (`Aspect ratio 16:9.`), which it follows (1672x941,
+  1254x1254). **OpenRouter:** `POST /api/v1/chat/completions` with `modalities` (image and text, or image alone for an
+  image-only model), `image_config.aspect_ratio` and `usage.include`; the images are data URLs in `message.images`, the
+  cost is `usage.cost`. Its models are those of `GET /api/v1/models` with `image` in `architecture.output_modalities`
+  (kept an hour; routers priced -1 left out), priced from `pricing.image_output` per million tokens. Its newer
+  `/api/v1/images` API (which also lists `openai/gpt-image-*`) is not used. **The owner's providers:** only a model
+  marked *Makes images* (`output: [text, image]` in models.json, as pi-ai's image models say it; Find models reads
+  `architecture.output_modalities`), the same chat-completions shape, the aspect in the prompt; `/images/generations` is
+  not tried. **The setting** `image.model` (`config.imageModel`, Menu › Images, `setting_change`): a listed model, or
+  null for *Automatic*: ChatGPT's when signed in, else OpenRouter's first, else none, which fails naming the setting (a
+  documented default, not a fallback). A stored or asked model that is not listed now fails the same way; nothing falls
+  back to another provider. **Files:** written through the session's `ExecutionEnv` (the phone, or the machine a
+  session runs on): `images/<YYYY-MM-DD-HHMMSS>-<prompt's first words>[-n].png` and `images/latest.png`, always PNG
+  (another format converted with Photon). **Pi's context** gets paths, sizes, the model and the cost only; the result's
+  `details.images` carry the paths, and the chat draws them from `api/c/<id>/file` (a machine's through its env), so a
+  picture costs no tokens; Pi `read`s one to look. **Spend:** OpenRouter's (and a provider's reported) cost is the tool
+  result's `usage` (`pi.usage.tools`: the session's spend and its limits); ChatGPT's images are a count by day in
+  `SpendDoc.images` (Spend's *Images (ChatGPT sign-in)*). **A real person:** `person` set (the description asks for it on
+  a photo of someone or a named likeness) asks the owner on a card first. **Session models that write images:** pi-ai's
+  `AssistantMessage` holds text, thinking and tool calls only, and `openai-completions` neither asks for `modalities`
+  nor reads `message.images`, so an image a chat model would write never reaches the chat. When the session's model
+  writes images (OpenRouter's list says so, or the owner's mark), the `images` prompt section says that, and that Pi
+  makes images with `image_generate`, passing its own model if it likes; otherwise the section is empty.
 - **Screenshots** (`src/server/screenshots.ts`, `extensions/screenshot.ts`, `android/.../Renderer.java`; owner's decision of
   2026-10-18): Pi sees what it made. `screenshot({ artifact | path | url, widths = [390, 1280], fullPage, settle })`
   asks the app's service, which long-polls `GET /api/phone/renders` (beside `/api/phone/events`), to draw the page in an

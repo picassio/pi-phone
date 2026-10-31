@@ -115,6 +115,9 @@ export function pathsOf(tool: string, args: Record<string, unknown>): { read: st
             return { read: one(args.path), write: one(args.path) };
         case "browser_upload":
             return { read: Array.isArray(args.paths) ? args.paths.flatMap(one) : [], write: [] };
+        // Its images to edit go to the image model's provider (PP-275); what it makes goes in `images/` of the session.
+        case "image_generate":
+            return { read: Array.isArray(args.images) ? args.images.flatMap(one) : [], write: [] };
         case "file_to_markdown":
             // It saves the Markdown beside it, too.
             return { read: one(args.path), write: one(args.path).map((path) => `${path}.md`) };

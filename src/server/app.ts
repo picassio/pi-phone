@@ -10,7 +10,8 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { sshArguments } from "@earendil-works/pi-env";
 import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
-import { CustomProviders } from "./custom-providers.ts";
+import { CustomProviders, NO_KEY } from "./custom-providers.ts";
+import { ImageGen, type ImageGenOptions } from "./image-gen.ts";
 import { TeamAccountsClient } from "./team-accounts.ts";
 import { TeamMachinesClient } from "./team-machines.ts";
 import { machinePaths } from "./machine-paths.ts";
@@ -343,6 +344,8 @@ export interface OpenOptions {
     gatewayUrl?: string;
     /** Where OpenAI is and whose sign-in voice uses (`voice.ts`): tests stand in a fake OpenAI and a token. */
     voice?: { endpoints?: VoiceEndpoints; auth?: () => Promise<{ token: string; account?: string } | undefined>; fetch?: typeof fetch };
+    /** Where ChatGPT's and OpenRouter's image endpoints are, and whose ChatGPT sign-in (`image-gen.ts`): tests stand in fakes. */
+    images?: Partial<Pick<ImageGenOptions, "endpoints" | "fetch" | "codexAuth">>;
 }
 
 /** A Codex token's ChatGPT account, as voice sends it. */
@@ -481,6 +484,8 @@ export class PocketApp {
     readonly usageLimits: UsageLimits;
     /** Voice with the ChatGPT sign-in (PP-185): calls and Codex dictation (`voice.ts`). */
     readonly voice: VoiceService;
+    /** Images Pi makes and edits (PP-275): the providers signed in, their image models, the owner's choice. */
+    readonly images: ImageGen;
     /** The server's side of a call once it is set up: Pi's work in, Pi's words out (`voice-bridge.ts`). */
     readonly voiceBridge: VoiceBridge;
     /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
@@ -593,6 +598,39 @@ export class PocketApp {
             reload: () => this.providers.modelRefresh.refreshAfterChange(),
             changed: () => this.providers.modelsChanged(),
             log: (line) => this.log(line),
+        });
+        this.images = new ImageGen({
+            codexAuth: async () => {
+                const token = (await this.models.getAuth("openai-codex"))?.auth.apiKey;
+
+                return token === undefined || token === "" ? undefined : { token, ...withAccount(token) };
+            },
+            openRouterKey: async () => {
+                const key = (await this.models.getAuth("openrouter"))?.auth.apiKey;
+
+                return key === undefined || key === "" ? undefined : key;
+            },
+            // The owner's providers Pi can use now, with the models marked as making images (Settings › Providers).
+            custom: () =>
+                this.customProviders
+                    .list()
+                    .filter((provider) => provider.configured && provider.models.some((model) => model.makesImages))
+                    .map((provider) => ({
+                        id: provider.id,
+                        name: provider.name,
+                        baseUrl: provider.baseUrl,
+                        headers: provider.headers,
+                        models: provider.models.filter((model) => model.makesImages).map((model) => model.id),
+                    })),
+            customKey: async (id) => {
+                const key = (await this.models.getAuth(id))?.auth.apiKey;
+
+                return key === undefined || key === "" || key === NO_KEY ? undefined : key;
+            },
+            setting: () => this.config.imageModel,
+            codexMade: (count) => this.spend.codexImagesMade(count),
+            ...options.images,
+            now: () => this.now(),
         });
         // A team account's sign-in steps go to this pi-phone's person, as their own sign-ins' do (not to teammates).
         const phoneSettings = new PhoneSettingsFile(options.dataDir);
@@ -1258,6 +1296,7 @@ export class PocketApp {
             computer: this.computerControl,
             rootOf: (conversationId) => Number(this.rootOf(conversationId as unknown as ConversationId)),
             web: this.web,
+            images: this.images,
             envOf: (cwd) => this.places.env(cwd),
             teamServer: this.#teamServer,
             syncTeamMachines: () => this.syncTeamMachines(),
@@ -3892,6 +3931,8 @@ export class PocketApp {
                 themeDefault: this.config.themeDefault ?? null,
                 // The design system Pi designs with unless asked otherwise (Menu › Design system), by its id, or null.
                 designSystem: this.config.designSystem ?? null,
+                // The image model image_generate uses (Menu › Images, PP-275), provider/model, or null for the default.
+                imageModel: this.config.imageModel,
                 // The models Pi may start subagents on besides their session's own: the owner's to see and change.
                 ...(user.role === "owner"
                     ? { subagentModels: [...this.config.subagentModels] }
@@ -5396,6 +5437,20 @@ export class PocketApp {
         }
 
         this.config.docsImageModel = `${ref.provider}/${ref.modelId}`;
+    }
+
+    /** The image model `image_generate` uses (Settings › Images, PP-275): one of the signed-in image models, or null for the default. */
+    async setImageModel(user: User, model: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (model !== null && (typeof model !== "string" || model.trim() === "")) {
+            throw new HttpError(400, "The image model is provider/model, or null for the default.");
+        }
+
+        this.config.imageModel = await this.images.check(model === null ? null : model.trim());
+        await this.#refreshClients();
     }
 
     /** The signed-in models that read images, for the Documents page's choice (provider/modelId). */

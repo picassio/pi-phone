@@ -58,6 +58,7 @@ test("the app's key stores are refused to every tool that takes a file on the ph
             ["wiki_ingest", { source: store }],
             ["interview", { questions: store }],
             ["image_markup", { path: store, marks: [] }],
+            ["image_generate", { prompt: "x", images: ["a.png", store] }],
             ["screenshot", { path: store }],
             ["browser_save_pdf", { path: store }],
             ["browser_screenshot", { path: store }],

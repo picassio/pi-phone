@@ -183,6 +183,11 @@ interface PocketConfig {
     designSystem?: string;
     /** The model that describes images in documents (PP-49), provider/modelId; none when unset. */
     docsImageModel?: string;
+    /**
+     * The model `image_generate` makes images with (PP-275), provider/model. Absent: the default, ChatGPT's when signed
+     * in, else OpenRouter's first image model (`image-gen.ts`).
+     */
+    imageModel?: string;
     /** Also listen on the phone's Tailscale address, for people on the owner's tailnet (`tailnet.ts`). Absent: off. */
     tailscale?: boolean;
     /**
@@ -531,6 +536,21 @@ export class ConfigStore {
             delete this.#config.docsImageModel;
         } else {
             this.#config.docsImageModel = model;
+        }
+
+        this.save();
+    }
+
+    /** The owner's image model for `image_generate` (Settings › Images), or null for the default. */
+    get imageModel(): string | null {
+        return this.#config.imageModel ?? null;
+    }
+
+    set imageModel(model: string | null) {
+        if (model === null) {
+            delete this.#config.imageModel;
+        } else {
+            this.#config.imageModel = model;
         }
 
         this.save();

@@ -38,6 +38,7 @@ export function moduleTitle(title) {
     const titles = {
         "System prompt": t("System prompt"),
         Artifacts: t("Artifacts"),
+        Images: t("Images"),
         Browser: t("Browser"),
         Subagents: t("Subagents"),
         "Agent Teams": t("Agent Teams"),

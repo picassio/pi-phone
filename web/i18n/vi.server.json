@@ -657,7 +657,7 @@
     "The base URL has no query or fragment (? or #).": "URL gốc không có phần truy vấn hay phân đoạn (? hoặc #).",
     "A provider's name is 1 to 60 characters.": "Tên nhà cung cấp dài từ 1 đến 60 ký tự.",
     "{1} is a whole number of tokens, or empty.": "{1} là một số nguyên token, hoặc để trống.",
-    "Image input and reasoning are true or false.": "Nhận hình ảnh và suy luận là true hoặc false.",
+    "Image input, making images and reasoning are true or false.": "Nhận hình ảnh, tạo hình ảnh và suy luận là true hoặc false.",
     "Pick or type at least one model.": "Hãy chọn hoặc gõ ít nhất một mô hình.",
     "A provider has at most {1} models here.": "Ở đây một nhà cung cấp có tối đa {1} mô hình.",
     "A model's id is 1 to 200 characters, without spaces.": "Id của mô hình dài từ 1 đến 200 ký tự, không có khoảng trắng.",
@@ -709,5 +709,7 @@
     "Nothing answers as a browser's DevTools on port {1} of {2} (127.0.0.1): {3}. If Chrome asked on {4} to allow remote debugging, allow it there and try again.": "Không có DevTools của trình duyệt nào trả lời ở cổng {1} của {2} (127.0.0.1): {3}. Nếu Chrome trên {4} hỏi có cho phép remote debugging không, hãy cho phép ở đó rồi thử lại.",
     "No Chrome, Chromium, Edge or Brave on {1} has remote debugging on in its own profile: turn it on there at chrome://inspect/#remote-debugging, or give the port or DevToolsActivePort file of the browser to attach to.": "Không có Chrome, Chromium, Edge hay Brave nào trên {1} bật remote debugging trong hồ sơ riêng: hãy bật nó ở chrome://inspect/#remote-debugging trên máy đó, hoặc cho cổng hay tệp DevToolsActivePort của trình duyệt cần gắn vào.",
     "This session's browser is not attached to another browser.": "Trình duyệt của phiên này không gắn vào trình duyệt nào khác.",
-    "browserMode is headless or window.": "browserMode là headless hoặc window."
+    "browserMode is headless or window.": "browserMode là headless hoặc window.",
+    "The image model is provider/model, or null for the default.": "Mô hình hình ảnh có dạng provider/model, hoặc null để dùng mặc định.",
+    "{1} is not an image model of a provider signed in now. Pick one of: {2}.": "{1} không phải mô hình hình ảnh của nhà cung cấp đang đăng nhập. Hãy chọn một trong: {2}."
 }

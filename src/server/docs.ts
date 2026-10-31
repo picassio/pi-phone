@@ -378,6 +378,8 @@ export const SpendDoc = defineDoc<{
     teamCounted?: Record<string, number>;
     /** Seconds of voice with the ChatGPT sign-in (PP-185) by day (`YYYY-MM-DD`, the server's): calls and Codex dictation. */
     voice?: Record<string, VoiceDay>;
+    /** Images made with the ChatGPT sign-in (PP-275) by day (`YYYY-MM-DD`): the plan pays for them, so a count. */
+    images?: Record<string, number>;
 }>({
     kind: "pocket.spend",
     version: 1,

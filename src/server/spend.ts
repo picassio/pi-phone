@@ -35,6 +35,8 @@ export type SpendSummary = {
     wiki?: WikiSpend;
     /** Voice with the ChatGPT sign-in, in seconds (PP-185): counted on the ChatGPT plan, not in dollars; only the owner sees it. */
     voice?: { today: VoiceDay; month: VoiceDay; limit: number | null };
+    /** Images made with the ChatGPT sign-in (PP-275): counted on the ChatGPT plan, not in dollars; only the owner sees it. */
+    images?: { today: number; month: number };
     sessions: { id: number; title: string; spent: number; budget?: number }[];
     /** Everyone for the owner; others see themselves. */
     people: { id: string; name: string; spent: number; budget?: number }[];
@@ -62,6 +64,9 @@ export class Spend {
     #wikiAdded: WikiSpend | undefined;
     /** Seconds of voice by day, as stored and counted since (`voiceUsed`). */
     #voice: Record<string, VoiceDay> = {};
+    /** Images made on the ChatGPT plan by day, as stored and counted since (`codexImagesMade`). */
+    #images: Record<string, number> = {};
+    /** The voice and image counts' writes, in order. */
     #voiceWrites: Promise<void> = Promise.resolve();
 
     constructor(app: PocketApp) {
@@ -513,7 +518,7 @@ export class Spend {
         return {
             ...(owner ? { total } : {}),
             ...(owner && wiki !== undefined ? { wiki } : {}),
-            ...(owner ? { voice: this.voiceSummary() } : {}),
+            ...(owner ? { voice: this.voiceSummary(), images: this.imagesSummary() } : {}),
             sessions: sessions.sort((a, b) => b.spent - a.spent),
             people: people.sort((a, b) => b.spent - a.spent),
         };
@@ -564,12 +569,46 @@ export class Spend {
         return { today: { call: 0, dictation: 0, ...this.#voice[today] }, month: total, limit: this.#app.config.voice.dailyLimit };
     }
 
-    /** The voice minutes stored, read once at start. */
-    async loadVoice(): Promise<void> {
-        this.#voice = { ...(await this.#app.harness.snapshot(SpendDoc, context))?.voice };
+    /**
+     * Count images made with the ChatGPT sign-in (PP-275) on today's date, stored at once. The plan pays for them, so
+     * they are a count, not dollars: OpenRouter's images are in the session's spend with their cost.
+     */
+    codexImagesMade(count: number): void {
+        if (!(count > 0)) {
+            return;
+        }
+
+        const day = dayOf(this.#app.now());
+
+        this.#images = { ...this.#images, [day]: (this.#images[day] ?? 0) + count };
+        this.#voiceWrites = this.#voiceWrites
+            .then(() =>
+                this.#app.harness.commit(async (tx) => {
+                    const doc = await tx.doc(SpendDoc);
+
+                    doc.images = { ...doc.images, [day]: (doc.images?.[day] ?? 0) + count };
+                }, context),
+            )
+            .catch((error: unknown) => this.#app.log(`image count not stored: ${describe(error)}`));
     }
 
-    /** Until every voice count is stored. */
+    /** Images made on the ChatGPT plan today and this month. */
+    imagesSummary(): { today: number; month: number } {
+        const today = dayOf(this.#app.now());
+        const month = Object.entries(this.#images).reduce((sum, [day, count]) => sum + (day.startsWith(today.slice(0, 7)) ? count : 0), 0);
+
+        return { today: this.#images[today] ?? 0, month };
+    }
+
+    /** The voice minutes and ChatGPT image counts stored, read once at start. */
+    async loadVoice(): Promise<void> {
+        const stored = await this.#app.harness.snapshot(SpendDoc, context);
+
+        this.#voice = { ...stored?.voice };
+        this.#images = { ...stored?.images };
+    }
+
+    /** Until every voice and image count is stored. */
     async voiceStored(): Promise<void> {
         await this.#voiceWrites;
     }

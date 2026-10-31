@@ -143,6 +143,14 @@
   这样 Pi 在宣布完成前会先检查页面。HTML 文件会从它自己的文件夹加载样式表、脚本和图片，所以链接了应用 CSS 的页面也会带样式显示。
 - **带测量数据的截图。** 每个宽度的 `screenshot` 都附带一份布局检查，在页面绘制前运行：哪些内容溢出了自身的框或父元素，页面是否比屏幕更宽，
   并给出具体尺寸。Pi 以这些数字为准。
+- **图片。** `image_generate` 生成和编辑图片（一次最多编辑五张；一次生成 1 到 4 张；1:1、16:9、9:16、4:3 或 3:4），
+  使用你在 **菜单 › 图片**（`image.model`）中选择的模型：通过 ChatGPT 登录的 GPT Image 2.5（计入套餐，花费中按张数统计）、
+  OpenRouter 的图片模型如 Nano Banana（`google/gemini-*-image`；显示每百万图片 token 的价格，费用计入会话），
+  或在提供商中标记为 **生成图片** 的你自己提供商的模型。*自动* 在已登录 ChatGPT 时用 ChatGPT 的，否则用 OpenRouter 的第一个。
+  Pi 可以为某张图片指定其他模型。图片保存在会话工作的地方（包括其他机器上）的 `images/` 中，按提示词命名，
+  第一张同时保存为 `images/latest.png`，并在聊天中显示；Pi 只拿到路径和费用，不拿图片本身，所以不占用上下文。
+  涉及真实人物的图片（某人的照片、某个具名人物的肖像）会先在卡片上问你。当会话自己的模型能生成图片时，
+  Pi 会被告知聊天只显示模型的文字，所以仍用 `image_generate` 生成（也可指定它自己的模型）。
 
 ### 密钥与知识库
 - **密钥。** API 密钥和令牌保存在设置 › 密钥中，按名称使用（`$NPM_TOKEN`），从不显示：含有密钥的输出会显示为 `[secret NAME]`。
@@ -389,6 +397,7 @@ Pi 会在对话里放一张带 **打开** 按钮的卡片；不点按就不会�
 | 知识库整理与提示上下文 | **知识库**：会话闲置多少分钟后整理、负责整理的模型、每次提示中放入多少令牌的知识库内容、lint 选项 | “会话闲置 30 分钟后整理”“知识库整理用 claude-haiku” |
 | 网页搜索 | **网络访问**：选择提供方并填写其密钥（直接输入或保存在密钥中） | “把网页搜索换成 exa”。密钥本身要你自己输入 |
 | Pi 使用的设计系统 | **设计系统**：搜索、选一个，或选 *无* | “以后都用 Stripe 风格设计”、“不要默认设计系统” |
+| `image_generate` 生成图片所用的模型 | **图片**：*自动*、ChatGPT 的 GPT Image 2.5、OpenRouter 的图片模型（附价格），或标记为 *生成图片* 的你自己提供商的模型 | “以后用 Nano Banana 生成图片”、“这张用 gpt-image-2.5” |
 | API 密钥和令牌 | **密钥**。缺少某个密钥时，Pi 会通过卡片上的隐藏输入框向你索取，从不在聊天中索要 | Pi 可以索取密钥、修改密钥的标记或删除密钥。值由你输入 |
 | 其他电脑 | 先 **SSH 密钥**，再 **机器**（在那里点 **安装工具** 可安装 OfficeCLI、ripgrep、fd、Chrome、电脑操作、ffmpeg、HyperFrames） | 重命名、安装工具、端口或移除都可以。接受新的主机密钥要你自己来 |
 | 扩展（项目、知识库、Pi 的浏览器、设计与视频等） | **扩展** | “打开项目功能”、“关闭设计与视频” |
@@ -464,6 +473,9 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[pi-para](https://github.com/picassio/pi-para)** 和 **[qmd-engine](https://github.com/picassio/qmd-1)**（MIT）：PARA 知识库及其工具、
   上下文和搜索。
 - **[pi-cc-patch](https://github.com/picassio/pi-cc-patch)**（MIT）：Claude Code 计费转换，连同测试一起移植到 `src/server/cc-patch.ts`。
+- **[pi-codex-imagegen](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-imagegen)**，作者
+  Igor Warzocha（MIT，Copyright (c) 2026 Igor Warzocha）：`image_generate` 的 ChatGPT（Codex）路线、其图片端点、请求和请求头，
+  移植到 `src/server/image-gen.ts`；见 `third_party/pi-codex-imagegen/`。
 - **[sim-use](https://github.com/lycorp-jp/sim-use)**，作者 LY Corporation（Apache-2.0，Copyright 2026 LY Corporation）：
   手机控制的屏幕大纲（`src/server/phone-outline.ts`，来自它的 `AndroidOutlineRenderer` 和分类器）与无障碍服务（`PiAccessibility.java`、
   `PhoneControl.java`，来自它的设备桥的树、手势、输入和截屏处理），经移植并修改；见 `third_party/sim-use/`（其许可证和 NOTICE）。

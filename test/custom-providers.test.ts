@@ -27,6 +27,10 @@ const BEFORE = {
 let app: App;
 let stub: Server;
 let base = "";
+/** A 1×1 PNG, as an image model's answer. */
+const TINY_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+/** The image requests the stub got (PP-275). */
+const imageAsks: Record<string, unknown>[] = [];
 /** The Authorization header of each request the stub got, by path. */
 const seen: { path: string; authorization: string | undefined; title: string | undefined }[] = [];
 
@@ -45,6 +49,7 @@ before(async () => {
                     data: [
                         { id: "qwen3-coder", context_length: 262144, top_provider: { max_completion_tokens: 65536 }, supported_parameters: ["tools", "reasoning"] },
                         { id: "vision-1", architecture: { input_modalities: ["text", "image"] } },
+                        { id: "draw-1", architecture: { input_modalities: ["text"], output_modalities: ["image", "text"] } },
                         { id: "plain" },
                         { id: "has space" },
                     ],
@@ -61,9 +66,22 @@ before(async () => {
         }
 
         if (request.method === "POST" && request.url === "/v1/chat/completions") {
-            request.resume();
-            response.writeHead(200, { "content-type": "text/event-stream" });
-            response.end('data: {"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+            let raw = "";
+
+            request.on("data", (chunk: Buffer) => (raw += chunk.toString()));
+            request.on("end", () => {
+                // image_generate's request (PP-275): images as data URLs in the message, as OpenRouter answers.
+                if (JSON.parse(raw).modalities !== undefined) {
+                    imageAsks.push(JSON.parse(raw) as Record<string, unknown>);
+                    response.writeHead(200, { "content-type": "application/json" });
+                    response.end(JSON.stringify({ choices: [{ message: { content: "", images: [{ image_url: { url: `data:image/png;base64,${TINY_PNG}` } }] } }], usage: { prompt_tokens: 5, completion_tokens: 9 } }));
+
+                    return;
+                }
+
+                response.writeHead(200, { "content-type": "text/event-stream" });
+                response.end('data: {"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+            });
 
             return;
         }
@@ -191,9 +209,10 @@ test("Find models asks the server's /models with the key, and reads what it says
     const found = await app.customProviders.findModels({ baseUrl: base, key: { kind: "keep" }, id: "lm-studio" });
 
     assert.deepEqual(found, [
-        { id: "plain", images: false, reasoning: false },
-        { id: "qwen3-coder", contextWindow: 262144, maxTokens: 65536, images: false, reasoning: true },
-        { id: "vision-1", images: true, reasoning: false },
+        { id: "draw-1", images: false, makesImages: true, reasoning: false },
+        { id: "plain", images: false, makesImages: false, reasoning: false },
+        { id: "qwen3-coder", contextWindow: 262144, maxTokens: 65536, images: false, makesImages: false, reasoning: true },
+        { id: "vision-1", images: true, makesImages: false, reasoning: false },
     ]);
     assert.equal(seen.at(-1)?.path, "/v1/models");
     assert.equal(seen.at(-1)?.authorization, `Bearer ${KEY}`);
@@ -235,6 +254,36 @@ test("Pi adds, finds and removes through app_action's actions, with a key only a
     await action("providers.customRemove").run(me, { id: "local-box" });
     assert.equal(read().providers["local-box"], undefined);
     assert.ok(!usable("local-box", "plain"));
+});
+
+test("a model marked as making images is written as Pi's image models say it, and image_generate may use it, through chat completions", async () => {
+    await app.customProviders.save("draw-box", { name: "Draw box", baseUrl: base, key: { kind: "none" }, models: [{ id: "draw-1", makesImages: true }, "plain"] }, true);
+
+    assert.deepEqual(read().providers["draw-box"]?.models, [{ id: "draw-1", output: ["text", "image"] }, { id: "plain" }]);
+    assert.deepEqual(app.customProviders.get("draw-box").models.map((model) => [model.id, model.makesImages]), [["draw-1", true], ["plain", false]]);
+    assert.ok(usable("draw-box", "plain"), "Pi still loads the provider");
+
+    // Only the marked model is an image model, and the session's own model rule knows it.
+    const choice = (await app.images.models()).models.find((model) => model.id === "draw-box/draw-1");
+
+    assert.ok(choice);
+    assert.ok(!(await app.images.models()).models.some((model) => model.id === "draw-box/plain"));
+    assert.equal(await app.images.makesImages("draw-box", "draw-1"), true);
+    assert.equal(await app.images.makesImages("draw-box", "plain"), false);
+
+    const made = await app.images.generate(choice, { prompt: "A cube", inputs: [], aspect: "4:3", count: 1 });
+
+    assert.equal(made.images.length, 1);
+    assert.equal(made.cost, undefined, "no cost reported");
+    assert.deepEqual(imageAsks.at(-1)?.modalities, ["image", "text"]);
+    assert.equal(imageAsks.at(-1)?.image_config, undefined, "OpenRouter's own field is OpenRouter's");
+    assert.equal((imageAsks.at(-1)?.messages as { content: { text?: string }[] }[])[0]!.content[0]!.text, "A cube\n\nAspect ratio 4:3.");
+
+    // Unmarked, it is no image model any more.
+    await app.customProviders.save("draw-box", { name: "Draw box", baseUrl: base, key: { kind: "keep" }, models: [{ id: "draw-1", makesImages: false }] }, false);
+    assert.deepEqual(read().providers["draw-box"]?.models, [{ id: "draw-1" }]);
+    assert.ok(!(await app.images.models()).models.some((model) => model.provider === "draw-box"));
+    await app.customProviders.remove("draw-box");
 });
 
 test("remove takes the provider out, keeps the rest of the file and its secret", async () => {

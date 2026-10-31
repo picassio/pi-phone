@@ -103,12 +103,12 @@ function ProviderForm({ provider, secrets, onDone }) {
     const has = (modelId) => models.some((model) => model.id === modelId);
     const change = (modelId, patch) => setModels((list) => list.map((model) => (model.id === modelId ? { ...model, ...patch } : model)));
     const toggle = (model, on) =>
-        setModels((list) => (on ? (list.some((each) => each.id === model.id) ? list : [...list, { id: model.id, contextWindow: model.contextWindow, maxTokens: model.maxTokens, images: model.images, reasoning: model.reasoning }]) : list.filter((each) => each.id !== model.id)));
+        setModels((list) => (on ? (list.some((each) => each.id === model.id) ? list : [...list, { id: model.id, contextWindow: model.contextWindow, maxTokens: model.maxTokens, images: model.images, makesImages: model.makesImages, reasoning: model.reasoning }]) : list.filter((each) => each.id !== model.id)));
     const addTyped = () => {
         const typed = typedModel.trim();
 
         if (typed !== "" && !/\s/.test(typed) && !has(typed)) {
-            setModels((list) => [...list, { id: typed, images: false, reasoning: false }]);
+            setModels((list) => [...list, { id: typed, images: false, makesImages: false, reasoning: false }]);
         }
 
         setTypedModel("");
@@ -281,7 +281,7 @@ function ProviderForm({ provider, secrets, onDone }) {
                                 <span>
                                     ${model.name ?? model.id}
                                     <span class="muted small">
-                                        ${[model.name ? model.id : "", model.contextWindow ? t("{n} context", { n: model.contextWindow.toLocaleString() }) : "", model.images ? t("images") : "", model.reasoning ? t("reasoning") : ""].filter(Boolean).join(" · ")}
+                                        ${[model.name ? model.id : "", model.contextWindow ? t("{n} context", { n: model.contextWindow.toLocaleString() }) : "", model.images ? t("images") : "", model.makesImages ? t("makes images") : "", model.reasoning ? t("reasoning") : ""].filter(Boolean).join(" · ")}
                                     </span>
                                 </span>
                             </label>`,
@@ -317,6 +317,10 @@ function ProviderForm({ provider, secrets, onDone }) {
                                 <label class="check">
                                     <input type="checkbox" checked=${model.images} onChange=${(event) => change(model.id, { images: event.currentTarget.checked })} />
                                     ${t("Image input")}
+                                </label>
+                                <label class="check" title=${t("It writes images in its answers, so Pi's image_generate may use it (Menu › Images)")}>
+                                    <input type="checkbox" checked=${model.makesImages === true} onChange=${(event) => change(model.id, { makesImages: event.currentTarget.checked })} />
+                                    ${t("Makes images")}
                                 </label>
                                 <label class="check">
                                     <input type="checkbox" checked=${model.reasoning} onChange=${(event) => change(model.id, { reasoning: event.currentTarget.checked })} />

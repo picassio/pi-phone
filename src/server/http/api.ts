@@ -30,6 +30,7 @@ import {
 import type { User } from "../config.ts";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { VOICES } from "../voice.ts";
+import { ImageGen } from "../image-gen.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { addressOf, deviceName } from "../devices.ts";
 import { HttpError } from "../errors.ts";
@@ -966,6 +967,21 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
                 return json(response, 200, { ended });
             }
+        }
+
+        // Menu › Images (PP-275): the image models of the providers signed in, with OpenRouter's prices, and the owner's choice.
+        if (first === "images" && second === undefined && method === "GET") {
+            requireOwner(user);
+
+            const { models, problems } = await app.images.models();
+
+            return json(response, 200, { model: app.config.imageModel, default: ImageGen.defaultOf(models)?.id ?? null, models, problems });
+        }
+
+        if (first === "images" && second === "model" && method === "PUT") {
+            await app.setImageModel(user, (await readJson<{ model?: unknown }>(request)).model ?? null);
+
+            return json(response, 200, { model: app.config.imageModel });
         }
 
         // The Browser panel: what Pi's browser shows (frames while a tab watches), taking it over, and its input then.

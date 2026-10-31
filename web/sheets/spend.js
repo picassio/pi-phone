@@ -154,6 +154,24 @@ export function SpendSheet() {
                 <p class="muted small">${t("Counted on your ChatGPT plan in minutes, not in the money above. No limit unless you set one.")}</p>
             </div>`
         }
+        ${
+            // Images on the ChatGPT sign-in (PP-275): a count, as the plan pays; OpenRouter's are in the sessions' spend.
+            data?.images &&
+            data.images.month > 0 &&
+            html`<div class="group" data-part="spend-images">
+                <div class="group-title">${t("Images (ChatGPT sign-in)")}</div>
+                <div class="sheet-list">
+                    <div class="spend-row">
+                        <span class="grow">
+                            ${t("Images made")}
+                            <small class="muted spend-sub">${t("today {today} · this month {month}", { today: data.images.today, month: data.images.month })}</small>
+                        </span>
+                        <span class="mono">${tn(data.images.today, "{n} image", "{n} images")}</span>
+                    </div>
+                </div>
+                <p class="muted small">${t("Counted on your ChatGPT plan, not in the money above. Images from OpenRouter are in their session's spend.")}</p>
+            </div>`
+        }
         <p class="muted small">
             ${t("Spend goes to whoever asked for the work. Past a limit, Pi takes no new messages there, a run that crosses it stops, and subagents' reports wait until it is raised.")}
         </p>

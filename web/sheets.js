@@ -15,6 +15,7 @@ import { SecretsSheet } from "./sheets/secrets.js";
 import { InterviewSheet } from "./sheets/interview.js";
 import { WebAccessSheet } from "./sheets/web-access.js";
 import { DesignSystemSheet } from "./sheets/design-system.js";
+import { ImagesSheet } from "./sheets/images.js";
 import { AccessSheet } from "./sheets/access.js";
 import { DictationSheet } from "./sheets/dictation.js";
 import { SchedulesSheet } from "./sheets/schedules.js";
@@ -231,6 +232,9 @@ function sheetBody(sheet) {
             break;
         case "design-system":
             body = html`<${DesignSystemSheet} />`;
+            break;
+        case "images":
+            body = store.state.me?.role === "owner" ? html`<${ImagesSheet} />` : null;
             break;
         case "secrets":
             body = html`<${SecretsSheet} />`;

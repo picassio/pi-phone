@@ -176,13 +176,15 @@ test("add a provider with Find models, see its models in the pickers, edit it an
     await shot("provider-custom-form-390", ".cp-form");
     await shot("provider-custom-models-390", ".cp-find");
 
+    // Each model also says whether it makes images (PP-275): image_generate may use one that does.
+    assert.match(await text(".cp-form .cp-models"), /Image input\s*Makes images\s*Reasoning/);
     assert.ok(await press(".cp-form .sheet-actions", "Save"));
     await until(async () => (await count(".cp-form")) === 0 && /LM Studio/.test(await text(".custom-providers .sheet-list")), "the saved provider");
     assert.match(await text(".custom-providers .sheet-list"), /LM Studio\s*✓[\s\S]*127\.0\.0\.1[\s\S]*no key · 2 models/);
     // In the order ticked: the found list is by id, so qwen3 (second) first, then gemma with the typed window.
     assert.deepEqual(app.customProviders.get("lm-studio").models, [
-        { id: "qwen3-coder-30b-a3b-instruct", contextWindow: 262144, images: false, reasoning: true },
-        { id: "gemma-3-27b-it", contextWindow: 131072, images: true, reasoning: false },
+        { id: "qwen3-coder-30b-a3b-instruct", contextWindow: 262144, images: false, makesImages: false, reasoning: true },
+        { id: "gemma-3-27b-it", contextWindow: 131072, images: true, makesImages: false, reasoning: false },
     ]);
     // The tab's model list (every picker's) has them.
     await until(
