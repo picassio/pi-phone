@@ -256,6 +256,23 @@ function Tabs({ panel }) {
 /** Minutes left, from the server's clock. */
 const minutesLeft = (until) => Math.max(0, Math.ceil((fromServer(until) - Date.now()) / 60_000));
 
+/** What the newest read of the window said covers it (ocu, PP-270), in a line under the status; null when nothing does. */
+function coverNote(cover) {
+    if (cover === "partial") {
+        return t("Partly covered by another window: those parts show black.");
+    }
+
+    if (cover === "full") {
+        return t("Covered by other windows: no new picture until it is in front.");
+    }
+
+    if (cover === "minimized") {
+        return t("The window is minimised: no new picture until it is restored.");
+    }
+
+    return null;
+}
+
 export function ComputerPanel({ leaving = false }) {
     const panel = computerState();
     const beside = panelsBeside();
@@ -325,6 +342,7 @@ export function ComputerPanel({ leaving = false }) {
                         : t("Computer control ended.")
             }
         </div>
+        ${open && coverNote(panel.cover) !== null && html`<div class="pb-cover" data-part="computer-cover" role="status">${coverNote(panel.cover)}</div>`}
         <div class="pb-body">
             ${
                 open

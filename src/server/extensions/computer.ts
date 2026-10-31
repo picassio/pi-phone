@@ -40,7 +40,7 @@ export const SIGN_IN_LABELS = { username: "Username", password: "Password", code
 export const signInSecret = (machineName: string, app: string) => `LOGIN_${`${machineName}_${app}`.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`;
 
 /** In every prompt while the module is on. */
-export const COMPUTER = `Computer control: you can see and operate desktop apps on the owner's machines (Linux, and Windows with pi-phone's task: computer_control status says), in a control session the owner approves on a card. computer_control start names the machine, the apps (as computer_control status or the card's error lists them: their window titles or names) and the minutes you need (5 to 60; ask again with a new card for more); only those apps may be read or touched, so ask with a new card for another, or with follow: true when the work opens other apps (a dialog of another program). Then computer_screen reads an app's window as numbered elements, computer_act clicks, sets values, types, presses keys and scrolls, and answers with the window after it (use the newest numbers), and computer_screenshot shows the window as a picture. Prefer set_value and elements to points. Never type a password or a one-time code as text: fill a password field ([password] in the outline) with set_value or type_text and secret: "NAME" (one of the owner's saved secrets you may use, secrets_list), whose value goes into the field and never to you; otherwise call computer_sign_in with the fields' numbers (username, password, code): the owner types them on a card, they go straight into the window, and you read [password for <app>] and the like in their place. Never ask for a password or a code in the chat. pi-phone itself, banking and payment apps, password managers and the owner's Never list are never read or controlled. While the owner has taken the computer over (the panel's Take over), wait until they hand it back. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with computer_control stop as soon as you are done; it also ends shortly after your turn ends. A window on the machine shows that you are using it, with Stop. Say plainly what you read or did, and what you could not.`;
+export const COMPUTER = `Computer control: you can see and operate desktop apps on the owner's machines (Linux, and Windows with pi-phone's task: computer_control status says), in a control session the owner approves on a card. computer_control start names the machine, the apps (as computer_control status or the card's error lists them: their window titles or names) and the minutes you need (5 to 60; ask again with a new card for more); only those apps may be read or touched, so ask with a new card for another, or with follow: true when the work opens other apps (a dialog of another program). Then computer_screen reads an app's window as numbered elements (with States: checked, focused, disabled and the like when they hold), computer_act clicks, sets values, types, presses keys and scrolls, and answers with the window after it (use the newest numbers), and computer_screenshot shows the window as a picture. Act on elements by their index: clicking a point needs the real-mouse mode, not on yet. When an action says the window changed since it was read, nothing was done: read it again and use the new numbers. A Covered: line means other windows are on top of parts of it, which are black in its picture; with the whole window covered or minimised there is no picture. Never type a password or a one-time code as text: fill a password field ([password] in the outline) with set_value or type_text and secret: "NAME" (one of the owner's saved secrets you may use, secrets_list), whose value goes into the field and never to you; otherwise call computer_sign_in with the fields' numbers (username, password, code): the owner types them on a card, they go straight into the window, and you read [password for <app>] and the like in their place. Never ask for a password or a code in the chat. pi-phone itself, banking and payment apps, password managers and the owner's Never list are never read or controlled. While the owner has taken the computer over (the panel's Take over), wait until they hand it back. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with computer_control stop as soon as you are done; it also ends shortly after your turn ends. A window on the machine shows that you are using it, with Stop. Say plainly what you read or did, and what you could not.`;
 
 export default function createComputer(host: PocketHost) {
     const control = host.computer;
@@ -428,7 +428,8 @@ export default function createComputer(host: PocketHost) {
     const screenTool = defineTool({
         name: "computer_screen",
         description:
-            "Read an app's window in a computer control session: its elements numbered ([5] push button Greet Frame: {x, y, width, height} in the window), values, password fields marked [password], the element in focus, and the session's time left. Apps outside the session are not read. full: the whole text of long fields.",
+            "Read an app's window in a computer control session: its elements numbered ([5] push button Greet Frame: {x, y, width, height} in the window), values, password fields marked [password], their states (States: checked, selected, expanded, collapsed, focused, disabled, readonly, secure), the element in focus, and the session's time left. " +
+            "Covered: [{x, y, width, height}] lists the parts other windows cover (black in its picture); Screenshot omitted says why it has none. Apps outside the session are not read. full: the whole text of long fields.",
         parameters: Type.Object({ machine, app: appParam, full: Type.Optional(Type.Boolean({ description: "The whole text of long fields (default: 500 characters each)" })) }),
         execute: async (args, api) => {
             try {
@@ -447,7 +448,8 @@ export default function createComputer(host: PocketHost) {
         name: "computer_act",
         description:
             "Act in an app's window in a computer control session, then answer with the window after it (use its numbers next). " +
-            "click / double_click / right_click: an element by index (from the newest computer_screen) or a point x, y in the window's picture (computer_screenshot's pixels). " +
+            "click / double_click / right_click: an element by index (from the newest computer_screen); a point x, y in the window's picture needs the real-mouse mode, which is not on yet. " +
+            "If the window changed since it was read (that element is no longer there, or the window was replaced), nothing is done: read it again with computer_screen. " +
             "set_value: value into the element index (a text field, a slider): prefer it to typing. type_text: text into the field in focus. " +
             "Either takes secret: \"NAME\" (one of the owner's saved secrets, secrets_list) instead of value or text: its value goes into the field and never to you; a password field takes only that. " +
             "press_key: key, like Return, Tab, Escape, ctrl+a, Down. " +
@@ -468,8 +470,8 @@ export default function createComputer(host: PocketHost) {
             machine,
             app: appParam,
             index: Type.Optional(Type.Integer({ minimum: 0, description: "An element's number from the newest computer_screen" })),
-            x: Type.Optional(Type.Number({ description: "A point in the window's picture, in pixels from the left" })),
-            y: Type.Optional(Type.Number({ description: "A point in the window's picture, in pixels from the top" })),
+            x: Type.Optional(Type.Number({ description: "A point in the window's picture, in pixels from the left (needs the real-mouse mode, not on yet)" })),
+            y: Type.Optional(Type.Number({ description: "A point in the window's picture, in pixels from the top (needs the real-mouse mode, not on yet)" })),
             value: Type.Optional(Type.String({ description: "set_value: the value" })),
             text: Type.Optional(Type.String({ description: "type_text: the text" })),
             secret: Type.Optional(Type.String({ description: "set_value / type_text: a saved secret's name (secrets_list), filled in instead of value or text" })),
@@ -610,7 +612,7 @@ export default function createComputer(host: PocketHost) {
 
     const shotTool = defineTool({
         name: "computer_screenshot",
-        description: `See an app's window as a picture in a computer control session. With path, also save it (.png) where this session works. ${MARKS_NOTE} Each mark is on an element (index, from the newest computer_screen) or an area in the picture's pixels.`,
+        description: `See an app's window as a picture in a computer control session; parts other windows cover are black (and listed), and a minimised or wholly covered window has no picture (ocu says why). With path, also save it (.png) where this session works. ${MARKS_NOTE} Each mark is on an element (index, from the newest computer_screen) or an area in the picture's pixels.`,
         parameters: Type.Object({
             machine,
             app: appParam,
@@ -681,7 +683,10 @@ export default function createComputer(host: PocketHost) {
 
                 return {
                     output: [
-                        { type: "text" as const, text: `${shot.app.label} on ${session.machineName} (${shot.width}x${shot.height} px; points and marks in these pixels).${saved} ${footer(session)}` },
+                        {
+                            type: "text" as const,
+                            text: `${shot.app.label} on ${session.machineName} (${shot.width}x${shot.height} px; points and marks in these pixels).${shot.covered.length > 0 ? ` Other windows cover part of it, black in the picture: ${shot.covered.map((each) => `${each.x},${each.y} ${each.width}x${each.height}`).join("; ")} (window points).` : ""}${saved} ${footer(session)}`,
+                        },
                         { type: "image" as const, data: Buffer.from(bytes).toString("base64"), mimeType: "image/png" },
                     ],
                 };

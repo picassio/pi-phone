@@ -76,7 +76,20 @@ async function make(options: { sign?: string } = {}) {
         refreshMs: 60_000,
         log: (line) => lines.push(line),
     });
-    const calls = () => (existsSync(ocuLog) ? readFileSync(ocuLog, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { tool: string; args: Record<string, unknown> }) : []);
+    // What ocu got, without the newest read's snapshot_id every action names (PP-270, computer-control.test.ts).
+    const calls = () =>
+        existsSync(ocuLog)
+            ? readFileSync(ocuLog, "utf8")
+                  .trim()
+                  .split("\n")
+                  .filter(Boolean)
+                  .map((line) => {
+                      const { tool, args } = JSON.parse(line) as { tool: string; args: Record<string, unknown> };
+                      const { snapshot_id: _, ...rest } = args;
+
+                      return { tool, args: rest };
+                  })
+            : [];
 
     controls.push(control);
     machines.push(windows);

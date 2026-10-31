@@ -8,7 +8,14 @@
 // Apps: demo_app.py ("Pi OCU Demo": a name field, a password field, Shout, Greet, a label, Help, which opens the help
 // viewer), gedit ("Text Editor"), 1Password (never), ticker ("Ticker": its numbers move with every read).
 // FAKE_SIGN=fail: the window cannot show (no GTK). FAKE_SIGN=stop: Stop is pressed 300 ms after it shows.
-import { appendFileSync } from "node:fs";
+//
+// As pi-phone's ocu 1.1.2-pp.3 (PP-270): each read has `Snapshot: s<n>` and `Window id:`, elements carry `States:`
+// (focused, checked, secure), and refusals end with an `Error:` line. An action whose snapshot_id is not the app's
+// latest read, or whose window_id is not its window, is refused with stale_ref, and so is the next element action after
+// the file FAKE_OCU_STALE names appears (the file goes); a click at a point needs headed: true (policy_denied).
+// FAKE_OCU_COVER=1 adds viewer ("Viewer": another window over part of it, and a second window of its app) and notes
+// ("Notes": minimised, no picture).
+import { appendFileSync, existsSync, rmSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { deflateSync } from "node:zlib";
 
@@ -72,11 +79,18 @@ function png(width: number, height: number): string {
     return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]).toString("base64");
 }
 
-type Element = { role: string; name: string; value?: string; password?: boolean; editable?: boolean; frame: [number, number, number, number]; actions?: string };
+type Element = { role: string; name: string; value?: string; password?: boolean; editable?: boolean; frame: [number, number, number, number]; actions?: string; states?: string[] };
+
+/** A refusal as pi-phone's ocu 1.1.2-pp.3 words it: the message, then its machine-readable line. */
+const refusal = (message: string, code: string, suggestion: string) => `${message}\nError: ${code} retry=safe suggestion=${suggestion}`;
 
 function serve(): void {
     const state = { name: "", secret: "", shout: false, label: "Nobody greeted yet", focus: 2, help: false, editor: "", ticks: 0 };
     const read = new Map<string, Element[]>();
+    /** Each app's latest read, as ocu keeps it. */
+    const latest = new Map<string, string>();
+    let reads = 0;
+    const cover = process.env.FAKE_OCU_COVER === "1";
     const picture = png(420, 220);
     const log = (entry: Record<string, unknown>) => {
         if (process.env.FAKE_OCU_LOG !== undefined) {
@@ -91,8 +105,8 @@ function serve(): void {
                 { role: "frame", name: "Pi OCU Demo", frame: [0, 0, 420, 220] },
                 { role: "filler", name: "", frame: [12, 12, 396, 196] },
                 { role: "text", name: "", value: state.name, editable: true, frame: [12, 12, 396, 34], actions: "activate" },
-                { role: "password text", name: "", value: state.secret === "" ? "" : "\u25cf".repeat(state.secret.length), password: true, editable: true, frame: [12, 54, 396, 34], actions: "activate" },
-                { role: "check box", name: "Shout", frame: [12, 96, 396, 21], actions: "click" },
+                { role: "password text", name: "", value: state.secret === "" ? "" : "\u25cf".repeat(state.secret.length), password: true, editable: true, frame: [12, 54, 396, 34], actions: "activate", states: ["secure"] },
+                { role: "check box", name: "Shout", frame: [12, 96, 396, 21], actions: "click", ...(state.shout ? { states: ["checked"] } : {}) },
                 { role: "push button", name: "Greet", frame: [12, 125, 396, 34], actions: "click" },
                 { role: "label", name: state.label, frame: [12, 167, 396, 17] },
                 { role: "push button", name: "Help", frame: [12, 190, 80, 24], actions: "click" },
@@ -115,30 +129,50 @@ function serve(): void {
             ],
         },
         "help-viewer": { title: "Help", elements: () => [{ role: "frame", name: "Help", frame: [0, 0, 420, 220] }] },
+        viewer: {
+            title: "Viewer",
+            elements: () => [
+                { role: "frame", name: "Viewer", frame: [0, 0, 420, 220] },
+                { role: "push button", name: "Open", frame: [10, 10, 100, 30], actions: "click" },
+            ],
+        },
+        notes: { title: "Notes", elements: () => [{ role: "frame", name: "Notes", frame: [0, 0, 420, 220] }] },
     };
-    const running = () => Object.keys(windows).filter((name) => name !== "help-viewer" || state.help);
+    const running = () => Object.keys(windows).filter((name) => (name !== "help-viewer" || state.help) && ((name !== "viewer" && name !== "notes") || cover));
 
     const render = (app: string): string => {
         const elements = windows[app]!.elements();
         const focused = app === "demo_app.py" ? elements[state.focus] : undefined;
+        const snapshot = `s${++reads}`;
 
         read.set(app, elements);
+        latest.set(app, snapshot);
 
         return [
             `App=${app} (pid 4242)`,
             `Window: "${windows[app]!.title}", App: ${app}.`,
+            `Snapshot: ${snapshot}`,
+            `Window id: 4242:${Object.keys(windows).indexOf(app) + 6}`,
+            ...(app === "viewer" ? ['Other windows: 4242:99 "Viewer 2" (viewer)', "Covered: [{x: 300, y: 0, width: 120, height: 80}] (other windows; blacked out in the screenshot)"] : []),
             ...elements.map((each, index) => {
                 const value = each.value === undefined || each.value === "" ? "" : ` Value: ${each.value}`;
 
                 const title = [each.name, each.password ? "[password]" : ""].filter((part) => part !== "").join(" ");
+                const states = [...(each.states ?? []), ...(each === focused ? ["focused"] : [])];
 
-                return `${"\t".repeat(index === 0 ? 1 : index === 1 ? 2 : 3)}${index} ${each.role} ${title}${value}${each.actions === undefined ? "" : ` Secondary Actions: ${each.actions}`} Frame: {x: ${each.frame[0]}, y: ${each.frame[1]}, width: ${each.frame[2]}, height: ${each.frame[3]}}`;
+                return `${"\t".repeat(index === 0 ? 1 : index === 1 ? 2 : 3)}${index} ${each.role} ${title}${value}${each.actions === undefined ? "" : ` Secondary Actions: ${each.actions}`}${states.length === 0 ? "" : ` States: ${states.join(", ")}`} Frame: {x: ${each.frame[0]}, y: ${each.frame[1]}, width: ${each.frame[2]}, height: ${each.frame[3]}}`;
             }),
+            ...(app === "notes" ? ["Screenshot omitted: the window is minimised. Restore it, then read it again."] : []),
             ...(focused === undefined ? [] : ["", `The focused UI element is ${focused.role}${focused.password ? " [password]" : ""}.`]),
         ].join("\n");
     };
-    const state_ = (app: string) => ({ content: [{ type: "text", text: render(app) }, { type: "image", data: picture, mimeType: "image/png" }], isError: false });
+    const state_ = (app: string) => {
+        const text = render(app);
+
+        return { content: [{ type: "text", text }, ...(app === "notes" ? [] : [{ type: "image", data: picture, mimeType: "image/png" }])], isError: false };
+    };
     const fail = (text: string) => ({ content: [{ type: "text", text }], isError: true });
+    const stale = (message: string) => fail(refusal(message, "stale_ref", "Call get_app_state again and act on its element numbers and snapshot id."));
 
     const call = (name: string, args: Record<string, unknown>): Record<string, unknown> => {
         if (name === "list_apps") {
@@ -169,10 +203,30 @@ function serve(): void {
         const element = index === undefined ? undefined : elements[index];
 
         if (index !== undefined && element === undefined) {
-            return fail(`unknown element_index '${index}'`);
+            return fail(refusal(`unknown element_index "${index}"`, "not_found", "Use an element number from the latest get_app_state."));
         }
 
-        const refused = "Refused: the target is a password field. Open Computer Use (pi-phone build) does not type into password fields.";
+        if (args.snapshot_id !== undefined && args.snapshot_id !== latest.get(app)) {
+            return stale(`Snapshot ${String(args.snapshot_id)} is not the latest read of ${app} (the latest is ${latest.get(app)}).`);
+        }
+
+        if (args.window_id !== undefined && args.window_id !== `4242:${Object.keys(windows).indexOf(app) + 6}`) {
+            return stale(`The latest read of ${app} is not of window ${String(args.window_id)}.`);
+        }
+
+        const staleOnce = process.env.FAKE_OCU_STALE;
+
+        if (element !== undefined && staleOnce !== undefined && existsSync(staleOnce)) {
+            rmSync(staleOnce);
+
+            return stale(`[${index}] is no longer the ${element.role} '${element.name}' that the snapshot saw (it changed or went away).`);
+        }
+
+        if (name === "click" && element === undefined && args.headed !== true) {
+            return fail(refusal("Refused: a coordinate or global click is physical input (it moves the real pointer or keyboard) and needs headed: true on the call.", "policy_denied", "Use an element_index action; physical input needs headed: true, which only the host sends."));
+        }
+
+        const refused = refusal("Refused: the target is a password field. Open Computer Use (pi-phone build) does not type into password fields.", "password_field", "Do not type into a password field; ask the person to type it.");
         // pi-phone's ocu 1.1.2-pp.2: one call may opt out (the owner typing, a saved secret by name), only with true.
         const allowed = args.allow_password_input === true;
         const focusedPassword = app === "demo_app.py" && windows[app]!.elements()[state.focus]?.password === true;
@@ -267,7 +321,7 @@ function serve(): void {
         const request = JSON.parse(line) as { id?: number; method: string; params?: { name?: string; arguments?: Record<string, unknown> } };
 
         if (request.method === "initialize") {
-            process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2025-03-26", serverInfo: { name: "open-computer-use", version: "1.1.2-pp.1" }, capabilities: { tools: {} } } })}\n`);
+            process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2025-03-26", serverInfo: { name: "open-computer-use", version: "1.1.2-pp.3" }, capabilities: { tools: {} } } })}\n`);
         } else if (request.method === "tools/call") {
             log({ tool: request.params!.name, args: request.params!.arguments ?? {} });
             process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: request.id, result: call(request.params!.name!, request.params!.arguments ?? {}) })}\n`);

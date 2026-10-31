@@ -303,13 +303,17 @@ dự án thật.</sub>
   đã lưu), mỗi giá trị đi thẳng vào ô Pi chỉ; **Để sau** không điền gì, và **Ghi nhớ trong Bí mật** lưu lại thông tin
   đăng nhập (hỏi trước mỗi lần dùng). Pi không bao giờ thấy những gì bạn gõ: nó đọc `[username for <app>]`,
   `[password for <app>]` v.v., ô đó bị bôi đen trong hình Pi nhận, và một giá trị quá ngắn để che sẽ khiến Pi không
-  được xem cửa sổ khi nó còn hiện. Bạn cũng có thể tự gõ khi Tiếp quản. Chính pi-phone,
+  được xem cửa sổ khi nó còn hiện. Bạn cũng có thể tự gõ khi Tiếp quản.
+  Pi đọc cả trạng thái của từng phần tử (đã đánh dấu, đang chọn, bị tắt…) và thao tác trên phần tử theo số của nó: nếu
+  cửa sổ đã thay đổi từ lúc Pi đọc, sẽ không có gì được làm và Pi đọc lại. Những phần cửa sổ bị cửa sổ khác che sẽ màu
+  đen trong hình; cửa sổ đang thu nhỏ hay bị che hết thì không có hình cho đến khi bạn đưa nó trở lại. Hiện chỉ có bạn
+  mới nhấp vào một điểm trên hình, khi Tiếp quản. Chính pi-phone,
   ứng dụng ngân hàng và thanh toán, trình quản lý mật khẩu và trình xác thực, cùng các ứng dụng trong danh sách Không bao
   giờ của bạn không bao giờ bị đọc hay chạm vào.
 - **Máy tính của Pi**, một khung giống trình duyệt của Pi: nút màn hình trên thanh trên cùng mở nó cạnh cuộc trò
   chuyện (trên điện thoại nó phủ cả màn hình, và một bản xem trước trực tiếp nhỏ nằm phía trên ô nhập khi Pi thao tác).
   Các cửa sổ của phiên là các tab; hình là cửa sổ như ocu thấy, sau mỗi thao tác của Pi và vài giây một lần, có khung
-  quanh thứ Pi vừa thao tác; chân khung có số phút còn lại và nút Dừng. **Tiếp quản**: Pi chờ; chạm vào hình để nhấp
+  quanh thứ Pi vừa thao tác (một dòng báo khi cửa sổ khác che một phần); chân khung có số phút còn lại và nút Dừng. **Tiếp quản**: Pi chờ; chạm vào hình để nhấp
   vào đó, và phím của bạn đi vào ô đang được chọn, kể cả ô mật khẩu (bàn phím ở chế độ mật khẩu tại đó, và những gì bạn
   gõ không bao giờ hiện cho Pi, không lưu trong khung, không ghi nhật ký), cho đến khi bạn **Trả lại**.
 - **Điều khiển máy tính trên Windows.** ssh của Windows không có màn hình, nên ocu chạy trong màn hình bạn đã đăng nhập

@@ -692,9 +692,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     are offered only when the machine has none of its own. **Windows** (2026-10-19): the projects' own Windows builds
     (OfficeCLI's `.exe`, rg's and fd's `.zip`s, x64 and arm64), installed by the same script in Git Bash (curl, sha256sum,
     `unzip -p` for a zip); a program keeps its `.exe`, and the wrapper execs it by its drive path (`C:/Users/…`).
-    **Computer use (ocu)** (PP-177, `OCU_TOOL`): our fork's release v1.1.2-pp.2 of open-computer-use
+    **Computer use (ocu)** (PP-177, `OCU_TOOL`): our fork's release v1.1.2-pp.3 of open-computer-use
     (picassio/open-computer-use: password fields marked `[password]` and typing into them refused unless the call says
-    `allow_password_input: true`, which pi-phone sends only for the owner's take-over input and a saved secret by name), linux-x64,
+    `allow_password_input: true`, which pi-phone sends only for the owner's take-over input and a saved secret by name;
+    since pp.3 (PP-270) snapshot ids and stale_ref, element states, covered parts of a window blacked out, `headed` for
+    input at a point, and an `Error:` line, used as **ocu 1.1.2-pp.3** below), linux-x64,
     linux-arm64 and windows-x64, pinned to the release's SHA256SUMS; command `ocu`; `desktop: true` puts "needs a
     desktop session on Linux" beside it in every list. Computer control (`computer-control.ts`) runs `ocu mcp`.
     **ffmpeg and HyperFrames** (PP-246, 2026-10-29), both `optIn` (listed, not ticked: big). `FFMPEG_TOOL` 9.0.2:
@@ -1198,6 +1200,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
     element, no `type_text` or character key while the focused element is one (ocu's outline, `computer-outline.ts`;
     pi-phone's ocu build refuses too); an element number only while ocu's newest read still has the same element there
     (the panel's reads renumber: Pi reads again when it moved); and nothing while the owner has taken it over.
+  - **ocu 1.1.2-pp.3** (PP-270): `computer-outline.ts` reads `Snapshot:`, `Window id:`, `Other windows:`, `Covered:`,
+    `Screenshot omitted:` and the `Error: <code> retry=… suggestion=…` line, and an element's ` States: …` (checked,
+    focused, disabled, …) apart from what it is, so a focus or a tick never makes "no longer what you read". Every action
+    names the newest read of its app (`snapshot_id`, from `live.outlines`, the panel's reads included, after pi-phone's
+    own check between Pi's read and that one) and, when the app's name matches more windows, its `window_id`; ocu then
+    checks the element against the live window and refuses a stale one with `stale_ref`, which Pi is told plainly ("read
+    it again", nothing was done). Only the owner's Take over tap sends `headed: true` (a real click at a point); Pi's
+    click at a point is refused here until the real-mouse mode (PP-267). Parts other windows cover come black in the
+    pictures, `computer_screenshot` lists them, the panel says so in a line under its status (`cover`), and a window
+    minimised or wholly covered gives ocu's reason instead of a picture.
   - **The window on the machine** (`SIGN`; on Windows the bridge's, above): a GTK 3 window through python3-gi (which ocu needs on Linux anyway), on
     top, never taking the focus, "Pi is using this computer until HH:MM" and Stop, its app named `pi-phone` (so never
     controlled). It is a second ssh process: `ready` when shown (the session starts only then, else nothing starts),
@@ -1208,8 +1220,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **Tools** (`extensions/computer.ts`, permission `computer.control`, not in the gateway's catalogue: owner only, not on
     the team server; plan mode blocks them): `computer_control` (start = a card, `form.type: "computer"`, machine, apps,
     the minutes Pi asks for, 5 to 60, required; stop; status, with a machine its apps; setup), `computer_screen` (ocu's
-    outline and the time left), `computer_act` (click, double or right click by element or by a point of the window's
-    picture, set_value, type_text, press_key, scroll, secondary_action, wait; answers with the window after it;
+    outline and the time left), `computer_act` (click, double or right click by element (a point of the window's
+    picture waits for the real-mouse mode, PP-267), set_value, type_text, press_key, scroll, secondary_action, wait; answers with the window after it;
     set_value and type_text take `secret: "NAME"` instead of value or text, as `browser_type` does: the secrets
     module's hook checks the folder, machines and ask-first (`browserSecretNames` covers `computer_act`), the value goes
     to ocu alone with `allow_password_input: true`, and what Pi reads, the panel's status and the card say

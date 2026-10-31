@@ -290,12 +290,16 @@ No Termux, no laptop, no cloud VM.
   before each use). Pi never sees what you type: it reads `[username for <app>]`, `[password for <app>]` and so on,
   the field is blacked out of the pictures Pi gets, and a value too short to hide keeps the window from Pi while it
   shows. You can also type it yourself on Take over.
+  Pi reads each element's state too (checked, focused, disabled…), and acts on elements by their number: if the window
+  changed since Pi read it, nothing is done and Pi reads it again. Parts of the window under another window are black
+  in the pictures; a minimised or hidden window has none until you bring it back. Clicking a point of the picture is
+  yours alone for now, on Take over.
   pi-phone itself, banking and payment apps, password managers and authenticators, and the apps on your Never list are
   never read or touched.
 - **Pi's computer**, a panel like Pi's browser: the top bar's monitor button opens it beside the conversation (on a
   phone it covers the screen, and a small live preview sits above the message box while Pi acts). The session's windows
   are its tabs; the picture is the window as ocu sees it, after each of Pi's actions and every few seconds, with a box on
-  what Pi acted on; the foot has the minutes left and Stop. **Take over**: Pi waits; tap the picture to click there, and
+  what Pi acted on (a line says when another window covers part of it); the foot has the minutes left and Stop. **Take over**: Pi waits; tap the picture to click there, and
   your keys go to the field in focus, a password field too (the keyboard is in password mode there, and what you type
   is never shown to Pi, kept in the panel, or logged), until you **Hand back**.
 - **Computer control on Windows.** Windows' ssh has no desktop, so ocu runs in your signed-in desktop through

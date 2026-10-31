@@ -357,3 +357,39 @@ test("computer_sign_in's card on a phone: fixed labels, the values into the wind
     assert.match(told, /\[username for Pi OCU Demo\]/);
     await app.computerControl.end("m1", "the test is done");
 });
+
+// ocu 1.1.2-pp.3 (PP-270): another window over part of the one shown: a line under the panel's status says so, and goes
+// when the panel shows a window nothing covers.
+test("Pi's computer says when the window shown is partly covered by another window", { skip }, async () => {
+    await app.computerControl.end("m1", "the test before");
+    // The stand-in machine starts its next ocu with Viewer (covered) on its desktop.
+    process.env.FAKE_OCU_COVER = "1";
+
+    try {
+        const id = Number(await newSession(app));
+        const session = await app.computerControl.start({
+            machine: "m1",
+            machineName: "tuanlh-sandbox-01",
+            conversationId: id,
+            session: id,
+            approvedBy: "owner",
+            apps: [{ label: "Viewer", name: "viewer" }, { label: "Pi OCU Demo", name: "demo_app.py" }],
+            follow: false,
+            reason: "look",
+            minutes: 15,
+        });
+
+        await app.computerControl.screen(session, "Viewer");
+        await page.setViewport(VIEWPORTS.desktop);
+        await page.navigate(`${base}/s/${id}`);
+        await until(async () => inPage<boolean>(`return JSON.stringify(document.querySelector(".topbar button[title=\\"Pi's computer\\"]") !== null)`), "the monitor button");
+        await page.evaluate(`document.querySelector("[data-part=computer-panel]") || document.querySelector(".topbar button[title=\\"Pi's computer\\"]").click()`);
+        await until(async () => (await text("[data-part=computer-cover]")).includes("Partly covered by another window: those parts show black."), "the covered note");
+        await shot("computer-covered-1280");
+        await app.computerControl.screen(session, "Pi OCU Demo");
+        await until(async () => (await text("[data-part=computer-cover]")) === "", "no note for a window nothing covers");
+        await app.computerControl.end("m1", "the test is done");
+    } finally {
+        delete process.env.FAKE_OCU_COVER;
+    }
+});

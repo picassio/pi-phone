@@ -39,8 +39,20 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
 const requests: string[] = [];
 const PASSWORD = "demo-pass-55555";
 const ocuLog = join(mkdtempSync(join(root, "computer-ocu-")), "calls.jsonl");
+/** What ocu got, without the newest read's snapshot_id every action names (PP-270, computer-control.test.ts). */
 const ocuCalls = (): { tool: string; args: Record<string, unknown> }[] =>
-    existsSync(ocuLog) ? readFileSync(ocuLog, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { tool: string; args: Record<string, unknown> }) : [];
+    existsSync(ocuLog)
+        ? readFileSync(ocuLog, "utf8")
+              .trim()
+              .split("\n")
+              .filter(Boolean)
+              .map((line) => {
+                  const { tool, args } = JSON.parse(line) as { tool: string; args: Record<string, unknown> };
+                  const { snapshot_id: _, ...rest } = args;
+
+                  return { tool, args: rest };
+              })
+        : [];
 
 const route: FauxResponseStep = (request) => {
     requests.push(JSON.stringify(request));

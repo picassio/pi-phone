@@ -18161,6 +18161,16 @@ pre.gallery-code {
     display: none;
 }
 
+/* What covers the window (PP-270): a small line under the status. */
+.pb-cover {
+    flex: none;
+    padding: 4px 14px;
+    border-bottom: 1px solid var(--hair);
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--warn-soft);
+}
+
 .pb-status.busy {
     color: var(--text);
 }

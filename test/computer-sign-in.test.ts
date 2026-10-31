@@ -33,8 +33,20 @@ const PASSWORD = "card-pass-88888";
 const requests: string[] = [];
 const logs: string[] = [];
 const ocuLog = join(mkdtempSync(join(root, "computer-sign-in-ocu-")), "calls.jsonl");
+/** What ocu got, without the newest read's snapshot_id every action names (PP-270, computer-control.test.ts). */
 const ocuCalls = (): { tool: string; args: Record<string, unknown> }[] =>
-    existsSync(ocuLog) ? readFileSync(ocuLog, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { tool: string; args: Record<string, unknown> }) : [];
+    existsSync(ocuLog)
+        ? readFileSync(ocuLog, "utf8")
+              .trim()
+              .split("\n")
+              .filter(Boolean)
+              .map((line) => {
+                  const { tool, args } = JSON.parse(line) as { tool: string; args: Record<string, unknown> };
+                  const { snapshot_id: _, ...rest } = args;
+
+                  return { tool, args: rest };
+              })
+        : [];
 const dataDir = join(root, "computer-sign-in-data");
 
 const route: FauxResponseStep = (request) => {

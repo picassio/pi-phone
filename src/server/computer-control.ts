@@ -26,7 +26,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type ComputerOutline, type DesktopApp, type Frame, parseApps, parseOutline, pngSize } from "./computer-outline.ts";
+import { type ComputerOutline, type Cover, type DesktopApp, type Frame, parseApps, parseError, parseOutline, pngSize } from "./computer-outline.ts";
 import { hideTyped, SHORT_TYPED_NOTE, shortTypedShowing, type TypedFill, typedAreas } from "./computer-typed.ts";
 import { imageOf, OcuClient, type OcuProcess, type OcuResult, textOf } from "./ocu-client.ts";
 import {
@@ -113,6 +113,8 @@ export type ComputerPanel = {
     takenOver: boolean;
     until: number;
     open: boolean;
+    /** What covers the tab's window in its newest read (PP-270): parts (black in the picture), all of it, minimised; or null. */
+    cover: Cover | null;
 };
 
 /** A picture of a window, for the tabs that watch: with the box on what Pi last acted on, in fractions of the picture. */
@@ -179,6 +181,18 @@ GLib.io_add_watch(sys.stdin, GLib.IO_IN | GLib.IO_HUP, heard)
 print("ready", flush=True)
 Gtk.main()
 `;
+
+/**
+ * What Pi is told when ocu refuses an action: a stale_ref (ocu 1.1.2-pp.3, PP-270: the element at that number, or the
+ * window, is no longer the one read) plainly as "read it again"; any other refusal as ocu says it.
+ */
+export function ocuRefusal(text: string, app: ComputerApp): string {
+    if (parseError(text)?.code === "stale_ref") {
+        return `${app.label} changed since it was read (that element is no longer there as you read it, or its window was replaced): nothing was done. Read it again with computer_screen and use the new numbers.`;
+    }
+
+    return `ocu: ${text}`;
+}
 
 /** Whether a press_key chord types a character (a, shift+a, space), not a command (ctrl+a, Return). */
 export function typesCharacter(key: string): boolean {
@@ -934,7 +948,11 @@ export class ComputerControl {
         }
     }
 
-    /** A call to the session's ocu, the panel saying what Pi does meanwhile; its picture goes to the tabs that watch. */
+    /**
+     * A call to the session's ocu, the panel saying what Pi does meanwhile; its picture goes to the tabs that watch. An
+     * action names the newest read of the app (ocu 1.1.2-pp.3, PP-270: `snapshot_id`, refused with stale_ref once the
+     * window was read again or changed under it), and its window when the app's name matches more than one.
+     */
     async #call(session: ComputerSession, app: ComputerApp, tool: string, args: Record<string, unknown>, doing: string | null, hit?: { frame: Frame; label: string }): Promise<OcuResult> {
         const live = this.#liveOf(session);
 
@@ -947,10 +965,25 @@ export class ComputerControl {
         }
 
         try {
-            const result = await live.ocu.call(tool, { app: app.name, ...args });
+            const newest = live.outlines.get(app.name);
+            const refs =
+                tool === "get_app_state" || tool === "list_apps" || newest === undefined
+                    ? {}
+                    : {
+                          ...(newest.snapshot === undefined ? {} : { snapshot_id: newest.snapshot }),
+                          ...(newest.windowId !== undefined && (newest.otherWindows?.length ?? 0) > 0 ? { window_id: newest.windowId } : {}),
+                      };
+            const result = await live.ocu.call(tool, { app: app.name, ...args, ...refs });
 
             if (!result.isError && textOf(result).startsWith("App=")) {
-                live.outlines.set(app.name, parseOutline(textOf(result)));
+                const outline = parseOutline(textOf(result));
+
+                live.outlines.set(app.name, outline);
+
+                // The panel says when its window is covered (its picture black there) or has no picture.
+                if (app.name === live.tab && (newest?.cover ?? null) !== (outline.cover ?? null)) {
+                    this.#panelChanged(session.machine);
+                }
             }
 
             if (hit !== undefined) {
@@ -1093,6 +1126,14 @@ export class ComputerControl {
                     throw new Error("click needs index, or x and y in the window's picture.");
                 }
 
+                // ocu 1.1.2-pp.3 treats a point as real pointer input (`headed`), which only the owner's Take over sends
+                // for now: Pi's points wait for the real-mouse mode (PP-267).
+                if (element === undefined) {
+                    throw new Error(
+                        `Clicking a point (${action.x},${action.y}) needs the real-mouse mode, which is not on yet (PP-267): click an element by its index from computer_screen instead, or ask the owner to click there (Take over).`,
+                    );
+                }
+
                 tool = "click";
                 args = {
                     ...(element === undefined ? { x: action.x, y: action.y } : { element_index: String(element.index) }),
@@ -1167,7 +1208,7 @@ export class ComputerControl {
         const text = hideTyped("secret" in action && action.secret !== undefined && filled !== "" ? textOf(result).split(filled).join(`[secret ${action.secret}]`) : textOf(result), live.typed);
 
         if (result.isError) {
-            throw new Error(`ocu: ${text}`);
+            throw new Error(ocuRefusal(text, app));
         }
 
         const after = parseOutline(textOf(result));
@@ -1207,7 +1248,7 @@ export class ComputerControl {
      * A picture of an app's window (PNG), read now, with the window's size in its picture's pixels, and where it must be
      * blacked out before a model gets it (`hidden`, window points: what the owner typed on a sign-in card).
      */
-    async picture(session: ComputerSession, wanted?: string): Promise<{ app: ComputerApp; png: string; width: number; height: number; text: string; hidden: Frame[] }> {
+    async picture(session: ComputerSession, wanted?: string): Promise<{ app: ComputerApp; png: string; width: number; height: number; text: string; hidden: Frame[]; covered: Frame[] }> {
         const live = this.#liveOf(session);
 
         this.#mayAct(live);
@@ -1217,7 +1258,12 @@ export class ComputerControl {
         const size = png === undefined ? undefined : pngSize(png);
 
         if (result.isError || png === undefined || size === undefined) {
-            throw new Error(`ocu sent no picture of ${app.label}${result.isError ? `: ${hideTyped(textOf(result), live.typed)}` : " (its window may be hidden or too small)"}.`);
+            // ocu says why it has no picture (a window minimised or covered by others, PP-270).
+            const omitted = result.isError ? undefined : parseOutline(textOf(result)).omitted;
+
+            throw new Error(
+                `ocu sent no picture of ${app.label}${result.isError ? `: ${hideTyped(textOf(result), live.typed)}` : omitted === undefined ? " (its window may be hidden or too small)" : `: ${omitted}`}${omitted === undefined ? "." : ""}`,
+            );
         }
 
         const outline = parseOutline(textOf(result));
@@ -1228,7 +1274,7 @@ export class ComputerControl {
             throw new Error(SHORT_TYPED_NOTE);
         }
 
-        return { app, png, ...size, text: hideTyped(textOf(result), live.typed), hidden: typedAreas(live.typed, outline) };
+        return { app, png, ...size, text: hideTyped(textOf(result), live.typed), hidden: typedAreas(live.typed, outline), covered: outline.covered ?? [] };
     }
 
     /**
@@ -1258,7 +1304,7 @@ export class ComputerControl {
             );
 
             if (result.isError) {
-                throw new Error(`ocu could not fill [${element.index}] in ${app.label}: ${hideTyped(textOf(result), live.typed)}`);
+                throw new Error(parseError(textOf(result))?.code === "stale_ref" ? ocuRefusal("", app) : `ocu could not fill [${element.index}] in ${app.label}: ${hideTyped(textOf(result), live.typed)}`);
             }
         }
     }
@@ -1279,6 +1325,7 @@ export class ComputerControl {
             takenOver: live?.takenOver ?? false,
             until: session.until,
             open: live !== undefined,
+            cover: live?.outlines.get(live.tab)?.cover ?? null,
         };
     }
 
@@ -1415,7 +1462,9 @@ export class ComputerControl {
                 throw new Error("A tap needs x and y in the picture.");
             }
 
-            result = await this.#call(session, app, "click", { x: Math.round(given.x), y: Math.round(given.y) }, null, { frame: { x: given.x - 6, y: given.y - 6, width: 12, height: 12 }, label: "tap" });
+            // The owner's own tap is a real click at that point: ocu 1.1.2-pp.3 takes a point only with `headed`, which
+            // only Take over sends (PP-270).
+            result = await this.#call(session, app, "click", { x: Math.round(given.x), y: Math.round(given.y), headed: true }, null, { frame: { x: given.x - 6, y: given.y - 6, width: 12, height: 12 }, label: "tap" });
         } else if (given.type === "text") {
             result = await this.#call(session, app, "type_text", { text: given.text, allow_password_input: true }, null);
         } else {

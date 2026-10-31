@@ -5,12 +5,12 @@
 // machine, after Pi's run, or when the owner puts its app on the Never list; a restart ends it.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { ComputerControl, type ComputerControlOptions, type ComputerFrame, type ComputerMachine, typesCharacter } from "../src/server/computer-control.ts";
-import { parseApps, parseOutline, pngSize } from "../src/server/computer-outline.ts";
+import { parseApps, parseError, parseOutline, pngSize, withoutErrorLine } from "../src/server/computer-outline.ts";
 
 const FAKE = join(import.meta.dirname, "support", "fake-ocu.ts");
 const root = mkdtempSync(join(tmpdir(), "pi-phone-computer-"));
@@ -41,7 +41,7 @@ async function eventually(check: () => boolean, what: string): Promise<void> {
 const SANDBOX: ComputerMachine = { id: "m1", name: "tuanlh-sandbox-01", platform: "linux", connected: true, tools: { ocu: "1.1.2-pp.1" } };
 
 /** A control with the stand-in machine: what it was asked to run on it, and what ocu got (from the log). */
-function make(options: { sign?: string; machines?: ComputerMachine[]; idleEndMs?: number; dataDir?: string } = {}) {
+function make(options: { sign?: string; machines?: ComputerMachine[]; idleEndMs?: number; dataDir?: string; env?: Record<string, string> } = {}) {
     const dataDir = options.dataDir ?? mkdtempSync(join(root, "data-"));
     const logFile = join(root, `ocu-${++made}.log`);
     const scripts: string[] = [];
@@ -50,16 +50,24 @@ function make(options: { sign?: string; machines?: ComputerMachine[]; idleEndMs?
 
         return spawn(process.execPath, [FAKE, script.includes("python3 -c") ? "sign" : "mcp"], {
             stdio: ["pipe", "pipe", "pipe"],
-            env: { ...process.env, FAKE_OCU_LOG: logFile, ...(options.sign === undefined ? {} : { FAKE_SIGN: options.sign }) },
+            env: { ...process.env, FAKE_OCU_LOG: logFile, ...(options.sign === undefined ? {} : { FAKE_SIGN: options.sign }), ...options.env },
         });
     };
     const lines: string[] = [];
     const control = new ComputerControl({ dataDir, gateway: false, machines: () => options.machines ?? [SANDBOX], launch, idleEndMs: options.idleEndMs ?? 60_000, refreshMs: 60_000, log: (line) => lines.push(line) });
-    const calls = () => (existsSync(logFile) ? readFileSync(logFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { tool: string; args: Record<string, unknown> }) : []);
+    /** What ocu got, as it got it. */
+    const rawCalls = () => (existsSync(logFile) ? readFileSync(logFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { tool: string; args: Record<string, unknown> }) : []);
+    /** The same without the newest read's snapshot_id every action names (PP-270, tested on its own below). */
+    const calls = () =>
+        rawCalls().map(({ tool, args }) => {
+            const { snapshot_id: _, ...rest } = args;
+
+            return { tool, args: rest };
+        });
 
     controls.push(control);
 
-    return { control, scripts, calls, dataDir, lines };
+    return { control, scripts, calls, rawCalls, dataDir, lines };
 }
 
 const DEMO = { label: "Pi OCU Demo", name: "demo_app.py" };
@@ -259,7 +267,8 @@ test("while the owner has the computer, Pi waits; their taps and keys go through
     assert.equal(control.takeOver(7, true).takenOver, true);
     await assert.rejects(control.screen(session, "demo_app.py"), /The owner took the computer over: wait until they hand it back/);
     await control.input(7, { type: "tap", x: 200, y: 140 });
-    assert.deepEqual(calls().at(-1), { tool: "click", args: { app: "demo_app.py", x: 200, y: 140 } });
+    // The owner's tap is a real click at that point: the one call that tells ocu headed (PP-270).
+    assert.deepEqual(calls().at(-1), { tool: "click", args: { app: "demo_app.py", x: 200, y: 140, headed: true } });
     assert.equal((await control.input(7, { type: "text", text: "Tu" })).password, false);
     assert.deepEqual(calls().at(-1), { tool: "type_text", args: { app: "demo_app.py", text: "Tu", allow_password_input: true } });
     // Into the password field: the owner's own, so ocu is told this call may.
@@ -277,7 +286,11 @@ test("while the owner has the computer, Pi waits; their taps and keys go through
     assert.ok(!read.includes("owner-pass-42"), read);
     assert.ok(!JSON.stringify([panels, frames.map((each) => each.hit)]).includes("owner-pass-42"));
     assert.ok(!lines.join("\n").includes("owner-pass-42"));
-    // Pi's own calls never carry the opt-out.
+    // Pi's own calls never carry headed, nor the opt-out.
+    assert.deepEqual(
+        calls().filter((each) => each.args.headed !== undefined),
+        [{ tool: "click", args: { app: "demo_app.py", x: 200, y: 140, headed: true } }],
+    );
     assert.equal(calls().filter((each) => each.args.allow_password_input !== undefined && !["type_text", "press_key"].includes(each.tool)).length, 0);
     await control.end("m1", "test over");
 });
@@ -339,4 +352,163 @@ test("a restart ends the session (its ocu and window went with the server); the 
     assert.equal(again.control.prepareOf("m1"), ". ~/env.sh");
     assert.deepEqual(again.control.neverList().own, [{ label: "Outlook" }]);
     await first.control.end("m1", "test over");
+});
+
+// ─── ocu 1.1.2-pp.3 (PP-270): snapshot ids, states, covered windows, headed, Error lines ───
+
+test("the outline of ocu 1.1.2-pp.3: states left out of what an element is, the snapshot, the window ids, what covers it, an Error line", () => {
+    const outline = parseOutline(
+        [
+            "App=demo_app.py (pid 27702)",
+            'Window: "Pi OCU Demo", App: demo_app.py.',
+            "Snapshot: 7a6b3001",
+            "Window id: 27702:6",
+            'Other windows: 27702:9 "Help" (demo_app.py), 4242:6 "Pi OCU Demo \\"2\\"" (python3)',
+            "Covered: [{x: 240, y: 90, width: 122, height: 173}, {x: 0, y: 0, width: 10, height: 10}] (other windows; blacked out in the screenshot)",
+            "\t0 frame Pi OCU Demo Frame: {x: 0, y: 0, width: 420, height: 220}",
+            "\t\t\t2 text  Value: Tuan Secondary Actions: activate States: focused Frame: {x: 12, y: 12, width: 396, height: 34}",
+            "\t\t\t4 check box Shout Secondary Actions: click States: checked, focused Frame: {x: 12, y: 96, width: 396, height: 21}",
+            "\t\t\t5 label States: of the union Frame: {x: 12, y: 167, width: 396, height: 17}",
+        ].join("\n"),
+    );
+
+    assert.deepEqual(outline.elements[1], {
+        index: 2,
+        what: "text  Secondary Actions: activate",
+        name: "text",
+        value: "Tuan",
+        frame: { x: 12, y: 12, width: 396, height: 34 },
+        password: false,
+        states: ["focused"],
+    });
+    assert.equal(outline.elements[2]!.what, "check box Shout Secondary Actions: click");
+    assert.deepEqual(outline.elements[2]!.states, ["checked", "focused"]);
+    // Words that are no states stay in the name.
+    assert.equal(outline.elements[3]!.name, "label States: of the union");
+    assert.equal(outline.elements[3]!.states, undefined);
+    assert.equal(outline.snapshot, "7a6b3001");
+    assert.equal(outline.windowId, "27702:6");
+    assert.deepEqual(outline.otherWindows, [
+        { id: "27702:9", title: "Help", app: "demo_app.py" },
+        { id: "4242:6", title: 'Pi OCU Demo "2"', app: "python3" },
+    ]);
+    assert.equal(outline.cover, "partial");
+    assert.deepEqual(outline.covered, [
+        { x: 240, y: 90, width: 122, height: 173 },
+        { x: 0, y: 0, width: 10, height: 10 },
+    ]);
+
+    const full = parseOutline('App=a\nWindow: "A", App: a.\nSnapshot: s1\nCovered: [{x: 0, y: 0, width: 420, height: 220}] (the whole window)\nScreenshot omitted: other windows cover the whole window. Bring it to the front, then read it again.');
+
+    assert.equal(full.cover, "full");
+    assert.equal(full.omitted, "Screenshot omitted: other windows cover the whole window. Bring it to the front, then read it again.");
+    assert.equal(parseOutline('App=a\nWindow: "A", App: a.\nScreenshot omitted: the window is minimised. Restore it, then read it again.').cover, "minimized");
+    assert.equal(parseOutline('App=a\nWindow: "A", App: a.\nCovered: unknown (the window stacking could not be read)').cover, "unknown");
+    assert.equal(parseOutline('App=a\nWindow: "A", App: a.\nScreenshot omitted by include_screenshot=false').omitted, undefined);
+
+    const refused = "Snapshot s1 of demo_app.py was replaced by s2.\nError: stale_ref retry=safe suggestion=Call get_app_state again and act on its element numbers and snapshot id.";
+
+    assert.deepEqual(parseError(refused), { code: "stale_ref", retry: "safe", suggestion: "Call get_app_state again and act on its element numbers and snapshot id." });
+    assert.equal(withoutErrorLine(refused), "Snapshot s1 of demo_app.py was replaced by s2.");
+    assert.equal(parseError("input failed"), undefined);
+});
+
+const VIEWER = { label: "Viewer", name: "viewer" };
+const NOTES = { label: "Notes", name: "notes" };
+
+test("an element whose states changed (focus moved, a tick) is still the element Pi read", async () => {
+    const { control, calls } = make();
+    const session = await start(control);
+
+    // Pi reads the name field [2] in focus; the owner then clicks into the password field.
+    const { text } = await control.screen(session, "demo_app.py");
+
+    assert.match(text, /2 text {2}Secondary Actions: activate States: focused/);
+    control.takeOver(7, true);
+    await control.input(7, { type: "tap", x: 100, y: 70 });
+    control.takeOver(7, false);
+    assert.doesNotMatch(control.outlineOf(session, DEMO)!.elements.find((each) => each.index === 2)!.what, /focused/);
+    await control.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" });
+    assert.deepEqual(calls().at(-1), { tool: "set_value", args: { app: "demo_app.py", element_index: "2", value: "Tuan" } });
+    // A tick shows as a state of the same element.
+    const ticked = await control.act(session, undefined, { op: "click", index: 4 });
+
+    assert.match(ticked.text, /4 check box Shout Secondary Actions: click States: checked/);
+    assert.deepEqual(control.outlineOf(session, DEMO)!.elements.find((each) => each.index === 4)!.states, ["checked"]);
+    await control.end("m1", "test over");
+});
+
+test("an action names the newest read of its app (the panel's too), and the window when its app has several", async () => {
+    const { control, rawCalls } = make({ env: { FAKE_OCU_COVER: "1" } });
+    const session = await start(control, { apps: [DEMO, VIEWER] });
+
+    await control.screen(session, "demo_app.py");
+    const pis = control.outlineOf(session, DEMO)!.snapshot;
+
+    // The panel reads the window again: that read is ocu's newest, so the action names it (Pi's own read is no longer
+    // ocu's latest), and pi-phone still checks [2] is what Pi read.
+    await control.setTab(7, "demo_app.py");
+    const newest = control.outlineOf(session, DEMO)!.snapshot;
+
+    assert.ok(pis !== undefined && newest !== undefined && pis !== newest);
+    await control.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" });
+    assert.deepEqual(rawCalls().at(-1), { tool: "set_value", args: { app: "demo_app.py", element_index: "2", value: "Tuan", snapshot_id: newest } });
+    // Viewer's name matches two windows: the action names the one read.
+    await control.screen(session, "viewer");
+    await control.act(session, "viewer", { op: "click", index: 1 });
+    assert.equal(rawCalls().at(-1)!.args.window_id, control.outlineOf(session, VIEWER)!.windowId);
+    assert.match(String(rawCalls().at(-1)!.args.window_id), /^4242:\d+$/);
+    // Reads name no snapshot.
+    assert.ok(rawCalls().filter((each) => each.tool === "get_app_state").every((each) => each.args.snapshot_id === undefined));
+    await control.end("m1", "test over");
+});
+
+test("ocu's stale_ref (the window changed under the read): Pi is told plainly to read it again, and nothing was done", async () => {
+    const staleFile = join(root, `stale-${++made}`);
+    const { control, calls } = make({ env: { FAKE_OCU_STALE: staleFile } });
+    const session = await start(control);
+
+    await control.screen(session, "demo_app.py");
+    writeFileSync(staleFile, "");
+    const refused = await control.act(session, undefined, { op: "click", index: 5 }).then(
+        () => assert.fail("the click went through"),
+        (error: Error) => error.message,
+    );
+
+    assert.equal(refused, "Pi OCU Demo changed since it was read (that element is no longer there as you read it, or its window was replaced): nothing was done. Read it again with computer_screen and use the new numbers.");
+    assert.doesNotMatch((await control.screen(session, "demo_app.py")).text, /Hello/);
+    assert.equal(calls().filter((each) => each.tool === "click").length, 1);
+    await control.end("m1", "test over");
+});
+
+test("Pi's click at a point is refused before ocu (the real-mouse mode, PP-267); only the owner's Take over taps send headed", async () => {
+    const { control, calls } = make();
+    const session = await start(control);
+
+    await control.screen(session, "demo_app.py");
+    await assert.rejects(control.act(session, undefined, { op: "click", x: 200, y: 140 }), /Clicking a point \(200,140\) needs the real-mouse mode, which is not on yet \(PP-267\): click an element by its index/);
+    assert.equal(calls().filter((each) => each.tool === "click").length, 0, "no click reached ocu");
+    await control.act(session, undefined, { op: "click", index: 5 });
+    assert.equal(calls().at(-1)!.args.headed, undefined);
+    control.takeOver(7, true);
+    await control.input(7, { type: "tap", x: 200, y: 140 });
+    assert.equal(calls().at(-1)!.args.headed, true);
+    await control.end("m1", "test over");
+});
+
+test("a covered window: black parts listed in the picture, the panel's note; a minimised one: ocu's reason, no picture", async () => {
+    const { control } = make({ env: { FAKE_OCU_COVER: "1" } });
+    const session = await start(control, { apps: [DEMO, VIEWER, NOTES] });
+
+    assert.equal(control.panelOf("m1")!.cover, null);
+    const shot = await control.picture(session, "viewer");
+
+    assert.deepEqual(shot.covered, [{ x: 300, y: 0, width: 120, height: 80 }]);
+    assert.equal(control.panelOf("m1")!.tab, "viewer");
+    assert.equal(control.panelOf("m1")!.cover, "partial");
+    await assert.rejects(control.picture(session, "notes"), /^Error: ocu sent no picture of Notes: Screenshot omitted: the window is minimised\. Restore it, then read it again\.$/);
+    assert.equal(control.panelOf("m1")!.cover, "minimized");
+    await control.setTab(7, "demo_app.py");
+    assert.equal(control.panelOf("m1")!.cover, null);
+    await control.end("m1", "test over");
 });
