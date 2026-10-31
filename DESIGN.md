@@ -285,6 +285,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
   A session's scope is found as pi-para finds it, in its folder here or, for a session on a machine, asked there.
   qmd-engine and pi-para run on `node:sqlite` (`QMD_SQLITE_DRIVER=node`, set by `para-env.ts` before they load);
   the runtime package leaves out their bundled better-sqlite3 and qmd's tree-sitter grammars.
+  What of it goes into the prompt is `context-policy.ts`'s choice (PP-276), as are the secrets' and skills': Pi Durable
+  keeps the prompt as system messages in the transcript and sends a changed section again, each copy staying until
+  compaction (the index changed with every write anywhere: 12 copies of 21k characters in one session in 3 days).
+  `relevant` (default) keeps the section fixed (the skill, the rules, the scope) and `commands.submit` adds a part to a
+  person's own message (`WIKI_BLOCK`, `<wiki-pages paths="…">`, after their text; the transcript shows the paths, not
+  the text): `Para.relevant` (pi-para's search of the whole message, by meaning when there are embeddings and kept at
+  score 0.5 and up, plus qmd keyword hits of its telling words without graph boost, a page having two of them) and the
+  pages the wiki's log names since the session's last message (`changedSince`, a mark in memory). `frozen` returns the
+  section the session has (`PromptInput.shown`), `live` is the old section, `off` the rules alone. Secrets: `tool` says
+  to use `secrets_list` (with `query`), `list` names them. Skills: `frozen` keeps the list the session has while it
+  names the same skills (`frozenSkills`). Every session's choice is `config.contextPolicy`, a session's own
+  `SessionMeta.contextPolicy`; Menu › Compact context shows both, Pi's `context.*` settings change them.
   The Wiki page is the module's browser part (`extensions/para-web/`, owner only): the PARA tree, qmd search, pages
   rendered with `[[links]]`, backlinks, freshness, an editor that saves through pi-para's `wiki_write`, and Ask Pi
   (`pocket.compose`). The app's markdown turns `[[page]]` into `#wiki:page` links anywhere; the Wiki page opens them.

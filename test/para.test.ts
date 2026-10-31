@@ -7,8 +7,13 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { projectEntry } from "../src/server/projection.ts";
 
 let told = "";
+/** How many system messages of the last request carry the wiki section: one, unless it was sent again. */
+let wikiCopies = 0;
+/** The text parts of the last request's last person's message. */
+let userParts: string[] = [];
 /** What the capture session was sent, the last time. */
 let captureText = "";
 /** The tools the capture session was offered, the last time it asked. */
@@ -23,11 +28,20 @@ const page = {
     mode: "create",
 };
 const route: FauxResponseStep = (request) => {
-    for (const message of (request as { messages: { role: string; sections?: Record<string, string | null> }[] }).messages) {
+    const messages = (request as { messages: { role: string; content?: unknown; sections?: Record<string, string | null> }[] }).messages;
+
+    wikiCopies = 0;
+
+    for (const message of messages) {
         if (message.role === "system" && message.sections?.wiki) {
             told = message.sections.wiki;
+            wikiCopies++;
         }
     }
+
+    const person = messages.filter((message) => message.role === "user").at(-1)?.content;
+
+    userParts = Array.isArray(person) ? (person as { type: string; text?: string }[]).flatMap((part) => (part.type === "text" ? [part.text ?? ""] : [])) : [String(person ?? "")];
 
     const { role, text } = lastText(request as never);
 
@@ -169,6 +183,9 @@ test("Pi writes a wiki page, finds it, reads it, and the prompt carries the proj
 
     assert.match(read, /outlives its socket/, read);
 
+    // With the wiki's index in the prompt (PP-276's live; the default brings matching pages with each message instead).
+    await app.setContextPart(owner(app), "wiki", "live", id);
+    await turn(id, "hello");
     // The session's scope is its folder's name ("work"): the page is in its context now.
     assert.match(told, /wiki_query/, "pi-para's guidance");
     // pi-para's own skill leads the section; its short guidance list is left out.
@@ -257,6 +274,8 @@ test("open questions: the prompt lists them and names the session, a write that 
     const { id } = await app.commands.createSession(owner(app), { cwd: work });
 
     await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    // The index with its open questions in the prompt (PP-276's live).
+    await app.setContextPart(owner(app), "wiki", "live", id);
     await turn(id, "ask in the wiki");
     await turn(id, "hello");
 
@@ -431,4 +450,83 @@ test("a capture never replaces a page that is there: it is told to append or edi
     await app.harness.waitForIdle(context);
     assert.equal(reattach(), before, "the page as it was");
     assert.match((await modelTexts(app, sent.conversation! as never)).join("\n"), /A capture never replaces a page that is there \(resources\/terminal-reattach\)/);
+});
+
+test("the wiki relevant (PP-276, the default): a fixed section, the pages that match a message come with it, writes elsewhere are a line, never the index again", async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    assert.equal(app.contextPolicy(id).wiki, "relevant");
+    await turn(id, "hello there");
+    assert.match(told, /The wiki's index is not in this prompt/);
+    assert.match(told, /wiki scope: work/);
+    assert.doesNotMatch(told, /terminal-reattach|Open Questions in the Wiki/, "no index, no list of questions");
+    assert.equal(wikiCopies, 1);
+
+    // A message about a page: the page comes with it, in a part of its own, with how fresh it is.
+    await turn(id, "why does the shell outlive its socket");
+    const block = userParts.find((part) => part.startsWith('<wiki-pages paths="'));
+
+    assert.ok(block !== undefined, userParts.join("\n---\n"));
+    assert.match(block, /resources\/terminal-reattach: Terminal reattach \(/);
+    assert.match(block, /outlives its socket/);
+    assert.equal(userParts[0], "why does the shell outlive its socket", "the person's words as they wrote them");
+
+    // Another session writes to the wiki: this one's next message names the page, and the section is not sent again.
+    await app.para.save(
+        "resources/office-printer",
+        "---\ntitle: Office printer\npara: resources\nscope:\n  - work\ntags:\n  - office\n---\n\nThe printer is on the third floor.\n",
+        true,
+    );
+    await turn(id, "good morning");
+    assert.match(userParts.join("\n"), /Wiki pages changed since this session's last message: resources\/office-printer/);
+    assert.equal(wikiCopies, 1, "the wiki section once, as it was");
+
+    // People see their words, and the pages by name.
+    const view = await (await app.conversation(id)).viewState(context);
+
+    try {
+        const shown = view.value.entries.map((entry) => projectEntry(entry)).filter((entry) => entry?.kind === "user");
+        const asked = shown.find((entry) => entry?.kind === "user" && entry.text === "why does the shell outlive its socket");
+
+        assert.ok(asked !== undefined, JSON.stringify(shown));
+        assert.deepEqual(asked.kind === "user" ? asked.wiki : undefined, ["resources/terminal-reattach"]);
+    } finally {
+        view.dispose();
+    }
+});
+
+test("the wiki frozen and off (PP-276): the index the session first had, or the rules only, and nothing with messages", async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    await app.setContextPart(owner(app), "wiki", "frozen", id);
+    await turn(id, "hello");
+    assert.match(told, /terminal-reattach/, "the index");
+    assert.doesNotMatch(told, /garden-hose/);
+
+    await app.para.save(
+        "resources/garden-hose",
+        "---\ntitle: Garden hose\npara: resources\nscope:\n  - work\ntags:\n  - garden\n---\n\nThe garden hose is in the shed.\n",
+        true,
+    );
+    await turn(id, "where is the garden hose kept in the shed");
+    assert.doesNotMatch(told, /garden-hose/, "frozen: the index as it was");
+    assert.equal(wikiCopies, 1);
+    assert.equal(userParts.length, 1, "no pages with the message");
+
+    await app.setContextPart(owner(app), "wiki", "off", id);
+    await turn(id, "hello again");
+    assert.match(told, /search it with wiki_query before non-trivial work/);
+    assert.doesNotMatch(told, /terminal-reattach/);
+    assert.equal(userParts.length, 1);
+
+    // Every session's setting, and a session's own over it.
+    await app.setContextPart(owner(app), "wiki", "live");
+    assert.equal(app.contextPolicy(id).wiki, "off");
+    await app.setContextPart(owner(app), "wiki", "inherit", id);
+    assert.equal(app.contextPolicy(id).wiki, "live");
+    await app.setContextPart(owner(app), "wiki", "relevant");
+    assert.equal(app.config.contextPolicy.wiki, undefined, "the default is not written down");
+    await assert.rejects(app.setContextPart(owner(app), "wiki", "everything"), /relevant, frozen, live, off/);
 });

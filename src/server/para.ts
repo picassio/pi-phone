@@ -72,6 +72,12 @@ type ParaModules = Awaited<ReturnType<typeof load>>;
 
 /** How long a session's scope is taken as known before its folder is looked at again. */
 const SCOPE_MS = 5 * 60_000;
+/**
+ * The least search score of a page that comes with a person's message (`relevant`). pi-para's scores are BM25 mapped to
+ * 0..1 (lexical ×0.85) or cosine similarity: on the owner's wiki, pages about a query scored 0.6–0.85 and unrelated
+ * ones 0.24–0.46 (wiki_query, 2026-10-31).
+ */
+const WIKI_MATCH = 0.5;
 
 /** What the wiki needs of the app. */
 export interface ParaHost {
@@ -324,6 +330,97 @@ export class Para {
             snippet: each.snippet,
             score: each.score,
         }));
+    }
+
+    /**
+     * The pages that match a person's message (PP-276, the wiki `relevant`): pi-para's search (keywords, and meaning when
+     * the wiki has embeddings) in the session's scope, only matches scoring at least `WIKI_MATCH` and near the best one,
+     * at most four; each with a line of it, how fresh it is, and its open questions.
+     */
+    async relevant(
+        message: string,
+        cwd: string,
+    ): Promise<{ path: string; title: string; line: string; freshness: string; questions: string[] }[]> {
+        const { store, wikiDir } = await this.open();
+        const { readPage, formatFreshness } = this.#pi!;
+        const scope = await this.scope(cwd);
+        // The whole message: by meaning when the wiki has embeddings, and by keyword when every word is on a page.
+        const found = await this.#pi!.searchWiki(store, message.replace(/\s+/g, " ").slice(0, 400), { limit: 8, graphBoost: true, scope });
+        const best = found[0]?.score ?? 0;
+        const chosen = new Map<string, string>(
+            found.filter((each) => each.score >= WIKI_MATCH && each.score >= best * 0.7).map((each) => [`${each.page.category}/${each.page.slug}`, each.snippet]),
+        );
+        // A message's words are rarely all on one page (qmd's keyword search wants every word): its telling words
+        // each, and the pages that have at least two of them (or the one, when it has one).
+        const words = tellingWords(message);
+        const hits = new Map<string, { count: number; score: number; snippet: string }>();
+
+        for (const word of words) {
+            // Pages that have the word, without the pages they link to (graphBoost): those have not.
+            for (const hit of await store.searchLex(word, { limit: 10, collection: "wiki", graphBoost: false })) {
+                const page = /(projects|areas|resources)\/([^/]+)\.md$/.exec(hit.displayPath);
+
+                if (page === null) {
+                    continue;
+                }
+
+                const path = `${page[1]}/${page[2]}`;
+                const known = hits.get(path) ?? { count: 0, score: 0, snippet: "" };
+
+                hits.set(path, { count: known.count + 1, score: known.score + hit.score, snippet: known.snippet });
+            }
+        }
+
+        for (const [path, hit] of [...hits].sort((a, b) => b[1].count - a[1].count || b[1].score - a[1].score)) {
+            if (hit.count >= Math.min(2, words.length) && !chosen.has(path)) {
+                chosen.set(path, hit.snippet);
+            }
+        }
+
+        const pages = [];
+
+        for (const [path, snippet] of [...chosen].slice(0, 4)) {
+            const [category, slug] = path.split("/") as [string, string];
+            const each = { page: { category, slug, title: slug }, snippet };
+            const page = await readPage(wikiDir, each.page.category as never, each.page.slug);
+
+            if (page === null) {
+                continue;
+            }
+
+            const open = /## Open Questions\n([\s\S]*?)(?:\n## |$)/.exec(page.body)?.[1] ?? "";
+            const first = page.body.split("\n").find((line) => line.trim() !== "" && !line.startsWith("#")) ?? each.snippet;
+
+            pages.push({
+                path: `${each.page.category}/${each.page.slug}`,
+                title: page.frontmatter.title || each.page.title,
+                line: first.replace(/\s+/g, " ").trim().slice(0, 200),
+                freshness: formatFreshness(page.frontmatter.updated, Date.now()),
+                questions: open.split("\n").filter((line) => line.startsWith("- [ ]")).slice(0, 3),
+            });
+        }
+
+        return pages;
+    }
+
+    /** How many changes the wiki's log (log.md) holds: a mark for `changedSince`. */
+    async logMark(): Promise<number> {
+        return (await this.#logEntries()).length;
+    }
+
+    /** The pages the log names in its changes after `mark` (`logMark`), most recent first, each once. */
+    async changedSince(mark: number): Promise<string[]> {
+        const entries = (await this.#logEntries()).slice(mark);
+        const pages = entries.flatMap((entry) => /^Pages: (.*)$/m.exec(entry)?.[1]?.split(/,\s*/) ?? []);
+
+        return [...new Set(pages.map((page) => page.trim()).filter((page) => page !== "").reverse())];
+    }
+
+    async #logEntries(): Promise<string[]> {
+        const { wikiDir } = await this.open();
+        const log = await readFile(`${wikiDir}/log.md`, "utf8").catch(() => "");
+
+        return log.split(/^## /m).slice(1);
     }
 
     /**
@@ -618,6 +715,30 @@ function summaryOf(page: { category: string; slug: string; frontmatter: { title:
         scope: page.frontmatter.scope,
         tags: page.frontmatter.tags,
     };
+}
+
+/** Words that say nothing of a subject, in English and Vietnamese: left out of `tellingWords`. */
+const PLAIN_WORDS = new Set(
+    (
+        "about after again also anything because been before being both could does doing done each every from have here " +
+        "into just like make more most much need next only other over please same should some such than that their them " +
+        "then there these they this those through very want what when where which while will with would your yours " +
+        "không được những nhưng trong cũng thêm nữa này đang chưa"
+    ).split(" "),
+);
+
+/**
+ * A message's telling words for the wiki's keyword search (`relevant`): longer words and names (a task's key such as
+ * PP-276 too), each once, at most six, the longest first.
+ */
+export function tellingWords(message: string): string[] {
+    const words = message
+        .toLowerCase()
+        .match(/[\p{L}\p{N}][\p{L}\p{N}_-]*[\p{L}\p{N}]/gu) ?? [];
+
+    return [...new Set(words.filter((word) => (word.length >= 4 || /\d/.test(word)) && !PLAIN_WORDS.has(word)))]
+        .sort((a, b) => b.length - a.length)
+        .slice(0, 6);
 }
 
 /** pi-para's scope detection, with each look made on the machine. */

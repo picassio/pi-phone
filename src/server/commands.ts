@@ -830,10 +830,14 @@ export class Commands {
             request.inlineFiles === true
                 ? await this.#mentionedFiles(id, user, typed, model.input.includes("image"))
                 : [];
+        // The wiki's pages that match a person's own message come with it (PP-276, the wiki `relevant`), as a part of their
+        // own: the transcript shows their names, not as the person's words.
+        const wiki = via === undefined ? await app.wikiFor(id, typed) : undefined;
         // A file's text that a message brings along is redacted as the message is (pi-pocket 0.22.0, cdef41e).
         const parts: (TextContent | ImageContent)[] = [
             { type: "text", text: body },
             ...mentioned.map((part) => (part.type === "text" ? { ...part, text: app.secrets.redact(part.text, id) } : part)),
+            ...(wiki === undefined ? [] : [{ type: "text" as const, text: app.secrets.redact(wiki, id) }]),
         ];
 
         for (const file of attachments) {

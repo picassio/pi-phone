@@ -8,6 +8,7 @@ import {
     COMMAND_ENTRY,
     type CommandData,
     FILE_BLOCK,
+    WIKI_BLOCK,
     FROM_PI_ENTRY,
     FROM_PREFIX,
     type FromPiData,
@@ -44,6 +45,8 @@ export type ClientEntry =
           images: number;
           from?: string;
           files?: string[];
+          /** The wiki's pages that came with the message (PP-276): their paths. */
+          wiki?: string[];
           at?: number;
       }
     | {
@@ -339,10 +342,17 @@ export function projectEntry(entry: EntryRecord, full = false): ClientEntry | un
             const files = (parts ?? [])
                 .filter(isFile)
                 .map((part) => String(part.text).slice(FILE_BLOCK.length).split('"', 1)[0]!);
+            // The wiki's pages that came with it (PP-276): the app's, shown by name.
+            const isWiki = (part: ContentPart, index: number) =>
+                index > 0 && part.type === "text" && typeof part.text === "string" && part.text.startsWith(WIKI_BLOCK);
+            const wiki = (parts ?? [])
+                .filter(isWiki)
+                .flatMap((part) => String(part.text).slice(WIKI_BLOCK.length).split('"', 1)[0]!.split(" "))
+                .filter((path) => path !== "");
             const text = textOfContent(
-                parts === undefined ? content : parts.filter((part, index) => !isFile(part, index)),
+                parts === undefined ? content : parts.filter((part, index) => !isFile(part, index) && !isWiki(part, index)),
             );
-            const named = files.length === 0 ? {} : { files };
+            const named = { ...(files.length === 0 ? {} : { files }), ...(wiki.length === 0 ? {} : { wiki }) };
             const prefixed = FROM_PREFIX.exec(text);
 
             return prefixed === null

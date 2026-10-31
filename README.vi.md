@@ -45,6 +45,13 @@ dự án thật.</sub>
 - **Tự nén khi bạn muốn.** Một phiên tự nén ngữ cảnh ngay trước giới hạn của mô hình; có thể sớm hơn, ở một tỉ lệ ngữ
   cảnh bạn chọn (10–95%), cho mọi phiên hoặc một phiên (Menu › Nén ngữ cảnh). Thước đo ngữ cảnh đánh dấu vị trí đó. Pi
   đổi được cả hai qua một thẻ (`sessions.compactAt`, `sessions.sessionCompactAt`).
+- **Prompt không làm đầy ngữ cảnh.** Phần chữ trong prompt của Pi mà thay đổi sẽ được gửi lại, và mỗi bản ở lại cho
+  tới khi phiên nén. Vì vậy mặc định chỉ mục của wiki không nằm trong prompt: một phần wiki ngắn, cố định, và các trang
+  wiki khớp với từng tin nhắn của bạn đi kèm tin nhắn đó (hiện tên bên dưới tin nhắn), cùng một dòng nêu các trang phiên
+  khác vừa đổi; bí mật được tìm bằng `secrets_list` (có tìm kiếm) thay vì liệt kê trong prompt; danh sách kỹ năng chỉ
+  gửi lại khi thêm hoặc bớt kỹ năng. Mỗi thứ là một lựa chọn trong Menu › Nén ngữ cảnh, cho mọi phiên hoặc một phiên
+  (wiki: relevant, frozen, live, off; bí mật: tool, list; kỹ năng: frozen, live), và Pi đổi được qua một thẻ
+  (`context.wiki`, `context.sessionWiki`, …).
 - **Nhóm thư mục trong danh sách phiên.** Tự tạo nhóm (**+ Nhóm mới**) và chuyển các phiên vào: Chuyển vào nhóm… từ
   thao tác nhấn giữ một phiên, dòng của nó, menu của nó, hoặc **Di chuyển…** của một vùng chọn, hoặc kéo thả trên máy
   tính. Mỗi phiên nằm trong tối đa một nhóm; một nhóm có thể được ghim (dưới các phiên đã ghim), thu gọn, đổi tên, sắp
@@ -575,6 +582,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Tiện ích (Dự án, Wiki, Trình duyệt của Pi, Thiết kế & video, …) | **Tiện ích** | “Bật Dự án”, “Tắt Thiết kế & video” |
 | Chi tiêu và giới hạn | **Chi tiêu** | “Giới hạn phiên này ở $5” |
 | Khi nào phiên tự nén | **Menu › Nén ngữ cảnh**, cho phiên này hoặc mọi phiên | “Nén phiên này ở 60%” |
+| Wiki, bí mật và kỹ năng nào vào prompt | **Menu › Nén ngữ cảnh** | “Đưa lại chỉ mục wiki vào prompt của phiên này” |
 | Thiết bị và người khác | **Truy cập** (Tailscale), **Mọi người** (thiết bị, lời mời, mã khôi phục) | Có với liệt kê thiết bị, đăng xuất một hoặc tất cả, hoặc đổi vai trò của một người. Mã khôi phục là việc của bạn |
 | Thông báo đẩy trong trình duyệt | **Thông báo**: Bật, Gửi thử, Gỡ trình duyệt khác | Không: trình duyệt tự hỏi bạn, trên thiết bị đó |
 | Thông báo, tắt màn hình, sao lưu | **Điện thoại này** | Có với việc tạo bản sao lưu. Khôi phục là việc của bạn |

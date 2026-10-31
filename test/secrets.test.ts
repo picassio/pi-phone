@@ -25,6 +25,8 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "ask for a key": ["secret_request", { name: "NEW_KEY", description: "The test service's key" }],
     "save a key": ["secret_save", { name: "MADE_KEY", command: "printf 'generated-%s-%s' abcdefgh 123", description: "made by a command" }],
     "list them": ["secrets_list", {}],
+    "find the test one": ["secrets_list", { query: "test service" }],
+    "find none": ["secrets_list", { query: "no such words" }],
     "save over the app's ssh": ["secret_save", { name: "SSH_MADE", command: "pi-ssh-fake devbox 'cat token'", description: "read over pi-ssh" }],
     // A command that fails after printing its token on stderr: the token is made in the shell, so this text holds none.
     "save a failing key": ["secret_save", { name: "FAILED_KEY", command: "printf 'leaked-%s\\n' $((100+23)) >&2; exit 3", description: "fails" }],
@@ -190,8 +192,26 @@ test("Pi uses a secret in bash by name: the command keeps the name, the output a
     assert.ok(!transcript.includes(Buffer.from(`${VALUE}\n`).toString("base64").slice(0, 20)), "nor its base64");
     assert.match(transcript, /\$TEST_TOKEN/, "the call keeps the name");
     assert.ok(app.secrets.get("TEST_TOKEN")!.usedAt !== undefined, "its use is noted");
-    assert.match(told, /\$TEST_TOKEN \(the test service\)/, "the prompt names what it may use");
+    // Secrets found with a tool (PP-276, the default): the prompt names none, so it does not change as secrets come.
+    assert.match(told, /secrets_list/, "the prompt says how to find them");
+    assert.doesNotMatch(told, /TEST_TOKEN|ELSEWHERE_TOKEN/, "and lists none");
+});
+
+test("secrets in the prompt (PP-276): found with secrets_list and its query by default, listed when the session says so", async () => {
+    const id = await newSession(app);
+
+    assert.match(await turn(id, "find the test one"), /\$TEST_TOKEN — the test service/);
+    assert.match(await turn(id, "find none"), /None of the \d+ secrets here match \\?"no such words/);
+    assert.doesNotMatch(told, /TEST_TOKEN/);
+
+    await app.setContextPart(owner(app), "secrets", "list", id);
+    await turn(id, "list them");
+    assert.match(told, /\$TEST_TOKEN \(the test service\)/, "listed: the prompt names what it may use");
     assert.doesNotMatch(told, /ELSEWHERE_TOKEN/, "and not what it may not");
+
+    await assert.rejects(app.setContextPart(owner(app), "secrets", "everything", id), /tool, list\. Or inherit/);
+    await app.setContextPart(owner(app), "secrets", "inherit", id);
+    assert.equal(app.contextPolicy(id).secrets, "tool");
 });
 
 test("a secret is refused outside its folders, and other tools' results are redacted too", async () => {

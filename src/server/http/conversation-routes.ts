@@ -6,6 +6,7 @@ import { pipeline } from "node:stream/promises";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import type { Attachment, SubmitRequest } from "../commands.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import type { ContextPart } from "../context-policy.ts";
 import { CiWatchesDoc } from "../docs.ts";
 import { HttpError } from "../errors.ts";
 import type { CommandRequest } from "../extension-commands.ts";
@@ -64,6 +65,15 @@ export async function conversationRoutes(
     // When this session compacts by itself (PP-78): its own, "full", or "inherit" the setting for all.
     if (third === "compact-at" && method === "POST") {
         await app.setSessionCompactAt(id, user, (await readJson<{ at?: unknown }>(request)).at);
+
+        return json(response, 200, { ok: true });
+    }
+
+    // What of the wiki, secrets, and skills goes into this session's prompt (PP-276): { part, mode }, mode "inherit" too.
+    if (third === "context-policy" && method === "POST") {
+        const body = await readJson<{ part?: unknown; mode?: unknown }>(request);
+
+        await app.setContextPart(user, body.part as ContextPart, body.mode, id);
 
         return json(response, 200, { ok: true });
     }

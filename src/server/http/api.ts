@@ -5,6 +5,7 @@
 import { createReadStream, readdirSync, rmSync, statSync } from "node:fs";
 import { TOOLS, toolOffer } from "../machine-tools.ts";
 import { crdWord } from "../crd.ts";
+import type { ContextPart } from "../context-policy.ts";
 import { pipeline } from "node:stream/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { homedir, networkInterfaces, tmpdir } from "node:os";
@@ -1575,6 +1576,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 sessionSendLimit?: unknown;
                 wikiCaptureMinutes?: unknown;
                 compactAt?: unknown;
+                contextPolicy?: unknown;
                 limitWaitHours?: unknown;
                 limitNotice?: unknown;
                 assistant?: unknown;
@@ -1591,6 +1593,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.sessionSendLimit,
                     body.wikiCaptureMinutes,
                     body.compactAt,
+                    body.contextPolicy,
                     body.limitWaitHours,
                     body.limitNotice,
                     body.assistant,
@@ -1621,6 +1624,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
             // When sessions compact by themselves (PP-78).
             if (body.compactAt !== undefined) {
                 await app.setCompactAt(user, body.compactAt);
+            }
+
+            // What of the wiki, secrets, and skills goes into every session's prompt (PP-276): { part, mode }.
+            if (body.contextPolicy !== undefined) {
+                const { part, mode } = (body.contextPolicy ?? {}) as { part?: unknown; mode?: unknown };
+
+                await app.setContextPart(user, part as ContextPart, mode);
             }
 
             // How long a run waits for a provider's limit to clear, and whether the phone hears of a long wait (PP-135).

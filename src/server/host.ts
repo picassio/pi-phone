@@ -15,6 +15,7 @@ import type {
     Tx,
 } from "@earendil-works/pi-durable";
 import type { Role, User } from "./config.ts";
+import type { ContextPolicy } from "./context-policy.ts";
 import type { Goals } from "./goals.ts";
 import type { Schedules } from "./schedules.ts";
 import type { SessionControl } from "./session-control.ts";
@@ -308,6 +309,8 @@ export interface PocketHost {
     builtInSkills(): string[];
     /** What the prompt says of the person's default design system (`design-systems.ts`), or undefined for none. */
     designSystem(): string | undefined;
+    /** What of the wiki, secrets, and skills goes into a session's prompt (`context-policy.ts`, PP-276). */
+    contextPolicy(id: ConversationId): ContextPolicy;
     /**
      * The connected machines, each with the short alias Pi names it by (machine_run, machine_copy), and whether Pi asks
      * before each machine_run command there (`askRun`, PP-230).

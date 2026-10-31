@@ -14,6 +14,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { defineExtension, hook, type PromptInput, section, type ToolExecutionResult, ToolTask } from "@earendil-works/pi-durable";
 import { APP_ROOT } from "../config.ts";
+import { frozenSkills, shownText } from "../context-policy.ts";
 import type { PocketHost } from "../host.ts";
 import { toolsNote } from "../machine-tools.ts";
 
@@ -337,9 +338,12 @@ export default function createPrompt(host: PocketHost) {
             }),
             section("skills", (input) => {
                 const cwd = localCwd(input);
-
                 // On a machine: the skills of tools pi-phone installed there (OfficeCLI's), at their paths there.
-                return cwd === undefined ? host.machineSkills(cwdOf(input)) : load(cwd).skills;
+                const fresh = cwd === undefined ? host.machineSkills(cwdOf(input)) : load(cwd).skills;
+
+                // Frozen (PP-276): the list the session has, while it names the same skills; an update that only rewords
+                // one is not sent again.
+                return host.contextPolicy(input.conversationId).skills === "frozen" ? frozenSkills(shownText(input.shown, "skills", false), fresh) : fresh;
             }, { tag: false }),
             section("environment", (input) => {
                 // The date only, so the prompt stays cache-friendly through the day.

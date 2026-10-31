@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type AssistantSettings, readAssistant, storedAssistant } from "./assistant.ts";
 import type { PopupMode } from "./browser/pi-browser.ts";
+import { type ContextPart, type ContextPolicy, DEFAULT_CONTEXT_POLICY } from "./context-policy.ts";
 import { readVoice, readVoiceCheck, storedVoice, type VoiceCheck, type VoiceSettings } from "./voice.ts";
 
 /** The repository root: `web/`, `src/`, and `node_modules/` live here. */
@@ -152,6 +153,8 @@ interface PocketConfig {
     sessionSendLimit?: number | null;
     /** When sessions compact by themselves (`auto-compact.ts`): a percentage of the context. Absent: only when nearly full. */
     compactAt?: number;
+    /** What of the wiki, secrets, and skills goes into every session's prompt (`context-policy.ts`): only what differs. */
+    contextPolicy?: Partial<ContextPolicy>;
     /** The most hours a run waits for a model's limit to clear (`limit-gate.ts`); 0: it does not wait. Absent: 6. */
     limitWaitHours?: number;
     /** False: no phone notice when a run begins to wait 10 minutes or more for a limit. Absent: on. */
@@ -417,6 +420,29 @@ export class ConfigStore {
             delete this.#config.sessionSendLimit;
         } else {
             this.#config.sessionSendLimit = limit;
+        }
+
+        this.save();
+    }
+
+    /** What of the wiki, secrets, and skills goes into every session's prompt: the choices that differ from the defaults. */
+    get contextPolicy(): Partial<ContextPolicy> {
+        return { ...this.#config.contextPolicy };
+    }
+
+    setContextPart(part: ContextPart, mode: string): void {
+        const policy: Record<string, string> = { ...this.#config.contextPolicy };
+
+        if (mode === DEFAULT_CONTEXT_POLICY[part]) {
+            delete policy[part];
+        } else {
+            policy[part] = mode;
+        }
+
+        if (Object.keys(policy).length === 0) {
+            delete this.#config.contextPolicy;
+        } else {
+            this.#config.contextPolicy = policy as Partial<ContextPolicy>;
         }
 
         this.save();

@@ -5,6 +5,11 @@
 
 /** How a file sent along with a message starts (`<file name="path">`): such parts show as the file's name only. */
 export const FILE_BLOCK = '<file name="';
+/**
+ * How the wiki's pages that came with a person's message start (`<wiki-pages paths="a b">`, PP-276, the wiki
+ * `relevant`): such parts are the app's, not the person's words, and show as the pages' names only.
+ */
+export const WIKI_BLOCK = '<wiki-pages paths="';
 /** The entry kind of a note about what a person did (`Commands.note`). */
 export const NOTE_ENTRY = "pocket.note";
 

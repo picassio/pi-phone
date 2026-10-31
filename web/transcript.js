@@ -432,6 +432,12 @@ function UserEntry({ entry, view, users }) {
                     </div>`
                 }
                 ${
+                    entry.wiki?.length > 0 &&
+                    html`<div class="attachments wiki-came" title=${t("Pages of the wiki that came with this message for Pi: the app found them; you did not write them.")}>
+                        ${entry.wiki.map((path) => html`<span class="chip muted">📚 ${path.split("/").pop()}</span>`)}
+                    </div>`
+                }
+                ${
                     pictures.length > 0 &&
                     html`<div class="thumbs">
                         ${pictures.map(

@@ -20,9 +20,24 @@ import { type VoiceCheck, VOICES } from "./voice.ts";
 import { ImageGen } from "./image-gen.ts";
 import { POPUP_MODES } from "./browser/pi-browser.ts";
 import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
+import { CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
 import { copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+const CONTEXT_TITLES: Record<ContextPart, string> = {
+    wiki: "What of the wiki goes into the prompt",
+    secrets: "How the prompt names the secrets",
+    skills: "When the prompt's list of skills is sent again",
+};
+
+const CONTEXT_HELP: Record<ContextPart, string> = {
+    wiki: "relevant (a short, fixed section; the pages that match each of your messages come with it, and a line names pages other sessions changed), frozen (the wiki's index as the session first had it), live (the index, sent again whenever any session writes to the wiki), or off (the rules only: Pi searches with wiki_query).",
+    secrets: "tool (the rules, and Pi finds the secrets it may use with secrets_list) or list (every secret named in the prompt, sent again when one is added).",
+    skills: "frozen (the list the session first had, sent again only when skills are added or taken away) or live (sent again on any change).",
+};
+
+const capital = (word: string) => `${word[0]!.toUpperCase()}${word.slice(1)}`;
 
 /** What a setting applies to, when it is not the app as a whole. */
 export type TargetKind = "session" | "person" | "secret" | "machine" | "ssh-key" | "device";
@@ -338,6 +353,34 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             },
             apply: (user, value, target) => app.setSessionCompactAt(session(target), user, value),
         },
+        // What of the wiki, secrets, and skills goes into the prompt (PP-276): every session's, and one session's own.
+        ...CONTEXT_PARTS.flatMap((part): Setting[] => [
+            {
+                id: `context.${part}`,
+                area: "sessions",
+                title: CONTEXT_TITLES[part],
+                help: `${CONTEXT_HELP[part]} For every session; a session's own setting (context.session${capital(part)}) comes first. A change shows from each session's next request; what a context already holds stays until it is compacted.`,
+                owner: true,
+                read: () => resolveContextPolicy(app.config.contextPolicy, undefined)[part],
+                choices: () => [...contextModes(part)],
+                apply: (user, value) => app.setContextPart(user, part, value.trim().toLowerCase()),
+            },
+            {
+                id: `context.session${capital(part)}`,
+                area: "sessions",
+                title: `${CONTEXT_TITLES[part]}, one session`,
+                help: `${CONTEXT_HELP[part]} Or inherit (the setting for every session). Target: the session's number.`,
+                owner: true,
+                target: "session",
+                read: (target) => {
+                    const own = app.sessionMeta(session(target))?.contextPolicy?.[part];
+
+                    return own ?? `inherit (${resolveContextPolicy(app.config.contextPolicy, undefined)[part]})`;
+                },
+                choices: () => ["inherit", ...contextModes(part)],
+                apply: (user, value, target) => app.setContextPart(user, part, value.trim().toLowerCase(), session(target)),
+            },
+        ]),
         // ─── Pi's browser ───
         {
             id: "browser.runModel",

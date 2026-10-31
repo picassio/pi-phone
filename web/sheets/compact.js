@@ -47,6 +47,57 @@ function AtChoices({ label, value, inherit, onPick }) {
     </div>`;
 }
 
+/** What of the wiki, secrets, and skills goes into the prompt (PP-276, src/server/context-policy.ts). */
+const PARTS = () => [
+    {
+        part: "wiki",
+        label: t("The wiki"),
+        modes: [
+            ["relevant", t("Pages that match each message"), t("a short fixed section; matching pages come with your message")],
+            ["frozen", t("Its index, kept as it was"), t("the index the session first had, until it compacts")],
+            ["live", t("Its index, kept current"), t("sent again whenever any session writes to the wiki")],
+            ["off", t("Only the rules"), t("Pi searches the wiki itself")],
+        ],
+    },
+    {
+        part: "secrets",
+        label: t("The secrets"),
+        modes: [
+            ["tool", t("Found with a tool"), t("Pi looks them up with secrets_list")],
+            ["list", t("Listed in the prompt"), t("sent again when a secret is added")],
+        ],
+    },
+    {
+        part: "skills",
+        label: t("The skills"),
+        modes: [
+            ["frozen", t("Kept as they were"), t("sent again only when skills are added or taken away")],
+            ["live", t("Kept current"), t("sent again on any change")],
+        ],
+    },
+];
+
+/** For this session (or every session): a choice per part, with what each costs in words. */
+function PromptParts({ label, own, all, onPick }) {
+    return html`<div class="field">
+        <div class="label">${label}</div>
+        ${PARTS().map(
+            ({ part, label: name, modes }) => html`<label class="pp-row">
+                <span>${name}</span>
+                <select
+                    aria-label=${`${label}: ${name}`}
+                    value=${own === undefined ? all[part] : (own[part] ?? "inherit")}
+                    onChange=${(event) => onPick(part, event.currentTarget.value)}
+                >
+                    ${own !== undefined &&
+                    html`<option value="inherit">${t("As every session ({mode})", { mode: modes.find(([mode]) => mode === all[part])?.[1] ?? all[part] })}</option>`}
+                    ${modes.map(([mode, title, hint]) => html`<option value=${mode} title=${hint}>${title}</option>`)}
+                </select>
+            </label>`,
+        )}
+    </div>`;
+}
+
 export function CompactSheet() {
     const { view, server, me } = store.state;
     const id = store.state.conversationId;
@@ -54,6 +105,9 @@ export function CompactSheet() {
     const all = server?.compactAt ?? "full";
     const [instructions, setInstructions] = useState("");
 
+    const policy = server?.contextPolicy ?? { wiki: "relevant", secrets: "tool", skills: "frozen" };
+    const setOwnPart = (part, mode) => attempt(() => api(`c/${id}/context-policy`, { part, mode }));
+    const setAllPart = (part, mode) => attempt(() => api("settings", { contextPolicy: { part, mode } }));
     const setOwn = (at) => attempt(() => api(`c/${id}/compact-at`, { at }));
     const setAll = (at) => attempt(() => api("settings", { compactAt: at }));
     const compact = () =>
@@ -66,6 +120,12 @@ export function CompactSheet() {
         <p class="muted small">${t("Compacting summarizes older messages, so the session stays quick and costs less. It happens by itself just before the model's limit; it can happen sooner, at a share of the context.")}</p>
         <${AtChoices} key=${`own-${String(own)}`} label=${t("This session compacts by itself")} value=${own} inherit=${all} onPick=${setOwn} />
         ${me?.role === "owner" && html`<${AtChoices} key=${`all-${String(all)}`} label=${t("Every session, unless it has its own")} value=${all} onPick=${setAll} />`}
+        ${
+            me?.role === "owner" &&
+            html`<p class="muted small">${t("What goes into Pi's prompt fills the context too. Text that changes is sent again, and each copy stays until the session compacts; a change here shows from the next message.")}</p>
+                <${PromptParts} label=${t("What this session's prompt holds")} own=${view.conversation?.contextPolicy ?? {}} all=${policy} onPick=${setOwnPart} />
+                <${PromptParts} label=${t("Every session, unless it has its own")} all=${policy} onPick=${setAllPart} />`
+        }
         <div class="field">
             <div class="label">${t("Compact now: what should the summary keep? (optional)")}</div>
             <textarea rows="3" aria-label=${t("What should the summary keep?")} value=${instructions} placeholder=${t("e.g. the failing test names")} onInput=${(event) => setInstructions(event.currentTarget.value)}></textarea>

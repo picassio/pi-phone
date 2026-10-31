@@ -41,6 +41,13 @@ No Termux, no laptop, no cloud VM.
 - **Auto-compact when you want.** A session compacts its context by itself just before the model's limit; it can
   happen sooner, at a percentage of the context you pick (10–95%), for every session or one (Menu › Compact context).
   The context meter marks where. Pi changes both on a card (`sessions.compactAt`, `sessions.sessionCompactAt`).
+- **A prompt that does not fill the context.** Text in Pi's prompt that changes is sent again, and each copy stays until
+  the session compacts. So by default the wiki's index stays out: a short, fixed wiki section, and the wiki's pages that
+  match each of your messages come with it (shown under the message by name), with a line naming pages other sessions
+  changed; secrets are found with `secrets_list` (with a search) instead of a list in the prompt; the skills list is
+  sent again only when skills come or go. Each is a choice in Menu › Compact context, for every session or one (the
+  wiki: relevant, frozen, live, off; secrets: tool, list; skills: frozen, live), and Pi changes them on a card
+  (`context.wiki`, `context.sessionWiki`, …).
 - **Folder groups in the session list.** Make your own groups (**+ New group**) and move chats into them: Move to
   group… from a chat's long press, its row, its menu, or a selection's **Move…**, or drag on a desktop. A chat is in one
   group at most; a group can be pinned (under the pinned chats), folded, renamed, reordered, or deleted (its chats go
@@ -550,6 +557,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Extensions (Projects, Wiki, Pi's browser, Design & video, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
+| What of the wiki, secrets and skills goes into the prompt | **Menu › Compact context** | "Put the wiki's index back in this session's prompt" |
 | Other devices and people | **Access** (Tailscale), **People** (devices, invites, recovery code) | Yes for listing devices, signing one or all out, or changing a person's role. The recovery code is yours |
 | Push notifications in a browser | **Notifications**: Turn on, Send a test, Remove another browser's | No: a browser asks you itself, on that device |
 | Notifications, screen off, backup | **This phone** | Yes for making a backup. Restoring one is yours |

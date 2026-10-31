@@ -711,5 +711,6 @@
     "This session's browser is not attached to another browser.": "Trình duyệt của phiên này không gắn vào trình duyệt nào khác.",
     "browserMode is headless or window.": "browserMode là headless hoặc window.",
     "The image model is provider/model, or null for the default.": "Mô hình hình ảnh có dạng provider/model, hoặc null để dùng mặc định.",
-    "{1} is not an image model of a provider signed in now. Pick one of: {2}.": "{1} không phải mô hình hình ảnh của nhà cung cấp đang đăng nhập. Hãy chọn một trong: {2}."
+    "{1} is not an image model of a provider signed in now. Pick one of: {2}.": "{1} không phải mô hình hình ảnh của nhà cung cấp đang đăng nhập. Hãy chọn một trong: {2}.",
+    "The prompt's parts are {1}.": "Các phần của prompt là {1}."
 }

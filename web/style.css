@@ -4511,6 +4511,25 @@ pre.diff .del {
     justify-content: flex-start;
 }
 
+/* What goes into the prompt (PP-276): a part's name, and its choice. */
+.pp-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 40px;
+    border-bottom: 1px solid var(--hair);
+}
+
+.pp-row select {
+    min-width: 0;
+    max-width: 62%;
+}
+
+.wiki-came .chip {
+    opacity: 0.75;
+}
+
 .ac-percent input {
     width: 64px;
     flex: none;

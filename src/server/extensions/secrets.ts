@@ -36,6 +36,10 @@ const RULES = `Secrets: the person keeps API keys and tokens in Settings > Secre
 - When you need a secret that is not listed, call secret_request with a name and what it is for: the person types it into a hidden field on the call's card. Never ask anyone to paste a key, token, or password into the chat.
 - To keep a value a command makes (a generated key, gh auth token), use secret_save: the owner sees the whole command on a card first, and it stores the command's output without showing it.`;
 
+/** With secrets as a tool (PP-276): how Pi finds the secrets it may use, instead of a list in the prompt. */
+const FIND_THEM =
+    "Which secrets you may use here: secrets_list (their names, what each is for, and whether a person allows each use; query finds them by words, such as azure devops). Look before you ask the person for one with secret_request.";
+
 /** Every string in a result's JSON, object keys too (pi-pocket 0.22.0's `host.hide` does keys), with values replaced. */
 function redactJson(value: JsonValue, redact: (text: string) => string): JsonValue {
     if (typeof value === "string") {
@@ -187,15 +191,21 @@ export default function createSecrets(host: PocketHost) {
     const list = defineTool({
         name: "secrets_list",
         description:
-            "The secrets you may use in this session's folder: name, what it is for, and whether a call using it waits for a person. Never their values.",
-        parameters: Type.Object({}),
+            "The secrets you may use in this session's folder: name, what it is for, and whether a call using it waits for a person. Never their values. query: only those whose name or description has all these words.",
+        parameters: Type.Object({
+            query: Type.Optional(Type.String({ description: "Words to find in a secret's name or description, such as azure devops" })),
+        }),
         replay: "safe",
-        execute: async (_args, api, context) => {
-            const usable = secrets.usableIn(await cwdOf(api, context));
+        execute: async (args, api, context) => {
+            const all = secrets.usableIn(await cwdOf(api, context));
+            const words = (args.query ?? "").toLowerCase().split(/[\s,]+/).filter((word) => word !== "");
+            const usable = all.filter((secret) => words.every((word) => `${secret.name} ${secret.description}`.toLowerCase().includes(word)));
 
             return reply(
                 usable.length === 0
-                    ? "No secrets here. Ask for one with secret_request."
+                    ? all.length === 0
+                        ? "No secrets here. Ask for one with secret_request."
+                        : `None of the ${all.length} secrets here match "${args.query}". Try other words, or none to list them all; ask for a new one with secret_request.`
                     : usable
                           .map(
                               (secret) =>
@@ -348,6 +358,12 @@ export default function createSecrets(host: PocketHost) {
         tools: [list, request, save],
         sections: [
             section("secrets", async (input) => {
+                // With secrets as a tool (PP-276), the section does not change as secrets come and go: the list is
+                // secrets_list's, and a new secret is said by the call that asked for it.
+                if (host.contextPolicy(input.conversationId).secrets === "tool") {
+                    return `${RULES}\n${FIND_THEM}`;
+                }
+
                 const usable = secrets.usableIn(input.agent.cwd ?? "");
                 const names =
                     usable.length === 0

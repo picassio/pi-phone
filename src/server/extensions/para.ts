@@ -22,6 +22,7 @@ import { defang } from "../fence.ts";
 import { readOnlyCommand } from "./plan.ts";
 import { CAPTURE_SYSTEM_PROMPT } from "pi-para/templates/prompts";
 import { CAPTURE_EXTENSION } from "../para-capture.ts";
+import { shownText } from "../context-policy.ts";
 import type { JsonValue } from "@earendil-works/chord";
 import { buildWikiToolGuidanceSection, WIKI_TOOL_DESCRIPTIONS, type WikiToolName } from "pi-para/wiki-tool-guidance";
 import { createEditExecute, createReadExecute } from "pi-para/tools/edit-read";
@@ -59,6 +60,14 @@ const PARA_SKILL = readFileSync(fileURLToPath(new URL("../skills/para/SKILL.md",
 /** In every session's prompt: the wiki's files are the tools' alone, so the index, search, and context stay current. */
 const TOOLS_ONLY =
     "Change the wiki only with the wiki tools (wiki_write, wiki_edit, wiki_move, wiki_ingest, wiki_lint), and read it with wiki_read and wiki_query: never write, edit, move, or delete files under ~/.pi/wiki with write, edit, or bash. Only the tools keep its index, search, links, and log current; changing its files directly is refused.";
+/** The wiki section's end, with the wiki `relevant` (PP-276): what comes with each message instead of the index. */
+const WIKI_RELEVANT =
+    'This session\'s wiki scope: {scope}. The wiki\'s index is not in this prompt. Each of the person\'s messages comes with a <wiki-pages> block when the wiki has pages that match it: each page\'s path, title, a line of it, how fresh it is, and its open questions; and a line naming pages other sessions changed since their last message. Read a page with wiki_read; search further with wiki_query (before non-trivial work, and before debugging). Open questions on other pages show when you read or query them.';
+
+/** The wiki section's end, with the wiki `off` (PP-276). */
+const WIKI_OFF =
+    "This session's wiki scope: {scope}. The wiki's index is not in this prompt: search it with wiki_query before non-trivial work and before debugging, and read pages with wiki_read. Open questions on a page show when you read or query it.";
+
 const REFUSED =
     "The wiki changes only through its tools: wiki_edit for exact changes to a page, wiki_write to create, append to, or replace pages, wiki_move to move one between categories. Writing its files directly would leave its index and search behind.";
 
@@ -327,11 +336,29 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
                 // wiki changes); the guidance alone when the wiki has nothing for it. A wiki that cannot open says so here,
                 // rather than leaving Pi unaware.
                 render: async (input) => {
-                    try {
-                        const context = (await para.context(input.agent.cwd ?? "")).replace(buildWikiToolGuidanceSection(), "").trim();
+                    // What of the wiki goes into the prompt (PP-276): the index changes with every write in any session,
+                    // and each change was sent again, 21k characters at a time.
+                    const mode = host.contextPolicy(input.conversationId).wiki;
+                    // Questions it asks or resolves name this session (pi-para's `questions.ts` format).
+                    const you = `This is pi-phone session #${String(input.conversationId)}: write it in the wiki's open questions you ask or resolve, as (YYYY-MM-DD, #${String(input.conversationId)}).`;
 
-                        // Questions it asks or resolves name this session (pi-para's `questions.ts` format).
-                        const you = `This is pi-phone session #${String(input.conversationId)}: write it in the wiki's open questions you ask or resolve, as (YYYY-MM-DD, #${String(input.conversationId)}).`;
+                    if (mode === "frozen") {
+                        const kept = shownText(input.shown, "wiki");
+
+                        if (kept !== undefined) {
+                            return kept;
+                        }
+                    }
+
+                    try {
+                        if (mode === "relevant" || mode === "off") {
+                            const scope = await para.scope(input.agent.cwd ?? "");
+                            const note = (mode === "relevant" ? WIKI_RELEVANT : WIKI_OFF).replace("{scope}", scope.name);
+
+                            return [PARA_SKILL, TOOLS_ONLY, you, note].join("\n\n");
+                        }
+
+                        const context = (await para.context(input.agent.cwd ?? "")).replace(buildWikiToolGuidanceSection(), "").trim();
 
                         return [PARA_SKILL, TOOLS_ONLY, you, context].filter((part) => part !== "").join("\n\n");
                     } catch (error) {

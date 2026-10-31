@@ -64,6 +64,7 @@ import { inBatchOrder } from "./batch-order.ts";
 import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
 import { APP_ROOT, ConfigStore, type User, type WelcomeState } from "./config.ts";
+import { CONTEXT_PARTS, type ContextPart, type ContextPolicy, contextMode, resolveContextPolicy } from "./context-policy.ts";
 import {
     ArtifactBodyDoc,
     type ArtifactMeta,
@@ -146,7 +147,7 @@ import { SAFETY_COPY_DAYS, safetyCopyBeforeUpgrade } from "./storage-upgrade.ts"
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
 import { configureHttp } from "./net.ts";
 import { type ClientEntry, type LimitOffer, projectEntry, snippet } from "./projection.ts";
-import { VOICE_PREFIX } from "./entry-format.ts";
+import { VOICE_PREFIX, WIKI_BLOCK } from "./entry-format.ts";
 import { VOICE_TOOLS, VoiceBridge } from "./voice-bridge.ts";
 import { loadPromptTemplates, type PromptTemplate, type SkillCommand } from "./prompts.ts";
 import { BASE_THEME, Themes } from "./themes.ts";
@@ -1081,6 +1082,7 @@ export class PocketApp {
             skills: (cwd) => this.skills(cwd),
             builtInSkills: () => this.builtInSkills(),
             designSystem: () => this.designSystemPrompt(),
+            contextPolicy: (id) => this.contextPolicy(id),
             machineOf: (cwd) => {
                 const machine = this.places.machineOf(cwd);
 
@@ -3901,6 +3903,8 @@ export class PocketApp {
                 sessionSendLimit: this.config.sessionSendLimit,
                 // When sessions compact by themselves: a percentage, or "full" (`auto-compact.ts`).
                 compactAt: this.config.compactAt,
+                // What of the wiki, secrets, and skills goes into every session's prompt (`context-policy.ts`).
+                contextPolicy: resolveContextPolicy(this.config.contextPolicy, undefined),
                 // Minutes idle before a session is captured into the wiki, or null (`para-capture.ts`).
                 wikiCaptureMinutes: this.config.wikiCaptureMinutes,
                 // The most hours a run waits for a provider's limit to clear; 0: it does not wait (`limit-gate.ts`).
@@ -4184,6 +4188,8 @@ export class PocketApp {
             ...(meta?.sendLimit === undefined ? {} : { sendLimit: meta.sendLimit }),
             // Its own auto-compact (`auto-compact.ts`); absent, the setting for all.
             ...(meta?.compactAt === undefined ? {} : { compactAt: meta.compactAt }),
+            // Its own choices of what goes into its prompt (`context-policy.ts`); absent, the setting for all.
+            ...(meta?.contextPolicy === undefined ? {} : { contextPolicy: meta.contextPolicy }),
             // Who thinks in its voice calls (`voice.ts`); absent, Settings › Voice's mode.
             ...(meta?.voiceMode === undefined ? {} : { voiceMode: meta.voiceMode }),
             // Whether a fork could get a worktree of its own.
@@ -5583,6 +5589,120 @@ export class PocketApp {
                 delete meta.compactAt;
             } else {
                 meta.compactAt = at;
+            }
+        }, context);
+    }
+
+    /** Each session's mark in the wiki's log at its last message (`wikiFor`): what changed since. Memory only. */
+    readonly #wikiMarks = new Map<ConversationId, number>();
+
+    /**
+     * What of the wiki comes with a person's message (PP-276, the wiki `relevant`): the pages that match it, and the
+     * pages other sessions changed since this session's last message, as one text part (`WIKI_BLOCK`); undefined when
+     * there is none, or the wiki is not `relevant` for this session. A wiki that cannot answer adds nothing and says why
+     * in the log: the message goes all the same.
+     */
+    async wikiFor(id: ConversationId, message: string): Promise<string | undefined> {
+        if (this.contextPolicy(id).wiki !== "relevant") {
+            return undefined;
+        }
+
+        try {
+            const mark = await this.para.logMark();
+            const before = this.#wikiMarks.get(id);
+            const changed = before === undefined ? [] : await this.para.changedSince(before);
+
+            this.#wikiMarks.set(id, mark);
+
+            const cwd = this.cwdOf(id);
+            const pages = message.trim() === "" ? [] : await this.para.relevant(message, cwd.startsWith("machine:") ? this.defaultCwd : cwd);
+
+            if (pages.length === 0 && changed.length === 0) {
+                return undefined;
+            }
+
+            const lines = pages.map((page) =>
+                [`- ${page.path}: ${page.title} (${page.freshness}). ${page.line}`, ...page.questions.map((question) => `  Open: ${question.slice(6)}`)].join("\n"),
+            );
+
+            return [
+                `${WIKI_BLOCK}${pages.map((page) => page.path).join(" ")}">`,
+                ...(pages.length === 0 ? [] : ["Wiki pages that match this message (the app's search, not the person's words; read one with wiki_read):", ...lines]),
+                ...(changed.length === 0 ? [] : [`Wiki pages changed since this session's last message: ${changed.slice(0, 12).join(", ")}${changed.length > 12 ? `, and ${changed.length - 12} more` : ""}.`]),
+                "</wiki-pages>",
+            ].join("\n");
+        } catch (error) {
+            this.#log(`wiki pages for a message: ${describe(error)}`);
+
+            return undefined;
+        }
+    }
+
+    /** What of the wiki, secrets, and skills goes into a session's prompt (PP-276): its own choices over every session's. */
+    contextPolicy(id: ConversationId): ContextPolicy {
+        return resolveContextPolicy(this.config.contextPolicy, this.sessionMeta(this.rootOf(id))?.contextPolicy);
+    }
+
+    /**
+     * One part of what goes into the prompt (`context-policy.ts`), for every session, or one session's own ("inherit": the
+     * setting for every session). The owner's. A change shows from the session's next request; what its context already
+     * holds stays until it is compacted.
+     */
+    async setContextPart(user: User, part: ContextPart, value: unknown, id?: ConversationId): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (!CONTEXT_PARTS.includes(part)) {
+            throw new HttpError(400, `The prompt's parts are ${CONTEXT_PARTS.join(", ")}.`);
+        }
+
+        if (id !== undefined && value === "inherit") {
+            await this.#setSessionContextPart(id, part, undefined);
+
+            return;
+        }
+
+        let mode: string;
+
+        try {
+            mode = contextMode(part, value);
+        } catch (error) {
+            throw new HttpError(400, `${describe(error)}${id === undefined ? "" : " Or inherit, the setting for every session."}`);
+        }
+
+        if (id === undefined) {
+            this.config.setContextPart(part, mode);
+            await this.#refreshClients();
+
+            return;
+        }
+
+        await this.#setSessionContextPart(id, part, mode);
+    }
+
+    async #setSessionContextPart(id: ConversationId, part: ContextPart, mode: string | undefined): Promise<void> {
+        const root = this.rootOf(id);
+
+        await this.harness.commit(async (tx) => {
+            const meta = (await tx.doc(SessionsDoc)).items[String(root)];
+
+            if (meta === undefined) {
+                throw new HttpError(404, "There is no such session.");
+            }
+
+            const own: Record<string, string> = { ...meta.contextPolicy };
+
+            if (mode === undefined) {
+                delete own[part];
+            } else {
+                own[part] = mode;
+            }
+
+            if (Object.keys(own).length === 0) {
+                delete meta.contextPolicy;
+            } else {
+                meta.contextPolicy = own as Partial<ContextPolicy>;
             }
         }, context);
     }

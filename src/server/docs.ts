@@ -4,6 +4,7 @@
  *
  * Kinds are part of the stored data: rename one and old sessions lose it.
  */
+import type { ContextPolicy } from "./context-policy.ts";
 import type { PiLink } from "./pi-handoff.ts";
 import {
     type CheckpointInfo,
@@ -53,6 +54,8 @@ export type SessionMeta = {
     sendLimit?: number | null;
     /** When this session compacts by itself (`auto-compact.ts`): a percentage of the context, or "full". Absent: the setting for all. */
     compactAt?: number | "full";
+    /** What of the wiki, secrets, and skills goes into this session's prompt (`context-policy.ts`). Absent: the setting for all. */
+    contextPolicy?: Partial<ContextPolicy>;
     /** Who thinks in this session's voice calls (`voice.ts`): work, chat, or think. Absent: Settings › Voice's mode. */
     voiceMode?: "work" | "chat" | "think";
     /** The run model for this session's `browser_run`: "session" or a Jev model's OpenRouter id. Absent: the owner's. */

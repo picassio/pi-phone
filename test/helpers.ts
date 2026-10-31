@@ -43,7 +43,8 @@ export function lastText(context: { messages: readonly { role: string; content: 
 
     return {
         role: last.role,
-        text: content.flatMap((part) => (part.type === "text" ? [part.text ?? ""] : [])).join(""),
+        // The wiki's pages that came with a person's message (PP-276) are the app's, not what they wrote.
+        text: content.flatMap((part) => (part.type === "text" && !(part.text ?? "").startsWith('<wiki-pages paths="') ? [part.text ?? ""] : [])).join(""),
     };
 }
 
