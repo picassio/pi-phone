@@ -259,6 +259,18 @@ No Termux, no laptop, no cloud VM.
     scrolls in that window (not Pi, not the panel), the panel says the window is in use on the machine, and Pi is told.
   - **From a session on the phone**: `browser_open` and `browser_new_tab` with `machine` (or **Browse on** in the
     panel) move a session's browsing to one of your machines, or back to the phone; its tabs stay its own.
+  - **Attach to a browser running there**: `browser_attach` (a port, or the path of a DevToolsActivePort file) drives
+    a browser already running on a machine with its DevTools on that machine's 127.0.0.1: Playwright's,
+    agent-browser's, a Chrome Pi started with `--remote-debugging-port`, or your own Chrome, through the app's ssh (no
+    other host). For your own, turn remote debugging on at `chrome://inspect/#remote-debugging` (Chrome, Edge, Brave),
+    and Pi finds it in its profile with no port named; allow it there if Chrome asks. Unless it is pi-phone's own Chrome
+    there, you approve it first on a card with the machine, the port, the browser's version, its profile (it carries
+    that profile's sign-ins) and which tabs Pi gets. Pi gets only the tabs it opens there (in the background, so your
+    tab stays in front; a screenshot brings Pi's forward) and windows their pages open; your tabs are left alone,
+    unless Pi asks for the open ones too (`tabs: "all"`, for a browser it started). Which tabs are Pi's is kept while
+    that browser runs. Those tabs show in the panel, and every browser tool, Take over, the sign-in and code cards and
+    windows its pages open work there; Close closes only the tabs Pi opened; `browser_detach` (or **Detach** in the
+    panel) lets go and leaves it running. An attachment lasts until the server restarts.
 - **From any session.** `machine_run` and `machine_copy` run a command or copy a file on a machine (with **Pi asks
   before each command** ticked for a machine in Settings › Machines, each `machine_run` there waits for you to allow it
   on a card that shows the command; off by default, as bash on the phone), and `pi-ssh`
@@ -669,6 +681,10 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
 
 - **[pi-subagent](https://github.com/badlogic/pi-subagent)** by Mario Zechner: named in the first design as the
   subagent experience to mirror (the subagents here are pi-pocket's).
+- **[pi-browser](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-browser)** by Igor Warzocha
+  (howaboua, MIT): `browser_attach`'s tab ownership (Pi's tabs open in the background, windows they open are Pi's by
+  Chrome's opener, the owner's tabs are left alone), its use of the browser's own connection, and finding a browser
+  whose remote debugging was turned on at `chrome://inspect/#remote-debugging` (design only, no code).
 
 ## License
 

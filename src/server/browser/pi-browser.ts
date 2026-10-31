@@ -553,6 +553,8 @@ export type BrowserState = {
      * ago. Only for a browser with a window there (`visibleOn`).
      */
     windowInUse: boolean;
+    /** A browser Pi attached to (`browser_attach`), by its label; null for pi-phone's own. */
+    attached: string | null;
 };
 
 /** How long after the last outside input the panel says the window is in use on the machine. */
@@ -616,6 +618,8 @@ export type PiBrowserOptions = {
     frames?: Partial<FrameTuning>;
     /** The setting `browser.popups` now (PP-249), for an engine whose windows wait (`asksWindows`); absent: allow, its default. */
     popups?(): PopupMode;
+    /** A browser Pi attached to (`browser_attach`, PP-274): its label, shown in the panel. */
+    attached?: string;
 };
 
 /**
@@ -634,7 +638,7 @@ export class PiBrowser {
     #opening: Promise<Tab> | undefined;
     /** Pi's actions, one after another. */
     #queue: Promise<unknown> = Promise.resolve();
-    #state: BrowserState = { place: "phone", where: "the phone", open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height }, size: "phone", pictureError: null, windowInUse: false };
+    #state: BrowserState = { place: "phone", where: "the phone", open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height }, size: "phone", pictureError: null, windowInUse: false, attached: null };
     /** Until when the page's input is Pi's or the panel's own (PP-274), and the timer that ends `windowInUse`. */
     #ownInputUntil = 0;
     #inUseTimer: NodeJS.Timeout | undefined;
@@ -679,7 +683,7 @@ export class PiBrowser {
         this.#tuning = { ...FRAME_TUNING, ...options.frames };
         const size = options.size ?? "phone";
 
-        this.#state = { ...this.#state, place: options.place ?? "phone", where: options.where ?? "the phone", session: options.session ?? null, size, viewport: { width: SIZES[size].width, height: SIZES[size].height } };
+        this.#state = { ...this.#state, place: options.place ?? "phone", where: options.where ?? "the phone", session: options.session ?? null, size, viewport: { width: SIZES[size].width, height: SIZES[size].height }, attached: options.attached ?? null };
         options.engine.watchWindows((ask) => this.#windowAsked(ask));
     }
 
@@ -1616,6 +1620,25 @@ export class PiBrowser {
         await this.#closeAll();
     }
 
+    /**
+     * Let go of the browser without closing anything there (`browser_detach`, PP-274): Pi's connections to its tabs end,
+     * the browser and every tab in it stay as they are.
+     */
+    async detach(): Promise<void> {
+        await this.#queue;
+        this.#stopFrames?.();
+        this.#lastFrame = undefined;
+        this.#windowOpens = [];
+        this.#notes = [];
+
+        for (const tab of this.#tabs.splice(0)) {
+            tab.page.cdp.close();
+        }
+
+        this.#tab = undefined;
+        clearTimeout(this.#inUseTimer);
+        this.#set({ doing: null, takenOver: false, windowInUse: false });
+    }
 
     // ─── Watching and taking over ─────────────────────────────────────────────
 

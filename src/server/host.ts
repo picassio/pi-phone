@@ -327,11 +327,22 @@ export interface PocketHost {
     browserFor(cwd: string, session: number): PiBrowser;
     /**
      * Where a session browses from now on (PP-274): "phone", or a machine by name or id. Answers its place
-     * (`phone`, `machine:<id>`).
+     * (`phone`, `machine:<id>`); refused while it is attached to a browser.
      */
     setBrowserPlace(cwd: string, session: number, where: string): string;
     /** A place in words ("this phone", a machine's name). */
     browserWhere(place: string): string;
+    /**
+     * Attach a session's browser to a browser's DevTools on a machine's 127.0.0.1 (`browser_attach`, PP-274), asking the
+     * owner first (`ask`) unless it is pi-phone's own there; and let go of it (`browser_detach`). What Pi is told.
+     */
+    attachBrowser(
+        cwd: string,
+        session: number,
+        options: { machine: string; port?: number; activePort?: string; label?: string; tabs?: "own" | "all" },
+        ask: (request: { subject: string; reason: string }) => Promise<{ allow: boolean; by: string }>,
+    ): Promise<string>;
+    detachBrowser(session: number): Promise<string>;
     /** The run model for a session's `browser_run`: "session", or a Jev model's OpenRouter id (the session's own, else the owner's). */
     browserRunModel(conversationId: ConversationId): string;
     /** A provider's API key from the app's sign-ins (OpenRouter's, for Jev), or undefined when it is not signed in. */

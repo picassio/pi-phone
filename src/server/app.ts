@@ -117,6 +117,7 @@ import { Screenshots } from "./screenshots.ts";
 import { FilePages } from "./file-pages.ts";
 import { MACHINE_BROWSER_MODES, type MachineAccess, type MachineBrowserMode, MachineEngine } from "./browser/machine-engine.ts";
 import { BrowserPlaces, BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine.ts";
+import { activePortScript, AttachedEngine, type BrowserEndpoint, connectBrowser, inspectScript, isOwnProfile, processKnown, profileFromInspect } from "./browser/attached-engine.ts";
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
 import { installImageGuard } from "./image-guard.ts";
 import { appSettings } from "./settings-registry.ts";
@@ -398,6 +399,8 @@ export class PocketApp {
     readonly #browserSizes: BrowserSizes;
     /** Where each session browses when it chose (PP-274): the phone, or a machine. */
     readonly #browserPlaces: BrowserPlaces;
+    /** Browsers Pi attached to (`browser_attach`, PP-274), by session: one each, while the server runs. */
+    readonly #attached = new Map<number, { place: string; engine: AttachedEngine; machine: string }>();
     /** Test machines for Pi's browser, if a test gave them. */
     readonly #browserMachinesOption: OpenOptions["browserMachines"];
     /** The sweep that closes idle sessions' tabs, and those of sessions archived or deleted. */
@@ -1058,6 +1061,8 @@ export class PocketApp {
             browserFor: (cwd, session) => this.browserFor(cwd, session),
             setBrowserPlace: (cwd, session, where) => this.setBrowserPlace(cwd, session, where),
             browserWhere: (place) => this.browserWhere(place),
+            attachBrowser: (cwd, session, options, ask) => this.attachBrowser(cwd, session, options, ask),
+            detachBrowser: (session) => this.detachBrowser(session),
             browserRunModel: (id) => this.sessionMeta(this.rootOf(id))?.browserRunModel ?? this.config.browserRunModel,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
             askSessionModel: async (id, prompt, maxTokens) => (await askSessionModel(this, id, prompt, { maxTokens })).text,
@@ -1404,12 +1409,18 @@ export class PocketApp {
             if (gone) {
                 this.#browserSizes.set(key, undefined);
 
-                // Its choice of place goes.
+                // Its choice of place goes, and a browser it attached to is let go (it runs on).
                 const id = Number(key.slice(key.lastIndexOf("#") + 1));
 
                 if (this.#browserPlaces.of(id) !== undefined) {
                     this.#browserPlaces.set(id, undefined);
                     this.#browserPlacesChanged();
+                }
+
+                if (this.#attached.get(id)?.place === key.slice(0, key.lastIndexOf("#"))) {
+                    await this.detachBrowser(id).catch((error: unknown) => this.#log(`browser: detaching ${key}: ${describe(error)}`));
+
+                    continue;
                 }
             }
 
@@ -3235,12 +3246,14 @@ export class PocketApp {
     }
 
     /** A browser of Pi's, whose state and frames go to the owner's tabs (frames only to tabs that watch it). */
-    #makeBrowser(engine: BrowserEngine, place: string, where: string, session: number): PiBrowser {
+    #makeBrowser(engine: BrowserEngine, place: string, where: string, session: number, attached?: string): PiBrowser {
         return new PiBrowser({
-            engine: new SessionEngine(engine, place, session, this.#tabOwners),
+            // A browser Pi attached to is one session's alone (PP-274): every tab in it is that session's.
+            engine: attached === undefined ? new SessionEngine(engine, place, session, this.#tabOwners) : engine,
             place,
             where,
             session,
+            ...(attached === undefined ? {} : { attached }),
             size: this.#browserSizes.of(`${place}#${session}`),
             sized: (size) => this.#browserSizes.set(`${place}#${session}`, size),
             popups: () => this.config.browserPopups,
@@ -3288,15 +3301,21 @@ export class PocketApp {
     }
 
     /**
-     * Pi's browser for session `session` working in `cwd`: where it chose to browse (PP-274: the phone, or a machine),
-     * else on its machine for a session on one, else the phone's.
+     * Pi's browser for session `session` working in `cwd`: a browser it attached to (PP-274), else where it chose to
+     * browse (the phone, or a machine), else on its machine for a session on one, else the phone's.
      */
     browserFor(cwd: string, session: number): PiBrowser {
         return this.browserAt(this.browserPlaceOf(cwd, session), session);
     }
 
-    /** Where a session's browser is: `phone`, or `machine:<id>` (PP-274). */
+    /** Where a session's browser is: `phone`, `machine:<id>`, or `attach:<id>:<port>` (PP-274). */
     browserPlaceOf(cwd: string, session: number): string {
+        const attached = this.#attached.get(session);
+
+        if (attached !== undefined) {
+            return attached.place;
+        }
+
         return this.#browserPlaces.of(session) ?? this.#ownBrowserPlace(cwd);
     }
 
@@ -3307,9 +3326,9 @@ export class PocketApp {
         return machine === undefined ? "phone" : `machine:${machine}`;
     }
 
-    /** Each session's browser place that is not where it works: the ones chosen. For the owner's tabs. */
+    /** Each session's browser place that is not where it works: chosen ones, and attached browsers. For the owner's tabs. */
     browserPlaces(): Record<string, string> {
-        return this.#browserPlaces.all();
+        return { ...this.#browserPlaces.all(), ...Object.fromEntries([...this.#attached].map(([session, each]) => [String(session), each.place])) };
     }
 
     #browserPlacesChanged(): void {
@@ -3355,11 +3374,16 @@ export class PocketApp {
 
     /**
      * Where a session browses from now on (PP-274: `browser_open` with machine, the panel's Browse on): `phone`, or a
-     * machine by name or id. Its tabs at the place before stay there (and close when idle). Answers the place.
+     * machine by name or id. Its tabs at the place before stay there (and close when idle). Not while it is attached to a
+     * browser: detach first. Answers the place.
      */
     setBrowserPlace(cwd: string, session: number, where: string): string {
         if (!Number.isInteger(session) || session <= 0) {
             throw new HttpError(400, "Which session's browser? (session=<number>)");
+        }
+
+        if (this.#attached.has(session)) {
+            throw new HttpError(409, `This session's browser is attached to ${this.#attached.get(session)!.engine.label}: detach it first (browser_detach, or Detach in the panel).`);
         }
 
         const place = /^(phone|this phone|the phone)$/i.test(where.trim()) ? "phone" : `machine:${this.#browserMachine(where.replace(/^machine:/, "")).id}`;
@@ -3371,7 +3395,7 @@ export class PocketApp {
 
     /** A place in words, for Pi: "this phone", or a machine's name. */
     browserWhere(place: string): string {
-        const machine = /^machine:([^:]+)/.exec(place)?.[1];
+        const machine = /^(?:machine|attach):([^:]+)/.exec(place)?.[1];
 
         return machine === undefined ? "this phone" : (this.browserMachines().find((each) => each.id === machine)?.name ?? machine);
     }
@@ -3390,6 +3414,10 @@ export class PocketApp {
 
         if (known !== undefined) {
             return known;
+        }
+
+        if (place.startsWith("attach:")) {
+            throw new HttpError(404, "That browser is no longer attached: attach it again (browser_attach).");
         }
 
         const machine = place === "phone" ? undefined : /^machine:(.+)$/.exec(place)?.[1];
@@ -3520,6 +3548,159 @@ export class PocketApp {
         if (engine !== undefined) {
             await engine.close().catch((error: unknown) => this.#log(`browser: stopping Chrome on ${machine.name}: ${describe(error)}`));
         }
+    }
+
+    /**
+     * Attach a session's browser to a browser on a machine (`browser_attach`, PP-274): its DevTools on the machine's
+     * 127.0.0.1, at `port`, or the port a DevToolsActivePort file there names (with neither, a default profile's: what
+     * Chrome's `chrome://inspect/#remote-debugging` opt-in writes), reached through the app's ssh forward. Pi owns the
+     * tabs it opens there (`tabs: "all"`: the open ones too). A browser that is not pi-phone's own on that machine (its
+     * profile) waits for the owner's card (`ask`) first. Answers what Pi is told.
+     */
+    async attachBrowser(
+        _cwd: string,
+        session: number,
+        options: { machine: string; port?: number; activePort?: string; label?: string; tabs?: "own" | "all" },
+        ask: (request: { subject: string; reason: string }) => Promise<{ allow: boolean; by: string }>,
+    ): Promise<string> {
+        const machine = this.#browserMachine(options.machine);
+
+        if (this.#attached.has(session)) {
+            throw new HttpError(409, `This session's browser is attached to ${this.#attached.get(session)!.engine.label} already: detach it first (browser_detach).`);
+        }
+
+        if (options.port !== undefined && options.activePort !== undefined) {
+            throw new HttpError(400, "Give the browser's DevTools port, or the path of its DevToolsActivePort file, not both.");
+        }
+
+        const access = this.#machineAccess(machine.id);
+        let port = options.port;
+        let profile: string | undefined;
+        let path: string | undefined;
+
+        if (options.port === undefined) {
+            const read = await access.run(activePortScript(options.activePort), 30);
+
+            if (read.code !== 0) {
+                throw new HttpError(
+                    404,
+                    options.activePort === undefined
+                        ? `No Chrome, Chromium, Edge or Brave on ${machine.name} has remote debugging on in its own profile: turn it on there at chrome://inspect/#remote-debugging, or give the port or DevToolsActivePort file of the browser to attach to.`
+                        : read.code === 4
+                          ? `There is no file ${options.activePort} on ${machine.name}.`
+                          : `${options.activePort} on ${machine.name} names no DevTools port.`,
+                );
+            }
+
+            port = Number(/^port (\d+)\s*$/m.exec(read.out)?.[1]);
+            profile = /^dir (.+)$/m.exec(read.out)?.[1]?.trim();
+            path = /^ws (\S+)\s*$/m.exec(read.out)?.[1];
+        }
+
+        if (port === undefined || !Number.isInteger(port) || port < 1 || port > 65535) {
+            throw new HttpError(400, "The DevTools port is a whole number from 1 to 65535.");
+        }
+
+        const place = `attach:${machine.id}:${port}`;
+        const holder = [...this.#attached].find(([, each]) => each.place === place);
+
+        if (holder !== undefined) {
+            throw new HttpError(409, `Session ${holder[0]} is attached to that browser: only one session drives it at a time.`);
+        }
+
+        // Its 127.0.0.1 only: no other host can be named.
+        const forward = await access.forward(port);
+        let version: BrowserEndpoint;
+
+        try {
+            version = await connectBrowser(forward.port, path);
+        } catch (error) {
+            forward.close();
+
+            throw new HttpError(
+                502,
+                `Nothing answers as a browser's DevTools on port ${port} of ${machine.name} (127.0.0.1): ${describe(error)}. If Chrome asked on ${machine.name} to allow remote debugging, allow it there and try again.`,
+            );
+        }
+
+        const takeAll = options.tabs === "all";
+        const open = (await version.cdp.send<{ targetInfos: { type: string }[] }>("Target.getTargets").catch(() => ({ targetInfos: [] }))).targetInfos.filter((each) => each.type === "page").length;
+
+        let processSaid = "";
+
+        if (profile === undefined) {
+            processSaid = (await access.run(inspectScript(port, machine.platform === "windows"), 30).catch(() => ({ code: 1, out: "" }))).out;
+            profile = profileFromInspect(processSaid);
+        }
+
+        const own = isOwnProfile(profile, access.home);
+        const label = (options.label ?? "").trim().slice(0, 60) || version.browser;
+
+        if (!own) {
+            const answer = await ask({
+                subject: [
+                    `Attach Pi's browser to a browser on ${machine.name}`,
+                    `Machine: ${machine.name}`,
+                    `Port: ${port} (127.0.0.1 there, through the app's ssh)`,
+                    `Browser: ${version.browser}${version.headless ? " (headless)" : ""}`,
+                    `Profile: ${profile ?? (!processKnown(processSaid) ? "not known (the machine did not say which process listens there)" : "its default profile (no --user-data-dir)")}`,
+                    `Tabs: ${takeAll ? `its ${open} open tab${open === 1 ? "" : "s"}, and those Pi opens` : `only those Pi opens there (in the background) and windows they open; its ${open} open tab${open === 1 ? " stays" : "s stay"} yours`}`,
+                ].join("\n"),
+                reason: `This browser carries its profile's sign-ins: Pi could act as you on every site it is signed in to. Detach leaves it running. Label: ${label}.`,
+            });
+
+            if (!answer.allow) {
+                version.cdp.close();
+                forward.close();
+
+                return `${answer.by === "superseded" ? "The request was replaced" : `${answer.by} said no`}: Pi's browser is not attached.`;
+            }
+        }
+
+        // Who owns which tab, by the browser's identity: a browser started again shares its restored tabs again.
+        const engine = new AttachedEngine({
+            name: machine.name,
+            home: access.home,
+            writeFile: access.writeFile,
+            forward,
+            endpoint: version,
+            remotePort: port,
+            label,
+            session,
+            owners: this.#tabOwners,
+            ownerKey: `attach:${machine.id}:${version.id}`,
+        });
+        const taken = takeAll ? await engine.takeOpen() : 0;
+        const browser = this.#makeBrowser(engine, place, machine.name, session, label);
+
+        this.#attached.set(session, { place, engine, machine: machine.id });
+        this.#browsers.set(`${place}#${session}`, browser);
+        this.#browserPlacesChanged();
+        this.#log(`browser: session ${session} attached to ${engine.label} (port ${port})`);
+
+        return `Pi's browser is attached to ${label} on ${machine.name} (port ${port}${profile === undefined ? "" : `, profile ${profile}`}${own ? ", pi-phone's own Chrome there" : ""}). ${
+            takeAll ? `Its ${taken} open tab${taken === 1 ? " is" : "s are"} this session's, with those it opens.` : `This session sees only the tabs it opens there (browser_new_tab or browser_open; in the background) and windows their pages open; the ${open} tab${open === 1 ? "" : "s"} open there ${open === 1 ? "stays" : "stay"} the owner's.`
+        } Every browser_* tool works there now; browser_detach lets go and leaves it running.`;
+    }
+
+    /** Let go of the browser a session attached to (`browser_detach`, the panel's Detach): it runs on, its tabs too. */
+    async detachBrowser(session: number): Promise<string> {
+        const attached = this.#attached.get(session);
+
+        if (attached === undefined) {
+            throw new HttpError(409, "This session's browser is not attached to another browser.");
+        }
+
+        const key = `${attached.place}#${session}`;
+
+        await this.#browsers.get(key)?.detach();
+        this.#browsers.delete(key);
+        this.#attached.delete(session);
+        attached.engine.release();
+        this.#browserPlacesChanged();
+        this.#log(`browser: session ${session} detached from ${attached.engine.label}`);
+
+        return `Pi's browser let go of ${attached.engine.label}: it runs on, with its tabs. This session browses where it did before it attached.`;
     }
 
     /** Send a tab's board its subagents, unless they are what it last got. */

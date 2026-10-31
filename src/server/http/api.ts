@@ -1122,6 +1122,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, { place: chosen, browser: app.browserAt(chosen, session).state() });
             }
 
+            // Let go of a browser the session attached to (PP-274): it runs on.
+            if (second === "detach" && method === "POST") {
+                return json(response, 200, { said: await app.detachBrowser(session) });
+            }
+
             // What the phone's browser does with a window a page opens (Settings › Pi's browser, PP-249).
             if (second === "popups" && third === undefined && method === "GET") {
                 return json(response, 200, { popups: app.config.browserPopups });

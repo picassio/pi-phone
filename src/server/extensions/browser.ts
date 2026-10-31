@@ -92,7 +92,7 @@ export function shotCaption(page: { title: string; url: string; width: number; h
 const TEXT_MAX = 40_000;
 
 /** In every prompt while the module is on. */
-export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; a window a page opens (a sign-in popup) becomes a tab in front, and when it closes itself the page that opened it comes back; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_open with machine browses on one of the owner's machines (its Chrome, its own addresses such as localhost:3000) from then on. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code as text. When a page asks to sign in and the sign-in is saved as secrets you may use (secrets_list), type them by name: browser_type with secret: "NAME" (a password field too), or browser_run values {"password": {"secret": "NAME"}}; their values go into the page, never to you. Otherwise call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
+export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; a window a page opens (a sign-in popup) becomes a tab in front, and when it closes itself the page that opened it comes back; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_open with machine browses on one of the owner's machines (its Chrome, its own addresses such as localhost:3000) from then on; browser_attach drives a browser already running on a machine (Playwright, agent-browser, a Chrome started with --remote-debugging-port), after the owner's card, and browser_detach lets it go. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code as text. When a page asks to sign in and the sign-in is saved as secrets you may use (secrets_list), type them by name: browser_type with secret: "NAME" (a password field too), or browser_run values {"password": {"secret": "NAME"}}; their values go into the page, never to you. Otherwise call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
 
 export default function createBrowser(host: PocketHost) {
     /** The session's own browser at the place it works in: the phone's, or its machine's Chrome (its own tabs there). */
@@ -753,6 +753,82 @@ export default function createBrowser(host: PocketHost) {
                     fields: [],
                     instruction: args.instruction,
                 }, "The person says it is done.");
+            },
+        }),
+        defineTool({
+            name: "browser_attach",
+            description:
+                "Attach this session's Pi's browser to a browser that runs on one of the owner's machines with its DevTools on that machine's 127.0.0.1: Playwright's, agent-browser's, a Chrome you started there with --remote-debugging-port=N, or the owner's own Chrome started with remote debugging. " +
+                "Give its port, or the path of its DevToolsActivePort file (in its profile folder); with neither, the owner's own Chrome (or Chromium, Edge, Brave) whose remote debugging they turned on at chrome://inspect/#remote-debugging. It is reached through the app's ssh; no other host can be named. " +
+                "Unless it is pi-phone's own Chrome there, the owner approves on a card that shows the machine, the port, the browser's version and its profile (it carries that profile's sign-ins). " +
+                'This session owns the tabs it opens there (in the background) and the windows their pages open; the tabs already open stay the owner\'s, unless tabs is "all" (for a browser you started, such as Playwright\'s). ' +
+                "Then every browser_* tool, the panel, take over and the sign-in cards work on its tabs; browser_detach lets go and leaves it running.",
+            parameters: Type.Object({
+                machine: Type.String({ description: "The machine's name" }),
+                port: Type.Optional(Type.Integer({ minimum: 1, maximum: 65535, description: "Its DevTools port on the machine's 127.0.0.1" })),
+                devtools_active_port: Type.Optional(
+                    Type.String({ description: "Or the path of its DevToolsActivePort file on the machine (~/ is its home), in its profile folder: Chrome writes it when started with --remote-debugging-port=0" }),
+                ),
+                label: Type.Optional(Type.String({ maxLength: 60, description: 'What to call it in the panel ("Playwright")' })),
+                tabs: Type.Optional(Type.Union([Type.Literal("own"), Type.Literal("all")], { description: 'own (the default): only the tabs this session opens there; all: its open tabs too' })),
+            }),
+            execute: async (args, api, context) => {
+                const owner = mayBrowse(api.conversationId);
+
+                if (owner !== true) {
+                    return reply(owner, true);
+                }
+
+                try {
+                    const said = await host.attachBrowser(
+                        (await api.agent(context)).cwd ?? "",
+                        Number(api.conversationId),
+                        {
+                            machine: args.machine,
+                            ...(args.port === undefined ? {} : { port: args.port }),
+                            ...(args.devtools_active_port === undefined ? {} : { activePort: args.devtools_active_port }),
+                            ...(args.label === undefined ? {} : { label: args.label }),
+                            ...(args.tabs === undefined ? {} : { tabs: args.tabs }),
+                        },
+                        (request) =>
+                            host.approvals.request(
+                                {
+                                    id: `browser-attach-${String(api.taskId)}-${String(api.callId)}`,
+                                    conversationId: api.conversationId as never,
+                                    taskId: api.taskId as never,
+                                    ...(api.callId === undefined ? {} : { callId: api.callId }),
+                                    tool: "browser_attach",
+                                    subject: request.subject,
+                                    reason: request.reason,
+                                    createdAt: Date.now(),
+                                },
+                                context as never,
+                            ),
+                    );
+
+                    // The browser's version and profile are the machine's words.
+                    return reply(fencedPage(said));
+                } catch (error) {
+                    return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
+                }
+            },
+        }),
+        defineTool({
+            name: "browser_detach",
+            description: "Let go of the browser this session attached to (browser_attach): it runs on, with every tab; this session browses where it did before.",
+            parameters: Type.Object({}),
+            execute: async (_args, api) => {
+                const owner = mayBrowse(api.conversationId);
+
+                if (owner !== true) {
+                    return reply(owner, true);
+                }
+
+                try {
+                    return reply(await host.detachBrowser(Number(api.conversationId)));
+                } catch (error) {
+                    return reply(error instanceof Error ? error.message : String(error), true);
+                }
             },
         }),
         defineTool({

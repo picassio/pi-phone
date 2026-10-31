@@ -448,10 +448,20 @@ function SizeSwitch({ state }) {
     </div>`;
 }
 
-/** Where this session browses (PP-274): this phone or one of the owner's machines, as browser_open's machine does. */
-function BrowseOn() {
+/**
+ * Where this session browses (PP-274): this phone or one of the owner's machines, as browser_open's machine does; or,
+ * attached to a browser on a machine (browser_attach), its name with Detach, which leaves it running.
+ */
+function BrowseOn({ state }) {
     const machines = store.state.server?.browserMachines ?? [];
     const place = browserPlace();
+
+    if (place.startsWith("attach:")) {
+        return html`<div class="pb-on">
+            <span class="pb-on-label">${t("Attached to {label}", { label: state?.attached ?? place })}</span>
+            <button class="link small" type="button" onClick=${() => attempt(() => browserApi("browser/detach", {}))}>${t("Detach")}</button>
+        </div>`;
+    }
 
     if (machines.length === 0) {
         return null;
@@ -561,6 +571,7 @@ export function BrowserPanel({ leaving = false }) {
             }
             <div class="pb-title">
                 <b>${state?.place && state.place !== "phone" ? t("Pi's browser on {where}", { where: state.where }) : t("Pi's browser")}</b>
+                ${state?.attached && html`<span class="pb-attached">${t("Attached: {label}", { label: state.attached })}</span>`}
                 <span class="pb-url" title=${state?.url ?? ""}>${state?.open ? state.title || state.url || t("Blank page") : t("Closed")}</span>
             </div>
             ${
@@ -591,7 +602,7 @@ export function BrowserPanel({ leaving = false }) {
                     : html`<div class="pb-empty">
                           <${Icon} name="globe" size=${28} />
                           <p>${t("Pi's browser opens when Pi browses: ask Pi to open a page, or to do something on a site.")}</p>
-                          <${BrowseOn} />
+                          <${BrowseOn} state=${state} />
                       </div>`
             }
         </div>
@@ -600,7 +611,7 @@ export function BrowserPanel({ leaving = false }) {
             state?.open &&
             html`<footer class="pb-foot">
                 <${SizeSwitch} state=${state} />
-                <${BrowseOn} />
+                <${BrowseOn} state=${state} />
                 <button class="link small" onClick=${() => attempt(async () => setPiBrowser(await browserApi("browser/close", {})))}>${t("Close this session's tabs")}</button>
             </footer>`
         }

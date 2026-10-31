@@ -129,7 +129,7 @@ export const store = {
         /** Pi using computers (PP-178): each control session running; and each session's Computer panel, by its number. */
         computerControl: [],
         computers: {},
-        /** Where sessions browse when not where they work (PP-274), by session: `machine:<id>` or `phone`. */
+        /** Where sessions browse when not where they work (PP-274), by session: `machine:<id>`, `phone`, `attach:<id>:<port>`. */
         browserPlaces: {},
         /** This person's folder groups in the session list (PP-76), from the server: the same on every device. */
         sessionGroups: { groups: [], members: {} },
@@ -905,7 +905,7 @@ const handlers = {
     missing: (data) => store.set({ missing: data.message }),
     // Pi's browser: what it shows and does (the owner's tabs), and frames of its page (the tabs that watch it).
     browser: (data) => setPiBrowser(data),
-    // A session chose where it browses (PP-274).
+    // A session chose where it browses, or attached to a browser on a machine, or let it go (PP-274).
     "browser-places": (data) => setChanged({ browserPlaces: kept(store.state.browserPlaces, data.places ?? {}) }),
     "browser-frame": (data) => {
         for (const listener of browserFrameListeners) {
@@ -1575,8 +1575,8 @@ PEOPLE_DOCK.addEventListener("change", () => {
 });
 
 /**
- * Which of Pi's browsers the session shown uses: the place the session chose to browse in (PP-274), else
- * `machine:<id>` for a session working on a machine, else `phone`.
+ * Which of Pi's browsers the session shown uses: a browser Pi attached to (`attach:<machine id>:<port>`) or the place the
+ * session chose to browse in (PP-274), else `machine:<id>` for a session working on a machine, else `phone`.
  */
 export function browserPlace(state = store.state) {
     const chosen = state.browserPlaces?.[String(state.conversationId)];

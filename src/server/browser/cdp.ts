@@ -13,20 +13,56 @@ export type CdpEndpoint = { socket: string; path: string } | { url: string };
 
 export class CdpError extends Error {}
 
+type Message = { id?: number; result?: Record<string, unknown>; error?: { message?: string }; method?: string; params?: Record<string, unknown>; sessionId?: string };
+
 export class Cdp {
     readonly #ws: WebSocket;
     readonly #pending = new Map<number, Pending>();
     readonly #listeners = new Map<string, Set<(params: Record<string, unknown>) => void>>();
+    /**
+     * A page's session on a browser's connection (`attach`, PP-274): its connection and session id; its commands carry
+     * the id, and the connection gives it what carries it. Undefined for a connection of its own.
+     */
+    readonly #on: { root: Cdp; sessionId: string } | undefined;
+    /** A browser connection's page sessions, by id. */
+    readonly #sessions = new Map<string, Cdp>();
     #next = 1;
     #closed = false;
     /** Called once when the connection ends, for whatever reason. */
     onClose: (() => void) | undefined;
 
-    private constructor(ws: WebSocket) {
+    private constructor(ws: WebSocket, on?: { root: Cdp; sessionId: string }) {
         this.#ws = ws;
+        this.#on = on;
+
+        if (on !== undefined) {
+            return;
+        }
+
         ws.on("message", (raw) => this.#message(String(raw)));
         ws.on("close", () => this.#ended(new CdpError("The browser's connection closed.")));
         ws.on("error", (error) => this.#ended(new CdpError(`The browser's connection failed: ${error.message}`)));
+        this.on("Target.detachedFromTarget", (params) => {
+            const session = this.#sessions.get(String(params.sessionId));
+
+            if (session !== undefined) {
+                session.#ended(new CdpError("The page's session ended."));
+            }
+        });
+    }
+
+    /**
+     * A page of this browser connection as a connection of its own (`Target.attachToTarget`, flattened): what a
+     * browser's DevTools give when only its browser endpoint is open, as Chrome's `chrome://inspect/#remote-debugging`
+     * opt-in does (PP-274). Closing it detaches; it ends with the page or the connection.
+     */
+    async attach(targetId: string): Promise<Cdp> {
+        const { sessionId } = await this.send<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
+        const session = new Cdp(this.#ws, { root: this, sessionId });
+
+        this.#sessions.set(sessionId, session);
+
+        return session;
     }
 
     /** Connect to a page's DevTools endpoint; rejects with why it could not. */
@@ -67,7 +103,7 @@ export class Cdp {
             return Promise.reject(new CdpError("The browser's connection is closed."));
         }
 
-        const id = this.#next++;
+        const id = this.#id();
 
         return new Promise<T>((resolve, reject) => {
             const timer = setTimeout(() => {
@@ -86,8 +122,13 @@ export class Cdp {
                     reject(error);
                 },
             });
-            this.#ws.send(JSON.stringify({ id, method, params }));
+            this.#ws.send(JSON.stringify({ id, method, params, ...(this.#on === undefined ? {} : { sessionId: this.#on.sessionId }) }));
         });
+    }
+
+    /** A command's number, unique on the connection (a page session's are its browser connection's). */
+    #id(): number {
+        return this.#on === undefined ? this.#next++ : this.#on.root.#id();
     }
 
     /** Hear an event; returns how to stop. */
@@ -101,18 +142,41 @@ export class Cdp {
     }
 
     close(): void {
-        if (!this.#closed) {
-            this.#ws.close();
-            this.#ended(new CdpError("The browser's connection closed."));
+        if (this.#closed) {
+            return;
         }
+
+        if (this.#on === undefined) {
+            this.#ws.close();
+        } else {
+            // A page session: the page and the browser stay.
+            void this.#on.root.send("Target.detachFromTarget", { sessionId: this.#on.sessionId }).catch(() => {});
+        }
+
+        this.#ended(new CdpError("The browser's connection closed."));
     }
 
     #message(raw: string): void {
-        let message: { id?: number; result?: Record<string, unknown>; error?: { message?: string }; method?: string; params?: Record<string, unknown> };
+        let message: Message;
 
         try {
-            message = JSON.parse(raw) as typeof message;
+            message = JSON.parse(raw) as Message;
         } catch {
+            return;
+        }
+
+        this.#deliver(message);
+    }
+
+    #deliver(message: Message): void {
+        // A page session's answer or event, on its browser's connection.
+        if (this.#on === undefined && typeof message.sessionId === "string") {
+            const session = this.#sessions.get(message.sessionId);
+
+            if (session !== undefined) {
+                session.#deliver({ ...message, sessionId: undefined });
+            }
+
             return;
         }
 
@@ -151,6 +215,15 @@ export class Cdp {
         }
 
         this.#pending.clear();
+        if (this.#on !== undefined) {
+            this.#on.root.#sessions.delete(this.#on.sessionId);
+        }
+
+        // A browser connection's end is its page sessions' too.
+        for (const session of [...this.#sessions.values()]) {
+            session.#ended(error);
+        }
+
         this.onClose?.();
     }
 }

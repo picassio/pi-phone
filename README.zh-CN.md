@@ -187,6 +187,15 @@
     输入或滚动时，面板会显示该窗口正在机器上被使用，Pi 也会被告知。
   - **从手机上的会话**：带 `machine` 的 `browser_open` 和 `browser_new_tab`（或面板中的**浏览位置**）把会话的浏览移到你的某台机器上，
     或移回手机；标签页仍属于该会话。
+  - **附加到那里正在运行的浏览器**：`browser_attach`（一个端口，或 DevToolsActivePort 文件的路径）驱动机器上已在运行、
+    DevTools 位于该机器 127.0.0.1 上的浏览器：Playwright、agent-browser、Pi 用 `--remote-debugging-port` 启动的 Chrome，
+    或你自己的 Chrome，经由应用的 ssh（不能是其他主机）。对你自己的 Chrome，在 `chrome://inspect/#remote-debugging`
+    打开远程调试（Chrome、Edge、Brave），Pi 会在其配置文件中找到它，无需端口；如果 Chrome 询问，请在那里允许。除非是 pi-phone
+    在那里自己的 Chrome，你需先在卡片上批准，卡片显示机器、端口、浏览器版本、其配置文件（带有该配置文件的登录状态）以及 Pi 能用哪些标签页。
+    Pi 只拥有它在那里打开的标签页（在后台打开，你的标签页仍在前面；截图会把 Pi 的标签页切到前面）以及它们的页面打开的窗口；
+    你的标签页不会被动，除非 Pi 要求也接管已打开的标签页（`tabs: "all"`，用于它自己启动的浏览器）。哪些标签页属于 Pi 在该浏览器
+    运行期间一直保留。这些标签页显示在面板中，所有浏览器工具、接管、登录和验证码卡片以及页面打开的窗口都能使用；关闭只关闭 Pi 打开的标签页；`browser_detach`（或面板中的**分离**）
+    放开它并让它继续运行。附加在服务器重启前一直有效。
 - **在任意会话中。** `machine_run` 和 `machine_copy` 可在机器上运行命令或复制文件（在设置 › 机器中为某台机器勾选“Pi 在每条命令前询问”后，那里的每个 `machine_run` 都会等你在显示该命令的卡片上允许；默认关闭，与手机上的 bash 一样）；`pi-ssh` 让 bash 能用应用的密钥执行 ssh、rsync、scp
   和端口隧道，而这些密钥任何程序都读不出来。Pi 还能用 `machine_add` 自己添加机器（比如它刚建好的虚拟机）：一张卡片列出地址、
   SSH 密钥和主机密钥（如果 Pi 在机器上读到了主机密钥，会与之核对），以及要安装的工具（除 ffmpeg 和 HyperFrames 外默认勾选），点 **同意并连接** 即添加、
@@ -522,6 +531,9 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 
 - **[pi-subagent](https://github.com/badlogic/pi-subagent)**，作者 Mario Zechner：最初的设计中指定以它的子代理体验为蓝本
   （这里的子代理实现来自 pi-pocket）。
+- **[pi-browser](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-browser)**，作者 Igor Warzocha
+  （howaboua，MIT）：`browser_attach` 的标签页归属（Pi 的标签页在后台打开，它们打开的窗口按 Chrome 的 opener 归 Pi，所有者的标签页不动）、
+  使用浏览器自己的连接，以及找到在 `chrome://inspect/#remote-debugging` 打开了远程调试的浏览器（仅借鉴设计，未复制代码）。
 
 ## 许可证
 

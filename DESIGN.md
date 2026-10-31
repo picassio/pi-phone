@@ -888,7 +888,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   Take over: a tap's two mouse events go at once; keys and text go without waiting for the page (Pi's own presses still
   wait for a navigation). `node test/perf/browser-stream.ts [local|tailscale|slow]` measures it (a throttled link to
   a headless Chrome, the panel in another).
-- **Pi's browser on a machine** (PP-274; `browser/machine-engine.ts`):
+- **Pi's browser on a machine** (PP-274; `browser/machine-engine.ts`, `browser/attached-engine.ts`):
   - **Window mode** (`browser.machineMode`, kept on the machine as `browserMode: "window"`; headless unset; Settings ›
     Machines and `setting_change`, through `setMachineBrowserMode`, which stops its Chrome so the next action starts it
     in the new mode; the launch script also restarts a Chrome whose `~/.pi/mobile/browser/mode` differs). The same
@@ -904,12 +904,37 @@ so Pi changes them through the settings tools; "the last session" is the one the
     pointerdown, keydown and wheel, at most one per 400 ms, on every document; the binding's calls come only with the
     Runtime domain on). Pi's own CDP input is trusted too, so an event counts only while Pi is not acting and 1.5 s
     after its last action or the panel's input (`#ownInputUntil`); then `windowInUse` is true for 15 s (the panel's
-    line) and Pi's next answer starts with a note, once. Only for engines with `visibleOn` (window mode).
+    line) and Pi's next answer starts with a note, once. Only for engines with `visibleOn` (window mode, a browser
+    attached that is not headless).
   - **Where a session browses** (`BrowserPlaces`, `browser-places.json`): `phone` or `machine:<id>`, chosen with
     `browser_open`/`browser_new_tab`'s `machine` or the panel's Browse on (`PUT /api/browser/place`); none kept when it
-    is where the session works. `browserFor` takes the choice, then the cwd's place.
+    is where the session works. `browserFor` takes an attached browser first, then the choice, then the cwd's place.
     The owner's tabs get the map in `hello` (`server.browserPlaces`) and `browser-places` events; `browserPlace()` in
     `store.js` reads it. Forgotten when a session is archived or deleted.
+  - **Attach** (`browser_attach`, `attachBrowser`; ideas from howaboua's pi-browser, MIT): a port, a DevToolsActivePort
+    file read on the machine, or none: the first of the default profiles' files (`DEFAULT_ACTIVE_PORTS`, Chrome,
+    Chromium, Edge, Brave on Linux, macOS and Windows), which Chrome's `chrome://inspect/#remote-debugging` opt-in
+    writes (`activePortScript`: its folder is the profile, its second line the browser endpoint). The port is opened
+    on the machine's 127.0.0.1 through the app's forward; no host is taken. Everything goes over the browser's own
+    WebSocket (`connectBrowser`: the file's path, else `/json/version`'s; waits a minute, as the opt-in may ask the
+    person at the machine): pages are flattened sessions on it (`Cdp.attach`), as the opt-in opens no per-page or HTTP
+    endpoint. The profile comes from the file, else the listening process's command line (`inspectScript`: `ss`/`lsof`
+    and `/proc/<pid>/cmdline` or `ps`, where Chrome on Linux rewrites its arguments as one line; `Get-NetTCPConnection`
+    and `Win32_Process` on Windows). pi-phone's own profile (`~/.pi/mobile/browser/profile`) attaches without a card;
+    anything else waits for the owner's card (machine, port, version, profile, tabs, "carries its profile's sign-ins").
+  - **Tab ownership on an attached browser**: the session owns the tabs it makes (`Target.createTarget`, `background`
+    where the browser has a window, so the owner's tab stays in front) and pages whose `openerId` it owns (their
+    windows, found by `tabs()` and taken in by `#adoptPopups`); `tabs: "all"` takes the pages open at attach too. The
+    owner's other tabs are never listed, attached or emulated. Owners are kept in `TabOwners` under
+    `attach:<machine id>:<browser endpoint id>`, so a detach and attach keep them and a restarted browser (a new id)
+    shares its restored tabs again. A picture of a windowed browser's tab activates it first (a background tab may draw
+    none); Pi's actions and the panel's frames run in the background (focus emulation, as on every page). The
+    `AttachedEngine` is one session's (no `SessionEngine`), place `attach:<machine id>:<port>`, one session per
+    endpoint, kept in memory only (a restart ends it). Its `close()` closes only the tabs Pi made; `PiBrowser.detach()`
+    drops Pi's sessions without closing anything, and the connection and forward close. Card fills
+    (`answerBrowserAsk`) find it by the card's `place`. Its answer is fenced as the page's. Not taken from pi-browser:
+    its worker on the machine (`pi-browser-worker.mjs`, which needs node there): pi-phone reaches the loopback port
+    through its own ssh forward, so nothing runs or installs on the machine; and its tool surface.
 - **Onboarding** (PP-232; plan `projects/pi-phone-onboarding`): the first-run welcome's state is per person in
   config.json (`User.welcome`: absent shows it, `done`, `skipped`). A config from before it (no `onboarding: 1`)
   marks everyone done once, so only new pi-phones (a team member's own included) welcome their owner; guests never get

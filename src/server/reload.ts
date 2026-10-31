@@ -279,6 +279,8 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "browser_sign_in",
     "browser_ask_code",
     "browser_ask_user",
+    "browser_attach",
+    "browser_detach",
     "browser_close",
     "watch_ci",
     "session_settle",

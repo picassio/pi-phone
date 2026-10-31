@@ -18355,7 +18355,7 @@ pre.gallery-code {
     align-self: center;
 }
 
-/* Where this session browses (PP-274): this phone, or a machine. */
+/* Where this session browses (PP-274): this phone, a machine, or a browser Pi attached to, with Detach. */
 .pb-foot {
     flex-wrap: wrap;
 }
@@ -18380,6 +18380,21 @@ pre.gallery-code {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* A machine's name and an attached browser's label make three lines: the title keeps to one. */
+.pb-title:has(.pb-attached) b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pb-attached {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11.5px;
+    color: var(--accent);
 }
 
 /* Someone uses the browser's window on the machine (PP-274). */

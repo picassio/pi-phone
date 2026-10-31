@@ -273,6 +273,18 @@ dự án thật.</sub>
     cửa sổ đó (không phải Pi, không phải khung), khung báo cửa sổ đang được dùng trên máy, và Pi được báo.
   - **Từ một phiên trên điện thoại**: `browser_open` và `browser_new_tab` với `machine` (hoặc **Duyệt trên** trong
     khung) chuyển việc duyệt web của phiên sang một máy của bạn, hoặc về lại điện thoại; các thẻ vẫn là của phiên.
+  - **Gắn vào trình duyệt đang chạy ở đó**: `browser_attach` (một cổng, hoặc đường dẫn tệp DevToolsActivePort) điều
+    khiển một trình duyệt đã chạy trên máy với DevTools ở 127.0.0.1 của máy: của Playwright, agent-browser, một Chrome
+    Pi mở bằng `--remote-debugging-port`, hoặc Chrome của chính bạn, qua ssh của ứng dụng (không máy nào khác). Với
+    Chrome của bạn, bật remote debugging ở `chrome://inspect/#remote-debugging` (Chrome, Edge, Brave), Pi tự tìm thấy nó
+    trong hồ sơ mà không cần cổng; nếu Chrome hỏi thì cho phép ở đó. Trừ khi đó là Chrome của pi-phone ở máy, bạn
+    duyệt trước trên một thẻ ghi máy, cổng, phiên bản trình duyệt, hồ sơ của nó (mang theo các đăng nhập của hồ sơ
+    đó) và những thẻ nào thuộc về Pi. Pi chỉ có các thẻ nó mở ở đó (mở ngầm, nên thẻ của bạn vẫn ở trước; ảnh chụp
+    đưa thẻ của Pi lên trước) và cửa sổ do trang của chúng mở; các thẻ của bạn được để yên, trừ khi Pi xin cả các
+    thẻ đang mở (`tabs: "all"`, cho trình duyệt nó tự mở). Thẻ nào của Pi được ghi nhớ khi trình duyệt đó còn chạy.
+    Các thẻ đó hiện trong khung, và mọi công cụ trình duyệt, Tiếp quản, thẻ đăng nhập và mã cùng cửa sổ trang mở
+    đều dùng được; Đóng chỉ đóng các thẻ Pi mở; `browser_detach` (hoặc **Tách ra** trong khung) buông nó ra và để nó
+    chạy tiếp. Việc gắn kéo dài đến khi máy chủ khởi động lại.
 - **Từ bất kỳ phiên nào.** `machine_run` và `machine_copy` chạy một lệnh hoặc chép một tệp trên máy (khi một máy
   được chọn **Pi hỏi trước mỗi lệnh** trong Cài đặt › Máy, mỗi `machine_run` ở đó chờ bạn cho phép trên một thẻ hiện
   lệnh; mặc định tắt, như bash trên điện thoại), và `pi-ssh` cho bash dùng ssh, rsync, scp và tunnel bằng khóa của ứng
@@ -693,6 +705,10 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
 
 - **[pi-subagent](https://github.com/badlogic/pi-subagent)** của Mario Zechner: được nhắc trong thiết kế ban đầu là trải
   nghiệm subagent cần theo (subagent ở đây là của pi-pocket).
+- **[pi-browser](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-browser)** của Igor Warzocha
+  (howaboua, MIT): cách `browser_attach` giữ quyền sở hữu thẻ (thẻ của Pi mở ngầm, cửa sổ chúng mở thuộc về Pi theo
+  opener của Chrome, thẻ của chủ máy được để yên), việc dùng kết nối riêng của trình duyệt, và việc tìm trình duyệt đã bật
+  remote debugging ở `chrome://inspect/#remote-debugging` (chỉ thiết kế, không chép mã).
 
 ## Giấy phép
 

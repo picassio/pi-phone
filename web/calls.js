@@ -128,6 +128,11 @@ export function describeCall(call) {
                 subject: args.machine ? t("{url} on {machine}", { url: String(args.url ?? "").replace(/^https?:\/\//, ""), machine: args.machine }) : String(args.url ?? "").replace(/^https?:\/\//, ""),
                 mono: true,
             };
+        // A browser on a machine that Pi attaches to, and lets go of (PP-274).
+        case "browser_attach":
+            return { icon: "◍", label: t("Attaches to"), subject: t("{what} on {machine}", { what: args.label || (args.port ? t("port {port}", { port: args.port }) : String(args.devtools_active_port ?? "")), machine: args.machine ?? "" }) };
+        case "browser_detach":
+            return { icon: "◍", label: t("Detaches"), subject: t("the attached browser") };
         case "browser_new_tab":
             return { icon: "◍", label: t("New tab"), subject: args.url === undefined ? t("blank") : String(args.url).replace(/^https?:\/\//, ""), mono: true };
         case "browser_snapshot":
