@@ -45,7 +45,17 @@ mine("half", { "DESIGN.md": "# Half\n", "manifest.json": manifest("half", "Half"
 
 let prompt = "";
 const route: FauxResponseStep = (context) => {
-    prompt = JSON.stringify((context.messages as { role: string; sections?: Record<string, string> }[]).filter((message) => message.role === "system").map((message) => message.sections ?? {}));
+    const system = (context.messages as { role: string; sections?: Record<string, string> }[]).filter((message) => message.role === "system");
+
+    // A turn's own call, not the summary of a background compaction after it (its one system message has no sections).
+    // Measured (Build APK #347): the first turn's system entry is 49.5k characters of sections and 108 tools (82.5k),
+    // 32,900 tokens to the faux model, which reports them as input and as cache write alike (65,803). The design
+    // system's section comes in the middle, so the next turn removes the sections and adds them again in order (+12.6k
+    // tokens), past Pi Durable's background point of 78,848 (128,000 - 16,384 reserved - 32,768): it compacts, and the
+    // summary's request came last. PP-274's tools crossed it. Real providers count a cache write apart from input.
+    if (system.some((message) => message.sections !== undefined)) {
+        prompt = JSON.stringify(system.map((message) => message.sections ?? {}));
+    }
 
     return fauxAssistantMessage([fauxText(`echo: ${lastText(context as never).text}`)]);
 };
