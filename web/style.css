@@ -4518,12 +4518,13 @@ pre.diff .del {
     justify-content: space-between;
     gap: 12px;
     min-height: 40px;
+    padding: 6px 0;
     border-bottom: 1px solid var(--hair);
 }
 
-.pp-row select {
+.pp-choice {
+    flex: 0 1 64%;
     min-width: 0;
-    max-width: 62%;
 }
 
 .wiki-came-note {

@@ -8,9 +8,10 @@ import { tellingWords } from "../src/server/para.ts";
 const skills = (entries: [string, string][]) =>
     `<available_skills>\n${entries.map(([name, description]) => `  <skill>\n    <name>${name}</name>\n    <description>${description}</description>\n  </skill>`).join("\n")}\n</available_skills>`;
 
-test("the defaults: the wiki and secrets with a tool, skills frozen; a session's own over every session's", () => {
-    assert.deepEqual(DEFAULT_CONTEXT_POLICY, { wiki: "tool", secrets: "tool", skills: "frozen" });
-    assert.deepEqual(resolveContextPolicy({ wiki: "live" }, { secrets: "list" }), { wiki: "live", secrets: "list", skills: "frozen" });
+test("the defaults: the wiki and secrets with a tool, skills frozen, the rarer tools loaded when needed; a session's own over every session's", () => {
+    assert.deepEqual(DEFAULT_CONTEXT_POLICY, { wiki: "tool", secrets: "tool", skills: "frozen", tools: "load" });
+    assert.deepEqual(resolveContextPolicy({ wiki: "live" }, { secrets: "list" }), { wiki: "live", secrets: "list", skills: "frozen", tools: "load" });
+    assert.throws(() => contextMode("tools", "some"), /load, all/);
     assert.deepEqual(resolveContextPolicy({ wiki: "live" }, { wiki: "relevant" }).wiki, "relevant");
     assert.equal(contextMode("skills", "live"), "live");
     assert.throws(() => contextMode("wiki", "all of it"), /tool, relevant, frozen, live/);

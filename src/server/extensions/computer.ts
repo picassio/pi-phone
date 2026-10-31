@@ -23,6 +23,7 @@ import { MINUTES } from "../computer-control.ts";
 import { lockedNote } from "../computer-windows.ts";
 import { ChromeRemoteDesktop, CRD_HEADLESS, crdConnected, crdWord, installPlan, removePlan } from "../crd.ts";
 import type { DesktopApp } from "../computer-outline.ts";
+import { COMPUTER_TOOLS } from "../deferred-tools.ts";
 import { fencedScreen } from "../fence.ts";
 import type { PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
@@ -416,9 +417,13 @@ export default function createComputer(host: PocketHost) {
                 // A locked Windows screen takes no clicks or keys (PP-263): Pi hears how the owner can unlock it.
                 const locked = found.platform === "windows" ? await control.windowsState(found.id) : undefined;
 
-                return reply(
+                // Its screen tools, offered from Pi's next call when they load with tool_search (PP-276).
+                return {
+                    ...reply(
                     `Computer control is on for ${minutes} minutes (until ${clockText(session.until)}) on ${found.name}: ${apps.map((each) => `${each.label} (${each.name})`).join(", ")}${follow ? ", and apps these open while you act in them" : ""}. A window there shows it, with Stop. Read a window with computer_screen.${locked?.locked === true ? ` Note: ${found.name}'s ${lockedNote(found.name, locked.crd)}.` : ""}`,
-                );
+                    ),
+                    control: { addTools: [...COMPUTER_TOOLS] },
+                };
             } catch (error) {
                 return reply(message(error), true);
             }

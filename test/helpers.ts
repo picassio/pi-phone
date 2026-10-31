@@ -76,8 +76,12 @@ export function openApp(
     now?: () => number,
     /** More of the app's options a test stands in (computer control's machines and launch, PP-178). */
     extra: Partial<Parameters<typeof PocketApp.open>[0]> = {},
-    /** `welcome`: the owner still has the first-run welcome to see (PP-234); otherwise it is done, as for most tests. */
-    { welcome = false }: { welcome?: boolean } = {},
+    /**
+     * `welcome`: the owner still has the first-run welcome to see (PP-234); otherwise it is done, as for most tests.
+     * `tools`: `all` (most tests: a scripted model calls the tool it tests at once) or `load`, the app's default, where
+     * the rarer tools wait for tool_search (PP-276, test/deferred-tools.test.ts).
+     */
+    { welcome = false, tools = "all" }: { welcome?: boolean; tools?: "load" | "all" } = {},
 ): Promise<App> {
     return PocketApp.open({
         dataDir,
@@ -96,6 +100,8 @@ export function openApp(
         if (!welcome) {
             pastWelcome(app);
         }
+
+        app.config.setContextPart("tools", tools);
 
         return app;
     });

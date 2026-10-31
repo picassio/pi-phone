@@ -296,7 +296,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   boost, kept at score 0.5 and up, plus qmd keyword hits of its telling words, a page having two of them. `frozen`
   returns the section the session has (`PromptInput.shown`), `live` is the old section. Secrets: `tool` says
   to use `secrets_list` (with `query`), `list` names them. Skills: `frozen` keeps the list the session has while it
-  names the same skills (`frozenSkills`). Every session's choice is `config.contextPolicy`, a session's own
+  names the same skills (`frozenSkills`). Tools: `load` (default) keeps the `deferred-tools` extension
+  (`deferred-tools.ts`) in the session's selection: its wraps mark the rarer tools `deferred` (Pi Durable leaves them out
+  of the request until `modelTools` loads them), its `tool_search` (Pi Durable's) loads them, and its fixed section says
+  so; `phone_control` and `computer_control` start answer with `control.addTools` for their screen tools. `all` puts the
+  extension in `AgentDoc.extensions.remove` (`syncTools`, before each message and when the session's choice changes), so
+  every tool is offered; switching re-declares the tool list once. A new session's tools: 47.5k characters (54) against
+  84.3k (109). Tests run with tools `all` (`openApp`), but `deferred-tools.test.ts`. Every session's choice is
+  `config.contextPolicy`, a session's own
   `SessionMeta.contextPolicy`; Menu › Compact context shows both, Pi's `context.*` settings change them.
   The Wiki page is the module's browser part (`extensions/para-web/`, owner only): the PARA tree, qmd search, pages
   rendered with `[[links]]`, backlinks, freshness, an editor that saves through pi-para's `wiki_write`, and Ask Pi

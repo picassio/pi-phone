@@ -3,7 +3,7 @@
 import { t, tn } from "../i18n.js";
 import { useState } from "preact/hooks";
 import { actions, api, attempt, closeSheet, store } from "../store.js";
-import { html, Icon, Sheet } from "../ui.js";
+import { Choice, html, Icon, Sheet } from "../ui.js";
 
 const MIN = 10;
 const MAX = 95;
@@ -75,6 +75,14 @@ const PARTS = () => [
             ["live", t("Kept current"), t("sent again on any change")],
         ],
     },
+    {
+        part: "tools",
+        label: t("The tools"),
+        modes: [
+            ["load", t("The rarer ones when needed"), t("Pi loads them with tool_search")],
+            ["all", t("All of them"), t("every tool in every request")],
+        ],
+    },
 ];
 
 /** For this session (or every session): a choice per part, with what each costs in words. */
@@ -82,18 +90,22 @@ function PromptParts({ label, own, all, onPick }) {
     return html`<div class="field">
         <div class="label">${label}</div>
         ${PARTS().map(
-            ({ part, label: name, modes }) => html`<label class="pp-row">
+            ({ part, label: name, modes }) => html`<div class="pp-row" data-part=${`prompt-part-${part}`}>
                 <span>${name}</span>
-                <select
-                    aria-label=${`${label}: ${name}`}
-                    value=${own === undefined ? all[part] : (own[part] ?? "inherit")}
-                    onChange=${(event) => onPick(part, event.currentTarget.value)}
-                >
-                    ${own !== undefined &&
-                    html`<option value="inherit">${t("As every session ({mode})", { mode: modes.find(([mode]) => mode === all[part])?.[1] ?? all[part] })}</option>`}
-                    ${modes.map(([mode, title, hint]) => html`<option value=${mode} title=${hint}>${title}</option>`)}
-                </select>
-            </label>`,
+                <div class="pp-choice">
+                    <${Choice}
+                        label=${`${label}: ${name}`}
+                        value=${own === undefined ? all[part] : (own[part] ?? "inherit")}
+                        options=${[
+                            ...(own === undefined
+                                ? []
+                                : [{ value: "inherit", label: t("As every session"), detail: modes.find(([mode]) => mode === all[part])?.[1] ?? all[part] }]),
+                            ...modes.map(([mode, title, hint]) => ({ value: mode, label: title, detail: hint })),
+                        ]}
+                        onChange=${(mode) => onPick(part, mode)}
+                    />
+                </div>
+            </div>`,
         )}
     </div>`;
 }
@@ -105,7 +117,7 @@ export function CompactSheet() {
     const all = server?.compactAt ?? "full";
     const [instructions, setInstructions] = useState("");
 
-    const policy = server?.contextPolicy ?? { wiki: "relevant", secrets: "tool", skills: "frozen" };
+    const policy = server?.contextPolicy ?? { wiki: "tool", secrets: "tool", skills: "frozen", tools: "load" };
     const setOwnPart = (part, mode) => attempt(() => api(`c/${id}/context-policy`, { part, mode }));
     const setAllPart = (part, mode) => attempt(() => api("settings", { contextPolicy: { part, mode } }));
     const setOwn = (at) => attempt(() => api(`c/${id}/compact-at`, { at }));

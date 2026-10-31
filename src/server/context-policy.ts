@@ -9,6 +9,7 @@
  *   (the index as it was when the session first had it), `live` (the index, sent again whenever it changes).
  * - secrets: `tool` (the rules, and secrets_list to find them) or `list` (every usable secret named in the prompt).
  * - skills: `frozen` (the list a session first had, until skills are added or taken away) or `live`.
+ * - tools: `load` (the rarer tools are offered once Pi loads them with tool_search, `deferred-tools.ts`) or `all`.
  *
  * Each has a value for every session (Settings) and may have one for a single session.
  */
@@ -16,21 +17,23 @@
 export const WIKI_MODES = ["tool", "relevant", "frozen", "live"] as const;
 export const SECRETS_MODES = ["tool", "list"] as const;
 export const SKILLS_MODES = ["frozen", "live"] as const;
+export const TOOLS_MODES = ["load", "all"] as const;
 
 export type WikiMode = (typeof WIKI_MODES)[number];
 export type SecretsMode = (typeof SECRETS_MODES)[number];
 export type SkillsMode = (typeof SKILLS_MODES)[number];
+export type ToolsMode = (typeof TOOLS_MODES)[number];
 
-export type ContextPolicy = { wiki: WikiMode; secrets: SecretsMode; skills: SkillsMode };
+export type ContextPolicy = { wiki: WikiMode; secrets: SecretsMode; skills: SkillsMode; tools: ToolsMode };
 export type ContextPart = keyof ContextPolicy;
 
-export const CONTEXT_PARTS: readonly ContextPart[] = ["wiki", "secrets", "skills"];
+export const CONTEXT_PARTS: readonly ContextPart[] = ["wiki", "secrets", "skills", "tools"];
 
-export const DEFAULT_CONTEXT_POLICY: ContextPolicy = { wiki: "tool", secrets: "tool", skills: "frozen" };
+export const DEFAULT_CONTEXT_POLICY: ContextPolicy = { wiki: "tool", secrets: "tool", skills: "frozen", tools: "load" };
 
 /** The values one part takes. */
 export function contextModes(part: ContextPart): readonly string[] {
-    return part === "wiki" ? WIKI_MODES : part === "secrets" ? SECRETS_MODES : SKILLS_MODES;
+    return part === "wiki" ? WIKI_MODES : part === "secrets" ? SECRETS_MODES : part === "skills" ? SKILLS_MODES : TOOLS_MODES;
 }
 
 /** `value` checked for `part`: the mode, or an Error saying which values it takes. */

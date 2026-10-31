@@ -12,6 +12,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { ASSISTANT_PROMPT } from "../assistant.ts";
+import { PHONE_TOOLS } from "../deferred-tools.ts";
 import { fencedScreen } from "../fence.ts";
 import type { PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
@@ -229,9 +230,13 @@ export default function createPhone(host: PocketHost) {
                     minutes,
                 });
 
-                return reply(
+                // Its screen tools, offered from Pi's next call when they load with tool_search (PP-276).
+                return {
+                    ...reply(
                     `Phone control is on for ${minutes} minutes (until ${clockText(session.until)}): ${apps.map((each) => `${each.label} (${each.package})`).join(", ")}, and the home screen${follow ? ", and apps these open while you act in them" : ""}. The phone shows a banner with Stop. Open an app with phone_act open_app, then read the screen with phone_screen.`,
-                );
+                    ),
+                    control: { addTools: [...PHONE_TOOLS] },
+                };
             } catch (error) {
                 return reply(message(error), true);
             }

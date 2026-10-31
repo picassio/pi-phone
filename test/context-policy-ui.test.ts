@@ -53,7 +53,7 @@ async function shot(name: string): Promise<void> {
 /** What runs past the screen's right edge, or makes the page scroll sideways. */
 const outside = () =>
     inPage<string[]>(`
-        const out = [...document.querySelectorAll(".sheet *, .user-msg *, .attachments *")].filter((each) => {
+        const out = [...document.querySelectorAll(".sheet *, .user-msg *, .attachments *, .choice-menu *")].filter((each) => {
             const box = each.getBoundingClientRect();
 
             return box.width > 0 && box.right > innerWidth + 0.5;
@@ -133,20 +133,32 @@ test("a message the wiki's pages came with shows only the person's words, its me
 
     // Menu › Compact context: this session's choices (as every session's) and every session's.
     await page.evaluate(`(await import("/store.js")).openSheet({ type: "compact" }); return "true";`);
-    await see(`return JSON.stringify(document.querySelectorAll(".pp-row select").length === 6)`, "three parts, twice");
+    await see(`return JSON.stringify(document.querySelectorAll(".pp-row .choice").length === 8)`, "four parts, twice");
 
-    const values = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll(".pp-row select")].map((each) => each.value))`);
+    // The app's own dropdowns, not the system's.
+    assert.equal(await inPage<number>(`return JSON.stringify(document.querySelectorAll(".sheet select").length)`), 0);
 
-    assert.deepEqual(values, ["relevant", "inherit", "inherit", "tool", "tool", "frozen"]);
+    const chosen = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll(".pp-row .choice-text > span:first-child")].map((each) => each.textContent.trim()))`);
+
+    assert.deepEqual(chosen, [
+        "Pages that match each message",
+        "As every session",
+        "As every session",
+        "As every session",
+        "Searched with a tool",
+        "Found with a tool",
+        "Kept as they were",
+        "The rarer ones when needed",
+    ]);
     assert.deepEqual(await outside(), []);
     await shot("context-sheet-390");
 
-    await page.evaluate(`
-        const select = document.querySelector(".pp-row select");
-        select.value = "inherit";
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-        return "true";
-    `);
+    // This session's wiki back to every session's, from its dropdown.
+    await page.evaluate(`document.querySelector('[data-part="prompt-part-wiki"] .choice').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelectorAll('.choice-menu [role="option"]').length === 5)`, "the wiki's options: as every session, and four");
+    assert.deepEqual(await outside(), []);
+    await shot("context-choice-390");
+    await page.evaluate(`[...document.querySelectorAll('.choice-menu [role="option"]')].find((each) => each.textContent.includes("As every session")).click(); return "true";`);
     await until(() => app.contextPolicy(id).wiki === "tool", "this session's wiki as every session's");
     assert.equal(app.config.contextPolicy.wiki, undefined, "every session's as it was");
 

@@ -65,6 +65,7 @@ import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
 import { APP_ROOT, ConfigStore, type User, type WelcomeState } from "./config.ts";
 import { CONTEXT_PARTS, type ContextPart, type ContextPolicy, contextMode, resolveContextPolicy } from "./context-policy.ts";
+import { DEFERRED_EXTENSION, deferredToolsExtension } from "./deferred-tools.ts";
 import {
     ArtifactBodyDoc,
     type ArtifactMeta,
@@ -1056,6 +1057,8 @@ export class PocketApp {
                 ],
             }),
         );
+        // The rarer tools load when Pi needs them (PP-276, `deferred-tools.ts`): left out by a session whose tools are all.
+        registry.install(deferredToolsExtension());
         // Durable work of the app itself, whatever extension modules are on.
         registry.install(
             defineExtension({
@@ -5672,6 +5675,38 @@ export class PocketApp {
         await this.#setSessionContextPart(id, part, mode);
     }
 
+    /**
+     * A session's selection of extensions as its `tools` says (PP-276): `all` leaves the deferred tools' extension out, so
+     * every tool is offered; `load` keeps it. Done before each message, and when the session's own choice changes. A
+     * session with an explicit list of extensions (the wiki's capture) keeps it.
+     */
+    async syncTools(id: ConversationId): Promise<void> {
+        const all = this.contextPolicy(id).tools === "all";
+        const stored = (await this.harness.snapshot(AgentDoc, id, context))?.extensions;
+
+        if (Array.isArray(stored) || all === (stored?.remove?.includes(DEFERRED_EXTENSION) ?? false)) {
+            return;
+        }
+
+        await this.harness.commit(async (tx) => {
+            const agent = await tx.doc(AgentDoc, id);
+            const now = agent.extensions;
+
+            if (Array.isArray(now)) {
+                return;
+            }
+
+            const remove = (now?.remove ?? []).filter((name) => name !== DEFERRED_EXTENSION);
+            const next = { ...(now?.add === undefined ? {} : { add: now.add }), ...(all ? { remove: [...remove, DEFERRED_EXTENSION] } : remove.length === 0 ? {} : { remove }) };
+
+            if (Object.keys(next).length === 0) {
+                delete agent.extensions;
+            } else {
+                agent.extensions = next;
+            }
+        }, context);
+    }
+
     async #setSessionContextPart(id: ConversationId, part: ContextPart, mode: string | undefined): Promise<void> {
         const root = this.rootOf(id);
 
@@ -5696,6 +5731,10 @@ export class PocketApp {
                 meta.contextPolicy = own as Partial<ContextPolicy>;
             }
         }, context);
+
+        if (part === "tools") {
+            await this.syncTools(root);
+        }
     }
 
     /** One session's own limit: a number, null for none, or "inherit" for the owner's setting. */

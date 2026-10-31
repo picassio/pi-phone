@@ -49,9 +49,11 @@ dự án thật.</sub>
   tới khi phiên nén. Vì vậy mặc định chỉ mục của wiki không nằm trong prompt: một phần wiki ngắn, cố định, và Pi tự tìm
   trong wiki bằng `wiki_query` khi cần (hoặc, nếu bạn chọn relevant, các trang khớp với từng tin nhắn đi kèm tin nhắn
   đó); bí mật được tìm bằng `secrets_list` (có tìm kiếm) thay vì liệt kê trong prompt; danh sách kỹ năng chỉ
-  gửi lại khi thêm hoặc bớt kỹ năng. Mỗi thứ là một lựa chọn trong Menu › Nén ngữ cảnh, cho mọi phiên hoặc một phiên
-  (wiki: tool, relevant, frozen, live; bí mật: tool, list; kỹ năng: frozen, live), và Pi đổi được qua một thẻ
-  (`context.wiki`, `context.sessionWiki`, …).
+  gửi lại khi thêm hoặc bớt kỹ năng; và các công cụ ít dùng (tài liệu, nhóm phiên, thiết bị, công cụ màn hình của điều
+  khiển điện thoại và máy tính, …) chỉ có khi Pi nạp chúng bằng `tool_search`, nhờ vậy phần công cụ mỗi yêu cầu mang
+  theo giảm khoảng 45%. Mỗi thứ là một lựa chọn trong Menu › Nén ngữ cảnh, cho mọi phiên hoặc một phiên (wiki: tool,
+  relevant, frozen, live; bí mật: tool, list; kỹ năng: frozen, live; công cụ: load, all), và Pi đổi được qua một thẻ
+  (`context.wiki`, `context.sessionWiki`, `context.tools`, …).
 - **Nhóm thư mục trong danh sách phiên.** Tự tạo nhóm (**+ Nhóm mới**) và chuyển các phiên vào: Chuyển vào nhóm… từ
   thao tác nhấn giữ một phiên, dòng của nó, menu của nó, hoặc **Di chuyển…** của một vùng chọn, hoặc kéo thả trên máy
   tính. Mỗi phiên nằm trong tối đa một nhóm; một nhóm có thể được ghim (dưới các phiên đã ghim), thu gọn, đổi tên, sắp

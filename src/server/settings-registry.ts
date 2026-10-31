@@ -29,12 +29,14 @@ const CONTEXT_TITLES: Record<ContextPart, string> = {
     wiki: "What of the wiki goes into the prompt",
     secrets: "How the prompt names the secrets",
     skills: "When the prompt's list of skills is sent again",
+    tools: "Which tools every request offers",
 };
 
 const CONTEXT_HELP: Record<ContextPart, string> = {
     wiki: "tool (a short, fixed section: the rules and the scope; Pi searches the wiki with wiki_query when it needs to), relevant (that, and the pages that match each of your messages come with it), frozen (the wiki's index as the session first had it), live (the index, sent again whenever any session writes to the wiki), or off (the rules only: Pi searches with wiki_query).",
     secrets: "tool (the rules, and Pi finds the secrets it may use with secrets_list) or list (every secret named in the prompt, sent again when one is added).",
     skills: "frozen (the list the session first had, sent again only when skills are added or taken away) or live (sent again on any change).",
+    tools: "load (the rarer tools, such as documents, session groups, devices and the screen tools of phone and computer control, are offered once Pi loads them with tool_search; the screen tools come when a control session starts) or all (every tool in every request, as before).",
 };
 
 const capital = (word: string) => `${word[0]!.toUpperCase()}${word.slice(1)}`;

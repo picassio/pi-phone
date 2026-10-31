@@ -878,6 +878,9 @@ export class Commands {
             await app.collab.activity(id, user, "interrupted the run");
         }
 
+        // The tools it is offered, as its `tools` says (PP-276): every tool, or the rarer ones when Pi loads them.
+        await app.syncTools(id);
+
         const submission = await conversation.submit(
             {
                 type: "input",

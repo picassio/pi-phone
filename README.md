@@ -45,9 +45,11 @@ No Termux, no laptop, no cloud VM.
   the session compacts. So by default the wiki's index stays out: a short, fixed wiki section, and Pi searches the wiki
   with `wiki_query` when it needs to (or, if you pick relevant, the pages that match each of your messages come with
   it); secrets are found with `secrets_list` (with a search) instead of a list in the prompt; the skills list is
-  sent again only when skills come or go. Each is a choice in Menu › Compact context, for every session or one (the
-  wiki: tool, relevant, frozen, live; secrets: tool, list; skills: frozen, live), and Pi changes them on a card
-  (`context.wiki`, `context.sessionWiki`, …).
+  sent again only when skills come or go; and the rarer tools (documents, session groups, devices, the screen tools of
+  phone and computer control, …) are offered once Pi loads them with `tool_search`, which cuts the tools every request
+  carries by about 45%. Each is a choice in Menu › Compact context, for every session or one (the wiki: tool, relevant,
+  frozen, live; secrets: tool, list; skills: frozen, live; tools: load, all), and Pi changes them on a card
+  (`context.wiki`, `context.sessionWiki`, `context.tools`, …).
 - **Folder groups in the session list.** Make your own groups (**+ New group**) and move chats into them: Move to
   group… from a chat's long press, its row, its menu, or a selection's **Move…**, or drag on a desktop. A chat is in one
   group at most; a group can be pinned (under the pinned chats), folded, renamed, reordered, or deleted (its chats go
