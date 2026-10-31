@@ -142,26 +142,28 @@ export const CHROME_TOOL: ToolSpec = {
     },
 };
 
-const OCU = "https://github.com/picassio/open-computer-use/releases/download/v1.1.2-pp.2";
+const OCU = "https://github.com/picassio/open-computer-use/releases/download/v1.1.2-pp.3";
 
 /**
  * Computer use (PP-177): open-computer-use ("ocu", MIT) in our fork's build, whose outline marks password fields and
  * refuses typing into them unless a call says `allow_password_input` (1.1.2-pp.2: the owner typing on a taken-over
- * window, a saved secret by name). `computer-control.ts` runs `ocu mcp` on the machine for a control session.
+ * window, a saved secret by name). 1.1.2-pp.3 (PP-270) adds snapshot ids and stale_ref, element states, covered window
+ * parts blacked out, `headed` for coordinate input and an `Error:` line. `computer-control.ts` runs `ocu mcp` on the
+ * machine for a control session.
  */
 export const OCU_TOOL: ToolSpec = {
     id: "ocu",
     name: "Computer use (ocu)",
     command: "ocu",
-    version: "1.1.2-pp.2",
+    version: "1.1.2-pp.3",
     description: "Pi reads and operates desktop apps here, in a session you approve on a card. pi-phone's build of open-computer-use (MIT).",
     size: "about 2.5 MB",
     desktop: true,
     // The release's own SHA256SUMS.
     assets: {
-        "linux-x64": { url: `${OCU}/open-computer-use-linux-x64`, sha256: "a1550551f64e5fd4fb68501dc6edca977519c888ec8d5e5d7742fcd93902eb70" },
-        "linux-arm64": { url: `${OCU}/open-computer-use-linux-arm64`, sha256: "4bd5f231a1416445db2eaf383c641fe773d65b46e0fa7b86b838e1a7723b6d5c" },
-        "windows-x64": { url: `${OCU}/open-computer-use-windows-x64.exe`, sha256: "abfda45584dbde65b5b4dfce115f3bde619ebdd17dc2ecb3dee98b100f57e960" },
+        "linux-x64": { url: `${OCU}/open-computer-use-linux-x64`, sha256: "fcadd7212dab95dab3f825ad5a78cc4b2caf328dee6468dfd60095d91410c0bf" },
+        "linux-arm64": { url: `${OCU}/open-computer-use-linux-arm64`, sha256: "a385a5d38586a73f4a0d53a825b9eefedfa0cb7830c493ff2887b7a388891370" },
+        "windows-x64": { url: `${OCU}/open-computer-use-windows-x64.exe`, sha256: "d36fe1017a79ed2226ddf5bdf09ab51a91e31f1398933eb44f3a3be5a6ecf42f" },
     },
 };
 
