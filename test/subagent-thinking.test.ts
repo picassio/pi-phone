@@ -1,4 +1,5 @@
-// A subagent never thinks harder than its session, however hard Pi asks.
+// A subagent never thinks harder than its session, however hard Pi asks; unless the owner set the subagents' level
+// (PP-281), which it thinks at, the session's own level or not.
 import { type App, cleanUp, context, lastText, openApp, owner, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -90,4 +91,22 @@ test("a subagent never thinks harder than its session, and Pi is told", async ()
         answer,
         /Started eager on faux\/deep, thinking at low: no higher than this session's low\./,
     );
+});
+
+test("the subagents' thinking setting (PP-281): it thinks at that level, above the session's too, unless the person asked for another", async () => {
+    await app.setSubagentDefault(owner(app), "thinking", "high");
+
+    try {
+        const set = await spawn("deep", "spawn steady -", "low");
+
+        assert.equal(set.thinking, "high");
+        assert.match(set.answer, /Started steady on faux\/deep, thinking high\.[\s\S]*"why":"all"/);
+
+        const asked = await spawn("deep", "spawn quick minimal", "low");
+
+        assert.equal(asked.thinking, "minimal");
+        assert.match(asked.answer, /"why":"asked"/);
+    } finally {
+        await app.setSubagentDefault(owner(app), "thinking", "session");
+    }
 });

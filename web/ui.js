@@ -2077,6 +2077,148 @@ export function Choice({ value, options, onChange, label, disabled, placeholder 
         }`;
 }
 
+/**
+ * Choose several in the app's own dropdown, as `Choice` chooses one (PP-281): a field-like button, and a list under it
+ * (or over it, with too little room below) with a search, a box on each option, a title for each `group`, and a foot
+ * whose Add hands `onAdd` the values ticked. `options`: `{ value, label, detail?, group?, disabled?, chosen? }`: one
+ * chosen already shows ticked and stays; one disabled cannot be ticked (its detail says why). A tap elsewhere, a scroll
+ * outside it, a new size, or Escape closes it, ticking nothing.
+ */
+export function MultiChoice({ options, onAdd, label, placeholder = t("Add…"), disabled }) {
+    const [open, setOpen] = useState(null);
+    const [ticked, setTicked] = useState([]);
+    const [query, setQuery] = useState("");
+    const button = useRef(null);
+    const menu = useRef(null);
+    const close = () => {
+        setOpen(null);
+        setTicked([]);
+        setQuery("");
+    };
+    const show = () => {
+        const rect = button.current.getBoundingClientRect();
+        const top = visualViewport?.offsetTop ?? 0;
+        const bottom = top + (visualViewport?.height ?? innerHeight);
+        const below = bottom - rect.bottom - 8;
+        const above = rect.top - top - 8;
+        const down = below >= 280 || below >= above;
+
+        setOpen({
+            left: rect.left,
+            width: rect.width,
+            height: Math.min(420, down ? below : above),
+            ...(down ? { top: rect.bottom + 4, down: true } : { bottom: innerHeight - rect.top + 4 }),
+        });
+    };
+    const toggle = (value) => setTicked((was) => (was.includes(value) ? was.filter((each) => each !== value) : [...was, value]));
+    const add = () => {
+        const chosen = ticked;
+
+        close();
+        button.current?.focus();
+        onAdd(chosen);
+    };
+
+    useEffect(() => {
+        if (!open) {
+            return undefined;
+        }
+
+        const away = (event) => {
+            if (!menu.current?.contains(event.target) && !button.current?.contains(event.target)) {
+                close();
+            }
+        };
+        const scrolled = (event) => {
+            if (!menu.current?.contains(event.target)) {
+                close();
+            }
+        };
+        const escape = (event) => {
+            if (event.key === "Escape") {
+                // Only the menu: the sheet stays.
+                event.preventDefault();
+                event.stopPropagation();
+                close();
+            }
+        };
+
+        document.addEventListener("pointerdown", away, true);
+        document.addEventListener("scroll", scrolled, true);
+        window.addEventListener("keydown", escape, true);
+        addEventListener("resize", close);
+
+        return () => {
+            document.removeEventListener("pointerdown", away, true);
+            document.removeEventListener("scroll", scrolled, true);
+            window.removeEventListener("keydown", escape, true);
+            removeEventListener("resize", close);
+        };
+    }, [open]);
+
+    const needle = query.trim().toLowerCase();
+    const shown = options.filter((option) => needle === "" || `${option.label} ${option.value} ${option.group ?? ""}`.toLowerCase().includes(needle));
+    const groups = [...new Set(shown.map((option) => option.group ?? ""))];
+
+    return html`<button
+            type="button"
+            ref=${button}
+            class=${`choice ${open ? "open" : ""}`}
+            aria-haspopup="listbox"
+            aria-expanded=${String(Boolean(open))}
+            aria-label=${label}
+            disabled=${disabled}
+            onClick=${() => (open ? close() : show())}
+        >
+            <span class="choice-text"><span>${placeholder}</span></span>
+            <${Icon} name="down" size=${16} />
+        </button>
+        ${
+            open &&
+            html`<div ref=${menu} class=${`pop-menu choice-menu multi-choice ${open.down ? "down" : ""}`} style=${anchorStyle(open)} role="listbox" aria-multiselectable="true" aria-label=${label}>
+                <label class="search pop-menu-search">
+                    <${Icon} name="search" size=${15} />
+                    <input placeholder=${t("Find")} aria-label=${t("Find")} value=${query} onInput=${(event) => setQuery(event.currentTarget.value)} />
+                </label>
+                <div class="pop-menu-list">
+                    ${shown.length === 0 && html`<p class="muted small pop-menu-note">${t("Nothing matches.")}</p>`}
+                    ${groups.map(
+                        (group) => html`${group !== "" && html`<div class="mc-group">${group}</div>`}
+                            ${shown
+                                .filter((option) => (option.group ?? "") === group)
+                                .map((option) => {
+                                    const on = option.chosen === true || ticked.includes(option.value);
+
+                                    return html`<button
+                                        type="button"
+                                        key=${String(option.value)}
+                                        class=${`pop-menu-row mc-row ${option.chosen ? "fixed" : ""}`}
+                                        role="option"
+                                        aria-selected=${String(on)}
+                                        disabled=${option.disabled === true || option.chosen === true}
+                                        data-value=${option.value}
+                                        onClick=${() => toggle(option.value)}
+                                    >
+                                        <span class=${`mc-box ${on ? "on" : ""}`} aria-hidden="true">${on && html`<${Icon} name="check" size=${11} />`}</span>
+                                        <span class="pop-menu-row-text">
+                                            <span class="pop-menu-row-name">${option.label}</span>
+                                            ${option.detail && html`<span class="pop-menu-row-sub">${option.detail}</span>`}
+                                        </span>
+                                    </button>`;
+                                })}`,
+                    )}
+                </div>
+                <div class="mc-foot">
+                    <span class="muted small">${ticked.length === 0 ? t("Tick one or more") : t("{n} ticked", { n: ticked.length })}</span>
+                    <button type="button" class="button" onClick=${close}>${t("Cancel")}</button>
+                    <button type="button" class="button primary" data-part="multi-add" disabled=${ticked.length === 0} onClick=${add}>
+                        ${ticked.length === 0 ? t("Add") : t("Add {n}", { n: ticked.length })}
+                    </button>
+                </div>
+            </div>`
+        }`;
+}
+
 export function Switch({ on, disabled, label, onChange }) {
     return html`<button
         type="button"

@@ -713,5 +713,10 @@
     "browserMode is headless or window.": "browserMode 只能是 headless 或 window。",
     "The image model is provider/model, or null for the default.": "图片模型为 provider/model，或 null 表示默认。",
     "{1} is not an image model of a provider signed in now. Pick one of: {2}.": "{1} 不是当前已登录提供商的图片模型。请从以下选择：{2}。",
-    "The prompt's parts are {1}.": "提示词的部分只有 {1}。"
+    "The prompt's parts are {1}.": "提示词的部分只有 {1}。",
+    "The subagents' parts are {1}.": "子代理的部分只有 {1}。",
+    "Send a model as provider/modelId, or session.": "请以 provider/modelId 形式发送模型，或 session。",
+    "Send a thinking level: {1}, or session.": "请发送思考级别：{1}，或 session。",
+    "Thinking is one of {1}, or session.": "思考级别只能是 {1} 之一，或 session。",
+    "Thinking is one of {1}, session, or inherit.": "思考级别只能是 {1}、session 或 inherit 之一。"
 }

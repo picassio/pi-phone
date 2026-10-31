@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { type AssistantSettings, readAssistant, storedAssistant } from "./assistant.ts";
 import type { PopupMode } from "./browser/pi-browser.ts";
 import { type ContextPart, type ContextPolicy, DEFAULT_CONTEXT_POLICY } from "./context-policy.ts";
+import { type SubagentDefaults, type SubagentPart, withPart } from "./subagent-defaults.ts";
 import { readVoice, readVoiceCheck, storedVoice, type VoiceCheck, type VoiceSettings } from "./voice.ts";
 
 /** The repository root: `web/`, `src/`, and `node_modules/` live here. */
@@ -146,6 +147,8 @@ interface PocketConfig {
      * Absent or empty: none, and subagents always run on their session's model.
      */
     subagentModels?: string[];
+    /** The model and thinking level Pi starts subagents on in every session (`subagent-defaults.ts`); absent: the session's own. */
+    subagentDefaults?: SubagentDefaults;
     /**
      * How many messages and new sessions one session may send other sessions in an hour (`session-control.ts`); null:
      * no limit. Absent: `DEFAULT_SEND_LIMIT`. A session's own (`SessionMeta.sendLimit`) comes first.
@@ -420,6 +423,23 @@ export class ConfigStore {
             delete this.#config.sessionSendLimit;
         } else {
             this.#config.sessionSendLimit = limit;
+        }
+
+        this.save();
+    }
+
+    /** The model and thinking level Pi starts subagents on in every session; a part absent is the session's own. */
+    get subagentDefaults(): SubagentDefaults {
+        return { ...this.#config.subagentDefaults };
+    }
+
+    setSubagentDefault(part: SubagentPart, value: string | undefined): void {
+        const next = withPart(this.#config.subagentDefaults, part, value);
+
+        if (next === undefined) {
+            delete this.#config.subagentDefaults;
+        } else {
+            this.#config.subagentDefaults = next;
         }
 
         this.save();

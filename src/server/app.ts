@@ -66,6 +66,7 @@ import { Commands } from "./commands.ts";
 import { APP_ROOT, ConfigStore, type User, type WelcomeState } from "./config.ts";
 import { CONTEXT_PARTS, type ContextPart, type ContextPolicy, contextMode, resolveContextPolicy } from "./context-policy.ts";
 import { DEFERRED_EXTENSION, deferredToolsExtension } from "./deferred-tools.ts";
+import { type ResolvedSubagentDefaults, resolveSubagentDefaults, SESSION, SUBAGENT_PARTS, type SubagentPart, untilText, withPart } from "./subagent-defaults.ts";
 import {
     ArtifactBodyDoc,
     type ArtifactMeta,
@@ -1144,6 +1145,8 @@ export class PocketApp {
             home: this.#home,
             resolveModel: (spec) => resolveModel(this.models, spec, this.signInNeeded),
             subagentModels: () => this.config.subagentModels,
+            subagentDefaults: (id) => this.subagentDefaults(id),
+            modelsReport: (query, available) => this.modelsReport(query, available),
             docsImages: {
                 model: () => this.config.docsImageModel,
                 models: () => this.imageModels(),
@@ -3908,6 +3911,8 @@ export class PocketApp {
                 compactAt: this.config.compactAt,
                 // What of the wiki, secrets, and skills goes into every session's prompt (`context-policy.ts`).
                 contextPolicy: resolveContextPolicy(this.config.contextPolicy, undefined),
+                // The model and thinking level subagents start on in every session (PP-281); a part absent: the session's own.
+                subagentDefaults: this.config.subagentDefaults,
                 // Minutes idle before a session is captured into the wiki, or null (`para-capture.ts`).
                 wikiCaptureMinutes: this.config.wikiCaptureMinutes,
                 // The most hours a run waits for a provider's limit to clear; 0: it does not wait (`limit-gate.ts`).
@@ -4193,6 +4198,8 @@ export class PocketApp {
             ...(meta?.compactAt === undefined ? {} : { compactAt: meta.compactAt }),
             // Its own choices of what goes into its prompt (`context-policy.ts`); absent, the setting for all.
             ...(meta?.contextPolicy === undefined ? {} : { contextPolicy: meta.contextPolicy }),
+            // Its own subagents' model and thinking (PP-281); absent, the setting for all.
+            ...(meta?.subagentDefaults === undefined ? {} : { subagentDefaults: meta.subagentDefaults }),
             // Who thinks in its voice calls (`voice.ts`); absent, Settings › Voice's mode.
             ...(meta?.voiceMode === undefined ? {} : { voiceMode: meta.voiceMode }),
             // Whether a fork could get a worktree of its own.
@@ -5705,6 +5712,140 @@ export class PocketApp {
                 agent.extensions = next;
             }
         }, context);
+    }
+
+    /** The model and thinking level Pi starts a conversation's subagents on (PP-281): its session's own over every session's. */
+    subagentDefaults(id: ConversationId): ResolvedSubagentDefaults {
+        return resolveSubagentDefaults(this.config.subagentDefaults, this.sessionMeta(this.rootOf(id))?.subagentDefaults);
+    }
+
+    /**
+     * One part of the model and thinking level Pi starts subagents on (PP-281), for every session ("session": each
+     * session's own model or level, as before) or one session's own ("inherit": every session's; "session": its own model
+     * or level). The owner's. Subagents already running keep theirs.
+     */
+    async setSubagentDefault(user: User, part: SubagentPart, value: unknown, id?: ConversationId): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (!SUBAGENT_PARTS.includes(part)) {
+            throw new HttpError(400, `The subagents' parts are ${SUBAGENT_PARTS.join(", ")}.`);
+        }
+
+        const plain = (word: string) => (id === undefined ? word === SESSION : word === "inherit");
+        let chosen: string | undefined;
+
+        if (typeof value !== "string") {
+            throw new HttpError(400, part === "model" ? "Send a model as provider/modelId, or session." : `Send a thinking level: ${THINKING_LEVELS.join(", ")}, or session.`);
+        }
+
+        if (plain(value)) {
+            chosen = undefined;
+        } else if (value === SESSION) {
+            chosen = SESSION;
+        } else if (part === "model") {
+            const slash = value.indexOf("/");
+            const found = slash > 0 ? this.models.getModel(value.slice(0, slash), value.slice(slash + 1)) : undefined;
+
+            if (found === undefined) {
+                throw new HttpError(400, `${value} is not a model Pi knows (provider/modelId).`);
+            }
+
+            chosen = `${found.provider}/${found.id}`;
+        } else if (isThinkingLevel(value)) {
+            chosen = value;
+        } else {
+            throw new HttpError(
+                400,
+                id === undefined
+                    ? `Thinking is one of ${THINKING_LEVELS.join(", ")}, or session.`
+                    : `Thinking is one of ${THINKING_LEVELS.join(", ")}, session, or inherit.`,
+            );
+        }
+
+        if (id === undefined) {
+            this.config.setSubagentDefault(part, chosen);
+            await this.#refreshClients();
+
+            return;
+        }
+
+        const root = this.rootOf(id);
+
+        await this.harness.commit(async (tx) => {
+            const meta = (await tx.doc(SessionsDoc)).items[String(root)];
+
+            if (meta === undefined) {
+                throw new HttpError(404, "There is no such session.");
+            }
+
+            const next = withPart(meta.subagentDefaults, part, chosen);
+
+            if (next === undefined) {
+                delete meta.subagentDefaults;
+            } else {
+                meta.subagentDefaults = next;
+            }
+        }, context);
+    }
+
+    /**
+     * The models Pi may use, in words, for its `models` tool (PP-281): by provider, with the account's plan windows (as
+     * Settings › Providers shows them, asked afresh), then each model: whether it can be used now, its context, highest
+     * thinking, price, and whether subagents may use it. At most 40 models: a query narrows them.
+     */
+    async modelsReport(query: string | undefined, available: boolean): Promise<string> {
+        const words = (query ?? "").toLowerCase().split(/\s+/).filter((word) => word !== "");
+        const allowed = this.config.subagentModels;
+        const defaults = this.config.subagentDefaults;
+        const listed = (await this.modelList()).filter((model) => words.every((word) => `${model.provider}/${model.id} ${model.name}`.toLowerCase().includes(word)));
+        const rows: { provider: string; line: string }[] = [];
+
+        for (const model of listed) {
+            const problem = await this.providers.problem({ provider: model.provider, modelId: model.id });
+
+            if (available && problem !== undefined) {
+                continue;
+            }
+
+            const full = this.models.getModel(model.provider, model.id);
+            const spec = `${model.provider}/${model.id}`;
+            const price =
+                full === undefined || (full.cost.input === 0 && full.cost.output === 0) ? "" : `, $${String(full.cost.input)} in / $${String(full.cost.output)} out per M tokens`;
+            const marks = [
+                ...(defaults.model === spec ? ["the subagents' model"] : []),
+                ...(allowed.includes(spec) ? ["allowed for subagents"] : []),
+            ];
+
+            rows.push({
+                provider: model.provider,
+                line: `- ${spec} (${model.name}): ${problem === undefined ? "ready" : `not usable now: ${problem}`}; ${String(Math.round(model.contextWindow / 1000))}k context; thinking up to ${model.levels.at(-1) ?? "off"}${price}${marks.length === 0 ? "" : `; ${marks.join(", ")}`}`,
+            });
+        }
+
+        if (rows.length === 0) {
+            return words.length === 0 ? "No models: sign in to a provider in Settings › Providers." : `No models match ${query ?? ""}.`;
+        }
+
+        const shown = rows.slice(0, 40);
+        const lines: string[] = [];
+
+        for (const provider of [...new Set(shown.map((row) => row.provider))]) {
+            const windows = await this.#usageWindows(provider).catch(() => undefined);
+            const plan =
+                windows === undefined || windows.length === 0
+                    ? ""
+                    : `: ${windows.map((each) => `${each.label} ${String(Math.round(each.usedPercent))}% used${each.resetsAt === undefined ? "" : `, resets in ${untilText(each.resetsAt - Date.now())}`}`).join("; ")}`;
+
+            lines.push(`${provider}${plan}`, ...shown.filter((row) => row.provider === provider).map((row) => row.line));
+        }
+
+        return [
+            ...lines,
+            ...(rows.length > shown.length ? [`And ${String(rows.length - shown.length)} more: narrow with query.`] : []),
+            `Subagents start on ${defaults.model ?? "their session's model"}${defaults.thinking === undefined ? "" : `, thinking ${defaults.thinking}`} unless a session has its own (Menu › Subagents).`,
+        ].join("\n");
     }
 
     async #setSessionContextPart(id: ConversationId, part: ContextPart, mode: string | undefined): Promise<void> {

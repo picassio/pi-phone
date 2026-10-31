@@ -1,7 +1,7 @@
-// Models are a person's to choose. A subagent runs on its session's model: with no models allowed (the default), Pi is
-// offered no model and one it names is refused; the owner may allow others, and Pi may use only those. A subagent on a
-// model no longer allowed gets no more work. A subagent its model failed is reported as such, and Pi is told to stop
-// and tell the user rather than try another model.
+// Models are a person's to choose. A subagent runs on the subagents' setting (PP-281), else its session's model; one Pi
+// names (the person asked) runs when the owner allows it for subagents, and any other only after the owner's card. A
+// subagent on a model no longer allowed gets no more work. A subagent its model failed is reported as such, and Pi is
+// told to stop and tell the user rather than try another model.
 import { type App, cleanUp, context, lastText, openApp, owner, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -100,12 +100,25 @@ async function session(): Promise<ConversationId> {
     return id;
 }
 
-/** Send the parent `text` and wait for it to be done; what its tool calls answered, and its subagents. */
-async function ask(id: ConversationId, text: string) {
+/**
+ * Send the parent `text` and wait for it to be done; what its tool calls answered, and its subagents. With `card`, the
+ * card it waits on is answered so, and its subject kept in `carded`.
+ */
+let carded: string | undefined;
+
+async function ask(id: ConversationId, text: string, card?: boolean) {
     const { submissionId } = await app.commands.submit(id, owner(app), {
         text,
         requestId: crypto.randomUUID(),
     });
+
+    if (card !== undefined) {
+        await until(() => app.approvals.forConversation(id).length > 0, "the card");
+        const request = app.approvals.forConversation(id)[0]!;
+
+        carded = request.subject;
+        await app.answerApproval(request.id, card, owner(app));
+    }
 
     await (await app.harness.submission(submissionId, context))!.wait(context);
     await until(() => !app.isBusy(id), "the parent at rest");
@@ -119,24 +132,34 @@ async function ask(id: ConversationId, text: string) {
     };
 }
 
-test("with no models allowed, a subagent runs on its session's model, and Pi is offered no other", async () => {
+test("with no setting and no models allowed, a subagent runs on its session's model; another one named waits for the owner's card", async () => {
     const id = await session();
     const started = await ask(id, "spawn plain");
 
-    assert.match(started.answer, /Started plain on faux\/mine\./);
+    assert.match(started.answer, /Started plain on faux\/mine, thinking off\./);
+    assert.match(started.answer, /"why":"session"/);
     assert.equal(
         (await app.agentState(started.agents.plain!.conversationId))?.model?.modelId,
         "mine",
     );
-    assert.ok(offered !== undefined, "the parent was offered the tool");
-    assert.equal("model" in offered, false, "no model parameter");
+    assert.ok(offered !== undefined && "model" in offered, "the tool offers a model, for when the person asks");
 
-    // One it names anyway is refused, nothing made, and Pi is told to ask the user.
-    const refused = await ask(id, "spawn sneaky faux/pricey");
+    // One it names that the owner does not allow: the owner's card. Declined: nothing made, and Pi is told to ask.
+    const refused = await ask(id, "spawn sneaky faux/pricey", false);
 
-    assert.match(refused.answer, /cannot choose another/);
+    assert.equal(carded, "Start the subagent sneaky on faux/pricey");
+    assert.match(refused.answer, /The owner did not allow faux\/pricey for this subagent/);
     assert.match(refused.answer, /ask the user/);
     assert.equal(refused.agents.sneaky, undefined);
+
+    // Allowed on the card: it runs there, for this subagent, which may get more work; the list stays as it was.
+    const approved = await ask(id, "spawn chosen faux/pricey", true);
+
+    assert.match(approved.answer, /Started chosen on faux\/pricey/);
+    assert.match(approved.answer, /"why":"approved"/);
+    assert.equal(approved.agents.chosen?.approvedModel, "faux/pricey");
+    assert.deepEqual([...app.config.subagentModels], []);
+    assert.match((await ask(id, "send chosen")).answer, /Sent to chosen\./);
 });
 
 test("the owner allows models: Pi may use those, and is refused any other with word to ask the user", async () => {
@@ -149,16 +172,16 @@ test("the owner allows models: Pi may use those, and is refused any other with w
     const id = await session();
     const allowed = await ask(id, "spawn reviewer faux/pricey");
 
-    assert.match(allowed.answer, /Started reviewer on faux\/pricey\./);
-    assert.ok(offered !== undefined && "model" in offered, "the tool offers a model now");
+    assert.match(allowed.answer, /Started reviewer on faux\/pricey, thinking off\./);
+    assert.match(allowed.answer, /"why":"asked"/);
     assert.equal(
         (await app.agentState(allowed.agents.reviewer!.conversationId))?.model?.modelId,
         "pricey",
     );
 
-    const refused = await ask(id, "spawn wanderer faux/other");
+    const refused = await ask(id, "spawn wanderer faux/other", false);
 
-    assert.match(refused.answer, /faux\/other is not one of the models the user allows/);
+    assert.match(refused.answer, /The owner did not allow faux\/other/);
     assert.match(refused.answer, /Do not pick another model/);
     assert.equal(refused.agents.wanderer, undefined);
 
@@ -168,9 +191,8 @@ test("the owner allows models: Pi may use those, and is refused any other with w
 
     assert.match(
         after.answer,
-        /reviewer runs on faux\/pricey, which is neither this session's model nor one/,
+        /reviewer runs on faux\/pricey, which is neither this session's model, the subagents' model, nor one/,
     );
-    assert.equal("model" in (offered ?? {}), false, "the tool offers no model again");
 });
 
 test("a subagent its model failed is reported with the model, and Pi is told to stop and tell the user", async () => {
@@ -198,6 +220,62 @@ test("a subagent its model failed is reported with the model, and Pi is told to 
 
     assert.match(said, /\[subagent expired failed: faux\/mine: OAuth refresh failed for faux\]/);
     assert.ok(said.includes(MODEL_FAILED), "Pi is told to stop and tell the user");
+});
+
+test("the subagents' setting (PP-281): every session's, a session's own over it, and a person's ask over both", async () => {
+    const me = owner(app);
+    const id = await session();
+    const other = await session();
+
+    await assert.rejects(app.setSubagentDefault(me, "model", "faux/nothing"), /not a model Pi knows/);
+    await assert.rejects(app.setSubagentDefault(me, "thinking", "loud"), /Thinking is one of/);
+    await app.setSubagentDefault(me, "model", "faux/pricey");
+
+    try {
+        assert.deepEqual(app.subagentDefaults(id), { model: "faux/pricey", from: { model: "all", thinking: "session" } });
+
+        // Every session's: no model named, it runs there.
+        const all = await ask(id, "spawn helper");
+
+        assert.match(all.answer, /Started helper on faux\/pricey, thinking off\./);
+        assert.match(all.answer, /"why":"all"/);
+
+        // A session's own over it, and "session" for its own model; the other session keeps every session's.
+        await app.setSubagentDefault(me, "model", "faux/other", id);
+        assert.match((await ask(id, "spawn second")).answer, /Started second on faux\/other, thinking off\.[\s\S]*"why":"own"/);
+        await app.setSubagentDefault(me, "model", "session", id);
+        assert.match((await ask(id, "spawn third")).answer, /Started third on faux\/mine, thinking off\.[\s\S]*"why":"own"/);
+        assert.match((await ask(other, "spawn fourth")).answer, /Started fourth on faux\/pricey/);
+
+        // The person asked for this session's own model: theirs over every setting. Inherit again: every session's.
+        assert.match((await ask(other, "spawn fifth faux/mine")).answer, /Started fifth on faux\/mine[\s\S]*"why":"asked"/);
+        await app.setSubagentDefault(me, "model", "inherit", id);
+        assert.equal(app.subagentDefaults(id).model, "faux/pricey");
+    } finally {
+        await app.setSubagentDefault(me, "model", "session");
+    }
+
+    assert.deepEqual(app.config.subagentDefaults, {}, "nothing written down for the default");
+});
+
+test("the models tool says which models are ready, with whether subagents run on them or may", async () => {
+    const me = owner(app);
+
+    await app.setSubagentModels(me, ["faux/other"]);
+    await app.setSubagentDefault(me, "model", "faux/pricey");
+
+    try {
+        const report = await app.modelsReport("faux", false);
+
+        assert.match(report, /^faux\n/);
+        assert.match(report, /- faux\/pricey \(.*\): ready; \d+k context; thinking up to \w+; the subagents' model/);
+        assert.match(report, /- faux\/other \(.*\): ready; .*allowed for subagents/);
+        assert.match(report, /Subagents start on faux\/pricey unless a session has its own/);
+        assert.equal(await app.modelsReport("nothing-like-it", true), "No models match nothing-like-it.");
+    } finally {
+        await app.setSubagentModels(me, []);
+        await app.setSubagentDefault(me, "model", "session");
+    }
 });
 
 test("models allowed together, as from two tabs, all count, and only the owner may allow", async () => {

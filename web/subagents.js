@@ -41,6 +41,18 @@ function putAway(id, agents) {
 export const openSubagents = () => store.set({ subagentsOpen: store.state.conversationId });
 
 /** Where a subagent is: working, done, stopped, or failed. */
+/** A thinking level in words (PP-281): the subagents' settings and their spawn lines. */
+export const levelName = (level) =>
+    ({
+        off: t("Off"),
+        minimal: t("Minimal"),
+        low: t("Low"),
+        medium: t("Medium"),
+        high: t("High"),
+        xhigh: t("Extra high"),
+        max: t("Max"),
+    })[level] ?? level;
+
 export const stateOf = (agent) =>
     agent.busy ? "working" : agent.stopped ? "stopped" : agent.failed ? "failed" : "done";
 

@@ -29,6 +29,12 @@ No Termux, no laptop, no cloud VM.
 - **Subagents at a glance.** A peek tile lists the subagents at work in its session (3 at most, 1 in the phone's
   strip; **N more** opens the board there), and the subagents board shows a sub-tile for each (6 a session, 3 on a
   phone). An approval on a tile names the subagent that asks.
+- **Subagents on the model you pick.** Menu › Subagents sets the model and thinking level Pi starts subagents on, for
+  every session; a session's menu (Subagents' model) sets its own over that. Pi uses another only when you ask in the
+  chat: from the models you allow there (added several at once, each shown with its context and plan limit), or after
+  you allow it on a card. Pi's `models` tool lists the models that are ready, their limits and what is left. The spawn
+  line says what each subagent runs on and why. Pi changes these on a card (`subagents.model`, `subagents.thinking`,
+  `subagents.sessionModel`, `subagents.sessionThinking`).
 - **A session list after T3 Code.** A scope picker (All, each project, each folder, Archived) instead of tabs; Pinned,
   Active (a project's running task sessions under its main session), and a folded **Settled** shelf. A session settles
   by itself after a day idle, when its task run ends, or when its branch is merged, and comes back with new activity;

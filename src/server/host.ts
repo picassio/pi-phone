@@ -16,6 +16,7 @@ import type {
 } from "@earendil-works/pi-durable";
 import type { Role, User } from "./config.ts";
 import type { ContextPolicy } from "./context-policy.ts";
+import type { ResolvedSubagentDefaults } from "./subagent-defaults.ts";
 import type { Goals } from "./goals.ts";
 import type { Schedules } from "./schedules.ts";
 import type { SessionControl } from "./session-control.ts";
@@ -367,6 +368,17 @@ export interface PocketHost {
      * Empty, the default: none.
      */
     subagentModels(): readonly string[];
+    /**
+     * The model and thinking level Pi starts a conversation's subagents on (PP-281): its session's own choices over every
+     * session's, and where each comes from. A part absent: the session's own model or level.
+     */
+    subagentDefaults(conversationId: ConversationId): ResolvedSubagentDefaults;
+    /**
+     * The models Pi may use, for its `models` tool (PP-281): each with its provider, whether it can be used now, its
+     * context, highest thinking, price, and its account's plan windows; `query` words to match, `available` only those
+     * that can be used now.
+     */
+    modelsReport(query: string | undefined, available: boolean): Promise<string>;
     /** Images in documents (PP-49): the model the person chose to describe them (provider/modelId) or null, the ones they may choose, and a description. */
     readonly docsImages: {
         model(): string | null;

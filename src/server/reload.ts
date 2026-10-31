@@ -143,6 +143,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "artifact",
     "browser",
     "subagent",
+    "models",
     "team",
     "schedule",
     "codemode",

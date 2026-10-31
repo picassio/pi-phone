@@ -30,7 +30,7 @@ import { setBrowserOpen } from "./browser-panel.js";
 import { CrdConnectForm } from "./crd-connect.js";
 import { BrowserRunCard } from "./browser-run-card.js";
 import { ScreenCard } from "./guide.js";
-import { openSubagent, stateOf } from "./subagents.js";
+import { levelName, openSubagent, stateOf } from "./subagents.js";
 import { prefs } from "./theme.js";
 import {
     diffCounts,
@@ -675,8 +675,20 @@ function outcome({ call, result, details, status }) {
                 state !== "working" && agent.askedAt && agent.answeredAt
                     ? ` ${span(agent.answeredAt - agent.askedAt)}`
                     : "";
+            // A spawn says what it runs on and why (PP-281): the subagents' setting, the session's own, or the person's ask.
+            const why = {
+                asked: t("you asked"),
+                approved: t("allowed on a card"),
+                own: t("this session's setting"),
+                all: t("the subagents' setting"),
+                session: t("the session's own"),
+            }[details?.why];
+            const runs =
+                args.action === "spawn" && typeof details?.model === "string"
+                    ? ` · ${details.model.slice(details.model.indexOf("/") + 1)} · ${levelName(details.thinking ?? "off")}${why === undefined ? "" : ` · ${why}`}`
+                    : "";
 
-            return { text: `${state}${took}`, tone: state === "failed" ? "err" : "" };
+            return { text: `${state}${took}${runs}`, tone: state === "failed" ? "err" : "" };
         }
 
         default:

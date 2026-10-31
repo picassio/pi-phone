@@ -7,6 +7,7 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 import type { Attachment, SubmitRequest } from "../commands.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ContextPart } from "../context-policy.ts";
+import type { SubagentPart } from "../subagent-defaults.ts";
 import { CiWatchesDoc } from "../docs.ts";
 import { HttpError } from "../errors.ts";
 import type { CommandRequest } from "../extension-commands.ts";
@@ -70,6 +71,15 @@ export async function conversationRoutes(
     }
 
     // What of the wiki, secrets, and skills goes into this session's prompt (PP-276): { part, mode }, mode "inherit" too.
+    // This session's own subagents' model and thinking (PP-281): { part, value }, "inherit" for every session's.
+    if (third === "subagent-defaults" && method === "POST") {
+        const body = await readJson<{ part?: unknown; value?: unknown }>(request);
+
+        await app.setSubagentDefault(user, body.part as SubagentPart, body.value, id);
+
+        return json(response, 200, { ok: true });
+    }
+
     if (third === "context-policy" && method === "POST") {
         const body = await readJson<{ part?: unknown; mode?: unknown }>(request);
 

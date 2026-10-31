@@ -33,6 +33,12 @@ dự án thật.</sub>
 - **Subagent trong nháy mắt.** Một ô xem nhanh liệt kê các subagent đang làm việc trong phiên của nó (tối đa 3, trên
   dải của điện thoại là 1; **N nữa** mở bảng ở đó), và bảng subagent có một ô con cho mỗi subagent (6 mỗi phiên, 3 trên
   điện thoại). Một yêu cầu duyệt trên ô sẽ nêu tên subagent đang hỏi.
+- **Subagent chạy trên mô hình bạn chọn.** Menu › Subagent đặt mô hình và mức suy nghĩ Pi dùng khi tạo subagent, cho mọi
+  phiên; menu của một phiên (Mô hình của subagent) đặt riêng cho phiên đó. Pi chỉ dùng mô hình khác khi bạn yêu cầu trong
+  chat: trong các mô hình bạn cho phép ở đó (thêm nhiều cái cùng lúc, mỗi cái hiện ngữ cảnh và hạn mức gói), hoặc sau khi
+  bạn cho phép qua một thẻ. Công cụ `models` của Pi liệt kê các mô hình sẵn sàng, hạn mức và phần còn lại. Dòng tạo
+  subagent ghi nó chạy trên gì và vì sao. Pi đổi được qua thẻ (`subagents.model`, `subagents.thinking`,
+  `subagents.sessionModel`, `subagents.sessionThinking`).
 - **Danh sách phiên theo kiểu T3 Code.** Một bộ chọn phạm vi (Tất cả, từng dự án, từng thư mục, Đã lưu trữ) thay cho
   các tab; Đã ghim, Đang hoạt động (các phiên tác vụ đang chạy của một dự án nằm dưới phiên chính của nó), và một ngăn
   **Đã cất** thu gọn. Một phiên tự cất sau một ngày rảnh, khi lượt chạy tác vụ của nó kết thúc, hoặc khi nhánh của nó

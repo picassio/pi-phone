@@ -34,6 +34,7 @@ import { UpdateSheet } from "./sheets/update.js";
 import { CwdSheet } from "./sheets/folder.js";
 import { MenuSheet, PlacesSheet } from "./sheets/menu.js";
 import { MessageSheet } from "./sheets/message.js";
+import { SubagentSettingsSheet } from "./sheets/subagent-settings.js";
 import { ModelPicker } from "./sheets/model.js";
 import { InviteSheet, PeopleSheet } from "./sheets/people.js";
 import { AuthDialog, ProvidersSheet } from "./sheets/providers.js";
@@ -235,6 +236,10 @@ function sheetBody(sheet) {
             break;
         case "images":
             body = store.state.me?.role === "owner" ? html`<${ImagesSheet} />` : null;
+            break;
+        // The subagents' model and thinking (PP-281): every session's, or this session's own.
+        case "subagent-settings":
+            body = store.state.me?.role === "owner" ? html`<${SubagentSettingsSheet} own=${sheet.own === true} />` : null;
             break;
         case "secrets":
             body = html`<${SecretsSheet} />`;

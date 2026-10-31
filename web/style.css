@@ -6612,6 +6612,144 @@ pre.diff .del {
     position: relative;
 }
 
+/* Several at once (MultiChoice, PP-281): a box on each, groups by provider, and a foot with Add. */
+.mc-group {
+    padding: 0.55rem 0.8rem 0.2rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+}
+
+.mc-box {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid var(--hair-2);
+    border-radius: 4px;
+}
+
+.mc-box.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+}
+
+.mc-row:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.mc-row.fixed {
+    opacity: 0.75;
+}
+
+.mc-foot {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border-top: 1px solid var(--line);
+}
+
+.mc-foot > span {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Menu › Subagents (PP-281): the models Pi may also use, a row each with its state and plan limit. */
+.sam-label {
+    display: flex;
+    justify-content: space-between;
+}
+
+.sam-model {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--hair);
+}
+
+.sam-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--ok);
+}
+
+.sam-dot.near {
+    background: var(--warn);
+}
+
+.sam-dot.off {
+    background: var(--muted);
+    opacity: 0.6;
+}
+
+.sam-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.sam-text b {
+    font-weight: 500;
+}
+
+.sam-text small {
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sam-meter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    min-width: 0;
+}
+
+.sam-track {
+    width: 64px;
+    height: 4px;
+    flex: none;
+    border-radius: 3px;
+    background: var(--hair-2);
+    overflow: hidden;
+}
+
+.sam-track i {
+    display: block;
+    height: 100%;
+    background: var(--ok);
+}
+
+.sam-track i.near {
+    background: var(--warn);
+}
+
+.sam-track i.high {
+    background: var(--err);
+}
+
+.sam-meter > span:last-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sam-add {
+    padding-top: 10px;
+}
+
 /* ─── Pop-up menus: the model and branch pickers ───────────── */
 
 /* A menu up from the control that opens it (the model chip, the branch), over the conversation without dimming it. */
@@ -8044,14 +8182,42 @@ pre.diff .del {
     margin: 0.35rem 0 0;
 }
 
-/* The owner's choice of models for subagents, above the providers. */
+/* A row to the models for subagents (Menu › Subagents, PP-281), above the providers. */
 .subagent-models {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.6rem 0 0.8rem;
     margin-bottom: 0.4rem;
     border-bottom: 1px solid var(--line);
+}
+
+/* A list of models to tick, by provider (a custom provider's models): a long one scrolls in its own box. */
+.subagent-models-list {
+    max-height: min(22rem, 45dvh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+}
+
+.subagent-models-list > p {
+    padding: 0.6rem;
+}
+
+.subagent-model {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 44px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--hair);
+    cursor: pointer;
+}
+
+.subagent-model > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.subagent-model .muted {
+    display: block;
 }
 
 /* The owner's choice of how long a run waits for a provider's limit, and the notice of a long wait (PP-135). */
@@ -8079,64 +8245,6 @@ pre.diff .del {
     justify-content: space-between;
     gap: 12px;
     padding-top: 0.2rem;
-}
-
-.subagent-models p {
-    margin: 0;
-}
-
-/* What is allowed, on one line: the list under it stays put while models are checked one after another. */
-.subagent-models-chosen {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.subagent-models .search {
-    margin-bottom: 0;
-}
-
-/* Every model, by provider. A long list scrolls in its own box, so the providers stay near. */
-.subagent-models-list {
-    max-height: min(22rem, 45dvh);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    border: 1px solid var(--hair);
-    border-radius: var(--r-card);
-}
-
-.subagent-models-list > p {
-    padding: 0.6rem;
-}
-
-.subagent-models-head {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    padding: 6px 12px;
-    background: var(--card);
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--faint);
-}
-
-.subagent-model {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    min-height: 44px;
-    padding: 8px 12px;
-    border-top: 1px solid var(--hair);
-    cursor: pointer;
-}
-
-.subagent-model > span {
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-
-.subagent-model .muted {
-    display: block;
 }
 
 .invite {

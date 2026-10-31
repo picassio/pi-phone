@@ -6,6 +6,7 @@ import { createReadStream, readdirSync, rmSync, statSync } from "node:fs";
 import { TOOLS, toolOffer } from "../machine-tools.ts";
 import { crdWord } from "../crd.ts";
 import type { ContextPart } from "../context-policy.ts";
+import type { SubagentPart } from "../subagent-defaults.ts";
 import { pipeline } from "node:stream/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { homedir, networkInterfaces, tmpdir } from "node:os";
@@ -1577,6 +1578,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 wikiCaptureMinutes?: unknown;
                 compactAt?: unknown;
                 contextPolicy?: unknown;
+                subagentDefault?: unknown;
                 limitWaitHours?: unknown;
                 limitNotice?: unknown;
                 assistant?: unknown;
@@ -1594,6 +1596,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.wikiCaptureMinutes,
                     body.compactAt,
                     body.contextPolicy,
+                    body.subagentDefault,
                     body.limitWaitHours,
                     body.limitNotice,
                     body.assistant,
@@ -1631,6 +1634,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 const { part, mode } = (body.contextPolicy ?? {}) as { part?: unknown; mode?: unknown };
 
                 await app.setContextPart(user, part as ContextPart, mode);
+            }
+
+            // The model and thinking level subagents start on in every session (PP-281): { part, value }.
+            if (body.subagentDefault !== undefined) {
+                const { part, value } = (body.subagentDefault ?? {}) as { part?: unknown; value?: unknown };
+
+                await app.setSubagentDefault(user, part as SubagentPart, value);
             }
 
             // How long a run waits for a provider's limit to clear, and whether the phone hears of a long wait (PP-135).

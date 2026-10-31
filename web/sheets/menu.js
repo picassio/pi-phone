@@ -18,6 +18,7 @@ const compactHint = (at) => (typeof at === "number" ? t("now, or by itself at {n
 import { setArchived } from "../sessions.js";
 import { isRemotePlace, splitPlace } from "../place.js";
 import { openSubagent, ordered, stateOf, unresolved } from "../subagents.js";
+import { subagentSummary } from "./subagent-settings.js";
 import { pushId, pushSupport } from "../push.js";
 import {
     actions,
@@ -483,6 +484,7 @@ export function MenuSheet({ places = true }) {
             ${conversation && trustAvailable() && item("Project trust", () => openSheet({ type: "trust" }), trustHint())}
             ${session && steer && driving && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
             ${conversation && steer && driving && item("Compact context", () => openSheet({ type: "compact" }), compactHint(conversation.compactAt ?? store.state.server?.compactAt))}
+            ${conversation && me?.role === "owner" && session && item("Subagents' model", () => openSheet({ type: "subagent-settings", own: true }), subagentSummary(conversation.subagentDefaults))}
             ${conversation && steer && driving && item("New context", () => openSheet({ type: "reset" }), "Pi starts fresh; history stays")}
             ${schedulesAvailable() && item("Scheduled messages", () => openSheet({ type: "schedules" }), view.schedules.length === 0 ? "none" : t("{n} coming", { n: view.schedules.length }))}
             ${
@@ -522,6 +524,7 @@ export function MenuSheet({ places = true }) {
             <div class="group-title">${t("App")}</div>
             ${me?.role === "owner" && item("Getting started", () => openGettingStarted(), "Pi shows you around")}
             ${item("Appearance", () => openSheet({ type: "appearance" }), lookLabel())}
+            ${me?.role === "owner" && item("Subagents", () => openSheet({ type: "subagent-settings" }), subagentSummary(undefined))}
             ${me?.role === "owner" && !["app", "space"].includes(pushSupport()) && item("Notifications", () => openSheet({ type: "notifications" }), pushId() === null ? "off on this device" : "on on this device")}
             ${voiceAvailable() && item("Dictation", () => openSheet({ type: "dictation" }), dictationLanguage())}
             ${

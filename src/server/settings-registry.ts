@@ -21,6 +21,7 @@ import { ImageGen } from "./image-gen.ts";
 import { POPUP_MODES } from "./browser/pi-browser.ts";
 import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
 import { CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
+import { THINKING_LEVELS } from "./models.ts";
 import { copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -291,6 +292,49 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                               .map((each) => each.trim())
                               .filter(Boolean),
                 ),
+        },
+        // The model and thinking level Pi starts subagents on (PP-281): every session's, and one session's own.
+        {
+            id: "subagents.model",
+            area: "models",
+            title: "Subagents' model, every session",
+            help: "The model Pi starts subagents on, provider/modelId, or session (each session's own model). A session's own setting (subagents.sessionModel) comes first; Pi picks another only when the person asks.",
+            owner: true,
+            read: () => app.config.subagentDefaults.model ?? "session",
+            choices: async () => ["session", ...(await app.modelList()).map((model) => `${model.provider}/${model.id}`)],
+            apply: (user, value) => app.setSubagentDefault(user, "model", value.trim()),
+        },
+        {
+            id: "subagents.thinking",
+            area: "models",
+            title: "Subagents' thinking level, every session",
+            help: "The thinking level Pi starts subagents on, at most their model's highest, or session (the session's own, never above it).",
+            owner: true,
+            read: () => app.config.subagentDefaults.thinking ?? "session",
+            choices: () => ["session", ...THINKING_LEVELS],
+            apply: (user, value) => app.setSubagentDefault(user, "thinking", value.trim().toLowerCase()),
+        },
+        {
+            id: "subagents.sessionModel",
+            area: "models",
+            title: "Subagents' model, one session",
+            help: "inherit (every session's: subagents.model), session (this session's own model), or provider/modelId. Target: the session's number.",
+            owner: true,
+            target: "session",
+            read: (target) => app.sessionMeta(session(target))?.subagentDefaults?.model ?? `inherit (${app.config.subagentDefaults.model ?? "session"})`,
+            choices: async () => ["inherit", "session", ...(await app.modelList()).map((model) => `${model.provider}/${model.id}`)],
+            apply: (user, value, target) => app.setSubagentDefault(user, "model", value.trim(), session(target)),
+        },
+        {
+            id: "subagents.sessionThinking",
+            area: "models",
+            title: "Subagents' thinking level, one session",
+            help: "inherit (every session's: subagents.thinking), session (this session's own level), or a level. Target: the session's number.",
+            owner: true,
+            target: "session",
+            read: (target) => app.sessionMeta(session(target))?.subagentDefaults?.thinking ?? `inherit (${app.config.subagentDefaults.thinking ?? "session"})`,
+            choices: () => ["inherit", "session", ...THINKING_LEVELS],
+            apply: (user, value, target) => app.setSubagentDefault(user, "thinking", value.trim().toLowerCase(), session(target)),
         },
         {
             id: "providers.limitWait",

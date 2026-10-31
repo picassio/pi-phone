@@ -331,6 +331,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `bash` commands that name the wiki folder (on the phone; a session on a machine works on that machine's files), naming
   the wiki tool to use. It keeps Pi honest rather than being a security boundary; nothing watches the folder, as only
   the tools, the Wiki page, and capture change it.
+- **Subagents' model and thinking** (PP-281; `subagent-defaults.ts`, `extensions/subagents.ts`,
+  `web/sheets/subagent-settings.js`; owner's mockup v2, 2026-10-31): `config.subagentDefaults` (every session's) and
+  `SessionMeta.subagentDefaults` (a session's own, `session` for its own model or level), each part on its own;
+  `subagentDefaults(id)` resolves them with where each comes from. A spawn without `model` or `thinking` takes them; one
+  with them (the person asked, as the fixed `subagents` section says) runs when the model is the setting's or in
+  `config.subagentModels`, else after the owner's card (`subagent-model-*`), kept as the subagent's `approvedModel` so
+  work may go to it. The session's level caps a subagent's only while no thinking is set. The spawn's details carry
+  model, thinking and why (asked, approved, own, all, session), which its line shows. `models` (read only) is
+  `modelsReport`: by provider with its plan windows (`usage-limits.ts`, asked afresh), each model ready or why not,
+  context, highest thinking, price, and subagent marks. Menu › Subagents holds every session's two dropdowns and the
+  allowed list (rows with state and plan bar, `MultiChoice` to add several, X to take one off); Settings › Providers
+  keeps a row to it.
 - **Secrets** (`src/server/secrets.ts`, `extensions/secrets.ts`, `web/sheets/secrets.js`): API keys and tokens Pi uses
   without seeing them, in Settings › Secrets. Each has an env-var name, a value (8+ characters, one line), a
   description, folders it may be used in (none: anywhere), whether machines may use it, and whether each use asks

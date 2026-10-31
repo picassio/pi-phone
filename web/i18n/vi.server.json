@@ -712,5 +712,10 @@
     "browserMode is headless or window.": "browserMode là headless hoặc window.",
     "The image model is provider/model, or null for the default.": "Mô hình hình ảnh có dạng provider/model, hoặc null để dùng mặc định.",
     "{1} is not an image model of a provider signed in now. Pick one of: {2}.": "{1} không phải mô hình hình ảnh của nhà cung cấp đang đăng nhập. Hãy chọn một trong: {2}.",
-    "The prompt's parts are {1}.": "Các phần của prompt là {1}."
+    "The prompt's parts are {1}.": "Các phần của prompt là {1}.",
+    "The subagents' parts are {1}.": "Các phần của subagent là {1}.",
+    "Send a model as provider/modelId, or session.": "Gửi mô hình dạng provider/modelId, hoặc session.",
+    "Send a thinking level: {1}, or session.": "Gửi một mức suy nghĩ: {1}, hoặc session.",
+    "Thinking is one of {1}, or session.": "Mức suy nghĩ là một trong {1}, hoặc session.",
+    "Thinking is one of {1}, session, or inherit.": "Mức suy nghĩ là một trong {1}, session, hoặc inherit."
 }

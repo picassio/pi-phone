@@ -5,6 +5,7 @@
  * Kinds are part of the stored data: rename one and old sessions lose it.
  */
 import type { ContextPolicy } from "./context-policy.ts";
+import type { SubagentDefaults } from "./subagent-defaults.ts";
 import type { PiLink } from "./pi-handoff.ts";
 import {
     type CheckpointInfo,
@@ -56,6 +57,8 @@ export type SessionMeta = {
     compactAt?: number | "full";
     /** What of the wiki, secrets, and skills goes into this session's prompt (`context-policy.ts`). Absent: the setting for all. */
     contextPolicy?: Partial<ContextPolicy>;
+    /** The model and thinking level Pi starts this session's subagents on (`subagent-defaults.ts`). Absent: the setting for all. */
+    subagentDefaults?: SubagentDefaults;
     /** Who thinks in this session's voice calls (`voice.ts`): work, chat, or think. Absent: Settings › Voice's mode. */
     voiceMode?: "work" | "chat" | "think";
     /** The run model for this session's `browser_run`: "session" or a Jev model's OpenRouter id. Absent: the owner's. */
@@ -193,6 +196,8 @@ export type SubagentRecord = {
      * a later time, so it needs them again.
      */
     dealtAt?: number;
+    /** A model the owner allowed on a card for this subagent alone (PP-281): work may go to it there. */
+    approvedModel?: string;
 };
 
 /** A subagent's report waiting to go to its parent: all those waiting go together, as one message. */
