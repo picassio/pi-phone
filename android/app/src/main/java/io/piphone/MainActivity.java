@@ -75,6 +75,12 @@ public final class MainActivity extends Activity {
     private volatile boolean loaded = false;
     /** Whether the app is in front: PiService notifies only when it is not. */
     static volatile boolean inFront = false;
+    /**
+     * The app's window has the focus: the person is using pi-phone now. On a big or folding screen, with another app
+     * beside it, the app stays resumed (inFront) while the person uses the other: the floating board's bubble hides only
+     * on this (PP-283).
+     */
+    static volatile boolean focused = false;
     /** A session a notification asked to open, before the web app was there to open it. */
     private volatile int pendingSession = -1;
     /** Menu › Assistant, asked by the assistant's sheet (to allow the microphone) before the web app was there. */
@@ -497,7 +503,14 @@ public final class MainActivity extends Activity {
     @Override
     protected void onPause() {
         inFront = false;
+        focused = false;
         super.onPause();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        focused = hasFocus;
     }
 
     private void waitForServer() {

@@ -64,8 +64,10 @@ final class ProgressBubble {
     private final Runnable watchFront = new Runnable() {
         @Override
         public void run() {
-            if (added) orb.setVisibility(MainActivity.inFront ? View.GONE : View.VISIBLE);
-            if (board != null && MainActivity.inFront) fold();
+            // pi-phone in use (its window has the focus, not only shown beside another app): the bubble steps aside.
+            boolean using = MainActivity.inFront && MainActivity.focused;
+            if (added) orb.setVisibility(using ? View.GONE : View.VISIBLE);
+            if (board != null && using) fold();
             main.postDelayed(this, 700);
         }
     };
