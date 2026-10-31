@@ -115,6 +115,11 @@ export type ComputerPanel = {
     open: boolean;
     /** What covers the tab's window in its newest read (PP-270): parts (black in the picture), all of it, minimised; or null. */
     cover: Cover | null;
+    /**
+     * How new it is (PP-278): every change the panel is pushed for counts one up. A tab keeps the newest it has: an
+     * answer made before a push, arriving after it, does not take the panel back.
+     */
+    seq: number;
 };
 
 /** A picture of a window, for the tabs that watch: with the box on what Pi last acted on, in fractions of the picture. */
@@ -259,6 +264,8 @@ export class ComputerControl {
     readonly #idle = new Map<number, NodeJS.Timeout>();
     readonly #listeners = new Set<() => void>();
     readonly #panelListeners = new Set<(panel: ComputerPanel) => void>();
+    /** The panels' changes so far: each panel says how new it is (`ComputerPanel.seq`). */
+    #seq = 0;
     readonly #frameListeners = new Set<(frame: ComputerFrame) => void>();
     /** Tabs watching each machine's panel, and its refresh timer. */
     readonly #watchers = new Map<string, number>();
@@ -314,6 +321,7 @@ export class ComputerControl {
     }
 
     #panelChanged(machine: string): void {
+        this.#seq += 1;
         const panel = this.panelOf(machine);
 
         if (panel !== undefined) {
@@ -875,6 +883,7 @@ export class ComputerControl {
 
         this.#log(`Computer control on ${session.machineName} ended: ${why}.`);
         this.#changed();
+        this.#seq += 1;
 
         for (const listener of this.#panelListeners) {
             listener({ ...this.#panelBase(session), open: false, doing: null, takenOver: false });
@@ -1326,6 +1335,7 @@ export class ComputerControl {
             until: session.until,
             open: live !== undefined,
             cover: live?.outlines.get(live.tab)?.cover ?? null,
+            seq: this.#seq,
         };
     }
 

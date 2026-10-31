@@ -1616,6 +1616,13 @@ export const computerState = (state = store.state) => {
 export function setComputer(data) {
     // A session that never controlled a computer answers with no machine: nothing to keep.
     if (data && typeof data === "object" && typeof data.session === "number" && typeof data.machine === "string") {
+        // An answer made before a push that came first is older than what the tab has (PP-278): it is not kept.
+        const known = store.state.computers?.[data.session];
+
+        if (known !== undefined && data.seq < known.seq) {
+            return;
+        }
+
         store.set((state) => ({ computers: { ...state.computers, [data.session]: data } }));
     }
 }

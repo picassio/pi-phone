@@ -393,3 +393,21 @@ test("Pi's computer says when the window shown is partly covered by another wind
         delete process.env.FAKE_OCU_COVER;
     }
 });
+
+test("a panel the tab already has newer is kept: an answer made before a push, arriving after it, does not take it back (PP-278)", { skip }, async () => {
+    const kept = await inPage<{ tab: string; cover: string | null }>(`
+        const { setComputer, store } = await import("/store.js");
+        const panel = { session: 9901, conversationId: 9901, machine: "m9", machineName: "box", apps: [], doing: null, takenOver: false, until: 0, open: true };
+
+        // The push: the window Pi reads now, nothing over it.
+        setComputer({ ...panel, tab: "Pi OCU Demo", cover: null, seq: 7 });
+        // The answer to the tab's watch, made before that push: the window before, covered.
+        setComputer({ ...panel, tab: "Viewer", cover: "partial", seq: 5 });
+
+        const now = store.state.computers[9901];
+
+        return JSON.stringify({ tab: now.tab, cover: now.cover });
+    `);
+
+    assert.deepEqual(kept, { tab: "Pi OCU Demo", cover: null });
+});
