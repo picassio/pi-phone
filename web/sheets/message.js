@@ -120,6 +120,26 @@ function SendAgain({ prompt, worktree }) {
     }`;
 }
 
+/**
+ * The wiki's pages the app sent to Pi with a message (PP-276, the wiki `relevant`): kept out of the message itself,
+ * folded here until asked for. Each opens in the Wiki page.
+ */
+function WikiCame({ paths }) {
+    const [open, setOpen] = useState(false);
+
+    return html`${item(t("What Pi got with this message ({n})", { n: paths.length }), () => setOpen(!open), open ? t("Hide") : t("wiki pages"))}
+        ${
+            open &&
+            html`<p class="muted small wiki-came-note">${t("The app's wiki search sent these pages to Pi with your message. You did not write them.")}</p>
+                ${paths.map(
+                    (path) => html`<a class="list-item" data-part="wiki-came" href=${`#wiki:${encodeURIComponent(path)}`} onClick=${closeSheet}>
+                        <span><${Icon} name="file" size=${14} /> ${path.split("/").pop()}</span>
+                        <span class="muted small">${path}</span>
+                    </a>`,
+                )}`
+        }`;
+}
+
 /** What can be done with one message: fork from it, edit it, send it again, or copy it. */
 export function MessageSheet({ entryId }) {
     const { view } = store.state;
@@ -198,6 +218,7 @@ export function MessageSheet({ entryId }) {
             ${canBranch && toPi && item("Edit and send again…", () => setDraft(text))}
             ${canBranch && prompt && html`<${SendAgain} prompt=${prompt} worktree=${worktree} />`}
             ${!filesAlone && item("Copy text", copy)}
+            ${toPi && entry.wiki?.length > 0 && html`<${WikiCame} paths=${entry.wiki} />`}
         </div>
     <//>`;
 }

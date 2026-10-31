@@ -3238,5 +3238,7 @@
     "As every session ({mode})": "Như mọi phiên ({mode})",
     "What goes into Pi's prompt fills the context too. Text that changes is sent again, and each copy stays until the session compacts; a change here shows from the next message.": "Những gì đưa vào prompt của Pi cũng chiếm ngữ cảnh. Phần chữ thay đổi sẽ được gửi lại, và mỗi bản ở lại cho tới khi phiên nén; thay đổi ở đây có hiệu lực từ tin nhắn kế tiếp.",
     "What this session's prompt holds": "Prompt của phiên này gồm những gì",
-    "Pages of the wiki that came with this message for Pi: the app found them; you did not write them.": "Các trang wiki đi kèm tin nhắn này cho Pi: ứng dụng tự tìm, không phải bạn viết."
+    "What Pi got with this message ({n})": "Pi nhận được gì kèm tin nhắn này ({n})",
+    "wiki pages": "trang wiki",
+    "The app's wiki search sent these pages to Pi with your message. You did not write them.": "Tìm kiếm wiki của ứng dụng đã gửi các trang này cho Pi kèm tin nhắn của bạn. Bạn không viết chúng."
 }

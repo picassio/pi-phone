@@ -3258,5 +3258,7 @@
     "As every session ({mode})": "与所有会话相同（{mode}）",
     "What goes into Pi's prompt fills the context too. Text that changes is sent again, and each copy stays until the session compacts; a change here shows from the next message.": "放进 Pi 提示词的内容也会占用上下文。变化的文本会再次发送，每一份都会留到会话压缩为止；这里的更改从下一条消息开始生效。",
     "What this session's prompt holds": "此会话的提示词包含什么",
-    "Pages of the wiki that came with this message for Pi: the app found them; you did not write them.": "随这条消息发给 Pi 的知识库页面：由应用查找，不是你写的。"
+    "What Pi got with this message ({n})": "Pi 随这条消息收到的内容（{n}）",
+    "wiki pages": "知识库页面",
+    "The app's wiki search sent these pages to Pi with your message. You did not write them.": "应用的知识库搜索把这些页面随你的消息发给了 Pi，它们不是你写的。"
 }

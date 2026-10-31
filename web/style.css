@@ -4526,8 +4526,8 @@ pre.diff .del {
     max-width: 62%;
 }
 
-.wiki-came .chip {
-    opacity: 0.75;
+.wiki-came-note {
+    margin: 6px 14px;
 }
 
 .ac-percent input {

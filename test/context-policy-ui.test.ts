@@ -1,6 +1,6 @@
 // What goes into the prompt, in a real browser (PP-276): Menu › Compact context shows this session's choices and every
-// session's, and a change reaches the session; a message the wiki's pages came with shows the person's words and the
-// pages by name, not the pages' text. Nothing runs past a phone's screen.
+// session's, and a change reaches the session; a message the wiki's pages came with shows only the person's words, and
+// its menu has the pages, folded until asked for (the owner's option C). Nothing runs past a phone's screen.
 import { type App, cleanUp, context, home, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
@@ -94,7 +94,7 @@ after(async () => {
     cleanUp();
 });
 
-test("a message the wiki's pages came with shows the person's words and the pages by name; Compact context sets what the prompt holds", real, async () => {
+test("a message the wiki's pages came with shows only the person's words, its menu the pages; Compact context sets what the prompt holds", real, async () => {
     app.config.lastModel ??= { provider: "faux", modelId: "faux-1", thinkingLevel: "off" };
     await app.para.save(
         "resources/terminal-reattach",
@@ -112,14 +112,24 @@ test("a message the wiki's pages came with shows the person's words and the page
 
     await (await app.harness.submission(submissionId, context))!.wait(context);
     await open(Number(id), "mobile");
-    await see(`return JSON.stringify(document.querySelector(".wiki-came .chip")?.textContent.includes("terminal-reattach") === true)`, "the page by name");
+    await see(`return JSON.stringify(document.querySelector('[data-part="prompt"] .user-text')?.textContent.includes("why does the shell outlive its socket") === true)`, "the message");
 
-    const message = await inPage<string>(`return JSON.stringify([...document.querySelectorAll(".user-text")].map((each) => each.textContent).join("|"))`);
+    // The message holds the person's words alone: no page, by name or by text.
+    const bubble = await inPage<string>(`return JSON.stringify(document.querySelector('[data-part="prompt-row"]').textContent)`);
 
-    assert.match(message, /why does the shell outlive its socket/);
-    assert.doesNotMatch(message, /wiki-pages|outlives its socket for fifteen/, "the pages' text is not shown as the person's");
+    assert.doesNotMatch(bubble, /terminal-reattach|wiki-pages|outlives its socket for fifteen/);
     assert.deepEqual(await outside(), []);
-    await shot("context-wiki-chip-390");
+    await shot("context-message-390");
+
+    // Its menu: what Pi got with it, folded; open, the page, which opens in the Wiki page.
+    await page.evaluate(`document.querySelector('[data-part="prompt"]').click(); return "true";`);
+    await see(`return JSON.stringify([...document.querySelectorAll(".sheet .list-item")].some((each) => each.textContent.includes("What Pi got with this message (1)")))`, "the menu's item");
+    assert.equal(await inPage<number>(`return JSON.stringify(document.querySelectorAll('[data-part="wiki-came"]').length)`), 0, "folded");
+    await page.evaluate(`[...document.querySelectorAll(".sheet .list-item")].find((each) => each.textContent.includes("What Pi got")).click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="wiki-came"]')?.getAttribute("href") === "#wiki:resources%2Fterminal-reattach")`, "the page, as a link to the Wiki page");
+    assert.deepEqual(await outside(), []);
+    await shot("context-message-menu-390");
+    await page.evaluate(`(await import("/store.js")).closeSheet(); return "true";`);
 
     // Menu › Compact context: this session's choices (as every session's) and every session's.
     await page.evaluate(`(await import("/store.js")).openSheet({ type: "compact" }); return "true";`);
