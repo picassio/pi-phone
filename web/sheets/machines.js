@@ -5,6 +5,7 @@ import { agoText, t, tx } from "../i18n.js";
 import { api, attempt, closeSheet, notify, openSheet } from "../store.js";
 import { Choice, copyText, html, Icon, Loader, Sheet } from "../ui.js";
 import { windowsSetupScript } from "../windows-setup.js";
+import { CrdConnectForm } from "../crd-connect.js";
 
 const address = (machine) => `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`;
 
@@ -180,10 +181,20 @@ function WindowsSetup({ publicKey }) {
     </div>`;
 }
 
+/** Chrome Remote Desktop's state (PP-263), in the app's words. */
+const crdWordText = (word) => (word === "connected" ? t("connected") : word === "installed, not connected" ? t("installed, not connected") : t("not installed"));
+
+/** A tool's version as the lists show it: Chrome Remote Desktop's is Google's current build, checked by its signer. */
+const toolVersion = (tool) => (tool.signer ? t("signed by {signer}", { signer: tool.signer.replace(/^CN=/, "") }) : tool.version);
+
 /** Where a tool stands on a machine, in a few words. */
 function toolState(tool) {
     if (!tool.supported) {
-        return t("no build for this machine");
+        return tool.windowsOnly ? t("for Windows only, for now") : t("no build for this machine");
+    }
+
+    if (tool.crd) {
+        return tool.installed ? `${t("installed, {version}", { version: tool.installed })} · ${crdWordText(tool.crd)}` : t("not installed · {size}", { size: tool.size });
     }
 
     if (tool.installed && tool.installed === tool.version) {
@@ -265,7 +276,7 @@ function MachineToolsPanel({ machine, onClose }) {
                         }}
                     />
                     <span>
-                        <strong>${tool.name}</strong> ${tool.version}
+                        <strong>${tool.name}</strong> ${toolVersion(tool)}
                         <span class="muted small"> · ${toolState(tool)}${tool.desktop ? ` · ${t("needs a desktop session on Linux")}` : ""}</span>
                         <div class="muted small">${tool.description}</div>
                     </span>
@@ -275,10 +286,85 @@ function MachineToolsPanel({ machine, onClose }) {
         <p class="muted small">
             ${tx("Each is downloaded by the machine itself, checked against its pinned sha256, into {path}, and put first on bash's PATH in sessions there.", { path: html`<span class="mono">~/.pi/mobile/tools</span>` })}
         </p>
+        ${
+            tools?.some((tool) => tool.signer && tool.supported) &&
+            html`<p class="muted small">${t("Chrome Remote Desktop is Google's own installer, downloaded by the machine from Google (not passed on by pi-phone): its address always gives Google's newest build, so it is checked by Google's signature instead of a pinned sha256, and installed with msiexec (it needs administrator rights).")}</p>`
+        }
         <div class="sheet-actions">
             <button class="button small" disabled=${busy} onClick=${onClose}>${t("Close")}</button>
             <button class="button small primary" disabled=${busy || ticked.size === 0} onClick=${install}>${busy ? t("Installing…") : t("Install")}</button>
         </div>
+    </div>`;
+}
+
+/**
+ * Chrome Remote Desktop on one of the owner's Windows machines (PP-263): not installed, installed but not connected
+ * (Connect to your Google account: Google's steps, the command and a PIN, to the machine alone), or connected (Remove,
+ * after a confirmation). Read afresh as the row shows, with a quick PowerShell over the machine's connection.
+ */
+function CrdRow({ machine, onChanged }) {
+    const [crd, setCrd] = useState(null);
+    const [connecting, setConnecting] = useState(false);
+    const [busy, setBusy] = useState(null);
+    const path = `machines/${encodeURIComponent(machine.id)}/crd`;
+    const call = (what, run) =>
+        attempt(async () => {
+            setBusy(what);
+
+            try {
+                await run();
+            } finally {
+                setBusy(null);
+            }
+        });
+
+    useEffect(() => {
+        api(path, {}).then(setCrd, (error) => setCrd({ problem: error.message }));
+    }, [path, machine.tools?.crd]);
+
+    const connect = (values) =>
+        call("connect", async () => {
+            setCrd(await api(path, { connect: values }));
+            setConnecting(false);
+            notify("info", t("{machine}: Chrome Remote Desktop is connected. Unlock it from the Chrome Remote Desktop app on your phone, with your PIN.", { machine: machine.name }));
+        });
+    const remove = () =>
+        confirm(
+            t(
+                "Remove Chrome Remote Desktop from {name}?\n\nThe host stops, msiexec removes it, and its connection to your Google account is deleted from the machine. The machine stays in your list at remotedesktop.google.com/access, offline, until you delete it there.",
+                { name: machine.name },
+            ),
+        ) &&
+        call("remove", async () => {
+            setCrd(await api(path, { remove: true }));
+            onChanged();
+        });
+
+    return html`<div class="machine-crd">
+        <div class="small">
+            <strong>${t("Chrome Remote Desktop")}</strong>
+            <span class="muted"> · ${crd === null ? t("looking…") : crd.problem ? t("unknown: {problem}", { problem: crd.problem }) : crdWordText(crd.word)}${crd?.state?.version ? ` · ${crd.state.version}` : ""}</span>
+        </div>
+        ${crd?.word === "not installed" && html`<div class="muted small">${t("To unlock and see this computer from your phone, tick it under Install tools.")}</div>`}
+        ${
+            crd?.word === "installed, not connected" &&
+            (connecting
+                ? html`<div class="machine-step">
+                      <div class="label">${t("Connect to your Google account")}</div>
+                      <${CrdConnectForm} machineName=${machine.name} busy=${busy === "connect"} onCancel=${() => setConnecting(false)} onSubmit=${connect} />
+                  </div>`
+                : html`<div class="sheet-actions">
+                      <button class="button small ghost" disabled=${busy !== null} onClick=${remove}>${busy === "remove" ? t("Removing…") : t("Remove Chrome Remote Desktop")}</button>
+                      <button class="button small primary" disabled=${busy !== null} onClick=${() => setConnecting(true)}>${t("Connect to your Google account")}</button>
+                  </div>`)
+        }
+        ${
+            crd?.word === "connected" &&
+            html`<div class="muted small">${t("Unlock and see it from the Chrome Remote Desktop app on your phone, with your PIN.")}</div>
+                <div class="sheet-actions">
+                    <button class="button small ghost" disabled=${busy !== null} onClick=${remove}>${busy === "remove" ? t("Removing…") : t("Remove Chrome Remote Desktop")}</button>
+                </div>`
+        }
     </div>`;
 }
 
@@ -468,6 +554,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 machine.tools &&
                 html`<div class="muted small">${t("Tools: {list}", { list: Object.entries(machine.tools).map(([tool, version]) => `${tool} ${version}`).join(", ") })}</div>`
             }
+            ${state === "connected" && !team && machine.remote.platform === "windows" && machine.remote.arch === "x64" && html`<${CrdRow} machine=${machine} onChanged=${onChanged} />`}
             ${state === "connected" && toolsOpen && html`<${MachineToolsPanel} machine=${machine} onClose=${() => { setToolsOpen(false); onChanged(); }} />`}
             ${
                 // PP-230: off by default, as bash on the phone runs without asking; Pi's tool is the setting machines.askRun.
@@ -549,7 +636,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                                         }}
                                     />
                                     <span>
-                                        <strong>${tool.name}</strong> ${tool.version} <span class="muted small">· ${tool.size}${tool.onlyIfMissing ? ` · ${t("only if the machine has none")}` : ""}${tool.desktop ? ` · ${t("needs a desktop session on Linux")}` : ""}</span>
+                                        <strong>${tool.name}</strong> ${toolVersion(tool)} <span class="muted small">· ${tool.size}${tool.onlyIfMissing ? ` · ${t("only if the machine has none")}` : ""}${tool.desktop ? ` · ${t("needs a desktop session on Linux")}` : ""}${tool.windowsOnly ? ` · ${t("for Windows only, for now")}` : ""}</span>
                                         <div class="muted small">${tool.description}</div>
                                     </span>
                                 </label>`,

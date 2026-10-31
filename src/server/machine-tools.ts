@@ -13,6 +13,10 @@
  * A tool may be more than one program (ffmpeg and ffprobe), need others installed first (HyperFrames: Chrome and
  * ffmpeg), or be an npm app run by a Node of its own (HyperFrames: Node's release, then the app's pinned lockfile from
  * the phone's `third_party/`, installed with `npm ci --ignore-scripts`).
+ *
+ * One tool is not a program pi-phone pins: Chrome Remote Desktop (PP-263, `crd.ts`), Google's signed host installer for
+ * Windows from a rolling address, so it is checked by its Authenticode signature (Google LLC) instead of a sha256, and
+ * installed with msiexec; it is not on bash's PATH.
  */
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { execFileSync } from "node:child_process";
@@ -20,6 +24,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { APP_ROOT } from "./config.ts";
+import { ChromeRemoteDesktop, CRD_SIGNER, type CrdRun, type CrdState, type CrdWord, crdWord } from "./crd.ts";
 import { HttpError } from "./errors.ts";
 import type { Machine } from "./machines.ts";
 import type { Places } from "./places.ts";
@@ -75,6 +80,15 @@ export type ToolSpec = {
      * --ignore-scripts`; `bin` is its script there.
      */
     npm?: { dir: string; bin: string };
+    /**
+     * Installed by its own code, not by `installScript`: Chrome Remote Desktop (`crd.ts`), whose `assets` are empty, as
+     * its download is checked by `signer` (its Authenticode signature) rather than a pinned sha256 (a rolling address).
+     */
+    installer?: "crd";
+    /** The download's Authenticode signer, checked instead of a sha256 (`installer`). */
+    signer?: string;
+    /** Offered on Windows only, for now. */
+    windowsOnly?: boolean;
     assets: Partial<Record<Target, Asset>>;
 };
 
@@ -149,6 +163,26 @@ export const OCU_TOOL: ToolSpec = {
         "linux-arm64": { url: `${OCU}/open-computer-use-linux-arm64`, sha256: "4bd5f231a1416445db2eaf383c641fe773d65b46e0fa7b86b838e1a7723b6d5c" },
         "windows-x64": { url: `${OCU}/open-computer-use-windows-x64.exe`, sha256: "abfda45584dbde65b5b4dfce115f3bde619ebdd17dc2ecb3dee98b100f57e960" },
     },
+};
+
+/**
+ * Chrome Remote Desktop (PP-263): Google's host, so the owner unlocks and sees a Windows machine from their phone (the
+ * lock screen is out of computer use's reach). The machine downloads Google's MSI itself (never passed on by pi-phone)
+ * from its rolling address, so it is checked by its Authenticode signature (Google LLC), not a sha256: the exception to
+ * the rule above. `crd.ts` installs, connects, reads and removes it. Windows x64 only for now; Linux and macOS later.
+ */
+export const CRD_TOOL: ToolSpec = {
+    id: "crd",
+    name: "Chrome Remote Desktop",
+    command: "remoting_start_host",
+    version: "Google's current",
+    description: "Chrome Remote Desktop: unlock and see this computer from your phone. Google's host, its signature checked; you connect it to your Google account on a card.",
+    size: "about 25 MB",
+    optIn: true,
+    installer: "crd",
+    signer: CRD_SIGNER,
+    windowsOnly: true,
+    assets: {},
 };
 
 /**
@@ -323,6 +357,7 @@ export const TOOLS: readonly ToolSpec[] = [
     // After Chrome and ffmpeg, which it needs.
     FFMPEG_TOOL,
     HYPERFRAMES_TOOL,
+    CRD_TOOL,
 ];
 
 /** One tool on one machine, as the list shows it. */
@@ -336,6 +371,12 @@ export type ToolStatus = {
     desktop: boolean;
     /** Not ticked until the owner ticks it (`ToolSpec.optIn`). */
     optIn: boolean;
+    /** Checked by this Authenticode signer instead of a sha256 (Chrome Remote Desktop). */
+    signer?: string;
+    /** Windows only, for now. */
+    windowsOnly?: boolean;
+    /** Chrome Remote Desktop: how it stands there (on a Windows machine). */
+    crd?: CrdWord;
     /** The machine has no build of it: not offered. */
     supported: boolean;
     /** Installed by pi-phone, and which version. */
@@ -349,7 +390,7 @@ export type ToolStatus = {
 export type InstallResult = { id: string; ok: boolean; version?: string; said: string };
 
 /** A tool as the lists before connecting offer it (Settings › Machines, the machine_add card): ticked, unless `optIn`. */
-export type ToolOffer = { id: string; name: string; version: string; description: string; size: string; onlyIfMissing: boolean; desktop: boolean; optIn: boolean };
+export type ToolOffer = { id: string; name: string; version: string; description: string; size: string; onlyIfMissing: boolean; desktop: boolean; optIn: boolean; windowsOnly: boolean; signer?: string };
 
 export const toolOffer = (tool: ToolSpec): ToolOffer => ({
     id: tool.id,
@@ -360,6 +401,8 @@ export const toolOffer = (tool: ToolSpec): ToolOffer => ({
     onlyIfMissing: tool.onlyIfMissing === true,
     desktop: tool.desktop === true,
     optIn: tool.optIn === true,
+    windowsOnly: tool.windowsOnly === true,
+    ...(tool.signer === undefined ? {} : { signer: tool.signer }),
 });
 
 /**
@@ -391,11 +434,14 @@ function targetOf(machine: Machine): Target | undefined {
     return `${remote.platform}-${remote.arch}` as Target;
 }
 
-/** Status of each tool, from one script: the marker of pi-phone's wrapper, else the machine's own command. */
+/**
+ * Status of each tool, from one script: the marker of pi-phone's wrapper, else the machine's own command. Tools with an
+ * installer of their own (Chrome Remote Desktop) are read by theirs.
+ */
 export function statusScript(catalog: readonly ToolSpec[]): string {
     return [
         `T="$HOME/${TOOLS_DIR}"`,
-        ...catalog.map(
+        ...catalog.filter((tool) => tool.installer === undefined).map(
             (tool) =>
                 `if [ -f "$T/bin/${tool.command}" ]; then echo "${tool.id} installed $(sed -n 's/^# pi-phone-tool [^ ]* //p' "$T/bin/${tool.command}" | head -n 1)"; ` +
                 `else own=$(PATH=$(printf %s "$PATH" | tr ':' '\\n' | grep -v "/${TOOLS_BIN}$" | paste -sd: -); for c in ${[tool.command, ...(tool.alsoOwn ?? [])].join(" ")}; do command -v $c 2>/dev/null && break; done | head -n 1); ` +
@@ -568,6 +614,8 @@ export class MachineTools {
     readonly #record: (id: string, tools: Record<string, string>) => void;
     /** The tools offered: `TOOLS`; tests stand in their own. */
     readonly catalog: readonly ToolSpec[];
+    /** Chrome Remote Desktop on the machines (`crd.ts`): installed from here, connected and removed by the app. */
+    readonly crd: ChromeRemoteDesktop;
 
     constructor(
         places: Places,
@@ -575,11 +623,14 @@ export class MachineTools {
         /** Keep what is installed on the machine (`Machine.tools`), for the prompt of sessions there. */
         record: (id: string, tools: Record<string, string>) => void,
         catalog: readonly ToolSpec[] = TOOLS,
+        /** How Chrome Remote Desktop's scripts run on a machine: through its pi-env daemon, unless a test stands in. */
+        crdRun?: CrdRun,
     ) {
         this.#places = places;
         this.#machine = machine;
         this.#record = record;
         this.catalog = catalog;
+        this.crd = new ChromeRemoteDesktop((id) => this.#connected(id), crdRun ?? ((found, script, timeout, env) => this.#run(found, script, timeout, env)));
     }
 
     /** The machine's connected record, or why not. */
@@ -593,13 +644,14 @@ export class MachineTools {
         return machine as Machine & { remote: NonNullable<Machine["remote"]> };
     }
 
-    async #run(machine: Machine & { remote: NonNullable<Machine["remote"]> }, script: string, timeout = 120): Promise<{ code: number; out: string }> {
+    /** A script run on the machine; `variables` are set for it alone (pi-env sends them in its protocol, on no command line). */
+    async #run(machine: Machine & { remote: NonNullable<Machine["remote"]> }, script: string, timeout = 120, variables?: Record<string, string>): Promise<{ code: number; out: string }> {
         const env = this.#places.env(`machine:${machine.id}:${machine.remote.home}`);
         let out = "";
         // On Windows the daemon runs a command line with Git Bash; `sh` may not be on Windows' own PATH.
         const result = await env.exec(
             machine.remote.platform === "windows" ? script : ["sh", "-c", script],
-            { cwd: machine.remote.home, timeout, onOutput: (chunk) => (out += chunk) },
+            { cwd: machine.remote.home, timeout, onOutput: (chunk) => (out += chunk), ...(variables === undefined ? {} : { env: variables }) },
             BACKGROUND_CONTEXT,
         );
 
@@ -615,6 +667,8 @@ export class MachineTools {
         const machine = this.#connected(id);
         const target = targetOf(machine);
         const { out } = await this.#run(machine, statusScript(this.catalog), 60);
+        // Chrome Remote Desktop, on the machines it is for: read by its own script (Windows PowerShell).
+        const crd = this.catalog.some((tool) => tool.installer === "crd") && ChromeRemoteDesktop.supports(machine) ? await this.crd.status(id) : undefined;
         const lines = new Map(
             out
                 .split("\n")
@@ -624,6 +678,23 @@ export class MachineTools {
         );
         const installed: Record<string, string> = {};
         const statuses = this.catalog.map((tool): ToolStatus => {
+            if (tool.installer === "crd") {
+                const version = crd?.installed === true ? (crd.version ?? "unknown") : undefined;
+
+                if (version !== undefined) {
+                    installed[tool.id] = version;
+                }
+
+                return {
+                    ...toolOffer(tool),
+                    supported: crd !== undefined,
+                    ...(version === undefined ? {} : { installed: version }),
+                    ...(crd === undefined ? {} : { crd: crdWord(crd) }),
+                    // Google's current build at its address: installed at any version counts as installed.
+                    offered: crd !== undefined && !crd.installed,
+                };
+            }
+
             const seen = lines.get(tool.id);
             const supported = target !== undefined && tool.assets[target] !== undefined;
             const version = seen?.state === "installed" ? seen.rest.split(" ")[0] || "unknown" : undefined;
@@ -641,6 +712,7 @@ export class MachineTools {
                 size: tool.size,
                 desktop: tool.desktop === true,
                 optIn: tool.optIn === true,
+                windowsOnly: tool.windowsOnly === true,
                 supported,
                 ...(version === undefined ? {} : { installed: version }),
                 ...(own === undefined ? {} : { own }),
@@ -680,6 +752,18 @@ export class MachineTools {
                 continue;
             }
 
+            if (tool.installer === "crd") {
+                if (!ChromeRemoteDesktop.supports(machine)) {
+                    results.push({ id: tool.id, ok: false, said: `${tool.name} is for your own Windows x64 machines for now; ${machine.name} is ${machine.remote.platform} ${machine.remote.arch}.` });
+                    continue;
+                }
+
+                const done = await this.crd.install(machine.id);
+
+                results.push({ id: tool.id, ok: done.ok, ...(done.ok ? { version: done.state?.version ?? "unknown" } : {}), said: done.said });
+                continue;
+            }
+
             const asset = target === undefined ? undefined : tool.assets[target];
 
             if (asset === undefined) {
@@ -711,6 +795,34 @@ export class MachineTools {
         }
 
         return { results, tools: await this.status(id) };
+    }
+
+    /**
+     * Chrome Remote Desktop alone, installed (Pi's card) or removed (the card, or the row): its result, and the machine's
+     * record of tools kept up to date without reading the other tools again.
+     */
+    async installCrd(id: string): Promise<InstallResult> {
+        const done = await this.crd.install(id);
+
+        if (done.state !== undefined) {
+            this.#keepCrd(id, done.state.installed ? (done.state.version ?? "unknown") : undefined);
+        }
+
+        return { id: CRD_TOOL.id, ok: done.ok, ...(done.ok ? { version: done.state?.version ?? "unknown" } : {}), said: done.said };
+    }
+
+    async removeCrd(id: string): Promise<CrdState> {
+        const state = await this.crd.remove(id);
+
+        this.#keepCrd(id, undefined);
+
+        return state;
+    }
+
+    #keepCrd(id: string, version: string | undefined): void {
+        const { [CRD_TOOL.id]: _old, ...others } = this.#machine(id).tools ?? {};
+
+        this.#record(id, version === undefined ? others : { ...others, [CRD_TOOL.id]: version });
     }
 
     /** An npm app's package.json and package-lock.json, from the phone's copy, in `<tool>/<version>/app/` there. */
@@ -801,6 +913,9 @@ export function installOrder(ids: readonly string[], statuses: readonly ToolStat
  * which, at which versions, and how to use those that need it (OfficeCLI never updates itself; how HyperFrames renders).
  */
 export function toolsNote(tools: Readonly<Record<string, string>>): string | undefined {
+    // Chrome Remote Desktop is Google's host, a service, not a command on the PATH.
+    const onPath = Object.entries(tools).filter(([tool]) => tool !== CRD_TOOL.id);
+
     if (Object.keys(tools).length === 0) {
         return undefined;
     }
@@ -808,9 +923,14 @@ export function toolsNote(tools: Readonly<Record<string, string>>): string | und
     const hyperframes = tools[HYPERFRAMES_TOOL.id];
 
     return [
-        `pi-phone installed these tools there, first on bash's PATH (~/${TOOLS_BIN}): ${Object.entries(tools)
-            .map(([tool, version]) => `${tool} ${version}`)
-            .join(", ")}.`,
+        ...(onPath.length === 0
+            ? []
+            : [
+                  `pi-phone installed these tools there, first on bash's PATH (~/${TOOLS_BIN}): ${onPath
+                      .map(([tool, version]) => `${tool} ${version}`)
+                      .join(", ")}.`,
+              ]),
+        ...(tools[CRD_TOOL.id] === undefined ? [] : ["Chrome Remote Desktop's host (Google's) is installed there: the owner can unlock and see it from their phone."]),
         ...(tools.officecli === undefined ? [] : ["officecli never installs or updates itself: never run its installers or officecli install."]),
         ...(hyperframes === undefined
             ? []

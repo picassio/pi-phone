@@ -4,6 +4,7 @@
  */
 import { createReadStream, readdirSync, rmSync, statSync } from "node:fs";
 import { TOOLS, toolOffer } from "../machine-tools.ts";
+import { crdWord } from "../crd.ts";
 import { pipeline } from "node:stream/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { homedir, networkInterfaces, tmpdir } from "node:os";
@@ -1381,6 +1382,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ok: true });
         }
 
+        // What the owner pasted and chose on Pi's Chrome Remote Desktop card (PP-263): to the machine, never to Pi.
+        if (first === "crd" && second === "asks" && parts.length > 2 && method === "POST") {
+            const body = await readJson<{ command?: unknown; pin?: unknown; confirm?: unknown }>(request);
+
+            if (!(await app.answerCrdConnect(parts.slice(2).join("/"), body, user))) {
+                throw new HttpError(404, "That request is no longer waiting");
+            }
+
+            return json(response, 200, { ok: true });
+        }
+
         if (first === "approvals" && second !== undefined && method === "POST") {
             const body = await readJson<{ allow?: boolean; tools?: unknown }>(request);
             // The machine_add card's ticked tools (PP-177): installed once the machine is connected.
@@ -1917,6 +1929,28 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
 
             // Tools pi-phone installs there (`machine-tools.ts`): what each is on the machine, and installing the ticked.
+            // Chrome Remote Desktop there (PP-263): how it stands, and the owner's Connect (Google's command and a PIN,
+            // to the machine alone) or Remove (their tap, after the sheet's confirmation, is their yes).
+            if (third === "crd") {
+                const body = await readJson<{ connect?: { command?: unknown; pin?: unknown; confirm?: unknown }; remove?: unknown }>(request);
+                const crd = app.machineTools.crd;
+                const failing = async <T>(run: () => Promise<T>): Promise<T> => {
+                    try {
+                        return await run();
+                    } catch (error) {
+                        throw error instanceof HttpError ? error : new HttpError(409, error instanceof Error ? error.message : String(error));
+                    }
+                };
+
+                if (body.connect !== undefined) {
+                    await app.crdConnect(second, typeof body.connect === "object" && body.connect !== null ? body.connect : {});
+                }
+
+                const state = await failing(() => (body.remove === true ? app.machineTools.removeCrd(second) : crd.status(second)));
+
+                return json(response, 200, { state, word: crdWord(state) });
+            }
+
             if (third === "tools") {
                 const body = await readJson<{ install?: unknown }>(request);
 

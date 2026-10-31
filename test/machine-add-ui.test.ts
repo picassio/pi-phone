@@ -160,7 +160,8 @@ test("the machine_add card shows the machine, fits a phone, and Approve adds it 
     assert.match(card, /HyperFrames \d+\.\d+\.\d+ · about 320 MB; with Chrome and ffmpeg about 920 MB/);
     assert.deepEqual(
         await inPage<boolean[]>(`return JSON.stringify([...document.querySelectorAll(".machine-add-card .machine-tool input")].map((each) => each.checked))`),
-        [true, true, true, true, true, false, false],
+        // ffmpeg, HyperFrames and Chrome Remote Desktop (PP-263) are not ticked.
+        [true, true, true, true, true, false, false, false],
     );
     const fits = await inPage<{ card: number; column: number; page: number; screen: number }>(`
         const card = document.querySelector(".machine-add-card").getBoundingClientRect();

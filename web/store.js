@@ -1385,6 +1385,8 @@ export const actions = {
     answerBrowserAsk: (id, body) => api(`browser/asks/${id.split("/").map(encodeURIComponent).join("/")}`, body),
     /** What the owner typed on a computer_sign_in card (or chose to use a kept sign-in): into the window, never to Pi. */
     answerComputerSignIn: (id, body) => api(`computer/asks/${id.split("/").map(encodeURIComponent).join("/")}`, body),
+    /** Google's command and the PIN on Pi's Chrome Remote Desktop card (PP-263): to the machine through the server, never to Pi. */
+    answerCrdConnect: (id, body) => api(`crd/asks/${id.split("/").map(encodeURIComponent).join("/")}`, body),
     /** What was typed on an extension's question (`host.ask`): to the extension that asked alone. */
     answerAsk: (id, values) => api(`asks/${id.split("/").map(encodeURIComponent).join("/")}`, { values }),
     /** A value typed into `secret_request`'s card: to Settings › Secrets. An approval id may hold a slash. */

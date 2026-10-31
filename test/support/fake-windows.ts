@@ -16,6 +16,8 @@ export type FakeWindows = {
     /** The token the connect script says, and the bridge's own (a wrong one: they differ). */
     token: string;
     bridgeToken: string;
+    /** How Chrome Remote Desktop stands there (PP-263), as the status script says it with the task's state. */
+    crd: "not installed" | "installed, not connected" | "connected";
     /** Every script run on the machine, and the files written there (by path under its home). */
     scripts: { kind: string; script: string }[];
     files: Map<string, string>;
@@ -38,6 +40,7 @@ export async function fakeWindows(options: { ocuLog: string; sign?: string }): P
         state: { task: true, loggedOn: true, locked: false, running: false },
         token: "a".repeat(64),
         bridgeToken: "a".repeat(64),
+        crd: "not installed",
         scripts: [],
         files: new Map(),
         hellos: [],
@@ -92,7 +95,7 @@ export async function fakeWindows(options: { ocuLog: string; sign?: string }): P
 
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const port = () => (server.address() as { port: number }).port;
-    const stateLine = () => `state ${JSON.stringify(fake.state)}\n`;
+    const stateLine = () => `state ${JSON.stringify({ ...fake.state, crd: fake.crd })}\n`;
 
     return {
         ...fake,
@@ -113,6 +116,12 @@ export async function fakeWindows(options: { ocuLog: string; sign?: string }): P
         },
         set bridgeToken(value) {
             fake.bridgeToken = value;
+        },
+        get crd() {
+            return fake.crd;
+        },
+        set crd(value) {
+            fake.crd = value;
         },
         port,
         launch: () => {

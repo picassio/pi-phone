@@ -689,5 +689,8 @@
     "A window is asked for with opener, tab and gesture.": "Yêu cầu mở cửa sổ cần có opener, tab và gesture.",
     "Only the owner signs in on their computer.": "Chỉ chủ sở hữu đăng nhập trên máy tính của họ.",
     "No sign-in for this window is kept in Secrets.": "Không có thông tin đăng nhập nào của cửa sổ này được lưu trong Bí mật.",
-    "This asks you to sign in: type it on the card.": "Yêu cầu này cần bạn đăng nhập: hãy gõ trên thẻ."
+    "This asks you to sign in: type it on the card.": "Yêu cầu này cần bạn đăng nhập: hãy gõ trên thẻ.",
+    "Only the owner connects Chrome Remote Desktop: it is their Google account.": "Chỉ chủ sở hữu kết nối Chrome Remote Desktop: đó là tài khoản Google của họ.",
+    "Chrome Remote Desktop could not be connected.": "Không kết nối được Chrome Remote Desktop.",
+    "This connects Chrome Remote Desktop: paste Google's command and choose a PIN on the card.": "Yêu cầu này kết nối Chrome Remote Desktop: hãy dán lệnh của Google và chọn PIN trên thẻ."
 }

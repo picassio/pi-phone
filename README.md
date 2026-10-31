@@ -306,6 +306,20 @@ No Termux, no laptop, no cloud VM.
   **Set up** and **Remove** are in Menu › Computer control; Pi asks with `computer_control setup` (`task: install` or
   `remove`) on a card that shows what is made. A machine shows as ready, not set up, or not logged on (nobody signed in:
   sign in on the computer first); with its screen locked, ocu reads windows but clicks and keys do not reach them.
+- **Chrome Remote Desktop: unlock and see a Windows machine from your phone** (Windows x64 for now; Linux and macOS
+  later). Pi's computer use cannot pass the Windows lock screen; Google's Chrome Remote Desktop host, a service, can.
+  Tick it under Settings › Machines › Install tools (or on the `machine_add` card; it is not ticked by default): the
+  machine downloads Google's installer itself (pi-phone does not pass it on), checks it is signed by Google (its address
+  always gives the newest build, so the signature is the check instead of a pinned sha256), and installs it silently
+  with msiexec (pi-phone's account there must be an administrator), its log in `~/.pi/mobile/crd`. The machine's row then
+  shows it as not installed, installed but not connected, or connected. **Connect to your Google account**: open
+  remotedesktop.google.com/headless on your phone (a link with **Copy link**), tap Begin, Next, Authorize, paste the
+  "Windows (PowerShell)" command into the card's hidden field and choose a PIN of 6+ digits twice. Only the code and the
+  redirect (on remotedesktop.google.com alone) are taken from it; they and the PIN go to the machine, are not kept or
+  logged, and Pi never sees them. An expired code says to get a new one. Then unlock the machine from the Chrome Remote
+  Desktop app with your PIN. **Remove** stops and uninstalls it. Pi asks with `computer_control setup` (`crd: install`,
+  `connect` or `remove`), each on a card; when Pi finds a Windows screen locked, it asks you to unlock it this way, or
+  offers to set it up.
 - **Menu › Computer control**: each machine and where it stands, a line run before ocu starts for a Linux machine whose
   desktop needs its environment set (with **Check**, what ocu reads there), Windows' **Set up** and **Remove**, the Never
   list, and how cards work. The owner's alone; not on the team server.

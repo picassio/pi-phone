@@ -46,7 +46,8 @@ test("ffmpeg 9.0.2: BtbN's GPL builds for Linux and Windows, Martin Riedl's for 
     assert.equal(toolOffer(HYPERFRAMES_TOOL).optIn, true);
     assert.deepEqual(
         TOOLS.filter((tool) => toolOffer(tool).optIn).map((tool) => tool.id),
-        ["ffmpeg", "hyperframes"],
+        // Chrome Remote Desktop (PP-263) is not ticked either: it connects a machine to a Google account.
+        ["ffmpeg", "hyperframes", "crd"],
         "the others stay ticked",
     );
 });

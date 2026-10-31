@@ -18426,6 +18426,72 @@ pre.gallery-code {
     gap: 8px;
 }
 
+/*
+ * Connecting Chrome Remote Desktop (web/crd-connect.js, PP-263): Google's steps with the page's link and Copy link, the
+ * command's hidden field, and the PIN twice side by side; nothing wider than the card or the row.
+ */
+.crd-connect {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.crd-steps {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.crd-steps li {
+    margin: 0.3rem 0;
+    overflow-wrap: anywhere;
+}
+
+.crd-link {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin-top: 4px;
+    min-width: 0;
+}
+
+.crd-link a {
+    min-width: 0;
+}
+
+.crd-link .button {
+    flex: none;
+}
+
+.crd-connect input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.crd-pins {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.crd-connect > p {
+    margin: 0;
+}
+
+/* Chrome Remote Desktop on a Windows machine's row (sheets/machines.js): its state, Connect or Remove. */
+.machine-crd {
+    margin-top: 6px;
+    min-width: 0;
+}
+
+.machine-crd .sheet-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin-top: 6px;
+}
+
 /* Pi's browser sheet: a Jev model's id, Test and Save, under the run model's choice. */
 .setting-row.pb-jev .field {
     flex: 1;

@@ -21,6 +21,7 @@
 import { EventEmitter } from "node:events";
 import { connect, type Socket } from "node:net";
 import { PassThrough, type Writable } from "node:stream";
+import { CRD_LOOK, CRD_WORD_PS, type CrdWord } from "./crd.ts";
 import type { OcuProcess } from "./ocu-client.ts";
 
 /** The task's name, in the Task Scheduler's root folder. */
@@ -39,6 +40,8 @@ export type WindowsState = {
     locked: boolean;
     /** The bridge runs (its pid from bridge.json, a powershell in a desktop session). */
     running: boolean;
+    /** Chrome Remote Desktop there (PP-263): what the owner unlocks a locked screen with from their phone. */
+    crd: CrdWord;
 };
 
 /** The state's word: ready, not set up, or not logged on. */
@@ -47,7 +50,7 @@ export function windowsStateWord(state: WindowsState): "ready" | "not set up" | 
 }
 
 /** How a Windows machine stands, in a line for Pi and Menu › Computer control. */
-export function describeWindowsState(name: string, state: WindowsState): string {
+export function describeWindowsState(name: string, state: WindowsState | (Omit<WindowsState, "crd" | "locked"> & { locked: false })): string {
     if (!state.task) {
         return `not set up: pi-phone's task "${WINDOWS_TASK}" is not on ${name} (computer_control setup with task: "install" asks the owner on a card, or the owner taps Set up in Menu › Computer control)`;
     }
@@ -56,7 +59,23 @@ export function describeWindowsState(name: string, state: WindowsState): string 
         return `not logged on: nobody is signed in to ${name}'s desktop, so pi-phone's task (and ocu with it) cannot run there; the owner signs in on the computer first`;
     }
 
-    return `ready${state.running ? "" : " (the task starts when a session does)"}${state.locked ? `; its screen is locked: ocu reads windows, but clicks and keys do not reach them until the owner unlocks it` : ""}`;
+    return `ready${state.running ? "" : " (the task starts when a session does)"}${state.locked ? `; ${lockedNote(name, state.crd)}` : ""}`;
+}
+
+/**
+ * What Pi is told when the screen is locked (PP-263): ocu cannot pass the lock screen; Chrome Remote Desktop's host, a
+ * service, can, from the owner's phone.
+ */
+export function lockedNote(name: string, crd: CrdWord): string {
+    const locked = "its screen is locked: ocu reads windows, but clicks and keys do not reach them until the owner unlocks it";
+
+    if (crd === "connected") {
+        return `${locked}. Ask the owner to unlock it with Chrome Remote Desktop from their phone (it is connected on ${name}: the Chrome Remote Desktop app or remotedesktop.google.com/access, with their PIN)`;
+    }
+
+    return `${locked}. Offer to set up Chrome Remote Desktop, so the owner can unlock it from their phone: ${
+        crd === "not installed" ? 'computer_control setup with crd: "install", then crd: "connect"' : 'it is installed but not connected: computer_control setup with crd: "connect"'
+    }, each on a card`;
 }
 
 /**
@@ -306,6 +325,7 @@ const LOOK = [
     "$desks = @(Get-CimInstance Win32_Process -Filter \"Name='explorer.exe'\" | Where-Object { $_.SessionId -gt 0 -and (Invoke-CimMethod -InputObject $_ -MethodName GetOwner).User -eq $env:USERNAME })",
     "$sessions = @($desks | ForEach-Object { $_.SessionId })",
     "$locked = $sessions.Count -gt 0 -and @(Get-Process LogonUI -ErrorAction SilentlyContinue | Where-Object { $sessions -contains $_.SessionId }).Count -gt 0",
+    ...CRD_LOOK,
     "function Alive {",
     "  if (-not (Test-Path -LiteralPath $stateFile)) { return $null }",
     "  $s = Get-Content -Raw -LiteralPath $stateFile | ConvertFrom-Json",
@@ -329,7 +349,7 @@ const shellFor = (kind: string, script: string, before: string[] = []) =>
         `exec powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encodePowerShell(script)}`,
     ].join("\n");
 
-const stateLine = "Write-Output ('state ' + (ConvertTo-Json @{ task = [bool]$task; loggedOn = $sessions.Count -gt 0; locked = [bool]$locked; running = [bool](Alive) } -Compress))";
+const stateLine = "Write-Output ('state ' + (ConvertTo-Json @{ task = [bool]$task; loggedOn = $sessions.Count -gt 0; locked = [bool]$locked; running = [bool](Alive); crd = " + CRD_WORD_PS + " } -Compress))";
 
 /** The script that says how the machine stands: its last line is `state {json}` (`parseWindowsState`). */
 export function statusScript(): string {
@@ -344,8 +364,13 @@ export function parseWindowsState(out: string): WindowsState {
     }
 
     const state = JSON.parse(line) as Partial<WindowsState>;
+    const crd = state.crd;
 
-    return { task: state.task === true, loggedOn: state.loggedOn === true, locked: state.locked === true, running: state.running === true };
+    if (crd !== "not installed" && crd !== "installed, not connected" && crd !== "connected") {
+        throw new Error(`the machine did not say how Chrome Remote Desktop stands: ${line}`);
+    }
+
+    return { task: state.task === true, loggedOn: state.loggedOn === true, locked: state.locked === true, running: state.running === true, crd };
 }
 
 /** How the connect script ends when the bridge cannot be reached. */

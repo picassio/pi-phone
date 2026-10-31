@@ -27,6 +27,7 @@ import {
     TRANSCRIPT_ROWS,
 } from "./store.js";
 import { setBrowserOpen } from "./browser-panel.js";
+import { CrdConnectForm } from "./crd-connect.js";
 import { BrowserRunCard } from "./browser-run-card.js";
 import { ScreenCard } from "./guide.js";
 import { openSubagent, stateOf } from "./subagents.js";
@@ -1650,7 +1651,7 @@ function MachineAddCard({ approval }) {
                             }}
                         />
                         <span>
-                            <strong>${tool.name}</strong> ${tool.version} <span class="muted small">· ${tool.size}${tool.onlyIfMissing ? ` · ${t("only if the machine has none")}` : ""}${tool.desktop ? ` · ${t("needs a desktop session on Linux")}` : ""}</span>
+                            <strong>${tool.name}</strong> ${tool.signer ? t("signed by {signer}", { signer: tool.signer.replace(/^CN=/, "") }) : tool.version} <span class="muted small">· ${tool.size}${tool.onlyIfMissing ? ` · ${t("only if the machine has none")}` : ""}${tool.desktop ? ` · ${t("needs a desktop session on Linux")}` : ""}${tool.windowsOnly ? ` · ${t("for Windows only, for now")}` : ""}</span>
                             <div class="muted small">${tool.description}</div>
                         </span>
                     </label>`,
@@ -1850,6 +1851,50 @@ function ComputerSignInCard({ approval }) {
     </div>`;
 }
 
+/**
+ * Pi asks the owner to connect Chrome Remote Desktop on a Windows machine to their Google account (`computer_control
+ * setup` with crd: connect, PP-263): Google's steps, the command and a PIN, sent to the server alone, which answers the
+ * card once the machine is connected (a failure, such as an expired code, keeps it open with why). The owner's to answer;
+ * anyone who can steer may say not now.
+ */
+function CrdConnectCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [busy, setBusy] = useState(false);
+    const run = (work) => {
+        setBusy(true);
+        attempt(work).finally(() => setBusy(false));
+    };
+
+    return html`<div class="approval crd-connect-card" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="monitor" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${t("Connect Chrome Remote Desktop on {machine} to your Google account", { machine: form.machineName })}</span>
+                ${approval.reason && html`<span class="approval-reason"><${Linked} text=${approval.reason} /></span>`}
+            </div>
+        </div>
+        ${
+            me?.role === "owner"
+                ? html`<${CrdConnectForm}
+                      machineName=${form.machineName}
+                      busy=${busy}
+                      actionsClass="approval-actions"
+                      cancelLabel=${t("Not now")}
+                      onCancel=${() => run(() => actions.approve(approval.id, false))}
+                      onSubmit=${(values) => run(() => actions.answerCrdConnect(approval.id, values))}
+                  />`
+                : html`<div class="muted small">${t("Connecting Chrome Remote Desktop is the owner's: waiting for them.")}</div>
+                      ${
+                          canSteer() &&
+                          html`<div class="approval-actions">
+                              <button class="button deny" disabled=${busy} onClick=${() => run(() => actions.approve(approval.id, false))}>${t("Not now")}</button>
+                          </div>`
+                      }`
+        }
+    </div>`;
+}
+
 /** While Pi uses a phone for this session (PP-141): which apps, the minutes left, and Stop. The owner's tabs only. */
 function PhoneControlLine({ conversationId }) {
     const [, tick] = useState(0);
@@ -2029,6 +2074,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "computer-sign-in") {
         return html`<${ComputerSignInCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "crd-connect") {
+        return html`<${CrdConnectCard} approval=${approval} />`;
     }
 
     if (approval.form?.type === "machine") {

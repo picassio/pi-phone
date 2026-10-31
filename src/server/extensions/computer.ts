@@ -11,12 +11,17 @@
  * - `computer_screenshot`: a picture of the window, with marks; what the owner typed on a sign-in card blacked out.
  * - `computer_sign_in`: the owner types a username, a password or a one-time code on a card (PP-183), each straight into
  *   the element Pi named through ocu; Pi never sees them, and reads `[password for <app>]` and the like in their place.
+ * - `computer_control setup` with crd (PP-263): Chrome Remote Desktop on a Windows machine, so the owner unlocks its locked
+ *   screen from their phone (ocu cannot pass the lock screen): install, connect, remove, each on a card. Connect's card
+ *   takes Google's command and a PIN, which go to the machine through the server (`answerCrdConnect`), never to Pi.
  * The owner's alone; never on the team server, never in plan mode.
  */
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { ComputerApp, ComputerSession } from "../computer-control.ts";
 import { MINUTES } from "../computer-control.ts";
+import { lockedNote } from "../computer-windows.ts";
+import { ChromeRemoteDesktop, CRD_HEADLESS, crdConnected, crdWord, installPlan, removePlan } from "../crd.ts";
 import type { DesktopApp } from "../computer-outline.ts";
 import { fencedScreen } from "../fence.ts";
 import type { PocketHost } from "../host.ts";
@@ -99,6 +104,88 @@ export default function createComputer(host: PocketHost) {
             .map((each) => `${each.window || each.name} (${each.name})`)
             .join(", ") || "none with a window";
 
+    /** How Chrome Remote Desktop stands on a Windows machine, in words, or why that is unknown. */
+    const crdLine = (id: string) => host.machineTools.crd.status(id).then(crdWord, (error: unknown) => `unknown (${message(error)})`);
+
+    /**
+     * `computer_control setup` with crd (PP-263): the owner's card first, each time. Install and remove show what changes
+     * (`installPlan`, `removePlan`); connect's card takes Google's command and a PIN, sent by the owner straight to the
+     * server (`answerCrdConnect`), which answers the card only once the machine is connected: Pi learns the outcome, never
+     * the values.
+     */
+    const crdSetup = async (wanted: string, what: "install" | "connect" | "remove", reason: string, api: { conversationId: unknown; callId?: string; taskId: unknown }, context: unknown) => {
+        const name = wanted.trim().toLowerCase();
+        const machine = host.machineStore.list().find((each) => each.id === wanted.trim()) ?? host.machineStore.list().find((each) => each.name.toLowerCase() === name);
+
+        if (machine === undefined) {
+            return reply(`There is no machine ${wanted}.`, true);
+        }
+
+        if (machine.remote === undefined) {
+            return reply(`${machine.name} is not connected: connect it in Settings › Machines.`, true);
+        }
+
+        if (!ChromeRemoteDesktop.supports(machine)) {
+            return reply(`Chrome Remote Desktop is for the owner's own Windows x64 machines for now (Linux and macOS come later); ${machine.name} is ${machine.remote.platform} ${machine.remote.arch}${machine.team === undefined ? "" : ", a team machine"}.`, true);
+        }
+
+        const crd = host.machineTools.crd;
+        const before = await crd.status(machine.id);
+
+        if (what === "install" && before.installed) {
+            return reply(`Chrome Remote Desktop ${before.version ?? ""} is installed on ${machine.name} already: ${crdWord(before)}.${crdConnected(before) ? "" : ' Connect it with crd: "connect".'}`);
+        }
+
+        if (what !== "install" && !before.installed) {
+            return reply(`Chrome Remote Desktop is not installed on ${machine.name}${what === "connect" ? ': install it first (crd: "install")' : ": nothing to remove"}.`, what === "connect");
+        }
+
+        if (what === "connect" && crdConnected(before)) {
+            return reply(`Chrome Remote Desktop on ${machine.name} is connected already: the owner unlocks it from the Chrome Remote Desktop app on their phone, with their PIN. To connect it to another account, remove it first.`);
+        }
+
+        const answer = await host.approvals.request(
+            {
+                id: `computer_setup-${String(api.conversationId)}-${String(api.callId)}`,
+                conversationId: Number(api.conversationId) as never,
+                taskId: api.taskId as never,
+                ...(api.callId === undefined ? {} : { callId: api.callId }),
+                tool: "computer_control",
+                subject:
+                    what === "install" ? installPlan(machine.name) : what === "remove" ? removePlan(machine.name) : `Connect Chrome Remote Desktop on ${machine.name} to your Google account`,
+                reason: reason || (what === "connect" ? "So you can unlock it from your phone" : what === "install" ? `Unlock and see ${machine.name} from your phone` : `Remove Chrome Remote Desktop from ${machine.name}`),
+                ...(what === "connect" ? { form: { type: "crd-connect" as const, machine: machine.id, machineName: machine.name } } : {}),
+                createdAt: Date.now(),
+            },
+            context as never,
+        );
+
+        if (!answer.allow) {
+            return reply(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} said ${what === "connect" ? "not now" : "no"}`}: nothing changed on ${machine.name}.`, true);
+        }
+
+        if (what === "install") {
+            const done = await host.machineTools.installCrd(machine.id);
+
+            return reply(`${done.said}${done.ok ? ' Next, crd: "connect" asks the owner to connect it to their Google account on a card.' : ""}`, !done.ok);
+        }
+
+        if (what === "remove") {
+            await host.machineTools.removeCrd(machine.id);
+
+            return reply(`Chrome Remote Desktop is removed from ${machine.name}, with its host config. It stays in the owner's list at https://remotedesktop.google.com/access, offline, until they delete it there.`);
+        }
+
+        const after = await crd.status(machine.id);
+
+        return reply(
+            crdConnected(after)
+                ? `Chrome Remote Desktop on ${machine.name} is connected to the owner's Google account. They unlock and see it from the Chrome Remote Desktop app on their phone (or ${CRD_HEADLESS.replace("/headless", "/access")}), with the PIN they chose; you never saw the code or the PIN.`
+                : `The owner answered the card, but Chrome Remote Desktop on ${machine.name} is ${crdWord(after)} now.`,
+            !crdConnected(after),
+        );
+    };
+
     const controlTool = defineTool({
         name: "computer_control",
         description:
@@ -107,6 +194,7 @@ export default function createComputer(host: PocketHost) {
             "Only those apps may be read or touched; another needs a new card, unless you ask with follow: true, which lets an app the named ones open while you act in them join (one step). pi-phone itself, banking and payment apps, password managers and the owner's Never list are refused either way. " +
             "status: each machine's state and its apps (with machine). setup: the shell line run on a machine before ocu starts, for its desktop (e.g. a virtual desktop's environment script), as the owner may set it in Menu › Computer control; a new line waits for the owner to approve it on a card. " +
             "On Windows, ocu runs in the owner's signed-in desktop through pi-phone's task (a per-user scheduled task and a bridge on 127.0.0.1): setup with task: install makes it, task: remove removes it, each after the owner approves a card that shows what changes. " +
+            "ocu cannot pass Windows' lock screen; Chrome Remote Desktop (Google's host, a service) can, from the owner's phone: setup with crd: install installs it, crd: connect shows the owner a card where they paste Google's code and choose a PIN (you never see either), crd: remove removes it, each on a card. " +
             "It ends at its time, on Stop (on the machine, in the panel or the menu), with stop, or shortly after your turn ends. Owner only.",
         parameters: Type.Object({
             action: Type.Union([Type.Literal("start"), Type.Literal("stop"), Type.Literal("status"), Type.Literal("setup")]),
@@ -117,6 +205,9 @@ export default function createComputer(host: PocketHost) {
             reason: Type.Optional(Type.String({ description: "start and setup: what you will do, in a sentence: shown on the card" })),
             prepare: Type.Optional(Type.String({ description: "setup: one shell line run before ocu starts (empty: none)" })),
             task: Type.Optional(Type.Union([Type.Literal("install"), Type.Literal("remove")], { description: "setup on Windows: make or remove pi-phone's task there" })),
+            crd: Type.Optional(
+                Type.Union([Type.Literal("install"), Type.Literal("connect"), Type.Literal("remove")], { description: "setup on Windows: install, connect (to the owner's Google account) or remove Chrome Remote Desktop there" }),
+            ),
         }),
         execute: async (args, api, context) => {
             const refused = refusedFor(api.conversationId);
@@ -136,9 +227,9 @@ export default function createComputer(host: PocketHost) {
                                 : each.platform !== "linux" && each.platform !== "windows"
                                   ? `${each.platform ?? "unknown system"}: not yet`
                                   : each.ocu === null
-                                    ? "ocu not installed (Settings › Machines › Install tools)"
+                                    ? `ocu not installed (Settings › Machines › Install tools)${each.platform === "windows" ? `; Chrome Remote Desktop: ${await crdLine(each.id)}` : ""}`
                                     : each.platform === "windows"
-                                      ? `Windows, ocu ${each.ocu}, ${await control.windowsState(each.id).then((found) => control.describeWindows(control.machine(each.id), found), (error: unknown) => `its state unknown: ${message(error)}`)}`
+                                      ? `Windows, ocu ${each.ocu}, ${await control.windowsState(each.id).then((found) => `${control.describeWindows(control.machine(each.id), found)}; Chrome Remote Desktop: ${found.crd}`, (error: unknown) => `its state unknown: ${message(error)}`)}`
                                       : `ocu ${each.ocu}${each.prepare === "" ? "" : `, desktop setup: ${each.prepare}`}`;
                             const session = each.session === null ? "" : `; session #${each.session.session} controls it until ${clockText(each.session.until)}`;
 
@@ -154,6 +245,14 @@ export default function createComputer(host: PocketHost) {
                     }
 
                     return reply(lines.join("\n") || "No machines: add one in Settings › Machines.");
+                }
+
+                if (args.action === "setup" && args.crd !== undefined) {
+                    if (args.machine === undefined) {
+                        return reply("setup with crd needs machine (a Windows machine).", true);
+                    }
+
+                    return await crdSetup(args.machine, args.crd, args.reason ?? "", api, context);
                 }
 
                 if (args.action === "setup" && args.task !== undefined) {
@@ -314,8 +413,11 @@ export default function createComputer(host: PocketHost) {
                     minutes,
                 });
 
+                // A locked Windows screen takes no clicks or keys (PP-263): Pi hears how the owner can unlock it.
+                const locked = found.platform === "windows" ? await control.windowsState(found.id) : undefined;
+
                 return reply(
-                    `Computer control is on for ${minutes} minutes (until ${clockText(session.until)}) on ${found.name}: ${apps.map((each) => `${each.label} (${each.name})`).join(", ")}${follow ? ", and apps these open while you act in them" : ""}. A window there shows it, with Stop. Read a window with computer_screen.`,
+                    `Computer control is on for ${minutes} minutes (until ${clockText(session.until)}) on ${found.name}: ${apps.map((each) => `${each.label} (${each.name})`).join(", ")}${follow ? ", and apps these open while you act in them" : ""}. A window there shows it, with Stop. Read a window with computer_screen.${locked?.locked === true ? ` Note: ${found.name}'s ${lockedNote(found.name, locked.crd)}.` : ""}`,
                 );
             } catch (error) {
                 return reply(message(error), true);

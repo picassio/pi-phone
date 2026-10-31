@@ -177,10 +177,11 @@ test("the card offers the machine tools, ticked, Computer use (ocu) with them; a
     const card = app.approvals.forConversation(id as never)[0]!;
     const tools = (card.form as { tools: { id: string; desktop: boolean; optIn: boolean }[] }).tools;
 
-    assert.deepEqual(tools.map((tool) => tool.id), ["officecli", "rg", "fd", "chrome", "ocu", "ffmpeg", "hyperframes"]);
+    assert.deepEqual(tools.map((tool) => tool.id), ["officecli", "rg", "fd", "chrome", "ocu", "ffmpeg", "hyperframes", "crd"]);
     assert.equal(tools.find((tool) => tool.id === "ocu")?.desktop, true);
-    // ffmpeg and HyperFrames (PP-246) are offered but not ticked: the card leaves them to the owner.
-    assert.deepEqual(tools.filter((tool) => tool.optIn).map((tool) => tool.id), ["ffmpeg", "hyperframes"]);
+    // ffmpeg, HyperFrames (PP-246) and Chrome Remote Desktop (PP-263, Windows only) are offered but not ticked: the card
+    // leaves them to the owner.
+    assert.deepEqual(tools.filter((tool) => tool.optIn).map((tool) => tool.id), ["ffmpeg", "hyperframes", "crd"]);
     await assert.rejects(app.answerApproval(card.id, true, owner(app), false, { tools: "ocu,nope" }), /The card offers no tool nope/);
     await app.answerApproval(card.id, true, owner(app), false, { tools: "" });
     await (await app.harness.submission(submissionId, context))!.wait(context);

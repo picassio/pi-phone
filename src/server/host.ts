@@ -91,6 +91,12 @@ export interface ApprovalRequest {
               saved?: boolean;
           }
         /**
+         * Pi asks the owner to connect Chrome Remote Desktop on a Windows machine to their Google account
+         * (`computer_control setup` with crd: connect, PP-263): the card shows Google's steps; the command the owner
+         * pastes and the PIN they choose go to the machine through the server (`answerCrdConnect`), never to Pi.
+         */
+        | { type: "crd-connect"; machine: string; machineName: string }
+        /**
          * Pi's browser asks the person (`extensions/browser.ts`): to sign in (a username and a password, typed into the
          * page's fields `fields` name), for a one-time code, or to do something on the page themselves. What they type
          * goes into the page, never to Pi; a sign-in may be kept in Secrets as `secret` and used again from there.

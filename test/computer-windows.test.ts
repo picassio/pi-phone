@@ -148,7 +148,7 @@ test("the bridge: 127.0.0.1 only, a new random token in a file only the user may
     assert.match(connect, /if \(-not \$task\) \{ exit 20 \}\nif \(\$sessions\.Count -eq 0\) \{ exit 21 \}/);
     assert.match(connect, /Start-ScheduledTask -TaskName 'pi-phone ocu'/);
     assert.match(connect, /Write-Output \('bridge ' \+ \$s\.port \+ ' ' \+ \$s\.token\)$/);
-    assert.match(powershellOf(statusScript()), /Write-Output \('state ' \+ \(ConvertTo-Json @\{ task = \[bool\]\$task; loggedOn = \$sessions\.Count -gt 0; locked = \[bool\]\$locked; running = \[bool\]\(Alive\) \} -Compress\)\)$/);
+    assert.match(powershellOf(statusScript()), /Write-Output \('state ' \+ \(ConvertTo-Json @\{ task = \[bool\]\$task; loggedOn = \$sessions\.Count -gt 0; locked = \[bool\]\$locked; running = \[bool\]\(Alive\); crd = \$\(if \(-not \$crdProduct\) \{ 'not installed' \} elseif \(\$crdService -and \[string\]\$crdService\.Status -eq 'Running' -and \$crdConfig\) \{ 'connected' \} else \{ 'installed, not connected' \}\) \} -Compress\)\)$/);
 });
 
 test("a machine is ready, not set up, or not logged on; without a signed-in desktop the bridge cannot run, and starting says so", async () => {
@@ -167,7 +167,7 @@ test("a machine is ready, not set up, or not logged on; without a signed-in desk
 
     assert.equal(windowsStateWord(state), "ready");
     assert.match(describeWindowsState("tualh-laptop", state), /^ready \(the task starts when a session does\); its screen is locked/);
-    assert.deepEqual(parseWindowsState('noise\nstate {"task":true,"loggedOn":true,"locked":false,"running":true}\n'), { task: true, loggedOn: true, locked: false, running: true });
+    assert.deepEqual(parseWindowsState('noise\nstate {"task":true,"loggedOn":true,"locked":false,"running":true,"crd":"connected"}\n'), { task: true, loggedOn: true, locked: false, running: true, crd: "connected" });
     assert.throws(() => parseWindowsState("Get-ScheduledTask : Access is denied"), /did not say how it stands: Get-ScheduledTask : Access is denied/);
     // No desktop setup line on Windows: ocu runs in the desktop already.
     assert.throws(() => control.setPrepare("w1", ". ~/env.sh"), /A desktop setup line is for Linux/);

@@ -321,6 +321,19 @@ dự án thật.</sub>
   `computer_control setup` (`task: install` hoặc `remove`) trên một thẻ cho thấy những gì được tạo. Một máy hiện là sẵn
   sàng, chưa thiết lập, hoặc chưa đăng nhập (không ai đăng nhập: hãy đăng nhập trên máy tính trước); khi màn hình khóa, ocu
   đọc được cửa sổ nhưng cú nhấp và phím không tới được chúng.
+- **Chrome Remote Desktop: mở khóa và xem máy Windows từ điện thoại** (hiện cho Windows x64; Linux và macOS sau). Tính năng
+  điều khiển máy tính của Pi không vượt qua được màn hình khóa của Windows; host Chrome Remote Desktop của Google, một
+  dịch vụ, thì được. Chọn nó trong Cài đặt › Máy › Cài công cụ (hoặc trên thẻ `machine_add`; mặc định không được chọn):
+  máy tự tải bộ cài của Google (pi-phone không phân phối lại), kiểm tra nó được Google ký (địa chỉ luôn trả về bản mới
+  nhất, nên chữ ký là phép kiểm tra thay cho sha256 cố định), và cài im lặng bằng msiexec (tài khoản pi-phone ở đó phải
+  là quản trị viên), nhật ký trong `~/.pi/mobile/crd`. Dòng của máy khi đó hiện chưa cài, đã cài nhưng chưa kết nối,
+  hoặc đã kết nối. **Kết nối với tài khoản Google của bạn**: mở remotedesktop.google.com/headless trên điện thoại (một
+  liên kết kèm **Sao chép liên kết**), chạm Bắt đầu, Tiếp theo, Ủy quyền, dán lệnh "Windows (PowerShell)" vào ô ẩn của
+  thẻ và chọn PIN từ 6 chữ số, nhập hai lần. Chỉ mã và địa chỉ chuyển hướng (chỉ trên remotedesktop.google.com) được
+  lấy ra; chúng và PIN đi tới máy, không được lưu hay ghi nhật ký, và Pi không bao giờ thấy. Mã hết hạn thì thẻ báo lấy
+  mã mới. Sau đó mở khóa máy từ ứng dụng Chrome Remote Desktop bằng PIN. **Gỡ** dừng và gỡ cài đặt nó. Pi xin bằng
+  `computer_control setup` (`crd: install`, `connect` hoặc `remove`), mỗi việc trên một thẻ; khi Pi thấy màn hình
+  Windows bị khóa, nó nhờ bạn mở khóa theo cách này, hoặc đề nghị thiết lập.
 - **Menu › Điều khiển máy tính**: từng máy và tình trạng của nó, một dòng chạy trước khi ocu khởi động cho máy Linux có
   màn hình cần thiết lập môi trường (kèm **Kiểm tra**, xem ocu đọc được gì ở đó), **Thiết lập** và **Gỡ** cho Windows,
   danh sách Không bao giờ, và cách thẻ hoạt động. Chỉ dành cho chủ sở hữu; không có trên máy chủ nhóm.

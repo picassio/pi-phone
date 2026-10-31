@@ -111,7 +111,8 @@ import { Para } from "./para.ts";
 import { CAPTURE_EXTENSION, ParaCapture } from "./para-capture.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
-import { MachineTools, machineSkillsDir, TOOLS_BIN } from "./machine-tools.ts";
+import { MachineTools, machineSkillsDir, TOOLS, TOOLS_BIN } from "./machine-tools.ts";
+import { type CrdRun, CrdError } from "./crd.ts";
 import { Screenshots } from "./screenshots.ts";
 import { FilePages } from "./file-pages.ts";
 import { MachineEngine } from "./browser/machine-engine.ts";
@@ -317,6 +318,8 @@ export interface OpenOptions {
     whatsNewDir?: string;
     /** Computer control's machines, how it runs a script on one (PP-178) and opens a port of one (PP-179): the app's machines, ssh and forwards, unless a test gives its own. */
     computer?: Pick<ComputerControlOptions, "machines" | "launch" | "forward" | "run" | "writeFile" | "idleEndMs" | "refreshMs">;
+    /** How Chrome Remote Desktop's scripts run on a machine (PP-263): its pi-env daemon, unless a test stands in a machine. */
+    crdRun?: CrdRun;
     /** The owner token to have (`ConfigStore`): the server edition's gateway gives each person's container its own. */
     ownerToken?: string;
     /**
@@ -658,7 +661,7 @@ export class PocketApp {
             now: () => this.now(),
         });
         this.officecli = new OfficeCli({ dataDir: options.dataDir, ...options.officecli });
-        this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools));
+        this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools), TOOLS, options.crdRun);
         this.officecli.install();
         // The owner's tabs get the open ports again on every change, and hear why one closed by itself (PP-108).
         this.forwards = new Forwards(this.machines, (ended) => {
@@ -4018,6 +4021,39 @@ export class PocketApp {
         return this.answerApproval(id, true, user, true);
     }
 
+    /**
+     * Answer Pi's Chrome Remote Desktop connect card (PP-263): Google's pasted command and the PIN go to the machine
+     * (`ChromeRemoteDesktop.connect`), never into the conversation, the approval, or a log; the card stays open when it
+     * fails (an expired code: the owner pastes a new one), with a message that holds neither. The owner's.
+     */
+    async answerCrdConnect(id: string, body: { command?: unknown; pin?: unknown; confirm?: unknown }, user: User): Promise<boolean> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner connects Chrome Remote Desktop: it is their Google account.");
+        }
+
+        const request = this.approvals.all().find((each) => each.id === id);
+
+        if (request?.form?.type !== "crd-connect") {
+            return false;
+        }
+
+        await this.crdConnect(request.form.machine, body);
+
+        return this.answerApproval(id, true, user, true);
+    }
+
+    /** Connect Chrome Remote Desktop on a machine (the card, or the machine's row): its errors as the owner reads them. */
+    async crdConnect(machine: string, body: { command?: unknown; pin?: unknown; confirm?: unknown }): Promise<void> {
+        try {
+            await this.machineTools.crd.connect(machine, body.command, body.pin, body.confirm);
+        } catch (error) {
+            // A CrdError's words are without the values; anything else is not shown, as it might hold them.
+            throw new HttpError(409, error instanceof CrdError ? error.message : "Chrome Remote Desktop could not be connected.");
+        }
+
+        this.log(`Chrome Remote Desktop: ${this.machines.get(machine).name} is connected to the owner's Google account.`);
+    }
+
     /** What was typed and picked in one of a conversation's interactive answers (`openui.ts`), or null. */
     async answerState(id: ConversationId, key: string, user: User): Promise<Record<string, unknown> | null> {
         this.requireSee(user, id);
@@ -4226,7 +4262,9 @@ export class PocketApp {
                       ? "This is a question: fill in its card, then send it."
                       : request.form.type === "computer-sign-in"
                         ? "This asks you to sign in: type it on the card."
-                        : "This is an interview: answer it in its form, then submit.",
+                        : request.form.type === "crd-connect"
+                          ? "This connects Chrome Remote Desktop: paste Google's command and choose a PIN on the card."
+                          : "This is an interview: answer it in its form, then submit.",
             );
         }
 

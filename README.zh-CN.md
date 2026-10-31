@@ -220,6 +220,16 @@
   的文件；pi-phone 通过应用自己的 ssh 连接它。显示 Pi 正在使用电脑并带 **停止** 的窗口由桥接程序显示，置顶。**设置** 和
   **移除** 在菜单 › 电脑控制中；Pi 用 `computer_control setup`（`task: install` 或 `remove`）在一张列出所建内容的卡片上申请。
   机器显示为就绪、未设置或未登录（没有人登录：请先在电脑上登录）；屏幕锁定时，ocu 能读取窗口，但点击和按键到不了它们。
+- **Chrome Remote Desktop：从手机解锁并查看 Windows 电脑**（目前仅 Windows x64；Linux 和 macOS 以后支持）。Pi 的电脑控制
+  过不了 Windows 锁屏；Google 的 Chrome Remote Desktop 主机程序是一个服务，可以。在 设置 › 机器 › 安装工具 中勾选它（或在
+  `machine_add` 卡片上；默认不勾选）：机器自己从 Google 下载安装程序（pi-phone 不转发），检查它由 Google 签名（地址总是给出
+  最新版本，所以用签名而不是固定的 sha256 校验），再用 msiexec 静默安装（pi-phone 在那里的账号须是管理员），日志在
+  `~/.pi/mobile/crd`。机器那一行随后显示未安装、已安装未连接或已连接。**连接到你的 Google 账号**：在手机上打开
+  remotedesktop.google.com/headless（链接旁有 **复制链接**），点 开始、下一步、授权，把「Windows (PowerShell)」命令粘贴到
+  卡片的隐藏输入框，并输入两次至少 6 位数字的 PIN。只取出其中的授权码和跳转地址（只允许 remotedesktop.google.com）；它们和
+  PIN 只发送到机器，不保存、不记日志，Pi 也看不到。授权码过期时会提示重新获取。之后用 PIN 在 Chrome Remote Desktop 应用里
+  解锁机器。**移除** 停止并卸载它。Pi 用 `computer_control setup`（`crd: install`、`connect` 或 `remove`）申请，每项都在卡片
+  上确认；Pi 发现 Windows 屏幕锁定时，会请你这样解锁，或提议设置它。
 - **菜单 › 电脑控制**：每台机器及其状态，Linux 桌面需要先设置环境时在 ocu 启动前运行的一行（「检查」显示 ocu 在那里读到什么），
   Windows 的 **设置** 和 **移除**，“永不”列表，以及卡片如何运作。仅限所有者；团队服务器上没有。
 

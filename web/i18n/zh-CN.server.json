@@ -690,5 +690,8 @@
     "A window is asked for with opener, tab and gesture.": "请求打开窗口需提供 opener、tab 和 gesture。",
     "Only the owner signs in on their computer.": "只有所有者能在自己的电脑上登录。",
     "No sign-in for this window is kept in Secrets.": "密钥里没有保存这个窗口的登录信息。",
-    "This asks you to sign in: type it on the card.": "这里需要你登录：请在卡片上输入。"
+    "This asks you to sign in: type it on the card.": "这里需要你登录：请在卡片上输入。",
+    "Only the owner connects Chrome Remote Desktop: it is their Google account.": "只有所有者能连接 Chrome Remote Desktop：那是他们的 Google 账号。",
+    "Chrome Remote Desktop could not be connected.": "Chrome Remote Desktop 未能连接。",
+    "This connects Chrome Remote Desktop: paste Google's command and choose a PIN on the card.": "这是连接 Chrome Remote Desktop：请在卡片上粘贴 Google 的命令并设置 PIN。"
 }

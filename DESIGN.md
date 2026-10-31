@@ -718,6 +718,46 @@ so Pi changes them through the settings tools; "the last session" is the one the
     tools' bin. Checked on tuanlh-devbox-01 (2026-10-29): a 5 s 1080p30 render in 10 s, BeginFrame capture; tcpdump saw
     no PostHog name or address, only cdn.jsdelivr.net (the composition's GSAP) and Google Fonts (HyperFrames' font
     localization). Windows is left out: untried, and its Chrome would be a wrapper Node cannot spawn.
+    **Chrome Remote Desktop** (PP-263, 2026-10-31, `crd.ts`; `CRD_TOOL`, `optIn`, `windowsOnly`, `installer: "crd"`):
+    Google's host, so the owner unlocks and sees a Windows machine from their phone: Pi's computer use cannot pass the
+    lock screen (the secure desktop takes no UI Automation input), and CRD's host is a service that can. **The one
+    exception to the sha256 rule:** Google publishes the MSI at a rolling address (always the newest build), so a pinned
+    sum would break with each release; the machine downloads it itself (never passed on by pi-phone) into
+    `~/.pi/mobile/crd` and `Get-AuthenticodeSignature` must say `Valid` with a signer subject of `CN=Google LLC` (alone
+    or followed by a comma), else the download is deleted and nothing is installed. `msiexec /i … /qn /norestart
+    /l*v ~/.pi/mobile/crd/install.log`, with an administrator check first (an elevated token: OpenSSH gives an
+    administrator's session one; a non-administrator or a UAC-filtered token is refused, saying so) and msiexec's codes
+    named (1603, 1618, 1625, 1925, 740, …). Installed at any version counts as installed (`offered` only when absent).
+    Windows x64 and the owner's own machines only (`ChromeRemoteDesktop.supports`); Linux and macOS later. Its scripts
+    run with Git Bash through pi-env's daemon and Windows PowerShell by `-EncodedCommand`, as `computer-windows.ts`'s.
+    - **Status** (`statusScript`, `parseCrdState`): the product in the Uninstall keys (`Chrome Remote Desktop Host`,
+      publisher Google LLC; its version and product code), the `chromoting` service, and
+      `%ProgramData%\Google\Chrome Remote Desktop\host.json`. Connected = installed, service Running, config present;
+      else installed, not connected; or not installed. Shown on the machine's row (Settings › Machines) and in the
+      Install tools list; `computer-windows.ts`'s status line carries it too (`WindowsState.crd`).
+    - **Connect** (Google's headless flow): the owner opens https://remotedesktop.google.com/headless (Begin, Next,
+      Authorize) and pastes the "Windows (PowerShell)" command into a hidden field, with a PIN typed twice. The server
+      takes only `--code` (Google's `4/…`) and `--redirect-url` (https on remotedesktop.google.com alone, a plain
+      path, no query: anything else is refused) and runs `remoting_start_host.exe` with `--name=$env:COMPUTERNAME`.
+      The code, the redirect and the PIN go to the machine as variables of pi-env's exec (its protocol: on no command
+      line), cleared from the environment before the program starts; the PIN goes to its input (it asks twice when
+      `--pin` is absent: `start_host_main.cc`), the code and the redirect as its arguments, the only way it takes them
+      (so they are on its command line for the seconds it runs; the code works once). Its output and every error have
+      the values replaced (`scrub`), on the machine and again on the server; nothing is kept, logged, put in an approval
+      or shown to Pi. "OAuth error" means the code expired or was used: the card says to get a new one and stays open.
+      Where: on the machine's row (Connect to your Google account) and on Pi's card. **Pi's way in is
+      `computer_control setup` with `crd: install | connect | remove`**, not a new tool or an `app_action`: setup is
+      already where Pi prepares a Windows machine for computer control (`task`), it asks on cards, and the locked
+      screen is found there; an `app_action` cannot carry a form with hidden fields, and a new tool would weigh on
+      every prompt. Install and remove cards show what changes (`installPlan`, `removePlan`); connect's card (form
+      `crd-connect`) is answered only by the owner, through `POST /api/crd/asks/<id>`, and only once the machine is
+      connected (`answerCrdConnect`; a plain Approve is refused).
+    - **Remove:** the service stopped, `msiexec /x <product code from the Uninstall key>` (log `remove.log`), and the
+      host config files deleted; the machine stays offline in the owner's list at remotedesktop.google.com/access until
+      they delete it there. On the row after a confirmation, or Pi's card.
+    - **Locked screen:** when `computer_control` (status, or start) finds a Windows desktop locked, Pi is told to ask the
+      owner to unlock it with Chrome Remote Desktop from their phone when it is connected, otherwise to offer to set it
+      up (`lockedNote`).
   - **Install:** the machine downloads each itself (curl or wget), checks the sha256 (sha256sum or shasum) before
     keeping anything, into `~/.pi/mobile/tools/<tool>/<version>/`, and a wrapper `~/.pi/mobile/tools/bin/<command>`
     (marked `# pi-phone-tool <id> <version>`, written by a quoted heredoc) runs it with what it needs (OfficeCLI: no
