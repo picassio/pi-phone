@@ -32,7 +32,7 @@ const CONTEXT_TITLES: Record<ContextPart, string> = {
 };
 
 const CONTEXT_HELP: Record<ContextPart, string> = {
-    wiki: "relevant (a short, fixed section; the pages that match each of your messages come with it, and a line names pages other sessions changed), frozen (the wiki's index as the session first had it), live (the index, sent again whenever any session writes to the wiki), or off (the rules only: Pi searches with wiki_query).",
+    wiki: "tool (a short, fixed section: the rules and the scope; Pi searches the wiki with wiki_query when it needs to), relevant (that, and the pages that match each of your messages come with it), frozen (the wiki's index as the session first had it), live (the index, sent again whenever any session writes to the wiki), or off (the rules only: Pi searches with wiki_query).",
     secrets: "tool (the rules, and Pi finds the secrets it may use with secrets_list) or list (every secret named in the prompt, sent again when one is added).",
     skills: "frozen (the list the session first had, sent again only when skills are added or taken away) or live (sent again on any change).",
 };

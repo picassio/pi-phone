@@ -341,18 +341,26 @@ export class Para {
         message: string,
         cwd: string,
     ): Promise<{ path: string; title: string; line: string; freshness: string; questions: string[] }[]> {
+        // A message without a telling word ("do it", "Làm đi", "ok") is about the conversation, not the wiki: by
+        // meaning alone it still comes near some page.
+        const words = tellingWords(message);
+
+        if (words.length === 0) {
+            return [];
+        }
+
         const { store, wikiDir } = await this.open();
         const { readPage, formatFreshness } = this.#pi!;
         const scope = await this.scope(cwd);
-        // The whole message: by meaning when the wiki has embeddings, and by keyword when every word is on a page.
-        const found = await this.#pi!.searchWiki(store, message.replace(/\s+/g, " ").slice(0, 400), { limit: 8, graphBoost: true, scope });
+        // The whole message: by meaning when the wiki has embeddings, and by keyword when every word is on a page; not
+        // the pages these link to (graphBoost), which the message is not about.
+        const found = await this.#pi!.searchWiki(store, message.replace(/\s+/g, " ").slice(0, 400), { limit: 8, graphBoost: false, scope });
         const best = found[0]?.score ?? 0;
         const chosen = new Map<string, string>(
             found.filter((each) => each.score >= WIKI_MATCH && each.score >= best * 0.7).map((each) => [`${each.page.category}/${each.page.slug}`, each.snippet]),
         );
         // A message's words are rarely all on one page (qmd's keyword search wants every word): its telling words
         // each, and the pages that have at least two of them (or the one, when it has one).
-        const words = tellingWords(message);
         const hits = new Map<string, { count: number; score: number; snippet: string }>();
 
         for (const word of words) {
@@ -401,26 +409,6 @@ export class Para {
         }
 
         return pages;
-    }
-
-    /** How many changes the wiki's log (log.md) holds: a mark for `changedSince`. */
-    async logMark(): Promise<number> {
-        return (await this.#logEntries()).length;
-    }
-
-    /** The pages the log names in its changes after `mark` (`logMark`), most recent first, each once. */
-    async changedSince(mark: number): Promise<string[]> {
-        const entries = (await this.#logEntries()).slice(mark);
-        const pages = entries.flatMap((entry) => /^Pages: (.*)$/m.exec(entry)?.[1]?.split(/,\s*/) ?? []);
-
-        return [...new Set(pages.map((page) => page.trim()).filter((page) => page !== "").reverse())];
-    }
-
-    async #logEntries(): Promise<string[]> {
-        const { wikiDir } = await this.open();
-        const log = await readFile(`${wikiDir}/log.md`, "utf8").catch(() => "");
-
-        return log.split(/^## /m).slice(1);
     }
 
     /**

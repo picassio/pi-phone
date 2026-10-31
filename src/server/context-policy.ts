@@ -4,16 +4,16 @@
  * until it is compacted. The wiki's index changed with every write in any session (21k characters each time, 12 times
  * in 3 days in one session), the secrets list with every new secret. These choices keep that text out, or fixed.
  *
- * - wiki: `relevant` (a short, fixed section; the pages that match each of the person's messages come with that message,
- *   with a line naming pages other sessions changed), `frozen` (the index as it was when the session first had it),
- *   `live` (the index, sent again whenever it changes), `off` (the rules only: Pi searches with wiki_query).
+ * - wiki: `tool` (the default: a short, fixed section, the rules and the scope; Pi searches with wiki_query when it
+ *   needs to), `relevant` (also the pages that match each of the person's messages come with that message), `frozen`
+ *   (the index as it was when the session first had it), `live` (the index, sent again whenever it changes).
  * - secrets: `tool` (the rules, and secrets_list to find them) or `list` (every usable secret named in the prompt).
  * - skills: `frozen` (the list a session first had, until skills are added or taken away) or `live`.
  *
  * Each has a value for every session (Settings) and may have one for a single session.
  */
 
-export const WIKI_MODES = ["relevant", "frozen", "live", "off"] as const;
+export const WIKI_MODES = ["tool", "relevant", "frozen", "live"] as const;
 export const SECRETS_MODES = ["tool", "list"] as const;
 export const SKILLS_MODES = ["frozen", "live"] as const;
 
@@ -26,7 +26,7 @@ export type ContextPart = keyof ContextPolicy;
 
 export const CONTEXT_PARTS: readonly ContextPart[] = ["wiki", "secrets", "skills"];
 
-export const DEFAULT_CONTEXT_POLICY: ContextPolicy = { wiki: "relevant", secrets: "tool", skills: "frozen" };
+export const DEFAULT_CONTEXT_POLICY: ContextPolicy = { wiki: "tool", secrets: "tool", skills: "frozen" };
 
 /** The values one part takes. */
 export function contextModes(part: ContextPart): readonly string[] {

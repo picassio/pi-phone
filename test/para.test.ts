@@ -452,14 +452,34 @@ test("a capture never replaces a page that is there: it is told to append or edi
     assert.match((await modelTexts(app, sent.conversation! as never)).join("\n"), /A capture never replaces a page that is there \(resources\/terminal-reattach\)/);
 });
 
-test("the wiki relevant (PP-276, the default): a fixed section, the pages that match a message come with it, writes elsewhere are a line, never the index again", async () => {
+test("the wiki tool (PP-276, the default): a fixed section, Pi searches itself; nothing comes with messages, nor with writes elsewhere", async () => {
     const { id } = await app.commands.createSession(owner(app), { cwd: work });
 
     await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
-    assert.equal(app.contextPolicy(id).wiki, "relevant");
+    assert.equal(app.contextPolicy(id).wiki, "tool");
+    await turn(id, "why does the shell outlive its socket");
+    assert.match(told, /The wiki's index is not in this prompt: search it with wiki_query before non-trivial work/);
+    assert.match(told, /wiki scope: work/);
+    assert.doesNotMatch(told, /terminal-reattach|Open Questions in the Wiki/, "no index, no list of questions");
+    assert.deepEqual(userParts, ["why does the shell outlive its socket"], "no pages with a message about one");
+
+    await app.para.save(
+        "resources/desk-lamp",
+        "---\ntitle: Desk lamp\npara: resources\nscope:\n  - work\ntags:\n  - office\n---\n\nThe desk lamp is by the window.\n",
+        true,
+    );
+    await turn(id, "good morning");
+    assert.deepEqual(userParts, ["good morning"], "no word of another session's write");
+    assert.equal(wikiCopies, 1, "the section once, as it was");
+});
+
+test("the wiki relevant (PP-276, the owner's pick): the pages that match a message come with it; not for a message without a telling word, nor for writes elsewhere", async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    await app.setContextPart(owner(app), "wiki", "relevant", id);
     await turn(id, "hello there");
     assert.match(told, /The wiki's index is not in this prompt/);
-    assert.match(told, /wiki scope: work/);
     assert.doesNotMatch(told, /terminal-reattach|Open Questions in the Wiki/, "no index, no list of questions");
     assert.equal(wikiCopies, 1);
 
@@ -472,15 +492,19 @@ test("the wiki relevant (PP-276, the default): a fixed section, the pages that m
     assert.match(block, /outlives its socket/);
     assert.equal(userParts[0], "why does the shell outlive its socket", "the person's words as they wrote them");
 
-    // Another session writes to the wiki: this one's next message names the page, and the section is not sent again.
+    // Another session writes to the wiki: not this session's business, and the section is not sent again.
     await app.para.save(
         "resources/office-printer",
         "---\ntitle: Office printer\npara: resources\nscope:\n  - work\ntags:\n  - office\n---\n\nThe printer is on the third floor.\n",
         true,
     );
     await turn(id, "good morning");
-    assert.match(userParts.join("\n"), /Wiki pages changed since this session's last message: resources\/office-printer/);
+    assert.doesNotMatch(userParts.join("\n"), /office-printer/);
     assert.equal(wikiCopies, 1, "the wiki section once, as it was");
+
+    // A message without a telling word is about the conversation: no pages come with it.
+    await turn(id, "Làm đi");
+    assert.ok(!userParts.some((part) => part.startsWith("<wiki-pages")), userParts.join("\n---\n"));
 
     // People see their words, and the pages by name.
     const view = await (await app.conversation(id)).viewState(context);
@@ -496,7 +520,7 @@ test("the wiki relevant (PP-276, the default): a fixed section, the pages that m
     }
 });
 
-test("the wiki frozen and off (PP-276): the index the session first had, or the rules only, and nothing with messages", async () => {
+test("the wiki frozen and tool (PP-276): the index the session first had, or the rules only, and nothing with messages", async () => {
     const { id } = await app.commands.createSession(owner(app), { cwd: work });
 
     await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
@@ -515,7 +539,7 @@ test("the wiki frozen and off (PP-276): the index the session first had, or the 
     assert.equal(wikiCopies, 1);
     assert.equal(userParts.length, 1, "no pages with the message");
 
-    await app.setContextPart(owner(app), "wiki", "off", id);
+    await app.setContextPart(owner(app), "wiki", "tool", id);
     await turn(id, "hello again");
     assert.match(told, /search it with wiki_query before non-trivial work/);
     assert.doesNotMatch(told, /terminal-reattach/);
@@ -523,10 +547,10 @@ test("the wiki frozen and off (PP-276): the index the session first had, or the 
 
     // Every session's setting, and a session's own over it.
     await app.setContextPart(owner(app), "wiki", "live");
-    assert.equal(app.contextPolicy(id).wiki, "off");
+    assert.equal(app.contextPolicy(id).wiki, "tool");
     await app.setContextPart(owner(app), "wiki", "inherit", id);
     assert.equal(app.contextPolicy(id).wiki, "live");
-    await app.setContextPart(owner(app), "wiki", "relevant");
+    await app.setContextPart(owner(app), "wiki", "tool");
     assert.equal(app.config.contextPolicy.wiki, undefined, "the default is not written down");
-    await assert.rejects(app.setContextPart(owner(app), "wiki", "everything"), /relevant, frozen, live, off/);
+    await assert.rejects(app.setContextPart(owner(app), "wiki", "everything"), /tool, relevant, frozen, live/);
 });

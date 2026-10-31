@@ -8,12 +8,12 @@ import { tellingWords } from "../src/server/para.ts";
 const skills = (entries: [string, string][]) =>
     `<available_skills>\n${entries.map(([name, description]) => `  <skill>\n    <name>${name}</name>\n    <description>${description}</description>\n  </skill>`).join("\n")}\n</available_skills>`;
 
-test("the defaults: the wiki relevant, secrets with a tool, skills frozen; a session's own over every session's", () => {
-    assert.deepEqual(DEFAULT_CONTEXT_POLICY, { wiki: "relevant", secrets: "tool", skills: "frozen" });
+test("the defaults: the wiki and secrets with a tool, skills frozen; a session's own over every session's", () => {
+    assert.deepEqual(DEFAULT_CONTEXT_POLICY, { wiki: "tool", secrets: "tool", skills: "frozen" });
     assert.deepEqual(resolveContextPolicy({ wiki: "live" }, { secrets: "list" }), { wiki: "live", secrets: "list", skills: "frozen" });
-    assert.deepEqual(resolveContextPolicy({ wiki: "live" }, { wiki: "off" }).wiki, "off");
+    assert.deepEqual(resolveContextPolicy({ wiki: "live" }, { wiki: "relevant" }).wiki, "relevant");
     assert.equal(contextMode("skills", "live"), "live");
-    assert.throws(() => contextMode("wiki", "all of it"), /relevant, frozen, live, off/);
+    assert.throws(() => contextMode("wiki", "all of it"), /tool, relevant, frozen, live/);
     assert.throws(() => contextMode("secrets", undefined), /tool, list/);
 });
 
@@ -41,4 +41,7 @@ test("a message's telling words for the wiki's keyword search: names and longer 
     assert.ok(!tellingWords("check PP-276 and the wiki please").includes("please"));
     assert.equal(tellingWords("alpha bravo charlie delta echoes foxtrot golfing hotels").length, 6);
     assert.deepEqual(tellingWords("Kiểm tra lại không được"), ["kiểm"]);
+    // None: the message brings no pages (Para.relevant searches nothing).
+    assert.deepEqual(tellingWords("Làm đi"), []);
+    assert.deepEqual(tellingWords("ok, do it"), []);
 });

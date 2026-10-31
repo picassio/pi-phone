@@ -5593,13 +5593,10 @@ export class PocketApp {
         }, context);
     }
 
-    /** Each session's mark in the wiki's log at its last message (`wikiFor`): what changed since. Memory only. */
-    readonly #wikiMarks = new Map<ConversationId, number>();
-
     /**
-     * What of the wiki comes with a person's message (PP-276, the wiki `relevant`): the pages that match it, and the
-     * pages other sessions changed since this session's last message, as one text part (`WIKI_BLOCK`); undefined when
-     * there is none, or the wiki is not `relevant` for this session. A wiki that cannot answer adds nothing and says why
+     * What of the wiki comes with a person's message (PP-276, the wiki `relevant`, which the owner picks): the pages that
+     * match it, as one text part (`WIKI_BLOCK`); undefined when there is none, or the wiki is not `relevant` for this
+     * session. What other sessions write is not this session's business: no word of it comes. A wiki that cannot answer adds nothing and says why
      * in the log: the message goes all the same.
      */
     async wikiFor(id: ConversationId, message: string): Promise<string | undefined> {
@@ -5608,16 +5605,10 @@ export class PocketApp {
         }
 
         try {
-            const mark = await this.para.logMark();
-            const before = this.#wikiMarks.get(id);
-            const changed = before === undefined ? [] : await this.para.changedSince(before);
-
-            this.#wikiMarks.set(id, mark);
-
             const cwd = this.cwdOf(id);
             const pages = message.trim() === "" ? [] : await this.para.relevant(message, cwd.startsWith("machine:") ? this.defaultCwd : cwd);
 
-            if (pages.length === 0 && changed.length === 0) {
+            if (pages.length === 0) {
                 return undefined;
             }
 
@@ -5627,8 +5618,8 @@ export class PocketApp {
 
             return [
                 `${WIKI_BLOCK}${pages.map((page) => page.path).join(" ")}">`,
-                ...(pages.length === 0 ? [] : ["Wiki pages that match this message (the app's search, not the person's words; read one with wiki_read):", ...lines]),
-                ...(changed.length === 0 ? [] : [`Wiki pages changed since this session's last message: ${changed.slice(0, 12).join(", ")}${changed.length > 12 ? `, and ${changed.length - 12} more` : ""}.`]),
+                "Wiki pages that match this message (the app's search, not the person's words; read one with wiki_read):",
+                ...lines,
                 "</wiki-pages>",
             ].join("\n");
         } catch (error) {

@@ -46,11 +46,11 @@ dự án thật.</sub>
   cảnh bạn chọn (10–95%), cho mọi phiên hoặc một phiên (Menu › Nén ngữ cảnh). Thước đo ngữ cảnh đánh dấu vị trí đó. Pi
   đổi được cả hai qua một thẻ (`sessions.compactAt`, `sessions.sessionCompactAt`).
 - **Prompt không làm đầy ngữ cảnh.** Phần chữ trong prompt của Pi mà thay đổi sẽ được gửi lại, và mỗi bản ở lại cho
-  tới khi phiên nén. Vì vậy mặc định chỉ mục của wiki không nằm trong prompt: một phần wiki ngắn, cố định, và các trang
-  wiki khớp với từng tin nhắn của bạn đi kèm tin nhắn đó (hiện tên bên dưới tin nhắn), cùng một dòng nêu các trang phiên
-  khác vừa đổi; bí mật được tìm bằng `secrets_list` (có tìm kiếm) thay vì liệt kê trong prompt; danh sách kỹ năng chỉ
+  tới khi phiên nén. Vì vậy mặc định chỉ mục của wiki không nằm trong prompt: một phần wiki ngắn, cố định, và Pi tự tìm
+  trong wiki bằng `wiki_query` khi cần (hoặc, nếu bạn chọn relevant, các trang khớp với từng tin nhắn đi kèm tin nhắn
+  đó); bí mật được tìm bằng `secrets_list` (có tìm kiếm) thay vì liệt kê trong prompt; danh sách kỹ năng chỉ
   gửi lại khi thêm hoặc bớt kỹ năng. Mỗi thứ là một lựa chọn trong Menu › Nén ngữ cảnh, cho mọi phiên hoặc một phiên
-  (wiki: relevant, frozen, live, off; bí mật: tool, list; kỹ năng: frozen, live), và Pi đổi được qua một thẻ
+  (wiki: tool, relevant, frozen, live; bí mật: tool, list; kỹ năng: frozen, live), và Pi đổi được qua một thẻ
   (`context.wiki`, `context.sessionWiki`, …).
 - **Nhóm thư mục trong danh sách phiên.** Tự tạo nhóm (**+ Nhóm mới**) và chuyển các phiên vào: Chuyển vào nhóm… từ
   thao tác nhấn giữ một phiên, dòng của nó, menu của nó, hoặc **Di chuyển…** của một vùng chọn, hoặc kéo thả trên máy

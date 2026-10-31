@@ -105,6 +105,9 @@ test("a message the wiki's pages came with shows the person's words and the page
     await until(async () => (await app.para.searchKeywords("socket")).some((each) => each.path === "resources/terminal-reattach"), "the page in the search index", 15_000);
 
     const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    // The pages come with messages only where the owner picked it (the default is tool: Pi searches itself).
+    await app.setContextPart(owner(app), "wiki", "relevant", id);
     const { submissionId } = await app.commands.submit(id, owner(app), { text: "why does the shell outlive its socket", requestId: crypto.randomUUID() });
 
     await (await app.harness.submission(submissionId, context))!.wait(context);
@@ -124,17 +127,17 @@ test("a message the wiki's pages came with shows the person's words and the page
 
     const values = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll(".pp-row select")].map((each) => each.value))`);
 
-    assert.deepEqual(values, ["inherit", "inherit", "inherit", "relevant", "tool", "frozen"]);
+    assert.deepEqual(values, ["relevant", "inherit", "inherit", "tool", "tool", "frozen"]);
     assert.deepEqual(await outside(), []);
     await shot("context-sheet-390");
 
     await page.evaluate(`
         const select = document.querySelector(".pp-row select");
-        select.value = "live";
+        select.value = "inherit";
         select.dispatchEvent(new Event("change", { bubbles: true }));
         return "true";
     `);
-    await until(() => app.contextPolicy(id).wiki === "live", "this session's wiki live");
+    await until(() => app.contextPolicy(id).wiki === "tool", "this session's wiki as every session's");
     assert.equal(app.config.contextPolicy.wiki, undefined, "every session's as it was");
 
     await page.setViewport(VIEWPORTS.desktop);

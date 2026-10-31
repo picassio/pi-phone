@@ -288,12 +288,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   What of it goes into the prompt is `context-policy.ts`'s choice (PP-276), as are the secrets' and skills': Pi Durable
   keeps the prompt as system messages in the transcript and sends a changed section again, each copy staying until
   compaction (the index changed with every write anywhere: 12 copies of 21k characters in one session in 3 days).
-  `relevant` (default) keeps the section fixed (the skill, the rules, the scope) and `commands.submit` adds a part to a
-  person's own message (`WIKI_BLOCK`, `<wiki-pages paths="…">`, after their text; the transcript shows the paths, not
-  the text): `Para.relevant` (pi-para's search of the whole message, by meaning when there are embeddings and kept at
-  score 0.5 and up, plus qmd keyword hits of its telling words without graph boost, a page having two of them) and the
-  pages the wiki's log names since the session's last message (`changedSince`, a mark in memory). `frozen` returns the
-  section the session has (`PromptInput.shown`), `live` is the old section, `off` the rules alone. Secrets: `tool` says
+  `tool` (default) keeps the section fixed (the skill, the rules, the scope) and Pi searches with `wiki_query` when it
+  needs to: the owner did not want a search before every message, nor word of other sessions' writes (2026-10-31).
+  `relevant`, the owner's pick, also has `commands.submit` add a part to a person's own message (`WIKI_BLOCK`,
+  `<wiki-pages paths="…">`, after their text; the transcript shows the paths, not the text): `Para.relevant`, none
+  for a message without a telling word ("ok", "Làm đi"); else pi-para's search of the whole message without graph
+  boost, kept at score 0.5 and up, plus qmd keyword hits of its telling words, a page having two of them. `frozen`
+  returns the section the session has (`PromptInput.shown`), `live` is the old section. Secrets: `tool` says
   to use `secrets_list` (with `query`), `list` names them. Skills: `frozen` keeps the list the session has while it
   names the same skills (`frozenSkills`). Every session's choice is `config.contextPolicy`, a session's own
   `SessionMeta.contextPolicy`; Menu › Compact context shows both, Pi's `context.*` settings change them.

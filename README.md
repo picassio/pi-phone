@@ -42,11 +42,11 @@ No Termux, no laptop, no cloud VM.
   happen sooner, at a percentage of the context you pick (10–95%), for every session or one (Menu › Compact context).
   The context meter marks where. Pi changes both on a card (`sessions.compactAt`, `sessions.sessionCompactAt`).
 - **A prompt that does not fill the context.** Text in Pi's prompt that changes is sent again, and each copy stays until
-  the session compacts. So by default the wiki's index stays out: a short, fixed wiki section, and the wiki's pages that
-  match each of your messages come with it (shown under the message by name), with a line naming pages other sessions
-  changed; secrets are found with `secrets_list` (with a search) instead of a list in the prompt; the skills list is
+  the session compacts. So by default the wiki's index stays out: a short, fixed wiki section, and Pi searches the wiki
+  with `wiki_query` when it needs to (or, if you pick relevant, the pages that match each of your messages come with
+  it); secrets are found with `secrets_list` (with a search) instead of a list in the prompt; the skills list is
   sent again only when skills come or go. Each is a choice in Menu › Compact context, for every session or one (the
-  wiki: relevant, frozen, live, off; secrets: tool, list; skills: frozen, live), and Pi changes them on a card
+  wiki: tool, relevant, frozen, live; secrets: tool, list; skills: frozen, live), and Pi changes them on a card
   (`context.wiki`, `context.sessionWiki`, …).
 - **Folder groups in the session list.** Make your own groups (**+ New group**) and move chats into them: Move to
   group… from a chat's long press, its row, its menu, or a selection's **Move…**, or drag on a desktop. A chat is in one

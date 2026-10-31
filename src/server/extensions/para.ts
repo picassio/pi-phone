@@ -62,10 +62,10 @@ const TOOLS_ONLY =
     "Change the wiki only with the wiki tools (wiki_write, wiki_edit, wiki_move, wiki_ingest, wiki_lint), and read it with wiki_read and wiki_query: never write, edit, move, or delete files under ~/.pi/wiki with write, edit, or bash. Only the tools keep its index, search, links, and log current; changing its files directly is refused.";
 /** The wiki section's end, with the wiki `relevant` (PP-276): what comes with each message instead of the index. */
 const WIKI_RELEVANT =
-    'This session\'s wiki scope: {scope}. The wiki\'s index is not in this prompt. Each of the person\'s messages comes with a <wiki-pages> block when the wiki has pages that match it: each page\'s path, title, a line of it, how fresh it is, and its open questions; and a line naming pages other sessions changed since their last message. Read a page with wiki_read; search further with wiki_query (before non-trivial work, and before debugging). Open questions on other pages show when you read or query them.';
+    'This session\'s wiki scope: {scope}. The wiki\'s index is not in this prompt. Each of the person\'s messages comes with a <wiki-pages> block when the wiki has pages that match it: each page\'s path, title, a line of it, how fresh it is, and its open questions. They are the app\'s search, which may be off the point: use what helps. Read a page with wiki_read; search further with wiki_query (before non-trivial work, and before debugging). Open questions on other pages show when you read or query them.';
 
-/** The wiki section's end, with the wiki `off` (PP-276). */
-const WIKI_OFF =
+/** The wiki section's end, with the wiki `tool` (PP-276, the default). */
+const WIKI_TOOL =
     "This session's wiki scope: {scope}. The wiki's index is not in this prompt: search it with wiki_query before non-trivial work and before debugging, and read pages with wiki_read. Open questions on a page show when you read or query it.";
 
 const REFUSED =
@@ -351,9 +351,9 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
                     }
 
                     try {
-                        if (mode === "relevant" || mode === "off") {
+                        if (mode === "relevant" || mode === "tool") {
                             const scope = await para.scope(input.agent.cwd ?? "");
-                            const note = (mode === "relevant" ? WIKI_RELEVANT : WIKI_OFF).replace("{scope}", scope.name);
+                            const note = (mode === "relevant" ? WIKI_RELEVANT : WIKI_TOOL).replace("{scope}", scope.name);
 
                             return [PARA_SKILL, TOOLS_ONLY, you, note].join("\n\n");
                         }

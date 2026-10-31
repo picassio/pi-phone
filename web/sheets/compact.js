@@ -53,10 +53,10 @@ const PARTS = () => [
         part: "wiki",
         label: t("The wiki"),
         modes: [
+            ["tool", t("Searched with a tool"), t("Pi searches the wiki with wiki_query when it needs to")],
             ["relevant", t("Pages that match each message"), t("a short fixed section; matching pages come with your message")],
             ["frozen", t("Its index, kept as it was"), t("the index the session first had, until it compacts")],
             ["live", t("Its index, kept current"), t("sent again whenever any session writes to the wiki")],
-            ["off", t("Only the rules"), t("Pi searches the wiki itself")],
         ],
     },
     {
