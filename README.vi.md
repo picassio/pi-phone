@@ -39,6 +39,9 @@ dự án thật.</sub>
   khác; Android hỏi một lần để cho pi hiển thị trên ứng dụng khác): logo pi trong một bong bóng trên mọi ứng dụng, vòng
   quay khi Pi làm việc, số đếm và huy hiệu khi có việc chờ bạn; chạm để mở bảng. Pi đổi được qua thẻ
   (`notifications.progress`, `notifications.bubble`, `notifications.bubbleHide`). Từ GitHub issue #5.
+- **Quyết định không thể bỏ sót.** Khi Pi hỏi bạn quyết định qua một thẻ, phiên ghim nó trong một thanh màu hổ phách ở
+  đầu, dù cuộn chat xa đến đâu, cho tới khi bạn trả lời (Trả lời mở biểu mẫu); danh sách phiên ghi "Pi hỏi bạn", và phạm
+  vi Đang chờ bạn liệt kê các phiên đang chờ bạn. Điện thoại báo cho bạn như mọi yêu cầu duyệt.
 - **Subagent chạy trên mô hình bạn chọn.** Menu › Subagent đặt mô hình và mức suy nghĩ Pi dùng khi tạo subagent, cho mọi
   phiên; menu của một phiên (Mô hình của subagent) đặt riêng cho phiên đó. Pi chỉ dùng mô hình khác khi bạn yêu cầu trong
   chat: trong các mô hình bạn cho phép ở đó (thêm nhiều cái cùng lúc, mỗi cái hiện ngữ cảnh và hạn mức gói), hoặc sau khi

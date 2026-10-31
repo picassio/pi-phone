@@ -66,7 +66,7 @@ import {
     Thumb,
 } from "./ui.js";
 import { LimitSwitch, windowName } from "./usage.js";
-import { t, tn, tx } from "./i18n.js";
+import { t, timeAgo, tn, tx } from "./i18n.js";
 
 const REPORT = /^\[subagent (\S+) (answered|failed)([^\]]*)\]\s?([\s\S]*)$/;
 /** Where the next report starts, in a message of several that arrived together (`extensions/subagents.ts`). */
@@ -1401,6 +1401,36 @@ function stepLive(step, results, slots, approvals, busy) {
 }
 
 /** `interview`'s card: Pi's questions wait here, and Answer opens their form. Anyone who can steer answers or skips. */
+/**
+ * What Pi asks the person to decide (PP-284): its interview cards, pinned at the top of the session however far the chat
+ * scrolls, until answered. Answer opens the card's form.
+ */
+function DecisionBar({ approvals }) {
+    const asked = approvals.filter((approval) => approval.form?.type === "interview");
+
+    if (asked.length === 0) {
+        return null;
+    }
+
+    return html`<div class="decision-bar" data-part="decision-bar">
+        ${asked.map(
+            (approval) => html`<button
+                type="button"
+                class="decision"
+                key=${approval.id}
+                onClick=${() => openSheet({ type: "interview", conversationId: approval.conversationId, callId: approval.form.callId })}
+            >
+                <span class="decision-icon" aria-hidden="true"><${Icon} name="chat" size=${14} /></span>
+                <span class="decision-text">
+                    <b>${t("Pi asks you: {title}", { title: approval.form.title })}</b>
+                    <small>${tn(approval.form.count, "{n} question", "{n} questions")}${approval.createdAt ? ` · ${timeAgo(approval.createdAt)}` : ""}</small>
+                </span>
+                <span class="decision-go">${t("Answer")}</span>
+            </button>`,
+        )}
+    </div>`;
+}
+
 function InterviewCard({ approval }) {
     const [busy, setBusy] = useState(false);
     const { form } = approval;
@@ -3605,6 +3635,7 @@ export function Transcript() {
         conversation.forkedFrom && sessions.find((each) => each.id === conversation.forkedFrom.id);
 
     return html`<main class="scroller" ref=${scroller} onScroll=${onScroll}>
+        <${DecisionBar} approvals=${approvals} />
         <div class=${`transcript ${entrance.current}`} data-part="transcript" ref=${column}>
             <${LinkedSessions} />
             ${

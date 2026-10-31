@@ -35,6 +35,9 @@ No Termux, no laptop, no cloud VM.
   Floating board over other apps; Android asks once to let pi display over other apps): the pi logo in a bubble over any
   app, a ring turning while Pi works, a count, and a badge when something waits; tap it for the board. Pi changes these
   on a card (`notifications.progress`, `notifications.bubble`, `notifications.bubbleHide`). From GitHub issue #5.
+- **Decisions you cannot miss.** When Pi asks you to decide on a card, the session pins it in an amber bar at the top,
+  however far the chat scrolls, until you answer (Answer opens the form); the session list marks it "Pi asks you", and
+  its scope Waits for you lists the sessions that wait for you. The phone notifies you as for any approval.
 - **Subagents on the model you pick.** Menu › Subagents sets the model and thinking level Pi starts subagents on, for
   every session; a session's menu (Subagents' model) sets its own over that. Pi uses another only when you ask in the
   chat: from the models you allow there (added several at once, each shown with its context and plan limit), or after

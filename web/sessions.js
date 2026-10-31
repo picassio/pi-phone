@@ -322,7 +322,7 @@ function stateMark(session, working, marked, unseen = finishedUnseen(session)) {
     const fresh = marked || unseen;
 
     if (session.waiting) {
-        return { shape: "waiting", label: t("Waiting for approval") };
+        return { shape: "waiting", label: session.asks === undefined ? t("Waiting for approval") : t("Pi asks you: {title}", { title: session.asks }) };
     }
 
     // Pi's request waits for the provider's limit to clear: at work, held up, until a time or a try (PP-135).
@@ -542,7 +542,7 @@ function SessionRow({
                     selected
                         ? html`<span class="state-check" role="img" aria-label=${t("Selected")}><${Icon} name="check" size=${9} /></span>`
                         : session.waiting
-                          ? html`<span class="status-need" role="img" aria-label=${steers ? t("Needs you") : t("Waiting")} title=${steers ? t("Needs you") : t("Waiting for approval")}></span>`
+                          ? html`<span class="status-need" role="img" aria-label=${steers ? t("Needs you") : t("Waiting")} title=${session.asks !== undefined ? t("Pi asks you: {title}", { title: session.asks }) : steers ? t("Needs you") : t("Waiting for approval")}></span>`
                           : session.limited !== undefined
                             ? html`<span class="status-limit" role="img" aria-label=${t("Waiting for a limit")} title=${t("Waiting for a limit: next try at {time}", { time: clockAt(session.limited) })}></span>`
                             : session.busy
@@ -691,6 +691,11 @@ const readScope = () => localStorage.getItem(SCOPE_KEY) ?? "all";
 const EMPTY_KEY = "pocket.showEmptyGroups";
 
 function inScope(session, scope, mine) {
+    // What waits for the person: a card to answer, a call to approve (PP-284).
+    if (scope === "waits") {
+        return session.waiting === true;
+    }
+
     // One of the person's folder groups (PP-76).
     if (scope.startsWith("fg:")) {
         return mine.members[String(session.id)] === scope.slice(3);
@@ -838,6 +843,8 @@ function ScopePicker({ scope, onScope, sessions, home, mine }) {
     const name =
         scope === "archived"
             ? t("Archived")
+            : scope === "waits"
+            ? t("Waits for you")
             : scope.startsWith("fg:")
               ? (mine.groups.find((group) => group.id === scope.slice(3))?.name ?? t("Group"))
               : scope.startsWith("group:")
@@ -845,7 +852,7 @@ function ScopePicker({ scope, onScope, sessions, home, mine }) {
               : scope.startsWith("folder:")
                 ? folderPlace(scope.slice(7))
                 : t("All");
-    const icon = scope === "archived" ? "archive" : scope.startsWith("group:") ? "board" : scope.startsWith("folder:") || scope.startsWith("fg:") ? "folder" : "menu";
+    const icon = scope === "archived" ? "archive" : scope === "waits" ? "chat" : scope.startsWith("group:") ? "board" : scope.startsWith("folder:") || scope.startsWith("fg:") ? "folder" : "menu";
     // The person's folder groups (PP-76), pinned ones first, with how many chats each holds now.
     const filed = mine.groups
         .map((group) => ({ group, count: live.filter((session) => mine.members[String(session.id)] === group.id).length }))
@@ -873,6 +880,7 @@ function ScopePicker({ scope, onScope, sessions, home, mine }) {
             open &&
             html`<div class="session-scope-menu" role="listbox" aria-label=${t("Show")}>
                 ${option("all", null, "All", `${live.length} active`)}
+                ${option("waits", html`<${Icon} name="chat" size=${13} />`, t("Waits for you"), `${live.filter((session) => session.waiting).length}`)}
                 ${filed.length > 0 && html`<div class="scope-sec">${t("Groups")}</div>`}
                 ${filed.map(({ group, count }) =>
                     option(`fg:${group.id}`, html`<${Icon} name=${group.pinned ? "pin" : "folder"} size=${13} />`, group.name, `${count}`),

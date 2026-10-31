@@ -331,6 +331,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `bash` commands that name the wiki folder (on the phone; a session on a machine works on that machine's files), naming
   the wiki tool to use. It keeps Pi honest rather than being a security boundary; nothing watches the folder, as only
   the tools, the Wiki page, and capture change it.
+- **Decision cards** (PP-284; owner's mockup, 2026-10-31): an interview card is an approval request with
+  `form.type: "interview"`, so the phone already hears of it and the progress board counts it as waiting. The session
+  pins its open cards in `DecisionBar` (web/transcript.js, sticky at the top of the scroller; Answer opens the form's
+  sheet); `sessions()` gives a session `asks` (the first open card's title), which the list's mark says ("Pi asks you"),
+  and the list's scope `waits` shows the sessions with `waiting`.
 - **The progress board** (PP-283, GitHub issue #5; `progress.ts`, `web/board.js`, `Progress.java`,
   `ProgressBubble.java`; owner's mockup v4, 2026-10-31): `Progress` reads the app's busy conversations and pending
   approvals (sessions and subagents; others such as the wiki's capture are left out), each one's newest peek line as

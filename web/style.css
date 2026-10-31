@@ -2468,6 +2468,74 @@ pre.diff .del {
     overflow-wrap: anywhere;
 }
 
+/* What Pi asks the person to decide (PP-284): pinned at the top of the session until answered. */
+.decision-bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px 0;
+}
+
+.decision {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: var(--column, 760px);
+    margin: 0 auto;
+    padding: 9px 12px;
+    border-radius: 14px;
+    text-align: left;
+    color: var(--text);
+    background: color-mix(in srgb, var(--warn) 14%, var(--bg));
+    border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.decision-icon {
+    width: 26px;
+    height: 26px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--warn);
+    color: var(--bg);
+}
+
+.decision-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.decision-text b,
+.decision-text small {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.decision-text b {
+    font-weight: 600;
+    font-size: 0.86rem;
+}
+
+.decision-text small {
+    color: var(--muted);
+}
+
+.decision-go {
+    flex: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--warn);
+}
+
 /* ─── The floating progress board (PP-283, board.js): the pi bubble's board over the app in front ─── */
 
 :root.board-mode,

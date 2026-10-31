@@ -4110,6 +4110,15 @@ export class PocketApp {
         const waiting = new Set(
             this.approvals.all().map((approval) => String(this.rootOf(approval.conversationId))),
         );
+        // A decision Pi asks on a card (PP-284): the list says "Pi asks you" with its title.
+        const asks = new Map<string, string>();
+
+        for (const approval of this.approvals.all()) {
+            if (approval.form?.type === "interview" && !asks.has(String(this.rootOf(approval.conversationId)))) {
+                asks.set(String(this.rootOf(approval.conversationId)), approval.form.title);
+            }
+        }
+
         const people = new Map<string, Map<string, string>>();
         const subagents = this.#subagentsBySession();
         // The sessions in a wait for a provider's limit, their subagents' included: when the next request goes out.
@@ -4181,6 +4190,7 @@ export class PocketApp {
                     ...(busy && busySince !== undefined ? { busySince } : {}),
                     ...(branch === undefined ? {} : { branch }),
                     waiting: waiting.has(id),
+                    ...(asks.has(id) ? { asks: asks.get(id)! } : {}),
                     ...(limited.has(id) ? { limited: limited.get(id)! } : {}),
                     ...(endedAt === undefined ? {} : { endedAt }),
                     ...(this.#failed.has(Number(id) as unknown as ConversationId)
