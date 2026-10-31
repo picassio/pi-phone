@@ -94,6 +94,11 @@ export interface BrowserEngine {
      * pictures at it): a new size then reopens each tab at its address. Chrome lays a tab out at any size.
      */
     readonly reopensToResize: boolean;
+    /**
+     * Where its window shows, when it has one someone may use there (a machine's Chrome in window mode, a browser Pi
+     * attached to): that machine's name; undefined for a headless one or the phone's (PP-274).
+     */
+    readonly visibleOn?: string | undefined;
     /** Pi's tabs there now (kept from before the server restarted, or opened by pages), by id, oldest first. */
     tabs(): Promise<string[]>;
     /** Make a new tab, laid out at `size` (CSS pixels; the phone's by default): its id. */
@@ -543,7 +548,17 @@ export type BrowserState = {
      * that sends nothing: PP-199), or null. The panel shows its last picture, or this with Retry; tries go on meanwhile.
      */
     pictureError: string | null;
+    /**
+     * Someone uses its window on the machine now (PP-274): input in its page that neither Pi nor the panel sent, a moment
+     * ago. Only for a browser with a window there (`visibleOn`).
+     */
+    windowInUse: boolean;
 };
+
+/** How long after the last outside input the panel says the window is in use on the machine. */
+const IN_USE_MS = 15_000;
+/** How long after Pi's or the panel's own input the page's input events are theirs, not someone's at the machine. */
+const OWN_INPUT_MS = 1500;
 
 /**
  * Solid hides over where the person's card typing is (`cardHideTargets`, found by `areasOf`: null or none where it is
@@ -619,7 +634,10 @@ export class PiBrowser {
     #opening: Promise<Tab> | undefined;
     /** Pi's actions, one after another. */
     #queue: Promise<unknown> = Promise.resolve();
-    #state: BrowserState = { place: "phone", where: "the phone", open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height }, size: "phone", pictureError: null };
+    #state: BrowserState = { place: "phone", where: "the phone", open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height }, size: "phone", pictureError: null, windowInUse: false };
+    /** Until when the page's input is Pi's or the panel's own (PP-274), and the timer that ends `windowInUse`. */
+    #ownInputUntil = 0;
+    #inUseTimer: NodeJS.Timeout | undefined;
     #watchers = 0;
     /** When Pi or a person last used it (an action, a tap, a tab shown): idle tabs close (`idleFor`). */
     #usedAt = Date.now();
@@ -696,6 +714,11 @@ export class PiBrowser {
         const tab: Tab = { id, page, observed: undefined, elements: [], url: "", title: "" };
 
         await page.init(SIZES[this.#state.size], { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone });
+
+        // A window on a machine's screen: input there that Pi did not send is someone's at the machine (PP-274).
+        if (this.#options.engine.visibleOn !== undefined) {
+            await page.watchInput(() => this.#outsideInput());
+        }
         cdp.onClose = () => {
             if (!this.#tabs.includes(tab)) {
                 return;
@@ -739,6 +762,25 @@ export class PiBrowser {
         this.#tabs.push(tab);
 
         return tab;
+    }
+
+    /**
+     * Input in a page's window on the machine (a click, a key, a wheel): someone's there, unless Pi acts or the panel's
+     * person sent it just now. The panel says so for a while, and Pi hears it once with its next answer.
+     */
+    #outsideInput(): void {
+        if (this.#state.doing !== null || Date.now() < this.#ownInputUntil) {
+            return;
+        }
+
+        clearTimeout(this.#inUseTimer);
+        this.#inUseTimer = setTimeout(() => this.#set({ windowInUse: false }), IN_USE_MS);
+        this.#inUseTimer.unref();
+
+        if (!this.#state.windowInUse) {
+            this.#notes.push(`Someone is using this browser's window on ${this.#options.engine.visibleOn ?? "the machine"} (input Pi did not send, just now): the page may have changed under you.\n`);
+            this.#set({ windowInUse: true });
+        }
     }
 
     /** Bring a tab to the front: frames for those watching follow it. */
@@ -1027,6 +1069,8 @@ export class PiBrowser {
                 return await work(await this.#ensure());
             } finally {
                 this.#usedAt = Date.now();
+                // The page's events of Pi's input may come a moment after the action.
+                this.#ownInputUntil = Date.now() + OWN_INPUT_MS;
                 this.#set({ doing: null });
             }
         });
@@ -1562,7 +1606,8 @@ export class PiBrowser {
         this.#tabs = [];
         this.#tab = undefined;
         await this.#options.engine.close();
-        this.#set({ doing: null, takenOver: false });
+        clearTimeout(this.#inUseTimer);
+        this.#set({ doing: null, takenOver: false, windowInUse: false });
     }
 
     /** Close Pi's browser, every tab (Settings, or the panel's Close). */
@@ -1570,6 +1615,7 @@ export class PiBrowser {
         await this.#queue;
         await this.#closeAll();
     }
+
 
     // ─── Watching and taking over ─────────────────────────────────────────────
 
@@ -1994,6 +2040,7 @@ export class PiBrowser {
         }
 
         this.#usedAt = Date.now();
+        this.#ownInputUntil = Date.now() + OWN_INPUT_MS;
 
         const page = (await this.#ensure()).page;
 

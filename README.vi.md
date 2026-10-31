@@ -263,6 +263,14 @@ dự án thật.</sub>
   của máy, nếu không thì công cụ trên máy), xem trong cùng khung (“Trình duyệt của Pi trên <máy>”). Nó mở các địa
   chỉ của chính máy, nên Pi thử được ứng dụng web bạn chạy ở đó (`localhost:3000`), và việc tải lên cùng PDF dùng tệp
   của máy. Đăng nhập của nó nằm trong `~/.pi/mobile/browser` ở đó.
+  - **Thành cửa sổ trên màn hình của máy**: **Cài đặt › Máy › Trình duyệt của Pi ở đây** (`browser.machineMode`:
+    *Headless*, mặc định, hoặc *Một cửa sổ trên màn hình*) mở Chrome, Chromium hoặc Edge của máy có cửa sổ, cùng hồ
+    sơ, để bạn xem và dùng nó ngay tại máy; nó vẫn vẽ khi bị che hay thu nhỏ. Trên Linux nó mở trong màn hình mà dòng
+    thiết lập màn hình chỉ ra (Menu › Điều khiển máy tính, dòng đặt `DISPLAY`), và bị từ chối nếu không có; trên
+    Windows nó mở trong phiên đã đăng nhập, không khóa, của bạn qua một tác vụ lên lịch dùng một lần với tài khoản của
+    bạn (không mật khẩu, không quyền quản trị, xóa ngay khi Chrome chạy), và báo khi chưa ai đăng nhập hoặc màn hình
+    đang khóa. Công cụ Chrome headless trên máy không có cửa sổ; macOS làm sau. Khi có người bấm, gõ hay cuộn trong
+    cửa sổ đó (không phải Pi, không phải khung), khung báo cửa sổ đang được dùng trên máy, và Pi được báo.
 - **Từ bất kỳ phiên nào.** `machine_run` và `machine_copy` chạy một lệnh hoặc chép một tệp trên máy (khi một máy
   được chọn **Pi hỏi trước mỗi lệnh** trong Cài đặt › Máy, mỗi `machine_run` ở đó chờ bạn cho phép trên một thẻ hiện
   lệnh; mặc định tắt, như bash trên điện thoại), và `pi-ssh` cho bash dùng ssh, rsync, scp và tunnel bằng khóa của ứng

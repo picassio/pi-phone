@@ -13671,6 +13671,23 @@ textarea.notes {
 }
 
 /* A set-up machine that does not answer now (Places.health). */
+/* How Pi's browser runs on a machine (PP-274): headless, or a window on its screen. */
+.machine-browser-mode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
+
+.machine-browser-mode .choice {
+    flex: 1;
+    min-width: 200px;
+}
+
+.machine-browser-mode .muted {
+    flex-basis: 100%;
+}
+
 .machine-problem {
     margin-top: 0.35rem;
     padding: 0.45rem 0.6rem;
@@ -18336,6 +18353,16 @@ pre.gallery-code {
 
 .pb-size {
     align-self: center;
+}
+
+/* Someone uses the browser's window on the machine (PP-274). */
+.pb-in-use {
+    flex: none;
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--hair);
+    font-size: 12.5px;
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 /* The keyboard's field while a person has the page (PP-14): on the picture, never seen, emptied after each key. */

@@ -692,5 +692,11 @@
     "This asks you to sign in: type it on the card.": "Yêu cầu này cần bạn đăng nhập: hãy gõ trên thẻ.",
     "Only the owner connects Chrome Remote Desktop: it is their Google account.": "Chỉ chủ sở hữu kết nối Chrome Remote Desktop: đó là tài khoản Google của họ.",
     "Chrome Remote Desktop could not be connected.": "Không kết nối được Chrome Remote Desktop.",
-    "This connects Chrome Remote Desktop: paste Google's command and choose a PIN on the card.": "Yêu cầu này kết nối Chrome Remote Desktop: hãy dán lệnh của Google và chọn PIN trên thẻ."
+    "This connects Chrome Remote Desktop: paste Google's command and choose a PIN on the card.": "Yêu cầu này kết nối Chrome Remote Desktop: hãy dán lệnh của Google và chọn PIN trên thẻ.",
+    "{1} is not connected: connect it in Settings › Machines.": "{1} chưa kết nối: hãy kết nối nó trong Cài đặt › Máy.",
+    "Only the owner sets how Pi's browser runs on a machine.": "Chỉ chủ sở hữu đặt cách trình duyệt của Pi chạy trên một máy.",
+    "Pi's browser on a machine is headless or window.": "Trình duyệt của Pi trên máy là headless hoặc window.",
+    "{1} is a team machine: Pi's browser runs headless there.": "{1} là máy của nhóm: trình duyệt của Pi chạy headless ở đó.",
+    "Pi's browser as a window on macOS is not built yet: {1} keeps it headless.": "Trình duyệt của Pi dạng cửa sổ trên macOS chưa có: {1} giữ headless.",
+    "browserMode is headless or window.": "browserMode là headless hoặc window."
 }

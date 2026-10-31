@@ -3174,5 +3174,12 @@
     "Remove Chrome Remote Desktop": "Gỡ Chrome Remote Desktop",
     "Unlock and see it from the Chrome Remote Desktop app on your phone, with your PIN.": "Mở khóa và xem máy từ ứng dụng Chrome Remote Desktop trên điện thoại, bằng PIN của bạn.",
     "Connect Chrome Remote Desktop on {machine} to your Google account": "Kết nối Chrome Remote Desktop trên {machine} với tài khoản Google của bạn",
-    "Connecting Chrome Remote Desktop is the owner's: waiting for them.": "Kết nối Chrome Remote Desktop là việc của chủ sở hữu: đang chờ họ."
+    "Connecting Chrome Remote Desktop is the owner's: waiting for them.": "Kết nối Chrome Remote Desktop là việc của chủ sở hữu: đang chờ họ.",
+    "Someone is using this browser's window on {where}.": "Có người đang dùng cửa sổ của trình duyệt này trên {where}.",
+    "Pi's browser here": "Trình duyệt của Pi ở đây",
+    "Headless (no window)": "Headless (không cửa sổ)",
+    "A window on its screen": "Một cửa sổ trên màn hình",
+    "A window on macOS comes later.": "Cửa sổ trên macOS sẽ có sau.",
+    "A window opens in your signed-in desktop, unlocked; it needs Chrome or Edge, not the headless machine tool. A change restarts it: its tabs close.": "Cửa sổ mở trong phiên máy đã đăng nhập, không khóa, của bạn; cần Chrome hoặc Edge, không phải công cụ headless trên máy. Đổi sẽ khởi động lại nó: các thẻ sẽ đóng.",
+    "A window needs a display (the desktop setup line in Menu › Computer control) and Chrome or Chromium, not the headless machine tool. A change restarts it: its tabs close.": "Cửa sổ cần một màn hình (dòng thiết lập màn hình trong Menu › Điều khiển máy tính) và Chrome hoặc Chromium, không phải công cụ headless trên máy. Đổi sẽ khởi động lại nó: các thẻ sẽ đóng."
 }

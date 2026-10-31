@@ -888,6 +888,23 @@ so Pi changes them through the settings tools; "the last session" is the one the
   Take over: a tap's two mouse events go at once; keys and text go without waiting for the page (Pi's own presses still
   wait for a navigation). `node test/perf/browser-stream.ts [local|tailscale|slow]` measures it (a throttled link to
   a headless Chrome, the panel in another).
+- **Pi's browser on a machine** (PP-274; `browser/machine-engine.ts`):
+  - **Window mode** (`browser.machineMode`, kept on the machine as `browserMode: "window"`; headless unset; Settings ›
+    Machines and `setting_change`, through `setMachineBrowserMode`, which stops its Chrome so the next action starts it
+    in the new mode; the launch script also restarts a Chrome whose `~/.pi/mobile/browser/mode` differs). The same
+    Chrome search and profile, without `--headless` and `--disable-gpu`, with `--disable-backgrounding-occluded-windows
+    --disable-renderer-backgrounding --disable-background-timer-throttling`. Only a real Chrome, Chromium or Edge: the
+    headless shell exits 8. Linux: computer control's desktop setup line runs first (`ComputerControl.prepareOf`), and
+    no `DISPLAY` or `WAYLAND_DISPLAY` exits 7. Windows: sshd's commands run in session 0, so Git Bash registers a
+    one-shot task "pi-phone browser" as the user (Interactive, Limited: no password, not elevated, no trigger) whose
+    action is Chrome itself, starts it, waits for DevToolsActivePort and unregisters it in a `finally`; Chrome then
+    runs in the desktop session and its port comes through the same ssh forward. Nobody signed in exits 21, a locked
+    screen 23 (LogonUI in that session). macOS is refused before anything runs. `launchProblem` words each exit.
+  - **Someone at the window**: a window's pages get a DevTools binding (`BrowserPage.watchInput`: trusted
+    pointerdown, keydown and wheel, at most one per 400 ms, on every document; the binding's calls come only with the
+    Runtime domain on). Pi's own CDP input is trusted too, so an event counts only while Pi is not acting and 1.5 s
+    after its last action or the panel's input (`#ownInputUntil`); then `windowInUse` is true for 15 s (the panel's
+    line) and Pi's next answer starts with a note, once. Only for engines with `visibleOn` (window mode).
 - **Onboarding** (PP-232; plan `projects/pi-phone-onboarding`): the first-run welcome's state is per person in
   config.json (`User.welcome`: absent shows it, `done`, `skipped`). A config from before it (no `onboarding: 1`)
   marks everyone done once, so only new pi-phones (a team member's own included) welcome their owner; guests never get

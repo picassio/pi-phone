@@ -693,5 +693,11 @@
     "This asks you to sign in: type it on the card.": "这里需要你登录：请在卡片上输入。",
     "Only the owner connects Chrome Remote Desktop: it is their Google account.": "只有所有者能连接 Chrome Remote Desktop：那是他们的 Google 账号。",
     "Chrome Remote Desktop could not be connected.": "Chrome Remote Desktop 未能连接。",
-    "This connects Chrome Remote Desktop: paste Google's command and choose a PIN on the card.": "这是连接 Chrome Remote Desktop：请在卡片上粘贴 Google 的命令并设置 PIN。"
+    "This connects Chrome Remote Desktop: paste Google's command and choose a PIN on the card.": "这是连接 Chrome Remote Desktop：请在卡片上粘贴 Google 的命令并设置 PIN。",
+    "{1} is not connected: connect it in Settings › Machines.": "{1} 未连接：请在设置 › 机器中连接它。",
+    "Only the owner sets how Pi's browser runs on a machine.": "只有所有者能设置 Pi 浏览器在机器上的运行方式。",
+    "Pi's browser on a machine is headless or window.": "机器上的 Pi 浏览器只能是 headless 或 window。",
+    "{1} is a team machine: Pi's browser runs headless there.": "{1} 是团队机器：Pi 浏览器在那里以无头模式运行。",
+    "Pi's browser as a window on macOS is not built yet: {1} keeps it headless.": "macOS 上以窗口运行 Pi 浏览器尚未实现：{1} 保持无头模式。",
+    "browserMode is headless or window.": "browserMode 只能是 headless 或 window。"
 }

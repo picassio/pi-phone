@@ -168,6 +168,10 @@ export class SessionEngine implements BrowserEngine {
         return this.#engine.reopensToResize;
     }
 
+    get visibleOn(): string | undefined {
+        return this.#engine.visibleOn;
+    }
+
     /** This session's tabs, oldest first: its own, and any nobody owns (taken now). */
     async tabs(): Promise<string[]> {
         const all = await this.#engine.tabs();

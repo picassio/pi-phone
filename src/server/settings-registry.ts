@@ -18,6 +18,7 @@ import { DESIGN_MODULE } from "./design-systems.ts";
 import { type CustomProviderView, idFromName, type KeyChoice } from "./custom-providers.ts";
 import { type VoiceCheck, VOICES } from "./voice.ts";
 import { POPUP_MODES } from "./browser/pi-browser.ts";
+import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
 import { copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -365,6 +366,17 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             read: () => app.config.browserPopups,
             choices: () => [...POPUP_MODES],
             apply: (user, value) => app.setBrowserPopups(user, value.trim().toLowerCase()),
+        },
+        {
+            id: "browser.machineMode",
+            area: "browser",
+            title: "How Pi's browser runs on a machine",
+            help: "headless (the default: no window) or window (a window on the machine's screen that the owner can watch and use there, with the same separate profile; needs the machine's Chrome, Chromium or Edge, not the headless machine tool; on Linux a display, from computer control's desktop setup line; on Windows someone signed in and the screen unlocked; not on macOS yet). A change starts its Chrome again: open tabs there close, sign-ins stay. Target: the machine's name or id.",
+            owner: true,
+            target: "machine",
+            read: (target) => machine(target).browserMode ?? "headless",
+            choices: () => [...MACHINE_BROWSER_MODES],
+            apply: (user, value, target) => app.setMachineBrowserMode(user, machine(target).id, value.trim().toLowerCase()),
         },
         // ─── Web access ───
         {

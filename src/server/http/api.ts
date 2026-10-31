@@ -1901,7 +1901,14 @@ export function createApi(options: HttpOptions, auth: Auth) {
             requireOwner(user);
 
             if (third === undefined) {
-                return json(response, 200, await app.machines.edit(second, await readJson(request)));
+                const { browserMode, ...rest } = await readJson<Record<string, unknown>>(request);
+
+                // How Pi's browser runs there (PP-274): through the app, which starts its Chrome again in the new mode.
+                if (browserMode !== undefined) {
+                    await app.setMachineBrowserMode(user, second, browserMode);
+                }
+
+                return json(response, 200, Object.keys(rest).length === 0 ? app.machines.get(second) : await app.machines.edit(second, rest));
             }
 
             if (third === "scan") {

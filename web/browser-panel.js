@@ -556,6 +556,7 @@ export function BrowserPanel({ leaving = false }) {
         <div class=${`pb-status ${state?.doing ? "busy" : ""}`} aria-live="polite">
             ${state?.doing ? html`<span class="pb-spin" aria-hidden="true"></span>${state.doing}` : takenOver ? t("You have the page: Pi waits until you hand it back.") : state?.open ? t("Pi is not browsing now.") : ""}
         </div>
+        ${state?.windowInUse && html`<div class="pb-in-use" role="status">${t("Someone is using this browser's window on {where}.", { where: state.where })}</div>`}
         <div class="pb-body">
             ${
                 state?.open

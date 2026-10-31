@@ -67,6 +67,11 @@ export type Machine = {
      */
     askRun?: boolean;
     /**
+     * How Pi's browser runs here (PP-274, the setting `browser.machineMode`): as a window on the machine's screen, or
+     * headless (unset, the default).
+     */
+    browserMode?: "window";
+    /**
      * A team machine (PP-82): the team server's, with its id there, who may change it, which roles use it, and its key's
      * public half. Its key is the team server's; its connection and sign-in go through it (`team-machines.ts`).
      */
@@ -444,11 +449,21 @@ export class Machines {
     }
 
     /** Change the name, address, or key. A new address or key forgets the host key and the connection: scan again. */
-    async edit(id: string, body: { name?: unknown; address?: unknown; keyId?: unknown; askRun?: unknown }): Promise<Machine> {
+    async edit(id: string, body: { name?: unknown; address?: unknown; keyId?: unknown; askRun?: unknown; browserMode?: unknown }): Promise<Machine> {
         const machine = this.#own(id);
 
         if (body.askRun !== undefined && typeof body.askRun !== "boolean") {
             throw new HttpError(400, "askRun is true or false.");
+        }
+
+        if (body.browserMode !== undefined && body.browserMode !== "window" && body.browserMode !== "headless") {
+            throw new HttpError(400, "browserMode is headless or window.");
+        }
+
+        if (body.browserMode === "window") {
+            machine.browserMode = "window";
+        } else if (body.browserMode === "headless") {
+            delete machine.browserMode;
         }
 
         if (body.name !== undefined) {

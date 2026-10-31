@@ -249,6 +249,14 @@ No Termux, no laptop, no cloud VM.
   Edge, else the machine tool), watched in the same panel ("Pi's browser on <machine>"). It opens the machine's own
   addresses, so Pi can try the web app you run there (`localhost:3000`), and uploads and PDFs use the machine's files.
   Its sign-ins stay in `~/.pi/mobile/browser` there.
+  - **As a window on the machine's screen**: **Settings › Machines › Pi's browser here** (`browser.machineMode`:
+    *Headless*, the default, or *A window on its screen*) starts the machine's own Chrome, Chromium or Edge with a
+    window, on the same profile, so you can watch it and use it at the machine too; it keeps drawing when covered or
+    minimised. On Linux it opens in the desktop the desktop setup line names (Menu › Computer control, which sets
+    `DISPLAY`), and is refused without one; on Windows it opens in your signed-in, unlocked desktop through a one-shot
+    scheduled task as you (no password, not elevated, removed once Chrome runs), and says so when nobody is signed in
+    or the screen is locked. The headless machine tool has no window; macOS comes later. When someone clicks, types or
+    scrolls in that window (not Pi, not the panel), the panel says the window is in use on the machine, and Pi is told.
 - **From any session.** `machine_run` and `machine_copy` run a command or copy a file on a machine (with **Pi asks
   before each command** ticked for a machine in Settings › Machines, each `machine_run` there waits for you to allow it
   on a card that shows the command; off by default, as bash on the phone), and `pi-ssh`

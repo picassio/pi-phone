@@ -3194,5 +3194,12 @@
     "Remove Chrome Remote Desktop": "移除 Chrome Remote Desktop",
     "Unlock and see it from the Chrome Remote Desktop app on your phone, with your PIN.": "用手机上的 Chrome Remote Desktop 应用和你的 PIN 解锁并查看它。",
     "Connect Chrome Remote Desktop on {machine} to your Google account": "将 {machine} 上的 Chrome Remote Desktop 连接到你的 Google 账号",
-    "Connecting Chrome Remote Desktop is the owner's: waiting for them.": "连接 Chrome Remote Desktop 归所有者：等待他们处理。"
+    "Connecting Chrome Remote Desktop is the owner's: waiting for them.": "连接 Chrome Remote Desktop 归所有者：等待他们处理。",
+    "Someone is using this browser's window on {where}.": "有人正在 {where} 上使用这个浏览器的窗口。",
+    "Pi's browser here": "这里的 Pi 浏览器",
+    "Headless (no window)": "无头（无窗口）",
+    "A window on its screen": "屏幕上的窗口",
+    "A window on macOS comes later.": "macOS 上的窗口以后支持。",
+    "A window opens in your signed-in desktop, unlocked; it needs Chrome or Edge, not the headless machine tool. A change restarts it: its tabs close.": "窗口在你已登录且未锁定的桌面中打开；需要 Chrome 或 Edge，而不是无头的机器工具。更改会重启它：其标签页会关闭。",
+    "A window needs a display (the desktop setup line in Menu › Computer control) and Chrome or Chromium, not the headless machine tool. A change restarts it: its tabs close.": "窗口需要显示器（菜单 › 电脑控制中的桌面设置行）以及 Chrome 或 Chromium，而不是无头的机器工具。更改会重启它：其标签页会关闭。"
 }

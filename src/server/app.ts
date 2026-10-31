@@ -115,7 +115,7 @@ import { MachineTools, machineSkillsDir, TOOLS, TOOLS_BIN } from "./machine-tool
 import { type CrdRun, CrdError } from "./crd.ts";
 import { Screenshots } from "./screenshots.ts";
 import { FilePages } from "./file-pages.ts";
-import { MachineEngine } from "./browser/machine-engine.ts";
+import { MACHINE_BROWSER_MODES, type MachineAccess, type MachineBrowserMode, MachineEngine } from "./browser/machine-engine.ts";
 import { BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine.ts";
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
 import { installImageGuard } from "./image-guard.ts";
@@ -291,6 +291,9 @@ function countSubagents(
     return counts;
 }
 
+/** A machine as Pi's browser needs it (PP-274): connected or not, its system, and its setting `browser.machineMode`. */
+export type BrowserMachineInfo = { id: string; name: string; connected: boolean; platform?: string; browserMode?: MachineBrowserMode };
+
 export interface OpenOptions {
     dataDir: string;
     defaultCwd: string;
@@ -314,6 +317,11 @@ export interface OpenOptions {
     officecli?: Omit<OfficeCliOptions, "dataDir">;
     /** Where Pi's browser comes from: the phone's WebView unless a test or a computer gives another (a Chrome). */
     browserEngine?: BrowserEngine;
+    /**
+     * The machines Pi's browser runs on (PP-274): the app's connected machines, through pi-env's daemon and the app's ssh
+     * forwards, unless a test stands machines in.
+     */
+    browserMachines?: { list(): BrowserMachineInfo[]; access(id: string): MachineAccess };
     /** Where the release notes are (`whatsnew/<version>.md`, PP-235); tests give their own. Default: the app's. */
     whatsNewDir?: string;
     /** Computer control's machines, how it runs a script on one (PP-178) and opens a port of one (PP-179): the app's machines, ssh and forwards, unless a test gives its own. */
@@ -388,6 +396,8 @@ export class PocketApp {
     readonly #tabOwners: TabOwners;
     /** The size each session's browser lays pages out at (PP-18). */
     readonly #browserSizes: BrowserSizes;
+    /** Test machines for Pi's browser, if a test gave them. */
+    readonly #browserMachinesOption: OpenOptions["browserMachines"];
     /** The sweep that closes idle sessions' tabs, and those of sessions archived or deleted. */
     #browserSweep: NodeJS.Timeout | undefined;
     /** Approvals the phone was told of already. */
@@ -782,6 +792,7 @@ export class PocketApp {
         });
         this.#tabOwners = new TabOwners(join(options.dataDir, "browser-tabs.json"));
         this.#browserSizes = new BrowserSizes(join(options.dataDir, "browser-sizes.json"));
+        this.#browserMachinesOption = options.browserMachines;
         this.para = new Para({
             home: this.#home,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
@@ -3270,6 +3281,37 @@ export class PocketApp {
         return this.browserAt(machine === undefined ? "phone" : `machine:${machine}`, session);
     }
 
+    /** The machines Pi's browser may run on (PP-274): the app's connected ones, or a test's. */
+    browserMachines(): BrowserMachineInfo[] {
+        if (this.#browserMachinesOption !== undefined) {
+            return this.#browserMachinesOption.list();
+        }
+
+        return this.machines.list().map((machine) => ({
+            id: machine.id,
+            name: machine.name,
+            connected: machine.remote !== undefined,
+            ...(machine.remote === undefined ? {} : { platform: machine.remote.platform }),
+            ...(machine.browserMode === undefined ? {} : { browserMode: machine.browserMode }),
+        }));
+    }
+
+    /** A connected machine by name or id, for Pi's browser: or why not. */
+    #browserMachine(wanted: string): BrowserMachineInfo {
+        const machines = this.browserMachines();
+        const found = machines.find((each) => each.id === wanted.trim()) ?? machines.find((each) => each.name.toLowerCase() === wanted.trim().toLowerCase());
+
+        if (found === undefined) {
+            throw new HttpError(404, `There is no machine ${wanted}. Machines: ${machines.map((each) => each.name).join(", ") || "none"}.`);
+        }
+
+        if (!found.connected) {
+            throw new HttpError(409, `${found.name} is not connected: connect it in Settings › Machines.`);
+        }
+
+        return found;
+    }
+
     /**
      * One session's browser at a place: `phone`, or `machine:<id>` (a Chrome there, made on first use). Every session at a
      * place shares its engine (one profile: a sign-in serves them all), and sees only its own tabs.
@@ -3295,7 +3337,7 @@ export class PocketApp {
         const browser =
             machine === undefined
                 ? this.#makeBrowser(this.#phoneEngine, "phone", "the phone", session)
-                : this.#makeBrowser(this.#machineEngine(machine), place, this.machines.ready(machine).name, session);
+                : this.#makeBrowser(this.#machineEngine(machine), place, this.#browserMachine(machine).name, session);
 
         this.#browsers.set(key, browser);
 
@@ -3310,16 +3352,37 @@ export class PocketApp {
             return known;
         }
 
+        const machine = this.#browserMachine(id);
+        const engine = new MachineEngine(this.#machineAccess(id), {
+            mode: () => this.#browserMachine(id).browserMode ?? "headless",
+            ...(machine.platform === undefined ? {} : { platform: machine.platform }),
+            // Computer control's desktop setup line (Menu › Computer control): DISPLAY and the rest, on Linux.
+            prepare: () => this.computerControl.prepareOf(id),
+        });
+
+        this.#machineEngines.set(id, engine);
+
+        return engine;
+    }
+
+    /** What Pi's browser needs of a machine (PP-274): run a script, write a file, open a port; a test's, or the app's. */
+    #machineAccess(id: string): MachineAccess {
+        if (this.#browserMachinesOption !== undefined) {
+            return this.#browserMachinesOption.access(id);
+        }
+
         const machine = this.machines.ready(id);
         const remote = machine.remote!;
-        const env = this.places.env(`machine:${id}:${remote.home}`);
-        const engine = new MachineEngine({
+        // Asked each time: a change to the machine (its name, a setting) forgets its connection (`Places.forget`).
+        const env = () => this.places.env(`machine:${id}:${remote.home}`);
+
+        return {
                 name: machine.name,
                 home: remote.home,
                 run: async (script, timeout) => {
                     let out = "";
                     // On Windows the daemon runs a command line with Git Bash; `sh` may not be on Windows' own PATH.
-                    const result = await env.exec(remote.platform === "windows" ? script : ["sh", "-c", script], { cwd: remote.home, timeout, onOutput: (chunk) => (out += chunk) }, context);
+                    const result = await env().exec(remote.platform === "windows" ? script : ["sh", "-c", script], { cwd: remote.home, timeout, onOutput: (chunk) => (out += chunk) }, context);
 
                     if (!result.ok) {
                         throw new Error(`${machine.name}: ${result.error.message}`);
@@ -3329,8 +3392,8 @@ export class PocketApp {
                 },
                 writeFile: async (path, bytes) => {
                     const folder = path.slice(0, path.lastIndexOf("/"));
-                    const made = await env.exec(remote.platform === "windows" ? `mkdir -p '${folder}'` : ["mkdir", "-p", folder], { cwd: remote.home, timeout: 30 }, context);
-                    const written = made.ok ? await env.writeFile(path, bytes, context) : made;
+                    const made = await env().exec(remote.platform === "windows" ? `mkdir -p '${folder}'` : ["mkdir", "-p", folder], { cwd: remote.home, timeout: 30 }, context);
+                    const written = made.ok ? await env().writeFile(path, bytes, context) : made;
 
                     if (!written.ok) {
                         throw new Error(`Could not copy the file to ${machine.name}: ${written.error.message}`);
@@ -3351,11 +3414,48 @@ export class PocketApp {
                         },
                     };
                 },
-            });
+            };
+    }
 
-        this.#machineEngines.set(id, engine);
+    /**
+     * How a machine's Chrome runs (`browser.machineMode`, PP-274): headless, or as a window on its screen. A change starts
+     * its Chrome again in the new mode: open tabs there close; sign-ins stay. The owner's.
+     */
+    async setMachineBrowserMode(user: User, wanted: string, value: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner sets how Pi's browser runs on a machine.");
+        }
 
-        return engine;
+        if (typeof value !== "string" || !MACHINE_BROWSER_MODES.includes(value as MachineBrowserMode)) {
+            throw new HttpError(400, "Pi's browser on a machine is headless or window.");
+        }
+
+        const machines = this.machines.list();
+        const machine = machines.find((each) => each.id === wanted.trim()) ?? machines.find((each) => each.name.toLowerCase() === wanted.trim().toLowerCase());
+
+        if (machine === undefined) {
+            throw new HttpError(404, `There is no machine ${wanted}. Machines: ${machines.map((each) => each.name).join(", ") || "none"}.`);
+        }
+
+        if (machine.team !== undefined) {
+            throw new HttpError(409, `${machine.name} is a team machine: Pi's browser runs headless there.`);
+        }
+
+        if (value === "window" && machine.remote?.platform === "darwin") {
+            throw new HttpError(409, `Pi's browser as a window on macOS is not built yet: ${machine.name} keeps it headless.`);
+        }
+
+        if ((machine.browserMode ?? "headless") === value) {
+            return;
+        }
+
+        await this.machines.edit(machine.id, { browserMode: value });
+        const engine = this.#machineEngines.get(machine.id);
+
+        // Its Chrome starts again in the new mode at Pi's next action; the tabs there close now.
+        if (engine !== undefined) {
+            await engine.close().catch((error: unknown) => this.#log(`browser: stopping Chrome on ${machine.name}: ${describe(error)}`));
+        }
     }
 
     /** Send a tab's board its subagents, unless they are what it last got. */

@@ -577,6 +577,38 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 </label>`
             }
             ${
+                // PP-274: how Pi's browser runs here; Pi's tool is the setting browser.machineMode. macOS comes later.
+                !team &&
+                state === "connected" &&
+                html`<div class="machine-browser-mode small">
+                    <span>${t("Pi's browser here")}</span>
+                    <${Choice}
+                        label=${t("Pi's browser here")}
+                        value=${machine.browserMode ?? "headless"}
+                        disabled=${busy !== null || machine.remote?.platform === "darwin"}
+                        options=${[
+                            { value: "headless", label: t("Headless (no window)") },
+                            { value: "window", label: t("A window on its screen") },
+                        ]}
+                        onChange=${(browserMode) =>
+                            browserMode !== (machine.browserMode ?? "headless") &&
+                            call("browserMode", async () => {
+                                await api(`machines/${encodeURIComponent(machine.id)}`, { browserMode });
+                                onChanged();
+                            })}
+                    />
+                    <span class="muted">
+                        ${
+                            machine.remote?.platform === "darwin"
+                                ? t("A window on macOS comes later.")
+                                : machine.remote?.platform === "windows"
+                                  ? t("A window opens in your signed-in desktop, unlocked; it needs Chrome or Edge, not the headless machine tool. A change restarts it: its tabs close.")
+                                  : t("A window needs a display (the desktop setup line in Menu › Computer control) and Chrome or Chromium, not the headless machine tool. A change restarts it: its tabs close.")
+                        }
+                    </span>
+                </div>`
+            }
+            ${
                 state === "connected" &&
                 health !== undefined &&
                 (health.ok

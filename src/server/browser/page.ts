@@ -134,6 +134,22 @@ export const SHORT_VALUE_NOTE =
  * In every document Pi's browser loads (PP-79): alert, confirm and prompt answer at once, as Pi asked for the click or
  * key press under way (`__piDialogs.accept`), and keep what they showed (the last five) for the next read.
  */
+/** The DevTools binding a page's input reaches pi-phone by (PP-274), and the listeners that call it. */
+export const INPUT_BINDING = "__piPhoneInput";
+export const INPUT_WATCH = `(() => {
+  if (window.__piPhoneInputWatch) return;
+  window.__piPhoneInputWatch = true;
+  let last = 0;
+  const heard = (event) => {
+    if (!event.isTrusted || typeof window.${INPUT_BINDING} !== 'function') return;
+    const now = Date.now();
+    if (now - last < 400) return;
+    last = now;
+    try { window.${INPUT_BINDING}(event.type); } catch {}
+  };
+  for (const type of ['pointerdown', 'keydown', 'wheel']) addEventListener(type, heard, { capture: true, passive: true });
+})()`;
+
 const DIALOGS = `(() => {
     if (window.__piDialogs) return;
     const state = { accept: false, shown: [] };
@@ -366,6 +382,24 @@ export class BrowserPage {
                 ...(action.current_value === undefined ? {} : { current_value: hide(action.current_value) }),
             })),
         };
+    }
+
+    /**
+     * Hear of a person's input in the page (a press, a key, a wheel: trusted events, at most one in 400 ms), for a window
+     * on a machine's screen (PP-274). Pi's own input through DevTools is trusted too: the caller tells them apart by when
+     * Pi acted. Every document gets the listeners, through a DevTools binding.
+     */
+    async watchInput(heard: () => void): Promise<void> {
+        this.cdp.on("Runtime.bindingCalled", (params) => {
+            if (params.name === INPUT_BINDING) {
+                heard();
+            }
+        });
+        // A binding's calls reach DevTools only with the Runtime domain on (tuanlh-sandbox-01, Chrome 156: none came without).
+        await this.cdp.send("Runtime.enable");
+        await this.cdp.send("Runtime.addBinding", { name: INPUT_BINDING });
+        await this.cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: INPUT_WATCH });
+        await this.evaluate<unknown>(INPUT_WATCH).catch(() => {});
     }
 
     /** Whether pictures come from the GPU surface (a desktop Chrome: at the device scale) or the view (the phone's WebView). */
