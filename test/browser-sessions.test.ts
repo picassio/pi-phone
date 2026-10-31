@@ -78,7 +78,7 @@ test("two sessions at one place: their own tabs, one profile, owners kept across
         assert.match(await one.snapshot(1), /^Page A — /);
         assert.deepEqual((await engine.tabs()).length, 1);
     } finally {
-        await one.close();
+        await one.close().catch(() => {});
         await engine.close();
     }
 });
@@ -119,7 +119,7 @@ test("Desktop lays pages out at 1280 as a desktop Chrome without touch, Phone at
         assert.equal(browser.idleFor(Date.now() + 60_000), 0);
         stop();
     } finally {
-        await browser.close();
+        await browser.close().catch(() => {});
         await engine.close();
     }
 });
@@ -150,7 +150,7 @@ test("where a tab keeps its size (the phone's WebView), a new size opens each ta
         assert.match(await browser.tabs(9), /→ 1\. Page A — http:\/\/pi\.test\/a\n  2\. UA — http:\/\/pi\.test\/ua/);
         assert.match(await browser.switchTab(9, 2), /desktop 1280 touch 0/);
     } finally {
-        await browser.close();
+        await browser.close().catch(() => {});
         await engine.close();
     }
 });

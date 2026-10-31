@@ -376,6 +376,50 @@ export class PhoneEngine implements BrowserEngine {
 }
 
 /**
+ * The DevTools port a Chrome wrote in its profile, once it is all there: Chrome makes the file, then writes it, and a
+ * read in between finds it empty (25 cold starts on tuanlh-devbox-01: 167 empty reads). An empty first line was port 0,
+ * which Node's http sends to port 80 (Build APK #347: "The browser answered /json/new?about:blank with no JSON",
+ * Caddy's empty 308 on the devbox). Undefined until the first line is a whole port and its newline has come.
+ */
+export function activePort(file: string): number | undefined {
+    let text: string;
+
+    try {
+        text = readFileSync(file, "utf8");
+    } catch {
+        return undefined;
+    }
+
+    const port = Number(/^(\d+)\r?\n/.exec(text)?.[1]);
+
+    return Number.isInteger(port) && port > 0 && port <= 65535 ? port : undefined;
+}
+
+/** The Chromes this process started and has not seen end: killed when it exits, so none is left behind. */
+const started = new Set<ChildProcess>();
+let killsAtExit = false;
+
+/**
+ * Let a Chrome not keep this process alive, and end it with this process: a test that fails before it closes its
+ * engine, or a server that stops, leaves no Chrome running and no run hanging on one (Build APK #347: npm test waited
+ * 28 minutes on the Chrome of a failed test).
+ */
+function keepUntilExit(child: ChildProcess): void {
+    if (!killsAtExit) {
+        killsAtExit = true;
+        process.once("exit", () => {
+            for (const each of started) {
+                each.kill("SIGKILL");
+            }
+        });
+    }
+
+    started.add(child);
+    child.once("exit", () => started.delete(child));
+    child.unref();
+}
+
+/**
  * A headless Chrome of its own (tests, a computer, the server edition): launched on first use, with a profile that goes
  * with it, or one kept in `profile` (the server edition's, in its home: sign-ins stay across restarts).
  */
@@ -423,14 +467,15 @@ export class ChromeEngine implements BrowserEngine {
             ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${this.#profile}`, "--no-first-run", "--no-default-browser-check", "--disable-gpu", ...this.#flags, "about:blank"],
             { stdio: "ignore" },
         );
+        keepUntilExit(this.#child);
 
         // A cold start on a busy computer (CI) can take a while.
         const until = Date.now() + 45_000;
 
         while (Date.now() < until && this.#port === undefined) {
-            try {
-                this.#port = Number(readFileSync(join(this.#profile, "DevToolsActivePort"), "utf8").split("\n")[0]);
-            } catch {
+            this.#port = activePort(join(this.#profile, "DevToolsActivePort"));
+
+            if (this.#port === undefined) {
                 await new Promise((resolve) => setTimeout(resolve, 100));
             }
         }

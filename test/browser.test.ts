@@ -590,9 +590,10 @@ test("with Chrome: after switching between phone and desktop sizes, clicks and t
 
         assert.deepEqual(logged.filter((line) => line.startsWith("browser frames")), [], "every first picture came, every screencast started");
     } finally {
+        // Chrome goes though closing the browsers fails (their engine may not answer): a failed test leaves none behind.
         unwatch();
-        await browser.close();
-        await other.close();
+        await browser.close().catch(() => {});
+        await other.close().catch(() => {});
         await engine.close();
     }
 });
@@ -673,40 +674,42 @@ test("with Chrome: a sign-in window (window.open) is a tab in front that talks t
         assert.match(await browser.open(1, "http://pi.test/pushy"), /^The page tried to open a window: http:\/\/pi\.test\/two; Chrome blocked it, as no click opened it\.\nPushy — /);
         assert.equal(states.at(-1)?.tabs.length, 1);
     } finally {
-        await browser.close();
+        await browser.close().catch(() => {});
         await engine.close();
     }
 });
 
 test("with Chrome: a tab still listed while it closes does not fail the next open (PP-126)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
     const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
-    // A tab that closed after the list was read, as a slow page leaves it just after browser_close: Chrome answers 500.
-    const gone = await engine.newTab();
-
-    await engine.closeTab(gone);
-
-    const session = new SessionEngine(engine, "phone", 1, new TabOwners(undefined));
-    const listing = new Proxy(session, {
-        get: (target, name) => {
-            if (name === "tabs") {
-                return async () => [...(await target.tabs()), gone];
-            }
-
-            const value = Reflect.get(target, name) as unknown;
-
-            return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(target) : value;
-        },
-    });
-    const logged: string[] = [];
-    const browser = new PiBrowser({ engine: listing, session: 1, changed: () => {}, frame: () => {}, log: (line) => logged.push(line) });
+    let browser: PiBrowser | undefined;
 
     try {
+        // A tab that closed after the list was read, as a slow page leaves it just after browser_close: Chrome answers 500.
+        const gone = await engine.newTab();
+
+        await engine.closeTab(gone);
+
+        const session = new SessionEngine(engine, "phone", 1, new TabOwners(undefined));
+        const listing = new Proxy(session, {
+            get: (target, name) => {
+                if (name === "tabs") {
+                    return async () => [...(await target.tabs()), gone];
+                }
+
+                const value = Reflect.get(target, name) as unknown;
+
+                return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+            },
+        });
+        const logged: string[] = [];
+
+        browser = new PiBrowser({ engine: listing, session: 1, changed: () => {}, frame: () => {}, log: (line) => logged.push(line) });
         assert.match(await browser.open(1, "http://pi.test/aim"), /button "Hit"/);
         assert.ok(logged.some((line) => /tab is gone: .*500/.test(line)), logged.join("\n"));
         // Nor the actions after it, which take in tabs a page opened from the same list.
         assert.match(await browser.click(1, Number(/\[(\d+)\] button "Hit"/.exec(await browser.snapshot(1))![1])), /Visible text:\nHit/);
     } finally {
-        await browser.close();
+        await browser?.close().catch(() => {});
         await engine.close();
     }
 });
