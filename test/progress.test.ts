@@ -92,14 +92,40 @@ test("a new version only when what the board says changes; a poll waits for it, 
     assert.equal((await progress.after(next.version + 50, en, "en", signal, 10_000)).version, next.version, "a restarted server's version");
 });
 
-test("at most five rows, the rest counted; nothing at work says Pi is idle", async () => {
+test("every row for the floating board, past five counted for the notification; nothing at work says Pi is idle", async () => {
     const many = new Progress(source({ busy: () => [1, 2, 3, 4, 5, 6, 7].map(id) }));
     const board = await many.board(en, "en");
 
-    assert.equal(board.rows.length, MAX_ROWS);
-    assert.equal(board.more, 2);
+    assert.equal(board.rows.length, 7);
+    assert.equal(board.more, 7 - MAX_ROWS);
     assert.equal((await new Progress(source({})).board(en, "en")).heading, "Pi is idle");
     assert.equal((await new Progress(source({ doneSince: () => 1 })).board(en, "en")).heading, "Pi is idle · 1 done");
+});
+
+test("subagents at work fold under their session, counted for the notification; one waiting for the owner keeps its row", async () => {
+    // Session 1 works with subagents 11 and 12; subagent 13 of session 2 (not at work itself) works; 14 of 1 waits.
+    const progress = new Progress(
+        source({
+            busy: () => [1, 11, 12, 13].map(id),
+            approvals: () => [{ id: "w", conversationId: id(14), tool: "bash", subject: "rm -rf build", reason: "", createdAt: 1 }] as unknown as ApprovalRequest[],
+            rootOf: (each) => id(Number(each) > 10 ? (Number(each) === 13 ? 2 : 1) : Number(each)),
+            title: (each) => (Number(each) > 10 ? `${Number(each) === 13 ? "Two" : "One"} · sub${String(each)}` : Number(each) === 2 ? "Two" : "One"),
+            lines: { 11: [{ kind: "tool", name: "edit", args: { path: "a.ts" }, status: "running" }] },
+        }),
+    );
+    const board = await progress.board(en, "en");
+
+    assert.equal(board.heading, "4 working · 1 waits for you", "every one at work counts");
+    assert.deepEqual(
+        board.rows.map((row) => [row.conversationId, row.state, row.subagents?.map((sub) => sub.name), row.subagentsText]),
+        [
+            [14, "waiting", undefined, undefined],
+            [1, "working", ["sub11", "sub12"], "2 subagents working"],
+            [2, "working", ["sub13"], "1 subagent working"],
+        ],
+    );
+    assert.equal(board.rows[1]!.subagents![0]!.doing, "editing a.ts");
+    assert.equal(board.rows[2]!.title, "Two");
 });
 
 test("in the app: a session running a command is on the board with it, then gone when done; the board's settings", async () => {

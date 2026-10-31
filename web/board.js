@@ -42,6 +42,9 @@ function BoardSession({ session, title, back, toApp }) {
     </div>`;
 }
 
+/** The board's filter chip picked last, on this phone: all, waiting, or working. */
+const FILTER_KEY = "pocket.boardFilter";
+
 /** This page is the floating board, not the app. */
 export const BOARD = new URLSearchParams(location.search).has("board");
 
@@ -86,6 +89,9 @@ export function BoardView() {
 
     // A row opens its session here, in the panel; the app only from the session's Open pi-phone.
     const [viewing, setViewing] = useState(null);
+    const [filter, setFilter] = useState(() => localStorage.getItem(FILTER_KEY) ?? "all");
+    // The sessions whose subagents show, unfolded.
+    const [folds, setFolds] = useState([]);
     // A subagent's row opens the subagent's own conversation (its work, its cards), titled "session · name".
     const open = (row) => {
         setViewing({ session: row.conversationId, title: row.title });
@@ -113,33 +119,71 @@ export function BoardView() {
         />`;
     }
 
+    // Every row (the owner's pick): what waits first, then at work; chips filter them, the pick kept on this phone.
+    const rows = board?.rows ?? [];
+    const counts = { all: rows.length, waiting: rows.filter((row) => row.state === "waiting").length, working: rows.filter((row) => row.state === "working").length };
+    const shown = (state) => (filter === "all" || filter === state ? rows.filter((row) => row.state === state) : []);
+    const pick = (next) => {
+        localStorage.setItem(FILTER_KEY, next);
+        setFilter(next);
+    };
+    const toggle = (id) => setFolds((was) => (was.includes(id) ? was.filter((each) => each !== id) : [...was, id]));
+    const rowOf = (row) => html`<div class="pgb-row" data-part="pgb-row" data-state=${row.state} key=${row.conversationId}>
+            <span class=${`pgb-dot ${row.state}`} aria-hidden="true"></span>
+            <button type="button" class="pgb-text" onClick=${() => open(row)}>
+                <b>${row.title}</b>
+                <small>${row.doing} · ${timeAgo(row.since)}</small>
+            </button>
+            ${
+                row.approval?.interview
+                    ? html`<button type="button" class="button small primary" data-part="board-answer" onClick=${() => openSheet({ type: "interview", conversationId: row.conversationId, callId: row.approval.interview.callId })}>${t("Answer")}</button>`
+                    : row.approval?.simple
+                    ? html`<span class="pgb-answer">
+                          <button type="button" class="button small primary" data-part="board-approve" onClick=${() => answer(row.approval.id, true)}>${t("Approve")}</button>
+                          <button type="button" class="button small" onClick=${() => answer(row.approval.id, false)}>${t("Deny")}</button>
+                      </span>`
+                    : html`<${Icon} name="chevron" size=${15} />`
+            }
+        </div>
+        ${
+            row.subagents?.length > 0 &&
+            html`<button type="button" class="pgb-fold" data-part="pgb-fold" aria-expanded=${String(folds.includes(row.conversationId))} onClick=${() => toggle(row.conversationId)}>
+                    <span>${row.subagentsText}</span><span class="pgb-show">${folds.includes(row.conversationId) ? t("Hide") : t("Show")}</span>
+                </button>
+                ${
+                    folds.includes(row.conversationId) &&
+                    html`<div class="pgb-subs">
+                        ${row.subagents.map(
+                            (sub) => html`<button type="button" class="pgb-row pgb-sub" data-part="pgb-sub" key=${sub.conversationId} onClick=${() => open({ conversationId: sub.conversationId, title: `${row.title} · ${sub.name}` })}>
+                                <span class="pgb-dot working" aria-hidden="true"></span>
+                                <span class="pgb-text"><b>${sub.name}</b><small>${sub.doing} · ${timeAgo(sub.since)}</small></span>
+                            </button>`,
+                        )}
+                    </div>`
+                }`
+        }`;
+
     return html`<div class="pgb" data-part="progress-board">
         <div class="pgb-head">
             <${PiMark} />
             <b>${board === null ? t("Loading…") : board.heading}</b>
             ${bubble() && html`<button class="icon-button" type="button" aria-label=${t("Fold")} onClick=${() => bubble().fold()}><${Icon} name="minus" size=${16} /></button>`}
         </div>
-        ${board !== null && board.rows.length === 0 && html`<p class="muted small pgb-empty">${t("Nothing runs now.")}</p>`}
-        ${(board?.rows ?? []).map(
-            (row) => html`<div class="pgb-row" data-part="pgb-row" data-state=${row.state} key=${row.conversationId}>
-                <span class=${`pgb-dot ${row.state}`} aria-hidden="true"></span>
-                <button type="button" class="pgb-text" onClick=${() => open(row)}>
-                    <b>${row.title}</b>
-                    <small>${row.doing} · ${timeAgo(row.since)}</small>
-                </button>
-                ${
-                    row.approval?.interview
-                        ? html`<button type="button" class="button small primary" data-part="board-answer" onClick=${() => openSheet({ type: "interview", conversationId: row.conversationId, callId: row.approval.interview.callId })}>${t("Answer")}</button>`
-                        : row.approval?.simple
-                        ? html`<span class="pgb-answer">
-                              <button type="button" class="button small primary" data-part="board-approve" onClick=${() => answer(row.approval.id, true)}>${t("Approve")}</button>
-                              <button type="button" class="button small" onClick=${() => answer(row.approval.id, false)}>${t("Deny")}</button>
-                          </span>`
-                        : html`<${Icon} name="chevron" size=${15} />`
-                }
-            </div>`,
-        )}
-        ${board !== null && board.more > 0 && html`<p class="muted small pgb-empty">${t("and {n} more", { n: board.more })}</p>`}
+        ${
+            rows.length > 0 &&
+            html`<div class="pgb-chips" role="group" aria-label=${t("Show")}>
+                ${[
+                    ["all", t("All {n}", { n: counts.all })],
+                    ["waiting", t("Waits for you {n}", { n: counts.waiting })],
+                    ["working", t("Working {n}", { n: counts.working })],
+                ].map(([key, label]) => html`<button type="button" class=${`pgb-chip ${key} ${filter === key ? "on" : ""}`} data-part=${`pgb-chip-${key}`} aria-pressed=${String(filter === key)} onClick=${() => pick(key)}>${label}</button>`)}
+            </div>`
+        }
+        <div class="pgb-list">
+            ${board !== null && rows.length === 0 && html`<p class="muted small pgb-empty">${t("Nothing runs now.")}</p>`}
+            ${shown("waiting").length > 0 && html`<div class="pgb-sec">${t("Waits for you")}</div>${shown("waiting").map(rowOf)}`}
+            ${shown("working").length > 0 && html`<div class="pgb-sec">${t("Working")}</div>${shown("working").map(rowOf)}`}
+        </div>
         <div class="pgb-foot">
             <span class="muted small">${board === null || board.done === 0 ? "" : t("{n} done in the last hour", { n: board.done })}</span>
             <button type="button" class="button small ghost" onClick=${() => (bubble() ? bubble().openApp() : location.assign("/"))}>${t("Open pi-phone")}</button>

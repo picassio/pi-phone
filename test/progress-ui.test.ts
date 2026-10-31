@@ -21,9 +21,29 @@ const SHOTS = process.env.PROGRESS_SHOTS;
 
 const route: FauxResponseStep = (request) => {
     const { role, text } = lastText(request as never);
+    const subagent = /You are the subagent \\"([^\\]+)\\"/.exec(JSON.stringify(request))?.[1];
+
+    if (subagent !== undefined && role !== "toolResult") {
+        return fauxAssistantMessage([fauxToolCall("bash", { command: "sleep 8" })], { stopReason: "toolUse" });
+    }
+
+    if (subagent !== undefined) {
+        return fauxAssistantMessage([fauxText(`${subagent} done`)]);
+    }
 
     if (role === "user" && text === "build the thing") {
         return fauxAssistantMessage([fauxToolCall("bash", { command: "sleep 4" })], { stopReason: "toolUse" });
+    }
+
+    if (role === "user" && text.startsWith("busy ")) {
+        return fauxAssistantMessage([fauxToolCall("bash", { command: "sleep 8" })], { stopReason: "toolUse" });
+    }
+
+    if (role === "user" && text === "split it") {
+        return fauxAssistantMessage(
+            ["part-a", "part-b"].map((name) => fauxToolCall("subagent", { action: "spawn", name, message: `Do ${name}.` })),
+            { stopReason: "toolUse" },
+        );
     }
 
     return fauxAssistantMessage([fauxText("built")]);
@@ -117,6 +137,43 @@ test("the board page: the session at work with what it does, counted in the titl
     await see(`return JSON.stringify(document.querySelector(".pgb-empty")?.textContent.trim() === "Nothing runs now.")`, "nothing runs", 20_000);
     assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector(".pgb-head b").textContent.trim())`), "Pi is idle · 1 done");
     assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector(".pgb-foot span").textContent.trim())`), "1 done in the last hour");
+});
+
+test("many sessions: every one on the board, chips to filter, a session's subagents folded under it", real, async () => {
+    for (const name of ["one", "two", "three"]) {
+        const each = await newSession(app);
+
+        await app.commands.submit(each, owner(app), { text: `busy ${name}`, requestId: `busy-${name}-${each}` });
+    }
+
+    const parent = await newSession(app);
+
+    await app.commands.submit(parent, owner(app), { text: "split it", requestId: `split-${parent}` });
+    await page.setViewport(VIEWPORTS.mobile);
+    await page.navigate(`${base}/?board=1`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="pgb-fold"]')?.textContent.includes("2 subagents working") === true)`, "the folded subagents", 20_000);
+
+    const shown = await inPage<{ rows: number; chips: string[]; subs: number }>(`
+        return JSON.stringify({
+            rows: document.querySelectorAll('[data-part="pgb-row"]').length,
+            chips: [...document.querySelectorAll(".pgb-chip")].map((each) => each.textContent.trim()),
+            subs: document.querySelectorAll('[data-part="pgb-sub"]').length,
+        });
+    `);
+
+    assert.equal(shown.rows, 4, "three sessions and the one with subagents, past five shown too if there were");
+    assert.deepEqual(shown.chips, ["All 4", "Waits for you 0", "Working 4"]);
+    assert.equal(shown.subs, 0, "folded");
+    await page.evaluate(`document.querySelector('[data-part="pgb-fold"]').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelectorAll('[data-part="pgb-sub"]').length === 2)`, "the subagents shown");
+    assert.deepEqual(await outside(), []);
+    await shot("board-many-390");
+
+    // The Waits for you chip: nothing waits; kept for the next time the board opens.
+    await page.evaluate(`document.querySelector('[data-part="pgb-chip-waiting"]').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelectorAll('[data-part="pgb-row"]').length === 0)`, "nothing waits");
+    assert.equal(await inPage<string>(`return JSON.stringify(localStorage.getItem("pocket.boardFilter"))`), "waiting");
+    await page.evaluate(`localStorage.setItem("pocket.boardFilter", "all"); return "true";`);
 });
 
 test("This phone, in the app: the board's switches; the bubble once Android allows pi over other apps", real, async () => {

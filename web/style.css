@@ -2547,11 +2547,86 @@ pre.diff .del {
 
 .pgb {
     margin: 0;
+    max-height: 100dvh;
+    display: flex;
+    flex-direction: column;
     background: var(--bg);
     border: 1px solid var(--hair-2);
     border-radius: 20px;
     overflow: hidden;
     color: var(--text);
+}
+
+/* Every session, scrolling under the chips (many sessions, the owner's pick). */
+.pgb-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.pgb-chips {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--hair);
+    overflow-x: auto;
+}
+
+.pgb-chip {
+    flex: none;
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 99px;
+    border: 1px solid var(--hair-2);
+    color: var(--muted);
+}
+
+.pgb-chip.on {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent-line);
+}
+
+.pgb-chip.waiting.on {
+    background: color-mix(in srgb, var(--warn) 14%, transparent);
+    color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+}
+
+.pgb-sec {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 6px 12px 4px;
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.pgb-fold {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 6px 12px 8px 30px;
+    border-bottom: 1px solid var(--hair);
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-align: left;
+}
+
+.pgb-show {
+    color: var(--accent);
+}
+
+.pgb-subs {
+    margin-left: 30px;
+    border-left: 1px solid var(--hair-2);
+}
+
+.pgb-sub {
+    width: 100%;
+    text-align: left;
 }
 
 .pgb-head {

@@ -16,7 +16,7 @@ import type { PeekLine } from "./projection.ts";
 export const TICK_MS = 1_500;
 /** How long a poll waits for a change before it answers with the board as it is. */
 export const PROGRESS_POLL_MS = 50_000;
-/** Rows the board lists at most; the rest are counted. */
+/** Rows the notification lists at most; the rest are counted. The floating board lists them all. */
 export const MAX_ROWS = 5;
 /** Sessions done within this long count in the title. */
 const DONE_WINDOW_MS = 60 * 60 * 1000;
@@ -37,6 +37,10 @@ export type ProgressRow = {
      * asks on a card (PP-284), with what opens its form on the board.
      */
     approval?: { id: string; simple: boolean; interview?: { callId: string } };
+    /** Its subagents at work, folded under it on the board (one waiting for the owner has a row of its own). */
+    subagents?: { conversationId: number; name: string; doing: string; since: number }[];
+    /** How many of them, in words, for the notification's row ("4 subagents working"). */
+    subagentsText?: string;
 };
 
 export type ProgressBoard = {
@@ -193,11 +197,37 @@ export class Progress {
             });
         }
 
+        // Subagents at work fold under their session (the owner's pick): its row says how many, the board shows them on a
+        // tap. A session not at work itself, whose subagents are, gets a row for them.
+        const working = rows.filter((row) => row.state === "working").length;
+        const waiting = rows.length - working;
+        const folded = rows.filter((row) => row.state === "working" && row.conversationId !== row.session);
+
+        for (const sub of folded) {
+            rows.splice(rows.indexOf(sub), 1);
+            let parent = rows.find((row) => row.conversationId === row.session && row.session === sub.session);
+
+            if (parent === undefined) {
+                parent = { session: sub.session, conversationId: sub.session, title: source.title(sub.session as unknown as ConversationId) ?? sub.title.split(" · ")[0]!, state: "working", doing: t("waiting for its subagents"), since: sub.since };
+                rows.push(parent);
+            }
+
+            const name = sub.title.includes(" · ") ? sub.title.slice(sub.title.indexOf(" · ") + 3) : sub.title;
+
+            parent.subagents = [...(parent.subagents ?? []), { conversationId: sub.conversationId, name, doing: sub.doing, since: sub.since }];
+            parent.since = Math.min(parent.since, sub.since);
+        }
+
+        for (const row of rows) {
+            if (row.subagents !== undefined) {
+                row.subagents.sort((a, b) => a.since - b.since);
+                row.subagentsText = row.subagents.length === 1 ? t("{n} subagent working", { n: 1 }) : t("{n} subagents working", { n: row.subagents.length });
+            }
+        }
+
         // What waits for the owner first, then the longest at work.
         rows.sort((a, b) => (a.state === b.state ? a.since - b.since : a.state === "waiting" ? -1 : 1));
 
-        const working = rows.filter((row) => row.state === "working").length;
-        const waiting = rows.length - working;
         const done = source.doneSince(now - DONE_WINDOW_MS);
         const parts = [
             ...(working === 0 ? [] : [t("{n} working", { n: working })]),
@@ -209,11 +239,11 @@ export class Progress {
             working,
             waiting,
             done,
-            rows: rows.slice(0, MAX_ROWS),
+            rows,
             more: Math.max(0, rows.length - MAX_ROWS),
         };
         // What it says, without the times that tick: a run's minutes going by are no change to send.
-        const said = JSON.stringify({ ...board, rows: board.rows.map(({ since: _since, ...rest }) => rest) });
+        const said = JSON.stringify({ ...board, rows: board.rows.map(({ since: _since, subagents, ...rest }) => ({ ...rest, subagents: subagents?.map(({ since: _at, ...sub }) => sub) })) });
 
         if (this.#said.get(language) !== said) {
             this.#said.set(language, said);

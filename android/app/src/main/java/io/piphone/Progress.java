@@ -151,14 +151,17 @@ final class Progress {
             }
             JSONObject row = rows.getJSONObject(index);
             boolean waiting = "waiting".equals(row.getString("state"));
-            int session = row.getInt("session");
+            // Its own conversation: a subagent waiting for the owner opens at its card.
+            int session = row.getInt("conversationId");
+            // A session's subagents at work fold into its row: "… · 4 subagents working".
+            String doing = row.getString("doing") + (row.has("subagentsText") ? " · " + row.getString("subagentsText") : "");
             big.setViewVisibility(ROWS[index], android.view.View.VISIBLE);
             big.setInt(DOTS[index], "setColorFilter", waiting ? WAITING : WORKING);
             big.setTextViewText(TITLES[index], row.getString("title"));
-            big.setTextViewText(DOINGS[index], row.getString("doing"));
+            big.setTextViewText(DOINGS[index], doing);
             big.setTextViewText(WHENS[index], ago(row.getLong("since")));
             big.setOnClickPendingIntent(ROWS[index], openSession(session, 2000 + index));
-            if (index == 0) first = row.getString("title") + ": " + row.getString("doing");
+            if (index == 0) first = row.getString("title") + ": " + doing;
             JSONObject card = row.optJSONObject("approval");
             if (approval == null && card != null && card.optBoolean("simple")) {
                 approval = card;
@@ -177,7 +180,7 @@ final class Progress {
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setShowWhen(false)
-                .setContentIntent(openSession(rows.length() > 0 ? rows.getJSONObject(0).getInt("session") : -1, 1999));
+                .setContentIntent(openSession(rows.length() > 0 ? rows.getJSONObject(0).getInt("conversationId") : -1, 1999));
 
         if (rows.length() > 0) {
             builder.setStyle(new Notification.DecoratedCustomViewStyle()).setCustomBigContentView(big);
