@@ -114,7 +114,7 @@ test("the board page: the session at work with what it does, counted in the titl
         const row = document.querySelector('[data-part="pgb-row"]');
 
         return JSON.stringify({
-            heading: document.querySelector(".pgb-head b").textContent.trim(),
+            heading: document.querySelector(".pgb-counts").textContent.trim(),
             title: row.querySelector("b").textContent.trim(),
             state: row.dataset.state,
             app: document.querySelector(".sessions, .composer") !== null,
@@ -135,7 +135,7 @@ test("the board page: the session at work with what it does, counted in the titl
     await see(`return JSON.stringify(document.querySelector('[data-part="pgb-row"], .pgb-empty') !== null)`, "back to the board");
 
     await see(`return JSON.stringify(document.querySelector(".pgb-empty")?.textContent.trim() === "Nothing runs now.")`, "nothing runs", 20_000);
-    assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector(".pgb-head b").textContent.trim())`), "Pi is idle · 1 done");
+    assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector(".pgb-counts").textContent.trim())`), "Pi is idle · 1 done");
     assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector(".pgb-foot span").textContent.trim())`), "1 done in the last hour");
 });
 
@@ -156,13 +156,13 @@ test("many sessions: every one on the board, chips to filter, a session's subage
     const shown = await inPage<{ rows: number; chips: string[]; subs: number }>(`
         return JSON.stringify({
             rows: document.querySelectorAll('[data-part="pgb-row"]').length,
-            chips: [...document.querySelectorAll(".pgb-chip")].map((each) => each.textContent.trim()),
+            chips: [...document.querySelectorAll(".pgb-tab")].map((each) => each.textContent.trim()),
             subs: document.querySelectorAll('[data-part="pgb-sub"]').length,
         });
     `);
 
     assert.equal(shown.rows, 4, "three sessions and the one with subagents, past five shown too if there were");
-    assert.deepEqual(shown.chips, ["All 4", "Waits for you 0", "Working 4"]);
+    assert.deepEqual(shown.chips, ["All 4", "Waiting 0", "Working 4"]);
     assert.equal(shown.subs, 0, "folded");
     await page.evaluate(`document.querySelector('[data-part="pgb-fold"]').click(); return "true";`);
     await see(`return JSON.stringify(document.querySelectorAll('[data-part="pgb-sub"]').length === 2)`, "the subagents shown");

@@ -383,6 +383,7 @@ export class PocketApp {
         approvals: () => this.approvals.all(),
         title: (id) => this.#progressTitle(id),
         rootOf: (id) => this.rootOf(id),
+        cwd: (id) => this.sessionMeta(id)?.cwd,
         since: (id) => this.#busySince.get(id),
         peek: async (id) => {
             // Its newest steps, as a peek tile reads them: from its view, opened for this when no tab has it open.

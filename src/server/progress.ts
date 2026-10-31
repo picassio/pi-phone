@@ -27,6 +27,8 @@ export type ProgressRow = {
     conversationId: number;
     /** The session's title; a subagent's is "session · name". */
     title: string;
+    /** Its session's folder: the board colors its square by it, as the session list does. */
+    cwd?: string;
     state: "working" | "waiting";
     /** What it does now, in a few words. */
     doing: string;
@@ -64,6 +66,8 @@ export type ProgressSource = {
     title(id: ConversationId): string | undefined;
     /** The session a conversation belongs to. */
     rootOf(id: ConversationId): ConversationId;
+    /** A session's folder; undefined when not known. */
+    cwd?(id: ConversationId): string | undefined;
     /** When its run began. */
     since(id: ConversationId): number | undefined;
     /** Its newest steps, as a peek tile shows them; undefined when they cannot be read now. */
@@ -222,6 +226,14 @@ export class Progress {
             if (row.subagents !== undefined) {
                 row.subagents.sort((a, b) => a.since - b.since);
                 row.subagentsText = row.subagents.length === 1 ? t("{n} subagent working", { n: 1 }) : t("{n} subagents working", { n: row.subagents.length });
+            }
+        }
+
+        for (const row of rows) {
+            const cwd = source.cwd?.(row.session as unknown as ConversationId);
+
+            if (cwd !== undefined) {
+                row.cwd = cwd;
             }
         }
 
