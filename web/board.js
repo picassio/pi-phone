@@ -86,9 +86,10 @@ export function BoardView() {
 
     // A row opens its session here, in the panel; the app only from the session's Open pi-phone.
     const [viewing, setViewing] = useState(null);
+    // A subagent's row opens the subagent's own conversation (its work, its cards), titled "session · name".
     const open = (row) => {
-        setViewing({ session: row.session, title: row.title.split(" · ")[0] });
-        navigate(row.session, { route: false });
+        setViewing({ session: row.conversationId, title: row.title });
+        navigate(row.conversationId, { route: false });
     };
     const answer = (id, allow) => attempt(() => api(`approvals/${encodeURIComponent(id)}`, { allow }));
     // A decision Pi asks (PP-284) is answered here, in its form: the board's window grows for it, and takes the keyboard.

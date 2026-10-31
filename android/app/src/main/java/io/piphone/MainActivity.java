@@ -459,7 +459,7 @@ public final class MainActivity extends Activity {
         if (voiceIntent(intent)) return;
         if (intent.getBooleanExtra(PiAssistantSession.EXTRA_ASSISTANT_SHEET, false)) {
             if (loaded) {
-                web.evaluateJavascript("import('/store.js').then((store) => store.openSheet({ type: 'assistant' }))", null);
+                web.evaluateJavascript("import(location.origin + '/store.js').then((store) => store.openSheet({ type: 'assistant' }))", null);
             } else {
                 pendingAssistantSheet = true;
             }
@@ -468,7 +468,9 @@ public final class MainActivity extends Activity {
         int session = intent.getIntExtra(PiService.EXTRA_SESSION, -1);
         if (session < 0) return;
         if (loaded) {
-            web.evaluateJavascript("import('/store.js').then((store) => store.navigate(" + session + "))", null);
+            // An absolute address: a script run from here has no base URL (about:blank), so '/store.js' alone does not
+            // resolve, and the app stayed where it was (PP-283: Open pi-phone from the floating board went home).
+            web.evaluateJavascript("import(location.origin + '/store.js').then((store) => store.navigate(" + session + "))", null);
         } else {
             pendingSession = session;
         }

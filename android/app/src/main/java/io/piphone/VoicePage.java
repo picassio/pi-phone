@@ -59,6 +59,6 @@ final class VoicePage {
 
     /** The script that starts a call in a session (`start`), or shows the one going on (`show`), in the app's window. */
     static String fromShell(int session, String what) {
-        return "import('/voice-call.js').then((voice) => voice.voiceFromShell(" + session + ", " + JSONObject.quote(what) + "))";
+        return "import(location.origin + '/voice-call.js').then((voice) => voice.voiceFromShell(" + session + ", " + JSONObject.quote(what) + "))";
     }
 }
