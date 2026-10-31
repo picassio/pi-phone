@@ -3,6 +3,8 @@ package io.piphone;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
+import android.app.ActivityOptions;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Canvas;
@@ -12,6 +14,7 @@ import android.graphics.PixelFormat;
 import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
@@ -263,14 +266,39 @@ final class ProgressBubble {
         }
     }
 
+    /**
+     * The app, brought to the front from the board: the service is in the background, and Android lets it start an
+     * activity only through a PendingIntent that it, as creator and sender, says may start one (Android 14 and later);
+     * a plain startActivity from here is dropped without a word (PP-283: a tapped row opened nothing). Sent while the
+     * board still shows, then the board folds.
+     */
+    private void launch(Intent target, int code) {
+        target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        int flags = PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT;
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                ActivityOptions creator = ActivityOptions.makeBasic();
+                creator.setPendingIntentCreatorBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+                PendingIntent pending = PendingIntent.getActivity(context, code, target, flags, creator.toBundle());
+                ActivityOptions sender = ActivityOptions.makeBasic();
+                sender.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+                pending.send(context, 0, null, null, null, null, sender.toBundle());
+            } else {
+                PendingIntent.getActivity(context, code, target, flags).send();
+            }
+            android.util.Log.i("pi-phone", "board: opened " + target.getIntExtra(PiService.EXTRA_SESSION, -1));
+        } catch (Exception e) {
+            android.util.Log.w("pi-phone", "board: could not open the app: " + e);
+        }
+    }
+
     /** The board's page: open a session or the app, fold. */
     private final class Bridge {
         @JavascriptInterface
         public void open(int session) {
+            android.util.Log.i("pi-phone", "board: tapped session " + session);
             main.post(() -> {
-                context.startActivity(new Intent(context, MainActivity.class)
-                        .putExtra(PiService.EXTRA_SESSION, session)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                launch(new Intent(context, MainActivity.class).putExtra(PiService.EXTRA_SESSION, session), 3000);
                 fold();
             });
         }
@@ -278,7 +306,7 @@ final class ProgressBubble {
         @JavascriptInterface
         public void openApp() {
             main.post(() -> {
-                context.startActivity(new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                launch(new Intent(context, MainActivity.class), 3001);
                 fold();
             });
         }
