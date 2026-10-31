@@ -259,14 +259,16 @@ final class ProgressBubble {
     }
 
     /**
-     * A decision's form on the board (PP-284): the window grows to most of the screen and takes the keyboard while it
+     * A session or a decision's form on the board (PP-283, PP-284): the window grows a little and takes the keyboard while it
      * shows; back to the board's size after.
      */
     private void expand(boolean on) {
         if (board == null || boardParams == null) return;
         DisplayMetrics screen = context.getResources().getDisplayMetrics();
-        boardParams.height = Math.round(screen.heightPixels * (on ? 0.88f : 0.55f));
-        boardParams.y = on ? dp(40) : Math.max(dp(80), orbParams.y - dp(60));
+        // A floating panel, never the whole screen (the owner): a little taller for a session or a form, the app
+        // under it still showing.
+        boardParams.height = Math.round(screen.heightPixels * (on ? 0.62f : 0.55f));
+        boardParams.y = Math.max(dp(80), Math.min(orbParams.y - dp(60), screen.heightPixels - boardParams.height - dp(80)));
         if (on) {
             boardParams.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
         } else {
