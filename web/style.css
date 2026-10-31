@@ -3584,6 +3584,39 @@ pre.diff .del {
     animation: pulse 1.4s infinite;
 }
 
+/* A session's subagents in its menu (PP-280): a dot for each one's state, idle ones folded into one row. */
+.sa-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.sa-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--muted);
+    opacity: 0.6;
+}
+
+.sa-dot.working {
+    background: var(--ok);
+    opacity: 1;
+    animation: pulse 1.4s infinite;
+}
+
+.sa-dot.failed {
+    background: var(--err);
+    opacity: 1;
+}
+
+.sa-folded {
+    border-left: 1px solid var(--hair);
+    margin-left: 16px;
+}
+
 @keyframes pulse {
     50% {
         opacity: 0.35;

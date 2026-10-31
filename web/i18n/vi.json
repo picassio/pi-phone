@@ -483,6 +483,8 @@
     "System prompt": "Prompt hệ thống",
     "Browser": "Trình duyệt",
     "Subagents": "Subagent",
+    "Subagents · {n}": "Subagent · {n}",
+    "{n} idle": "{n} đang rảnh",
     "Agent Teams": "Nhóm agent",
     "Scheduled messages": "Tin nhắn hẹn giờ",
     "Done when": "Xong khi",

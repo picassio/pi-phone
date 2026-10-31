@@ -352,6 +352,8 @@
     "Running now, {n}": "正在运行，{n} 个",
     "Subagents in every session": "所有会话中的子代理",
     "Subagents": "子代理",
+    "Subagents · {n}": "子代理 · {n}",
+    "{n} idle": "{n} 个空闲",
     "{n} at work": "{n} 个工作中",
     "{n} waiting for approval": "{n} 个等待批准",
     "{n} failed": "{n} 个失败",

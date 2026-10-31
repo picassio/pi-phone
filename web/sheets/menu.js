@@ -1,7 +1,7 @@
 // The menu: what can be done in this session and in the app.
 import { t, tn } from "../i18n.js";
 import { dictationLanguage } from "../android-speech.js";
-import { useLayoutEffect, useRef } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { chatUnread } from "../chat.js";
 import { schedulesAvailable, webAvailable } from "../commands.js";
 import { extensionMenuItems, safeMode } from "../extension-ui.js";
@@ -17,7 +17,7 @@ import { openGettingStarted } from "../guide.js";
 const compactHint = (at) => (typeof at === "number" ? t("now, or by itself at {n}%", { n: at }) : t("summarize older messages"));
 import { setArchived } from "../sessions.js";
 import { isRemotePlace, splitPlace } from "../place.js";
-import { openSubagent } from "../subagents.js";
+import { openSubagent, ordered, stateOf, unresolved } from "../subagents.js";
 import { pushId, pushSupport } from "../push.js";
 import {
     actions,
@@ -40,7 +40,7 @@ import { isPinned, lookLabel, togglePin } from "../theme.js";
 import { currentTrust, trustAvailable } from "../trust.js";
 import { branchAvailable } from "./branch.js";
 import { defaultLabel, defaultsKept } from "./model.js";
-import { copyText, html, Icon, item, Sheet, shortPath } from "../ui.js";
+import { copyText, html, Icon, item, Sheet, shortPath, timeAgo } from "../ui.js";
 import { voiceAvailable } from "../voice.js";
 
 // Key hints are for people with a keyboard: a touch screen has none.
@@ -330,6 +330,49 @@ function trustHint() {
 }
 
 /** The menu; `places` is false when it opens from the places sheet, which just showed the tiles. */
+/** Idle subagents shown as they are, up to this many; more fold into one row (PP-280). */
+const IDLE_SHOWN = 2;
+
+/** A subagent's row: its state as a dot, its name, and what it does or how long ago it last did something. */
+function subagentRow(agent) {
+    const status = stateOf(agent);
+    const needs = unresolved(agent);
+    const when = agent.busy ? agent.askedAt : agent.answeredAt;
+    const word = agent.busy ? t("working") : needs ? t("failed") : status === "stopped" ? t("stopped") : t("idle");
+
+    const dot = agent.busy ? "working" : needs ? "failed" : "idle";
+    const name = html`<span class="sa-name"><span class=${`sa-dot ${dot}`} aria-hidden="true"></span>${agent.name}</span>`;
+
+    return item(name, () => openSubagent(agent.conversationId), when === undefined ? word : `${word} · ${timeAgo(when)}`);
+}
+
+/**
+ * The session's subagents in its menu (PP-280, the owner's option B): those at work and failures nobody dealt with
+ * first, each with a row; the idle ones fold into one row ("12 idle") that opens in place, so many of them never push
+ * the menu's other parts away.
+ */
+function MenuSubagents({ agents }) {
+    const [open, setOpen] = useState(false);
+    const sorted = ordered(agents);
+    const active = sorted.filter((agent) => agent.busy || unresolved(agent));
+    const idle = sorted.filter((agent) => !agent.busy && !unresolved(agent));
+    const folded = idle.length > IDLE_SHOWN;
+
+    return html`<div class="group" data-part="menu-subagents">
+        <div class="group-title">${t("Subagents · {n}", { n: agents.length })}</div>
+        ${active.map(subagentRow)}
+        ${
+            folded
+                ? html`<button class="list-item" data-part="idle-subagents" aria-expanded=${String(open)} onClick=${() => setOpen(!open)}>
+                      <span class="sa-name"><span class="sa-dot idle" aria-hidden="true"></span>${t("{n} idle", { n: idle.length })}</span>
+                      <span class="muted small">${open ? t("Hide") : t("Show")}</span>
+                  </button>
+                  ${open && html`<div class="sa-folded">${idle.map(subagentRow)}</div>`}`
+                : idle.map(subagentRow)
+        }
+    </div>`;
+}
+
 export function MenuSheet({ places = true }) {
     const { view, me, server } = store.state;
     const allowed = roleAllows;
@@ -474,19 +517,7 @@ export function MenuSheet({ places = true }) {
                 })
             }
         </div>
-        ${
-            view.subagents.length > 0 &&
-            html`<div class="group">
-                <div class="group-title">${t("Subagents")}</div>
-                ${view.subagents.map((agent) =>
-                    item(
-                        html`${agent.busy ? html`<span class="pulse"></span> ` : ""}${agent.name}`,
-                        () => openSubagent(agent.conversationId),
-                        agent.busy ? "working" : "idle",
-                    ),
-                )}
-            </div>`
-        }
+        ${view.subagents.length > 0 && html`<${MenuSubagents} agents=${view.subagents} />`}
         <div class="group">
             <div class="group-title">${t("App")}</div>
             ${me?.role === "owner" && item("Getting started", () => openGettingStarted(), "Pi shows you around")}
