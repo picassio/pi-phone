@@ -105,6 +105,15 @@ test("the board page: the session at work with what it does, counted in the titl
     assert.deepEqual(await outside(), []);
     await shot("board-390");
 
+    // A row opens its session in the panel (the owner's ask): its transcript, a line to write to Pi, and back.
+    await page.evaluate(`document.querySelector('[data-part="pgb-row"] .pgb-text').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="board-session"] [data-part="transcript"]')?.textContent.includes("build the thing") === true)`, "the session in the panel");
+    assert.equal(await inPage<boolean>(`return JSON.stringify(document.querySelector('.pgb-reply input') !== null)`), true);
+    assert.deepEqual(await outside(), []);
+    await shot("board-session-390");
+    await page.evaluate(`document.querySelector('[data-part="board-session"] .pgb-head .icon-button').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="pgb-row"], .pgb-empty') !== null)`, "back to the board");
+
     await see(`return JSON.stringify(document.querySelector(".pgb-empty")?.textContent.trim() === "Nothing runs now.")`, "nothing runs", 20_000);
     assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector(".pgb-head b").textContent.trim())`), "Pi is idle · 1 done");
     assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector(".pgb-foot span").textContent.trim())`), "1 done in the last hour");

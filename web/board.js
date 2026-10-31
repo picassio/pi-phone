@@ -5,8 +5,42 @@
 import { useEffect, useState } from "preact/hooks";
 import { t, timeAgo } from "./i18n.js";
 import { InterviewSheet } from "./sheets/interview.js";
-import { api, attempt, openSheet, store } from "./store.js";
+import { actions, api, attempt, navigate, openSheet, store } from "./store.js";
+import { Transcript } from "./transcript.js";
 import { html, Icon } from "./ui.js";
+
+/**
+ * A session opened on the board (the owner: a tapped row opens it in the floating panel, not the app): its transcript,
+ * approvals and cards included, and a line to write to Pi; back to the board, or on to the app.
+ */
+function BoardSession({ session, title, back, toApp }) {
+    const [text, setText] = useState("");
+    const send = (event) => {
+        event.preventDefault();
+
+        const message = text.trim();
+
+        if (message === "") {
+            return;
+        }
+
+        setText("");
+        attempt(() => actions.submit(message, [], store.state.view.live?.busy ? "steer" : "followUp"));
+    };
+
+    return html`<div class="pgb pgb-session" data-part="board-session">
+        <div class="pgb-head">
+            <button class="icon-button" type="button" aria-label=${t("Back")} onClick=${back}><${Icon} name="back" size=${16} /></button>
+            <b>${title}</b>
+            <button class="button small ghost" type="button" onClick=${toApp}>${t("Open pi-phone")}</button>
+        </div>
+        <div class="pgb-transcript">${store.state.conversationId === session && store.state.view.agent !== undefined ? html`<${Transcript} key=${session} />` : html`<p class="muted small pgb-empty">${t("Loading…")}</p>`}</div>
+        <form class="pgb-reply" onSubmit=${send}>
+            <input value=${text} placeholder=${t("Ask Pi anything…")} aria-label=${t("Ask Pi anything…")} onInput=${(event) => setText(event.currentTarget.value)} />
+            <button class="icon-button" type="submit" aria-label=${t("Send")} disabled=${text.trim() === ""}><${Icon} name="send" size=${16} /></button>
+        </form>
+    </div>`;
+}
 
 /** This page is the floating board, not the app. */
 export const BOARD = new URLSearchParams(location.search).has("board");
@@ -50,18 +84,32 @@ export function BoardView() {
         };
     }, []);
 
-    const open = (session) => (bubble() ? bubble().open(session) : location.assign(`/s/${session}`));
+    // A row opens its session here, in the panel; the app only from the session's Open pi-phone.
+    const [viewing, setViewing] = useState(null);
+    const open = (row) => {
+        setViewing({ session: row.session, title: row.title.split(" · ")[0] });
+        navigate(row.session, { route: false });
+    };
     const answer = (id, allow) => attempt(() => api(`approvals/${encodeURIComponent(id)}`, { allow }));
     // A decision Pi asks (PP-284) is answered here, in its form: the board's window grows for it, and takes the keyboard.
     const sheet = store.state.sheet;
     const asking = sheet?.type === "interview";
 
     useEffect(() => {
-        bubble()?.expand?.(asking);
-    }, [asking]);
+        bubble()?.expand?.(asking || viewing !== null);
+    }, [asking, viewing !== null]);
 
     if (asking) {
         return html`<div class="pgb-form"><${InterviewSheet} key=${sheet.callId} conversationId=${sheet.conversationId} callId=${sheet.callId} /></div>`;
+    }
+
+    if (viewing !== null) {
+        return html`<${BoardSession}
+            session=${viewing.session}
+            title=${viewing.title}
+            back=${() => setViewing(null)}
+            toApp=${() => (bubble() ? bubble().open(viewing.session) : location.assign(`/s/${viewing.session}`))}
+        />`;
     }
 
     return html`<div class="pgb" data-part="progress-board">
@@ -74,7 +122,7 @@ export function BoardView() {
         ${(board?.rows ?? []).map(
             (row) => html`<div class="pgb-row" data-part="pgb-row" data-state=${row.state} key=${row.conversationId}>
                 <span class=${`pgb-dot ${row.state}`} aria-hidden="true"></span>
-                <button type="button" class="pgb-text" onClick=${() => open(row.session)}>
+                <button type="button" class="pgb-text" onClick=${() => open(row)}>
                     <b>${row.title}</b>
                     <small>${row.doing} · ${timeAgo(row.since)}</small>
                 </button>

@@ -2631,6 +2631,38 @@ pre.diff .del {
     padding: 10px 12px;
 }
 
+/* A session opened on the board: its transcript fills the window, a line to write to Pi under it. */
+.pgb-session {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+}
+
+.pgb-transcript {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.pgb-transcript .scroller {
+    flex: 1;
+    min-height: 0;
+}
+
+.pgb-reply {
+    display: flex;
+    gap: 6px;
+    padding: 8px;
+    border-top: 1px solid var(--hair);
+}
+
+.pgb-reply input {
+    flex: 1;
+    min-width: 0;
+}
+
 .pgb-foot {
     display: flex;
     align-items: center;
