@@ -1406,7 +1406,42 @@ function stepLive(step, results, slots, approvals, busy) {
  * scrolls, until answered. Answer opens the card's form.
  */
 function DecisionBar({ approvals }) {
-    const asked = approvals.filter((approval) => approval.form?.type === "interview");
+    const all = approvals.filter((approval) => approval.form?.type === "interview");
+    // A card on screen is its own reminder: only the ones scrolled away are pinned (the owner: two of it looked a mess).
+    const [onScreen, setOnScreen] = useState(() => new Set());
+    const key = all.map((approval) => approval.id).join(" ");
+
+    useEffect(() => {
+        if (all.length === 0) {
+            return undefined;
+        }
+
+        const seen = new Set();
+        const observer = new IntersectionObserver(
+            (changes) => {
+                for (const change of changes) {
+                    const id = change.target.dataset.approval;
+
+                    if (change.isIntersecting) {
+                        seen.add(id);
+                    } else {
+                        seen.delete(id);
+                    }
+                }
+
+                setOnScreen(new Set(seen));
+            },
+            { threshold: 0.4 },
+        );
+
+        for (const card of document.querySelectorAll(".interview-card[data-approval]")) {
+            observer.observe(card);
+        }
+
+        return () => observer.disconnect();
+    }, [key]);
+
+    const asked = all.filter((approval) => !onScreen.has(approval.id));
 
     if (asked.length === 0) {
         return null;
@@ -1440,7 +1475,7 @@ function InterviewCard({ approval }) {
         attempt(() => actions.approve(approval.id, false)).finally(() => setBusy(false));
     };
 
-    return html`<div class="approval interview-card" data-part="approval">
+    return html`<div class="approval interview-card" data-part="approval" data-approval=${approval.id}>
         <div class="approval-head">
             <span class="approval-shield" aria-hidden="true"><${Icon} name="chat" size=${16} /></span>
             <div class="approval-title">

@@ -4,7 +4,8 @@
 // to the bubble. Read from the server's progress board (`progress.ts`), a long poll for each new version.
 import { useEffect, useState } from "preact/hooks";
 import { t, timeAgo } from "./i18n.js";
-import { api, attempt } from "./store.js";
+import { InterviewSheet } from "./sheets/interview.js";
+import { api, attempt, openSheet, store } from "./store.js";
 import { html, Icon } from "./ui.js";
 
 /** This page is the floating board, not the app. */
@@ -51,6 +52,17 @@ export function BoardView() {
 
     const open = (session) => (bubble() ? bubble().open(session) : location.assign(`/s/${session}`));
     const answer = (id, allow) => attempt(() => api(`approvals/${encodeURIComponent(id)}`, { allow }));
+    // A decision Pi asks (PP-284) is answered here, in its form: the board's window grows for it, and takes the keyboard.
+    const sheet = store.state.sheet;
+    const asking = sheet?.type === "interview";
+
+    useEffect(() => {
+        bubble()?.expand?.(asking);
+    }, [asking]);
+
+    if (asking) {
+        return html`<div class="pgb-form"><${InterviewSheet} key=${sheet.callId} conversationId=${sheet.conversationId} callId=${sheet.callId} /></div>`;
+    }
 
     return html`<div class="pgb" data-part="progress-board">
         <div class="pgb-head">
@@ -67,7 +79,9 @@ export function BoardView() {
                     <small>${row.doing} · ${timeAgo(row.since)}</small>
                 </button>
                 ${
-                    row.approval?.simple
+                    row.approval?.interview
+                        ? html`<button type="button" class="button small primary" data-part="board-answer" onClick=${() => openSheet({ type: "interview", conversationId: row.conversationId, callId: row.approval.interview.callId })}>${t("Answer")}</button>`
+                        : row.approval?.simple
                         ? html`<span class="pgb-answer">
                               <button type="button" class="button small primary" data-part="board-approve" onClick=${() => answer(row.approval.id, true)}>${t("Approve")}</button>
                               <button type="button" class="button small" onClick=${() => answer(row.approval.id, false)}>${t("Deny")}</button>

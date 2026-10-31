@@ -100,6 +100,22 @@ test("a card Pi asks is pinned at the top until answered; the list says Pi asks 
 
     await page.setViewport(VIEWPORTS.mobile);
     await page.navigate(`${base}/s/${id}`);
+    await see(`return JSON.stringify(document.querySelector('.interview-card') !== null)`, "the card");
+    // The card on screen is its own reminder: no bar (one, not two).
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    assert.equal(await inPage<boolean>(`return JSON.stringify(document.querySelector('[data-part="decision-bar"]') !== null)`), false);
+    // A long chat above it, scrolled to its top: the card is out of view, and the bar pinned.
+    await page.evaluate(`
+        const spacer = document.createElement("div");
+        spacer.style.height = "2400px";
+        document.querySelector('[data-part="transcript"]').prepend(spacer);
+        return "true";
+    `);
+    // Up, as a person scrolls (the chat holds to its end only while it is there).
+    for (let step = 0; step < 3; step++) {
+        await page.evaluate(`const scroller = document.querySelector(".scroller"); scroller.scrollTop = 0; scroller.dispatchEvent(new Event("scroll")); return "true";`);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+    }
     await see(`return JSON.stringify(document.querySelector('[data-part="decision-bar"] .decision') !== null)`, "the pinned bar");
 
     const bar = await inPage<{ title: string; detail: string; top: number }>(`
@@ -134,13 +150,19 @@ test("a card Pi asks is pinned at the top until answered; the list says Pi asks 
     await shot("waits-for-you-390");
     await page.evaluate(`localStorage.setItem("pocket.sessionScope", "all"); return "true";`);
 
+    // The floating board lists it with Answer, which opens its form right there (the owner: it shows on the board).
+    await page.navigate(`${base}/?board=1`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="board-answer"]') !== null)`, "Answer on the board");
+    assert.match(await inPage<string>(`return JSON.stringify(document.querySelector('[data-part="pgb-row"] small').textContent)`), /^Pi asks you: Which first/);
+    await page.evaluate(`document.querySelector('[data-part="board-answer"]').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector(".pgb-form")?.textContent.includes("Which do we build first?") === true)`, "the form on the board");
+    await shot("board-form-390");
+
     // Answered: the bar goes.
-    await page.navigate(`${base}/s/${id}`);
-    await see(`return JSON.stringify(document.querySelector('[data-part="decision-bar"]') !== null)`, "the bar again");
     const card = app.approvals.forConversation(id).find((each) => each.form?.type === "interview")!;
 
     await app.answerApproval(card.id, false, owner(app));
-    await see(`return JSON.stringify(document.querySelector('[data-part="decision-bar"]') === null)`, "the bar gone");
+    await until(() => app.approvals.forConversation(id).length === 0, "answered");
     assert.equal(app.sessions().find((each) => each.id === Number(id))?.asks, undefined);
     await page.setViewport(VIEWPORTS.desktop);
 });

@@ -56,7 +56,19 @@ final class ProgressBubble {
     private final TextView count;
     private final TextView badge;
     private WebView board;
+    private WindowManager.LayoutParams boardParams;
     private boolean added;
+    /** How long the board stays after a tap opened the app, while Android decides on the start. */
+    private static final long FOLD_AFTER_MS = 800;
+    /** pi-phone in front: the bubble steps aside (the app shows the same), and an open board folds. */
+    private final Runnable watchFront = new Runnable() {
+        @Override
+        public void run() {
+            if (added) orb.setVisibility(MainActivity.inFront ? View.GONE : View.VISIBLE);
+            if (board != null && MainActivity.inFront) fold();
+            main.postDelayed(this, 700);
+        }
+    };
 
     /** A ring around the logo: a quarter left open, turned while Pi works. */
     private static final class Ring extends View {
@@ -200,6 +212,8 @@ final class ProgressBubble {
         if (!added && board == null) {
             windows.addView(orb, orbParams);
             added = true;
+            main.removeCallbacks(watchFront);
+            main.post(watchFront);
         }
     }
 
@@ -221,6 +235,7 @@ final class ProgressBubble {
                 PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
         params.y = Math.max(dp(80), orbParams.y - dp(60));
+        boardParams = params;
         // A tap outside the board folds it.
         board.setOnTouchListener((view, event) -> {
             if (event.getActionMasked() == MotionEvent.ACTION_OUTSIDE) fold();
@@ -243,6 +258,23 @@ final class ProgressBubble {
         }, "pi-board-open").start();
     }
 
+    /**
+     * A decision's form on the board (PP-284): the window grows to most of the screen and takes the keyboard while it
+     * shows; back to the board's size after.
+     */
+    private void expand(boolean on) {
+        if (board == null || boardParams == null) return;
+        DisplayMetrics screen = context.getResources().getDisplayMetrics();
+        boardParams.height = Math.round(screen.heightPixels * (on ? 0.88f : 0.55f));
+        boardParams.y = on ? dp(40) : Math.max(dp(80), orbParams.y - dp(60));
+        if (on) {
+            boardParams.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+        } else {
+            boardParams.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+        }
+        windows.updateViewLayout(board, boardParams);
+    }
+
     /** The board folds back to the circle. */
     private void fold() {
         if (board == null) return;
@@ -255,6 +287,7 @@ final class ProgressBubble {
 
     /** The circle and its board go (turned off, Android's permission taken back, or nothing runs). */
     void remove() {
+        main.removeCallbacks(watchFront);
         if (board != null) {
             windows.removeView(board);
             board.destroy();
@@ -299,7 +332,8 @@ final class ProgressBubble {
             android.util.Log.i("pi-phone", "board: tapped session " + session);
             main.post(() -> {
                 launch(new Intent(context, MainActivity.class).putExtra(PiService.EXTRA_SESSION, session), 3000);
-                fold();
+                // Android weighs the start after it is sent, by the windows pi shows then: the board stays a moment.
+                main.postDelayed(ProgressBubble.this::fold, FOLD_AFTER_MS);
             });
         }
 
@@ -307,13 +341,18 @@ final class ProgressBubble {
         public void openApp() {
             main.post(() -> {
                 launch(new Intent(context, MainActivity.class), 3001);
-                fold();
+                main.postDelayed(ProgressBubble.this::fold, FOLD_AFTER_MS);
             });
         }
 
         @JavascriptInterface
         public void fold() {
             main.post(ProgressBubble.this::fold);
+        }
+
+        @JavascriptInterface
+        public void expand(boolean on) {
+            main.post(() -> ProgressBubble.this.expand(on));
         }
     }
 }

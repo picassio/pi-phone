@@ -2476,7 +2476,9 @@ pre.diff .del {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 8px 10px 0;
+    padding: 8px 10px 8px;
+    /* The chat under it does not show through around the card. */
+    background: linear-gradient(var(--bg) 75%, transparent);
 }
 
 .decision {

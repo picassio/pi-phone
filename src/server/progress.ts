@@ -32,8 +32,11 @@ export type ProgressRow = {
     doing: string;
     /** Since when it works, or waits. */
     since: number;
-    /** What waits for the owner, when it waits; `simple` when Approve and Deny answer it (no form to fill). */
-    approval?: { id: string; simple: boolean };
+    /**
+     * What waits for the owner, when it waits; `simple` when Approve and Deny answer it (no form to fill); a decision Pi
+     * asks on a card (PP-284), with what opens its form on the board.
+     */
+    approval?: { id: string; simple: boolean; interview?: { callId: string } };
 };
 
 export type ProgressBoard = {
@@ -163,14 +166,16 @@ export class Progress {
             const request = waitingFor.get(id);
 
             if (request !== undefined) {
+                const asks = request.form?.type === "interview" ? request.form : undefined;
+
                 rows.push({
                     session: Number(source.rootOf(id)),
                     conversationId: Number(id),
                     title,
                     state: "waiting",
-                    doing: t("waits: {what}", { what: short(`${request.tool} ${request.subject}`) }),
+                    doing: asks === undefined ? t("waits: {what}", { what: short(`${request.tool} ${request.subject}`) }) : t("Pi asks you: {title}", { title: short(asks.title) }),
                     since: request.createdAt,
-                    approval: { id: request.id, simple: request.form === undefined },
+                    approval: { id: request.id, simple: request.form === undefined, ...(asks === undefined ? {} : { interview: { callId: asks.callId } }) },
                 });
 
                 continue;
