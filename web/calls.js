@@ -122,7 +122,12 @@ export function describeCall(call) {
         }
         // Pi's browser (extensions/browser.ts): what it did, and to what.
         case "browser_open":
-            return { icon: "◍", label: t("Opens"), subject: String(args.url ?? "").replace(/^https?:\/\//, ""), mono: true };
+            return {
+                icon: "◍",
+                label: t("Opens"),
+                subject: args.machine ? t("{url} on {machine}", { url: String(args.url ?? "").replace(/^https?:\/\//, ""), machine: args.machine }) : String(args.url ?? "").replace(/^https?:\/\//, ""),
+                mono: true,
+            };
         case "browser_new_tab":
             return { icon: "◍", label: t("New tab"), subject: args.url === undefined ? t("blank") : String(args.url).replace(/^https?:\/\//, ""), mono: true };
         case "browser_snapshot":

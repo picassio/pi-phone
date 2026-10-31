@@ -3196,6 +3196,8 @@
     "Connect Chrome Remote Desktop on {machine} to your Google account": "将 {machine} 上的 Chrome Remote Desktop 连接到你的 Google 账号",
     "Connecting Chrome Remote Desktop is the owner's: waiting for them.": "连接 Chrome Remote Desktop 归所有者：等待他们处理。",
     "Someone is using this browser's window on {where}.": "有人正在 {where} 上使用这个浏览器的窗口。",
+    "Browse on": "浏览位置",
+    "{url} on {machine}": "{machine} 上的 {url}",
     "Pi's browser here": "这里的 Pi 浏览器",
     "Headless (no window)": "无头（无窗口）",
     "A window on its screen": "屏幕上的窗口",

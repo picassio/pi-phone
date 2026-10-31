@@ -905,6 +905,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     Runtime domain on). Pi's own CDP input is trusted too, so an event counts only while Pi is not acting and 1.5 s
     after its last action or the panel's input (`#ownInputUntil`); then `windowInUse` is true for 15 s (the panel's
     line) and Pi's next answer starts with a note, once. Only for engines with `visibleOn` (window mode).
+  - **Where a session browses** (`BrowserPlaces`, `browser-places.json`): `phone` or `machine:<id>`, chosen with
+    `browser_open`/`browser_new_tab`'s `machine` or the panel's Browse on (`PUT /api/browser/place`); none kept when it
+    is where the session works. `browserFor` takes the choice, then the cwd's place.
+    The owner's tabs get the map in `hello` (`server.browserPlaces`) and `browser-places` events; `browserPlace()` in
+    `store.js` reads it. Forgotten when a session is archived or deleted.
 - **Onboarding** (PP-232; plan `projects/pi-phone-onboarding`): the first-run welcome's state is per person in
   config.json (`User.welcome`: absent shows it, `done`, `skipped`). A config from before it (no `onboarding: 1`)
   marks everyone done once, so only new pi-phones (a team member's own included) welcome their owner; guests never get

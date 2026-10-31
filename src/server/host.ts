@@ -325,6 +325,13 @@ export interface PocketHost {
      * a Chrome on that machine (`browser/machine-engine.ts`). The pages Pi reads and acts on, which the owner watches.
      */
     browserFor(cwd: string, session: number): PiBrowser;
+    /**
+     * Where a session browses from now on (PP-274): "phone", or a machine by name or id. Answers its place
+     * (`phone`, `machine:<id>`).
+     */
+    setBrowserPlace(cwd: string, session: number, where: string): string;
+    /** A place in words ("this phone", a machine's name). */
+    browserWhere(place: string): string;
     /** The run model for a session's `browser_run`: "session", or a Jev model's OpenRouter id (the session's own, else the owner's). */
     browserRunModel(conversationId: ConversationId): string;
     /** A provider's API key from the app's sign-ins (OpenRouter's, for Jev), or undefined when it is not signed in. */

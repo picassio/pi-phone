@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
 import { t } from "./i18n.js";
 import { api, attempt, browserApi, browserPath, browserPlace, closePeople, onBrowserFrame, panelsBeside, piBrowserState, setPiBrowser, store } from "./store.js";
-import { html, Icon } from "./ui.js";
+import { Choice, html, Icon } from "./ui.js";
 
 const OPEN_KEY = "pocket.piBrowser";
 /** After the panel was closed, Pi's browsing does not open it again for this long. */
@@ -448,6 +448,33 @@ function SizeSwitch({ state }) {
     </div>`;
 }
 
+/** Where this session browses (PP-274): this phone or one of the owner's machines, as browser_open's machine does. */
+function BrowseOn() {
+    const machines = store.state.server?.browserMachines ?? [];
+    const place = browserPlace();
+
+    if (machines.length === 0) {
+        return null;
+    }
+
+    return html`<div class="pb-on">
+        <span class="pb-on-label">${t("Browse on")}</span>
+        <${Choice}
+            label=${t("Browse on")}
+            value=${place}
+            options=${[{ value: "phone", label: t("This phone") }, ...machines.map((machine) => ({ value: `machine:${machine.id}`, label: machine.name }))]}
+            onChange=${(chosen) =>
+                chosen !== place &&
+                void attempt(async () => {
+                    const answer = await api(browserPath("browser/place"), { place: chosen === "phone" ? "phone" : chosen.slice("machine:".length) }, { method: "PUT" });
+
+                    store.set((now) => ({ browserPlaces: { ...now.browserPlaces, [String(now.conversationId)]: answer.place } }));
+                    setPiBrowser(answer.browser);
+                })}
+        />
+    </div>`;
+}
+
 /** Keys a phone's keyboard lacks, and an address, while the person has the page. Typing goes straight to the page. */
 function TakeOverBar() {
     const [address, setAddress] = useState("");
@@ -564,6 +591,7 @@ export function BrowserPanel({ leaving = false }) {
                     : html`<div class="pb-empty">
                           <${Icon} name="globe" size=${28} />
                           <p>${t("Pi's browser opens when Pi browses: ask Pi to open a page, or to do something on a site.")}</p>
+                          <${BrowseOn} />
                       </div>`
             }
         </div>
@@ -572,6 +600,7 @@ export function BrowserPanel({ leaving = false }) {
             state?.open &&
             html`<footer class="pb-foot">
                 <${SizeSwitch} state=${state} />
+                <${BrowseOn} />
                 <button class="link small" onClick=${() => attempt(async () => setPiBrowser(await browserApi("browser/close", {})))}>${t("Close this session's tabs")}</button>
             </footer>`
         }

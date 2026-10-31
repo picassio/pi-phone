@@ -257,6 +257,8 @@ No Termux, no laptop, no cloud VM.
     scheduled task as you (no password, not elevated, removed once Chrome runs), and says so when nobody is signed in
     or the screen is locked. The headless machine tool has no window; macOS comes later. When someone clicks, types or
     scrolls in that window (not Pi, not the panel), the panel says the window is in use on the machine, and Pi is told.
+  - **From a session on the phone**: `browser_open` and `browser_new_tab` with `machine` (or **Browse on** in the
+    panel) move a session's browsing to one of your machines, or back to the phone; its tabs stay its own.
 - **From any session.** `machine_run` and `machine_copy` run a command or copy a file on a machine (with **Pi asks
   before each command** ticked for a machine in Settings › Machines, each `machine_run` there waits for you to allow it
   on a card that shows the command; off by default, as bash on the phone), and `pi-ssh`

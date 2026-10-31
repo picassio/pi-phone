@@ -117,6 +117,64 @@ export class BrowserSizes {
     }
 }
 
+/**
+ * Where each session browses when it chose (PP-274): `phone` or `machine:<id>`, by session, kept in a JSON file. A
+ * session that did not choose browses where it works (the phone, or its machine). A browser Pi attached to is not kept:
+ * it lasts while the server runs.
+ */
+export class BrowserPlaces {
+    readonly #file: string | undefined;
+    #places: Record<string, string>;
+
+    /** `file`: where to keep them, or undefined to keep them in memory only (tests). */
+    constructor(file: string | undefined) {
+        this.#file = file;
+        this.#places = {};
+
+        if (file !== undefined) {
+            try {
+                const kept = JSON.parse(readFileSync(file, "utf8")) as unknown;
+
+                if (kept !== null && typeof kept === "object") {
+                    this.#places = Object.fromEntries(
+                        Object.entries(kept).filter(([, place]) => typeof place === "string" && (place === "phone" || /^machine:[^:]+$/.test(place))),
+                    ) as Record<string, string>;
+                }
+            } catch {
+                // None kept yet.
+            }
+        }
+    }
+
+    of(session: number): string | undefined {
+        return this.#places[String(session)];
+    }
+
+    /** Every session's choice. */
+    all(): Record<string, string> {
+        return { ...this.#places };
+    }
+
+    /** Keep a session's choice, or forget it (`undefined`: it browses where it works again). */
+    set(session: number, place: string | undefined): void {
+        const places = { ...this.#places };
+
+        if (place === undefined) {
+            delete places[String(session)];
+        } else {
+            places[String(session)] = place;
+        }
+
+        if (JSON.stringify(places) !== JSON.stringify(this.#places)) {
+            this.#places = places;
+
+            if (this.#file !== undefined) {
+                writeFileSync(this.#file, JSON.stringify(places));
+            }
+        }
+    }
+}
+
 /** One session's view of a place's engine: its own tabs only. Closing it closes those, never the engine. */
 export class SessionEngine implements BrowserEngine {
     readonly #engine: BrowserEngine;

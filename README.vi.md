@@ -271,6 +271,8 @@ dự án thật.</sub>
     bạn (không mật khẩu, không quyền quản trị, xóa ngay khi Chrome chạy), và báo khi chưa ai đăng nhập hoặc màn hình
     đang khóa. Công cụ Chrome headless trên máy không có cửa sổ; macOS làm sau. Khi có người bấm, gõ hay cuộn trong
     cửa sổ đó (không phải Pi, không phải khung), khung báo cửa sổ đang được dùng trên máy, và Pi được báo.
+  - **Từ một phiên trên điện thoại**: `browser_open` và `browser_new_tab` với `machine` (hoặc **Duyệt trên** trong
+    khung) chuyển việc duyệt web của phiên sang một máy của bạn, hoặc về lại điện thoại; các thẻ vẫn là của phiên.
 - **Từ bất kỳ phiên nào.** `machine_run` và `machine_copy` chạy một lệnh hoặc chép một tệp trên máy (khi một máy
   được chọn **Pi hỏi trước mỗi lệnh** trong Cài đặt › Máy, mỗi `machine_run` ở đó chờ bạn cho phép trên một thẻ hiện
   lệnh; mặc định tắt, như bash trên điện thoại), và `pi-ssh` cho bash dùng ssh, rsync, scp và tunnel bằng khóa của ứng

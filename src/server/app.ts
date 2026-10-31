@@ -116,7 +116,7 @@ import { type CrdRun, CrdError } from "./crd.ts";
 import { Screenshots } from "./screenshots.ts";
 import { FilePages } from "./file-pages.ts";
 import { MACHINE_BROWSER_MODES, type MachineAccess, type MachineBrowserMode, MachineEngine } from "./browser/machine-engine.ts";
-import { BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine.ts";
+import { BrowserPlaces, BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine.ts";
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
 import { installImageGuard } from "./image-guard.ts";
 import { appSettings } from "./settings-registry.ts";
@@ -396,6 +396,8 @@ export class PocketApp {
     readonly #tabOwners: TabOwners;
     /** The size each session's browser lays pages out at (PP-18). */
     readonly #browserSizes: BrowserSizes;
+    /** Where each session browses when it chose (PP-274): the phone, or a machine. */
+    readonly #browserPlaces: BrowserPlaces;
     /** Test machines for Pi's browser, if a test gave them. */
     readonly #browserMachinesOption: OpenOptions["browserMachines"];
     /** The sweep that closes idle sessions' tabs, and those of sessions archived or deleted. */
@@ -792,6 +794,7 @@ export class PocketApp {
         });
         this.#tabOwners = new TabOwners(join(options.dataDir, "browser-tabs.json"));
         this.#browserSizes = new BrowserSizes(join(options.dataDir, "browser-sizes.json"));
+        this.#browserPlaces = new BrowserPlaces(join(options.dataDir, "browser-places.json"));
         this.#browserMachinesOption = options.browserMachines;
         this.para = new Para({
             home: this.#home,
@@ -1053,6 +1056,8 @@ export class PocketApp {
             serverBase: () => (this.serverPort === undefined ? undefined : `http://127.0.0.1:${this.serverPort}`),
             render: (url, options) => this.screenshots.render(url, options),
             browserFor: (cwd, session) => this.browserFor(cwd, session),
+            setBrowserPlace: (cwd, session, where) => this.setBrowserPlace(cwd, session, where),
+            browserWhere: (place) => this.browserWhere(place),
             browserRunModel: (id) => this.sessionMeta(this.rootOf(id))?.browserRunModel ?? this.config.browserRunModel,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
             askSessionModel: async (id, prompt, maxTokens) => (await askSessionModel(this, id, prompt, { maxTokens })).text,
@@ -1398,6 +1403,14 @@ export class PocketApp {
 
             if (gone) {
                 this.#browserSizes.set(key, undefined);
+
+                // Its choice of place goes.
+                const id = Number(key.slice(key.lastIndexOf("#") + 1));
+
+                if (this.#browserPlaces.of(id) !== undefined) {
+                    this.#browserPlaces.set(id, undefined);
+                    this.#browserPlacesChanged();
+                }
             }
 
             if (!browser.hasTabs || (!gone && browser.idleFor(now) < BROWSER_IDLE_MS)) {
@@ -3274,11 +3287,39 @@ export class PocketApp {
         return frame;
     }
 
-    /** Pi's browser for session `session` working in `cwd`: on its machine for a session on one, else the phone's. */
+    /**
+     * Pi's browser for session `session` working in `cwd`: where it chose to browse (PP-274: the phone, or a machine),
+     * else on its machine for a session on one, else the phone's.
+     */
     browserFor(cwd: string, session: number): PiBrowser {
+        return this.browserAt(this.browserPlaceOf(cwd, session), session);
+    }
+
+    /** Where a session's browser is: `phone`, or `machine:<id>` (PP-274). */
+    browserPlaceOf(cwd: string, session: number): string {
+        return this.#browserPlaces.of(session) ?? this.#ownBrowserPlace(cwd);
+    }
+
+    /** Where a session working in `cwd` browses unless it chose: its machine for one on a machine, else the phone. */
+    #ownBrowserPlace(cwd: string): string {
         const machine = /^machine:([^:]+):/.exec(cwd)?.[1];
 
-        return this.browserAt(machine === undefined ? "phone" : `machine:${machine}`, session);
+        return machine === undefined ? "phone" : `machine:${machine}`;
+    }
+
+    /** Each session's browser place that is not where it works: the ones chosen. For the owner's tabs. */
+    browserPlaces(): Record<string, string> {
+        return this.#browserPlaces.all();
+    }
+
+    #browserPlacesChanged(): void {
+        const places = this.browserPlaces();
+
+        for (const client of this.#clients) {
+            if (client.user.role === "owner") {
+                client.send("browser-places", { places });
+            }
+        }
     }
 
     /** The machines Pi's browser may run on (PP-274): the app's connected ones, or a test's. */
@@ -3310,6 +3351,29 @@ export class PocketApp {
         }
 
         return found;
+    }
+
+    /**
+     * Where a session browses from now on (PP-274: `browser_open` with machine, the panel's Browse on): `phone`, or a
+     * machine by name or id. Its tabs at the place before stay there (and close when idle). Answers the place.
+     */
+    setBrowserPlace(cwd: string, session: number, where: string): string {
+        if (!Number.isInteger(session) || session <= 0) {
+            throw new HttpError(400, "Which session's browser? (session=<number>)");
+        }
+
+        const place = /^(phone|this phone|the phone)$/i.test(where.trim()) ? "phone" : `machine:${this.#browserMachine(where.replace(/^machine:/, "")).id}`;
+        this.#browserPlaces.set(session, place === this.#ownBrowserPlace(cwd) ? undefined : place);
+        this.#browserPlacesChanged();
+
+        return place;
+    }
+
+    /** A place in words, for Pi: "this phone", or a machine's name. */
+    browserWhere(place: string): string {
+        const machine = /^machine:([^:]+)/.exec(place)?.[1];
+
+        return machine === undefined ? "this phone" : (this.browserMachines().find((each) => each.id === machine)?.name ?? machine);
     }
 
     /**
@@ -3630,6 +3694,15 @@ export class PocketApp {
                 // Pi using a phone (PP-141): the owner's tabs show the session's live line, with Stop.
                 phoneControl: user.role === "owner" ? this.phoneControl.view() : [],
                 computerControl: user.role === "owner" ? this.computerControl.view() : [],
+                // Where sessions browse when not where they work (PP-274): a machine chosen, a browser attached. The owner's.
+                browserPlaces: user.role === "owner" ? this.browserPlaces() : {},
+                // The machines a session may browse on (the panel's Browse on): connected ones, not the team's.
+                browserMachines:
+                    user.role === "owner"
+                        ? this.browserMachines()
+                              .filter((machine) => machine.connected && !this.machines.list().some((each) => each.id === machine.id && each.team !== undefined))
+                              .map((machine) => ({ id: machine.id, name: machine.name }))
+                        : [],
                 // This server runs on a phone (the pi-phone app's), which Menu › Phone control is for.
                 onPhone: process.platform === "android",
                 // The model and thinking level new sessions start with, or null for the last one picked.

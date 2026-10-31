@@ -1113,6 +1113,15 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, browser().state());
             }
 
+            // Where the session browses (PP-274, the panel's Browse on): this phone or a machine. Answers its browser there.
+            if (second === "place" && method === "PUT") {
+                const body = await readJson<{ place?: unknown }>(request);
+                const cwd = app.cwdOf(session as never);
+                const chosen = app.setBrowserPlace(cwd, session, String(body.place ?? ""));
+
+                return json(response, 200, { place: chosen, browser: app.browserAt(chosen, session).state() });
+            }
+
             // What the phone's browser does with a window a page opens (Settings › Pi's browser, PP-249).
             if (second === "popups" && third === undefined && method === "GET") {
                 return json(response, 200, { popups: app.config.browserPopups });
