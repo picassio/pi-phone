@@ -22,6 +22,7 @@ import { VIEWPORTS } from "./support/browser/viewport.ts";
 const sshdPath = ["/usr/sbin/sshd", join(process.env.PREFIX ?? "/usr", "bin", "sshd")].find((path) => existsSync(path));
 const skip = findBrowser() === undefined ? "no Chromium-based browser on this machine" : sshdPath === undefined ? "no sshd on this machine" : false;
 const SHOTS = process.env.MACHINE_SHOTS;
+const LONG_ADDRESS = "https://wiki.example.com/sandbox/han-proxmox/virtual-machines/tuanlh-sandbox-01/setup-notes-and-the-whole-checklist?section=network&step=12";
 let toolArgs: Record<string, unknown> = {};
 
 const route: FauxResponseStep = (request) => {
@@ -94,7 +95,8 @@ before(async () => {
         address: `${userInfo().username}@127.0.0.1:${port}`,
         key: "sandbox-key",
         expectedFingerprint: execFileSync("ssh-keygen", ["-lf", join(etc, "host_key.pub")], { encoding: "utf8" }).split(/\s+/)[1],
-        reason: "The VM I just built on han-proxmox, for the sandbox work",
+        // A long address with no spaces: a link on the card, broken to fit a phone; the closing full stop is the sentence's.
+        reason: `The VM I just built on han-proxmox, for the sandbox work, see ${LONG_ADDRESS}.`,
     };
     server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -140,6 +142,10 @@ test("the machine_add card shows the machine, fits a phone, and Approve adds it 
 
     assert.match(card, /Add tuanlh-sandbox-01 to your machines\?/);
     assert.match(card, /The VM I just built on han-proxmox/);
+    assert.deepEqual(
+        await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll(".machine-add-card .approval-reason a")].map((link) => link.getAttribute("href") + " " + link.target))`),
+        [`${LONG_ADDRESS} _blank`],
+    );
     assert.ok(card.includes(String(toolArgs.address)), card);
     assert.match(card, /sandbox-key\s+SHA256:/);
     assert.match(card, /SHA256:\S+ \(ED25519\)/);

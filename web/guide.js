@@ -4,7 +4,7 @@
 import { useState } from "preact/hooks";
 import { currentLanguage, t } from "./i18n.js";
 import { api, attempt, closeSheet, navigate, openSheet, store } from "./store.js";
-import { html, Icon, WIDE } from "./ui.js";
+import { html, Icon, Linked, WIDE } from "./ui.js";
 
 /**
  * Open the owner's Getting started session: again when there is one, else a new one that Pi starts. With no model yet
@@ -67,7 +67,7 @@ export function ScreenCard({ args }) {
     return html`<div class="screen-card" data-part="screen-card">
         <div class="grow">
             <div class="screen-card-title">${screen.name}</div>
-            ${args.why && html`<div class="muted small">${args.why}</div>`}
+            ${args.why && html`<div class="muted small"><${Linked} text=${args.why} /></div>`}
             ${!here && html`<div class="muted small">${t("Open this in the pi-phone app on the phone.")}</div>`}
         </div>
         ${here && html`<button class="button small primary" type="button" onClick=${() => attempt(async () => screen.open())}>${t("Open")}</button>`}

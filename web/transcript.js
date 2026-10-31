@@ -54,6 +54,7 @@ import {
     fileUrl,
     html,
     Icon,
+    Linked,
     Markdown,
     openFile,
     plainText,
@@ -879,7 +880,7 @@ function ToolStep({
         }
 
         if (call.name === "subagent" && args.message) {
-            parts.push(html`<div class="tool-note">${args.message}</div>`);
+            parts.push(html`<div class="tool-note"><${Linked} text=${args.message} /></div>`);
         }
 
         if (call.name === "codemode") {
@@ -1376,7 +1377,7 @@ function InterviewCard({ approval }) {
             <span class="approval-shield" aria-hidden="true"><${Icon} name="chat" size=${16} /></span>
             <div class="approval-title">
                 <span class="approval-ask">${tn(form.count, "Pi has a question: {title}", "Pi has {n} questions: {title}", { title: form.title })}</span>
-                ${approval.reason && html`<span class="approval-reason">${approval.reason}</span>`}
+                ${approval.reason && html`<span class="approval-reason"><${Linked} text=${approval.reason} /></span>`}
             </div>
         </div>
         ${
@@ -1409,7 +1410,7 @@ function SecretRequestCard({ approval }) {
             <span class="approval-shield" aria-hidden="true"><${Icon} name="key" size=${16} /></span>
             <div class="approval-title">
                 <span class="approval-ask">${tx("Pi asks for a secret: {name}", { name: html`<span class="mono">${approval.form.name}</span>` })}</span>
-                <span class="approval-reason">${approval.reason}</span>
+                <span class="approval-reason"><${Linked} text=${approval.reason} /></span>
             </div>
         </div>
         ${
@@ -1479,7 +1480,7 @@ function BrowserAskCard({ approval }) {
             <span class="approval-shield" aria-hidden="true"><${Icon} name=${form.kind === "do" ? "globe" : "key"} size=${16} /></span>
             <div class="approval-title">
                 <span class="approval-ask">${title}</span>
-                <span class="approval-reason">${form.kind === "sign-in" ? t("Pi's browser is at its sign-in. What you type goes into the page; Pi never sees it.") : form.instruction}</span>
+                <span class="approval-reason">${form.kind === "sign-in" ? t("Pi's browser is at its sign-in. What you type goes into the page; Pi never sees it.") : html`<${Linked} text=${form.instruction} />`}</span>
             </div>
         </div>
         ${
@@ -1563,7 +1564,7 @@ function BoardModeCard({ approval }) {
             <span class="approval-shield" aria-hidden="true"><${Icon} name="board" size=${16} /></span>
             <div class="approval-title">
                 <span class="approval-ask">${t("Track this on the board?")}</span>
-                <span class="approval-reason">${approval.reason}</span>
+                <span class="approval-reason"><${Linked} text=${approval.reason} /></span>
             </div>
         </div>
         <div class="muted small">${t("{subject}. Yes turns board mode on for this session; the session menu turns it off.", { subject: approval.subject })}</div>
@@ -1601,7 +1602,7 @@ function MachineAddCard({ approval }) {
             <span class="approval-shield" aria-hidden="true"><${Icon} name="monitor" size=${16} /></span>
             <div class="approval-title">
                 <span class="approval-ask">${tx("Add {name} to your machines?", { name: html`<span class="mono">${form.name}</span>` })}</span>
-                <span class="approval-reason">${approval.reason}</span>
+                <span class="approval-reason"><${Linked} text=${approval.reason} /></span>
             </div>
         </div>
         <dl class="machine-add-facts">
@@ -1689,7 +1690,7 @@ function PhoneControlCard({ approval }) {
             <span class="approval-shield" aria-hidden="true"><${Icon} name="phone" size=${16} /></span>
             <div class="approval-title">
                 <span class="approval-ask">${t("Let Pi use {device} for {n} minutes?", { device: form.deviceName === "This phone" ? t("this phone") : form.deviceName, n: form.minutes })}</span>
-                ${approval.reason && html`<span class="approval-reason">${approval.reason}</span>`}
+                ${approval.reason && html`<span class="approval-reason"><${Linked} text=${approval.reason} /></span>`}
             </div>
         </div>
         <dl class="machine-add-facts">
@@ -1738,7 +1739,7 @@ function ComputerControlCard({ approval }) {
             <span class="approval-shield" aria-hidden="true"><${Icon} name="monitor" size=${16} /></span>
             <div class="approval-title">
                 <span class="approval-ask">${t("Let Pi use {machine} for {n} minutes?", { machine: form.machineName, n: form.minutes })}</span>
-                ${approval.reason && html`<span class="approval-reason">${approval.reason}</span>`}
+                ${approval.reason && html`<span class="approval-reason"><${Linked} text=${approval.reason} /></span>`}
             </div>
         </div>
         <dl class="machine-add-facts">
@@ -1916,7 +1917,7 @@ function AskCard({ approval }) {
             <span class="approval-shield" aria-hidden="true"><${Icon} name="key" size=${16} /></span>
             <div class="approval-title">
                 <span class="approval-ask">${form.title}</span>
-                ${form.text && html`<span class="approval-reason">${form.text}</span>`}
+                ${form.text && html`<span class="approval-reason"><${Linked} text=${form.text} /></span>`}
             </div>
         </div>
         ${
@@ -2066,7 +2067,7 @@ function ApprovalCard({ approval }) {
             <span class="approval-shield" aria-hidden="true"><${Icon} name="shield" size=${16} /></span>
             <div class="approval-title">
                 <span class="approval-ask">${tx("Pi asks before this {tool} call", { tool: approval.tool })}</span>
-                <span class="approval-reason">${approval.reason}</span>
+                <span class="approval-reason"><${Linked} text=${approval.reason} /></span>
             </div>
         </div>
         <pre class="cmd">${approval.tool === "bash" && html`<span class="cmd-sign">$ </span>`}${approval.subject}</pre>

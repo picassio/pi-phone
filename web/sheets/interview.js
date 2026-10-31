@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { HtmlPreview, Highlighted } from "../rich.js";
 import { api, attempt, canSteer, closeSheet, notify } from "../store.js";
-import { fileUrl, html, Icon, Loader, Markdown, Sheet } from "../ui.js";
+import { fileUrl, html, Icon, Linked, Loader, Markdown, Sheet } from "../ui.js";
 import { t, tn } from "../i18n.js";
 
 const labelOf = (option) => (typeof option === "string" ? option : option.label);
@@ -118,7 +118,7 @@ function ReviewProposal({ review, onUse, onDismiss, busy }) {
         <ul>
             ${review.options.map((option) => html`<li>${option}</li>`)}
         </ul>
-        ${review.why && html`<p class="muted small">${review.why}</p>`}
+        ${review.why && html`<p class="muted small"><${Linked} text=${review.why} /></p>`}
         <div class="sheet-actions">
             <button class="button small" disabled=${busy} onClick=${onDismiss}>${t("Keep mine")}</button>
             <button class="button small primary" disabled=${busy} onClick=${onUse}>${t("Use it")}</button>

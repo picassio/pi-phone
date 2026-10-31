@@ -1169,6 +1169,32 @@ function scrollFromKeys(event) {
 export const iconPath = (name) =>
     typeof name === "string" && Object.hasOwn(ICONS, name) ? ICONS[name] : "";
 
+/** A web address in plain text: http(s), up to a space or a closing bracket; trailing punctuation is the sentence's. */
+const WEB_ADDRESS = /https?:\/\/[^\s<>"'`)\]]+/g;
+
+/**
+ * Plain text with its web addresses as links that open outside the app (a card's words, written by Pi): the address is
+ * shown whole, as written, so a person sees where it goes before they tap it.
+ */
+export function Linked({ text }) {
+    const value = String(text ?? "");
+    const parts = [];
+    let at = 0;
+
+    for (const match of value.matchAll(WEB_ADDRESS)) {
+        const address = match[0].replace(/[.,;:!?]+$/, "");
+
+        parts.push(value.slice(at, match.index));
+        // A tap on the link opens it, and does nothing else of the card or tile it is in.
+        parts.push(html`<a class="linked" href=${address} target="_blank" rel="noopener noreferrer" onClick=${(event) => event.stopPropagation()}>${address}</a>`);
+        at = match.index + address.length;
+    }
+
+    parts.push(value.slice(at));
+
+    return parts;
+}
+
 /** Text with the letters at `hits` (indexes) marked, as matches of what someone searched for. */
 export function Marked({ text, hits }) {
     if (!hits || hits.length === 0) {

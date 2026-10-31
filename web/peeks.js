@@ -24,7 +24,7 @@ import {
     workspaceOrder,
 } from "./store.js";
 import { prefs, setPrefs } from "./theme.js";
-import { formatWhen, html, Icon, railState, shortPath, usePresence } from "./ui.js";
+import { formatWhen, html, Icon, Linked, railState, shortPath, usePresence } from "./ui.js";
 
 /** Wide enough for the column beside the conversation: where People and the Browser panel dock too. */
 export const PEEK_WIDE = matchMedia("(min-width: 1100px)");
@@ -498,7 +498,7 @@ function PeekAsk({ approval, compact, who }) {
         <div class=${`peek-ask-what mono ${wholeOnTile(approval) ? "whole" : ""}`}>
             ${approval.subject}
         </div>
-        ${!compact && approval.reason && html`<div class="peek-ask-why">${approval.reason}</div>`}
+        ${!compact && approval.reason && html`<div class="peek-ask-why"><${Linked} text=${approval.reason} /></div>`}
     </div>`;
 }
 

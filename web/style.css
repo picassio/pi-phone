@@ -2270,6 +2270,15 @@ kbd {
     white-space: pre-wrap;
     font-size: 13px;
     color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+/* A web address in a card's or a note's words (Linked): tappable, and broken where it must. */
+a.linked {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
 }
 
 .step-body .dv-block {
@@ -2382,11 +2391,18 @@ pre.diff .del {
     flex-direction: column;
     gap: 12px;
     min-width: 0;
+    /* Long words, addresses and names anywhere in a card break where they must, never wider than the screen. */
+    overflow-wrap: anywhere;
     padding: 16px;
     border: 1px solid var(--warn-line);
     border-radius: calc(var(--r-window) + 2px);
     background: var(--warn-soft);
     animation: pop 0.35s var(--ease-out);
+}
+
+.approval > * {
+    min-width: 0;
+    max-width: 100%;
 }
 
 .approval-head {
@@ -3157,6 +3173,7 @@ pre.diff .del {
 
 .approval-actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
 }
@@ -11226,6 +11243,7 @@ textarea.notes {
 .peek-ask-why {
     font-size: 12px;
     color: var(--muted);
+    overflow-wrap: anywhere;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -18968,6 +18986,7 @@ button.welcome-row:hover {
 .screen-card .grow {
     flex: 1;
     min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .screen-card-title {
