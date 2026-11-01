@@ -252,6 +252,10 @@ No Termux, no laptop, no cloud VM.
   starts and ends on, with the length, shape, resolution and sound the model takes (checked before anything is paid). It
   takes a minute or two; the video is saved in `videos/` where the session works and plays in the chat, with its length
   and cost. Menu › Videos picks the model (`video.model`), each with its price a second.
+- **Transcribing audio.** `audio_transcribe` turns speech in an audio or video file where the session works (a
+  meeting recording, a voice note, a video) into text, SRT or VTT subtitles, or JSON with each utterance's times, on
+  your ChatGPT (Codex) sign-in with no API key (gpt-4o-transcribe by default). Long files go in ten-minute parts; the
+  transcript is saved in `transcripts/`. Settings › Voice's language and words to listen for help it.
 - **Watching videos.** `video_ask` asks a model that watches video about a video file where the session works, or a
   YouTube address, through OpenRouter on your key (Gemini 3.5 Flash-Lite by default, about a cent a minute): what
   happens, with times, what is said. A large or tall video is shrunk to a 720p mp4 first. Menu › Videos picks the model

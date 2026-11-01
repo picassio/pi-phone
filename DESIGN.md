@@ -662,7 +662,21 @@ so Pi changes them through the settings tools; "the last session" is the one the
   plays it from `api/c/<id>/video?path=` (mp4, webm, mov; `Range` answered with 206, here by a read stream, on a machine
   by its env's `openBinaryReader`). OpenRouter's account settings may allow only some providers: Kling 3.0 is served by
   AtlasCloud alone (2026-11-01), and the error OpenRouter gives (which providers are allowed, and where to change it) is
-  passed on.
+  passed on. Pictures given to it (and to `image_generate`'s edits) go upright (PP-304): a JPEG whose Exif orientation
+  turns it (`jpegOrientation`, a phone's portrait photo stored landscape) is turned by the media engine
+  (`uprightPicture`: ffmpeg applies the orientation as it reads; at most 2048 on its long side) into
+  `media/<stamp>-<name>-upright.jpg`, and that is sent; models take the pixels as they are.
+- **Transcribing** (PP-305; `audio.ts`, `extensions/media.ts`): `audio_transcribe({ path, format?: text|srt|vtt|json,
+  language?, prompt?, model? })` on the openai-codex sign-in, which `/v1/audio/transcriptions` refuses (401): a realtime
+  transcription socket (`/realtime?intent=transcription`, Bearer + `chatgpt-account-id`) per ten-minute part, the part
+  turned by the media engine into a 24 kHz mono pcm16 WAV (`pcmPartArgs`, `wavData`), sent at once with 2 s of silence
+  after it, server VAD (0.5, 500 ms silence, 300 ms padding) cutting utterances: `speech_started/stopped` give
+  `audio_start_ms/audio_end_ms` by item, `conversation.item.input_audio_transcription.completed` the text and tokens; a
+  part is done when every utterance has ended and has its text and nothing more came for 5 s. Times are offset by the
+  part; cues of at most 7 s and 84 characters (`cuesOf`, split by words, time shared by length) make SRT and VTT. Model:
+  `TRANSCRIBE_MODELS` (gpt-4o-transcribe default); language and prompt default to Settings › Voice's (`voice.language`
+  unless auto, `voiceWords()`). Saved as `transcripts/<stamp>-<name>.<txt|srt|vtt|json>`; Pi gets the path and the
+  start.
 - **Watching videos** (PP-297; `video-gen.ts`, `extensions/media.ts`, `web/sheets/videos.js`): `video_ask({ question,
   path | url, model? })` through OpenRouter on the owner's key: `POST /api/v1/chat/completions` with a `video_url` part,
   a base64 data URL (mp4, mov, webm) or a YouTube address (Gemini on AI Studio takes those alone), `usage.include`; the

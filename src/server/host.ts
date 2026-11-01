@@ -32,6 +32,7 @@ import type { ComputerApp, ComputerControl } from "./computer-control.ts";
 import type { WebSearch } from "./web/access.ts";
 import type { ImageGen } from "./image-gen.ts";
 import type { Videos } from "./video-gen.ts";
+import type { Audio } from "./audio.ts";
 import type { CommandEnvProvider, HiddenValue } from "./hidden.ts";
 import type { DropInPackage } from "./drop-in-install.ts";
 
@@ -529,6 +530,8 @@ export interface PocketHost {
     readonly images: ImageGen;
     /** Videos through OpenRouter (PP-297): the models that watch them, and asking one. */
     readonly videos: Videos;
+    /** Audio on the Codex sign-in (PP-261): transcribing files. */
+    readonly audio: Audio;
     /** Web search's provider and keys (`web/access.ts`), as Settings › Web access has them. */
     readonly web: WebSearch;
     /**

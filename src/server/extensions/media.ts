@@ -37,9 +37,12 @@ import {
 } from "../media.ts";
 import { slugOf } from "./images.ts";
 import { imageType } from "../image-meta.ts";
+import { PART_SECONDS, pcmPartArgs, srtOf, TRANSCRIBE_MODELS, type Utterance, vttOf, wavData } from "../audio.ts";
 import type { Usage } from "@earendil-works/pi-ai";
 
 const FOLDER = "media";
+/** Where transcripts go. */
+const TRANSCRIPTS = "transcripts";
 /** Where the videos Pi makes go. */
 const VIDEOS = "videos";
 /** A video larger than this is shrunk to a 720p mp4 before a model watches it. */
@@ -589,5 +592,121 @@ export default function createMedia(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: "pocket-media", tools: [media, ask, generate] });
+    const transcribe = defineTool({
+        name: "audio_transcribe",
+        description:
+            "Transcribe speech in an audio or video file where this session works (m4a, mp3, wav, ogg, opus, flac, aac, mp4, mov, webm, mkv) to text, SRT or VTT subtitles, or JSON (utterances with start and end in ms), " +
+            `on the person's ChatGPT (Codex) sign-in (gpt-4o-transcribe by default; setting audio.transcribeModel). Long files go in parts of ${PART_SECONDS / 60} minutes. ` +
+            "The transcript is saved in transcripts/ where this session works; you get its path and its start. language (a code like vi or en) and prompt (names and words to expect) default to Settings › Voice's.",
+        parameters: Type.Object({
+            path: Type.String({ description: "The audio or video file: a path, absolute or relative to this session's folder" }),
+            format: Type.Optional(Type.Union([Type.Literal("text"), Type.Literal("srt"), Type.Literal("vtt"), Type.Literal("json")], { description: "text (default), srt, vtt or json" })),
+            language: Type.Optional(Type.String({ description: "The language spoken, as a code (vi, en, ...); default Settings › Voice's, or detected" })),
+            prompt: Type.Optional(Type.String({ description: "Names, terms and words to expect" })),
+            model: Type.Optional(Type.Union(TRANSCRIBE_MODELS.map((each) => Type.Literal(each)), { description: "The transcription model for this call only" })),
+        }),
+        execute: async (args, api, context) => {
+            let model;
+
+            try {
+                model = host.audio.transcribeModel(args.model);
+            } catch (error) {
+                return reply(error instanceof Error ? error.message : String(error), true);
+            }
+
+            const cwd = (await api.agent(context)).cwd ?? "";
+            const env = host.envOf(cwd);
+            const absolute = await env.absolutePath(args.path, context);
+
+            if (!absolute.ok) {
+                return reply(`Cannot find ${args.path}: ${absolute.error.message}`, true);
+            }
+
+            const engine = await engineFor(cwd, env, context);
+
+            if (typeof engine === "string") {
+                return reply(engine, true);
+            }
+
+            const probed = await output(env, commandOf(engine, "ffprobe", probeArgs(absolute.value)), context, 60);
+
+            if (probed.code !== 0) {
+                return reply(`${args.path} is not an audio or video file ffmpeg reads: ${probed.stderr.trim()}`, true);
+            }
+
+            const info = readProbe(probed.stdout);
+
+            if (info.audio === undefined || info.duration === undefined) {
+                return reply(`${args.path} has no sound to transcribe (${describe(info)}).`, true);
+            }
+
+            const folder = await env.absolutePath(TRANSCRIPTS, context);
+            const created = folder.ok ? await env.createDir(folder.value, { recursive: true }, context) : folder;
+
+            if (!folder.ok || !created.ok) {
+                return reply(`Cannot save in ${TRANSCRIPTS}: ${!created.ok ? created.error.message : ""}`, true);
+            }
+
+            const base = `${folder.value}/${stamp(new Date())}-${slugOf(args.path.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "audio")}`;
+            const hints = host.audio.transcribeHints({ ...(args.language === undefined ? {} : { language: args.language }), ...(args.prompt === undefined ? {} : { prompt: args.prompt }) });
+            const parts = Math.max(1, Math.ceil(info.duration / PART_SECONDS));
+            const utterances: Utterance[] = [];
+            const tokens = { input: 0, output: 0 };
+
+            for (let part = 0; part < parts; part++) {
+                const wav = `${base}.part.wav`;
+                const cut = await output(env, commandOf(engine, "ffmpeg", pcmPartArgs(absolute.value, wav, part * PART_SECONDS, PART_SECONDS)), context);
+                const read = cut.code === 0 ? await env.readBinaryFile(wav, context) : undefined;
+
+                await env.remove(wav, { force: true }, context);
+
+                if (read === undefined || !read.ok) {
+                    return reply(`Could not read the sound of ${args.path}${parts > 1 ? ` (part ${part + 1} of ${parts})` : ""}: ${read === undefined ? cut.stderr.trim() : read.error.message}`, true);
+                }
+
+                const pcm = wavData(read.value);
+
+                if (pcm === undefined) {
+                    return reply(`ffmpeg did not make a WAV of ${args.path}.`, true);
+                }
+
+                try {
+                    const heard = await host.audio.transcribePart(pcm, { model, ...hints }, context.abortSignal);
+
+                    utterances.push(...heard.utterances.map((each) => ({ ...each, start: each.start + part * PART_SECONDS * 1000, end: each.end + part * PART_SECONDS * 1000 })));
+                    tokens.input += heard.usage.input;
+                    tokens.output += heard.usage.output;
+                } catch (error) {
+                    return reply(`${error instanceof Error ? error.message : String(error)}${parts > 1 ? ` (part ${part + 1} of ${parts})` : ""}`, true);
+                }
+            }
+
+            const format = args.format ?? "text";
+            const text = utterances.map((each) => each.text).join("\n");
+            const content = format === "srt" ? srtOf(utterances) : format === "vtt" ? vttOf(utterances) : format === "json" ? `${JSON.stringify(utterances, null, 1)}\n` : `${text}\n`;
+            const path = `${base}.${format === "text" ? "txt" : format}`;
+            const written = await env.writeFile(path, content, context);
+
+            if (!written.ok) {
+                return reply(`Could not write ${path}: ${written.error.message}`, true);
+            }
+
+            const start = text.length > 1500 ? `${text.slice(0, 1500)}…` : text;
+
+            return {
+                output: [
+                    {
+                        type: "text" as const,
+                        text:
+                            utterances.length === 0
+                                ? `No speech heard in ${args.path} (${info.duration} s). Saved an empty transcript: ${path}`
+                                : `Transcribed ${args.path} (${info.duration} s${parts > 1 ? `, ${parts} parts` : ""}) with ${model}: ${utterances.length} utterances, saved as ${path}\n\n${start}`,
+                    },
+                ],
+                details: plain({ model, transcript: { path, format, utterances: utterances.length, duration: info.duration, parts, start: start.slice(0, 400) }, tokens }),
+            };
+        },
+    });
+
+    return defineExtension({ name: "pocket-media", tools: [media, ask, generate, transcribe] });
 }

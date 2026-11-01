@@ -265,6 +265,10 @@ dự án thật.</sub>
   kết thúc, với độ dài, khung hình, độ phân giải và âm thanh mà mô hình nhận (kiểm trước khi trả tiền). Mất một hai phút;
   video được lưu trong `videos/` ở nơi phiên làm việc và phát ngay trong cuộc trò chuyện, kèm độ dài và chi phí.
   Menu › Video chọn mô hình (`video.model`), mỗi mô hình kèm giá mỗi giây.
+- **Chép lời âm thanh.** `audio_transcribe` chuyển lời nói trong một tệp âm thanh hoặc video ở nơi phiên làm việc (bản
+  ghi cuộc họp, tin nhắn thoại, video) thành văn bản, phụ đề SRT hoặc VTT, hoặc JSON kèm thời gian từng câu, bằng đăng
+  nhập ChatGPT (Codex) của bạn, không cần API key (mặc định gpt-4o-transcribe). Tệp dài được chia thành từng phần mười
+  phút; bản chép lời lưu trong `transcripts/`. Ngôn ngữ và các từ cần nghe trong Cài đặt › Giọng nói giúp nó nghe đúng hơn.
 - **Xem video.** `video_ask` hỏi một mô hình xem được video về một tệp video ở nơi phiên làm việc, hoặc một địa chỉ
   YouTube, qua OpenRouter bằng khóa của bạn (mặc định Gemini 3.5 Flash-Lite, khoảng một xu mỗi phút): chuyện gì xảy ra,
   kèm thời điểm, nói gì. Video lớn hoặc cao được thu về mp4 720p trước. Menu › Video chọn mô hình (`video.askModel`);

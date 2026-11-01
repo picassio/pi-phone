@@ -13,6 +13,7 @@ import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
 import { CustomProviders, NO_KEY } from "./custom-providers.ts";
 import { ImageGen, type ImageGenOptions } from "./image-gen.ts";
 import { Videos, type VideosOptions } from "./video-gen.ts";
+import { Audio, type AudioOptions } from "./audio.ts";
 import { TeamAccountsClient } from "./team-accounts.ts";
 import { TeamMachinesClient } from "./team-machines.ts";
 import { machinePaths } from "./machine-paths.ts";
@@ -353,6 +354,7 @@ export interface OpenOptions {
     /** Where ChatGPT's and OpenRouter's image endpoints are, and whose ChatGPT sign-in (`image-gen.ts`): tests stand in fakes. */
     images?: Partial<Pick<ImageGenOptions, "endpoints" | "fetch" | "codexAuth">>;
     videos?: Partial<Pick<VideosOptions, "endpoints" | "fetch" | "pollMs">>;
+    audio?: Partial<Pick<AudioOptions, "endpoints" | "settleMs" | "auth">>;
 }
 
 /** A Codex token's ChatGPT account, as voice sends it. */
@@ -529,6 +531,7 @@ export class PocketApp {
     readonly images: ImageGen;
     /** Videos through OpenRouter (PP-297): `video_ask`'s models and asks. */
     readonly videos: Videos;
+    readonly audio: Audio;
     /** The server's side of a call once it is set up: Pi's work in, Pi's words out (`voice-bridge.ts`). */
     readonly voiceBridge: VoiceBridge;
     /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
@@ -651,6 +654,16 @@ export class PocketApp {
             askSetting: () => this.config.videoAskModel,
             makeSetting: () => this.config.videoModel,
             ...options.videos,
+        });
+        this.audio = new Audio({
+            auth: async () => {
+                const token = (await this.models.getAuth("openai-codex"))?.auth.apiKey;
+
+                return token === undefined || token === "" ? undefined : { token, ...withAccount(token) };
+            },
+            transcribeSetting: () => null,
+            voice: () => ({ language: this.config.voice.language, words: this.voiceWords() }),
+            ...options.audio,
         });
         this.images = new ImageGen({
             codexAuth: async () => {
@@ -1356,6 +1369,7 @@ export class PocketApp {
             web: this.web,
             images: this.images,
             videos: this.videos,
+            audio: this.audio,
             envOf: (cwd) => this.places.env(cwd),
             teamServer: this.#teamServer,
             syncTeamMachines: () => this.syncTeamMachines(),
