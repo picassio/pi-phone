@@ -266,6 +266,8 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "media",
     "video_ask",
     "video_generate",
+    "audio_transcribe",
+    "audio_speak",
     "browser_open",
     "browser_snapshot",
     "browser_click",
