@@ -41,8 +41,8 @@ dự án thật.</sub>
   để dùng Giọng nói của pi-phone ngay trên mọi ứng dụng: màn hình Giọng nói của app trong bảng nổi, thu nhỏ thành một
   chip Giọng nói (sóng âm, micrô, kết thúc), nói với phiên mà Menu › Trợ lý chọn, đổi được ở tiêu đề (pi phải là ứng dụng trợ lý kỹ thuật số của điện thoại, Android yêu cầu vậy để dùng
   micrô khi đang ở ứng dụng khác). Tab Xong liệt kê các phiên xong trong 24
-  giờ qua kèm phần đầu câu trả lời cuối của Pi (hoặc lỗi), chấm xanh trên phiên bạn chưa mở, và trên bong bóng khi có
-  việc xong từ lần bạn xem trước. Thanh trượt Độ đục của bảng (50 đến
+  giờ qua kèm phần đầu câu trả lời cuối của Pi (hoặc lỗi), chấm xanh trên phiên bạn chưa mở, và số màu xanh trên bong bóng đếm những phiên
+  xong từ lần bạn xem trước. Thanh trượt Độ đục của bảng (50 đến
   100%) cho ứng dụng bên dưới hiện xuyên qua bảng. Pi đổi được qua thẻ (`notifications.progress`, `notifications.bubble`,
   `notifications.bubbleHide`, `notifications.bubbleOpacity`). Từ GitHub issue #5.
 - **Quyết định không thể bỏ sót.** Khi Pi hỏi bạn quyết định qua một thẻ, phiên ghim nó trong một thanh màu hổ phách ở

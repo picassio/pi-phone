@@ -110,8 +110,10 @@ final class Progress {
         boolean hideIdle = settings == null || settings.optBoolean("hideIdle", true);
         int working = board.optInt("working");
         int waiting = board.optInt("waiting");
-        // When the newest session done in the last day ended: the bubble's dot when it is new to the owner (PP-287).
-        long lastEnded = board.optLong("lastEnded", 0);
+        // When each session done in the last day ended: the bubble counts those new to the owner (PP-287).
+        JSONArray finished = board.optJSONArray("finished");
+        long[] ends = new long[finished == null ? 0 : finished.length()];
+        for (int index = 0; index < ends.length; index++) ends[index] = finished.getJSONObject(index).optLong("since", 0);
         NotificationManager manager = service.getSystemService(NotificationManager.class);
 
         if (inNotification) {
@@ -130,7 +132,7 @@ final class Progress {
             // A voice call on the board (PP-290) keeps it while it lasts, idle or not.
             if (wanted || (bubble != null && bubble.calling() && allowed)) {
                 if (bubble == null) bubble = new ProgressBubble(service, token);
-                bubble.show(working, waiting, lastEnded);
+                bubble.show(working, waiting, ends);
             } else if (bubble != null) {
                 bubble.remove();
                 bubble = null;

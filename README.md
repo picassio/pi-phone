@@ -38,7 +38,7 @@ No Termux, no laptop, no cloud VM.
   wave, mic, end) when folded, talking to the session Menu › Assistant names, another a tap away on its title (pi must
   be the phone's digital assistant app, which Android requires to use the microphone from behind other apps). Its Done tab
   lists the sessions finished in the last 24 hours with the start of Pi's last answer (or failed), a blue dot on those
-  you have not opened yet, and on the bubble when something finished since you last looked. A slider there
+  you have not opened yet, and a blue count on the bubble of those finished since you last looked. A slider there
   (Panel opacity, 50 to 100%) lets the app under the panel show through. Pi changes these on a card
   (`notifications.progress`, `notifications.bubble`, `notifications.bubbleHide`, `notifications.bubbleOpacity`). From
   GitHub issue #5.

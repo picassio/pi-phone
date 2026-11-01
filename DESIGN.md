@@ -358,8 +358,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `#endedAt`, so since the server started) and that have no row, newest first, each with the start of Pi's last text
   or error line (read once per run end) or done/failed; not in the notification. The board's Done tab and All's last
   section show them; a blue dot is `seen.js`'s `finishedUnseen` (the WebViews share localStorage, so opening it on the
-  board or in the app clears it). `lastEnded` puts a blue dot on the bubble when after its `lastLook` (the board
-  opened, or pi-phone in use).
+  board or in the app clears it). The bubble counts the `finished` rows that ended after its `lastLook` (the board
+  opened, or pi-phone in use) in a blue chip at its top left, as its other chips are, the number inside.
   pi-phone's Voice from the bubble (PP-290, the owner's picks): a double tap (a single tap waits 250 ms for it) opens the
   board at `/?board=1&call=1`, which starts Voice with Menu › Assistant's target (`assist.js` `targetFor`); the board's
   Voice line (a `Choice` of last, new or Assistant's session) does the same for another target. In the panel it is the

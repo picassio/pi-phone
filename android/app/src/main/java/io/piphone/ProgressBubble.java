@@ -50,7 +50,7 @@ final class ProgressBubble {
     private static final int BLUE = 0xFF7AA2F7;
     /**
      * When the owner last looked at what Pi did: the board opened, or pi-phone in use. A session that ended after it
-     * puts a blue dot on the bubble (PP-287); runs that ended before the service started are old news.
+     * counts on the bubble's blue chip (PP-287); runs that ended before the service started are old news.
      */
     private static volatile long lastLook = System.currentTimeMillis();
 
@@ -65,8 +65,10 @@ final class ProgressBubble {
     private final TextView count;
     private final TextView badge;
     /** Something finished since the owner last looked (PP-287). */
-    private final View dot;
+    private final TextView dot;
     private long lastEnded;
+    /** When each session done in the last day ended, as the board last said. */
+    private long[] ends = new long[0];
     private WebView board;
     private WindowManager.LayoutParams boardParams;
     private boolean added;
@@ -169,14 +171,10 @@ final class ProgressBubble {
         orb.addView(count, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(18), Gravity.BOTTOM | Gravity.START));
         badge = chip(AMBER, BG);
         orb.addView(badge, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(18), Gravity.TOP | Gravity.END));
-        dot = new View(context);
-        GradientDrawable blue = new GradientDrawable();
-        blue.setShape(GradientDrawable.OVAL);
-        blue.setColor(BLUE);
-        blue.setStroke(dp(2), BG);
-        dot.setBackground(blue);
+        // How many finished since the owner last looked (PP-287): a chip as the others, its number inside (the owner).
+        dot = chip(BLUE, BG);
         dot.setVisibility(View.GONE);
-        orb.addView(dot, new FrameLayout.LayoutParams(dp(12), dp(12), Gravity.TOP | Gravity.START));
+        orb.addView(dot, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(18), Gravity.TOP | Gravity.START));
 
         orbParams = new WindowManager.LayoutParams(size, size,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -259,9 +257,11 @@ final class ProgressBubble {
     }
 
     /** The circle with its counts: the ring turns while Pi works; the badge shows what waits for the owner. */
-    void show(int working, int waiting, long ended) {
-        lastEnded = ended;
-        dot.setVisibility(ended > lastLook ? View.VISIBLE : View.GONE);
+    void show(int working, int waiting, long[] ended) {
+        ends = ended;
+        lastEnded = 0;
+        for (long each : ended) lastEnded = Math.max(lastEnded, each);
+        unseen();
         ring.turning(working > 0);
         count.setText(String.valueOf(working));
         count.setVisibility(working > 0 ? View.VISIBLE : View.GONE);
@@ -275,10 +275,18 @@ final class ProgressBubble {
         }
     }
 
-    /** The owner looked: what finished so far is seen, and the bubble's dot goes. */
+    /** The owner looked: what finished so far is seen, and the bubble's blue chip goes. */
     private void looked() {
         lastLook = Math.max(System.currentTimeMillis(), lastEnded);
-        dot.setVisibility(View.GONE);
+        unseen();
+    }
+
+    /** The blue chip: how many sessions ended since the owner last looked; none, no chip. */
+    private void unseen() {
+        int fresh = 0;
+        for (long each : ends) if (each > lastLook) fresh++;
+        dot.setText(String.valueOf(fresh));
+        dot.setVisibility(fresh > 0 ? View.VISIBLE : View.GONE);
     }
 
     /** A voice call runs on the board (PP-290): the bubble stays while it does, whatever runs. */
