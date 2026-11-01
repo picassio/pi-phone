@@ -217,6 +217,8 @@ test("a session's board settings: who closes tasks and its rules, kept; the proj
     assert.match(boardRules("light", "verified"), /Verify every task yourself.*not by eye.*move it to done yourself/s);
     for (const level of ["light", "full"] as const) {
         assert.match(boardRules(level, "person"), /## For you.*numbered steps.*## Then Pi does/s, level);
+        // What is left or waits for the person: read on the board first, not from an old note (the owner, 2026-11-01).
+        assert.match(boardRules(level, "person"), /read it on the board now \(task_get, task_list\), not from the wiki.*the board is right: fix the note/s, level);
     }
     assert.match(boardRules("full", "person"), /blocked_reason/);
 });

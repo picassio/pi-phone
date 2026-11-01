@@ -1608,7 +1608,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **Board mode**: Pi uses a board only in sessions where the person said yes. `board_mode` asks once on an inline
     card (an approval with `tool: "board_mode"`, drawn by `BoardModeCard`); a no is kept and Pi does not ask again;
     `PUT /api/x/projects/board-mode/<session>` is the session's switch. Every other board tool except
-    `project_list` refuses while it is off. Pi acts as the person it works for (`requesterOf`).
+    `project_list` refuses while it is off. Pi acts as the person it works for (`requesterOf`). Its rules
+    (`boardRules`, full or light) include reading a task's state on the board before telling the person what is left
+    or waits for them, never from the wiki or memory, and fixing a note that differs (the owner, 2026-11-01: an old note
+    had Pi remind him of tasks he had done).
   - Routes under `/api/x/projects/` (`projects`, `projects/:key`, `projects/:key/tasks`, `projects/:key/members`,
     `tasks/:ref`, `tasks/:ref/comments`, `tasks/:ref/links`, `board-mode/:conversation`); changes are sent to
     open boards as the module's `changed` event. Tests: `test/projects.test.ts`.

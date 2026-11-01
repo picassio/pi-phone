@@ -51,17 +51,22 @@ export function boardRules(level: BoardRules, closer: Closer): string {
               ? "When a task is done, move it to review and tell the person in this chat what changed and how you checked it; when they say it is good, move it to done yourself (task_update). A task with operator_review still waits for a person to move it."
               : "Never move a task you worked on to done: the main session or a person approves it.";
 
+    // The owner (2026-11-01): Pi told him VISA-1 and VISA-2 still waited for him, from an old wiki note; he had moved
+    // them to Done long before. The board is where a task's state is.
+    const check =
+        "- The board says where each task is. Before you tell the person what is left, what waits for them, or remind them of a task, read it on the board now (task_get, task_list), not from the wiki, a summary or what you remember, which may be old. When they differ, the board is right: fix the note.";
     const forYou =
         "- A task that needs the person (a decision, a sign-in, a token, a tap only they can make): set it blocked, assign it to them, and put a \"## For you\" section in its description that they can follow cold weeks later: numbered steps with exact places (links, menus, buttons), values to enter, how long it takes, and what to say back to you (\"say PP-4 token ready in session #N\"); then a \"## Then Pi does\" section. Tell them in chat too.";
 
     if (level === "light") {
-        return [track, `- Keep tasks current with task_update as you work: in_progress when you start, review when it is done. ${done}`, forYou].join("\n");
+        return [track, `- Keep tasks current with task_update as you work: in_progress when you start, review when it is done. ${done}`, check, forYou].join("\n");
     }
 
     return [
         track,
         `- Keep tasks current with task_update as you work: in_progress when you start, testing while you verify, review when it is done. ${done}`,
         "- Need an answer, an approval, or something you cannot do? Set the task blocked with blocked_reason, and say what you need. Never use review to ask a question.",
+        check,
         forYou,
         "- Destructive or risky work (migrations, infrastructure, security, secrets, production config, first deploys): set operator_review, so only a person moves it to done. A bug is done only after you verified its fix (fix_verified).",
         "- Comment (task_comment) with results, questions, blockers, and decisions only: no acknowledgements or restated plans.",
