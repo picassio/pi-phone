@@ -635,7 +635,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
         ...([
             ["notification", "notifications.progress", "Progress in the pi notification", "on: the always-on pi notification lists the sessions at work and waiting, each with what it does now; off: it only says pi runs."],
             ["bubble", "notifications.bubble", "Floating board over other apps", "on: a pi bubble over other apps with how many sessions work and a badge when one waits; a tap opens the board. Android asks the owner once for Display over other apps (on the phone itself)."],
-            ["hideIdle", "notifications.bubbleHide", "Hide the floating board when nothing runs", "on: the bubble hides a minute after the last run ends, and comes back when one starts."],
+            ["hideIdle", "notifications.bubbleHide", "Hide the floating board when nothing runs", "on: the bubble hides a minute after the last run ends (not while a finished session waits to be seen, its blue count), and comes back when one starts."],
         ] as const).map(([part, id, title, help]): Setting => ({
             id,
             area: "notifications",

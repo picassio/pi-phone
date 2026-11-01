@@ -526,7 +526,7 @@
     "Panel opacity · {n}%": "Độ đục của bảng · {n}%",
     "Panel opacity": "Độ đục của bảng",
     "How much of the app under the floating panel shows through. The bubble stays solid.": "Ứng dụng bên dưới bảng nổi hiện xuyên qua bao nhiêu. Bong bóng vẫn giữ nguyên độ đục.",
-    "A minute after the last run ends; it comes back when one starts.": "Một phút sau khi lượt chạy cuối kết thúc; hiện lại khi có lượt mới.",
+    "A minute after the last run ends, not while a finished session waits to be seen; it comes back when one starts.": "Một phút sau khi lượt chạy cuối kết thúc, trừ khi còn phiên xong mà bạn chưa xem; hiện lại khi có lượt mới.",
     "running {what}": "đang chạy {what}",
     "waiting for its provider's limit": "đang chờ hạn mức của nhà cung cấp",
     "reading {what}": "đang đọc {what}",

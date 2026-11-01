@@ -54,7 +54,7 @@ function ProgressBoardSettings({ app, thenLook }) {
     return html`<div class="group-title">${t("While Pi works")}</div>
         ${row(t("Progress in the notification"), t("Which sessions run and what each does, in the pi notification."), settings.notification, (on) => set("notification", on), "notification")}
         ${row(t("Floating board over other apps"), t("A pi bubble with how many work, and a badge when one waits for you; tap it for the board. Android asks once to let pi display over other apps."), settings.bubble, setBubble, "bubble")}
-        ${settings.bubble && row(t("Hide it when nothing runs"), t("A minute after the last run ends; it comes back when one starts."), settings.hideIdle, (on) => set("hideIdle", on), "hideIdle")}
+        ${settings.bubble && row(t("Hide it when nothing runs"), t("A minute after the last run ends, not while a finished session waits to be seen; it comes back when one starts."), settings.hideIdle, (on) => set("hideIdle", on), "hideIdle")}
         ${
             settings.bubble &&
             html`<div class="provider progress-opacity" data-part="progress-opacity">

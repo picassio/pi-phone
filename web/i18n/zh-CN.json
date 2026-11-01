@@ -395,7 +395,7 @@
     "Panel opacity · {n}%": "面板不透明度 · {n}%",
     "Panel opacity": "面板不透明度",
     "How much of the app under the floating panel shows through. The bubble stays solid.": "悬浮面板下方的应用透出多少。气泡本身保持不透明。",
-    "A minute after the last run ends; it comes back when one starts.": "最后一次运行结束一分钟后隐藏；有新任务开始时再出现。",
+    "A minute after the last run ends, not while a finished session waits to be seen; it comes back when one starts.": "最后一次运行结束一分钟后隐藏，但还有未查看的已完成会话时不隐藏；有新任务开始时再出现。",
     "running {what}": "正在运行 {what}",
     "waiting for its provider's limit": "正在等待提供商的额度",
     "reading {what}": "正在读取 {what}",

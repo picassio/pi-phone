@@ -348,7 +348,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   (`ACTION_APPROVE` to PiService, `POST /api/approvals/<id>`). With the bubble on and `Settings.canDrawOverlays`,
   `ProgressBubble` adds a `TYPE_APPLICATION_OVERLAY` circle (pi's mark `pi_mark.xml`, a turning ring while Pi works, the
   count, an amber badge), dragged to the nearest side; a tap opens `/?board=1` in a WebView window (bridge `PiBoard`:
-  open, openApp, fold; a tap outside folds). Hidden a minute after the last run when hideIdle. This phone has the switches;
+  open, openApp, fold; a tap outside folds). Hidden a minute after the last run when hideIdle, unless a session finished that the owner has not seen (its blue chip). This phone has the switches;
   the bubble's turns on once Android allows it (`PiPhoneApp.overlayAllowed`, `askOverlay`). `progressBoard.opacity`
   (PP-286, 50 to 100 in steps of 5, default 100) is the board page's `body` opacity: the whole panel, text included, its
   session and forms too; the bubble stays solid. Opening the app from the board (PP-285) turns the board see-through and

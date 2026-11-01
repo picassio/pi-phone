@@ -127,7 +127,8 @@ final class Progress {
         long now = System.currentTimeMillis();
         if (working + waiting > 0) lastBusy = now;
         boolean allowed = Settings.canDrawOverlays(service);
-        boolean wanted = bubbleOn && allowed && (!hideIdle || working + waiting > 0 || now - lastBusy < IDLE_HIDE_MS);
+        // Hidden when idle, but not while something finished that the owner has not seen: its blue chip would go with it.
+        boolean wanted = bubbleOn && allowed && (!hideIdle || working + waiting > 0 || now - lastBusy < IDLE_HIDE_MS || ProgressBubble.unseenOf(ends) > 0);
         main.post(() -> {
             // A voice call on the board (PP-290) keeps it while it lasts, idle or not.
             if (wanted || (bubble != null && bubble.calling() && allowed)) {

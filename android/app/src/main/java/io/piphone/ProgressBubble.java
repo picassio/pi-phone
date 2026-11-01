@@ -275,6 +275,13 @@ final class ProgressBubble {
         }
     }
 
+    /** How many of these sessions ended after the owner last looked. */
+    static int unseenOf(long[] ended) {
+        int fresh = 0;
+        for (long each : ended) if (each > lastLook) fresh++;
+        return fresh;
+    }
+
     /** The owner looked: what finished so far is seen, and the bubble's blue chip goes. */
     private void looked() {
         lastLook = Math.max(System.currentTimeMillis(), lastEnded);
@@ -283,8 +290,7 @@ final class ProgressBubble {
 
     /** The blue chip: how many sessions ended since the owner last looked; none, no chip. */
     private void unseen() {
-        int fresh = 0;
-        for (long each : ends) if (each > lastLook) fresh++;
+        int fresh = unseenOf(ends);
         dot.setText(String.valueOf(fresh));
         dot.setVisibility(fresh > 0 ? View.VISIBLE : View.GONE);
     }
