@@ -2952,26 +2952,67 @@ pre.diff .del {
     color: var(--accent-ink);
 }
 
-.pgb-round.end {
-    background: var(--err);
-    color: var(--bg);
+/* The chip's wave: the app's Voice wave, small. */
+.pgb-chipwave {
+    width: 52px;
+    height: 22px;
+    flex: none;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
 }
 
-.pgb-round.end svg {
-    transform: rotate(135deg);
+.pgb-chipwave .assist-wave {
+    gap: 2px;
+    height: 22px;
+    transform: scaleY(0.7);
 }
 
-.pgb-captions {
-    padding: 0 14px 10px 44px;
-    font-size: 0.8rem;
-    line-height: 1.35;
+.pgb-chipwave .assist-wave i {
+    width: 2px;
 }
 
-.pgb-captions span {
-    margin-right: 6px;
+/* pi-phone's Voice in the panel: the app's voice view, the window's height. */
+.pgb.pgb-voice {
+    height: 100dvh;
+}
+
+.pgb-voice .pgb-head {
+    border-bottom: 1px solid var(--hair);
+}
+
+.pgb-voice-title {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.pgb-voice-title b {
+    font-size: 0.95rem;
+}
+
+.pgb-voice-title .choice {
+    width: auto;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    min-height: 0;
+    font-size: 0.78rem;
     color: var(--muted);
-    font-size: 0.72rem;
-    font-weight: 600;
+}
+
+.pgb-voice-title .choice-detail {
+    display: none;
+}
+
+.pgb-voice .voice-recent {
+    padding: 10px 14px;
+}
+
+.pgb-voice .voice-foot {
+    padding-bottom: 12px;
 }
 
 .pgb-foot {

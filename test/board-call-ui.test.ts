@@ -1,9 +1,9 @@
-// A voice call from the floating bubble (PP-290; web/board.js, ProgressBubble.java) in a real browser against a fake
-// OpenAI, with stand-ins for the bubble's bridge (`PiBoard`), WebRTC and the microphone: a double tap opens the board as
-// a call's pill and calls the session Menu › Assistant names, the bubble's service told first; the pill fits its window,
-// mutes, hides its captions and ends back to the bubble. On the board, the call line calls another target for this
-// call, the call shows as a bar that folds to the pill; without the phone's digital assistant role it says so, with
-// Android's Default apps a tap away. With PHONE_SHOTS, screenshots go there.
+// pi-phone's Voice from the floating bubble (PP-290; web/board.js, ProgressBubble.java) in a real browser against a fake
+// OpenAI, with stand-ins for the bubble's bridge (`PiBoard`), WebRTC and the microphone: a double tap opens the board in
+// Voice, talking to the session Menu › Assistant names, the bubble's service told first; the dash makes it a chip that
+// fits its window and mutes; the board shows Voice as a bar; ending the chip goes back to the bubble. The board's Voice
+// line talks to another target; ending Voice in the panel goes back to the board; without the phone's digital assistant
+// role it says so, with Android's Default apps a tap away. With PHONE_SHOTS, screenshots go there.
 import { type App, cleanUp, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -129,38 +129,49 @@ after(async () => {
     cleanUp();
 });
 
-test("a double tap: the board as a call's pill, calling Menu › Assistant's session; it fits its window, mutes, and ends back to the bubble", real, async () => {
+test("a double tap: the board in Voice, to Menu › Assistant's session; the dash makes it a chip; the board shows it as a bar; ending the chip goes back to the bubble", real, async () => {
     const id = await newSession(app);
 
     await app.setAssistant(owner(app), { opens: "last" });
     await inPage(`localStorage.setItem("pi-phone.last-session", "${id}")`);
     await openBoard(true);
-    await until(() => app.voice.calls().some((call) => call.session === id && call.rtc !== undefined), "a call in the last session", 20_000);
-    await until(async () => exists(".pgb-call.pill [data-part=board-call-end]"), "the pill");
-    assert.equal(await exists("[data-part=progress-board]"), false, "the pill alone, not the board");
+    await until(() => app.voice.calls().some((call) => call.session === id && call.rtc !== undefined), "Voice in the last session", 20_000);
+    await until(async () => exists("[data-part=board-voice] [data-part=voice-status]"), "Voice in the panel, with the app's controls");
+    assert.ok(await exists("[data-part=board-voice] [data-part=voice-mode]"), "its voice mode");
+    assert.equal(await exists("[data-part=progress-board]"), false, "Voice, not the list");
 
     const heard = await bridge();
 
     assert.deepEqual(heard.starting.map(([session]) => session), [id], "the bubble's service first");
     assert.deepEqual((await told()).map((each) => [each.state, each.session]), [["start", id]]);
-    assert.ok(heard.pills.length > 0 && heard.pills.at(-1)! > 30 && heard.pills.at(-1)! < 200, `the window fits the pill: ${String(heard.pills.at(-1))}`);
-    await shot("board-call-pill-390");
+    await shot("board-voice-390");
 
-    // Mute, and back.
+    // The dash: a chip that fits its window; its mic mutes and back.
+    await inPage(`document.querySelector("[data-part=board-voice-small]").click()`);
+    await until(async () => exists(".pgb-call.pill [data-part=board-call-end]"), "the chip");
+    await until(async () => ((await bridge()).pills.at(-1) ?? 0) > 30, "the window fits the chip");
+    assert.ok((await bridge()).pills.at(-1)! < 120, `a chip's height: ${String((await bridge()).pills.at(-1))}`);
+    assert.match(await inPage<string>(`document.querySelector(".pgb-call.pill").innerText`), /Voice/);
+    await shot("board-voice-chip-390");
     await inPage(`document.querySelector("[data-part=board-call-mute]").click()`);
-    await until(async () => (await inPage<boolean>(`(async () => (await import("/store.js")).store.state.voiceCall?.muted === true)()`)), "muted");
+    await until(async () => inPage<boolean>(`(async () => (await import("/store.js")).store.state.voiceCall?.muted === true)()`), "muted");
     await inPage(`document.querySelector("[data-part=board-call-mute]").click()`);
-    await until(async () => (await inPage<boolean>(`(async () => (await import("/store.js")).store.state.voiceCall?.muted === false)()`)), "unmuted");
+    await until(async () => inPage<boolean>(`(async () => (await import("/store.js")).store.state.voiceCall?.muted === false)()`), "unmuted");
 
-    // A tap on it opens the board, with the call as a bar; folding makes it the pill again.
+    // A tap on the chip opens Voice; pi's mark shows the board, Voice a bar over it that opens Voice again.
     await inPage(`document.querySelector(".pgb-calltext").click()`);
-    await until(async () => exists("[data-part=progress-board] .pgb-call.bar"), "the board with the call's bar");
-    assert.equal(await exists("[data-part=board-call-row]"), false, "no call line during a call");
-    await shot("board-call-bar-390");
-    await inPage(`globalThis.__piBoardFold()`);
-    await until(async () => exists(".pgb-call.pill"), "the pill again");
+    await until(async () => exists("[data-part=board-voice]"), "Voice again");
+    await inPage(`document.querySelector("[data-part=board-voice-board]").click()`);
+    await until(async () => exists("[data-part=progress-board] .pgb-call.bar"), "the board with Voice's bar");
+    assert.equal(await exists("[data-part=board-call-row]"), false, "no Voice line while Voice runs");
+    await shot("board-voice-bar-390");
+    await inPage(`document.querySelector(".pgb-call.bar .pgb-calltext").click()`);
+    await until(async () => exists("[data-part=board-voice]"), "Voice from the bar");
 
-    // End: the call goes, the bubble hears of it, and the pill folds back to the bubble.
+    // Folding (a tap outside, pi-phone in front) makes it the chip; End there goes back to the bubble.
+    await inPage(`globalThis.__piBoardFold()`);
+    await until(async () => exists(".pgb-call.pill"), "the chip again");
+
     const folds = (await bridge()).folds;
 
     await inPage(`document.querySelector("[data-part=board-call-end]").click()`);
@@ -169,35 +180,36 @@ test("a double tap: the board as a call's pill, calling Menu › Assistant's ses
     assert.equal((await told()).at(-1)!.state, "end");
 });
 
-test("the board's call line: Menu › Assistant's target, another for this call; not the phone's assistant: it says so", real, async () => {
+test("the board's Voice line: Menu › Assistant's target, another for this time; ending in the panel goes back to the board; not the phone's assistant: it says so", real, async () => {
     const before = app.sessions().length;
 
     await app.setAssistant(owner(app), { opens: "last" });
     await openBoard(false);
-    await until(async () => exists("[data-part=board-call-row] .choice"), "the call line", 20_000);
-    await shot("board-call-row-390");
+    await until(async () => exists("[data-part=board-call-row] .choice"), "the Voice line", 20_000);
+    assert.match(await inPage<string>(`document.querySelector("[data-part=board-call]").innerText`), /Voice/);
+    await shot("board-voice-row-390");
 
-    // A new session for this call.
+    // A new session this time.
     await inPage(`document.querySelector("[data-part=board-call-row] .choice").click()`);
     await until(async () => exists(".choice-menu [role=option]"), "the targets");
     await inPage(`[...document.querySelectorAll(".choice-menu [role=option]")].find((each) => each.innerText.includes("A new session")).click()`);
     await inPage(`document.querySelector("[data-part=board-call]").click()`);
     await until(() => app.sessions().length === before + 1, "a new session");
-    await until(() => app.voice.calls().length === 1, "a call", 15_000);
-    assert.equal(app.voice.calls()[0]!.session, Math.max(...app.sessions().map((each) => each.id)), JSON.stringify({ calls: app.voice.calls().map((each) => each.session), ids: app.sessions().map((each) => each.id), starting: (await bridge()).starting }));
-    await until(async () => exists("[data-part=progress-board] .pgb-call.bar"), "the call's bar on the board");
-    await inPage(`document.querySelector("[data-part=board-call-end]").click()`);
+    await until(() => app.voice.calls().length === 1, "Voice", 15_000);
+    assert.equal(app.voice.calls()[0]!.session, Math.max(...app.sessions().map((each) => each.id)));
+    await until(async () => exists("[data-part=board-voice] [data-part=voice-end]"), "Voice in the panel");
+    await inPage(`document.querySelector("[data-part=board-voice] [data-part=voice-end]").click()`);
     await until(() => app.voice.calls().length === 0, "ended");
-    await until(async () => exists("[data-part=board-call-row]"), "the call line again, the board kept");
+    await until(async () => exists("[data-part=board-call-row]"), "back to the board");
 
     // Not the phone's digital assistant: it says so, with Android's Default apps a tap away.
     await openBoard(false, false);
-    await until(async () => exists("[data-part=board-call]"), "the call line", 20_000);
+    await until(async () => exists("[data-part=board-call]"), "the Voice line", 20_000);
     await inPage(`document.querySelector("[data-part=board-call]").click()`);
     await until(async () => exists("[data-part=board-call-problem]"), "the problem");
     assert.match(await inPage<string>(`document.querySelector("[data-part=board-call-problem]").innerText`), /digital assistant/);
     assert.equal(app.voice.calls().length, 0);
     await inPage(`document.querySelector("[data-part=board-call-problem] button").click()`);
     assert.equal((await bridge()).settings, 1);
-    await shot("board-call-problem-390");
+    await shot("board-voice-problem-390");
 });

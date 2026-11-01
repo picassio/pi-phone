@@ -11,7 +11,8 @@ import { Transcript } from "./transcript.js";
 import { folderColor } from "./avatar.js";
 import { finishedUnseen, markSeen } from "./seen.js";
 import { Choice, html, Icon, shortPath } from "./ui.js";
-import { endVoice, setVoiceMuted, startVoice, voiceAvailable } from "./voice-call.js";
+import { endVoice, sessionVoiceMode, setVoiceMuted, startVoice, toggleMic, voiceAvailable } from "./voice-call.js";
+import { CallControls, ModeChoice, Recent, VOICE_MODES, Wave } from "./voice-view.js";
 
 /**
  * A session opened on the board (the owner: a tapped row opens it in the floating panel, not the app): its transcript,
@@ -99,12 +100,12 @@ function callOptions() {
     ];
 }
 
-/** The board's call line: where it goes, and Call. */
-function CallRow({ problem, setProblem }) {
+/** The board's Voice line: where it talks to, and Voice. */
+function VoiceRow({ problem, setProblem }) {
     const [opens, setOpens] = useState(() => assistantSettings().opens);
 
     return html`<div class="pgb-callrow" data-part="board-call-row">
-            <div class="pgb-callto"><${Choice} value=${opens} options=${callOptions()} label=${t("Call to")} onChange=${setOpens} /></div>
+            <div class="pgb-callto"><${Choice} value=${opens} options=${callOptions()} label=${t("Talk to")} onChange=${setOpens} /></div>
             <button
                 type="button"
                 class="pgb-callbtn"
@@ -114,7 +115,7 @@ function CallRow({ problem, setProblem }) {
                     callFrom(opens).catch((error) => setProblem(error.message));
                 }}
             >
-                <${Icon} name="call" size=${15} />${t("Call")}
+                <${Icon} name="voice" size=${15} />${t("Voice")}
             </button>
         </div>
         ${
@@ -126,33 +127,97 @@ function CallRow({ problem, setProblem }) {
         }`;
 }
 
-const CAPTIONS_KEY = "pocket.callCaptions";
-
 const clock = (ms) => {
     const seconds = Math.max(0, Math.floor(ms / 1000));
 
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 };
 
-/**
- * The call on the board (PP-290): the session, the time and what the call does, Mute and End, and what was said last
- * as captions (hidden on a tap, kept on this phone). As the pill over other apps (`pill`), its window fits it; on the
- * board, a bar over the list with a way back to the pill.
- */
-function CallPill({ call, pill, expand, shrink }) {
+/** Voice's state in a few words, with the time. */
+function voiceStatus(call) {
+    const status =
+        call.status === "connecting"
+            ? t("Connecting…")
+            : call.status === "speaking"
+              ? t("Speaking")
+              : call.muted
+                ? t("Mic off")
+                : store.state.view.live?.busy
+                  ? t("Pi working")
+                  : t("Listening");
+
+    return `${status} · ${clock(Date.now() - call.startedAt)}`;
+}
+
+/** Ticks every second, for the time shown. */
+function useSecond() {
     const [, tick] = useState(0);
-    const [captions, setCaptions] = useState(() => localStorage.getItem(CAPTIONS_KEY) !== "off");
-    const box = useRef(null);
 
     useEffect(() => {
         const timer = setInterval(() => tick((n) => n + 1), 1000);
 
         return () => clearInterval(timer);
     }, []);
+}
 
-    // The pill's window as tall as the pill.
+/**
+ * pi-phone's Voice on the board (PP-290, the owner's pick): the app's voice view in the panel. Its session is the title,
+ * changeable there (Voice starts again in the one picked); the voice mode; what was said; the controls of the app's
+ * Voice. The dash makes it the small Voice chip; pi's mark shows the board, with Voice as a bar over it.
+ */
+function BoardVoice({ call, small, toBoard, onType }) {
+    const [modes, setModes] = useState(false);
+    const title = store.state.sessions.find((each) => each.id === call.session)?.title ?? t("New session");
+    const mode = sessionVoiceMode(call.session);
+    const modeName = VOICE_MODES().find(([value]) => value === mode)?.[1] ?? mode;
+    const retarget = (opens) =>
+        attempt(async () => {
+            if (opens === "current") {
+                return;
+            }
+
+            await endVoice({ quiet: true });
+            await callFrom(opens);
+        });
+
+    return html`<div class="pgb pgb-voice" data-part="board-voice" data-state=${call.status}>
+        <div class="pgb-head">
+            <button type="button" class="icon-button" aria-label=${t("Show the board")} title=${t("Show the board")} data-part="board-voice-board" onClick=${toBoard}><${PiMark} size=${20} /></button>
+            <div class="pgb-voice-title">
+                <b>${t("Voice")}</b>
+                <${Choice} value="current" options=${[{ value: "current", label: title, detail: t("Now") }, ...callOptions()]} label=${t("Talk to")} onChange=${retarget} />
+            </div>
+            <button
+                class="assist-pill voice-mode-chip"
+                aria-haspopup="true"
+                aria-expanded=${modes}
+                aria-label=${t("Voice mode: {mode}", { mode: modeName })}
+                data-part="voice-mode"
+                onClick=${() => setModes(!modes)}
+            >
+                <span class="assist-pill-name">${modeName}</span>
+                <${Icon} name="down" size=${14} />
+            </button>
+            <button class="icon-button" type="button" aria-label=${t("Make it small")} data-part="board-voice-small" onClick=${small}><${Icon} name="minus" size=${16} /></button>
+        </div>
+        ${modes && html`<${ModeChoice} session=${call.session} mode=${mode} onDone=${() => setModes(false)} />`}
+        ${store.state.conversationId === call.session && store.state.view.agent !== undefined ? html`<${Recent} />` : html`<div class="voice-recent"></div>`}
+        <footer class="assist-foot voice-foot"><${CallControls} call=${call} onType=${onType} /></footer>
+    </div>`;
+}
+
+/**
+ * Voice made small (PP-290): a chip over other apps, the window fitted to it: pi's mark, Voice and its session, the state
+ * and time, the live wave, the mic, End. A tap on it opens Voice again; on the board, the same as a bar back to Voice.
+ */
+function VoiceChip({ call, chip, open }) {
+    const box = useRef(null);
+
+    useSecond();
+
+    // The chip's window as tall as the chip.
     useLayoutEffect(() => {
-        if (!pill || box.current === null) {
+        if (!chip || box.current === null) {
             return undefined;
         }
 
@@ -163,31 +228,33 @@ function CallPill({ call, pill, expand, shrink }) {
         fit();
 
         return () => watch.disconnect();
-    }, [pill]);
+    }, [chip]);
 
     const title = store.state.sessions.find((each) => each.id === call.session)?.title ?? t("New session");
-    const speaking = call.status === "speaking";
-    const status = call.status === "connecting" ? t("Connecting…") : call.muted ? t("Muted") : speaking ? t("Pi speaking") : store.state.view.live?.busy ? t("Pi working") : t("Listening");
-    const fromVoice = speaking || (call.voice !== "" && call.you === "");
-    const words = fromVoice ? call.voice : call.you;
-    const flip = () => {
-        localStorage.setItem(CAPTIONS_KEY, captions ? "off" : "on");
-        setCaptions(!captions);
-    };
+    const tap = call.turns === "tap";
 
-    return html`<div class=${`pgb-call ${pill ? "pill" : "bar"}`} ref=${box} data-part="board-call-pill" data-state=${call.status}>
+    return html`<div class=${`pgb-call ${chip ? "pill" : "bar"}`} ref=${box} data-part="board-call-pill" data-state=${call.status}>
         <div class="pgb-callline">
-            <button type="button" class="pgb-calltext" aria-label=${pill ? t("Open the board") : t("Make it small")} onClick=${pill ? expand : shrink}>
+            <button type="button" class="pgb-calltext" aria-label=${t("Open Voice")} onClick=${open}>
                 <${PiMark} size=${22} />
-                <span><b>${title}</b><small>${clock(Date.now() - call.startedAt)} · ${status}</small></span>
+                <span><b>${t("Voice")} · ${title}</b><small>${voiceStatus(call)}</small></span>
             </button>
-            <button type="button" class="icon-button pgb-round" aria-label=${captions ? t("Hide captions") : t("Show captions")} aria-pressed=${String(captions)} onClick=${flip}><${Icon} name="chat" size=${16} /></button>
-            <button type="button" class=${`icon-button pgb-round ${call.muted ? "on" : ""}`} aria-label=${call.muted ? t("Unmute") : t("Mute")} aria-pressed=${String(call.muted)} data-part="board-call-mute" onClick=${() => setVoiceMuted(!call.muted, "you")}>
-                <${Icon} name=${call.muted ? "micoff" : "mic"} size=${16} />
-            </button>
-            <button type="button" class="icon-button pgb-round end" aria-label=${t("End the call")} data-part="board-call-end" onClick=${() => attempt(() => endVoice())}><${Icon} name="call" size=${16} /></button>
+            <span class="pgb-chipwave"><${Wave} speaking=${call.status === "speaking"} quiet=${call.status === "connecting" || (call.muted && call.status !== "speaking")} /></span>
+            ${
+                !call.hold &&
+                html`<button
+                    type="button"
+                    class=${`icon-button pgb-round ${call.muted ? "" : "on"}`}
+                    aria-label=${tap ? (call.muted ? t("Tap to talk") : t("Mute")) : call.muted ? t("Unmute") : t("Mute")}
+                    aria-pressed=${String(call.muted)}
+                    data-part="board-call-mute"
+                    onClick=${() => (tap ? toggleMic("tap") : setVoiceMuted(!call.muted))}
+                >
+                    <${Icon} name=${call.muted && !tap ? "micoff" : "mic"} size=${16} />
+                </button>`
+            }
+            <button type="button" class="icon-button pgb-round" aria-label=${t("End the call")} data-part="board-call-end" onClick=${() => attempt(() => endVoice())}><${Icon} name="close" size=${16} /></button>
         </div>
-        ${captions && words !== "" && html`<div class="pgb-captions" data-part="board-captions"><span>${fromVoice ? t("Pi") : t("You")}</span>${words.length > 220 ? `…${words.slice(-220)}` : words}</div>`}
     </div>`;
 }
 
@@ -196,7 +263,7 @@ const FILTER_KEY = "pocket.boardFilter";
 
 /** This page is the floating board, not the app. */
 export const BOARD = new URLSearchParams(location.search).has("board");
-/** The bubble was double-tapped: the board opens as a call's pill and starts the call (PP-290). */
+/** The bubble was double-tapped: the board opens in Voice and starts it (PP-290). */
 const CALLING_NOW = BOARD && new URLSearchParams(location.search).has("call");
 
 /** The Android bubble's bridge: open a session, open the app, fold the board. Absent in a browser (a test's). */
@@ -259,12 +326,13 @@ export function BoardView() {
     // A decision Pi asks (PP-284) is answered here, in its form: the board's window grows for it, and takes the keyboard.
     const sheet = store.state.sheet;
     const asking = sheet?.type === "interview";
-    // A voice call (PP-290): the pill over other apps, or the bar on the board. A double tap on the bubble opens the
-    // board as a pill and starts one.
+    // pi-phone's Voice (PP-290): in the panel, made small as a chip over other apps, or a bar over the board. A double
+    // tap on the bubble opens the board in Voice and starts it.
     const call = store.state.voiceCall;
-    const [pill, setPill] = useState(CALLING_NOW);
+    const [pill, setPill] = useState(false);
+    const [boardWhileVoice, setBoardWhileVoice] = useState(false);
     const [problem, setProblem] = useState(null);
-    const asPill = pill && (call != null || CALLING_NOW);
+    const asPill = pill && call != null;
 
     useEffect(() => {
         if (!asPill) {
@@ -272,7 +340,7 @@ export function BoardView() {
         }
     }, [asking, viewing !== null, asPill]);
 
-    // Folding the board with a call on it (a tap outside, the dash, pi-phone in front) makes it the pill.
+    // Folding the board with Voice on it (a tap outside, the dash, pi-phone in front) makes it the chip.
     useEffect(() => {
         globalThis.__piBoardFold = () => setPill(true);
 
@@ -288,13 +356,10 @@ export function BoardView() {
         }
 
         started.current = true;
-        callFrom(assistantSettings().opens).catch((error) => {
-            setProblem(error.message);
-            setPill(false);
-        });
+        callFrom(assistantSettings().opens).catch((error) => setProblem(error.message));
     }, [store.state.server, store.state.sessionsLoaded]);
 
-    // The call ended: as a pill, back to the bubble; on the board, the board stays.
+    // Voice ended: as the chip, back to the bubble; in the panel, back to the board.
     const had = useRef(false);
 
     useEffect(() => {
@@ -302,6 +367,7 @@ export function BoardView() {
             had.current = true;
         } else if (had.current) {
             had.current = false;
+            setBoardWhileVoice(false);
 
             if (pill) {
                 setPill(false);
@@ -311,9 +377,19 @@ export function BoardView() {
     }, [call == null]);
 
     if (asPill) {
-        return call == null
-            ? html`<div class="pgb-call pill" data-part="board-call-pill" data-state="connecting"><div class="pgb-callline"><${PiMark} size=${22} /><span class="muted small">${t("Connecting…")}</span></div></div>`
-            : html`<${CallPill} call=${call} pill=${true} expand=${() => setPill(false)} />`;
+        return html`<${VoiceChip} call=${call} chip=${true} open=${() => setPill(false)} />`;
+    }
+
+    if (call != null && !boardWhileVoice && !asking && viewing === null) {
+        return html`<${BoardVoice}
+            call=${call}
+            small=${() => setPill(true)}
+            toBoard=${() => setBoardWhileVoice(true)}
+            onType=${() => {
+                setViewing({ session: call.session, title: store.state.sessions.find((each) => each.id === call.session)?.title ?? t("New session") });
+                navigate(call.session, { route: false });
+            }}
+        />`;
     }
 
     if (asking) {
@@ -430,7 +506,7 @@ export function BoardView() {
                 ].map(([key, label, n]) => html`<button type="button" class=${`pgb-tab ${filter === key ? "on" : ""}`} data-part=${`pgb-chip-${key}`} aria-pressed=${String(filter === key)} onClick=${() => pick(key)}>${label} <em>${n}</em></button>`)}
             </div>`
         }
-        ${call != null ? html`<${CallPill} call=${call} pill=${false} shrink=${() => setPill(true)} />` : voiceAvailable() && html`<${CallRow} problem=${problem} setProblem=${setProblem} />`}
+        ${call != null ? html`<${VoiceChip} call=${call} chip=${false} open=${() => setBoardWhileVoice(false)} />` : voiceAvailable() && html`<${VoiceRow} problem=${problem} setProblem=${setProblem} />`}
         <div class="pgb-list">
             ${board !== null && counts.all === 0 && html`<div class="pgb-idle"><${PiMark} size=${28} /><p class="muted small pgb-empty">${t("Nothing runs now.")}</p></div>`}
             ${board !== null && counts.all > 0 && filter === "done" && counts.done === 0 && html`<p class="muted small pgb-empty">${t("Nothing finished in the last 24 hours.")}</p>`}

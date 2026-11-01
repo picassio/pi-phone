@@ -34,9 +34,9 @@ No Termux, no laptop, no cloud VM.
   "running npm test"), each opening its session, and Approve for a simple card. Turn on the floating board (This phone ›
   Floating board over other apps; Android asks once to let pi display over other apps): the pi logo in a bubble over any
   app, a ring turning while Pi works, a count, and a badge when something waits; tap it for the board. Double-tap it
-  (or Call on the board) for a voice call with Pi over any app: a small pill with the time, mute, end and captions, to
-  the session Menu › Assistant names, another a tap away on the board (pi must be the phone's digital assistant app,
-  which Android requires to use the microphone from behind other apps). Its Done tab
+  (or Voice on the board) for pi-phone's Voice over any app: the app's voice view in the panel, a small Voice chip (the
+  wave, mic, end) when folded, talking to the session Menu › Assistant names, another a tap away on its title (pi must
+  be the phone's digital assistant app, which Android requires to use the microphone from behind other apps). Its Done tab
   lists the sessions finished in the last 24 hours with the start of Pi's last answer (or failed), a blue dot on those
   you have not opened yet, and on the bubble when something finished since you last looked. A slider there
   (Panel opacity, 50 to 100%) lets the app under the panel show through. Pi changes these on a card

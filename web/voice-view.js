@@ -78,7 +78,7 @@ export function VoiceButton({ session }) {
 }
 
 /** The wave: the voice's loudness while it speaks, yours while you talk; still bars when muted or waiting. */
-function Wave({ speaking, quiet }) {
+export function Wave({ speaking, quiet }) {
     const box = useRef(null);
 
     useEffect(() => {
@@ -119,8 +119,8 @@ const clock = (ms) => {
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 };
 
-/** The session's last turns, quietly: your messages, Pi's words, and what was said in the call. */
-function Recent() {
+/** The session's last turns, quietly: your messages, Pi's words, and what was said in the call. The board's Voice too. */
+export function Recent() {
     const { view } = store.state;
     const rows = [];
 
@@ -276,8 +276,8 @@ function MicButton({ call }) {
     </button>`;
 }
 
-/** The session's voice modes to pick from, with what the one chosen does. */
-function ModeChoice({ session, mode, onDone }) {
+/** The session's voice modes to pick from, with what the one chosen does. The board's Voice too. */
+export function ModeChoice({ session, mode, onDone }) {
     return html`<div class="assistant-choice voice-modes" data-part="voice-modes">
         <div class="segmented" role="group" aria-label=${t("Voice mode")}>
             ${VOICE_MODES().map(

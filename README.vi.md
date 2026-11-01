@@ -37,9 +37,9 @@ dự án thật.</sub>
   chạy, đang chờ bạn và đã xong trong giờ qua; mở rộng ra, mỗi phiên một dòng với việc đang làm ("đang sửa …", "đang chạy
   npm test"), chạm để mở phiên đó, và nút Duyệt cho thẻ đơn giản. Bật bảng nổi (Điện thoại này › Bảng nổi trên ứng dụng
   khác; Android hỏi một lần để cho pi hiển thị trên ứng dụng khác): logo pi trong một bong bóng trên mọi ứng dụng, vòng
-  quay khi Pi làm việc, số đếm và huy hiệu khi có việc chờ bạn; chạm để mở bảng. Chạm hai lần (hoặc nút Gọi trên bảng)
-  để gọi thoại với Pi ngay trên mọi ứng dụng: một viên nhỏ có thời gian, tắt micrô, kết thúc và phụ đề, tới phiên mà Menu ›
-  Trợ lý chọn, đổi được trên bảng (pi phải là ứng dụng trợ lý kỹ thuật số của điện thoại, Android yêu cầu vậy để dùng
+  quay khi Pi làm việc, số đếm và huy hiệu khi có việc chờ bạn; chạm để mở bảng. Chạm hai lần (hoặc nút Giọng nói trên bảng)
+  để dùng Giọng nói của pi-phone ngay trên mọi ứng dụng: màn hình Giọng nói của app trong bảng nổi, thu nhỏ thành một
+  chip Giọng nói (sóng âm, micrô, kết thúc), nói với phiên mà Menu › Trợ lý chọn, đổi được ở tiêu đề (pi phải là ứng dụng trợ lý kỹ thuật số của điện thoại, Android yêu cầu vậy để dùng
   micrô khi đang ở ứng dụng khác). Tab Xong liệt kê các phiên xong trong 24
   giờ qua kèm phần đầu câu trả lời cuối của Pi (hoặc lỗi), chấm xanh trên phiên bạn chưa mở, và trên bong bóng khi có
   việc xong từ lần bạn xem trước. Thanh trượt Độ đục của bảng (50 đến
