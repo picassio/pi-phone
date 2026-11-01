@@ -14692,6 +14692,72 @@ textarea.notes {
     margin: 0 auto;
 }
 
+/*
+ * A statechart from the statechart skill (Formal checks, PP-316; pstack's references/render.md): a state's group colour
+ * (`class sN teal`), then its marks: a broken rule (`breaks`), one some of its model states break (`mayBreak`), the
+ * shortest path to a bug (`bugPath`), and a loop a property's counterexample repeats (`repeats`). All from the theme's
+ * --pele-* colours, so they follow it. The chart's classDef for a mark is a style attribute, which wins over a rule
+ * without !important; marks come after the groups so they show over them, and bugPath's border over breaks'.
+ */
+.rich-diagram-canvas .pele-node.blue > rect {
+    fill: color-mix(in srgb, var(--pele-series-8) 30%, var(--pele-surface));
+}
+
+.rich-diagram-canvas .pele-node.orange > rect {
+    fill: color-mix(in srgb, var(--pele-series-3) 30%, var(--pele-surface));
+}
+
+.rich-diagram-canvas .pele-node.purple > rect {
+    fill: color-mix(in srgb, var(--pele-series-4) 30%, var(--pele-surface));
+}
+
+.rich-diagram-canvas .pele-node.yellow > rect {
+    fill: color-mix(in srgb, var(--pele-series-6) 30%, var(--pele-surface));
+}
+
+.rich-diagram-canvas .pele-node.teal > rect {
+    fill: color-mix(in srgb, var(--pele-series-5) 30%, var(--pele-surface));
+}
+
+.rich-diagram-canvas .pele-node.tan > rect {
+    fill: color-mix(in srgb, color-mix(in srgb, var(--pele-series-6) 45%, var(--pele-muted)) 30%, var(--pele-surface));
+}
+
+.rich-diagram-canvas .pele-node.pink > rect {
+    fill: color-mix(in srgb, color-mix(in srgb, var(--pele-series-7) 55%, var(--pele-series-4)) 30%, var(--pele-surface));
+}
+
+.rich-diagram-canvas .pele-node.breaks > rect {
+    fill: color-mix(in srgb, var(--pele-series-7) 16%, var(--pele-surface)) !important;
+    stroke: var(--pele-series-7) !important;
+    stroke-width: 2.5px !important;
+}
+
+.rich-diagram-canvas .pele-node.breaks > text {
+    fill: var(--pele-series-7) !important;
+}
+
+.rich-diagram-canvas .pele-node.mayBreak > rect {
+    fill: color-mix(in srgb, var(--pele-series-3) 16%, var(--pele-surface)) !important;
+    stroke: var(--pele-series-3) !important;
+    stroke-width: 2.5px !important;
+}
+
+.rich-diagram-canvas .pele-node.mayBreak > text {
+    fill: var(--pele-series-3) !important;
+}
+
+.rich-diagram-canvas .pele-node.bugPath > rect {
+    stroke: var(--pele-series-8) !important;
+    stroke-width: 2.5px !important;
+}
+
+.rich-diagram-canvas .pele-node.repeats > rect {
+    stroke: var(--pele-series-4) !important;
+    stroke-width: 2.5px !important;
+    stroke-dasharray: 6 3;
+}
+
 .rich-diagram-error {
     white-space: pre-wrap;
     color: var(--err);
