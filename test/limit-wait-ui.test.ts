@@ -246,7 +246,11 @@ test("Retry now sends the request; the phone's list shows the square; Providers 
 
         for (let tries = 0; tries < 5 && app.config.limitNotice !== on; tries++) {
             await until(async () => await inPage<boolean>(`return JSON.stringify(document.querySelector(".limit-wait .switch") !== null)`), "the switch", 5000).catch(() => undefined);
-            await page.click({ selector: ".limit-wait .switch" }).catch((error: Error) => misses.push(error.message));
+            // A tap by coordinates landed on the Subagents row as the sheet's lists loaded and moved it down (CI #395:
+            // the page was on the subagent-settings sheet): click the switch itself.
+            await page
+                .evaluate(`const s = document.querySelector(".limit-wait .switch"); if (!s) throw new Error("no switch"); s.click(); return "1";`)
+                .catch((error: Error) => misses.push(error.message));
             await until(() => app.config.limitNotice === on, `the notice ${on ? "on" : "off"}`, 3000).catch(() => undefined);
         }
 
