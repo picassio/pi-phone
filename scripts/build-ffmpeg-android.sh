@@ -39,7 +39,8 @@ NM="$TOOLCHAIN/bin/llvm-nm"
 
 fetch() {
     local url="$1" sum="$2" file="$WORK/$(basename "$1")"
-    curl -fsSL -o "$file" "$url"
+    # A busy mirror resets now and then (CI, 2026-11-01): tried again before giving up.
+    curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$file" "$url"
     local got
     got="$(sha256sum "$file" | cut -d' ' -f1)"
     if [ "$got" != "$sum" ]; then
@@ -55,7 +56,11 @@ cd "$WORK"
 git init -q "x264-$X264_COMMIT"
 (
     cd "x264-$X264_COMMIT"
-    git fetch -q --depth 1 https://code.videolan.org/videolan/x264.git "$X264_COMMIT"
+    for attempt in 1 2 3 4 5; do
+        git fetch -q --depth 1 https://code.videolan.org/videolan/x264.git "$X264_COMMIT" && break
+        [ "$attempt" = 5 ] && exit 1
+        sleep 5
+    done
     git checkout -q FETCH_HEAD
     test "$(git rev-parse HEAD)" = "$X264_COMMIT"
     CC="$CC" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" ./configure \
@@ -65,7 +70,9 @@ git init -q "x264-$X264_COMMIT"
 )
 
 # libwebp: static, its encoder and decoder only.
-tar -xzf "$(fetch "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-$WEBP_VERSION.tar.gz" "$WEBP_SHA256")"
+# Each download into a variable first: a failed one stops the script (inside a command's arguments it would not).
+webp="$(fetch "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-$WEBP_VERSION.tar.gz" "$WEBP_SHA256")"
+tar -xzf "$webp"
 (
     cd "libwebp-$WEBP_VERSION"
     CC="$CC" AR="$AR" RANLIB="$RANLIB" ./configure \
@@ -75,7 +82,8 @@ tar -xzf "$(fetch "https://storage.googleapis.com/downloads.webmproject.org/rele
 )
 
 # ffmpeg: static ffmpeg and ffprobe, only what the media tool uses.
-tar -xJf "$(fetch "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.xz" "$FFMPEG_SHA256")"
+ffmpeg="$(fetch "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.xz" "$FFMPEG_SHA256")"
+tar -xJf "$ffmpeg"
 (
     cd "ffmpeg-$FFMPEG_VERSION"
     PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig" ./configure \
