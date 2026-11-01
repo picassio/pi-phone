@@ -2972,13 +2972,36 @@ pre.diff .del {
     width: 2px;
 }
 
-/* pi-phone's Voice in the panel: the app's voice view, the window's height. */
+/*
+ * pi-phone's Voice in the panel: the app's voice view, the window's height. When its controls do not fit (a short
+ * screen, a notice), the whole view scrolls, its head staying, and what was said keeps a few lines (the owner could not
+ * reach End).
+ */
 .pgb.pgb-voice {
     height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .pgb-voice .pgb-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg);
     border-bottom: 1px solid var(--hair);
+}
+
+.pgb-voice .voice-recent {
+    flex: 1 0 96px;
+}
+
+.pgb-voice .voice-foot {
+    flex: none;
+}
+
+.pgb-voice .voice-mic {
+    min-height: 48px;
+    margin: 0 0 6px;
 }
 
 .pgb-voice-title {

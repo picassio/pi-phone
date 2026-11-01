@@ -353,13 +353,21 @@ final class ProgressBubble {
      * shows; back to the board's size after.
      */
     private void expand(boolean on) {
+        size(on ? 0.62f : 0.55f, on);
+    }
+
+    /**
+     * The panel's height, a share of the screen, and whether it takes the keyboard. Voice (PP-290) is taller: the app's
+     * voice view with its controls did not fit the board's size, and the owner could not scroll to End.
+     */
+    private void size(float share, boolean keyboard) {
         if (board == null || boardParams == null) return;
         DisplayMetrics screen = context.getResources().getDisplayMetrics();
-        // A floating panel, never the whole screen (the owner): a little taller for a session or a form, the app
-        // under it still showing.
-        boardParams.height = Math.round(screen.heightPixels * (on ? 0.62f : 0.55f));
+        // A floating panel, never the whole screen (the owner): a little taller for a session, a form or Voice, the
+        // app under it still showing.
+        boardParams.height = Math.round(screen.heightPixels * share);
         boardParams.y = Math.max(dp(80), Math.min(orbParams.y - dp(60), screen.heightPixels - boardParams.height - dp(80)));
-        if (on) {
+        if (keyboard) {
             boardParams.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
         } else {
             boardParams.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
@@ -501,6 +509,12 @@ final class ProgressBubble {
         @JavascriptInterface
         public void expand(boolean on) {
             main.post(() -> ProgressBubble.this.expand(on));
+        }
+
+        /** Voice in the panel (PP-290): taller than the board, without the keyboard. */
+        @JavascriptInterface
+        public void voice() {
+            main.post(() -> ProgressBubble.this.size(0.75f, false));
         }
 
         /** The call pill's height in CSS pixels (PP-290): the window fits it. */

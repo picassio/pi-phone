@@ -46,7 +46,7 @@ async function inPage<T>(expression: string): Promise<T> {
 }
 
 const exists = (selector: string) => inPage<boolean>(`document.querySelector(${JSON.stringify(selector)}) !== null`).catch(() => false);
-type Bridge = { starting: [number, string][]; told: string[]; pills: number[]; folds: number; expands: boolean[]; settings: number };
+type Bridge = { starting: [number, string][]; told: string[]; pills: number[]; folds: number; expands: boolean[]; settings: number; voices: number };
 const bridge = () => inPage<Bridge>(`window.__bridge`);
 const told = async () => (await bridge()).told.map((each) => JSON.parse(each) as { state: string; session: number });
 
@@ -99,12 +99,13 @@ before(async () => {
             };
             window.AudioContext = undefined;
             if (location.search.includes("board=1")) {
-                window.__bridge = { starting: [], told: [], pills: [], folds: 0, expands: [], settings: 0 };
+                window.__bridge = { starting: [], told: [], pills: [], folds: 0, expands: [], settings: 0, voices: 0 };
                 window.PiBoard = {
                     open: () => {},
                     openApp: () => {},
                     fold: () => { window.__bridge.folds++; },
                     expand: (on) => { window.__bridge.expands.push(on); },
+                    voice: () => { window.__bridge.voices++; },
                     pill: (height) => { window.__bridge.pills.push(height); },
                     micAllowed: () => true,
                     assistantHeld: () => sessionStorage.getItem("board-test-assistant") !== "false",
@@ -144,7 +145,24 @@ test("a double tap: the board in Voice, to Menu › Assistant's session; the das
 
     assert.deepEqual(heard.starting.map(([session]) => session), [id], "the bubble's service first");
     assert.deepEqual((await told()).map((each) => [each.state, each.session]), [["start", id]]);
+    assert.ok(heard.voices > 0, "the panel taller for Voice");
     await shot("board-voice-390");
+
+    // A short panel (the owner's phone): Voice scrolls, its head staying, and End is reached (it could not be).
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 360, deviceScaleFactor: 1, mobile: true });
+    await until(async () => inPage<boolean>(`(() => { const view = document.querySelector("[data-part=board-voice]"); return view.scrollHeight > view.clientHeight + 20; })()`), "Voice taller than the panel");
+    await inPage(`(() => { const view = document.querySelector("[data-part=board-voice]"); view.scrollTop = view.scrollHeight; })()`);
+    const reach = await inPage<{ end: number; head: number; bottom: number }>(`(() => {
+        const end = document.querySelector("[data-part=board-voice] [data-part=voice-end]").getBoundingClientRect();
+        const head = document.querySelector("[data-part=board-voice] .pgb-head").getBoundingClientRect();
+
+        return { end: end.bottom, head: head.top, bottom: innerHeight, endTop: end.top };
+    })()`);
+
+    assert.ok(reach.end <= reach.bottom, `End in view after scrolling: ${JSON.stringify(reach)}`);
+    assert.ok(reach.head <= 1, `the head stays (inside the panel's border): ${reach.head}`);
+    await shot("board-voice-short-390");
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
 
     // The dash: a chip that fits its window; its mic mutes and back.
     await inPage(`document.querySelector("[data-part=board-voice-small]").click()`);

@@ -166,6 +166,7 @@ function useSecond() {
  * Voice. The dash makes it the small Voice chip; pi's mark shows the board, with Voice as a bar over it.
  */
 function BoardVoice({ call, small, toBoard, onType }) {
+    // What waits for the owner is answered on the board (Approve, Deny, Answer): Show goes there.
     const [modes, setModes] = useState(false);
     const title = store.state.sessions.find((each) => each.id === call.session)?.title ?? t("New session");
     const mode = sessionVoiceMode(call.session);
@@ -202,7 +203,7 @@ function BoardVoice({ call, small, toBoard, onType }) {
         </div>
         ${modes && html`<${ModeChoice} session=${call.session} mode=${mode} onDone=${() => setModes(false)} />`}
         ${store.state.conversationId === call.session && store.state.view.agent !== undefined ? html`<${Recent} />` : html`<div class="voice-recent"></div>`}
-        <footer class="assist-foot voice-foot"><${CallControls} call=${call} onType=${onType} /></footer>
+        <footer class="assist-foot voice-foot"><${CallControls} call=${call} onType=${onType} onShow=${toBoard} /></footer>
     </div>`;
 }
 
@@ -333,12 +334,18 @@ export function BoardView() {
     const [boardWhileVoice, setBoardWhileVoice] = useState(false);
     const [problem, setProblem] = useState(null);
     const asPill = pill && call != null;
+    // Voice in the panel: a taller window (PP-290).
+    const voiceShown = call != null && !pill && !boardWhileVoice && !asking && viewing === null;
 
     useEffect(() => {
         if (!asPill) {
-            bubble()?.expand?.(asking || viewing !== null);
+            if (voiceShown) {
+                bubble()?.voice?.();
+            } else {
+                bubble()?.expand?.(asking || viewing !== null);
+            }
         }
-    }, [asking, viewing !== null, asPill]);
+    }, [asking, viewing !== null, asPill, voiceShown]);
 
     // Folding the board with Voice on it (a tap outside, the dash, pi-phone in front) makes it the chip.
     useEffect(() => {
@@ -380,7 +387,7 @@ export function BoardView() {
         return html`<${VoiceChip} call=${call} chip=${true} open=${() => setPill(false)} />`;
     }
 
-    if (call != null && !boardWhileVoice && !asking && viewing === null) {
+    if (voiceShown) {
         return html`<${BoardVoice}
             call=${call}
             small=${() => setPill(true)}
