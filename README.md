@@ -259,7 +259,9 @@ No Termux, no laptop, no cloud VM.
 - **Reading aloud.** `audio_speak` reads a text into an audio file (m4a or wav) in any language, Vietnamese included,
   on the same sign-in: voice-overs, read-aloud reports, audio summaries, with a voice (marin, cedar and eight more) and
   a style (calm, cheerful, slow...). Long text is read in parts, and each part is checked against what the voice says
-  it said; one read wrong is read again. Saved in `audio/`.
+  it said; one read wrong is read again. Saved in `audio/`, it plays in the chat with its waveform; a transcript shows
+  its first lines with their times, Copy and Open file. Menu › Audio picks the transcription model, the reading model
+  and the default voice (each a dropdown; the voice with a sample in your language).
 - **Watching videos.** `video_ask` asks a model that watches video about a video file where the session works, or a
   YouTube address, through OpenRouter on your key (Gemini 3.5 Flash-Lite by default, about a cent a minute): what
   happens, with times, what is said. A large or tall video is shrunk to a 720p mp4 first. Menu › Videos picks the model

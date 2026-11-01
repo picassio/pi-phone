@@ -1073,6 +1073,8 @@ const ICONS = {
     close: "M6 6l12 12M18 6L6 18",
     send: "M12 19V5M5 12l7-7 7 7",
     stop: "M7 7h10v10H7z",
+    play: "M8 5l11 7-11 7z",
+    pause: "M8 5v14M16 5v14",
     mic: "M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM19 11a7 7 0 01-14 0M12 18v3",
     // Voice (PP-185): a call (the waveform), the voice speaking, and the mic muted.
     voice: "M4 10v4M8 6v12M12 3v18M16 6v12M20 10v4",

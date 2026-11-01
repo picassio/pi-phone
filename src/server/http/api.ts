@@ -34,6 +34,8 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 import { VOICES } from "../voice.ts";
 import { ImageGen } from "../image-gen.ts";
 import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "../video-gen.ts";
+import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES } from "../audio.ts";
+import { serveLocalVideo } from "./assets.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { addressOf, deviceName } from "../devices.ts";
 import { HttpError } from "../errors.ts";
@@ -1040,6 +1042,32 @@ export function createApi(options: HttpOptions, auth: Auth) {
             await app.setVideoAskModel(user, (await readJson<{ model?: unknown }>(request)).model ?? null);
 
             return json(response, 200, { askModel: app.config.videoAskModel });
+        }
+
+        // Menu › Audio (PP-307): the models and the voice audio_transcribe and audio_speak use, and a voice's sample.
+        if (first === "audio" && second === undefined && method === "GET") {
+            return json(response, 200, {
+                transcribeModel: app.config.audioChoice("audioTranscribeModel"),
+                transcribeModels: TRANSCRIBE_MODELS,
+                speakModel: app.config.audioChoice("audioSpeakModel"),
+                speakModels: SPEAK_MODELS,
+                voice: app.config.audioChoice("audioVoice"),
+                voices: SPEAK_VOICES,
+                defaults: { transcribeModel: DEFAULT_TRANSCRIBE_MODEL, speakModel: DEFAULT_SPEAK_MODEL, voice: DEFAULT_VOICE },
+                signedIn: await app.audio.signedIn(),
+            });
+        }
+
+        if (first === "audio" && (second === "transcribe-model" || second === "speak-model" || second === "voice") && method === "PUT") {
+            const key = second === "transcribe-model" ? "transcribeModel" : second === "speak-model" ? "speakModel" : "voice";
+
+            await app.setAudioChoice(user, key, (await readJson<{ value?: unknown }>(request)).value ?? null);
+
+            return json(response, 200, { ok: true });
+        }
+
+        if (first === "audio" && second === "sample" && method === "GET") {
+            return serveLocalVideo(request, response, await app.audioSample(user, url.searchParams.get("voice") ?? ""));
         }
 
         // The Browser panel: what Pi's browser shows (frames while a tab watches), taking it over, and its input then.

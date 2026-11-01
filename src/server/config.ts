@@ -211,6 +211,10 @@ interface PocketConfig {
     videoAskModel?: string;
     /** The model `video_generate` makes videos with (PP-298), an OpenRouter model id. Absent: the default (Kling 3.0 Standard). */
     videoModel?: string;
+    /** Menu › Audio (PP-307): `audio_transcribe`'s model, `audio_speak`'s model and voice. Absent: the defaults (`audio.ts`). */
+    audioTranscribeModel?: string;
+    audioSpeakModel?: string;
+    audioVoice?: string;
     /** Also listen on the phone's Tailscale address, for people on the owner's tailnet (`tailnet.ts`). Absent: off. */
     tailscale?: boolean;
     /**
@@ -637,6 +641,21 @@ export class ConfigStore {
             delete this.#config.videoModel;
         } else {
             this.#config.videoModel = model;
+        }
+
+        this.save();
+    }
+
+    /** Menu › Audio's choice (PP-307): the transcription model, the speaking model or the voice; null for the default. */
+    audioChoice(key: "audioTranscribeModel" | "audioSpeakModel" | "audioVoice"): string | null {
+        return this.#config[key] ?? null;
+    }
+
+    setAudioChoice(key: "audioTranscribeModel" | "audioSpeakModel" | "audioVoice", value: string | null): void {
+        if (value === null) {
+            delete this.#config[key];
+        } else {
+            this.#config[key] = value;
         }
 
         this.save();

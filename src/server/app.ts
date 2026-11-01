@@ -7,13 +7,22 @@
  * `alerts.ts`, provider sign-ins in `providers.ts`, and each conversation's shared live view in `room.ts`.
  */
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { promisify } from "node:util";
 import { sshArguments } from "@earendil-works/pi-env";
 import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
 import { CustomProviders, NO_KEY } from "./custom-providers.ts";
 import { ImageGen, type ImageGenOptions } from "./image-gen.ts";
 import { Videos, type VideosOptions } from "./video-gen.ts";
-import { Audio, type AudioOptions } from "./audio.ts";
+import { Audio, type AudioOptions, m4aArgs, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES, wavOf } from "./audio.ts";
+
+/** What a voice's sample says, in the person's language. */
+const AUDIO_SAMPLES: Record<"vi" | "zh-CN" | "en", string> = {
+    vi: "Xin chào, đây là giọng đọc Pi sẽ dùng khi đọc văn bản thành tiếng cho bạn.",
+    "zh-CN": "你好，这是 Pi 为你朗读文字时会用的声音。",
+    en: "Hello, this is the voice Pi will use when it reads text aloud for you.",
+};
 import { TeamAccountsClient } from "./team-accounts.ts";
 import { TeamMachinesClient } from "./team-machines.ts";
 import { machinePaths } from "./machine-paths.ts";
@@ -661,7 +670,9 @@ export class PocketApp {
 
                 return token === undefined || token === "" ? undefined : { token, ...withAccount(token) };
             },
-            transcribeSetting: () => null,
+            transcribeSetting: () => this.config.audioChoice("audioTranscribeModel"),
+            speakSetting: () => this.config.audioChoice("audioSpeakModel"),
+            voiceSetting: () => this.config.audioChoice("audioVoice"),
             voice: () => ({ language: this.config.voice.language, words: this.voiceWords() }),
             ...options.audio,
         });
@@ -5645,6 +5656,61 @@ export class PocketApp {
             throw new HttpError(400, error instanceof Error ? error.message : String(error));
         }
 
+        await this.#refreshClients();
+    }
+
+    /**
+     * A voice's sample for Menu › Audio's play button (PP-307): a sentence in the person's language read by the speaking
+     * model set now, made once as an m4a under the data folder and kept (`audio-samples/<model>-<voice>-<language>.m4a`).
+     */
+    async audioSample(user: User, voice: string): Promise<string> {
+        if (!(SPEAK_VOICES as readonly string[]).includes(voice)) {
+            throw new HttpError(400, `${voice} is not a voice: ${SPEAK_VOICES.join(", ")}.`);
+        }
+
+        const language = resolveLanguage(user.language, this.config.voice.language === "auto" ? undefined : this.config.voice.language);
+        const { model } = this.audio.speakChoice({ voice });
+        const file = join(this.dataDir, "audio-samples", `${model}-${voice}-${language}.m4a`);
+
+        if (existsSync(file)) {
+            return file;
+        }
+
+        const engine = localEngine();
+
+        if (engine === undefined) {
+            throw new HttpError(409, "This server has no ffmpeg to make the sample with.");
+        }
+
+        const text = AUDIO_SAMPLES[language];
+        const read = await this.audio.speakPart(text, { model, voice });
+        const wav = `${file}.wav`;
+
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(wav, wavOf(read.pcm));
+
+        try {
+            await promisify(execFile)(engine.ffmpeg, m4aArgs(wav, file), { timeout: 60_000 });
+        } finally {
+            rmSync(wav, { force: true });
+        }
+
+        return file;
+    }
+
+    /** Menu › Audio (PP-307): the transcription model, the speaking model or the default voice; null for the default. */
+    async setAudioChoice(user: User, key: "transcribeModel" | "speakModel" | "voice", value: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        const allowed: readonly string[] = key === "transcribeModel" ? TRANSCRIBE_MODELS : key === "speakModel" ? SPEAK_MODELS : SPEAK_VOICES;
+
+        if (value !== null && (typeof value !== "string" || !allowed.includes(value))) {
+            throw new HttpError(400, `Choose one of: ${allowed.join(", ")}, or none for the default.`);
+        }
+
+        this.config.setAudioChoice(key === "transcribeModel" ? "audioTranscribeModel" : key === "speakModel" ? "audioSpeakModel" : "audioVoice", value);
         await this.#refreshClients();
     }
 

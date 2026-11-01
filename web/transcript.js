@@ -3,6 +3,7 @@
 import { Component } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { initials, personColor } from "./avatar.js";
+import { MadeAudio, MadeTranscript } from "./audio-results.js";
 import { routeSliding } from "./back.js";
 import { describeCall, describersRevision } from "./calls.js";
 import { DiffBlock } from "./diff.js";
@@ -541,6 +542,13 @@ function stepWords(call) {
         case "image_generate":
         case "video_generate":
             return { label: call.name, subject: args.prompt ? short(args.prompt) : "" };
+        // The question, the text read, the file heard (PP-297, PP-307), not their arguments as JSON.
+        case "video_ask":
+            return { label: call.name, subject: args.question ? short(args.question) : "" };
+        case "audio_speak":
+            return { label: call.name, subject: args.text ? short(args.text) : "" };
+        case "audio_transcribe":
+            return { label: call.name, subject: args.path ?? "" };
 
         default: {
             const described = describeCall(call);
@@ -660,6 +668,14 @@ function outcome({ call, result, details, status }) {
                           .join(" · "),
                       tone: "",
                   }
+                : null;
+
+        // Audio read aloud and a file heard (PP-307): the voice and length; how many lines, and the subtitles' format.
+        case "audio_speak":
+            return details?.audio ? { text: [details.voice, details.audio.duration === undefined ? "" : `${Math.round(details.audio.duration)} s`].filter(Boolean).join(" · "), tone: "" } : null;
+        case "audio_transcribe":
+            return details?.transcript
+                ? { text: [tn(details.transcript.utterances ?? 0, "{n} line", "{n} lines"), details.transcript.format === "text" ? "" : String(details.transcript.format).toUpperCase()].filter(Boolean).join(" · "), tone: "" }
                 : null;
 
         // A video made (PP-298): its length and what it cost.
@@ -1034,7 +1050,10 @@ function ToolStep({
     const made = call.name === "image_generate" && Array.isArray(details?.images) ? details.images : [];
     // The video video_generate saved (PP-298): played from its file, its name, size and cost under it.
     const video = call.name === "video_generate" && typeof details?.video?.path === "string" ? details.video : null;
-    const extras = result?.images > 0 || artifact || made.length > 0 || video !== null;
+    // audio_speak's file in a player, audio_transcribe's first lines (PP-307).
+    const spoken = call.name === "audio_speak" && typeof details?.audio?.path === "string" ? details.audio : null;
+    const heard = call.name === "audio_transcribe" && typeof details?.transcript?.path === "string" ? details.transcript : null;
+    const extras = result?.images > 0 || artifact || made.length > 0 || video !== null || spoken !== null || heard !== null;
 
     return html`<div
         class=${`step ${open ? "open" : ""} ${settled ? "settled" : ""}`}
@@ -1112,6 +1131,8 @@ function ToolStep({
                         </figcaption>
                     </figure>`
                 }
+                ${spoken !== null && html`<${MadeAudio} audio=${spoken} conversationId=${conversationId} voice=${details.voice} />`}
+                ${heard !== null && html`<${MadeTranscript} transcript=${heard} />`}
                 ${
                     made.length > 0 &&
                     html`<div class="thumbs made-images" data-part="made-images">

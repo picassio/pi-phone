@@ -540,7 +540,7 @@
     "voice.vadSilenceMs is a whole number of milliseconds from 200 to 3000.": "voice.vadSilenceMs là số mili giây nguyên từ 200 đến 3000.",
     "voice.dailyLimit is a number of minutes from 1 to 1440, or null for none.": "voice.dailyLimit là số phút từ 1 đến 1440, hoặc null để không giới hạn.",
     "The owner's dictation language is voice.language: one setting for Voice and dictation.": "Ngôn ngữ đọc chính tả của chủ là voice.language: một cài đặt cho Giọng nói và đọc chính tả.",
-    "Only mp4, webm and mov videos play here": "Chỉ phát được video mp4, webm và mov ở đây",
+    "Only mp4, webm, mov, m4a, wav and mp3 play here": "Chỉ phát được mp4, webm, mov, m4a, wav và mp3 ở đây",
     "Video not found": "Không tìm thấy video",
     "Could not read the video on the machine.": "Không đọc được video trên máy tính.",
     "The video model is an OpenRouter model id, or null for the default.": "Mô hình video là id mô hình của OpenRouter, hoặc null để dùng mặc định.",
@@ -730,6 +730,8 @@
     "Thinking is one of {1}, or session.": "Mức suy nghĩ là một trong {1}, hoặc session.",
     "Thinking is one of {1}, session, or inherit.": "Mức suy nghĩ là một trong {1}, session, hoặc inherit.",
     "{1} is not a transcription model: {2}.": "{1} không phải mô hình chép lời: {2}.",
+    "This server has no ffmpeg to make the sample with.": "Máy chủ này không có ffmpeg để tạo mẫu.",
+    "Choose one of: {1}, or none for the default.": "Chọn một trong: {1}, hoặc none để dùng mặc định.",
     "{1} is not a speaking model: {2}.": "{1} không phải mô hình đọc: {2}.",
     "{1} is not a voice: {2}.": "{1} không phải một giọng: {2}.",
     "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "Âm thanh cần đăng nhập ChatGPT (Codex): thêm trong Cài đặt › Nhà cung cấp."

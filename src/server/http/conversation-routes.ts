@@ -484,7 +484,7 @@ export async function conversationRoutes(
         const type = VIDEO_TYPES[extname(requested).toLowerCase()];
 
         if (type === undefined) {
-            throw new HttpError(415, "Only mp4, webm and mov videos play here");
+            throw new HttpError(415, "Only mp4, webm, mov, m4a, wav and mp3 play here");
         }
 
         const remote = await app.workspace.remoteVideo(user, id, requested);

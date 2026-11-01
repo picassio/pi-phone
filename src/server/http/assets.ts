@@ -408,8 +408,16 @@ export async function serveFile(
     response.end(body);
 }
 
-/** The video types the video route serves, by extension. */
-export const VIDEO_TYPES: Record<string, string> = { ".mp4": "video/mp4", ".m4v": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime" };
+/** The video and audio types the video route serves (its player plays audio Pi reads aloud too, PP-307), by extension. */
+export const VIDEO_TYPES: Record<string, string> = {
+    ".mp4": "video/mp4",
+    ".m4v": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".m4a": "audio/mp4",
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+};
 
 /**
  * A video, played in the chat (PP-298): its bytes, or the range a player asks for (`Range: bytes=a-b`), with 206. `read`
@@ -463,7 +471,7 @@ export async function serveLocalVideo(request: IncomingMessage, response: Server
     const type = VIDEO_TYPES[extname(file).toLowerCase()];
 
     if (type === undefined) {
-        throw new HttpError(415, "Only mp4, webm and mov videos play here");
+        throw new HttpError(415, "Only mp4, webm, mov, m4a, wav and mp3 play here");
     }
 
     let size: number;

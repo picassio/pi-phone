@@ -272,7 +272,9 @@ dự án thật.</sub>
 - **Đọc thành tiếng.** `audio_speak` đọc một văn bản thành tệp âm thanh (m4a hoặc wav) bằng mọi ngôn ngữ, kể cả tiếng
   Việt, cũng bằng đăng nhập đó: lồng tiếng, đọc báo cáo, tóm tắt bằng giọng nói, với một giọng (marin, cedar và tám giọng
   khác) và một cách đọc (ôn tồn, vui vẻ, chậm...). Văn bản dài được đọc từng phần, mỗi phần được so với lời giọng đọc
-  nói là đã đọc; phần đọc sai được đọc lại. Lưu trong `audio/`.
+  nói là đã đọc; phần đọc sai được đọc lại. Lưu trong `audio/`, phát ngay trong cuộc trò chuyện kèm dạng sóng; bản chép
+  lời hiện vài dòng đầu kèm thời gian, nút Chép và Mở tệp. Menu › Âm thanh chọn mô hình chép lời, mô hình đọc và
+  giọng mặc định (mỗi mục là một danh sách thả xuống; giọng có mẫu nghe thử bằng ngôn ngữ của bạn).
 - **Xem video.** `video_ask` hỏi một mô hình xem được video về một tệp video ở nơi phiên làm việc, hoặc một địa chỉ
   YouTube, qua OpenRouter bằng khóa của bạn (mặc định Gemini 3.5 Flash-Lite, khoảng một xu mỗi phút): chuyện gì xảy ra,
   kèm thời điểm, nói gì. Video lớn hoặc cao được thu về mp4 720p trước. Menu › Video chọn mô hình (`video.askModel`);

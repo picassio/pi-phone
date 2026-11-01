@@ -9159,6 +9159,107 @@ pre.diff .del {
     padding: 6px 10px;
 }
 
+/* Audio Pi read aloud (PP-307): play, its waveform, time and name. */
+.made-audio,
+.made-transcript {
+    margin: 6px 0 2px;
+    max-width: 520px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+    background: var(--card);
+    padding: 10px 12px;
+}
+
+.made-audio-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.made-audio-play {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 0;
+    display: grid;
+    place-items: center;
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+}
+
+.made-audio-wave {
+    flex: 1;
+    min-width: 0;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    cursor: pointer;
+}
+
+.made-audio-wave i {
+    flex: 1;
+    border-radius: 2px;
+    background: var(--hair-strong, var(--muted));
+    opacity: 0.6;
+}
+
+.made-audio-wave i.on {
+    background: var(--accent);
+    opacity: 1;
+}
+
+.made-audio figcaption {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.made-audio figcaption > :first-child {
+    flex: none;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.made-audio-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.made-transcript p {
+    margin: 0 0 6px;
+    overflow-wrap: anywhere;
+}
+
+.made-transcript-time {
+    font-family: var(--mono);
+    font-size: 0.8em;
+    color: var(--muted);
+    margin-right: 6px;
+}
+
+.made-transcript-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.audio-voice-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.audio-voice-row > :first-child {
+    flex: 1;
+    min-width: 0;
+}
+
 .thumbs {
     display: flex;
     flex-wrap: wrap;

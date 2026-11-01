@@ -705,7 +705,7 @@ export default function createMedia(host: PocketHost) {
                                 : `Transcribed ${args.path} (${info.duration} s${parts > 1 ? `, ${parts} parts` : ""}) with ${model}: ${utterances.length} utterances, saved as ${path}\n\n${start}`,
                     },
                 ],
-                details: plain({ model, transcript: { path, format, utterances: utterances.length, duration: info.duration, parts, start: start.slice(0, 400) }, tokens }),
+                details: plain({ model, transcript: { path, format, utterances: utterances.length, duration: info.duration, parts, lines: utterances.slice(0, 4).map((each) => ({ start: each.start, text: each.text.slice(0, 300) })) }, tokens }),
             };
         },
     });

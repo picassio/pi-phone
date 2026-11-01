@@ -687,7 +687,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
   (seen live). Each part's `response.output_audio_transcript` is compared with its text by letters and digits
   (`saidAsWritten`); a part read wrong is read again once, then the tool refuses and saves nothing. The parts' pcm is
   joined into a WAV (`wavOf`) and made an AAC m4a by the media engine (`m4aArgs`: the phone's slim ffmpeg encodes only
-  AAC and PCM, so no mp3 or ogg), or kept as WAV; saved as `audio/<stamp>-<text's first words>.<m4a|wav>`.
+  AAC and PCM, so no mp3 or ogg; `-f mp4` since it has no ipod muxer for .m4a), or kept as WAV; saved as
+  `audio/<stamp>-<text's first words>.<m4a|wav>`.
+- **Menu › Audio and the chat** (PP-307; `web/sheets/audio.js`, `web/audio-results.js`): three `Choice` dropdowns (the
+  owner's call) for `audio.transcribeModel`, `audio.speakModel`, `audio.voice` (`config.audioChoice`, null for the
+  default; `GET /api/audio`, `PUT /api/audio/<transcribe-model|speak-model|voice>` with `{ value }`, and the settings
+  of the same ids). The voice's Sample: `GET /api/audio/sample?voice=` reads a sentence in the person's language with
+  the reading model set now, once, kept as `<dataDir>/audio-samples/<model>-<voice>-<language>.m4a`. OpenRouter's audio
+  models are left for later (owner, 2026-11-01). In the chat, audio_speak's file plays from the video route (now also
+  m4a, wav, mp3) in a player whose waveform the page decodes from the file (48 peaks, tap to seek);
+  audio_transcribe's result carries its first four lines with their start (`details.transcript.lines`), shown with
+  how many more, Copy (the file through `actions.view`) and Open file. The lines say what they did: the text read and
+  its voice and length, the file heard and its lines and format; video_ask's says its question.
 - **Watching videos** (PP-297; `video-gen.ts`, `extensions/media.ts`, `web/sheets/videos.js`): `video_ask({ question,
   path | url, model? })` through OpenRouter on the owner's key: `POST /api/v1/chat/completions` with a `video_url` part,
   a base64 data URL (mp4, mov, webm) or a YouTube address (Gemini on AI Studio takes those alone), `usage.include`; the

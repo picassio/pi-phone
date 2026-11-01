@@ -19,6 +19,7 @@ import { type CustomProviderView, idFromName, type KeyChoice } from "./custom-pr
 import { type VoiceCheck, VOICES } from "./voice.ts";
 import { ImageGen } from "./image-gen.ts";
 import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "./video-gen.ts";
+import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES } from "./audio.ts";
 import { POPUP_MODES } from "./browser/pi-browser.ts";
 import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
 import { CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
@@ -575,6 +576,22 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             },
             apply: (user, value) => app.setVideoModel(user, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim().replace(/\s+\(.*\)$/, "")),
         },
+        ...(
+            [
+                ["audio.transcribeModel", "transcribeModel", "audioTranscribeModel", "Model audio_transcribe transcribes with", TRANSCRIBE_MODELS, DEFAULT_TRANSCRIBE_MODEL],
+                ["audio.speakModel", "speakModel", "audioSpeakModel", "Model audio_speak reads aloud with", SPEAK_MODELS, DEFAULT_SPEAK_MODEL],
+                ["audio.voice", "voice", "audioVoice", "Voice audio_speak reads with", SPEAK_VOICES, DEFAULT_VOICE],
+            ] as const
+        ).map(([id, key, stored, title, choices, fallback]) => ({
+            id,
+            area: "audio",
+            title,
+            help: `One of ${choices.join(", ")}, or auto: ${fallback}. On the ChatGPT (Codex) sign-in (Menu › Audio). Pi may name another for one call.`,
+            owner: true,
+            read: () => app.config.audioChoice(stored) ?? `auto (${fallback})`,
+            choices: () => ["auto", ...choices],
+            apply: (user: User, value: string) => app.setAudioChoice(user, key, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim()),
+        })),
         {
             id: "video.askModel",
             area: "videos",

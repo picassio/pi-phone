@@ -139,6 +139,13 @@ export class Audio {
         });
     }
 
+    /** Whether the ChatGPT (Codex) sign-in is there, for Menu › Audio. */
+    async signedIn(): Promise<boolean> {
+        const auth = await this.#options.auth();
+
+        return auth !== undefined && auth.token !== "";
+    }
+
     async #auth(): Promise<AudioAuth> {
         const auth = await this.#options.auth();
 

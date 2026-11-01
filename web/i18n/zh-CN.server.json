@@ -622,7 +622,7 @@
     "voice.eagerness is auto, low, medium, or high.": "voice.eagerness 为 auto、low、medium 或 high。",
     "voice.dailyLimit is a number of minutes from 1 to 1440, or null for none.": "voice.dailyLimit 是 1 到 1440 之间的分钟数，或 null 表示不限。",
     "The owner's dictation language is voice.language: one setting for Voice and dictation.": "主人的听写语言就是 voice.language：语音和听写共用一个设置。",
-    "Only mp4, webm and mov videos play here": "这里只能播放 mp4、webm 和 mov 视频",
+    "Only mp4, webm, mov, m4a, wav and mp3 play here": "这里只能播放 mp4、webm、mov、m4a、wav 和 mp3",
     "Video not found": "找不到视频",
     "Could not read the video on the machine.": "无法读取电脑上的视频。",
     "The video model is an OpenRouter model id, or null for the default.": "视频模型是 OpenRouter 的模型 id，或 null 表示默认。",
@@ -731,6 +731,8 @@
     "Thinking is one of {1}, or session.": "思考级别只能是 {1} 之一，或 session。",
     "Thinking is one of {1}, session, or inherit.": "思考级别只能是 {1}、session 或 inherit 之一。",
     "{1} is not a transcription model: {2}.": "{1} 不是转写模型：{2}。",
+    "This server has no ffmpeg to make the sample with.": "这台服务器没有可用来生成试听的 ffmpeg。",
+    "Choose one of: {1}, or none for the default.": "请选择：{1}，或 none 使用默认值。",
     "{1} is not a speaking model: {2}.": "{1} 不是朗读模型：{2}。",
     "{1} is not a voice: {2}.": "{1} 不是可用的声音：{2}。",
     "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "音频需要 ChatGPT（Codex）登录：在“设置 › 提供商”中添加。"
