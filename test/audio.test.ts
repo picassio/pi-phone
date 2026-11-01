@@ -14,7 +14,7 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { WebSocketServer } from "ws";
 import { TOKEN } from "./support/fake-openai.ts";
-import { Audio, cuesOf, PART_SECONDS, saidAsWritten, speakParts, srtOf, vttOf, wavData, wavOf } from "../src/server/audio.ts";
+import { Audio, cuesOf, m4aArgs, PART_SECONDS, saidAsWritten, speakParts, srtOf, vttOf, wavData, wavOf } from "../src/server/audio.ts";
 import { localEngine } from "../src/server/media.ts";
 
 const engine = localEngine();
@@ -164,6 +164,8 @@ test("a text in parts after its sentences (a long sentence after words); what wa
     assert.ok(saidAsWritten("Xin chào, anh Tuấn!", "xin chào anh tuấn"));
     assert.ok(!saidAsWritten("Xin chào anh Tuấn", "Xin chao anh Tuan"));
     assert.deepEqual([...wavData(wavOf(new Uint8Array([1, 2, 3, 4])))!], [1, 2, 3, 4]);
+    // The phone's slim ffmpeg has the mp4 muxer but not ipod, which .m4a picks: the format is named (seen on #386).
+    assert.deepEqual(m4aArgs("in.wav", "out.m4a").slice(-3), ["-f", "mp4", "out.m4a"]);
 });
 
 test("a WAV's samples, chunks before them skipped; what is not a WAV refused", () => {

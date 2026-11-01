@@ -315,9 +315,12 @@ export function wavOf(pcm: Uint8Array): Uint8Array {
     return new Uint8Array(Buffer.concat([header, pcm]));
 }
 
-/** ffmpeg's arguments for a WAV as an AAC m4a (the encoder every engine has, the phone's slim build included). */
+/**
+ * ffmpeg's arguments for a WAV as an AAC m4a (the encoder every engine has, the phone's slim build included). `-f mp4`:
+ * the slim build has the mp4 muxer but not ipod, which ffmpeg picks for the .m4a extension.
+ */
 export function m4aArgs(input: string, out: string): string[] {
-    return ["-hide_banner", "-loglevel", "error", "-y", "-i", input, "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", out];
+    return ["-hide_banner", "-loglevel", "error", "-y", "-i", input, "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", "-f", "mp4", out];
 }
 
 /** ffmpeg's arguments for one part of a file's sound, from `start` for `seconds`, as 24 kHz mono pcm16 in a WAV. */
