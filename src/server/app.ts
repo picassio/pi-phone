@@ -2347,16 +2347,27 @@ export class PocketApp {
     }
 
     /**
-     * One of the progress board's settings on the phone (PP-283): its rows in the notification, the floating bubble, and
-     * hiding the bubble when nothing runs. The phone's service reads them with the board.
+     * One of the progress board's settings on the phone (PP-283): its rows in the notification, the floating bubble,
+     * hiding the bubble when nothing runs, and the floating panel's opacity (PP-286: a percent, 50 to 100 in steps of 5).
+     * The phone's service reads them with the board.
      */
     async setProgressBoard(user: User, part: unknown, on: unknown): Promise<void> {
         if (user.role !== "owner") {
             throw new HttpError(403, "Only the owner can do that");
         }
 
+        if (part === "opacity") {
+            if (typeof on !== "number" || !Number.isInteger(on) || on < 50 || on > 100 || on % 5 !== 0) {
+                throw new HttpError(400, "The floating panel's opacity is a percent from 50 to 100, in steps of 5.");
+            }
+
+            this.config.setProgressBoard("opacity", on);
+            await this.#refreshClients();
+            return;
+        }
+
         if (part !== "notification" && part !== "bubble" && part !== "hideIdle") {
-            throw new HttpError(400, "The progress board's settings are notification, bubble and hideIdle.");
+            throw new HttpError(400, "The progress board's settings are notification, bubble, hideIdle and opacity.");
         }
 
         if (typeof on !== "boolean") {

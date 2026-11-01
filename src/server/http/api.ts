@@ -1654,11 +1654,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
 
             // The model and thinking level subagents start on in every session (PP-281): { part, value }.
-            // The progress board on the phone (PP-283): { part, on }.
+            // The progress board on the phone (PP-283): { part, on }; its panel's opacity (PP-286): { part: "opacity", value }.
             if (body.progressBoard !== undefined) {
-                const { part, on } = (body.progressBoard ?? {}) as { part?: unknown; on?: unknown };
+                const { part, on, value } = (body.progressBoard ?? {}) as { part?: unknown; on?: unknown; value?: unknown };
 
-                await app.setProgressBoard(user, part, on);
+                await app.setProgressBoard(user, part, part === "opacity" ? value : on);
             }
 
             if (body.subagentDefault !== undefined) {

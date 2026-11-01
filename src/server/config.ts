@@ -8,10 +8,13 @@ import type { PopupMode } from "./browser/pi-browser.ts";
 import { type ContextPart, type ContextPolicy, DEFAULT_CONTEXT_POLICY } from "./context-policy.ts";
 import { type SubagentDefaults, type SubagentPart, withPart } from "./subagent-defaults.ts";
 
-/** The progress board on the phone (PP-283): the notification's rows, the floating bubble, and hiding it when idle. */
-export type ProgressBoardSettings = { notification: boolean; bubble: boolean; hideIdle: boolean };
+/**
+ * The progress board on the phone (PP-283): the notification's rows, the floating bubble, hiding it when idle, and the
+ * floating panel's opacity in percent (PP-286: 50 to 100, the whole panel, text included).
+ */
+export type ProgressBoardSettings = { notification: boolean; bubble: boolean; hideIdle: boolean; opacity: number };
 
-export const DEFAULT_PROGRESS_BOARD: ProgressBoardSettings = { notification: true, bubble: false, hideIdle: true };
+export const DEFAULT_PROGRESS_BOARD: ProgressBoardSettings = { notification: true, bubble: false, hideIdle: true, opacity: 100 };
 import { readVoice, readVoiceCheck, storedVoice, type VoiceCheck, type VoiceSettings } from "./voice.ts";
 
 /** The repository root: `web/`, `src/`, and `node_modules/` live here. */
@@ -559,13 +562,13 @@ export class ConfigStore {
         return { ...DEFAULT_PROGRESS_BOARD, ...this.#config.progressBoard };
     }
 
-    setProgressBoard(part: keyof ProgressBoardSettings, on: boolean): void {
+    setProgressBoard<Part extends keyof ProgressBoardSettings>(part: Part, value: ProgressBoardSettings[Part]): void {
         const next: Partial<ProgressBoardSettings> = { ...this.#config.progressBoard };
 
-        if (on === DEFAULT_PROGRESS_BOARD[part]) {
+        if (value === DEFAULT_PROGRESS_BOARD[part]) {
             delete next[part];
         } else {
-            next[part] = on;
+            next[part] = value;
         }
 
         if (Object.keys(next).length === 0) {

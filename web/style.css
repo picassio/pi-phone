@@ -8331,6 +8331,22 @@ pre.diff .del {
     min-width: 0;
 }
 
+/* The floating panel's opacity (PP-286): a slider across the row, its ends under it. */
+.progress-opacity > div {
+    width: 100%;
+}
+
+.progress-opacity input[type="range"] {
+    width: 100%;
+    margin: 10px 0 2px;
+    accent-color: var(--accent);
+}
+
+.progress-opacity-ends {
+    display: flex;
+    justify-content: space-between;
+}
+
 .provider .provider-needs {
     display: inline-block;
     padding: 1px 7px;

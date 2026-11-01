@@ -349,7 +349,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `ProgressBubble` adds a `TYPE_APPLICATION_OVERLAY` circle (pi's mark `pi_mark.xml`, a turning ring while Pi works, the
   count, an amber badge), dragged to the nearest side; a tap opens `/?board=1` in a WebView window (bridge `PiBoard`:
   open, openApp, fold; a tap outside folds). Hidden a minute after the last run when hideIdle. This phone has the switches;
-  the bubble's turns on once Android allows it (`PiPhoneApp.overlayAllowed`, `askOverlay`).
+  the bubble's turns on once Android allows it (`PiPhoneApp.overlayAllowed`, `askOverlay`). `progressBoard.opacity`
+  (PP-286, 50 to 100 in steps of 5, default 100) is the board page's `body` opacity: the whole panel, text included, its
+  session and forms too; the bubble stays solid. Opening the app from the board (PP-285) turns the board see-through and
+  untouchable at once while its window stays for Android's background-start check; `MainActivity`'s focus and pause
+  call `ProgressBubble.frontChanged`, so the board folds and the bubble hides without waiting for the 700 ms look.
 - **Subagents' model and thinking** (PP-281; `subagent-defaults.ts`, `extensions/subagents.ts`,
   `web/sheets/subagent-settings.js`; owner's mockup v2, 2026-10-31): `config.subagentDefaults` (every session's) and
   `SessionMeta.subagentDefaults` (a session's own, `session` for its own model or level), each part on its own;

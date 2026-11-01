@@ -33,8 +33,10 @@ No Termux, no laptop, no cloud VM.
   work, waiting for you, and done in the last hour; expanded, a row per session with what it does now ("editing …",
   "running npm test"), each opening its session, and Approve for a simple card. Turn on the floating board (This phone ›
   Floating board over other apps; Android asks once to let pi display over other apps): the pi logo in a bubble over any
-  app, a ring turning while Pi works, a count, and a badge when something waits; tap it for the board. Pi changes these
-  on a card (`notifications.progress`, `notifications.bubble`, `notifications.bubbleHide`). From GitHub issue #5.
+  app, a ring turning while Pi works, a count, and a badge when something waits; tap it for the board. A slider there
+  (Panel opacity, 50 to 100%) lets the app under the panel show through. Pi changes these on a card
+  (`notifications.progress`, `notifications.bubble`, `notifications.bubbleHide`, `notifications.bubbleOpacity`). From
+  GitHub issue #5.
 - **Decisions you cannot miss.** When Pi asks you to decide on a card, the session pins it in an amber bar at the top,
   however far the chat scrolls, until you answer (Answer opens the form); the session list marks it "Pi asks you", and
   its scope Waits for you lists the sessions that wait for you. The phone notifies you as for any approval.

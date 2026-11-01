@@ -14,6 +14,8 @@ import { html, Sheet, Switch } from "../ui.js";
  */
 function ProgressBoardSettings({ app, thenLook }) {
     const settings = store.state.server?.progressBoard;
+    // The opacity while the slider moves; saved when it is let go.
+    const [dragging, setDragging] = useState(null);
 
     if (settings === undefined) {
         return null;
@@ -52,7 +54,34 @@ function ProgressBoardSettings({ app, thenLook }) {
     return html`<div class="group-title">${t("While Pi works")}</div>
         ${row(t("Progress in the notification"), t("Which sessions run and what each does, in the pi notification."), settings.notification, (on) => set("notification", on), "notification")}
         ${row(t("Floating board over other apps"), t("A pi bubble with how many work, and a badge when one waits for you; tap it for the board. Android asks once to let pi display over other apps."), settings.bubble, setBubble, "bubble")}
-        ${settings.bubble && row(t("Hide it when nothing runs"), t("A minute after the last run ends; it comes back when one starts."), settings.hideIdle, (on) => set("hideIdle", on), "hideIdle")}`;
+        ${settings.bubble && row(t("Hide it when nothing runs"), t("A minute after the last run ends; it comes back when one starts."), settings.hideIdle, (on) => set("hideIdle", on), "hideIdle")}
+        ${
+            settings.bubble &&
+            html`<div class="provider progress-opacity" data-part="progress-opacity">
+                <div>
+                    <div>${t("Panel opacity · {n}%", { n: String(dragging ?? settings.opacity) })}</div>
+                    <div class="muted small">${t("How much of the app under the floating panel shows through. The bubble stays solid.")}</div>
+                    <input
+                        type="range"
+                        min="50"
+                        max="100"
+                        step="5"
+                        aria-label=${t("Panel opacity")}
+                        value=${dragging ?? settings.opacity}
+                        onInput=${(event) => setDragging(Number(event.currentTarget.value))}
+                        onChange=${(event) => {
+                            const value = Number(event.currentTarget.value);
+
+                            attempt(async () => {
+                                await api("settings", { progressBoard: { part: "opacity", value } });
+                                setDragging(null);
+                            });
+                        }}
+                    />
+                    <div class="progress-opacity-ends muted small"><span>50%</span><span>100%</span></div>
+                </div>
+            </div>`
+        }`;
 }
 
 export function PhoneSheet() {

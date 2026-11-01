@@ -655,6 +655,20 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             },
         })),
         {
+            id: "notifications.bubbleOpacity",
+            area: "notifications",
+            title: "Floating panel opacity",
+            help: "How solid the floating board's panel is, in percent: 100 is solid; lower lets the app under it show through, the whole panel with its text. 50 to 100, in steps of 5. The bubble itself stays solid.",
+            owner: true,
+            read: () => String(app.config.progressBoard.opacity),
+            choices: () => Array.from({ length: 11 }, (_, index) => String(50 + index * 5)),
+            apply: (user, value) => {
+                const wanted = Number(value.trim().replace(/%$/, ""));
+
+                return app.setProgressBoard(user, "opacity", wanted);
+            },
+        },
+        {
             id: "notifications.device",
             area: "notifications",
             title: "Notifications on a browser or device (web push)",

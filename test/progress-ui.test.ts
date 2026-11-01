@@ -201,6 +201,23 @@ test("This phone, in the app: the board's switches; the bubble once Android allo
 
     await page.evaluate(`document.querySelector('[data-part="progress-notification"] [role="switch"]').click(); return "true";`);
     await until(() => !app.config.progressBoard.notification, "the notification's rows off");
+
+    // The floating panel's opacity (PP-286): a slider with the bubble on, saved when let go; the board page takes it whole.
+    assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector('[data-part="progress-opacity"]').textContent.includes("Panel opacity · 100%"))`), true);
+    await page.evaluate(`
+        const slider = document.querySelector('[data-part="progress-opacity"] input[type="range"]');
+        slider.value = "70";
+        slider.dispatchEvent(new Event("input", { bubbles: true }));
+        slider.dispatchEvent(new Event("change", { bubbles: true }));
+        return "true";
+    `);
+    await until(() => app.config.progressBoard.opacity === 70, "the panel at 70%");
+    await see(`return JSON.stringify(document.querySelector('[data-part="progress-opacity"]').textContent.includes("Panel opacity · 70%"))`, "the slider's label");
     assert.deepEqual(await outside(), []);
+    await page.evaluate(`document.querySelector('[data-part="progress-opacity"]').scrollIntoView({ block: "end" }); return "true";`);
     await shot("this-phone-390");
+
+    await page.navigate(`${base}/?board=1`);
+    await see(`return JSON.stringify(document.body.style.opacity === "0.7" && document.querySelector('[data-part="progress-board"]') !== null)`, "the board at 70%");
+    await app.setProgressBoard(owner(app), "opacity", 100);
 });

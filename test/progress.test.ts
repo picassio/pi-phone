@@ -154,10 +154,19 @@ test("in the app: a session running a command is on the board with it, then gone
         await (await app.harness.submission(submissionId, context))!.wait(context);
         await until(async () => (await app.progress.board(en, "en")).rows.length === 0, "off the board when done");
 
-        assert.deepEqual(app.config.progressBoard, { notification: true, bubble: false, hideIdle: true });
+        assert.deepEqual(app.config.progressBoard, { notification: true, bubble: false, hideIdle: true, opacity: 100 });
         await app.setProgressBoard(owner(app), "bubble", true);
         assert.equal(app.config.progressBoard.bubble, true);
-        await assert.rejects(app.setProgressBoard(owner(app), "colour", true), /notification, bubble and hideIdle/);
+        await assert.rejects(app.setProgressBoard(owner(app), "colour", true), /notification, bubble, hideIdle and opacity/);
+
+        // The floating panel's opacity (PP-286): 50 to 100 in steps of 5, also as the setting Pi changes on a card.
+        await app.setProgressBoard(owner(app), "opacity", 85);
+        assert.equal(app.config.progressBoard.opacity, 85);
+        for (const wrong of [45, 101, 82, "90", true]) {
+            await assert.rejects(app.setProgressBoard(owner(app), "opacity", wrong), /from 50 to 100, in steps of 5/);
+        }
+        await app.setProgressBoard(owner(app), "opacity", 100);
+        assert.equal(app.config.progressBoard.opacity, 100);
         await app.setProgressBoard(owner(app), "bubble", false);
     } finally {
         await app.close();

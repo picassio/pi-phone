@@ -88,6 +88,13 @@ export function BoardView() {
         };
     }, []);
 
+    // The panel as solid as the owner set it (PP-286): the whole of it, text included, its session and forms too.
+    const opacity = board?.settings?.opacity ?? 100;
+
+    useEffect(() => {
+        document.body.style.opacity = opacity < 100 ? String(opacity / 100) : "";
+    }, [opacity]);
+
     // A row opens its session here, in the panel; the app only from the session's Open pi-phone.
     const [viewing, setViewing] = useState(null);
     const [filter, setFilter] = useState(() => localStorage.getItem(FILTER_KEY) ?? "all");
