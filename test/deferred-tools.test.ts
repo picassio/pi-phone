@@ -14,6 +14,8 @@ type Message = { role: string; sections?: Record<string, string | null>; toolsAd
 let offered = new Set<string>();
 let size = 0;
 let sections = "";
+/** What the last tool result said, as the model read it. */
+let toolSaid = "";
 
 const route: FauxResponseStep = (request) => {
     const messages = (request as unknown as { messages: Message[] }).messages;
@@ -41,6 +43,14 @@ const route: FauxResponseStep = (request) => {
     }
 
     const { role, text } = lastText(request as never);
+
+    if (role === "toolResult") {
+        toolSaid = text;
+    }
+
+    if (role === "user" && text === "archive it") {
+        return fauxAssistantMessage([fauxToolCall("session_archive", { session: 1, archived: true })], { stopReason: "toolUse" });
+    }
 
     if (role === "user" && text === "find the documents") {
         return fauxAssistantMessage([fauxToolCall("tool_search", { query: "read a document page" })], { stopReason: "toolUse" });
@@ -84,6 +94,13 @@ test("a new session is not offered the rarer tools, and is told how to load them
     }
 
     assert.ok(sections.includes(TOOL_SEARCH_NOTE));
+});
+
+test("a deferred tool called before it is loaded: its result says to load it with tool_search, not only that it is not available", async () => {
+    const id = await newSession(app);
+
+    await turn(id, "archive it");
+    assert.match(toolSaid, /Tool session_archive is not available\. session_archive is one of the rarer tools, offered once loaded: call tool_search with its name \("session_archive"\) first, then call it again\./, toolSaid);
 });
 
 test("tool_search loads what matches: offered from the next call, for the rest of the session", async () => {

@@ -299,7 +299,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   names the same skills (`frozenSkills`). Tools: `load` (default) keeps the `deferred-tools` extension
   (`deferred-tools.ts`) in the session's selection: its wraps mark the rarer tools `deferred` (Pi Durable leaves them out
   of the request until `modelTools` loads them), its `tool_search` (Pi Durable's) loads them, and its fixed section says
-  so; `phone_control` and `computer_control` start answer with `control.addTools` for their screen tools. `all` puts the
+  so; a deferred tool called before it is loaded answers Pi Durable's "Tool <name> is not available", which its
+  `beforeRequest` hook extends with how to load it (`explainNotLoaded`: call `tool_search` with its name, then again; the
+  same words every request, so the context's prefix holds); `phone_control` and `computer_control` start answer with
+  `control.addTools` for their screen tools. `all` puts the
   extension in `AgentDoc.extensions.remove` (`syncTools`, before each message and when the session's choice changes), so
   every tool is offered; switching re-declares the tool list once. A new session's tools: 47.5k characters (54) against
   84.3k (109). Tests run with tools `all` (`openApp`), but `deferred-tools.test.ts`. Every session's choice is

@@ -7,7 +7,8 @@
  * The wraps live in an extension of their own, so a session whose `tools` is `all` leaves it out of its selection
  * (`AgentDoc.extensions.remove`) and is offered every tool, as before.
  */
-import { defineExtension, type Extension, type ToolRegistration, type Wrap } from "@earendil-works/pi-durable";
+import type { Message } from "@earendil-works/pi-ai";
+import { defineExtension, type Extension, GenerationTask, hook, type ToolRegistration, type Wrap } from "@earendil-works/pi-durable";
 import { createToolSearchTool } from "@earendil-works/pi-durable/tool-search";
 
 export const DEFERRED_EXTENSION = "deferred-tools";
@@ -96,11 +97,53 @@ export const TOOL_SEARCH_NOTE =
 
 const deferred = (name: string): Wrap => ({ tool: name, wrap: (tool: ToolRegistration): ToolRegistration => ({ ...tool, deferred: true as const }) });
 
+const DEFERRED = new Set(DEFERRED_TOOLS);
+
+/** What a call to a deferred tool not loaded yet answers, after Pi Durable's "Tool <name> is not available". */
+export const notLoaded = (name: string) =>
+    ` ${name} is one of the rarer tools, offered once loaded: call tool_search with its name ("${name}") first, then call it again.`;
+
+/**
+ * Pi called a deferred tool it had not loaded (the owner saw "Tool session_archive is not available", and Pi did not
+ * know why): such a result says how to load it, in every request (the same words each time, so the context's prefix
+ * stays as it was). Another tool's "not available" is left as it is.
+ */
+export function explainNotLoaded(messages: readonly Message[]): readonly Message[] | undefined {
+    let changed = false;
+    const explained = messages.map((message) => {
+        if (message.role !== "toolResult" || !message.isError || !DEFERRED.has(message.toolName)) {
+            return message;
+        }
+
+        const plain = `Tool ${message.toolName} is not available`;
+        const content = message.content.map((part) => (part.type === "text" && part.text.includes(plain) && !part.text.includes("tool_search") ? { ...part, text: part.text.replace(plain, `${plain}.${notLoaded(message.toolName)}`) } : part));
+
+        if (content.every((part, index) => part === message.content[index])) {
+            return message;
+        }
+
+        changed = true;
+
+        return { ...message, content };
+    });
+
+    return changed ? explained : undefined;
+}
+
 export function deferredToolsExtension(): Extension {
     return defineExtension({
         name: DEFERRED_EXTENSION,
         tools: [createToolSearchTool() as unknown as ToolRegistration],
         wraps: DEFERRED_TOOLS.map(deferred),
         sections: [{ key: "tool_search", render: () => TOOL_SEARCH_NOTE }],
+        hooks: [
+            hook(GenerationTask, {
+                beforeRequest: (request) => {
+                    const messages = explainNotLoaded(request.messages);
+
+                    return messages === undefined ? undefined : { messages };
+                },
+            }),
+        ],
     });
 }
