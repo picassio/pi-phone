@@ -352,7 +352,7 @@ export interface OpenOptions {
     voice?: { endpoints?: VoiceEndpoints; auth?: () => Promise<{ token: string; account?: string } | undefined>; fetch?: typeof fetch };
     /** Where ChatGPT's and OpenRouter's image endpoints are, and whose ChatGPT sign-in (`image-gen.ts`): tests stand in fakes. */
     images?: Partial<Pick<ImageGenOptions, "endpoints" | "fetch" | "codexAuth">>;
-    videos?: Partial<Pick<VideosOptions, "endpoints" | "fetch">>;
+    videos?: Partial<Pick<VideosOptions, "endpoints" | "fetch" | "pollMs">>;
 }
 
 /** A Codex token's ChatGPT account, as voice sends it. */
@@ -649,6 +649,7 @@ export class PocketApp {
                 return key === undefined || key === "" ? undefined : key;
             },
             askSetting: () => this.config.videoAskModel,
+            makeSetting: () => this.config.videoModel,
             ...options.videos,
         });
         this.images = new ImageGen({
@@ -4078,6 +4079,8 @@ export class PocketApp {
                 imageModel: this.config.imageModel,
                 // The model video_ask watches with (Menu › Videos, PP-297), or null for the default.
                 videoAskModel: this.config.videoAskModel,
+                // The model video_generate makes videos with (Menu › Videos, PP-298), or null for the default.
+                videoModel: this.config.videoModel,
                 // The models Pi may start subagents on besides their session's own: the owner's to see and change.
                 ...(user.role === "owner"
                     ? { subagentModels: [...this.config.subagentModels] }
@@ -5609,6 +5612,25 @@ export class PocketApp {
         }
 
         this.config.imageModel = await this.images.check(model === null ? null : model.trim());
+        await this.#refreshClients();
+    }
+
+    /** The model `video_generate` makes videos with (Menu › Videos, PP-298): one OpenRouter lists, or null for the default. */
+    async setVideoModel(user: User, model: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (model !== null && typeof model !== "string") {
+            throw new HttpError(400, "The video model is an OpenRouter model id, or null for the default.");
+        }
+
+        try {
+            this.config.videoModel = await this.videos.checkMake(model);
+        } catch (error) {
+            throw new HttpError(400, error instanceof Error ? error.message : String(error));
+        }
+
         await this.#refreshClients();
     }
 

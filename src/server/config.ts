@@ -209,6 +209,8 @@ interface PocketConfig {
     imageModel?: string;
     /** The model `video_ask` watches videos with (PP-297), an OpenRouter model id. Absent: the default (`video-gen.ts`). */
     videoAskModel?: string;
+    /** The model `video_generate` makes videos with (PP-298), an OpenRouter model id. Absent: the default (Kling 3.0 Standard). */
+    videoModel?: string;
     /** Also listen on the phone's Tailscale address, for people on the owner's tailnet (`tailnet.ts`). Absent: off. */
     tailscale?: boolean;
     /**
@@ -620,6 +622,21 @@ export class ConfigStore {
             delete this.#config.docsImageModel;
         } else {
             this.#config.docsImageModel = model;
+        }
+
+        this.save();
+    }
+
+    /** The owner's model for `video_generate` (Menu › Videos), or null for the default. */
+    get videoModel(): string | null {
+        return this.#config.videoModel ?? null;
+    }
+
+    set videoModel(model: string | null) {
+        if (model === null) {
+            delete this.#config.videoModel;
+        } else {
+            this.#config.videoModel = model;
         }
 
         this.save();

@@ -1,7 +1,14 @@
-// Menu › Videos in a real browser (PP-297): the models that watch videos through OpenRouter, Automatic first with the
-// default it means, each with its price; a tap picks one, as the setting video.askModel keeps it. With PHONE_SHOTS,
-// screenshots go there.
-import { type App, cleanUp, home, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+// Menu › Videos in a real browser (PP-297, PP-298): the models that make videos and those that watch them through
+// OpenRouter, Automatic first with the default it means, each with its price; a tap picks one, as the settings
+// video.model and video.askModel keep it. A video video_generate made plays in the chat under its line, with its
+// length and cost. With PHONE_SHOTS, screenshots go there.
+import { type App, cleanUp, context, home, lastText, newSession, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import type { FauxResponseStep } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { localEngine } from "../src/server/media.ts";
+import { DEFAULT_MAKE_MODEL } from "../src/server/video-gen.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -19,10 +26,44 @@ const { PocketApp } = await import("../src/server/app.ts");
 const chromium = findBrowser();
 const real = { skip: chromium === undefined ? "no Chromium-based browser on this machine" : false } as const;
 const SHOTS = process.env.PHONE_SHOTS;
+const engine = localEngine();
+let polls = 0;
 
 const stub = createServer((request, response) => {
     request.resume();
     request.on("end", () => {
+        if (request.url === "/api/v1/videos/models") {
+            response.end(
+                JSON.stringify({
+                    data: [
+                        { id: DEFAULT_MAKE_MODEL, name: "The default", supported_durations: [4, 6, 8], supported_resolutions: ["720p"], pricing_skus: { duration_seconds_without_audio: "0.03", duration_seconds_with_audio: "0.05" } },
+                        { id: "alibaba/wan-3.0", name: "Alibaba: Wan 3.0", supported_durations: [2, 30], supported_resolutions: ["480p", "720p", "1080p"], pricing_skus: { duration_seconds_480p: "0.05" } },
+                    ],
+                }),
+            );
+
+            return;
+        }
+
+        if (request.url === "/api/v1/videos") {
+            response.end(JSON.stringify({ id: "gen-vid-1", status: "pending" }));
+
+            return;
+        }
+
+        if (request.url === "/api/v1/videos/gen-vid-1") {
+            polls++;
+            response.end(JSON.stringify(polls < 2 ? { status: "in_progress" } : { status: "completed", usage: { cost: 0.4 } }));
+
+            return;
+        }
+
+        if (request.url?.startsWith("/api/v1/videos/gen-vid-1/content")) {
+            response.end(readFileSync(join(work, "clip.mp4")));
+
+            return;
+        }
+
         response.end(
             JSON.stringify({
                 data: [
@@ -53,7 +94,14 @@ before(async () => {
     }
 
     await new Promise<void>((resolve) => stub.listen(0, "127.0.0.1", resolve));
-    const faux = scriptedModel();
+    const route: FauxResponseStep = (request) => {
+        const { role, text } = lastText(request as never);
+
+        return role === "user" && text.endsWith("make a boat")
+            ? fauxAssistantMessage([fauxToolCall("video_generate", { prompt: "A paper boat on a calm pond", duration: 8 })], { stopReason: "toolUse" })
+            : fauxAssistantMessage([fauxText(role === "toolResult" ? "Here it is." : "ok")]);
+    };
+    const faux = scriptedModel(route);
 
     app = await PocketApp.open({
         dataDir: join(root, "videos-ui-data"),
@@ -63,7 +111,7 @@ before(async () => {
         home,
         configureModels: (models) => models.registerNativeProvider(faux.provider),
         officecli: { runs: false },
-        videos: { endpoints: { openRouter: `http://127.0.0.1:${(stub.address() as AddressInfo).port}/api/v1` } },
+        videos: { endpoints: { openRouter: `http://127.0.0.1:${(stub.address() as AddressInfo).port}/api/v1` }, pollMs: 20 },
     });
     pastWelcome(app);
     await app.models.setRuntimeApiKey("openrouter", "or-test-key");
@@ -90,6 +138,17 @@ test("Menu › Videos lists Automatic and the models that watch videos with thei
     await page.evaluate(`(await import("/store.js")).openSheet({ type: "videos" }); return "true";`);
     await see(`return JSON.stringify(document.querySelectorAll('[data-part="video-ask-model"]').length === 4)`, "Automatic and three models");
 
+    const makers = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll('[data-part="video-model"]')].map((row) => [...row.querySelectorAll(".ds-text > span")].map((line) => line.textContent.replace(/\\s+/g, " ").trim()).join(" | ")))`);
+
+    assert.deepEqual(makers, [
+        `Automatic | Now ${DEFAULT_MAKE_MODEL}`,
+        `The default | ${DEFAULT_MAKE_MODEL} · $0.03/s, $0.05/s with sound · 720p · 4-8 s`,
+        "Alibaba: Wan 3.0 | alibaba/wan-3.0 · $0.05/s · 480p, 720p, 1080p · 2-30 s",
+    ]);
+    await page.evaluate(`document.querySelector('[data-part="video-model"][data-model="alibaba/wan-3.0"]').click(); return "true";`);
+    await until(() => app.config.videoModel === "alibaba/wan-3.0", "the maker kept");
+    await app.setVideoModel(owner(app), null);
+
     const rows = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll('[data-part="video-ask-model"]')].map((row) => [...row.querySelectorAll(".ds-text > span")].map((line) => line.textContent.replace(/\\s+/g, " ").trim()).join(" | ")))`);
 
     assert.deepEqual(rows, [
@@ -105,8 +164,48 @@ test("Menu › Videos lists Automatic and the models that watch videos with thei
         writeFileSync(join(SHOTS, "videos-390.jpg"), Buffer.from((await page.screenshot()).data, "base64"));
     }
 
-    await page.evaluate(`document.querySelector('[data-model="google/gemini-3.8-flash"]').click(); return "true";`);
+    await page.evaluate(`document.querySelector('[data-part="video-ask-model"][data-model="google/gemini-3.8-flash"]').click(); return "true";`);
     await until(() => app.config.videoAskModel === "google/gemini-3.8-flash", "the choice kept");
-    await see(`return JSON.stringify(document.querySelector('[data-model="google/gemini-3.8-flash"]').getAttribute("aria-pressed") === "true")`, "the row marked");
+    await see(`return JSON.stringify(document.querySelector('[data-part="video-ask-model"][data-model="google/gemini-3.8-flash"]').getAttribute("aria-pressed") === "true")`, "the row marked");
     await app.setVideoAskModel(owner(app), null);
+});
+
+test("a video video_generate made plays in the chat under its line, with its file, length, size and cost", { skip: real.skip || (engine === undefined ? "no ffmpeg in native/" : false) }, async () => {
+    execFileSync(engine!.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=3:size=320x240:rate=10", "-c:v", "libx264", "-pix_fmt", "yuv420p", join(work, "clip.mp4")]);
+
+    const id = await newSession(app);
+    const { submissionId } = await app.commands.submit(id, owner(app), { text: "make a boat", requestId: crypto.randomUUID() });
+
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    await page.evaluate(`(await import("/store.js")).closeSheet(); (await import("/store.js")).navigate(${id}); return "true";`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="made-video"] video') !== null)`, "the video in the chat");
+
+    // Chromium as tests run it has no H.264 decoder: the video's file is checked as served, not played.
+    const shown = await inPage<{ meta: string; caption: string; playable: boolean }>(`
+        const video = document.querySelector('[data-part="made-video"] video');
+        const served = await fetch(video.src);
+        const bytes = (await served.arrayBuffer()).byteLength;
+        // As a player asks: a range.
+        const part = await fetch(video.src, { headers: { range: "bytes=0-99" } });
+        const partBytes = (await part.arrayBuffer()).byteLength;
+
+        return JSON.stringify({
+            meta: document.querySelector('[data-part="tool-call"] .step-meta')?.textContent.trim() ?? "",
+            caption: document.querySelector('[data-part="made-video"] figcaption').textContent.replace(/\\s+/g, " ").trim(),
+            playable: served.ok && bytes > 1000 && video.controls && part.status === 206 && partBytes === 100 && part.headers.get("content-range") === \`bytes 0-99/\${bytes}\`,
+            status: served.status,
+            type: served.headers.get("content-type"),
+            bytes,
+            src: video.getAttribute("src"),
+        });
+    `);
+
+    assert.match(shown.caption, /^videos\/\d{8}-\d{6}-a-paper-boat-on-a-calm\.mp4 · 3 s · 320×240 ?\$0\.40$/, shown.caption);
+    assert.equal(shown.meta, "3 s · $0.40");
+    assert.equal(shown.playable, true, `its file is served, with the player's controls: ${JSON.stringify(shown)}`);
+
+    if (SHOTS !== undefined) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        writeFileSync(join(SHOTS, "video-made-390.jpg"), Buffer.from((await page.screenshot()).data, "base64"));
+    }
 });

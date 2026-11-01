@@ -36,9 +36,12 @@ import {
     sheetArgs,
 } from "../media.ts";
 import { slugOf } from "./images.ts";
+import { imageType } from "../image-meta.ts";
 import type { Usage } from "@earendil-works/pi-ai";
 
 const FOLDER = "media";
+/** Where the videos Pi makes go. */
+const VIDEOS = "videos";
 /** A video larger than this is shrunk to a 720p mp4 before a model watches it. */
 const MAX_ASK_MB = 20;
 /** The most a video sent to a model may be, after shrinking (base64 in one request). */
@@ -448,5 +451,138 @@ export default function createMedia(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: "pocket-media", tools: [media, ask] });
+    const generate = defineTool({
+        name: "video_generate",
+        description:
+            "Make a video with the model Menu › Videos sets (setting video.model, Kling 3.0 Standard by default), through OpenRouter: from a prompt, or from images it starts and ends on (first_frame, last_frame) and style references. " +
+            "It takes a minute or more, and money (Kling Standard about $0.08 a second, $0.13 with sound): say what it will cost when you are not asked for a set length. " +
+            "duration (seconds), aspect (16:9, 9:16, 1:1, 4:3, 3:4, 21:9), resolution (480p, 720p, 1080p...) and audio are checked against what the model takes. " +
+            "The video is saved where this session works, in videos/, and shows in the chat; you get its path, size and cost. model overrides the setting for this call.",
+        parameters: Type.Object({
+            prompt: Type.String({ description: "What the video shows: the scene, the motion, the camera, the light, the sound" }),
+            duration: Type.Optional(Type.Integer({ minimum: 1, maximum: 60, description: "Seconds (the model's own lengths; Kling 3 to 15)" })),
+            aspect: Type.Optional(Type.String({ description: "16:9, 9:16, 1:1, 4:3, 3:4, 3:2, 2:3, 21:9" })),
+            resolution: Type.Optional(Type.String({ description: "480p, 720p, 1080p, 2K or 4K, as the model takes" })),
+            audio: Type.Optional(Type.Boolean({ description: "With sound (when the model makes it; it costs more)" })),
+            first_frame: Type.Optional(Type.String({ description: "An image it starts on: a path where this session works" })),
+            last_frame: Type.Optional(Type.String({ description: "An image it ends on" })),
+            references: Type.Optional(Type.Array(Type.String(), { maxItems: 4, description: "Images for its look (paths)" })),
+            model: Type.Optional(Type.String({ description: "An OpenRouter video model for this call only, instead of the setting video.model" })),
+        }),
+        execute: async (args, api, context) => {
+            if (args.prompt.trim() === "") {
+                return reply("Give a prompt: what the video shows.", true);
+            }
+
+            let model;
+
+            try {
+                model = await host.videos.resolveMake(args.model);
+            } catch (error) {
+                return reply(error instanceof Error ? error.message : String(error), true);
+            }
+
+            const takes = (what: string, value: string | number | undefined, allowed: readonly (string | number)[]) =>
+                value === undefined || allowed.length === 0 || allowed.includes(value) ? undefined : `${model.id} takes ${what} ${allowed.join(", ")}, not ${value}.`;
+            const wrong = takes("durations (s)", args.duration, model.durations) ?? takes("aspects", args.aspect, model.aspects) ?? takes("resolutions", args.resolution, model.resolutions);
+
+            if (wrong !== undefined) {
+                return reply(wrong, true);
+            }
+
+            const cwd = (await api.agent(context)).cwd ?? "";
+            const env = host.envOf(cwd);
+            const picture = async (path: string): Promise<{ data: Uint8Array; mimeType: string } | string> => {
+                const absolute = await env.absolutePath(path, context);
+                const bytes = absolute.ok ? await env.readBinaryFile(absolute.value, context) : absolute;
+
+                if (!bytes.ok) {
+                    return `Could not read ${path}: ${bytes.error.message}`;
+                }
+
+                const mimeType = imageType(bytes.value);
+
+                return mimeType === undefined ? `${path} is not a PNG, JPEG, GIF or WebP image.` : bytes.value.length > 15 * 1024 * 1024 ? `${path} is over 15 MB: shrink it with media first.` : { data: bytes.value, mimeType };
+            };
+            const images: Record<string, { data: Uint8Array; mimeType: string }> = {};
+
+            for (const [name, path] of [["first", args.first_frame], ["last", args.last_frame], ...(args.references ?? []).map((each, index) => [`reference ${index}`, each])] as [string, string | undefined][]) {
+                if (path !== undefined) {
+                    const read = await picture(path);
+
+                    if (typeof read === "string") {
+                        return reply(read, true);
+                    }
+
+                    images[name] = read;
+                }
+            }
+
+            let made;
+
+            try {
+                made = await host.videos.make(
+                    model,
+                    {
+                        prompt: args.prompt,
+                        ...(args.duration === undefined ? {} : { duration: args.duration }),
+                        ...(args.aspect === undefined ? {} : { aspect: args.aspect }),
+                        ...(args.resolution === undefined ? {} : { resolution: args.resolution }),
+                        ...(args.audio === undefined ? {} : { audio: args.audio }),
+                        ...(images.first === undefined ? {} : { firstFrame: images.first }),
+                        ...(images.last === undefined ? {} : { lastFrame: images.last }),
+                        ...(args.references === undefined ? {} : { references: args.references.map((_, index) => images[`reference ${index}`]!) }),
+                    },
+                    context.abortSignal,
+                );
+            } catch (error) {
+                return reply(error instanceof Error ? error.message : String(error), true);
+            }
+
+            const folder = await env.absolutePath(VIDEOS, context);
+
+            if (!folder.ok) {
+                return reply(`Cannot save in ${VIDEOS}: ${folder.error.message}`, true);
+            }
+
+            const created = await env.createDir(folder.value, { recursive: true }, context);
+
+            if (!created.ok) {
+                return reply(`Could not make ${folder.value}: ${created.error.message}`, true);
+            }
+
+            const path = `${folder.value}/${stamp(new Date())}-${slugOf(args.prompt)}.mp4`;
+            const written = await env.writeFile(path, made.data, context);
+
+            if (!written.ok) {
+                return reply(`Could not save ${path}: ${written.error.message} (OpenRouter's job ${made.job} keeps it a while).`, true);
+            }
+
+            // Its size and length, read by the media engine where the session works.
+            const engine = await engineFor(cwd, env, context);
+            let info: MediaInfo | undefined;
+
+            if (typeof engine !== "string") {
+                const probed = await output(env, commandOf(engine, "ffprobe", probeArgs(path)), context, 60);
+
+                info = probed.code === 0 ? readProbe(probed.stdout) : undefined;
+            }
+
+            const cost = made.cost === undefined ? "cost not reported" : `cost $${made.cost.toFixed(2)}`;
+            const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: made.cost ?? 0 } };
+
+            return {
+                output: [{ type: "text" as const, text: `Made a video with ${model.id}, ${cost}:\n- ${path} (${info === undefined ? megabytes(made.data.length) : describe(info)})\nIt shows in the chat.` }],
+                details: plain({
+                    model: model.id,
+                    video: { path, bytes: made.data.length, ...(info?.width === undefined ? {} : { width: info.width, height: info.height }), ...(info?.duration === undefined ? {} : { duration: info.duration }) },
+                    job: made.job,
+                    ...(made.cost === undefined ? {} : { cost: made.cost }),
+                }),
+                usage,
+            };
+        },
+    });
+
+    return defineExtension({ name: "pocket-media", tools: [media, ask, generate] });
 }

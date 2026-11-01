@@ -650,6 +650,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
   clip is H.264 CRF 26 veryfast, AAC 128k or muted, at most `height` (720) lines, +faststart. Output in `media/`,
   `<YYYYMMDD-HHMMSS>-<file's name>[-n|-sheet|-clip].<ext>`; Pi gets paths, sizes and dimensions. The phone's PATH has
   the ffmpeg folder (`#toolPath`). GPL notice: `third_party/ffmpeg-android/README.md`.
+- **Making videos** (PP-298; `video-gen.ts`, `extensions/media.ts`, `web/sheets/videos.js`, `web/transcript.js`):
+  `video_generate({ prompt, duration?, aspect?, resolution?, audio?, first_frame?, last_frame?, references?, model? })`
+  through OpenRouter's async videos API: `POST /api/v1/videos` (`frame_images` with `frame_type`, `input_references`,
+  images as data URLs), `GET /api/v1/videos/<id>` every 8 s until `completed` (its `usage.cost`, the tool's `usage`)
+  or failed (20 minutes at most), then `GET .../content?index=0` with the key. Length, shape and resolution are checked
+  against the model's `supported_*` before anything is paid. The models: `GET /api/v1/videos/models`, kept an hour,
+  priced from `pricing_skus` (seconds' keys, dollars or `cents_*`; the lowest silent and with sound; by tokens, none).
+  `video.model` (`config.videoModel`, Menu › Videos): a listed model, or null for the default. Saved as
+  `videos/<YYYYMMDD-HHMMSS>-<prompt's first words>.mp4` through the session's env, probed by the media engine; the chat
+  plays it from `api/c/<id>/video?path=` (mp4, webm, mov; `Range` answered with 206, here by a read stream, on a machine
+  by its env's `openBinaryReader`). OpenRouter's account settings may allow only some providers: Kling 3.0 is served by
+  AtlasCloud alone (2026-11-01), and the error OpenRouter gives (which providers are allowed, and where to change it) is
+  passed on.
 - **Watching videos** (PP-297; `video-gen.ts`, `extensions/media.ts`, `web/sheets/videos.js`): `video_ask({ question,
   path | url, model? })` through OpenRouter on the owner's key: `POST /api/v1/chat/completions` with a `video_url` part,
   a base64 data URL (mp4, mov, webm) or a YouTube address (Gemini on AI Studio takes those alone), `usage.include`; the

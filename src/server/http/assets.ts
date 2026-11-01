@@ -408,6 +408,81 @@ export async function serveFile(
     response.end(body);
 }
 
+/** The video types the video route serves, by extension. */
+export const VIDEO_TYPES: Record<string, string> = { ".mp4": "video/mp4", ".m4v": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime" };
+
+/**
+ * A video, played in the chat (PP-298): its bytes, or the range a player asks for (`Range: bytes=a-b`), with 206. `read`
+ * gives the bytes of a range; `size` is the whole file's.
+ */
+export async function serveVideo(
+    request: IncomingMessage,
+    response: ServerResponse,
+    type: string,
+    size: number,
+    read: (start: number, end: number) => Promise<Buffer> | NodeJS.ReadableStream,
+): Promise<void> {
+    const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.range ?? "");
+    const headers = { "content-type": type, "accept-ranges": "bytes", "cache-control": "private, no-store" };
+
+    if (range !== null && (range[1] !== "" || range[2] !== "")) {
+        const start = range[1] === "" ? Math.max(0, size - Number(range[2])) : Number(range[1]);
+        const end = range[1] === "" || range[2] === "" ? size - 1 : Math.min(Number(range[2]), size - 1);
+
+        if (start > end || start >= size) {
+            response.writeHead(416, { ...headers, "content-range": `bytes */${size}` });
+            response.end();
+
+            return;
+        }
+
+        response.writeHead(206, { ...headers, "content-range": `bytes ${start}-${end}/${size}`, "content-length": String(end - start + 1) });
+        const part = read(start, end);
+
+        if (Buffer.isBuffer(part) || part instanceof Promise) {
+            response.end(await part);
+        } else {
+            part.on("error", () => response.destroy()).pipe(response);
+        }
+
+        return;
+    }
+
+    response.writeHead(200, { ...headers, "content-length": String(size) });
+    const whole = read(0, size - 1);
+
+    if (Buffer.isBuffer(whole) || whole instanceof Promise) {
+        response.end(await whole);
+    } else {
+        whole.on("error", () => response.destroy()).pipe(response);
+    }
+}
+
+/** A video file on this machine, through `serveVideo`: its type by its extension. */
+export async function serveLocalVideo(request: IncomingMessage, response: ServerResponse, file: string): Promise<void> {
+    const type = VIDEO_TYPES[extname(file).toLowerCase()];
+
+    if (type === undefined) {
+        throw new HttpError(415, "Only mp4, webm and mov videos play here");
+    }
+
+    let size: number;
+
+    try {
+        const stats = statSync(file);
+
+        if (!stats.isFile()) {
+            throw new Error("not a file");
+        }
+
+        size = stats.size;
+    } catch {
+        throw new HttpError(404, "Video not found");
+    }
+
+    await serveVideo(request, response, type, size, (start, end) => createReadStream(file, { start, end }));
+}
+
 /** An image file from this machine, for `![alt](path)` in replies and for uploaded attachments. */
 export function serveImage(request: IncomingMessage, response: ServerResponse, file: string): void {
     if (!IMAGE_EXTENSIONS.has(extname(file).toLowerCase())) {

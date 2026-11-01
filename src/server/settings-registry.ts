@@ -18,7 +18,7 @@ import { DESIGN_MODULE } from "./design-systems.ts";
 import { type CustomProviderView, idFromName, type KeyChoice } from "./custom-providers.ts";
 import { type VoiceCheck, VOICES } from "./voice.ts";
 import { ImageGen } from "./image-gen.ts";
-import { DEFAULT_ASK_MODEL } from "./video-gen.ts";
+import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "./video-gen.ts";
 import { POPUP_MODES } from "./browser/pi-browser.ts";
 import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
 import { CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
@@ -552,6 +552,28 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 return ["auto", ...models.map((model) => `${model.id}${model.price?.imageOut === undefined ? "" : ` ($${model.price.imageOut}/M image tokens)`}`), ...problems.map((problem) => `(${problem})`)];
             },
             apply: (user, value) => app.setImageModel(user, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim().replace(/\s+\(.*\)$/, "")),
+        },
+        {
+            id: "video.model",
+            area: "videos",
+            title: "Model video_generate makes videos with",
+            help: `An OpenRouter model that makes videos (kwaivgi/kling-v3.0-std, google/veo-3.1-lite, alibaba/wan-3.0 and others), or auto: ${DEFAULT_MAKE_MODEL}. Pi may name another for one call (video_generate's model). Needs OpenRouter signed in.`,
+            owner: true,
+            read: () => app.config.videoModel ?? `auto (${DEFAULT_MAKE_MODEL})`,
+            choices: async () => {
+                try {
+                    const models = await app.videos.makeModels();
+
+                    return [
+                        "auto",
+                        ...models.slice(0, 12).map((model) => `${model.id}${model.perSecond === undefined ? "" : ` ($${model.perSecond}/s)`}`),
+                        ...(models.length > 12 ? [`(and ${models.length - 12} more: Menu › Videos lists them)`] : []),
+                    ];
+                } catch (error) {
+                    return ["auto", `(${error instanceof Error ? error.message : String(error)})`];
+                }
+            },
+            apply: (user, value) => app.setVideoModel(user, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim().replace(/\s+\(.*\)$/, "")),
         },
         {
             id: "video.askModel",

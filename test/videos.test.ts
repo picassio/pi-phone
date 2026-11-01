@@ -13,7 +13,8 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { appSettings } from "../src/server/settings-registry.ts";
 import { localEngine } from "../src/server/media.ts";
-import { openRouterVideoAskModels, Videos } from "../src/server/video-gen.ts";
+import { DEFAULT_MAKE_MODEL, openRouterVideoAskModels, openRouterVideoMakeModels, pricesOf, Videos } from "../src/server/video-gen.ts";
+import { readFileSync, readdirSync } from "node:fs";
 
 const engine = localEngine();
 const real = { skip: engine === undefined ? "no ffmpeg in native/ (node scripts/server-tools.ts linux-x64 ffmpeg)" : false } as const;
@@ -29,6 +30,24 @@ const MODELS = {
 
 type Seen = { path: string; headers: IncomingMessage["headers"]; body: { model: string; messages: { content: { type: string; text?: string; video_url?: { url: string } }[] }[]; usage?: unknown } };
 const seen: Seen[] = [];
+/** OpenRouter's video models, as its list gives them (the price keys as it writes them). */
+const VIDEO_MODELS = {
+    data: [
+        {
+            id: DEFAULT_MAKE_MODEL,
+            name: "The default",
+            supported_durations: [4, 6, 8],
+            supported_resolutions: ["720p", "1080p"],
+            supported_aspect_ratios: ["16:9", "9:16"],
+            pricing_skus: { duration_seconds_with_audio: "0.05", duration_seconds_without_audio: "0.03", duration_seconds_with_audio_4k: "0.30" },
+        },
+        { id: "alibaba/wan-3.0", name: "Wan 3.0", supported_durations: [2, 30], supported_resolutions: ["480p", "720p"], supported_aspect_ratios: ["16:9"], pricing_skus: { duration_seconds_480p: "0.05", duration_seconds_720p: "0.1" } },
+        { id: "x-ai/grok-imagine-video", name: "Grok", supported_durations: [5], pricing_skus: { cents_per_image_input: "0.2", cents_per_video_output_second_480p: "5", cents_per_video_output_second_720p: "7" } },
+        { id: "bytedance/seedance-2.0", name: "Seedance", pricing_skus: { video_tokens: "0.000007" } },
+    ],
+};
+/** What video_generate sent, and how many times its job was polled. */
+const made: { body: Record<string, unknown>; polls: number }[] = [];
 const stub = createServer((request, response) => {
     let raw = "";
 
@@ -36,6 +55,36 @@ const stub = createServer((request, response) => {
     request.on("end", () => {
         if (request.url === "/api/v1/models") {
             response.end(JSON.stringify(MODELS));
+
+            return;
+        }
+
+        if (request.url === "/api/v1/videos/models") {
+            response.end(JSON.stringify(VIDEO_MODELS));
+
+            return;
+        }
+
+        if (request.url === "/api/v1/videos" && request.method === "POST") {
+            made.push({ body: JSON.parse(raw) as Record<string, unknown>, polls: 0 });
+            response.statusCode = 202;
+            response.end(JSON.stringify({ id: "gen-vid-1", polling_url: "/api/v1/videos/gen-vid-1", status: "pending" }));
+
+            return;
+        }
+
+        if (request.url === "/api/v1/videos/gen-vid-1") {
+            const job = made.at(-1)!;
+
+            job.polls++;
+            response.end(JSON.stringify(job.polls < 2 ? { id: "gen-vid-1", status: "in_progress" } : { id: "gen-vid-1", status: "completed", unsigned_urls: ["/api/v1/videos/gen-vid-1/content?index=0"], usage: { cost: 1.01 } }));
+
+            return;
+        }
+
+        if (request.url === "/api/v1/videos/gen-vid-1/content?index=0") {
+            response.setHeader("content-type", "video/mp4");
+            response.end(readFileSync(join(work, "clip.mp4")));
 
             return;
         }
@@ -58,6 +107,9 @@ const asks: Record<string, Record<string, unknown>> = {
     "watch youtube": { question: "Summarize", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
     "watch a page": { question: "Summarize", url: "https://example.com/video.mp4" },
     "watch with argon": { question: "What is it?", path: "clip.mp4", model: "openai/gpt-x" },
+    "make a boat": { prompt: "A paper boat on a calm pond", duration: 8, aspect: "16:9", audio: true, first_frame: "photo.png" },
+    "make a long one": { prompt: "A paper boat", duration: 20 },
+    "make a square one": { prompt: "A paper boat", aspect: "1:1" },
 };
 const results: string[] = [];
 const route: FauxResponseStep = (request) => {
@@ -71,7 +123,7 @@ const route: FauxResponseStep = (request) => {
 
     for (const [ask, args] of Object.entries(asks)) {
         if (role === "user" && text.endsWith(ask)) {
-            return fauxAssistantMessage([fauxToolCall("video_ask", args as never)], { stopReason: "toolUse" });
+            return fauxAssistantMessage([fauxToolCall(ask.startsWith("make") ? "video_generate" : "video_ask", args as never)], { stopReason: "toolUse" });
         }
     }
 
@@ -83,12 +135,13 @@ before(async () => {
     await new Promise<void>((resolve) => stub.listen(0, "127.0.0.1", resolve));
     const base = `http://127.0.0.1:${(stub.address() as AddressInfo).port}`;
 
-    app = await openApp(scriptedModel(route), undefined, undefined, { videos: { endpoints: { openRouter: `${base}/api/v1` } } });
+    app = await openApp(scriptedModel(route), undefined, undefined, { videos: { endpoints: { openRouter: `${base}/api/v1` }, pollMs: 20 } });
     await app.models.setRuntimeApiKey("openrouter", "or-test-key");
 
     if (engine !== undefined) {
         execFileSync(engine.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=3:size=320x240:rate=10", "-f", "lavfi", "-i", "sine=duration=3", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", join(work, "clip.mp4")]);
         execFileSync(engine.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=608x1080:rate=10", "-c:v", "libx264", "-pix_fmt", "yuv420p", join(work, "tall.mp4")]);
+        execFileSync(engine.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=64x36", "-frames:v", "1", join(work, "photo.png")]);
     }
 });
 
@@ -130,6 +183,50 @@ test("the models that take video, with their prices: no batch, free or routers; 
     await assert.rejects(async () => setting.apply(owner(app), "anthropic/claude-x", undefined), /does not take video/);
     await setting.apply(owner(app), "auto", undefined);
     assert.equal(app.config.videoAskModel, null);
+});
+
+test("the models that make videos, with their lowest price a second (dollars or cents as OpenRouter writes them; by tokens, none)", () => {
+    assert.deepEqual(
+        openRouterVideoMakeModels(VIDEO_MODELS).map((model) => [model.id, model.perSecond, model.withAudio, model.durations]),
+        [
+            [DEFAULT_MAKE_MODEL, 0.03, 0.05, [4, 6, 8]],
+            ["alibaba/wan-3.0", 0.05, undefined, [2, 30]],
+            ["x-ai/grok-imagine-video", 0.05, undefined, [5]],
+            ["bytedance/seedance-2.0", undefined, undefined, []],
+        ],
+    );
+    assert.deepEqual(pricesOf({ duration_seconds: "0.084", duration_seconds_with_audio: "0.126" }), { perSecond: 0.084, withAudio: 0.126 });
+});
+
+test("video_generate: the job submitted with the prompt, length, shape, sound and first frame; polled until done; the video saved in videos/ with its cost", real, async () => {
+    const id = await newSession(app);
+    const said = await ask(id, "make a boat");
+    const job = made.at(-1)!;
+
+    assert.match(said, new RegExp(`^Made a video with ${DEFAULT_MAKE_MODEL.replace(/[./]/g, "\\$&")}, cost \\$1\\.01:\\n- .*/videos/\\d{8}-\\d{6}-a-paper-boat-on-a-calm\\.mp4 \\(video, mov,mp4.*, 320×240, 3 s`), said);
+    assert.equal(job.body.model, DEFAULT_MAKE_MODEL);
+    assert.deepEqual({ ...job.body, frame_images: undefined }, { model: DEFAULT_MAKE_MODEL, prompt: "A paper boat on a calm pond", duration: 8, aspect_ratio: "16:9", generate_audio: true, frame_images: undefined });
+    assert.equal((job.body.frame_images as { frame_type: string }[])[0]!.frame_type, "first_frame");
+    assert.match((job.body.frame_images as { image_url: { url: string } }[])[0]!.image_url.url, /^data:image\/png;base64,/);
+    assert.ok(job.polls >= 2, "polled until completed");
+
+    const saved = readdirSync(join(work, "videos"));
+
+    assert.equal(saved.length, 1);
+    assert.deepEqual(readFileSync(join(work, "videos", saved[0]!)), readFileSync(join(work, "clip.mp4")));
+
+    const entries = await app.transcripts.allEntries(id as never, true);
+    const result = entries.filter((entry) => entry.kind === "toolResult").at(-1) as unknown as { details?: { video?: { width?: number; duration?: number }; cost?: number } };
+
+    assert.equal(result.details?.cost, 1.01);
+    assert.equal(result.details?.video?.width, 320);
+
+    // What the model does not take is said before anything is paid.
+    const count = made.length;
+
+    assert.match(await ask(id, "make a long one"), /takes durations \(s\) 4, 6, 8, not 20/);
+    assert.match(await ask(id, "make a square one"), /takes aspects 16:9, 9:16, not 1:1/);
+    assert.equal(made.length, count, "nothing submitted");
 });
 
 test("video_ask: a file goes as a base64 mp4 with the question to the default model, its cost in the tool's usage; a YouTube address as it is", real, async () => {

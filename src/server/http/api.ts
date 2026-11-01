@@ -33,7 +33,7 @@ import type { User } from "../config.ts";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { VOICES } from "../voice.ts";
 import { ImageGen } from "../image-gen.ts";
-import { DEFAULT_ASK_MODEL } from "../video-gen.ts";
+import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "../video-gen.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { addressOf, deviceName } from "../devices.ts";
 import { HttpError } from "../errors.ts";
@@ -1006,15 +1006,34 @@ export function createApi(options: HttpOptions, auth: Auth) {
         if (first === "videos" && second === undefined && method === "GET") {
             requireOwner(user);
 
-            let ask: { models: unknown[]; problem?: string };
+            let problem: string | undefined;
+            const listed = async <T>(read: () => Promise<T[]>): Promise<T[]> => {
+                try {
+                    return await read();
+                } catch (error) {
+                    problem ??= error instanceof Error ? error.message : String(error);
 
-            try {
-                ask = { models: await app.videos.askModels() };
-            } catch (error) {
-                ask = { models: [], problem: error instanceof Error ? error.message : String(error) };
-            }
+                    return [];
+                }
+            };
+            const makeModels = await listed(() => app.videos.makeModels());
+            const askModels = await listed(() => app.videos.askModels());
 
-            return json(response, 200, { askModel: app.config.videoAskModel, askDefault: DEFAULT_ASK_MODEL, askModels: ask.models, ...(ask.problem === undefined ? {} : { problem: ask.problem }) });
+            return json(response, 200, {
+                model: app.config.videoModel,
+                makeDefault: DEFAULT_MAKE_MODEL,
+                makeModels,
+                askModel: app.config.videoAskModel,
+                askDefault: DEFAULT_ASK_MODEL,
+                askModels,
+                ...(problem === undefined ? {} : { problem }),
+            });
+        }
+
+        if (first === "videos" && second === "model" && method === "PUT") {
+            await app.setVideoModel(user, (await readJson<{ model?: unknown }>(request)).model ?? null);
+
+            return json(response, 200, { model: app.config.videoModel });
         }
 
         if (first === "videos" && second === "ask-model" && method === "PUT") {

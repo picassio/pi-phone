@@ -405,6 +405,45 @@ export class Workspace {
         return this.#remote(id);
     }
 
+    /** A video on the session's machine (PP-298): its size and a reader of its ranges, through its environment. */
+    async remoteVideo(user: User, id: ConversationId, path: string): Promise<{ size: number; read: (start: number, end: number) => Promise<Buffer> } | undefined> {
+        const remote = this.#remote(id);
+
+        if (remote === undefined) {
+            return undefined;
+        }
+
+        const file = await this.#remotePath(remote, id, user, path);
+        const info = await remote.env.fileInfo(file, BACKGROUND_CONTEXT);
+
+        if (!info.ok || info.value.kind !== "file") {
+            throw new HttpError(404, "Video not found");
+        }
+
+        return {
+            size: info.value.size,
+            read: async (start, end) => {
+                const reader = await remote.env.openBinaryReader(file, undefined, BACKGROUND_CONTEXT);
+
+                if (!reader.ok) {
+                    throw new HttpError(404, "Video not found");
+                }
+
+                try {
+                    const bytes = await reader.value.read(start, end - start + 1, BACKGROUND_CONTEXT);
+
+                    if (!bytes.ok) {
+                        throw new HttpError(500, "Could not read the video on the machine.");
+                    }
+
+                    return Buffer.from(bytes.value);
+                } finally {
+                    await reader.value.close(BACKGROUND_CONTEXT);
+                }
+            },
+        };
+    }
+
     /** An image on the session's machine, read through its environment, for the image route. */
     async remoteImage(user: User, id: ConversationId, path: string): Promise<{ data: Buffer; type: string } | undefined> {
         const remote = this.#remote(id);

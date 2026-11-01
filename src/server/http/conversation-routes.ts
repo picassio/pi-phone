@@ -11,7 +11,7 @@ import type { SubagentPart } from "../subagent-defaults.ts";
 import { CiWatchesDoc } from "../docs.ts";
 import { HttpError } from "../errors.ts";
 import type { CommandRequest } from "../extension-commands.ts";
-import { serveImage, TYPES } from "./assets.ts";
+import { serveImage, serveLocalVideo, serveVideo, TYPES, VIDEO_TYPES } from "./assets.ts";
 import { type ApiRequest, json, readJson, send } from "./io.ts";
 
 const MAX_UPLOAD = 50 * 1024 * 1024;
@@ -471,6 +471,29 @@ export async function conversationRoutes(
         }
 
         return serveImage(request, response, app.workspace.conversationFile(user, id, requested));
+    }
+
+    // A video the session made or holds (PP-298), for the chat's player: ranges answered, here or on its machine.
+    if (third === "video" && method === "GET") {
+        const requested = url.searchParams.get("path") ?? "";
+
+        if (requested.trim() === "") {
+            throw new HttpError(400, "path is required");
+        }
+
+        const type = VIDEO_TYPES[extname(requested).toLowerCase()];
+
+        if (type === undefined) {
+            throw new HttpError(415, "Only mp4, webm and mov videos play here");
+        }
+
+        const remote = await app.workspace.remoteVideo(user, id, requested);
+
+        if (remote !== undefined) {
+            return serveVideo(request, response, type, remote.size, (start, end) => remote.read(start, end));
+        }
+
+        return serveLocalVideo(request, response, app.workspace.conversationFile(user, id, requested));
     }
 
     if (third === "entry" && fourth !== undefined && method === "GET") {

@@ -22,6 +22,10 @@ const currentConversation = () => store.state.view.conversation?.id;
 export const fileUrl = (path, conversationId = currentConversation()) =>
     `api/c/${conversationId}/file?path=${encodeURIComponent(path)}`;
 
+/** A video file on the server, played through the app (PP-298): its route answers ranges, as players ask. */
+export const videoUrl = (path, conversationId = currentConversation()) =>
+    `api/c/${conversationId}/video?path=${encodeURIComponent(path)}`;
+
 /** The `index`th image stored in a message: a pasted image or one a tool returned. */
 export const entryImageUrl = (entryId, index, conversationId = currentConversation()) =>
     `api/c/${conversationId}/image/${entryId}/${index}`;

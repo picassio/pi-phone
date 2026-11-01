@@ -53,6 +53,7 @@ import {
     copyText,
     entryImageUrl,
     fileUrl,
+    videoUrl,
     html,
     Icon,
     Linked,
@@ -538,6 +539,7 @@ function stepWords(call) {
         case "watch_pr":
             return { label: "watch PR", subject: [args.action, args.pr].filter(Boolean).join(" ") };
         case "image_generate":
+        case "video_generate":
             return { label: call.name, subject: args.prompt ? short(args.prompt) : "" };
 
         default: {
@@ -656,6 +658,15 @@ function outcome({ call, result, details, status }) {
                       ]
                           .filter(Boolean)
                           .join(" · "),
+                      tone: "",
+                  }
+                : null;
+
+        // A video made (PP-298): its length and what it cost.
+        case "video_generate":
+            return details?.video
+                ? {
+                      text: [details.video.duration === undefined ? "" : `${Math.round(details.video.duration)} s`, typeof details.cost === "number" ? `$${details.cost.toFixed(2)}` : ""].filter(Boolean).join(" · "),
                       tone: "",
                   }
                 : null;
@@ -1021,7 +1032,9 @@ function ToolStep({
         : null;
     // The images image_generate saved (PP-275): shown from their files, as Pi got only their paths.
     const made = call.name === "image_generate" && Array.isArray(details?.images) ? details.images : [];
-    const extras = result?.images > 0 || artifact || made.length > 0;
+    // The video video_generate saved (PP-298): played from its file, its name, size and cost under it.
+    const video = call.name === "video_generate" && typeof details?.video?.path === "string" ? details.video : null;
+    const extras = result?.images > 0 || artifact || made.length > 0 || video !== null;
 
     return html`<div
         class=${`step ${open ? "open" : ""} ${settled ? "settled" : ""}`}
@@ -1088,6 +1101,16 @@ function ToolStep({
                         count=${result.images}
                         label=${`${call.name} image`}
                     />`
+                }
+                ${
+                    video !== null &&
+                    html`<figure class="made-video" data-part="made-video">
+                        <video src=${videoUrl(video.path, conversationId)} controls playsinline preload="metadata"></video>
+                        <figcaption class="muted small">
+                            <span>${[video.path.split("/").slice(-2).join("/"), video.duration === undefined ? "" : `${Math.round(video.duration)} s`, video.width === undefined ? "" : `${video.width}×${video.height}`].filter(Boolean).join(" · ")}</span>
+                            ${typeof details.cost === "number" && html`<span>$${details.cost.toFixed(2)}</span>`}
+                        </figcaption>
+                    </figure>`
                 }
                 ${
                     made.length > 0 &&

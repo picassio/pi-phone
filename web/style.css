@@ -9135,6 +9135,30 @@ pre.diff .del {
 
 /* ─── Images ───────────────────────────────────────────────── */
 
+/* A video Pi made (PP-298): played in the chat, its name, length, size and cost under it. */
+.made-video {
+    margin: 6px 0 2px;
+    max-width: 520px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+    overflow: hidden;
+    background: var(--card);
+}
+
+.made-video video {
+    display: block;
+    width: 100%;
+    max-height: 60vh;
+    background: #000;
+}
+
+.made-video figcaption {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+}
+
 .thumbs {
     display: flex;
     flex-wrap: wrap;
