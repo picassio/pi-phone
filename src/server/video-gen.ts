@@ -107,8 +107,10 @@ export class Videos {
         return key;
     }
 
-    /** The models that take video, kept an hour; a failed ask is not kept, and fails. */
+    /** The models that take video, kept an hour; a failed ask is not kept, and fails. Only with OpenRouter signed in. */
     async askModels(): Promise<VideoAskModel[]> {
+        await this.#key();
+
         const now = (this.#options.now ?? Date.now)();
 
         if (this.#asks !== undefined && now - this.#asks.at < LIST_MS) {

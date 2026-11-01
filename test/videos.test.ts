@@ -13,7 +13,7 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { appSettings } from "../src/server/settings-registry.ts";
 import { localEngine } from "../src/server/media.ts";
-import { openRouterVideoAskModels } from "../src/server/video-gen.ts";
+import { openRouterVideoAskModels, Videos } from "../src/server/video-gen.ts";
 
 const engine = localEngine();
 const real = { skip: engine === undefined ? "no ffmpeg in native/ (node scripts/server-tools.ts linux-x64 ffmpeg)" : false } as const;
@@ -114,6 +114,13 @@ test("the models that take video, with their prices: no batch, free or routers; 
             ["google/gemini-3.8-flash", { input: 0.75 }],
         ],
     );
+
+    // Without OpenRouter signed in, nothing is asked of it (the settings tool listed it for every app, from the network).
+    let fetched = 0;
+    const signedOut = new Videos({ openRouterKey: async () => undefined, askSetting: () => null, fetch: (async () => { fetched++; throw new Error("no"); }) as typeof fetch });
+
+    await assert.rejects(signedOut.askModels(), /OpenRouter, which is not signed in/);
+    assert.equal(fetched, 0);
 
     const setting = appSettings(app).settings.find((each) => each.id === "video.askModel")!;
 

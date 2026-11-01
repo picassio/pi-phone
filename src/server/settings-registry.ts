@@ -561,8 +561,15 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             owner: true,
             read: () => app.config.videoAskModel ?? `auto (${DEFAULT_ASK_MODEL})`,
             choices: async () => {
+                // OpenRouter lists dozens: the first twelve here, every one in Menu › Videos (any listed id is taken).
                 try {
-                    return ["auto", ...(await app.videos.askModels()).map((model) => `${model.id}${model.price === undefined ? "" : ` ($${model.price.input}/M in)`}`)];
+                    const models = await app.videos.askModels();
+
+                    return [
+                        "auto",
+                        ...models.slice(0, 12).map((model) => `${model.id}${model.price === undefined ? "" : ` ($${model.price.input}/M in)`}`),
+                        ...(models.length > 12 ? [`(and ${models.length - 12} more: Menu › Videos lists them)`] : []),
+                    ];
                 } catch (error) {
                     return ["auto", `(${error instanceof Error ? error.message : String(error)})`];
                 }
