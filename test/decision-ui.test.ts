@@ -138,6 +138,16 @@ test("a card Pi asks is pinned at the top until answered; the list says Pi asks 
     // The list: Pi asks you, and the Waits for you scope with this session alone.
     void other;
     await page.navigate(`${base}/`);
+    // CI #396 found the page back on /s/<id> after this navigation (the session that waits for you reopened): go to the
+    // list through the app until it stays there.
+    await until(
+        async () =>
+            await inPage<boolean>(
+                `const { navigate } = await import("/store.js"); if (location.pathname !== "/") navigate(null); return JSON.stringify(location.pathname === "/" && document.querySelector('[data-part="session-scope"] button') !== null);`,
+            ),
+        "on the list",
+        30_000,
+    ).catch(() => undefined);
     // A loaded CI runner can take longer than 10 s to draw the list after a navigation (CI #392, #394): 30 s, and what
     // the page held if it never comes.
     await see(`return JSON.stringify(document.querySelector('[data-part="session-scope"] button') !== null)`, "the list", 30_000).catch(async (error: Error) => {
