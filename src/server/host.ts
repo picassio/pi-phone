@@ -545,6 +545,8 @@ export interface PocketHost {
     envOf(cwd: string): ExecutionEnv;
     /** Capture of idle sessions into the wiki (`para-capture.ts`). */
     readonly wikiCapture: Pick<ParaCapture, "capture" | "status" | "setMinutes">;
+    /** The Jev model that ranks the wiki's search (Menu › Wiki, `wiki.rerankModel`): a listed Jev id, "off", or "default". */
+    setWikiRerankModel(model: unknown): Promise<void>;
     /** Other sessions, as the person a session works for (`session-control.ts`): the sessions tools. */
     readonly sessions: Pick<
         SessionControl,

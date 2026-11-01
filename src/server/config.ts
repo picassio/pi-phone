@@ -184,6 +184,11 @@ interface PocketConfig {
     /** Minutes a session is idle before what it learned goes to the wiki (`para-capture.ts`); null: never by itself. */
     wikiCaptureMinutes?: number | null;
     /**
+     * The Jev model that ranks the wiki's search (PP-312, `wiki.rerankModel`): an OpenRouter id, or null when the owner
+     * turned it off. Absent: the default, typesafe/jev-1.14 when OpenRouter is signed in.
+     */
+    wikiRerankModel?: string | null;
+    /**
      * Web access (`web/access.ts`): the search provider `web_search` uses, by its id, and the addresses set for
      * self-hosted ones. Absent provider: web search is off until the owner picks one.
      */
@@ -428,6 +433,21 @@ export class ConfigStore {
             delete this.#config.wikiCaptureMinutes;
         } else {
             this.#config.wikiCaptureMinutes = minutes;
+        }
+
+        this.save();
+    }
+
+    /** The Jev model that ranks the wiki's search: an id, null (off), or undefined (the default). */
+    get wikiRerankModel(): string | null | undefined {
+        return this.#config.wikiRerankModel;
+    }
+
+    set wikiRerankModel(model: string | null | undefined) {
+        if (model === undefined) {
+            delete this.#config.wikiRerankModel;
+        } else {
+            this.#config.wikiRerankModel = model;
         }
 
         this.save();

@@ -292,8 +292,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   needs to: the owner did not want a search before every message, nor word of other sessions' writes (2026-10-31).
   `relevant`, the owner's pick, also has `commands.submit` add a part to a person's own message (`WIKI_BLOCK`,
   `<wiki-pages paths="…">`, after their text; the transcript shows the paths, not the text): `Para.relevant`, none
-  for a message without a telling word ("ok", "Làm đi"); else pi-para's search of the whole message without graph
-  boost, kept at score 0.5 and up, plus qmd keyword hits of its telling words, a page having two of them. `frozen`
+  for a message without a telling word ("ok", "Làm đi"); else the candidates, ranked (below). `frozen`
   returns the section the session has (`PromptInput.shown`), `live` is the old section. Secrets: `tool` says
   to use `secrets_list` (with `query`), `list` names them. Skills: `frozen` keeps the list the session has while it
   names the same skills (`frozenSkills`). Tools: `load` (default) keeps the `deferred-tools` extension
@@ -330,6 +329,21 @@ so Pi changes them through the settings tools; "the last session" is the one the
   on Android from sqlite-vec's own release build, `native/android-arm64/vec0.so` (`scripts/sqlite-vec.ts`, checked
   against the release's checksum; `QMD_SQLITE_VEC_PATH`). Never a local model: `QMD_NO_LOCAL_MODELS=1`, and the
   runtime package refuses node-llama-cpp.
+  Ranked by Jev (PP-312, as XuShi Visa measured on 24 pages and 40 questions: right page first 94% against 74% for
+  keywords and meaning, 0.13 pages off the point a question against 0.95). Candidates (`Para.#candidates`): pi-para's
+  search of the query (15, no graph boost, in scope) plus pages holding two of its telling words (qmd keyword hits per
+  word; `tellingWords`: words from two letters, so Vietnamese syllables count, minus a plain-word list). Jev
+  (`jev.ts`, OpenRouter's decisions route) judges each page's title and body start (1500 characters) as its own Noul
+  question, the state holding only the query, 30 a request, side by side; kept at 0.6 and up (`JEV_MATCH`, swept
+  0.45-0.7 there), best first, at most four for a message. A short query (two telling words, four words) also keeps the
+  pages whose accent-free title holds its words: Jev scores a bare keyword's page 0.39-0.46. `wiki_query` ranks the
+  same way (`Para.query`), reading pages in its `exclusive` turn but not holding it while Jev answers. The model is
+  `config.wikiRerankModel` (`wiki.rerankModel`, Menu › Wiki): absent, typesafe/jev-1.14 when OpenRouter is signed in;
+  null, off (pi-para's own `wiki_query`, and for messages the old order: score 0.5 and up near the best, then pages
+  with two telling words); a chosen model without the sign-in, or any Jev error, is a failure: the search's own order,
+  said in the log, at the head of `wiki_query`'s answer, and on the Wiki settings card (`Para.rerank().last`). Jev's
+  cost goes to Spend's wiki line. The lists of Jev models (here and Pi's browser's run model) are OpenRouter's decision
+  models from TypeSafe (`/models?output_modalities=decisions`, `JevModels`, kept an hour).
   The wiki's files are the tools' alone: the prompt says so, and a hook refuses `write`, `edit`, and non-read-only
   `bash` commands that name the wiki folder (on the phone; a session on a machine works on that machine's files), naming
   the wiki tool to use. It keeps Pi honest rather than being a security boundary; nothing watches the folder, as only

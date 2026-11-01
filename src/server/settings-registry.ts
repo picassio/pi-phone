@@ -434,18 +434,20 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "browser.runModel",
             area: "browser",
             title: "Run model for browser_run, every session",
-            help: 'session (each session\'s own model) or a Jev model\'s OpenRouter id, like typesafe/jev-1.13.',
+            help: 'session (each session\'s own model) or one of the Jev models OpenRouter offers, by its id, like typesafe/jev-1.14.',
             owner: true,
             read: () => app.config.browserRunModel ?? "session",
+            choices: async () => ["session", ...(await app.jevModels.list()).map((each) => each.id)],
             apply: (user, value) => app.setBrowserRunModel(user, value.trim()),
         },
         {
             id: "browser.sessionRunModel",
             area: "browser",
             title: "Run model for browser_run, one session",
-            help: "inherit (the default for every session), session, or a Jev model's OpenRouter id. Target: the session's number.",
+            help: "inherit (the default for every session), session, or one of the Jev models OpenRouter offers, by its id. Target: the session's number.",
             owner: true,
             target: "session",
+            choices: async () => ["inherit", "session", ...(await app.jevModels.list()).map((each) => each.id)],
             read: (target) => app.sessionMeta(session(target))?.browserRunModel ?? "inherit",
             apply: (user, value, target) => app.setBrowserRunModel(user, value.trim(), session(target)),
         },
@@ -518,6 +520,20 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             apply: async (_user, value) => {
                 await app.para.updateSettings({ embeddingModel: NONE.test(value.trim()) ? null : value.trim() });
             },
+        },
+        {
+            id: "wiki.rerankModel",
+            area: "wiki",
+            title: "Rank the wiki's search with Jev",
+            help: "Jev reads each page the wiki's search found and keeps those that help with the message or query, best first: the pages that come with messages, and wiki_query. One of the Jev models OpenRouter offers, by its id; off (the search's own order); or default (typesafe/jev-1.14 when OpenRouter is signed in, else off). Needs the OpenRouter sign-in.",
+            owner: true,
+            read: async () => {
+                const rerank = await app.para.rerank();
+
+                return rerank.chosen === undefined ? `default (${rerank.model ?? "off: OpenRouter is not signed in"})` : (rerank.chosen ?? "off");
+            },
+            choices: async () => ["off", "default", ...(await app.jevModels.list()).map((each) => each.id)],
+            apply: (user, value) => app.setWikiRerankModel(user, NONE.test(value.trim()) ? "off" : value.trim()),
         },
         {
             id: "docs.imageModel",

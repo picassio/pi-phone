@@ -36,12 +36,13 @@ test("skills frozen: the list the session has while it names the same skills, th
     assert.equal(frozenSkills(undefined, had), had, "the first time");
 });
 
-test("a message's telling words for the wiki's keyword search: names and longer words, not the plain ones, at most six", () => {
+test("a message's telling words for the wiki's keyword search: names and words of two letters on, not the plain ones, at most ten", () => {
     assert.deepEqual(tellingWords("why does the shell outlive its socket"), ["outlive", "socket", "shell"]);
     assert.ok(tellingWords("check PP-276 and the wiki please").includes("pp-276"));
     assert.ok(!tellingWords("check PP-276 and the wiki please").includes("please"));
-    assert.equal(tellingWords("alpha bravo charlie delta echoes foxtrot golfing hotels").length, 6);
-    assert.deepEqual(tellingWords("Kiểm tra lại không được"), ["kiểm"]);
+    assert.equal(tellingWords("alpha bravo charlie delta echoes foxtrot golfing hotels india juliet kilo lima").length, 10);
+    // Vietnamese syllables of two and three letters count (PP-312): "tra" is a word, "lại" and "không" are plain.
+    assert.deepEqual(tellingWords("Kiểm tra lại không được"), ["kiểm", "tra"]);
     // None: the message brings no pages (Para.relevant searches nothing).
     assert.deepEqual(tellingWords("Làm đi"), []);
     assert.deepEqual(tellingWords("ok, do it"), []);

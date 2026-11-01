@@ -299,7 +299,12 @@ dự án thật.</sub>
   tới được tiện ích), `host.hide` và `host.commandEnv`, chưa dùng được `host.browser`; một tiện ích có công cụ trùng
   tên công cụ có sẵn sẽ bị từ chối, kèm lý do.
 - **Một wiki PARA** ([pi-para](https://github.com/picassio/pi-para)): Pi tra cứu và viết vào đó khi làm việc, với tìm
-  kiếm của qmd, theo dõi các câu hỏi mở cho đến khi được trả lời, và ghi nhận các phiên rảnh vào đó.
+  kiếm của qmd, theo dõi các câu hỏi mở cho đến khi được trả lời, và ghi nhận các phiên rảnh vào đó. Khi đã
+  đăng nhập OpenRouter, **Jev xếp hạng kết quả tìm** (Menu › Wiki › Xếp hạng bằng Jev): nó đọc từng trang tìm được
+  (theo từ khóa, theo nghĩa, và các trang có các từ của tin nhắn, kể cả âm tiết tiếng Việt) và giữ những trang giúp ích
+  cho tin nhắn của bạn hoặc `wiki_query` của Pi, tốt nhất trước; khoảng 0,5 giây và $0.0001 mỗi lần tìm, tính vào Chi
+  tiêu. Tắt đi thì giữ thứ tự của tìm kiếm; khi Jev lỗi, thứ tự đó được giữ và nhật ký cùng câu trả lời của
+  `wiki_query` nói lý do.
 - **Tài liệu** (thanh bên › Tài liệu): tài liệu của bạn trong các thư mục, là các trang markdown hiển thị như wiki.
   - **Trang:** nơi chứa (Của tôi, Nhóm, một bảng) là tiêu đề của nó, kèm **+ Trang** và một ⋯ cho thư mục mới, trang đã
     xóa và cài đặt; tìm kiếm có hàng riêng. Thư mục là các mục kèm số trang, mỗi mục có một ⋯ (trang hoặc thư mục bên

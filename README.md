@@ -286,7 +286,11 @@ No Termux, no laptop, no cloud VM.
   shown), each off until you turn it on. They can use pi-pocket 0.22's `host.ask` (a card whose values reach only the extension), `host.hide`
   and `host.commandEnv`, not `host.browser` yet; one whose tool has a built-in tool's name is refused, with why.
 - **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
-  search, tracks its open questions until they are answered, and captures idle sessions into it.
+  search, tracks its open questions until they are answered, and captures idle sessions into it. With OpenRouter signed
+  in, **Jev ranks the search** (Menu › Wiki › Rank with Jev): it reads each page the search found (by keyword, by
+  meaning, and pages holding the message's words, Vietnamese syllables too) and keeps those that help with your message
+  or Pi's `wiki_query`, best first; about 0.5 s and $0.0001 a search, counted in Spend. Off, the search keeps its own
+  order; when Jev fails, the search's order is kept and the log and `wiki_query`'s answer say why.
 - **Documents** (rail › Documents): your documents in folders, as markdown pages rendered like the wiki.
   - **The page:** the place (Mine, Team, a board) is its header, with **+ Page** and a ⋯ for a new folder, deleted
     pages and the settings; search has a row of its own. Folders are sections with their page count, each with a ⋯
@@ -609,6 +613,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | **Jev** as the model for `browser_run` | **Pi's browser › Run model**: *Jev*, id `typesafe/jev-1.13`, for every session or only this one (*Session model* uses each session's own model) | "Use Jev for browser runs" (or "…in this session only") |
 | Windows pages open in Pi's browser on the phone (sign-in popups) | **Pi's browser › Windows pages open**: *Allow* (a tab in front, the default), *Ask* (a card first), *Off* | "Ask me before a page opens a window" |
 | **Wiki** search by meaning | **Wiki** (or *Wiki settings* from the search launcher) **› Search by meaning**: pick an OpenRouter embedding model, such as `openai/text-embedding-3-small`. Off means keyword search only | "Set the wiki embedding model to openai/text-embedding-3-small" |
+| **Wiki** search ranked by Jev | **Wiki › Rank with Jev**: a Jev model OpenRouter offers (`typesafe/jev-1.14` by default when OpenRouter is signed in), or *Off* for the search's own order | "Rank the wiki search with jev-1.13", "turn off Jev ranking for the wiki" |
 | Wiki capture and prompt context | **Wiki**: minutes idle before a session is captured, the model that writes captures, tokens of wiki in each prompt, lint options | "Capture idle sessions after 30 minutes", "use claude-haiku for wiki captures" |
 | Web search | **Web access**: a provider, and its key (typed there or kept in Secrets) | "Switch web search to exa". The key itself is yours to type |
 | The design system Pi designs with | **Design system**: search, pick one, or *None* | "Design in the Stripe style from now on", "No default design system" |

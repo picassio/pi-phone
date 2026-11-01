@@ -14,6 +14,7 @@ import { sshArguments } from "@earendil-works/pi-env";
 import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
 import { CustomProviders, NO_KEY } from "./custom-providers.ts";
 import { ImageGen, type ImageGenOptions } from "./image-gen.ts";
+import { JEV_ID, JevModels } from "./jev.ts";
 import { Videos, type VideosOptions } from "./video-gen.ts";
 import { Audio, type AudioOptions, m4aArgs, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES, wavOf } from "./audio.ts";
 
@@ -365,6 +366,8 @@ export interface OpenOptions {
     images?: Partial<Pick<ImageGenOptions, "endpoints" | "fetch" | "codexAuth">>;
     videos?: Partial<Pick<VideosOptions, "endpoints" | "fetch" | "pollMs">>;
     audio?: Partial<Pick<AudioOptions, "endpoints" | "auth">>;
+    /** How Jev and OpenRouter's list of its models are reached (`jev.ts`, PP-312): tests stand in a fake OpenRouter. */
+    jev?: { fetch?: typeof fetch };
 }
 
 /** A Codex token's ChatGPT account, as voice sends it. */
@@ -557,6 +560,8 @@ export class PocketApp {
     readonly computerControl: ComputerControl;
     /** The PARA wiki (`para.ts`). */
     readonly para: Para;
+    /** The Jev models OpenRouter offers (`jev.ts`): Menu › Wiki's and Menu › Pi's browser's lists. */
+    readonly jevModels: JevModels;
     readonly paraCapture: ParaCapture = new ParaCapture(this);
     /** Sessions acting on other sessions (`session-control.ts`). */
     readonly sessionControl = new SessionControl(this);
@@ -915,8 +920,14 @@ export class PocketApp {
         this.#browserSizes = new BrowserSizes(join(options.dataDir, "browser-sizes.json"));
         this.#browserPlaces = new BrowserPlaces(join(options.dataDir, "browser-places.json"));
         this.#browserMachinesOption = options.browserMachines;
+        const jevFetch = options.jev?.fetch ?? fetch;
+
+        this.jevModels = new JevModels(jevFetch);
         this.para = new Para({
             home: this.#home,
+            rerankModel: () => this.config.wikiRerankModel,
+            jevModels: () => this.jevModels.list(),
+            fetch: jevFetch,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
             models: () =>
                 this.models.getAvailableSnapshot().map((model) => ({ provider: model.provider, id: model.id, name: model.name })),
@@ -1391,6 +1402,7 @@ export class PocketApp {
             teamServer: this.#teamServer,
             syncTeamMachines: () => this.syncTeamMachines(),
             wikiCapture: this.paraCapture,
+            setWikiRerankModel: (model) => this.#setWikiRerankModel(model),
             goals: this.goals,
             text: Object.freeze({ quoted, defang }),
             thinkingLevels: THINKING_LEVELS,
@@ -5565,6 +5577,50 @@ export class PocketApp {
     }
 
     /**
+     * The Jev model that ranks the wiki's search (PP-312, Menu › Wiki): one of the Jev models OpenRouter offers, "off"
+     * (the search's own order), or "default" (typesafe/jev-1.14 when OpenRouter is signed in). The owner's.
+     */
+    async setWikiRerankModel(user: User, model: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        await this.#setWikiRerankModel(model);
+    }
+
+    async #setWikiRerankModel(model: unknown): Promise<void> {
+        if (model === "off" || model === null) {
+            this.config.wikiRerankModel = null;
+
+            return;
+        }
+
+        if (model === "default") {
+            this.config.wikiRerankModel = undefined;
+
+            return;
+        }
+
+        if (typeof model !== "string" || !JEV_ID.test(model)) {
+            throw new HttpError(400, "Rank with Jev takes a Jev model's OpenRouter id (typesafe/jev-1.14), off, or default.");
+        }
+
+        if ((await this.models.getAuth("openrouter"))?.auth.apiKey === undefined) {
+            throw new HttpError(400, "Sign in to OpenRouter first (Settings › Providers): Jev runs on its key.");
+        }
+
+        const listed = await this.jevModels.list().catch((error: unknown) => {
+            throw new HttpError(502, error instanceof Error ? error.message : String(error));
+        });
+
+        if (!listed.some((each) => each.id === model)) {
+            throw new HttpError(400, `${model} is not one of the Jev models OpenRouter offers (${listed.map((each) => each.id).join(", ")}).`);
+        }
+
+        this.config.wikiRerankModel = model;
+    }
+
+    /**
      * The model that describes images in documents (PP-49): one of the person's signed-in models that reads images, or
      * none. Nobody's model is used for it unless chosen here.
      */
@@ -5817,7 +5873,7 @@ export class PocketApp {
             throw new HttpError(403, "Only the owner can do that");
         }
 
-        if (!(model === "session" || (id !== undefined && model === "inherit") || (typeof model === "string" && /^typesafe\/[a-z0-9][a-z0-9.\-]*$/i.test(model)))) {
+        if (!(model === "session" || (id !== undefined && model === "inherit") || (typeof model === "string" && JEV_ID.test(model)))) {
             throw new HttpError(400, "The run model is \"session\" (the session's own model) or a Jev model's OpenRouter id, like typesafe/jev-1.13.");
         }
 

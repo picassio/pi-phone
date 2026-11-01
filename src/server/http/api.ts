@@ -1245,6 +1245,16 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, { model: app.config.browserRunModel });
             }
 
+            // The Jev models OpenRouter offers (PP-312): the run model's dropdown, and whether OpenRouter is signed in.
+            if (second === "jev-models" && third === undefined && method === "GET") {
+                const signedIn = (await app.models.getAuth("openrouter"))?.auth.apiKey !== undefined;
+                const models = await app.jevModels.list().catch((error: unknown) => {
+                    throw new HttpError(502, error instanceof Error ? error.message : String(error));
+                });
+
+                return json(response, 200, { signedIn, models });
+            }
+
             if (second === "run-model" && third === undefined && method === "PUT") {
                 await app.setBrowserRunModel(user, (await readJson<{ model?: unknown }>(request)).model);
 

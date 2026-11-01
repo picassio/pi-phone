@@ -30,7 +30,6 @@ import { createIngestExecute } from "pi-para/tools/ingest";
 import { createLintExecute } from "pi-para/tools/lint";
 import { createMigrateExecute } from "pi-para/tools/migrate";
 import { createMoveExecute } from "pi-para/tools/move";
-import { createQueryExecute } from "pi-para/tools/query";
 import {
     WikiEditParams,
     WikiIngestParams,
@@ -212,10 +211,26 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
         ...result,
         content: result.content?.map((part) => (part.type === "text" ? { ...part, text: fenceIngestSource(part.text) } : part)),
     });
+    // wiki_query ranks with Jev when it is on (PP-312, `Para.query`): it takes its turn with the other wiki calls only
+    // to read pages, not while Jev answers.
+    const query = defineTool({
+        name: "wiki_query",
+        description: WIKI_TOOL_DESCRIPTIONS.wiki_query,
+        parameters: WikiQueryParams as never,
+        execute: async (args, api, context) => {
+            const cwd = (await api.agent(context)).cwd!;
+            const { config } = await para.open();
+            const result = await para.query(args as never, cwd, config.context.searchGraphBoost);
+
+            return {
+                output: result.content,
+                ...(result.details === undefined ? {} : { details: JSON.parse(JSON.stringify(result.details)) as JsonValue }),
+                ...(result.isError === true ? { isError: true } : {}),
+            };
+        },
+    });
     const tools = [
-        tool("wiki_query", WikiQueryParams, (wiki, args) =>
-            createQueryExecute(wiki.wikiDir, wiki.store, scoped(wiki), () => wiki.config.context.searchGraphBoost)(args as never),
-        ),
+        query,
         tool("wiki_read", WikiReadParams, (wiki, args) => createReadExecute(wiki.wikiDir)(args as never)),
         tool("wiki_edit", WikiEditParams, (wiki, args) =>
             createEditExecute(wiki.wikiDir, wiki.store, wiki.markDirty)(args as never),
@@ -288,30 +303,49 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
     web.route("GET", "capture", () => host.wikiCapture.status(), owner);
 
     // Wiki settings: pi-para's config, written by the app, and when idle sessions are captured.
-    web.route(
-        "GET",
-        "settings",
-        async () => ({ ...(await para.settings()), captureMinutes: (await host.wikiCapture.status()).minutes, models: para.models() }),
-        owner,
-    );
+    // Wiki settings: and ranking with Jev (PP-312), which is pi-phone's, not pi-para's config.
+    const settings = async () => ({
+        ...(await para.settings()),
+        captureMinutes: (await host.wikiCapture.status()).minutes,
+        models: para.models(),
+        rerank: await para.rerank(),
+    });
+
+    web.route("GET", "settings", settings, owner);
     web.route(
         "POST",
         "settings",
         async (request) => {
-            const { captureMinutes, ...patch } = request.body as Record<string, unknown>;
+            const { captureMinutes, rerankModel, ...patch } = request.body as Record<string, unknown>;
 
             try {
                 if (captureMinutes !== undefined) {
                     host.wikiCapture.setMinutes(captureMinutes);
                 }
 
-                await para.updateSettings(patch as never);
+                if (rerankModel !== undefined) {
+                    await host.setWikiRerankModel(rerankModel);
+                }
+
+                if (Object.keys(patch).length > 0) {
+                    await para.updateSettings(patch as never);
+                }
             } catch (error) {
                 throw failed(error);
             }
 
-            return { ...(await para.settings()), captureMinutes: (await host.wikiCapture.status()).minutes, models: para.models() };
+            return settings();
         },
+        owner,
+    );
+    web.route(
+        "GET",
+        "jev-models",
+        async () => ({
+            models: await para.jevModels().catch((error: unknown) => {
+                throw web.error(502, error instanceof Error ? error.message : String(error));
+            }),
+        }),
         owner,
     );
     web.route(

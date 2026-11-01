@@ -735,5 +735,8 @@
     "Choose one of: {1}, or none for the default.": "请选择：{1}，或 none 使用默认值。",
     "{1} is not a speaking model: {2}.": "{1} 不是朗读模型：{2}。",
     "{1} is not a voice: {2}.": "{1} 不是可用的声音：{2}。",
-    "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "音频需要 ChatGPT（Codex）登录：在“设置 › 提供商”中添加。"
+    "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "音频需要 ChatGPT（Codex）登录：在“设置 › 提供商”中添加。",
+    "Rank with Jev takes a Jev model's OpenRouter id (typesafe/jev-1.14), off, or default.": "用 Jev 排序接受 Jev 模型的 OpenRouter id（typesafe/jev-1.14）、off 或 default。",
+    "Sign in to OpenRouter first (Settings › Providers): Jev runs on its key.": "请先登录 OpenRouter（设置 › 提供商）：Jev 使用它的密钥运行。",
+    "{1} is not one of the Jev models OpenRouter offers ({2}).": "{1} 不是 OpenRouter 提供的 Jev 模型（{2}）。"
 }
