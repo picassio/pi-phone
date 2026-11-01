@@ -52,14 +52,20 @@ export function lastText(context: { messages: readonly { role: string; content: 
 export const echo: FauxResponseStep = (context) =>
     fauxAssistantMessage([fauxText(`echo: ${lastText(context as never).text}`)]);
 
-/** A scripted provider, "faux", that answers every request with `route`. */
-export function scriptedModel(route: FauxResponseStep = echo) {
+/**
+ * A scripted provider, "faux", that answers every request with `route`. `contextWindow`: its models' (default 128 000).
+ * The faux usage counts a changed prompt twice (its input and its cache write), and the app's prompt is long (about
+ * 100k characters), so a file of many turns per session can cross Pi Durable's background compaction (window − 16 384
+ * − 32 768); a test that counts what the context holds gives a wider window.
+ */
+export function scriptedModel(route: FauxResponseStep = echo, { contextWindow }: { contextWindow?: number } = {}) {
+    const window = contextWindow === undefined ? {} : { contextWindow };
     const faux = fauxProvider({
         tokensPerSecond: 2000,
         models: [
-            { id: "faux-1" },
-            { id: "faux-2" },
-            { id: "faux-vision", input: ["text", "image"] },
+            { id: "faux-1", ...window },
+            { id: "faux-2", ...window },
+            { id: "faux-vision", input: ["text", "image"], ...window },
         ],
     });
 

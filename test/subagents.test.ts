@@ -35,6 +35,12 @@ let parentCalls = 0;
 let rounds = 0;
 
 const call = (name: string, args: Parameters<typeof fauxToolCall>[1]) => fauxToolCall(name, args);
+/**
+ * The tests count what the parent's context holds: a wide window keeps Pi Durable's background compaction away (it
+ * summarized a session's messages away in CI from #376, where the app's prompt had grown past the default window's
+ * threshold; see scriptedModel).
+ */
+const model = () => scriptedModel(route, { contextWindow: 1_000_000 });
 
 const route: FauxResponseStep = (request) => {
     const all = JSON.stringify((request as { messages: unknown[] }).messages);
@@ -102,7 +108,7 @@ const route: FauxResponseStep = (request) => {
 let app: App;
 
 before(async () => {
-    app = await openApp(scriptedModel(route), join(root, "subagents-data"));
+    app = await openApp(model(), join(root, "subagents-data"));
 });
 
 // What the scripted model does starts plain in every test, however the one before ended.
@@ -221,7 +227,7 @@ test("a report reaches an idle parent at once, and the parent answers it", async
 
 test("reports waiting in the parent's queue across a restart arrive once", async () => {
     const data = join(root, "subagents-restart");
-    let first: App | undefined = await openApp(scriptedModel(route), data);
+    let first: App | undefined = await openApp(model(), data);
     const id = await orchestrate({ spawn: names(3, "r"), rounds: 1, sleep: 3 }, first);
 
     try {
@@ -231,7 +237,7 @@ test("reports waiting in the parent's queue across a restart arrive once", async
         // The parent's `sleep` was cut off: it does not run again, and the parent goes on from there. The shared
         // app steps aside meanwhile: one app per data folder in the process.
         await app.close();
-        app = await openApp(scriptedModel(route), data);
+        app = await openApp(model(), data);
         await until(
             async () => Object.keys(await delivered(id)).length === 3 && !app.isBusy(id),
             "the reports after the restart",
@@ -242,7 +248,7 @@ test("reports waiting in the parent's queue across a restart arrive once", async
         await first?.close();
         // Closed already if the test failed after it stepped aside.
         await app.close().catch(() => {});
-        app = await openApp(scriptedModel(route), join(root, "subagents-data"));
+        app = await openApp(model(), join(root, "subagents-data"));
     }
 });
 
@@ -333,8 +339,7 @@ test("a batch a stopped courier had sent already is not sent again", async () =>
     rounds = 0;
     await app.commands.submit(id, owner(app), { text: "orchestrate", requestId: "sent" });
     await until(async () => (await delivered(id)).after === 1 && !app.isBusy(id), "the new report");
-    // What the parent's context holds, when it is not as expected (it failed only in CI, three times, from #376).
-    assert.equal((await delivered(id)).lost, 1, `under its request id, it went once: ${(await parentText(id)).slice(0, 3000)}`);
+    assert.equal((await delivered(id)).lost, 1, "under its request id, it went once");
     assert.equal((await app.harness.snapshot(SubagentsDoc, id, context))?.sending, undefined);
 });
 
