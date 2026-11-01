@@ -38,6 +38,9 @@ import type { DropInPackage } from "./drop-in-install.ts";
 
 export type { CommandEnvProvider, CommandRun, HiddenValue } from "./hidden.ts";
 
+/** One tool on a machine_tools card (PP-325). */
+export type MachineToolChange = { id: string; name: string; from?: string; to?: string; size: string; needed?: boolean; note?: string };
+
 export interface ApprovalRequest {
     id: string;
     conversationId: ConversationId;
@@ -101,6 +104,20 @@ export interface ApprovalRequest {
          * pastes and the PIN they choose go to the machine through the server (`answerCrdConnect`), never to Pi.
          */
         | { type: "crd-connect"; machine: string; machineName: string }
+        /**
+         * Pi installs, updates or removes tools pi-phone puts on a machine (`machine_tools`, PP-325): the machine and each
+         * tool with its version from (installed, if any) and to (the catalog's, absent when removed), its size, whether it
+         * comes as another's need (`needed`), and a note (what needs it). Approve runs what Settings › Machines runs;
+         * only the owner approves.
+         */
+        | {
+              type: "machine-tools";
+              machine: string;
+              machineName: string;
+              platform: string;
+              action: "install" | "update" | "remove";
+              tools: MachineToolChange[];
+          }
         /**
          * Pi's browser asks the person (`extensions/browser.ts`): to sign in (a username and a password, typed into the
          * page's fields `fields` name), for a one-time code, or to do something on the page themselves. What they type

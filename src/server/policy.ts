@@ -45,6 +45,7 @@ export const TOOLS: Readonly<Record<string, string>> = {
     machine_run: "machines.use",
     machine_copy: "machines.use",
     machine_add: "machines.use",
+    machine_tools: "machines.use",
     phone_control: "phone.control",
     phone_screen: "phone.control",
     phone_act: "phone.control",

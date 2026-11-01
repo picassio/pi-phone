@@ -323,7 +323,10 @@ No Termux, no laptop, no cloud VM.
   `hyperframes render <folder> -o film.mp4` and checks the file with ffprobe; HyperFrames' telemetry, update checks and
   self-installs are always off. **TLC** (Linux, macOS, Windows x64; unticked, about 165 MB): Temurin's Java 21 and the
   TLA+ model checker, for Formal checks; sessions on that machine get `TLA2TOOLS` and `JAVA`, and the statechart skill
-  goes with it.
+  goes with it. Pi does it too with `machine_tools`: it shows each machine's tools (installed version, current version,
+  size), and installs, updates or removes them after you approve one card with the machine and each tool's version from
+  and to and its size, the same install as Install tools; it says each tool's version line, or the step that failed,
+  and offers an update when a tool is behind.
 - **Pi's browser on a machine.** A session on a machine browses in a headless Chrome there (its own Chrome, Chromium or
   Edge, else the machine tool), watched in the same panel ("Pi's browser on <machine>"). It opens the machine's own
   addresses, so Pi can try the web app you run there (`localhost:3000`), and uploads and PDFs use the machine's files.

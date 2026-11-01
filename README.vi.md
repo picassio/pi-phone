@@ -337,7 +337,10 @@ dự án thật.</sub>
   `hyperframes render <thư mục> -o film.mp4` và kiểm tra tệp bằng ffprobe; telemetry, kiểm tra cập nhật và việc tự
   cài đặt của HyperFrames luôn tắt. **TLC** (Linux, macOS, Windows x64; không chọn sẵn, khoảng 165 MB): Java 21 của
   Temurin và trình kiểm tra mô hình TLA+, cho Kiểm chứng hình thức; các phiên trên máy đó có `TLA2TOOLS` và `JAVA`, và
-  skill statechart đi kèm.
+  skill statechart đi kèm. Pi cũng tự làm được bằng `machine_tools`: nó cho xem công cụ trên từng máy (phiên bản đã cài,
+  phiên bản hiện hành, dung lượng), và cài, cập nhật hoặc gỡ chúng sau khi bạn duyệt một thẻ ghi máy, phiên bản từ và
+  đến của từng công cụ cùng dung lượng, cài giống hệt Cài công cụ; nó báo dòng phiên bản của từng công cụ, hoặc bước bị
+  lỗi, và đề nghị cập nhật khi một công cụ đã cũ.
 - **Trình duyệt của Pi trên một máy.** Phiên trên máy duyệt web bằng Chrome headless ở đó (Chrome, Chromium hoặc Edge
   của máy, nếu không thì công cụ trên máy), xem trong cùng khung (“Trình duyệt của Pi trên <máy>”). Nó mở các địa
   chỉ của chính máy, nên Pi thử được ứng dụng web bạn chạy ở đó (`localhost:3000`), và việc tải lên cùng PDF dùng tệp

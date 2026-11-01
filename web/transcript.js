@@ -1822,6 +1822,71 @@ function MachineAddCard({ approval }) {
 }
 
 /**
+ * Pi installs, updates or removes tools on a machine (`machine_tools`, PP-325): the machine, and each tool with its
+ * version from and to and its size, those another needs marked. Approve runs what Settings › Machines runs; the owner's.
+ */
+function MachineToolsCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [busy, setBusy] = useState(false);
+    const answer = (allow) => {
+        setBusy(true);
+        attempt(() => actions.approve(approval.id, allow)).finally(() => setBusy(false));
+    };
+    const machine = html`<span class="mono">${form.machineName}</span>`;
+    const ask =
+        form.action === "remove"
+            ? tx("Remove these tools from {machine}?", { machine })
+            : form.action === "update"
+              ? tx("Update these tools on {machine}?", { machine })
+              : tx("Install these tools on {machine}?", { machine });
+    const change = (tool) =>
+        form.action === "remove"
+            ? t("{version}, removed", { version: tool.from ?? "" })
+            : tool.from === undefined
+              ? t("{version}, new", { version: tool.to ?? "" })
+              : `${tool.from} → ${tool.to ?? ""}`;
+
+    return html`<div class="approval machine-tools-card" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="monitor" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${ask}</span>
+                <span class="approval-reason"><${Linked} text=${approval.reason} /></span>
+            </div>
+        </div>
+        <dl class="machine-add-facts">
+            <dt>${t("Machine")}</dt>
+            <dd><span class="mono">${form.machineName}</span> <span class="muted small">${form.platform}</span></dd>
+            ${form.tools.map(
+                (tool) => html`<dt key=${tool.id}>${tool.name}</dt>
+                    <dd>
+                        <span class="mono">${change(tool)}</span> <span class="muted small">· ${tool.size}${tool.needed ? ` · ${t("needed by the others")}` : ""}</span>
+                        ${tool.note && html`<div class="muted small">${tool.note}</div>`}
+                    </dd>`,
+            )}
+        </dl>
+        <div class="muted small">
+            ${
+                form.action === "remove"
+                    ? t("Approve removes them from ~/.pi/mobile/tools there. Deny changes nothing.")
+                    : t("Approve installs them as Settings › Machines does: pinned versions, each download checked before it is kept. Deny changes nothing.")
+            }
+        </div>
+        ${
+            me?.role !== "owner"
+                ? html`<div class="muted small">${t("Changing a machine's tools is the owner's: waiting for them.")}</div>`
+                : html`<div class="approval-actions">
+                      <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>${t("Deny")}</button>
+                      <button class="button primary" disabled=${busy} onClick=${() => answer(true)}>
+                          ${form.action === "remove" ? t("Remove") : form.action === "update" ? t("Update") : t("Install")}
+                      </button>
+                  </div>`
+        }
+    </div>`;
+}
+
+/**
  * Pi asks to control a phone (`phone_control`, PP-141): the device, the apps the session may read and touch (and the home
  * screen, to open them), and for how long. The owner's to approve; it starts the session, with a banner and Stop on the
  * phone.
@@ -2231,6 +2296,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "machine") {
         return html`<${MachineAddCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "machine-tools") {
+        return html`<${MachineToolsCard} approval=${approval} />`;
     }
 
     if (approval.form?.type === "secret") {

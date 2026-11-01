@@ -53,6 +53,7 @@ export const DEFERRED_TOOLS: readonly string[] = [
     "continue_in_pi",
     "pi_bring_back",
     "machine_add",
+    "machine_tools",
     // People's documents.
     "doc_search",
     "doc_list",
@@ -93,7 +94,7 @@ export const DEFERRED_TOOLS: readonly string[] = [
 
 /** In the prompt with the extension: fixed, so it is sent once. */
 export const TOOL_SEARCH_NOTE =
-    "Some tools are not offered until you need them: the rarer ones (people's documents, the session list's upkeep, Pi's terminal sessions on machines, the wiki's upkeep, devices, extension installs, image markup, a board's rarer work, some of Pi's browser) and the screen tools of phone and computer control, which come by themselves when a control session starts. When a tool you need, or one these instructions name, is not offered (a call to it says it is not available), load it with tool_search: words of what it does, or its name. It is offered from your next call on, for the rest of the session.";
+    "Some tools are not offered until you need them: the rarer ones (people's documents, the session list's upkeep, Pi's terminal sessions on machines, machine tools, the wiki's upkeep, devices, extension installs, image markup, a board's rarer work, some of Pi's browser) and the screen tools of phone and computer control, which come by themselves when a control session starts. When a tool you need, or one these instructions name, is not offered (a call to it says it is not available), load it with tool_search: words of what it does, or its name. It is offered from your next call on, for the rest of the session.";
 
 const deferred = (name: string): Wrap => ({ tool: name, wrap: (tool: ToolRegistration): ToolRegistration => ({ ...tool, deferred: true as const }) });
 

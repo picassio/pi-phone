@@ -351,6 +351,18 @@ test("tools on a machine: offered, installed checked against their sha256, first
         assert.match(readFileSync(join(toolsDir, "bin", "two"), "utf8"), /^#!\/bin\/sh\n# pi-phone-tool pair 1\.0\n/);
         // hello is there at its version now: only pair again.
         assert.deepEqual((await both.install(machineId, ["pair"])).results.map((each) => each.id), ["pair"]);
+        // A wrong sum's failure names its step (PP-325).
+        assert.match(unmet.results[0]!.said, /\nFailed while checking the sha256 of http:\/\/127\.0\.0\.1:\d+\/hello\.tar\.gz \(exit 4\)\.$/);
+
+        // Removing (machine_tools remove, PP-325): pair's wrappers and folder go; hello, another tool, stays.
+        const removed = await both.remove(machineId, ["pair"]);
+
+        assert.deepEqual(removed.results, [{ id: "pair", ok: true, said: "pair removed" }]);
+        assert.equal(existsSync(join(toolsDir, "bin", "one")), false);
+        assert.equal(existsSync(join(toolsDir, "bin", "two")), false);
+        assert.equal(existsSync(join(toolsDir, "pair")), false);
+        assert.equal(removed.tools.find((each) => each.id === "hello")?.installed, "1.0");
+        assert.equal(removed.tools.find((each) => each.id === "pair")?.installed, undefined);
 
         // An npm app: its package.json and lockfile copied to <version>/app/, then its own Node's npm runs ci there with
         // no install scripts; the wrapper runs the app's script with that Node, a needed tool's wrapper in its env.

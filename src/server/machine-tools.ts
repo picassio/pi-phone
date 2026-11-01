@@ -618,12 +618,18 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
         throw new Error("A wrapper may not hold its own heredoc's end.");
     }
 
+    // Each step names itself (`step`): a failure's last line says which it was (Settings › Machines and machine_tools).
+    const step = (what: string) => `step=${q(what)}`;
+
     return [
         "set -e",
+        step("making its folders"),
+        'tmp=""',
+        "trap 'code=$?; [ -z \"$tmp\" ] || rm -rf \"$tmp\"; [ \"$code\" = 0 ] || echo \"Failed while $step (exit $code).\" >&2' EXIT",
         `T="$HOME/${TOOLS_DIR}"`,
         `mkdir -p "$T/bin" ${dir}`,
         'tmp=$(mktemp -d "${TMPDIR:-/tmp}/pi-phone-tool.XXXXXX")',
-        "trap 'rm -rf \"$tmp\"' EXIT",
+        step("looking for curl or wget, and sha256sum or shasum"),
         'if command -v curl >/dev/null 2>&1; then fetch() { curl -fsSL --retry 2 -o "$2" "$1"; }',
         'elif command -v wget >/dev/null 2>&1; then fetch() { wget -q -O "$2" "$1"; }',
         'else echo "This machine has neither curl nor wget to download with." >&2; exit 3; fi',
@@ -632,10 +638,13 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
         'else echo "This machine has neither sha256sum nor shasum to check the download with." >&2; exit 3; fi',
         ...(packs.includes("J") ? ['if ! command -v xz >/dev/null 2>&1; then echo "This machine has no xz to unpack the .tar.xz download with." >&2; exit 3; fi'] : []),
         ...[...downloads, ...files].flatMap((download) => [
+            step(`downloading ${download.url}`),
             `fetch ${q(download.url)} "${download.path}"`,
+            step(`checking the sha256 of ${download.url}`),
             `got=$(sum "${download.path}")`,
             `if [ "$got" != ${q(download.sha256)} ]; then echo "The download's sha256 is $got, not ${download.sha256}: nothing was installed." >&2; exit 4; fi`,
         ]),
+        step("unpacking the download"),
         ...files.map((file) => `cp "${file.path}" ${dir}/${file.name}`),
         ...(whole
             ? [
@@ -662,10 +671,12 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
         ...(npm === undefined
             ? []
             : [
+                  step("installing its npm packages"),
                   `if [ ! -f ${dir}/app/package-lock.json ]; then echo "${tool.name}'s package-lock.json is not in ${base}/app: nothing was installed." >&2; exit 5; fi`,
                   `(cd ${dir}/app && rm -rf node_modules && ${dir}/files/${q(asset.member!)} ${dir}/files/${q(asset.member!.replace(/bin\/node$/, "lib/node_modules/npm/bin/npm-cli.js"))} ci --ignore-scripts --omit=dev --no-audit --no-fund --no-update-notifier --loglevel=error --cache "$tmp/npm-cache")`,
               ]),
         // The wrappers, as written (a quoted heredoc expands nothing).
+        step("writing its wrappers"),
         ...wrappers.flatMap((wrapper) => [
             `cat > "$T/bin/${wrapper.command}.new" <<'PI_PHONE_TOOL_END'`,
             wrapper.text.trimEnd(),
@@ -674,9 +685,57 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
             `mv "$T/bin/${wrapper.command}.new" "$T/bin/${wrapper.command}"`,
         ]),
         // Older versions of it go.
+        step("removing its older versions"),
         `for old in "$T/${tool.id}"/*; do [ "$old" = "$T/${tool.id}/${tool.version}" ] || rm -rf "$old"; done`,
+        step(`running ${tool.command} ${tool.versionArg ?? "--version"}`),
         `"$T/bin/${tool.command}" ${tool.versionArg ?? "--version"} | head -n 1`,
     ].join("\n");
+}
+
+/** Every command a tool puts in the tools' bin, on any system: its own and its further programs' (ffprobe). */
+export function commandsOf(tool: ToolSpec): string[] {
+    const more = Object.values(tool.assets).flatMap((asset) => (asset?.more ?? []).map((each) => each.command));
+
+    return [...new Set([tool.command, ...more])];
+}
+
+/**
+ * The script that removes a tool pi-phone installed (machine_tools remove, PP-325): its wrappers, only those marked as
+ * this tool's (`# pi-phone-tool <id> `), and its folder with every version; its last line says so.
+ */
+export function removeScript(tool: ToolSpec): string {
+    if (tool.installer !== undefined) {
+        throw new Error(`${tool.name} is removed by its own installer, not by a script.`);
+    }
+
+    return [
+        "set -e",
+        `T="$HOME/${TOOLS_DIR}"`,
+        `for c in ${commandsOf(tool).map(q).join(" ")}; do`,
+        `  if [ -f "$T/bin/$c" ] && grep -q ${q(`^# pi-phone-tool ${tool.id} `)} "$T/bin/$c"; then rm -f "$T/bin/$c"; fi`,
+        "done",
+        `rm -rf "$T/${tool.id}"`,
+        `echo ${q(`${tool.id} removed`)}`,
+    ].join("\n");
+}
+
+/** A tool pi-phone installed on a machine at another version than the catalog's: an update is there. */
+export type OutdatedTool = { id: string; name: string; installed: string; version: string };
+
+/**
+ * The tools on a machine (as recorded, `Machine.tools`) at another version than the catalog's, which it has a build of:
+ * what machine_tools update would update. Chrome Remote Desktop is Google's current at any version: never outdated.
+ */
+export function outdatedTools(machine: Pick<Machine, "remote" | "tools">, catalog: readonly ToolSpec[] = TOOLS): OutdatedTool[] {
+    const target = targetOf(machine as Machine);
+
+    return catalog.flatMap((tool) => {
+        const installed = machine.tools?.[tool.id];
+
+        return tool.installer !== undefined || installed === undefined || installed === tool.version || target === undefined || tool.assets[target] === undefined
+            ? []
+            : [{ id: tool.id, name: tool.name, installed, version: tool.version }];
+    });
 }
 
 export class MachineTools {
@@ -888,6 +947,44 @@ export class MachineTools {
         this.#keepCrd(id, undefined);
 
         return state;
+    }
+
+    /**
+     * Remove the tools named (machine_tools remove, PP-325), one after another: what each said, and the machine's tools
+     * read again (which records them). Chrome Remote Desktop goes by its own uninstaller; the others by `removeScript`.
+     */
+    async remove(id: string, ids: readonly string[]): Promise<{ results: InstallResult[]; tools: ToolStatus[] }> {
+        const machine = this.#connected(id);
+        const unknown = ids.find((toolId) => !this.catalog.some((each) => each.id === toolId));
+
+        if (unknown !== undefined) {
+            throw new HttpError(400, `No tool "${unknown}". The tools are ${this.catalog.map((each) => each.id).join(", ")}.`);
+        }
+
+        const results: InstallResult[] = [];
+
+        for (const toolId of ids) {
+            const tool = this.catalog.find((each) => each.id === toolId)!;
+
+            if (tool.installer === "crd") {
+                try {
+                    const state = await this.crd.remove(machine.id);
+
+                    results.push({ id: tool.id, ok: !state.installed, said: state.installed ? `${tool.name} is still installed after its uninstaller ran.` : `${tool.name} removed` });
+                } catch (error) {
+                    results.push({ id: tool.id, ok: false, said: error instanceof Error ? error.message : String(error) });
+                }
+
+                continue;
+            }
+
+            const { code, out } = await this.#run(machine, removeScript(tool), 120);
+            const said = out.trim().split("\n").slice(-6).join("\n");
+
+            results.push(code === 0 ? { id: tool.id, ok: true, said: said.split("\n").at(-1) ?? "" } : { id: tool.id, ok: false, said: said || `exit ${code}` });
+        }
+
+        return { results, tools: await this.status(id) };
     }
 
     #keepCrd(id: string, version: string | undefined): void {

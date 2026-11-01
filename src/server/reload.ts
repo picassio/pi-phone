@@ -178,6 +178,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "machine_run",
     "machine_copy",
     "machine_add",
+    "machine_tools",
     "phone_control",
     "phone_screen",
     "phone_act",

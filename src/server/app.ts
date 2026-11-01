@@ -4853,7 +4853,21 @@ export class PocketApp {
             throw new HttpError(403, "Installing an extension is the owner's.");
         }
 
-        if (allow && request.form !== undefined && request.form.type !== "machine" && request.form.type !== "phone" && request.form.type !== "computer" && request.form.type !== "extension" && !formAnswered) {
+        // Pi's machine_tools card (PP-325): Approve installs, updates or removes programs on a machine, the owner's alone.
+        if (allow && request.form?.type === "machine-tools" && user.role !== "owner") {
+            throw new HttpError(403, "Changing a machine's tools is the owner's.");
+        }
+
+        if (
+            allow &&
+            request.form !== undefined &&
+            request.form.type !== "machine" &&
+            request.form.type !== "phone" &&
+            request.form.type !== "computer" &&
+            request.form.type !== "extension" &&
+            request.form.type !== "machine-tools" &&
+            !formAnswered
+        ) {
             throw new HttpError(
                 400,
                 request.form.type === "secret"

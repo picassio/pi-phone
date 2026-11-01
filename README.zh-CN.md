@@ -225,7 +225,9 @@
   MP4，并同时安装 Chrome（无头模式）和 ffmpeg（合计约 920 MB）。Pi 用 `hyperframes render <文件夹> -o film.mp4` 渲染，
   再用 ffprobe 检查文件；HyperFrames 的遥测、更新检查和自动安装始终关闭。**TLC**（Linux、macOS、Windows x64；默认不勾选，
   约 165 MB）：Temurin 的 Java 21 和 TLA+ 模型检查器，用于形式化检查；那台机器上的会话会有 `TLA2TOOLS` 和 `JAVA`，
-  statechart 技能也随之安装。
+  statechart 技能也随之安装。Pi 也能用 `machine_tools` 来做：它列出每台机器上的工具（已装版本、当前版本、大小），并在你批准一张卡片
+  （显示机器、每个工具从哪个版本到哪个版本及其大小）后安装、更新或移除它们，安装方式与“安装工具”相同；它会报告每个工具的版本行，
+  或失败在哪一步；工具落后时它会主动提出更新。
 - **机器上的 Pi 浏览器。** 机器上的会话在那里的无头 Chrome 中浏览（优先用机器自带的 Chrome、Chromium 或 Edge，否则用机器工具安装的），
   在同一个面板中观看（“<machine> 上的 Pi 浏览器”）。它能打开机器本地的地址，因此 Pi 可以试用你在那里运行的网页应用（`localhost:3000`），
   上传和 PDF 也使用机器上的文件。其登录状态保存在那台机器的 `~/.pi/mobile/browser` 中。

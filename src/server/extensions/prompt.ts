@@ -16,7 +16,7 @@ import { defineExtension, hook, type PromptInput, section, type ToolExecutionRes
 import { APP_ROOT } from "../config.ts";
 import { frozenSkills, shownText } from "../context-policy.ts";
 import type { PocketHost } from "../host.ts";
-import { toolsNote } from "../machine-tools.ts";
+import { outdatedTools, toolsNote } from "../machine-tools.ts";
 
 /** What every session's preamble ends with. */
 const DURABLE = `Your work is durable: if the server restarts, you continue where you left off. A tool call cut off by a restart comes back as an "interrupted" error when it was not safe to repeat; check what actually happened before you retry it.`;
@@ -350,6 +350,25 @@ export default function createPrompt(host: PocketHost) {
                 const today = new Date().toISOString().slice(0, 10);
                 const machine = host.machineOf(cwdOf(input));
 
+                // The tools pi-phone installs there (PP-325): machine_tools, and the updates their records show, to offer.
+                const asker = host.requesterOf(input.conversationId);
+                const toolsLine = (named: readonly { id: string; label: string }[]): string[] => {
+                    // The owner's alone: for anyone else Pi has no use for it.
+                    if (asker === undefined || host.person(asker).role !== "owner") {
+                        return [];
+                    }
+
+                    const updates = named.flatMap(({ id, label }) => {
+                        const found = host.machineStore.list().find((each) => each.id === id);
+
+                        return found === undefined ? [] : outdatedTools(found).map((tool) => `${tool.id} ${tool.installed} → ${tool.version} on ${label}`);
+                    });
+
+                    return [
+                        `machine_tools shows the tools pi-phone installs on machines (status) and installs, updates or removes them after the owner approves one card; when status shows an update, offer it to the owner.${updates.length === 0 ? "" : ` Updates there now: ${updates.join(", ")}: offer them.`}`,
+                    ];
+                };
+
                 if (machine === undefined) {
                     const machines = host.machines();
                     // A new machine: Pi adds it with machine_add, on one approval card (PP-139).
@@ -361,6 +380,7 @@ export default function createPrompt(host: PocketHost) {
                                   `The owner's machines: ${machines
                                       .map((each) => `${each.alias} (${each.address}, id ${each.id})`)
                                       .join(", ")}. Run a command on one with machine_run, and copy files with machine_copy; for longer work there, start a session in a folder on it (session_start with the folder machine:<id>:<path>), which runs all your tools there. For what needs ssh itself, use pi-ssh, ssh with these machines by name through the app's agent: pi-ssh <name> 'cmd', rsync -e pi-ssh, scp -S pi-ssh, pi-ssh -N -L <port>:localhost:<port> <name>. The keys stay the app's: you can use them, never read them. Plain ssh uses the owner's own ~/.ssh, for other hosts. ${adding}`,
+                                  ...toolsLine(machines.map((each) => ({ id: each.id, label: each.alias }))),
                               ];
 
                     return [`Working directory: ${cwdOf(input)}`, `Platform: ${process.platform}`, ...reach, `Today: ${today}`].join("\n");
@@ -376,6 +396,7 @@ export default function createPrompt(host: PocketHost) {
                         : []),
                     "A command stops about 30 seconds after the phone's connection to the machine drops, with an error; check what happened before running it again.",
                     ...[toolsNote(machine.tools)].filter((note) => note !== undefined),
+                    ...toolsLine(host.machineStore.list().filter((each) => each.name === machine.name).map((each) => ({ id: each.id, label: each.name }))),
                     `Today: ${today}`,
                 ].join("\n");
             }),

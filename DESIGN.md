@@ -1007,6 +1007,17 @@ so Pi changes them through the settings tools; "the last session" is the one the
     Install tools: each tool's state there (installed and its version, the machine's own, not installed, no build),
     offered ones ticked. `GET /api/machines/tools` is the catalog; `POST /api/machines/<id>/tools` the status, or
     `{install: [...]}`. What is installed is kept as `Machine.tools` (machines.json).
+  - **Pi's `machine_tools`** (PP-325, deferred, owner only): `status` reads each tool as Install tools does
+    (`MachineTools.status`, every connected machine without `machine`) and names the updates; `install`, `update`
+    (without tools: every tool there at another version) and `remove` show the owner one card first (`form.type`
+    `machine-tools`: the machine, each tool with its version from and to and its size, a need of another marked
+    `needed`, a tool another installed one needs noted), and Approve runs what Install tools runs (`MachineTools.install`,
+    its needs first, `installScript`; Chrome Remote Desktop by `crd.ts`). Only the owner approves it (`answerApproval`).
+    `remove` (`MachineTools.remove`, `removeScript`) deletes the tool's folder and only wrappers marked as that tool's,
+    and leaves the machine's own programs alone; Settings has no Remove button for the pinned tools. Each install step
+    names itself (`step=`), and the script's EXIT trap prints `Failed while <step> (exit N).` on a failure, which both
+    Install tools and the tool show. The environment section (owner's sessions) names `machine_tools` and the updates
+    `Machine.tools` shows (`outdatedTools`), for Pi to offer; no setting: the card is the gate.
   - **Sessions there:** bash's command gets `PATH="$HOME/.pi/mobile/tools/bin:$PATH"` first (`prepare` in `app.ts`),
     then the installed tools' `sessionEnv` exports (TLC's `TLA2TOOLS` and `JAVA`);
     the environment section names the installed tools (`toolsNote`), with how to render with HyperFrames where it is

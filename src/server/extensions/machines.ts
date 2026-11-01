@@ -8,13 +8,17 @@
  *   the address, the key, the host key as scanned now (checked against one Pi read on the machine itself, when given),
  *   and the install. Approve adds it, trusts that host key, installs pi-env and connects; Deny, or any step that fails,
  *   leaves nothing saved.
+ * - `machine_tools` (PP-325): the tools pi-phone installs on a machine, as Settings › Machines shows them (status), and
+ *   installing, updating or removing them after the owner approves one card with the machine, the tools, their versions
+ *   from and to, and their sizes; Approve runs what Settings › Machines runs (`MachineTools.install`, `installScript`).
  * For longer work there, a session in a folder on the machine runs all of Pi's tools there.
  */
+import type { JsonValue } from "@earendil-works/chord";
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
-import type { PocketHost } from "../host.ts";
+import type { MachineToolChange, PocketHost } from "../host.ts";
 import { machinePaths } from "../machine-paths.ts";
-import { toolOffer, toolsToInstall } from "../machine-tools.ts";
+import { installOrder, type InstallResult, type ToolStatus, toolOffer, toolsToInstall } from "../machine-tools.ts";
 import { namesIn } from "../secrets.ts";
 import { MAX_SAVE_COMMAND } from "./secrets.ts";
 
@@ -352,5 +356,220 @@ export default function createMachines(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: "pocket-machines", tools: [run, copy, add] });
+    /** One tool's state, as Settings › Machines words it. */
+    const stateOf = (tool: ToolStatus): string => {
+        if (!tool.supported) {
+            return tool.windowsOnly ? "for Windows x64 only, for now" : "no build for this machine";
+        }
+
+        if (tool.crd !== undefined) {
+            return tool.installed === undefined ? `not installed (${tool.size})` : `installed, ${tool.installed}, ${tool.crd}`;
+        }
+
+        if (tool.installed !== undefined) {
+            return tool.installed === tool.version ? `installed, ${tool.installed} (current)` : `installed, ${tool.installed}; ${tool.version} available (update)`;
+        }
+
+        if (tool.own !== undefined) {
+            return `the machine's own (${tool.own}), not installed by pi-phone`;
+        }
+
+        return `not installed; ${tool.version}, ${tool.size}`;
+    };
+
+    const resultLine = (tools: readonly ToolStatus[], result: InstallResult, removing: boolean) => {
+        const name = tools.find((each) => each.id === result.id)?.name ?? result.id;
+
+        return result.ok
+            ? removing
+                ? `${name}: removed.`
+                : `${name}: ${result.version} installed; it says: ${result.said || "(nothing)"}`
+            : `${name}: failed. ${result.said}`;
+    };
+
+    const tools = defineTool({
+        name: "machine_tools",
+        description:
+            "The tools pi-phone installs on the owner's machines (OfficeCLI, rg, fd, Chrome headless, ocu, ffmpeg, HyperFrames, TLC, Chrome Remote Desktop), as Settings › Machines › Install tools shows them. " +
+            "status: each tool on a machine (or on every connected machine): installed and at which version, the current version, its size, or the machine's own. " +
+            "install, update, remove: the owner approves one card first (the machine, the tools, versions from and to, sizes); Approve runs what Settings › Machines runs (pinned versions, each download checked by its sha256), and the result says each tool's version line, or the step that failed. " +
+            "update without tools updates every tool there with a newer version. When status shows an update, offer it to the owner. Owner only.",
+        parameters: Type.Object({
+            action: Type.Union([Type.Literal("status"), Type.Literal("install"), Type.Literal("update"), Type.Literal("remove")], { description: "status, install, update, or remove" }),
+            machine: Type.Optional(Type.String({ description: "The machine's name, alias or id; status without it: every connected machine" })),
+            tools: Type.Optional(Type.Array(Type.String(), { description: "Tool ids (officecli, rg, fd, chrome, ocu, ffmpeg, hyperframes, tlc, crd); update without them: every tool with an update" })),
+            reason: Type.Optional(Type.String({ description: "Why, in a sentence: shown on the card" })),
+        }),
+        execute: async (args, api, context) => {
+            try {
+                const asker = host.requesterOf(Number(api.conversationId) as never);
+
+                if (asker === undefined || host.person(asker).role !== "owner") {
+                    return failed("Only the owner changes or reads the tools on machines.");
+                }
+
+                const machineTools = host.machineTools;
+
+                if (args.action === "status") {
+                    const machines = args.machine === undefined ? host.machines() : [find(args.machine)];
+
+                    if (machines.length === 0) {
+                        return failed("No machine is connected.");
+                    }
+
+                    const updates: string[] = [];
+                    const blocks = await Promise.all(
+                        machines.map(async (machine) => {
+                            const remote = host.machineStore.get(machine.id).remote;
+
+                            try {
+                                const statuses = await machineTools.status(machine.id);
+
+                                for (const tool of statuses.filter((each) => each.installed !== undefined && each.crd === undefined && each.installed !== each.version)) {
+                                    updates.push(`${tool.id} ${tool.installed} → ${tool.version} on ${machine.alias}`);
+                                }
+
+                                return [`${machine.alias} (${remote?.platform ?? "?"} ${remote?.arch ?? "?"}):`, ...statuses.map((tool) => `- ${tool.id} (${tool.name}): ${stateOf(tool)}`)].join("\n");
+                            } catch (error) {
+                                return `${machine.alias}: could not read its tools: ${error instanceof Error ? error.message : String(error)}`;
+                            }
+                        }),
+                    );
+
+                    return {
+                        output: [
+                            text(
+                                [
+                                    ...blocks,
+                                    updates.length === 0
+                                        ? "No updates."
+                                        : `Updates: ${updates.join("; ")}. Offer them to the owner: machine_tools update (one card for each machine).`,
+                                ].join("\n\n"),
+                            ),
+                        ],
+                        details: { updates } as JsonValue,
+                    };
+                }
+
+                if (args.machine === undefined) {
+                    return failed(`${args.action} needs machine.`);
+                }
+
+                const found = find(args.machine);
+                const machine = host.machineStore.get(found.id);
+                const remote = machine.remote;
+
+                if (remote === undefined) {
+                    return failed(`${found.alias} is not connected: connect it in Settings › Machines.`);
+                }
+
+                const statuses = await machineTools.status(machine.id);
+                const byId = new Map(statuses.map((each) => [each.id, each]));
+                const unknown = (args.tools ?? []).filter((id) => !byId.has(id));
+
+                if (unknown.length > 0) {
+                    return failed(`No tool ${unknown.join(", ")}. The tools are ${statuses.map((each) => each.id).join(", ")}.`);
+                }
+
+                const removing = args.action === "remove";
+                const named = [...new Set(args.tools ?? [])];
+                const outdated = statuses.filter((each) => each.supported && each.installed !== undefined && each.crd === undefined && each.installed !== each.version);
+                const wanted = args.action === "update" && named.length === 0 ? outdated.map((each) => each.id) : named;
+
+                if (wanted.length === 0) {
+                    return args.action === "update"
+                        ? { output: [text(`Every tool pi-phone installed on ${found.alias} is current: nothing to update.`)] }
+                        : failed(`${args.action} needs tools (ids).`);
+                }
+
+                // Why each named tool is left out, if it is; the rest go on the card.
+                const refusals: string[] = [];
+                const now: string[] = [];
+
+                for (const id of wanted) {
+                    const tool = byId.get(id)!;
+
+                    if (removing) {
+                        if (tool.installed === undefined) {
+                            refusals.push(tool.own === undefined ? `${tool.name} is not installed there.` : `${tool.name} there is the machine's own (${tool.own}), not pi-phone's: left alone.`);
+                        } else {
+                            now.push(id);
+                        }
+
+                        continue;
+                    }
+
+                    if (!tool.supported) {
+                        refusals.push(`${tool.name} has no build for ${found.alias} (${remote.platform} ${remote.arch})${tool.windowsOnly ? ": it is for Windows x64 only, for now" : ""}.`);
+                    } else if (tool.installed !== undefined && (tool.installed === tool.version || tool.crd !== undefined)) {
+                        refusals.push(`${tool.name} ${tool.installed} is installed there already, the current version.`);
+                    } else if (args.action === "update" && tool.installed === undefined) {
+                        refusals.push(`${tool.name} is not installed there: install it instead.`);
+                    } else if (tool.installed === undefined && tool.own !== undefined && !tool.offered) {
+                        refusals.push(`${tool.name}: the machine has its own (${tool.own}), so pi-phone does not install it.`);
+                    } else {
+                        now.push(id);
+                    }
+                }
+
+                if (now.length === 0) {
+                    return failed(`Nothing to ${args.action} on ${found.alias}: ${refusals.join(" ")}`);
+                }
+
+                // What installs, in order: each tool's needs first, unless current there (as Settings › Machines does).
+                const order = removing ? now : installOrder(now, statuses, machineTools.catalog);
+                const changes: MachineToolChange[] = order.map((id) => {
+                    const tool = byId.get(id)!;
+                    const neededBy = removing ? statuses.filter((each) => each.installed !== undefined && !now.includes(each.id) && (machineTools.catalog.find((spec) => spec.id === each.id)?.needs ?? []).includes(id)) : [];
+
+                    return {
+                        id,
+                        name: tool.name,
+                        ...(tool.installed === undefined ? {} : { from: tool.installed }),
+                        ...(removing ? {} : { to: tool.signer === undefined ? tool.version : `${tool.version} (signed by ${tool.signer.replace(/^CN=/, "")})` }),
+                        size: tool.size,
+                        ...(now.includes(id) ? {} : { needed: true }),
+                        ...(neededBy.length === 0 ? {} : { note: `${neededBy.map((each) => each.name).join(", ")} needs it` }),
+                    };
+                });
+                const verb = removing ? "Remove" : args.action === "update" ? "Update" : "Install";
+                const answer = await host.approvals.request(
+                    {
+                        id: `machine_tools-${String(api.conversationId)}-${String(api.callId)}`,
+                        conversationId: Number(api.conversationId) as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "machine_tools",
+                        subject: `${verb} on ${found.alias}: ${changes
+                            .map((each) => `${each.id} ${removing ? each.from : `${each.from === undefined ? "" : `${each.from} → `}${each.to}`} (${each.size})${each.needed === true ? " [needed]" : ""}`)
+                            .join(", ")}`,
+                        reason: args.reason ?? `${verb} tools on ${found.alias}`,
+                        form: { type: "machine-tools", machine: machine.id, machineName: found.alias, platform: `${remote.platform} ${remote.arch}`, action: args.action, tools: changes },
+                        createdAt: Date.now(),
+                    },
+                    context as never,
+                );
+
+                if (!answer.allow) {
+                    return failed(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} said no`}: nothing changed on ${found.alias}.`);
+                }
+
+                const done = removing ? await machineTools.remove(machine.id, now) : await machineTools.install(machine.id, now);
+                const lines = done.results.map((result) => resultLine(done.tools, result, removing));
+                const bad = done.results.some((result) => !result.ok);
+                const left = refusals.length === 0 ? [] : [`Left out: ${refusals.join(" ")}`];
+                const shown = done.tools.filter((each) => order.includes(each.id)).map((each) => `${each.id}: ${stateOf(each)}`);
+
+                return {
+                    output: [text([`On ${found.alias}:`, ...lines, ...left, `Settings › Machines now shows: ${shown.join("; ")}.`].join("\n"))],
+                    details: { machine: found.alias, results: done.results.map((result) => ({ id: result.id, ok: result.ok, version: result.version ?? null, said: result.said })) } as JsonValue,
+                    ...(bad ? { isError: true } : {}),
+                };
+            } catch (error) {
+                return failed(error instanceof Error ? error.message : String(error));
+            }
+        },
+    });
+
+    return defineExtension({ name: "pocket-machines", tools: [run, copy, add, tools] });
 }
