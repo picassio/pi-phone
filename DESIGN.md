@@ -671,12 +671,23 @@ so Pi changes them through the settings tools; "the last session" is the one the
   transcription socket (`/realtime?intent=transcription`, Bearer + `chatgpt-account-id`) per ten-minute part, the part
   turned by the media engine into a 24 kHz mono pcm16 WAV (`pcmPartArgs`, `wavData`), sent at once with 2 s of silence
   after it, server VAD (0.5, 500 ms silence, 300 ms padding) cutting utterances: `speech_started/stopped` give
-  `audio_start_ms/audio_end_ms` by item, `conversation.item.input_audio_transcription.completed` the text and tokens; a
-  part is done when every utterance has ended and has its text and nothing more came for 5 s. Times are offset by the
+  `audio_start_ms/audio_end_ms` by item, `conversation.item.input_audio_transcription.completed` the text and tokens;
+  after the audio Pi commits what is left, and a part is done when that commit came back (`committed` with an item VAD
+  did not start, or `input_audio_buffer_commit_empty`: OpenAI read it all, in order) and every utterance has ended and
+  has its text. Sending is not reading: a 10-minute part takes a while to go out, so no timer guesses the end. Times are offset by the
   part; cues of at most 7 s and 84 characters (`cuesOf`, split by words, time shared by length) make SRT and VTT. Model:
   `TRANSCRIBE_MODELS` (gpt-4o-transcribe default); language and prompt default to Settings › Voice's (`voice.language`
   unless auto, `voiceWords()`). Saved as `transcripts/<stamp>-<name>.<txt|srt|vtt|json>`; Pi gets the path and the
   start.
+- **Reading aloud** (PP-306; `audio.ts`, `extensions/media.ts`): `audio_speak({ text, voice?, style?, format?: m4a|wav,
+  model? })` on the Codex sign-in, which `/v1/audio/speech` refuses (429): a realtime socket (`/realtime?model=`,
+  `SPEAK_MODELS`, gpt-realtime-mini default) per part of at most 600 characters cut after sentences (`speakParts`),
+  session output audio only, pcm 24 kHz, `VOICES` (marin default), instructions to read word for word (and the style);
+  the text goes between `<<<`/`>>>` markers, since a bare text that reads like a request was answered instead of read
+  (seen live). Each part's `response.output_audio_transcript` is compared with its text by letters and digits
+  (`saidAsWritten`); a part read wrong is read again once, then the tool refuses and saves nothing. The parts' pcm is
+  joined into a WAV (`wavOf`) and made an AAC m4a by the media engine (`m4aArgs`: the phone's slim ffmpeg encodes only
+  AAC and PCM, so no mp3 or ogg), or kept as WAV; saved as `audio/<stamp>-<text's first words>.<m4a|wav>`.
 - **Watching videos** (PP-297; `video-gen.ts`, `extensions/media.ts`, `web/sheets/videos.js`): `video_ask({ question,
   path | url, model? })` through OpenRouter on the owner's key: `POST /api/v1/chat/completions` with a `video_url` part,
   a base64 data URL (mp4, mov, webm) or a YouTube address (Gemini on AI Studio takes those alone), `usage.include`; the

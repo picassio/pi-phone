@@ -731,5 +731,7 @@
     "Thinking is one of {1}, or session.": "思考级别只能是 {1} 之一，或 session。",
     "Thinking is one of {1}, session, or inherit.": "思考级别只能是 {1}、session 或 inherit 之一。",
     "{1} is not a transcription model: {2}.": "{1} 不是转写模型：{2}。",
+    "{1} is not a speaking model: {2}.": "{1} 不是朗读模型：{2}。",
+    "{1} is not a voice: {2}.": "{1} 不是可用的声音：{2}。",
     "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "音频需要 ChatGPT（Codex）登录：在“设置 › 提供商”中添加。"
 }

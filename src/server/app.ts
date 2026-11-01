@@ -354,7 +354,7 @@ export interface OpenOptions {
     /** Where ChatGPT's and OpenRouter's image endpoints are, and whose ChatGPT sign-in (`image-gen.ts`): tests stand in fakes. */
     images?: Partial<Pick<ImageGenOptions, "endpoints" | "fetch" | "codexAuth">>;
     videos?: Partial<Pick<VideosOptions, "endpoints" | "fetch" | "pollMs">>;
-    audio?: Partial<Pick<AudioOptions, "endpoints" | "settleMs" | "auth">>;
+    audio?: Partial<Pick<AudioOptions, "endpoints" | "auth">>;
 }
 
 /** A Codex token's ChatGPT account, as voice sends it. */

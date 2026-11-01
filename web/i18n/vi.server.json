@@ -730,5 +730,7 @@
     "Thinking is one of {1}, or session.": "Mức suy nghĩ là một trong {1}, hoặc session.",
     "Thinking is one of {1}, session, or inherit.": "Mức suy nghĩ là một trong {1}, session, hoặc inherit.",
     "{1} is not a transcription model: {2}.": "{1} không phải mô hình chép lời: {2}.",
+    "{1} is not a speaking model: {2}.": "{1} không phải mô hình đọc: {2}.",
+    "{1} is not a voice: {2}.": "{1} không phải một giọng: {2}.",
     "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "Âm thanh cần đăng nhập ChatGPT (Codex): thêm trong Cài đặt › Nhà cung cấp."
 }

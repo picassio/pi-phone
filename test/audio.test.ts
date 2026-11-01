@@ -14,7 +14,7 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { WebSocketServer } from "ws";
 import { TOKEN } from "./support/fake-openai.ts";
-import { Audio, cuesOf, PART_SECONDS, srtOf, vttOf, wavData } from "../src/server/audio.ts";
+import { Audio, cuesOf, PART_SECONDS, saidAsWritten, speakParts, srtOf, vttOf, wavData, wavOf } from "../src/server/audio.ts";
 import { localEngine } from "../src/server/media.ts";
 
 const engine = localEngine();
@@ -25,7 +25,38 @@ const sessions: { update?: { session: { type: string; audio: { input: { transcri
 const http = createServer();
 const sockets = new WebSocketServer({ server: http });
 
+/** Each realtime model a text was read with: its URL, its session, and the text asked. */
+const speeches: { url: string; update?: { session: { instructions: string; audio: { output: { voice: string } } } }; text?: string }[] = [];
+let misread = 0;
+
 sockets.on("connection", (socket, request) => {
+    if (request.url?.includes("?model=") === true) {
+        const speech: (typeof speeches)[number] = { url: request.url };
+
+        speeches.push(speech);
+        socket.on("message", (data) => {
+            const event = JSON.parse(String(data)) as { type: string; session?: never; item?: { content: { text: string }[] } };
+
+            if (event.type === "session.update") {
+                speech.update = { session: event.session! };
+            } else if (event.type === "conversation.item.create") {
+                speech.text = /<<<\n([\s\S]*)\n>>>/.exec(event.item!.content[0]!.text)?.[1];
+            } else if (event.type === "response.create") {
+                const text = speech.text ?? "";
+                // A text with MISREAD is answered instead of read the first time; one with NEVER, every time.
+                const said = text.includes("NEVER") || (text.includes("MISREAD") && misread++ === 0) ? "Sure, I can help with that." : text.toUpperCase();
+                const say = (event: Record<string, unknown>) => socket.send(JSON.stringify(event));
+
+                // 10 ms of sound a character.
+                say({ type: "response.output_audio.delta", delta: Buffer.alloc(text.length * 480).toString("base64") });
+                say({ type: "response.output_audio_transcript.delta", delta: said });
+                say({ type: "response.done", response: { status: "completed", usage: { input_tokens: 5, output_tokens: 7 } } });
+            }
+        });
+
+        return;
+    }
+
     const index = sessions.length;
     const session: (typeof sessions)[number] = { headers: request.headers, bytes: 0 };
     let spoke = false;
@@ -36,6 +67,10 @@ sockets.on("connection", (socket, request) => {
 
         if (event.type === "session.update") {
             session.update = event as never;
+        } else if (event.type === "input_audio_buffer.commit") {
+            // What was left after the last utterance: committed, with nothing said in it.
+            socket.send(JSON.stringify({ type: "input_audio_buffer.committed", item_id: `end${index}` }));
+            socket.send(JSON.stringify({ type: "conversation.item.input_audio_transcription.completed", item_id: `end${index}`, transcript: "", usage: { input_tokens: 1, output_tokens: 0 } }));
         } else if (event.type === "input_audio_buffer.append") {
             session.bytes += Buffer.from(event.audio ?? "", "base64").length;
 
@@ -59,6 +94,9 @@ const asks: Record<string, Record<string, unknown>> = {
     "transcribe the talk": { path: "talk.flac", format: "srt", language: "vi" },
     "transcribe as text": { path: "talk.flac" },
     "transcribe the picture": { path: "still.png" },
+    "read it aloud": { text: `${"Mot cau tieng Viet de doc thu. ".repeat(20)}Phan hai MISREAD mot lan. ${"Cau cuoi cung. ".repeat(5)}`, style: "calm" },
+    "read it as wav": { text: "Xin chào.", voice: "cedar", format: "wav", model: "gpt-realtime" },
+    "read the impossible": { text: "This one is NEVER read." },
 };
 const results: string[] = [];
 const route: FauxResponseStep = (request) => {
@@ -72,7 +110,7 @@ const route: FauxResponseStep = (request) => {
 
     for (const [ask, args] of Object.entries(asks)) {
         if (role === "user" && text.endsWith(ask)) {
-            return fauxAssistantMessage([fauxToolCall("audio_transcribe", args as never)], { stopReason: "toolUse" });
+            return fauxAssistantMessage([fauxToolCall(ask.startsWith("read") ? "audio_speak" : "audio_transcribe", args as never)], { stopReason: "toolUse" });
         }
     }
 
@@ -82,7 +120,7 @@ let app: App;
 
 before(async () => {
     await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
-    app = await openApp(scriptedModel(route), undefined, undefined, { audio: { endpoints: { socket: `ws://127.0.0.1:${(http.address() as AddressInfo).port}` }, settleMs: 50, auth: async () => ({ token: TOKEN, account: "acct-1" }) } });
+    app = await openApp(scriptedModel(route), undefined, undefined, { audio: { endpoints: { socket: `ws://127.0.0.1:${(http.address() as AddressInfo).port}` }, auth: async () => ({ token: TOKEN, account: "acct-1" }) } });
 
     if (engine !== undefined) {
         // Ten minutes and ten seconds: two parts.
@@ -117,6 +155,15 @@ test("cues: a long utterance split by words, its time shared by length; SRT and 
     assert.ok(cues[0]!.end > 5000 && cues[0]!.end < 7000, String(cues[0]!.end));
     assert.equal(srtOf([{ start: 3723004, end: 3724500, text: "hi" }]), "1\n01:02:03,004 --> 01:02:04,500\nhi\n");
     assert.equal(vttOf([{ start: 1500, end: 2000, text: "hi" }]), "WEBVTT\n\n00:00:01.500 --> 00:00:02.000\nhi\n");
+});
+
+test("a text in parts after its sentences (a long sentence after words); what was said compared by letters and digits", () => {
+    assert.deepEqual(speakParts("One two. Three four! Five six?", 20), ["One two. Three four!", "Five six?"]);
+    assert.deepEqual(speakParts("a b c d e f g h", 5), ["a b c", "d e f", "g h"]);
+    assert.deepEqual(speakParts("  Short.  "), ["Short."]);
+    assert.ok(saidAsWritten("Xin chào, anh Tuấn!", "xin chào anh tuấn"));
+    assert.ok(!saidAsWritten("Xin chào anh Tuấn", "Xin chao anh Tuan"));
+    assert.deepEqual([...wavData(wavOf(new Uint8Array([1, 2, 3, 4])))!], [1, 2, 3, 4]);
 });
 
 test("a WAV's samples, chunks before them skipped; what is not a WAV refused", () => {
@@ -171,7 +218,7 @@ test("audio_transcribe: a ten-minute-and-more file in two parts, each its own se
     const entries = await app.transcripts.allEntries(id as never, true);
     const result = entries.filter((entry) => entry.kind === "toolResult").at(-1) as unknown as { details?: { tokens?: unknown; transcript?: { parts?: number } } };
 
-    assert.deepEqual(result.details?.tokens, { input: 60, output: 20 });
+    assert.deepEqual(result.details?.tokens, { input: 62, output: 20 });
     assert.equal(result.details?.transcript?.parts, 2);
 
     // Text by default, with no language when Settings › Voice says auto.
@@ -179,4 +226,39 @@ test("audio_transcribe: a ten-minute-and-more file in two parts, each its own se
     assert.deepEqual(sessions.at(-1)!.update?.session.audio.input.transcription, { model: "gpt-4o-transcribe", prompt: app.voiceWords() });
     // A picture has no sound.
     assert.match(await ask(id, "transcribe the picture"), /still\.png has no sound to transcribe/);
+});
+
+test("audio_speak: a long text read in parts, a part read wrong read again, joined into an m4a in audio/; wav without ffmpeg; never read: nothing saved", real, async () => {
+    const id = await newSession(app);
+    const said = await ask(id, "read it aloud");
+    const text = asks["read it aloud"]!.text as string;
+    const parts = speakParts(text);
+
+    assert.equal(parts.length, 2);
+    assert.match(said, /^Read aloud with gpt-realtime-mini, voice marin, in 2 parts: .*\/audio\/\d{8}-\d{6}-mot-cau-tieng-viet[-a-z]*\.m4a \(\d+(\.\d)? s, \d+ KB\)\. It plays in the chat\.$/, said);
+    // The second part read twice: the first time it answered instead.
+    assert.deepEqual(speeches.map((each) => each.text), [parts[0], parts[1], parts[1]]);
+    assert.ok(speeches.every((each) => each.url.endsWith("/realtime?model=gpt-realtime-mini")));
+    assert.equal(speeches[0]!.update?.session.audio.output.voice, "marin");
+    assert.match(speeches[0]!.update!.session.instructions, /word for word.*How to read it: calm$/);
+
+    const m4a = readdirSync(join(work, "audio")).filter((name) => name.endsWith(".m4a"));
+    const probe = JSON.parse(execFileSync(engine!.ffprobe, ["-v", "error", "-show_format", "-show_streams", "-of", "json", join(work, "audio", m4a[0]!)], { encoding: "utf8" })) as { format: { duration: string }; streams: { codec_name: string }[] };
+
+    assert.equal(m4a.length, 1);
+    assert.equal(probe.streams[0]!.codec_name, "aac");
+    // 10 ms a character, both parts.
+    assert.ok(Math.abs(Number(probe.format.duration) - (parts[0]!.length + parts[1]!.length) / 100) < 0.2, probe.format.duration);
+    assert.deepEqual(readdirSync(join(work, "audio")).filter((name) => name.endsWith(".wav")), [], "the WAV it was made from is gone");
+
+    // A WAV, another voice and model.
+    assert.match(await ask(id, "read it as wav"), /with gpt-realtime, voice cedar: .*\.wav \(0\.1 s/);
+    assert.ok(speeches.at(-1)!.url.endsWith("?model=gpt-realtime"));
+    assert.equal(speeches.at(-1)!.update?.session.audio.output.voice, "cedar");
+
+    // Read wrong twice: said so, and nothing saved.
+    const before = readdirSync(join(work, "audio")).length;
+
+    assert.match(await ask(id, "read the impossible"), /did not read part 1 of 1 as written, twice\. It was to read: "This one is NEVER read\."\. It said: "Sure, I can help with that\."/);
+    assert.equal(readdirSync(join(work, "audio")).length, before);
 });

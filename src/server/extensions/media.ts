@@ -37,10 +37,12 @@ import {
 } from "../media.ts";
 import { slugOf } from "./images.ts";
 import { imageType } from "../image-meta.ts";
-import { PART_SECONDS, pcmPartArgs, srtOf, TRANSCRIBE_MODELS, type Utterance, vttOf, wavData } from "../audio.ts";
+import { m4aArgs, PART_SECONDS, PCM_RATE, pcmPartArgs, saidAsWritten, SPEAK_MODELS, speakParts, srtOf, TRANSCRIBE_MODELS, type Utterance, VOICES, vttOf, wavData, wavOf } from "../audio.ts";
 import type { Usage } from "@earendil-works/pi-ai";
 
 const FOLDER = "media";
+/** Where the audio Pi reads aloud goes. */
+const AUDIO = "audio";
 /** Where transcripts go. */
 const TRANSCRIPTS = "transcripts";
 /** Where the videos Pi makes go. */
@@ -708,5 +710,108 @@ export default function createMedia(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: "pocket-media", tools: [media, ask, generate, transcribe] });
+    const speak = defineTool({
+        name: "audio_speak",
+        description:
+            "Read a text aloud into an audio file (m4a by default, or wav) on the person's ChatGPT (Codex) sign-in, through a realtime model (gpt-realtime-mini by default; setting audio.speakModel), in any language: voice-overs, read-aloud reports, audio summaries. " +
+            `voice: one of ${VOICES.join(", ")} (default setting audio.voice); style: how to read it (calm, cheerful, slow, a news anchor...). Long text is read in parts, each checked against what the voice says it said and read again once when it differs. ` +
+            "Saved in audio/ where this session works; it plays in the chat.",
+        parameters: Type.Object({
+            text: Type.String({ description: "What to read, as it should be said" }),
+            voice: Type.Optional(Type.Union(VOICES.map((each) => Type.Literal(each)))),
+            style: Type.Optional(Type.String({ description: "How to read it" })),
+            format: Type.Optional(Type.Union([Type.Literal("m4a"), Type.Literal("wav")], { description: "m4a (default, AAC) or wav" })),
+            model: Type.Optional(Type.Union(SPEAK_MODELS.map((each) => Type.Literal(each)), { description: "The realtime model for this call only" })),
+        }),
+        execute: async (args, api, context) => {
+            if (args.text.trim() === "") {
+                return reply("Give the text to read.", true);
+            }
+
+            let choice;
+
+            try {
+                choice = host.audio.speakChoice({ ...(args.model === undefined ? {} : { model: args.model }), ...(args.voice === undefined ? {} : { voice: args.voice }) });
+            } catch (error) {
+                return reply(error instanceof Error ? error.message : String(error), true);
+            }
+
+            const cwd = (await api.agent(context)).cwd ?? "";
+            const env = host.envOf(cwd);
+            const format = args.format ?? "m4a";
+            const engine = format === "m4a" ? await engineFor(cwd, env, context) : undefined;
+
+            if (typeof engine === "string") {
+                return reply(`${engine} (or ask for format: "wav")`, true);
+            }
+
+            const parts = speakParts(args.text);
+            const pcm: Uint8Array[] = [];
+            const tokens = { input: 0, output: 0 };
+
+            for (const [index, part] of parts.entries()) {
+                let read;
+
+                try {
+                    for (let attempt = 0; attempt < 2; attempt++) {
+                        read = await host.audio.speakPart(part, { ...choice, ...(args.style === undefined ? {} : { style: args.style }) }, context.abortSignal);
+                        tokens.input += read.usage.input;
+                        tokens.output += read.usage.output;
+
+                        if (saidAsWritten(part, read.said)) {
+                            break;
+                        }
+                    }
+                } catch (error) {
+                    return reply(`${error instanceof Error ? error.message : String(error)}${parts.length > 1 ? ` (part ${index + 1} of ${parts.length})` : ""}`, true);
+                }
+
+                if (read === undefined || !saidAsWritten(part, read.said)) {
+                    return reply(`The voice did not read part ${index + 1} of ${parts.length} as written, twice. It was to read: "${part}". It said: "${read?.said ?? ""}". Nothing was saved; change the wording (spell out numbers and abbreviations) and try again.`, true);
+                }
+
+                pcm.push(read.pcm);
+            }
+
+            const folder = await env.absolutePath(AUDIO, context);
+            const created = folder.ok ? await env.createDir(folder.value, { recursive: true }, context) : folder;
+
+            if (!folder.ok || !created.ok) {
+                return reply(`Cannot save in ${AUDIO}: ${!created.ok ? created.error.message : ""}`, true);
+            }
+
+            const base = `${folder.value}/${stamp(new Date())}-${slugOf(args.text)}`;
+            const joined = Buffer.concat(pcm);
+            const wav = `${base}.wav`;
+            const written = await env.writeFile(wav, wavOf(joined), context);
+
+            if (!written.ok) {
+                return reply(`Could not write ${wav}: ${written.error.message}`, true);
+            }
+
+            let path = wav;
+
+            if (engine !== undefined) {
+                path = `${base}.m4a`;
+                const ran = await output(env, commandOf(engine, "ffmpeg", m4aArgs(wav, path)), context);
+
+                await env.remove(wav, { force: true }, context);
+
+                if (ran.code !== 0) {
+                    return reply(`Could not make ${path}: ${ran.stderr.trim()}`, true);
+                }
+            }
+
+            const seconds = Math.round((joined.length / (PCM_RATE * 2)) * 10) / 10;
+            const size = await env.fileInfo(path, context);
+            const bytes = size.ok ? size.value.size : joined.length;
+
+            return {
+                output: [{ type: "text" as const, text: `Read aloud with ${choice.model}, voice ${choice.voice}${parts.length > 1 ? `, in ${parts.length} parts` : ""}: ${path} (${seconds} s, ${megabytes(bytes)}). It plays in the chat.` }],
+                details: plain({ model: choice.model, voice: choice.voice, audio: { path, bytes, duration: seconds }, parts: parts.length, tokens }),
+            };
+        },
+    });
+
+    return defineExtension({ name: "pocket-media", tools: [media, ask, generate, transcribe, speak] });
 }
