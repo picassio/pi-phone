@@ -14,7 +14,7 @@ import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi
 import { appSettings } from "../src/server/settings-registry.ts";
 import { localEngine } from "../src/server/media.ts";
 import { DEFAULT_MAKE_MODEL, openRouterVideoAskModels, openRouterVideoMakeModels, pricesOf, Videos } from "../src/server/video-gen.ts";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 
 const engine = localEngine();
 const real = { skip: engine === undefined ? "no ffmpeg in native/ (node scripts/server-tools.ts linux-x64 ffmpeg)" : false } as const;
@@ -110,6 +110,7 @@ const asks: Record<string, Record<string, unknown>> = {
     "make a boat": { prompt: "A paper boat on a calm pond", duration: 8, aspect: "16:9", audio: true, first_frame: "photo.png" },
     "make a long one": { prompt: "A paper boat", duration: 20 },
     "make a square one": { prompt: "A paper boat", aspect: "1:1" },
+    "make from a phone photo": { prompt: "He stands up and walks", first_frame: "turned.jpg" },
 };
 const results: string[] = [];
 const route: FauxResponseStep = (request) => {
@@ -142,6 +143,13 @@ before(async () => {
         execFileSync(engine.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=3:size=320x240:rate=10", "-f", "lavfi", "-i", "sine=duration=3", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", join(work, "clip.mp4")]);
         execFileSync(engine.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=608x1080:rate=10", "-c:v", "libx264", "-pix_fmt", "yuv420p", join(work, "tall.mp4")]);
         execFileSync(engine.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=64x36", "-frames:v", "1", join(work, "photo.png")]);
+        // A phone's portrait photo: stored 64×36 (landscape) with Exif orientation 6 (turn 90° clockwise to show).
+        execFileSync(engine.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=64x36", "-frames:v", "1", join(work, "flat.jpg")]);
+        const flat = readFileSync(join(work, "flat.jpg"));
+        const tiff = [0x4d, 0x4d, 0, 0x2a, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0];
+        const body = [...Buffer.from("Exif\0\0", "latin1"), ...tiff];
+
+        writeFileSync(join(work, "turned.jpg"), Buffer.concat([flat.subarray(0, 2), Buffer.from([0xff, 0xe1, (body.length + 2) >> 8, (body.length + 2) & 255, ...body]), flat.subarray(2)]));
     }
 });
 
@@ -227,6 +235,17 @@ test("video_generate: the job submitted with the prompt, length, shape, sound an
     assert.match(await ask(id, "make a long one"), /takes durations \(s\) 4, 6, 8, not 20/);
     assert.match(await ask(id, "make a square one"), /takes aspects 16:9, 9:16, not 1:1/);
     assert.equal(made.length, count, "nothing submitted");
+
+    // A phone's photo stored on its side goes upright (PP-304): turned by the media engine into media/, sent as that JPEG.
+    assert.match(await ask(id, "make from a phone photo"), /^Made a video/);
+    const sent = (made.at(-1)!.body.frame_images as { image_url: { url: string } }[])[0]!.image_url.url;
+    const turned = readdirSync(join(work, "media")).filter((name) => name.endsWith("-turned-upright.jpg"));
+
+    assert.equal(turned.length, 1, readdirSync(join(work, "media")).join(", "));
+    assert.equal(sent, `data:image/jpeg;base64,${readFileSync(join(work, "media", turned[0]!)).toString("base64")}`);
+    const probe = JSON.parse(execFileSync(engine!.ffprobe, ["-v", "error", "-show_streams", "-of", "json", join(work, "media", turned[0]!)], { encoding: "utf8" })) as { streams: { width: number; height: number }[] };
+
+    assert.deepEqual([probe.streams[0]!.width, probe.streams[0]!.height], [36, 64], "upright: portrait");
 });
 
 test("video_ask: a file goes as a base64 mp4 with the question to the default model, its cost in the tool's usage; a YouTube address as it is", real, async () => {

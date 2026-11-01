@@ -15,6 +15,7 @@ import { join } from "node:path";
 import type { Context } from "@earendil-works/chord";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { APP_ROOT } from "./config.ts";
+import { jpegOrientation } from "./image-meta.ts";
 
 /**
  * ffmpeg and ffprobe, as a command runs them where the session works. `script`: they are a machine tool's wrappers
@@ -76,6 +77,73 @@ export async function machineEngine(env: ExecutionEnv, tools: Record<string, str
     }
 
     return undefined;
+}
+
+/** The engine where a session works: its machine's (`machine`), or this server's; or what is missing, to tell Pi. */
+export async function engineWhere(machine: { name: string; tools: Record<string, string> } | undefined, env: ExecutionEnv, context: Context): Promise<MediaEngine | string> {
+    if (machine !== undefined) {
+        return (
+            (await machineEngine(env, machine.tools, context)) ??
+            `${machine.name} has no ffmpeg: install it in Menu › Machines › ${machine.name} › Install tools (ffmpeg, about 350 MB), or run there what installs ffmpeg and ffprobe; then try again.`
+        );
+    }
+
+    return localEngine() ?? "This server has no ffmpeg: it comes with the pi-phone app and the server edition's image (native/<platform>/ffmpeg). Update the app or the image.";
+}
+
+/** The long side, at most, of a picture turned upright for a model. */
+export const UPRIGHT_MAX = 2048;
+
+/** ffmpeg's arguments for a picture turned upright by its Exif orientation (ffmpeg applies it as it reads), as a JPEG at most UPRIGHT_MAX on its long side. */
+export function uprightArgs(input: string, out: string): string[] {
+    return [
+        "-hide_banner", "-loglevel", "error", "-y", "-i", input,
+        "-vf", `scale='min(${UPRIGHT_MAX},iw)':'min(${UPRIGHT_MAX},ih)':force_original_aspect_ratio=decrease`,
+        "-frames:v", "1", "-c:v", "mjpeg", "-pix_fmt", "yuvj420p", "-q:v", "3", "-update", "1", out,
+    ];
+}
+
+/**
+ * A picture for a model, upright (PP-304): a JPEG whose Exif orientation turns it (a phone's portrait photo, stored
+ * landscape) is turned by the media engine into `out` and read back, since models take the pixels as they are; any
+ * other picture comes back as it is. A string says what went wrong.
+ */
+export async function uprightPicture(
+    env: ExecutionEnv,
+    input: string,
+    bytes: Uint8Array,
+    out: string,
+    engine: () => Promise<MediaEngine | string>,
+    context: Context,
+): Promise<{ data: Uint8Array; mimeType?: "image/jpeg"; turned?: string } | string> {
+    const orientation = jpegOrientation(bytes);
+
+    if (orientation === undefined || orientation === 1) {
+        return { data: bytes };
+    }
+
+    const found = await engine();
+
+    if (typeof found === "string") {
+        return `${input} is a photo stored on its side (Exif orientation ${orientation}), and turning it upright needs ffmpeg. ${found}`;
+    }
+
+    const folder = out.slice(0, out.lastIndexOf("/"));
+    const created = folder === "" ? { ok: true as const } : await env.createDir(folder, { recursive: true }, context);
+
+    if (!created.ok) {
+        return `Could not make ${folder}: ${created.error.message}`;
+    }
+
+    const ran = await output(env, commandOf(found, "ffmpeg", uprightArgs(input, out)), context, 120);
+
+    if (ran.code !== 0) {
+        return `Could not turn ${input} upright: ${ran.stderr.trim() || `ffmpeg ended with ${ran.code}`}`;
+    }
+
+    const read = await env.readBinaryFile(out, context);
+
+    return read.ok ? { data: read.value, mimeType: "image/jpeg", turned: out } : `Could not read ${out}: ${read.error.message}`;
 }
 
 /** A command's exit code, its standard output, and the end of what it printed on standard error. */

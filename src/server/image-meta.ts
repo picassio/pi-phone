@@ -159,6 +159,52 @@ function jpeg(bytes: Uint8Array): Uint8Array {
     return concat(parts);
 }
 
+/**
+ * A JPEG's Exif orientation (1 to 8), or undefined when it has none or is not a JPEG. A phone stores a portrait photo
+ * landscape with orientation 6 or 8; models that get the bytes as they are see it on its side (PP-304).
+ */
+export function jpegOrientation(bytes: Uint8Array): number | undefined {
+    if (imageType(bytes) !== "image/jpeg") {
+        return undefined;
+    }
+
+    for (let at = 2; at + 4 <= bytes.length; ) {
+        if (bytes[at] !== 0xff) {
+            return undefined;
+        }
+
+        const marker = bytes[at + 1]!;
+
+        if (marker === 0xff) {
+            at += 1;
+            continue;
+        }
+
+        // The image data starts: no Exif before it.
+        if (marker === 0xda || marker === 0xd9) {
+            return undefined;
+        }
+
+        const end = at + 2 + ((bytes[at + 2]! << 8) | bytes[at + 3]!);
+
+        if (end > bytes.length) {
+            return undefined;
+        }
+
+        if (marker === 0xe1) {
+            const orientation = exifOrientation(bytes.subarray(at + 4, end));
+
+            if (orientation !== undefined) {
+                return orientation;
+            }
+        }
+
+        at = end;
+    }
+
+    return undefined;
+}
+
 /** The orientation (1 to 8) in an APP1 Exif segment's body, if it has one. */
 function exifOrientation(body: Uint8Array): number | undefined {
     if (String.fromCharCode(...body.subarray(0, 4)) !== "Exif" || body.length < 14) {

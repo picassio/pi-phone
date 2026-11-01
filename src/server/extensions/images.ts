@@ -17,6 +17,7 @@ import type { PocketHost } from "../host.ts";
 import { imageType } from "../image-meta.ts";
 import { ASPECTS, type Aspect, CODEX_PROVIDER, type ImageInput, MAX_COUNT, MAX_INPUT_IMAGES } from "../image-gen.ts";
 import { isPng, markUp } from "../markup.ts";
+import { engineWhere, uprightPicture } from "../media.ts";
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 /** The most an image to edit may be. */
@@ -119,7 +120,27 @@ export default function createImages(host: PocketHost) {
                     return reply(`${path} is ${Math.round(bytes.value.length / 1024 / 1024)} MB; images to edit are at most ${MAX_INPUT_BYTES / 1024 / 1024} MB.`, true);
                 }
 
-                inputs.push({ mimeType, data: bytes.value });
+                // A phone's photo stored on its side is turned upright first, into media/ (PP-304).
+                const media = await env.absolutePath("media", context);
+
+                if (!media.ok) {
+                    return reply(`Cannot save in media: ${media.error.message}`, true);
+                }
+
+                const upright = await uprightPicture(
+                    env,
+                    absolute.ok ? absolute.value : path,
+                    bytes.value,
+                    `${media.value}/${stamp(new Date())}-${slugOf(path.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "image")}-upright.jpg`,
+                    () => engineWhere(host.machineOf(cwd), env, context),
+                    context,
+                );
+
+                if (typeof upright === "string") {
+                    return reply(upright, true);
+                }
+
+                inputs.push({ mimeType: upright.mimeType ?? mimeType, data: upright.data });
             }
 
             // A real person's picture or likeness: the owner decides first.

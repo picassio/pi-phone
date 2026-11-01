@@ -23,9 +23,8 @@ import {
     framesArgs,
     IMAGE_FORMATS,
     type ImageFormat,
+    engineWhere,
     imageArgs,
-    localEngine,
-    machineEngine,
     MAX_FRAMES,
     type MediaEngine,
     type MediaInfo,
@@ -34,6 +33,7 @@ import {
     readProbe,
     sampleRate,
     sheetArgs,
+    uprightPicture,
 } from "../media.ts";
 import { slugOf } from "./images.ts";
 import { imageType } from "../image-meta.ts";
@@ -84,16 +84,7 @@ function describe(info: MediaInfo): string {
 export default function createMedia(host: PocketHost) {
     /** The engine where `cwd` is: a machine's, or this server's; or what is missing. */
     async function engineFor(cwd: string, env: ExecutionEnv, context: Context): Promise<MediaEngine | string> {
-        const machine = host.machineOf(cwd);
-
-        if (machine !== undefined) {
-            return (
-                (await machineEngine(env, machine.tools, context)) ??
-                `${machine.name} has no ffmpeg: install it in Menu › Machines › ${machine.name} › Install tools (ffmpeg, about 350 MB), or run there what installs ffmpeg and ffprobe; then try again.`
-            );
-        }
-
-        return localEngine() ?? "This server has no ffmpeg: it comes with the pi-phone app and the server edition's image (native/<platform>/ffmpeg). Update the app or the image.";
+        return engineWhere(host.machineOf(cwd), env, context);
     }
 
     const media = defineTool({
@@ -502,7 +493,21 @@ export default function createMedia(host: PocketHost) {
 
                 const mimeType = imageType(bytes.value);
 
-                return mimeType === undefined ? `${path} is not a PNG, JPEG, GIF or WebP image.` : bytes.value.length > 15 * 1024 * 1024 ? `${path} is over 15 MB: shrink it with media first.` : { data: bytes.value, mimeType };
+                if (mimeType === undefined) {
+                    return `${path} is not a PNG, JPEG, GIF or WebP image.`;
+                }
+
+                // A phone's photo stored on its side is turned upright first (PP-304).
+                const folder = await env.absolutePath(FOLDER, context);
+                const upright = folder.ok
+                    ? await uprightPicture(env, absolute.ok ? absolute.value : path, bytes.value, `${folder.value}/${stamp(new Date())}-${slugOf(path.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "image")}-upright.jpg`, () => engineFor(cwd, env, context), context)
+                    : `Cannot save in ${FOLDER}: ${folder.error.message}`;
+
+                if (typeof upright === "string") {
+                    return upright;
+                }
+
+                return upright.data.length > 15 * 1024 * 1024 ? `${path} is over 15 MB: shrink it with media first.` : { data: upright.data, mimeType: upright.mimeType ?? mimeType };
             };
             const images: Record<string, { data: Uint8Array; mimeType: string }> = {};
 

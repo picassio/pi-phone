@@ -2,7 +2,7 @@
 // keeps its orientation and colour profile; whatever is not one of the four, or is over 10 MB, is refused.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cleanImage, imageType, MAX_IMAGE_BYTES } from "../src/server/image-meta.ts";
+import { cleanImage, imageType, jpegOrientation, MAX_IMAGE_BYTES } from "../src/server/image-meta.ts";
 
 const bytes = (...parts: (number[] | string | Uint8Array)[]) =>
     new Uint8Array(parts.flatMap((part) => (typeof part === "string" ? [...Buffer.from(part, "latin1")] : [...part])));
@@ -63,6 +63,13 @@ test("JPEG: EXIF, XMP and comments go; orientation and the colour profile stay",
 
     upright[upright.indexOf(6, 30)] = 1;
     assert.ok(!has(cleanImage(upright).bytes, "Exif"));
+
+    // What a model would get on its side (PP-304): the orientation read, wherever the Exif segment is.
+    assert.equal(jpegOrientation(image), 6);
+    assert.equal(jpegOrientation(clean), 6);
+    assert.equal(jpegOrientation(upright), 1);
+    assert.equal(jpegOrientation(bytes([0xff, 0xd8], segment(0xe0, bytes("JFIF\0", [1, 1, 0, 0, 1, 0, 1, 0, 0])), segment(0xda, bytes([1])), bytes("Exif"))), undefined);
+    assert.equal(jpegOrientation(bytes([0x89], "PNG\r\n\x1a\n")), undefined);
 });
 
 test("WebP: EXIF and XMP chunks go, and VP8X stops saying they are there", () => {
