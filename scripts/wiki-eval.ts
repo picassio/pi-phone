@@ -8,13 +8,16 @@
  * page left empty, time a message, Jev's cost.
  *
  *   OPENROUTER_API_KEY=… node scripts/wiki-eval.ts [--configs A,B,C,D] [--out report.md]
+ *   OPENROUTER_API_KEY=… node scripts/wiki-eval.ts --wiki ~/.pi/wiki --cases cases.json   (a real wiki, read only)
  *
- * Each way runs in a wiki of its own in a temporary home; nothing touches the owner's wiki. With embeddings, the pages
- * are embedded before the first question (`Para.embed`): the app embeds a moment after a write.
+ * Each way runs in a wiki of its own in a temporary home; nothing touches the owner's wiki: `--wiki` copies its folder
+ * there first, and `--cases` gives the questions for it (`[{ q, kind, gold: [slug or path], ok?: [...] }]`), searched
+ * in every scope its pages name. With embeddings, the pages are embedded before the first question (`Para.embed`): the
+ * app embeds a moment after a write.
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { JevModels } from "../src/server/jev.ts";
 import { Para } from "../src/server/para.ts";
 
@@ -104,6 +107,29 @@ const argument = (name: string) => {
 
     return at > 0 ? process.argv[at + 1] : undefined;
 };
+const WIKI = argument("--wiki");
+const CASES_FILE = argument("--cases");
+
+if ((WIKI === undefined) !== (CASES_FILE === undefined)) {
+    throw new Error("--wiki and --cases go together: a real wiki and the questions for it.");
+}
+
+const cases: Case[] = CASES_FILE === undefined ? CASES : (JSON.parse(readFileSync(CASES_FILE, "utf8")) as Case[]);
+/** Every scope the real wiki's pages name: its questions are searched in all of them. */
+const scopes =
+    WIKI === undefined
+        ? []
+        : [
+              ...new Set(
+                  ["projects", "areas", "resources"].flatMap((category) =>
+                      readdirSync(join(WIKI, category))
+                          .filter((name) => name.endsWith(".md"))
+                          .flatMap((name) => [...(/^scope:\n((?:\s+- .*\n)+)/m.exec(readFileSync(join(WIKI, category, name), "utf8"))?.[1] ?? "").matchAll(/- (.+)/g)].map((match) => match[1]!.trim().replace(/^["']|["']$/g, ""))),
+                  ),
+              ),
+          ];
+/** A found page as a question's right pages name it: its path, or its slug when they give slugs. */
+const named = (path: string, gold: string[]) => (gold.some((each) => each.includes("/")) ? path : path.split("/")[1]!);
 const EMBEDDING = "openai/text-embedding-3-small";
 const JEV = "typesafe/jev-1.14";
 const CONFIGS = [
@@ -121,6 +147,12 @@ const jevModels = new JevModels();
 for (const config of CONFIGS) {
     const home = mkdtempSync(join(tmpdir(), "wiki-eval-"));
     const cwd = mkdtempSync(join(tmpdir(), "wiki-eval-cwd-"));
+
+    if (WIKI !== undefined) {
+        cpSync(WIKI, join(home, ".pi", "wiki"), { recursive: true, filter: (source) => source === WIKI || !basename(source).startsWith(".") });
+        mkdirSync(join(cwd, ".pi"));
+        writeFileSync(join(cwd, ".pi", "wiki-scope.json"), JSON.stringify({ name: "eval", include: scopes }));
+    }
     let jevCost = 0;
     const para = new Para({
         home,
@@ -140,7 +172,7 @@ for (const config of CONFIGS) {
 
     await para.updateSettings({ embeddingModel: config.embedding });
 
-    for (const page of PAGES) {
+    for (const page of WIKI === undefined ? PAGES : []) {
         const category = page.path.split("/")[0]!;
 
         await para.save(page.path, `---\ntitle: ${JSON.stringify(page.title)}\npara: ${category}\nscope:\n  - global\ntags: []\n---\n\n${page.body}\n`, true);
@@ -166,9 +198,9 @@ for (const config of CONFIGS) {
     let ms = 0;
     const misses: string[] = [];
 
-    for (const each of CASES) {
+    for (const each of cases) {
         const started = Date.now();
-        const found = (await para.relevant(each.q, cwd)).map((page) => page.path);
+        const found = (await para.relevant(each.q, cwd)).map((page) => named(page.path, each.gold));
 
         ms += Date.now() - started;
         noise += found.filter((path) => !each.gold.includes(path) && !(each.ok ?? []).includes(path)).length;
@@ -193,10 +225,10 @@ for (const config of CONFIGS) {
             }
         }
 
-        detail.push(`| ${config.name} | ${each.kind} | ${each.q} | ${found.map((path) => path.split("/")[1]).join("<br>") || "—"} |`);
+        detail.push(`| ${config.name} | ${each.kind} | ${each.q} | ${found.map((path) => path.split("/").at(-1)).join("<br>") || "—"} |`);
     }
 
-    rows.push({ name: config.name, hit1: hit1 / withGold, recall: recall / withGold, noise: noise / CASES.length, emptyOk: emptyOk / negatives, ms: ms / CASES.length, cost: jevCost, misses });
+    rows.push({ name: config.name, hit1: hit1 / withGold, recall: recall / withGold, noise: noise / cases.length, emptyOk: emptyOk / negatives, ms: ms / CASES.length, cost: jevCost, misses });
     console.error(`${config.name}: done`);
     await para.close();
 }
@@ -205,9 +237,9 @@ const pct = (value: number) => `${Math.round(value * 100)}%`;
 const report = [
     `# The wiki's search on pi-phone (${new Date().toISOString().slice(0, 10)})`,
     "",
-    `${PAGES.length} pages, ${CASES.length} questions (${CASES.filter((each) => each.gold.length === 0).length} with no page). Each searched as a message is, at most 4 pages.`,
+    `${WIKI === undefined ? `${PAGES.length} pages` : `The wiki at ${WIKI}`}, ${cases.length} questions (${cases.filter((each) => each.gold.length === 0).length} with no page). Each searched as a message is, at most 4 pages.`,
     "",
-    "| How | Right page first | Right pages present | Extra pages / question | No page → empty | Time / message | Jev (40 questions) |",
+    `| How | Right page first | Right pages present | Extra pages / question | No page → empty | Time / message | Jev (${cases.length} questions) |`,
     "|---|---|---|---|---|---|---|",
     ...rows.map((row) => `| ${row.name} | ${pct(row.hit1)} | ${pct(row.recall)} | ${row.noise.toFixed(2)} | ${pct(row.emptyOk)} | ${Math.round(row.ms)} ms | ${row.cost > 0 ? `$${row.cost.toFixed(4)}` : "—"} |`),
     "",
