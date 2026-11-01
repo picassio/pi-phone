@@ -362,6 +362,8 @@
     "{n} question": "{n} 个问题",
     "{n} questions": "{n} 个问题",
     "Nothing runs now.": "当前没有在运行的任务。",
+    "Nothing finished in the last 24 hours.": "过去 24 小时内没有完成的任务。",
+    "Done in the last 24 hours": "过去 24 小时完成",
     "Approve": "批准",
     "and {n} more": "还有 {n} 个",
     "{n} done in the last hour": "过去一小时完成 {n} 个",

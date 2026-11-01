@@ -354,6 +354,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   session and forms too; the bubble stays solid. Opening the app from the board (PP-285) turns the board see-through and
   untouchable at once while its window stays for Android's background-start check; `MainActivity`'s focus and pause
   call `ProgressBubble.frontChanged`, so the board folds and the bubble hides without waiting for the 700 ms look.
+  `board.finished` (PP-287): sessions, not subagents or archived ones, whose run ended in the last 24 hours (the app's
+  `#endedAt`, so since the server started) and that have no row, newest first, each with the start of Pi's last text
+  or error line (read once per run end) or done/failed; not in the notification. The board's Done tab and All's last
+  section show them; a blue dot is `seen.js`'s `finishedUnseen` (the WebViews share localStorage, so opening it on the
+  board or in the app clears it). `lastEnded` puts a blue dot on the bubble when after its `lastLook` (the board
+  opened, or pi-phone in use).
 - **Subagents' model and thinking** (PP-281; `subagent-defaults.ts`, `extensions/subagents.ts`,
   `web/sheets/subagent-settings.js`; owner's mockup v2, 2026-10-31): `config.subagentDefaults` (every session's) and
   `SessionMeta.subagentDefaults` (a session's own, `session` for its own model or level), each part on its own;

@@ -102,6 +102,52 @@ test("every row for the floating board, past five counted for the notification; 
     assert.equal((await new Progress(source({ doneSince: () => 1 })).board(en, "en")).heading, "Pi is idle · 1 done");
 });
 
+test("sessions done in the last day, newest first, with the start of Pi's last answer or what stopped it; not one at work; not in the notification's rows", async () => {
+    let peeks = 0;
+    const ends = [
+        { id: id(1), endedAt: 50_000, failed: false },
+        { id: id(2), endedAt: 90_000, failed: true },
+        { id: id(3), endedAt: 80_000, failed: false },
+        { id: id(4), endedAt: 70_000, failed: false },
+    ];
+    const progress = new Progress(
+        source({
+            busy: () => [id(4)],
+            cwd: (each) => `/work/${String(each)}`,
+            finished: (at) => ends.filter((end) => end.endedAt >= at),
+            peek: async (each) => {
+                peeks += 1;
+
+                return {
+                    1: [{ kind: "user", text: "run the tests" }, { kind: "text", text: "All 42 tests pass;   the export fix is in." }],
+                    2: [{ kind: "error", text: "rsync: connection refused" }],
+                    3: [{ kind: "tool", name: "read", args: { path: "a.ts" }, status: "done" }],
+                    4: [{ kind: "shell", command: "sleep 5", status: "done" }],
+                }[Number(each)] as PeekLine[];
+            },
+        }),
+    );
+    const board = await progress.board(en, "en");
+
+    assert.deepEqual(
+        board.finished.map((row) => [row.session, row.state, row.doing, row.since, row.cwd]),
+        [
+            [2, "failed", "rsync: connection refused", 90_000, "/work/2"],
+            [3, "done", "done", 80_000, "/work/3"],
+            [1, "done", "All 42 tests pass; the export fix is in.", 50_000, "/work/1"],
+        ],
+    );
+    assert.equal(board.lastEnded, 90_000);
+    assert.deepEqual(board.rows.map((row) => row.session), [4]);
+
+    // Pi's last words are read once for the run that ended then.
+    const before = peeks;
+
+    await progress.board(en, "en");
+    assert.equal(peeks - before, 1, "only the session at work is read again");
+    assert.equal((await new Progress(source({})).board(en, "en")).lastEnded, undefined);
+});
+
 test("subagents at work fold under their session, counted for the notification; one waiting for the owner keeps its row", async () => {
     // Session 1 works with subagents 11 and 12; subagent 13 of session 2 (not at work itself) works; 14 of 1 waits.
     const progress = new Progress(
@@ -136,7 +182,7 @@ test("in the app: a session running a command is on the board with it, then gone
             return fauxAssistantMessage([fauxToolCall("bash", { command: "sleep 2" })], { stopReason: "toolUse" });
         }
 
-        return fauxAssistantMessage([fauxText("done")]);
+        return fauxAssistantMessage([fauxText("Slept two seconds, all good.")]);
     };
     const app = await openApp(scriptedModel(route));
 
@@ -153,6 +199,10 @@ test("in the app: a session running a command is on the board with it, then gone
 
         await (await app.harness.submission(submissionId, context))!.wait(context);
         await until(async () => (await app.progress.board(en, "en")).rows.length === 0, "off the board when done");
+        // On the Done tab (PP-287), with Pi's last words.
+        const done = (await app.progress.board(en, "en")).finished;
+
+        assert.deepEqual(done.map((row) => [row.session, row.title, row.state, row.doing]), [[Number(session), "wait a little", "done", "Slept two seconds, all good."]]);
 
         assert.deepEqual(app.config.progressBoard, { notification: true, bubble: false, hideIdle: true, opacity: 100 });
         await app.setProgressBoard(owner(app), "bubble", true);

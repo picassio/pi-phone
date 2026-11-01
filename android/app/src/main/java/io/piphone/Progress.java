@@ -110,6 +110,8 @@ final class Progress {
         boolean hideIdle = settings == null || settings.optBoolean("hideIdle", true);
         int working = board.optInt("working");
         int waiting = board.optInt("waiting");
+        // When the newest session done in the last day ended: the bubble's dot when it is new to the owner (PP-287).
+        long lastEnded = board.optLong("lastEnded", 0);
         NotificationManager manager = service.getSystemService(NotificationManager.class);
 
         if (inNotification) {
@@ -127,7 +129,7 @@ final class Progress {
         main.post(() -> {
             if (wanted) {
                 if (bubble == null) bubble = new ProgressBubble(service, token);
-                bubble.show(working, waiting);
+                bubble.show(working, waiting, lastEnded);
             } else if (bubble != null) {
                 bubble.remove();
                 bubble = null;

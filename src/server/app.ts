@@ -404,6 +404,11 @@ export class PocketApp {
             }
         },
         doneSince: (at) => this.phoneEvents.countSince("done", at),
+        // Sessions (not subagents, not archived) whose run ended since then, as the session list marks them (PP-287).
+        finished: (at) =>
+            [...this.#endedAt]
+                .filter(([id, endedAt]) => endedAt >= at && !this.#busy.has(id) && this.rootOf(id) === id && this.sessionMeta(id)?.archived !== true)
+                .map(([id, endedAt]) => ({ id, endedAt, failed: this.#failed.has(id) })),
         now: () => Date.now(),
     });
     /** The same, as push notifications to the browsers that turned them on (`web-push.ts`, PP-127). */

@@ -37,7 +37,9 @@ dự án thật.</sub>
   chạy, đang chờ bạn và đã xong trong giờ qua; mở rộng ra, mỗi phiên một dòng với việc đang làm ("đang sửa …", "đang chạy
   npm test"), chạm để mở phiên đó, và nút Duyệt cho thẻ đơn giản. Bật bảng nổi (Điện thoại này › Bảng nổi trên ứng dụng
   khác; Android hỏi một lần để cho pi hiển thị trên ứng dụng khác): logo pi trong một bong bóng trên mọi ứng dụng, vòng
-  quay khi Pi làm việc, số đếm và huy hiệu khi có việc chờ bạn; chạm để mở bảng. Thanh trượt Độ đục của bảng (50 đến
+  quay khi Pi làm việc, số đếm và huy hiệu khi có việc chờ bạn; chạm để mở bảng. Tab Xong liệt kê các phiên xong trong 24
+  giờ qua kèm phần đầu câu trả lời cuối của Pi (hoặc lỗi), chấm xanh trên phiên bạn chưa mở, và trên bong bóng khi có
+  việc xong từ lần bạn xem trước. Thanh trượt Độ đục của bảng (50 đến
   100%) cho ứng dụng bên dưới hiện xuyên qua bảng. Pi đổi được qua thẻ (`notifications.progress`, `notifications.bubble`,
   `notifications.bubbleHide`, `notifications.bubbleOpacity`). Từ GitHub issue #5.
 - **Quyết định không thể bỏ sót.** Khi Pi hỏi bạn quyết định qua một thẻ, phiên ghim nó trong một thanh màu hổ phách ở

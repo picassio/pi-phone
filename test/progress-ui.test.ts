@@ -134,7 +134,8 @@ test("the board page: the session at work with what it does, counted in the titl
     await page.evaluate(`document.querySelector('[data-part="board-session"] .pgb-head .icon-button').click(); return "true";`);
     await see(`return JSON.stringify(document.querySelector('[data-part="pgb-row"], .pgb-empty') !== null)`, "back to the board");
 
-    await see(`return JSON.stringify(document.querySelector(".pgb-empty")?.textContent.trim() === "Nothing runs now.")`, "nothing runs", 20_000);
+    // Done, it moves to the Done section (PP-287), with Pi's last words.
+    await see(`return JSON.stringify(document.querySelector('[data-part="pgb-row"]')?.dataset.state === "done" && document.querySelector('[data-part="pgb-row"] small').textContent.trim() === "built")`, "nothing runs", 20_000);
     assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector(".pgb-counts").textContent.trim())`), "Pi is idle · 1 done");
     assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector(".pgb-foot span").textContent.trim())`), "1 done in the last hour");
 });
@@ -161,8 +162,8 @@ test("many sessions: every one on the board, chips to filter, a session's subage
         });
     `);
 
-    assert.equal(shown.rows, 4, "three sessions and the one with subagents, past five shown too if there were");
-    assert.deepEqual(shown.chips, ["All 4", "Waiting 0", "Working 4"]);
+    assert.equal(shown.rows, 5, "three sessions and the one with subagents, past five shown too if there were, and the one done before");
+    assert.deepEqual(shown.chips, ["All 5", "Waiting 0", "Working 4", "Done 1"]);
     assert.equal(shown.subs, 0, "folded");
     await page.evaluate(`document.querySelector('[data-part="pgb-fold"]').click(); return "true";`);
     await see(`return JSON.stringify(document.querySelectorAll('[data-part="pgb-sub"]').length === 2)`, "the subagents shown");
@@ -173,6 +174,37 @@ test("many sessions: every one on the board, chips to filter, a session's subage
     await page.evaluate(`document.querySelector('[data-part="pgb-chip-waiting"]').click(); return "true";`);
     await see(`return JSON.stringify(document.querySelectorAll('[data-part="pgb-row"]').length === 0)`, "nothing waits");
     assert.equal(await inPage<string>(`return JSON.stringify(localStorage.getItem("pocket.boardFilter"))`), "waiting");
+
+    // The Done tab (PP-287): the session done before, with Pi's last words and a blue dot until it is opened. It ended
+    // open in the panel, so seen: this phone forgets that it looked, as if it had not.
+    await page.evaluate(`
+        for (const key of Object.keys(localStorage).filter((each) => each.startsWith("pocket.peekSeen."))) localStorage.removeItem(key);
+        localStorage.setItem("pocket.boardFilter", "done");
+        return "true";
+    `);
+    await page.navigate(`${base}/?board=1`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="pgb-chip-done"]') !== null)`, "the board again", 20_000);
+    await page.evaluate(`document.querySelector('[data-part="pgb-chip-done"]').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelectorAll('[data-part="pgb-row"]').length === 1)`, "the one done");
+    const done = await inPage<{ state: string; title: string; doing: string; badge: string; dot: boolean }>(`
+        const row = document.querySelector('[data-part="pgb-row"]');
+
+        return JSON.stringify({
+            state: row.dataset.state,
+            title: row.querySelector(".pgb-text b").textContent.trim(),
+            doing: row.querySelector(".pgb-text small").textContent.trim(),
+            badge: row.querySelector(".pgb-badge").textContent.trim(),
+            dot: row.querySelector('[data-part="pgb-unseen"]') !== null,
+        });
+    `);
+
+    assert.deepEqual(done, { state: "done", title: "build the thing", doing: "built", badge: "done", dot: true });
+    assert.deepEqual(await outside(), []);
+    await shot("board-done-390");
+    await page.evaluate(`document.querySelector('[data-part="pgb-row"] .pgb-text').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="board-session"]') !== null)`, "the session in the panel");
+    await page.evaluate(`document.querySelector('[data-part="board-session"] .pgb-head .icon-button').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="pgb-row"]') !== null && document.querySelector('[data-part="pgb-unseen"]') === null)`, "seen once opened");
     await page.evaluate(`localStorage.setItem("pocket.boardFilter", "all"); return "true";`);
 });
 

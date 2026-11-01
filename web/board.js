@@ -8,6 +8,7 @@ import { InterviewSheet } from "./sheets/interview.js";
 import { actions, api, attempt, navigate, openSheet, store } from "./store.js";
 import { Transcript } from "./transcript.js";
 import { folderColor } from "./avatar.js";
+import { finishedUnseen, markSeen } from "./seen.js";
 import { html, Icon } from "./ui.js";
 
 /**
@@ -128,9 +129,20 @@ export function BoardView() {
     }
 
     // Every row (the owner's pick): what waits first, then at work; chips filter them, the pick kept on this phone.
+    // Sessions done in the last day under them (PP-287): a Done tab, and a section of All.
     const rows = board?.rows ?? [];
-    const counts = { all: rows.length, waiting: rows.filter((row) => row.state === "waiting").length, working: rows.filter((row) => row.state === "working").length };
-    const shown = (state) => (filter === "all" || filter === state ? rows.filter((row) => row.state === state) : []);
+    const finished = board?.finished ?? [];
+    const counts = {
+        all: rows.length + finished.length,
+        waiting: rows.filter((row) => row.state === "waiting").length,
+        working: rows.filter((row) => row.state === "working").length,
+        done: finished.length,
+    };
+    const shown = (state) => (filter === "all" || filter === state ? (state === "done" ? finished : rows.filter((row) => row.state === state)) : []);
+    // A section's name, in All only: the tabs name it otherwise.
+    const section = (state, label) => filter === "all" && shown(state).length > 0 && html`<div class="pgb-sec">${label}</div>`;
+    // Finished since this phone last looked at it, as the session list marks it: a blue dot, gone once opened.
+    const unseen = (row) => (row.state === "done" || row.state === "failed") && finishedUnseen({ id: row.session, busy: false, endedAt: row.since });
     const pick = (next) => {
         localStorage.setItem(FILTER_KEY, next);
         setFilter(next);
@@ -138,20 +150,36 @@ export function BoardView() {
     const toggle = (id) => setFolds((was) => (was.includes(id) ? was.filter((each) => each !== id) : [...was, id]));
     // Design A (the owner's pick): an inbox list. A square in the session folder's color with its initial, the title,
     // what it does under; a badge and the time on the right; what waits for you has its answer under it.
-    const square = (row) => html`<span class="pgb-av" style=${`--av:${row.cwd ? folderColor(row.cwd) : "var(--accent)"}`} aria-hidden="true">${(row.title.trim()[0] ?? "P").toUpperCase()}</span>`;
+    const square = (row, fresh) => html`<span class="pgb-av" style=${`--av:${row.cwd ? folderColor(row.cwd) : "var(--accent)"}`}>${(row.title.trim()[0] ?? "P").toUpperCase()}${fresh && html`<i class="pgb-dot" data-part="pgb-unseen" aria-label=${t("Not read")}></i>`}</span>`;
     const badge = (row) =>
         row.approval?.interview
             ? html`<button type="button" class="pgb-badge wait" data-part="board-answer" onClick=${() => openSheet({ type: "interview", conversationId: row.conversationId, callId: row.approval.interview.callId })}>${t("Answer")}</button>`
             : row.state === "waiting"
             ? html`<span class="pgb-badge wait">${row.approval?.simple ? t("Approve?") : t("waiting")}</span>`
+            : row.state === "done"
+            ? html`<span class="pgb-badge done">${t("done")}</span>`
+            : row.state === "failed"
+            ? html`<span class="pgb-badge fail">${t("failed")}</span>`
             : html`<span class="pgb-badge work">${t("working")}</span>`;
     const rowOf = (row) => {
         const unfolded = folds.includes(row.conversationId);
 
-        return html`<div class=${`pgb-item ${row.state}`} key=${row.conversationId}>
+        const fresh = unseen(row);
+
+        return html`<div class=${`pgb-item ${row.state}${fresh ? " unseen" : ""}`} key=${row.conversationId}>
             <div class="pgb-row" data-part="pgb-row" data-state=${row.state}>
-                ${square(row)}
-                <button type="button" class="pgb-text" onClick=${() => open(row)}>
+                ${square(row, fresh)}
+                <button
+                    type="button"
+                    class="pgb-text"
+                    onClick=${() => {
+                        if (fresh) {
+                            markSeen(row.session);
+                        }
+
+                        open(row);
+                    }}
+                >
                     <b>${row.title}</b>
                     <small>${row.doing}</small>
                 </button>
@@ -191,19 +219,25 @@ export function BoardView() {
             ${bubble() && html`<button class="icon-button" type="button" aria-label=${t("Fold")} onClick=${() => bubble().fold()}><${Icon} name="minus" size=${16} /></button>`}
         </div>
         ${
-            rows.length > 0 &&
+            counts.all > 0 &&
             html`<div class="pgb-tabs" role="group" aria-label=${t("Show")}>
                 ${[
                     ["all", t("All"), counts.all],
                     ["waiting", t("Waiting"), counts.waiting],
                     ["working", t("Working"), counts.working],
+                    ["done", t("Done"), counts.done],
                 ].map(([key, label, n]) => html`<button type="button" class=${`pgb-tab ${filter === key ? "on" : ""}`} data-part=${`pgb-chip-${key}`} aria-pressed=${String(filter === key)} onClick=${() => pick(key)}>${label} <em>${n}</em></button>`)}
             </div>`
         }
         <div class="pgb-list">
-            ${board !== null && rows.length === 0 && html`<div class="pgb-idle"><${PiMark} size=${28} /><p class="muted small pgb-empty">${t("Nothing runs now.")}</p></div>`}
+            ${board !== null && counts.all === 0 && html`<div class="pgb-idle"><${PiMark} size=${28} /><p class="muted small pgb-empty">${t("Nothing runs now.")}</p></div>`}
+            ${board !== null && counts.all > 0 && filter === "done" && counts.done === 0 && html`<p class="muted small pgb-empty">${t("Nothing finished in the last 24 hours.")}</p>`}
+            ${section("waiting", t("Waits for you"))}
             ${shown("waiting").map(rowOf)}
+            ${section("working", t("Working"))}
             ${shown("working").map(rowOf)}
+            ${section("done", t("Done in the last 24 hours"))}
+            ${shown("done").map(rowOf)}
         </div>
         <div class="pgb-foot">
             <span>${board === null || board.done === 0 ? "" : t("{n} done in the last hour", { n: board.done })}</span>

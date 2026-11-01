@@ -2698,6 +2698,50 @@ pre.diff .del {
     color: var(--ok);
 }
 
+/* Done in the last day (PP-287): done in the accent, failed in red; the square's blue dot until it is opened. */
+.pgb-badge.done {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+}
+
+.pgb-badge.fail {
+    background: var(--err-soft);
+    color: var(--err);
+}
+
+.pgb-item.done .pgb-text b,
+.pgb-item.failed .pgb-text b {
+    font-weight: 500;
+}
+
+.pgb-item.unseen .pgb-text b {
+    font-weight: 600;
+}
+
+.pgb-av {
+    position: relative;
+}
+
+.pgb-dot {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+}
+
+.pgb-sec {
+    padding: 9px 16px 3px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dim, var(--muted));
+}
+
 /* A card that Approve or Deny answers: its buttons under it, in line with the text. */
 .pgb-ask {
     display: flex;

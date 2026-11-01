@@ -20,6 +20,8 @@ export const PROGRESS_POLL_MS = 50_000;
 export const MAX_ROWS = 5;
 /** Sessions done within this long count in the title. */
 const DONE_WINDOW_MS = 60 * 60 * 1000;
+/** Sessions whose run ended within this long are on the floating board's Done tab (PP-287, the owner's pick). */
+export const FINISHED_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type ProgressRow = {
     /** The session to open (a subagent's root session). */
@@ -29,10 +31,11 @@ export type ProgressRow = {
     title: string;
     /** Its session's folder: the board colors its square by it, as the session list does. */
     cwd?: string;
-    state: "working" | "waiting";
-    /** What it does now, in a few words. */
+    /** At work, waiting for the owner, or (the floating board's Done tab, PP-287) its run ended, well or failed. */
+    state: "working" | "waiting" | "done" | "failed";
+    /** What it does now, in a few words; for one done, the start of Pi's last answer. */
     doing: string;
-    /** Since when it works, or waits. */
+    /** Since when it works, or waits; when it ended, for one done. */
     since: number;
     /**
      * What waits for the owner, when it waits; `simple` when Approve and Deny answer it (no form to fill); a decision Pi
@@ -55,6 +58,13 @@ export type ProgressBoard = {
     rows: ProgressRow[];
     /** Rows past `MAX_ROWS`. */
     more: number;
+    /**
+     * Sessions whose run ended in the last `FINISHED_WINDOW_MS`, newest first, with the start of Pi's last answer: the
+     * floating board's Done tab (PP-287); not in the notification.
+     */
+    finished: ProgressRow[];
+    /** When the newest of them ended: the bubble's dot when it is after the owner last looked. */
+    lastEnded?: number;
 };
 
 /** What the board is read from: the app's runs, approvals, titles, peeks, and ends. */
@@ -74,6 +84,8 @@ export type ProgressSource = {
     peek(id: ConversationId): Promise<readonly PeekLine[] | undefined>;
     /** How many sessions ended their run since `at`. */
     doneSince(at: number): number;
+    /** Sessions (not subagents) whose last run ended since `at`, and whether it failed. */
+    finished?(at: number): readonly { id: ConversationId; endedAt: number; failed: boolean }[];
     now(): number;
 };
 
@@ -143,6 +155,8 @@ export class Progress {
     #version = 0;
     /** The board as last said, by language, to tell a change. */
     readonly #said = new Map<string, string>();
+    /** Pi's last words in each session done, read once for the run that ended then. */
+    readonly #lastWords = new Map<ConversationId, { endedAt: number; text: string }>();
 
     constructor(source: ProgressSource) {
         this.#source = source;
@@ -237,6 +251,45 @@ export class Progress {
             }
         }
 
+        // Sessions done in the last day (PP-287): the start of Pi's last answer, or of what stopped it.
+        const finished: ProgressRow[] = [];
+
+        for (const end of source.finished?.(now - FINISHED_WINDOW_MS) ?? []) {
+            const title = source.title(end.id);
+
+            // Not one with a row: at work, waiting, or its subagents at work.
+            if (title === undefined || rows.some((row) => row.session === Number(end.id))) {
+                continue;
+            }
+
+            let words = this.#lastWords.get(end.id);
+
+            if (words?.endedAt !== end.endedAt) {
+                const lines = await source.peek(end.id);
+                const last = lines?.findLast((line) => line.kind === "text" || line.kind === "error");
+
+                words = { endedAt: end.endedAt, text: last === undefined || !("text" in last) ? "" : short(last.text) };
+
+                if (lines !== undefined) {
+                    this.#lastWords.set(end.id, words);
+                }
+            }
+
+            const cwd = source.cwd?.(end.id);
+
+            finished.push({
+                session: Number(end.id),
+                conversationId: Number(end.id),
+                title,
+                ...(cwd === undefined ? {} : { cwd }),
+                state: end.failed ? "failed" : "done",
+                doing: words.text === "" ? (end.failed ? t("failed") : t("done")) : words.text,
+                since: end.endedAt,
+            });
+        }
+
+        finished.sort((a, b) => b.since - a.since);
+
         // What waits for the owner first, then the longest at work.
         rows.sort((a, b) => (a.state === b.state ? a.since - b.since : a.state === "waiting" ? -1 : 1));
 
@@ -253,6 +306,8 @@ export class Progress {
             done,
             rows,
             more: Math.max(0, rows.length - MAX_ROWS),
+            finished,
+            ...(finished.length === 0 ? {} : { lastEnded: finished[0]!.since }),
         };
         // What it says, without the times that tick: a run's minutes going by are no change to send.
         const said = JSON.stringify({ ...board, rows: board.rows.map(({ since: _since, subagents, ...rest }) => ({ ...rest, subagents: subagents?.map(({ since: _at, ...sub }) => sub) })) });
