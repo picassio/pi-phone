@@ -41,7 +41,7 @@ tags: []
 `;
 
 export default function wiki(pocket) {
-    const { html, useState, useEffect, useRef, Markdown, Icon, Loader, Switch, t, tn, tx } = pocket;
+    const { html, useState, useEffect, useRef, Markdown, Icon, Loader, Switch, Choice, t, tn, tx } = pocket;
     /** Each category's name and hint, by id. */
     const categoryText = {
         projects: [t("Projects"), t("Goals with an end")],
@@ -430,6 +430,7 @@ export default function wiki(pocket) {
     function Settings() {
         const [settings, setSettings] = useState(null);
         const [embedding, setEmbedding] = useState(null);
+        const [jev, setJev] = useState(null);
         const [problem, setProblem] = useState(null);
         const [busy, setBusy] = useState(false);
         const [tokens, setTokens] = useState("");
@@ -444,6 +445,7 @@ export default function wiki(pocket) {
         useEffect(() => {
             pocket.api("settings").then(loaded, (error) => setProblem(error.message));
             pocket.api("embedding-models").then(setEmbedding, (error) => setEmbedding({ error: error.message }));
+            pocket.api("jev-models").then(setJev, (error) => setJev({ error: error.message }));
         }, []);
 
         const save = async (patch) => {
@@ -534,6 +536,7 @@ export default function wiki(pocket) {
                         }
                     </div>
                 </div>
+                <${RankWithJev} rerank=${settings.rerank} jev=${jev} busy=${busy} save=${save} />
                 <div class="provider">
                     <div>
                         <div>${t("Health checks")}</div>
@@ -555,6 +558,70 @@ export default function wiki(pocket) {
                         </label>
                     </div>
                 </div>
+            </div>
+        </div>`;
+    }
+
+    /**
+     * Rank with Jev (PP-312): the Jev model that judges the search's pages, from the Jev models OpenRouter offers, or Off;
+     * and how the last search went with it (pages read and kept, time, cost), or why Jev failed.
+     */
+    function RankWithJev({ rerank, jev, busy, save }) {
+        const last = rerank.last;
+        const at = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const detail = (model) =>
+            model.id === rerank.default ? t("{id} · the default", { id: model.id }) : model.id.startsWith("~") ? t("{id} · follows TypeSafe's newest", { id: model.id }) : model.id;
+        const options = [
+            { value: "off", label: t("Off: the search's own order"), detail: t("by keyword and meaning scores") },
+            ...(jev?.models ?? []).map((model) => ({ value: model.id, label: model.name, detail: detail(model) })),
+        ];
+        const value = rerank.model ?? "off";
+
+        // A model the list no longer has still shows as chosen.
+        if (value !== "off" && !options.some((option) => option.value === value)) {
+            options.push({ value, label: value, detail: value === rerank.default ? t("{id} · the default", { id: value }) : value });
+        }
+
+        return html`<div class="provider" data-part="wiki-rerank">
+            <div>
+                <div>${t("Rank with Jev")} ${rerank.model && html`<span class="ok">✓</span>`}</div>
+                <div class="muted small">
+                    ${t("Jev reads each page the search found and keeps only those that help with the message or the query, best first: the pages that come with your messages, and wiki_query. About 0.5 s and $0.0001 a search, with your OpenRouter key. Off: the search's own order, by its score.")}
+                </div>
+                ${
+                    !rerank.signedIn
+                        ? html`<p class="muted small">${t("Sign in to OpenRouter in Settings › Providers to use it. Until then the search keeps its own order.")}</p>`
+                        : html`<div class="field">
+                              <div class="label">${t("Jev model")}</div>
+                              ${jev?.error && html`<p class="wiki-problem">${jev.error}</p>`}
+                              ${!jev && html`<${Loader} label=${t("Loading OpenRouter's models")} />`}
+                              ${
+                                  jev?.models &&
+                                  html`<${Choice}
+                                      label=${t("Jev model")}
+                                      value=${value}
+                                      options=${options}
+                                      disabled=${busy}
+                                      onChange=${(next) =>
+                                          next !== value && save({ rerankModel: next === rerank.default && rerank.chosen === undefined ? "default" : next })}
+                                  />`
+                              }
+                          </div>`
+                }
+                ${
+                    last &&
+                    (last.error
+                        ? html`<p class="wiki-problem">${t("Last search ({time}): {why}, so it kept the search's own order.", { time: at(last.at), why: last.error })}</p>`
+                        : html`<div class="muted small">
+                              ${t("Last search ({time}): {read} pages read, {kept} kept, {seconds} s, ${cost}.", {
+                                  time: at(last.at),
+                                  read: last.read,
+                                  kept: last.kept,
+                                  seconds: (last.ms / 1000).toFixed(2),
+                                  cost: last.cost.toFixed(5),
+                              })}
+                          </div>`)
+                }
             </div>
         </div>`;
     }

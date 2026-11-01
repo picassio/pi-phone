@@ -19567,9 +19567,14 @@ pre.gallery-code {
     margin-top: 6px;
 }
 
-/* Pi's browser sheet: a Jev model's id, Test and Save, under the run model's choice. */
-.setting-row.pb-jev .field {
+/* Pi's browser sheet: a run model's row, its dropdown and for Jev its cost and Test (PP-312). */
+.setting-row.pb-run .field {
     flex: 1;
+    min-width: 0;
+}
+
+.setting-row.pb-run .field > .label {
+    margin-top: 6px;
 }
 
 /* The update the Android app found (sheets/update.js): the version, then what updating does. */
