@@ -23,7 +23,10 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.animation.LinearInterpolator;
+import android.os.SystemClock;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.FrameLayout;
@@ -73,6 +76,12 @@ final class ProgressBubble {
     private static volatile ProgressBubble current;
     /** The app was just opened from the board: it is see-through until it folds, and the circle comes back hidden. */
     private boolean leaving;
+    /** A voice call runs on the board's page (PP-290): folding draws its pill instead, and the bubble stays. */
+    private boolean calling;
+    /** A second tap within this long is a double tap: a voice call (PP-290). A single tap opens the board after it. */
+    private static final long DOUBLE_TAP_MS = 250;
+    private long lastTap;
+    private final Runnable openLater = this::open;
     /** pi-phone in front: the bubble steps aside (the app shows the same), and an open board folds. */
     private final Runnable watchFront = new Runnable() {
         @Override
@@ -205,7 +214,16 @@ final class ProgressBubble {
                         return true;
                     case MotionEvent.ACTION_UP:
                         if (!moved) {
-                            open();
+                            long now = SystemClock.uptimeMillis();
+                            if (now - lastTap < DOUBLE_TAP_MS) {
+                                // A double tap: a voice call with Pi (PP-290).
+                                main.removeCallbacks(openLater);
+                                lastTap = 0;
+                                open(true);
+                            } else {
+                                lastTap = now;
+                                main.postDelayed(openLater, DOUBLE_TAP_MS);
+                            }
                         } else {
                             // To the nearest side, as chat heads go.
                             int width = context.getResources().getDisplayMetrics().widthPixels;
@@ -257,15 +275,28 @@ final class ProgressBubble {
         }
     }
 
-    /** The board over the app in front, as wide as the screen; the circle steps aside while it shows. */
-    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     /** The owner looked: what finished so far is seen, and the bubble's dot goes. */
     private void looked() {
         lastLook = Math.max(System.currentTimeMillis(), lastEnded);
         dot.setVisibility(View.GONE);
     }
 
+    /** A voice call runs on the board (PP-290): the bubble stays while it does, whatever runs. */
+    boolean calling() {
+        return calling;
+    }
+
+    /** The board over the app in front, as wide as the screen; the circle steps aside while it shows. */
     private void open() {
+        open(false);
+    }
+
+    /**
+     * The board, or with `call` a voice call from the bubble (PP-290, a double tap): the page starts it in the session
+     * Menu › Assistant names, as a call pill.
+     */
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+    private void open(boolean call) {
         if (board != null) return;
         looked();
         board = new WebView(context);
@@ -273,7 +304,19 @@ final class ProgressBubble {
         WebSettings settings = board.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
         board.addJavascriptInterface(new Bridge(), "PiBoard");
+        // The microphone for a call (PP-290): the app's own page, audio only, once pi has it.
+        board.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                if (VoicePage.ownAudio(request) && micAllowed()) {
+                    request.grant(new String[] {PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                } else {
+                    request.deny();
+                }
+            }
+        });
         DisplayMetrics screen = context.getResources().getDisplayMetrics();
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 screen.widthPixels - dp(20), Math.round(screen.heightPixels * 0.55f),
@@ -295,7 +338,7 @@ final class ProgressBubble {
         windows.addView(board, params);
         new Thread(() -> {
             try {
-                String url = BASE + "/login?token=" + Uri.encode(token.get()) + "&next=" + Uri.encode("/?board=1");
+                String url = BASE + "/login?token=" + Uri.encode(token.get()) + "&next=" + Uri.encode(call ? "/?board=1&call=1" : "/?board=1");
                 main.post(() -> {
                     if (board != null) board.loadUrl(url);
                 });
@@ -324,9 +367,41 @@ final class ProgressBubble {
         windows.updateViewLayout(board, boardParams);
     }
 
-    /** The board folds back to the circle. */
+    /**
+     * The call pill (PP-290): the window as tall as the page says (CSS pixels), across the screen, taking no keyboard;
+     * touches beside it go to the app under it.
+     */
+    private void pill(int cssHeight) {
+        if (board == null || boardParams == null) return;
+        DisplayMetrics screen = context.getResources().getDisplayMetrics();
+        boardParams.height = Math.round(cssHeight * screen.density);
+        boardParams.y = Math.max(dp(80), Math.min(orbParams.y, screen.heightPixels - boardParams.height - dp(80)));
+        boardParams.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+        windows.updateViewLayout(board, boardParams);
+    }
+
+    private boolean micAllowed() {
+        return context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * Android lets pi use the microphone from behind another app only as the phone's digital assistant (a foreground
+     * service that needs the microphone, started from the background, is allowed for the app that provides the
+     * VoiceInteractionService): the call over other apps needs it.
+     */
+    private boolean assistantHeld() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false;
+        android.app.role.RoleManager roles = context.getSystemService(android.app.role.RoleManager.class);
+        return roles != null && roles.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT);
+    }
+
+    /** The board folds back to the circle; with a call on it, to the call's pill (the page draws it and sizes the window). */
     private void fold() {
         if (board == null) return;
+        if (calling) {
+            board.evaluateJavascript("globalThis.__piBoardFold && globalThis.__piBoardFold()", null);
+            return;
+        }
         windows.removeView(board);
         board.destroy();
         board = null;
@@ -352,6 +427,11 @@ final class ProgressBubble {
     /** The circle and its board go (turned off, Android's permission taken back, or nothing runs). */
     void remove() {
         if (current == this) current = null;
+        if (calling) {
+            calling = false;
+            VoiceCallService.page = null;
+            VoiceCallService.tell(context, VoiceCallService.ACTION_STOP, "", -1, false);
+        }
         main.removeCallbacks(watchFront);
         if (board != null) {
             windows.removeView(board);
@@ -421,6 +501,70 @@ final class ProgressBubble {
         @JavascriptInterface
         public void expand(boolean on) {
             main.post(() -> ProgressBubble.this.expand(on));
+        }
+
+        /** The call pill's height in CSS pixels (PP-290): the window fits it. */
+        @JavascriptInterface
+        public void pill(int cssHeight) {
+            main.post(() -> ProgressBubble.this.pill(cssHeight));
+        }
+
+        @JavascriptInterface
+        public boolean micAllowed() {
+            return ProgressBubble.this.micAllowed();
+        }
+
+        /** Whether pi is the phone's digital assistant: a call over other apps needs it (`assistantHeld`). */
+        @JavascriptInterface
+        public boolean assistantHeld() {
+            return ProgressBubble.this.assistantHeld();
+        }
+
+        /** Android's Default apps, to make pi the digital assistant; the board folds. */
+        @JavascriptInterface
+        public void openAssistantSettings() {
+            main.post(() -> {
+                launch(new Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS), 3002);
+                stepAside();
+                main.postDelayed(ProgressBubble.this::fold, FOLD_AFTER_MS);
+            });
+        }
+
+        /**
+         * A call is about to start in `session` (PP-290): the call's service first, so the microphone is pi's from
+         * behind another app before the page asks for it.
+         */
+        @JavascriptInterface
+        public void callStarting(int session, String title) {
+            main.post(() -> {
+                try {
+                    calling = true;
+                    VoiceCallService.tell(context, VoiceCallService.ACTION_START, title, session, true);
+                } catch (RuntimeException e) {
+                    android.util.Log.w("pi-phone", "board: the call's service did not start: " + e);
+                }
+            });
+        }
+
+        /** The board's call started, changed, or ended (`web/voice-call.js`): its notification and audio follow. */
+        @JavascriptInterface
+        public void voiceCall(String json) {
+            main.post(() -> {
+                try {
+                    String state = VoicePage.tell(context, json);
+                    if ("start".equals(state)) {
+                        calling = true;
+                        VoiceCallService.page = (action) -> main.post(() -> {
+                            if (board != null) board.evaluateJavascript(VoicePage.action(action), null);
+                        });
+                    } else if ("end".equals(state)) {
+                        calling = false;
+                        VoiceCallService.page = null;
+                    }
+                } catch (org.json.JSONException e) {
+                    android.util.Log.w("pi-phone", "board: voice call: " + e);
+                }
+            });
         }
     }
 }

@@ -18,10 +18,11 @@ let engine = null;
  * the call's notification (Mute, End) and the phone's audio follow; the notification's buttons come back as
  * `__piVoiceAction("mute" | "end")`. With the call go Settings › Voice's mute key and proximity (PP-201): the window
  * listens for a headset's button or the volume keys (`"mic"`) and the proximity sensor (`"ear"`, `"away"`) while the
- * call runs. In a browser there is no window to tell.
+ * call runs. In a browser there is no window to tell. The floating board's call (PP-290) tells the bubble
+ * (`PiBoard.voiceCall`), which holds it over other apps.
  */
 function tellShell(state, extra = {}) {
-    const shell = globalThis.PiPhoneApp;
+    const shell = typeof globalThis.PiPhoneApp?.voiceCall === "function" ? globalThis.PiPhoneApp : globalThis.PiBoard;
     const call = store.state.voiceCall;
 
     if (typeof shell?.voiceCall !== "function" || (call == null && state !== "end")) {

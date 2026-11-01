@@ -127,7 +127,8 @@ final class Progress {
         boolean allowed = Settings.canDrawOverlays(service);
         boolean wanted = bubbleOn && allowed && (!hideIdle || working + waiting > 0 || now - lastBusy < IDLE_HIDE_MS);
         main.post(() -> {
-            if (wanted) {
+            // A voice call on the board (PP-290) keeps it while it lasts, idle or not.
+            if (wanted || (bubble != null && bubble.calling() && allowed)) {
                 if (bubble == null) bubble = new ProgressBubble(service, token);
                 bubble.show(working, waiting, lastEnded);
             } else if (bubble != null) {

@@ -2841,6 +2841,139 @@ pre.diff .del {
     min-width: 0;
 }
 
+/* A voice call from the bubble (PP-290): the call line on the board, and the call as a pill or a bar. */
+.pgb-callrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--hair);
+}
+
+.pgb-callto {
+    flex: 1;
+    min-width: 0;
+}
+
+.pgb-callto .choice {
+    width: 100%;
+}
+
+.pgb-callbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.pgb-problem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: var(--warn-soft);
+    font-size: 0.78rem;
+}
+
+.pgb-problem span {
+    flex: 1;
+}
+
+.pgb-call {
+    color: var(--text);
+}
+
+.pgb-call.pill {
+    background: var(--bg);
+    border: 1px solid var(--hair-2);
+    border-radius: 22px;
+    overflow: hidden;
+}
+
+.pgb-call.bar {
+    border-bottom: 1px solid var(--hair);
+    background: color-mix(in srgb, var(--accent) 7%, var(--bg));
+}
+
+.pgb-callline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 8px 8px 12px;
+}
+
+.pgb-calltext {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    color: var(--text);
+}
+
+.pgb-calltext > span {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.pgb-calltext b {
+    font-size: 0.86rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pgb-calltext small {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.pgb-round {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--card-2);
+    color: var(--text);
+}
+
+.pgb-round.on {
+    background: var(--accent);
+    color: var(--accent-ink);
+}
+
+.pgb-round.end {
+    background: var(--err);
+    color: var(--bg);
+}
+
+.pgb-round.end svg {
+    transform: rotate(135deg);
+}
+
+.pgb-captions {
+    padding: 0 14px 10px 44px;
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.pgb-captions span {
+    margin-right: 6px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
 .pgb-foot {
     display: flex;
     align-items: center;

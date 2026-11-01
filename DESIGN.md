@@ -360,6 +360,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
   section show them; a blue dot is `seen.js`'s `finishedUnseen` (the WebViews share localStorage, so opening it on the
   board or in the app clears it). `lastEnded` puts a blue dot on the bubble when after its `lastLook` (the board
   opened, or pi-phone in use).
+  A voice call from the bubble (PP-290, the owner's pick B): a double tap (a single tap waits 250 ms for it) opens the
+  board at `/?board=1&call=1`, which calls Menu › Assistant's target (`assist.js` `targetFor`); the board's call line
+  (Call, and a `Choice` of last, new or Assistant's session) does the same for another target. The page checks
+  `PiBoard.assistantHeld` (RoleManager ROLE_ASSISTANT: Android lets a microphone foreground service start from the
+  background only for the app providing the VoiceInteractionService) and `micAllowed`, then `callStarting` starts
+  `VoiceCallService` before `getUserMedia` (the board's WebChromeClient grants its own audio). `voice-call.js` tells
+  `PiBoard.voiceCall` when there is no `PiPhoneApp.voiceCall`; the notification's buttons come back to the board. While
+  `calling`, folding (outside, the dash, pi-phone in front) calls `__piBoardFold`: the page draws the pill and sizes the
+  window to it (`PiBoard.pill`, CSS px), and `Progress` keeps the bubble even when idle. Ending as a pill folds back to
+  the bubble; on the board, the board stays.
 - **Subagents' model and thinking** (PP-281; `subagent-defaults.ts`, `extensions/subagents.ts`,
   `web/sheets/subagent-settings.js`; owner's mockup v2, 2026-10-31): `config.subagentDefaults` (every session's) and
   `SessionMeta.subagentDefaults` (a session's own, `session` for its own model or level), each part on its own;
