@@ -333,7 +333,8 @@ test("a batch a stopped courier had sent already is not sent again", async () =>
     rounds = 0;
     await app.commands.submit(id, owner(app), { text: "orchestrate", requestId: "sent" });
     await until(async () => (await delivered(id)).after === 1 && !app.isBusy(id), "the new report");
-    assert.equal((await delivered(id)).lost, 1, "under its request id, it went once");
+    // What the parent's context holds, when it is not as expected (it failed only in CI, three times, from #376).
+    assert.equal((await delivered(id)).lost, 1, `under its request id, it went once: ${(await parentText(id)).slice(0, 3000)}`);
     assert.equal((await app.harness.snapshot(SubagentsDoc, id, context))?.sending, undefined);
 });
 
