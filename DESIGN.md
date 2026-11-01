@@ -632,6 +632,21 @@ so Pi changes them through the settings tools; "the last session" is the one the
   nor reads `message.images`, so an image a chat model would write never reaches the chat. When the session's model
   writes images (OpenRouter's list says so, or the owner's mark), the `images` prompt section says that, and that Pi
   makes images with `image_generate`, passing its own model if it likes; otherwise the section is empty.
+- **Media** (PP-296; the owner's picks of 2026-11-01: ffmpeg everywhere, one engine, the phone, the server edition and
+  machines; `media.ts`, `extensions/media.ts`): `media({ action: info | image | frames | clip, path, ... })`. The engine:
+  on the phone `native/android-arm64/ffmpeg/` (`scripts/build-ffmpeg-android.sh`: NDK r27c, API 26, FFmpeg 9.0.2 with
+  x264 and libwebp, GPL, about 10 MB each, only the demuxers, decoders, encoders and filters the tool uses; its own
+  libraries linked in, Android's libc/libm/libz the phone's, as a fully static bionic executable's TLS segment is
+  refused on Android 10+; built in CI and cached by the script's hash; Termux's ffmpeg would add 80 packages, about 395
+  MB); in the server edition `native/linux-<arch>/ffmpeg/` (`scripts/server-tools.ts`: BtbN's pinned static build, the
+  one machines install, linked into /usr/local/bin); on a machine its ffmpeg tool's wrappers in `~/.pi/mobile/tools/bin`
+  (run through bash, so Windows' Git Bash runs them), else `command -v ffmpeg`, else an error naming Menu › Machines ›
+  Install tools. Each operation is ffmpeg's arguments built in `media.ts` (`imageArgs`, `frameAtArgs`, `framesArgs`,
+  `sheetArgs`, `clipArgs`), run through the session's `ExecutionEnv`; ffprobe's JSON read in short (`readProbe`:
+  image, video or audio, size, length, width and height, fps, codecs, turn). Frames are never wider than the video; a
+  clip is H.264 CRF 26 veryfast, AAC 128k or muted, at most `height` (720) lines, +faststart. Output in `media/`,
+  `<YYYYMMDD-HHMMSS>-<file's name>[-n|-sheet|-clip].<ext>`; Pi gets paths, sizes and dimensions. The phone's PATH has
+  the ffmpeg folder (`#toolPath`). GPL notice: `third_party/ffmpeg-android/README.md`.
 - **Screenshots** (`src/server/screenshots.ts`, `extensions/screenshot.ts`, `android/.../Renderer.java`; owner's decision of
   2026-10-18): Pi sees what it made. `screenshot({ artifact | path | url, widths = [390, 1280], fullPage, settle })`
   asks the app's service, which long-polls `GET /api/phone/renders` (beside `/api/phone/events`), to draw the page in an
@@ -1628,12 +1643,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
 1. `scripts/package-rootfs.ts`: resolve the Termux package set from the aarch64 index, download, check SHA-256,
    extract without maintainer scripts, rewrite the prefix, drop dangling symlinks, `tar --hard-dereference`
    (Android forbids hard links in app data) to `rootfs.bin`, manifest `termux-packages.json`.
-2. `npm ci --omit=dev --ignore-scripts --os=android --cpu=arm64`, then `scripts/package-runtime.ts` tars
+2. ffmpeg and ffprobe for Android (`scripts/build-ffmpeg-android.sh`, NDK r27c; cached by the script's hash) into
+   `native/android-arm64/ffmpeg/`; the check job fetches the server edition's ffmpeg for the media tool's tests
+   (`node scripts/server-tools.ts linux-x64 ffmpeg`, cached by `machine-tools.ts`'s hash).
+3. `npm ci --omit=dev --ignore-scripts --os=android --cpu=arm64`, then `scripts/package-runtime.ts` tars
    `src/`, `web/`, `package.json`, `node_modules` to `runtime.bin` and writes `runtime-version`.
-3. `scripts/versions.ts assets` writes the shell, rootfs, and runtime versions into the APK's assets.
-4. `gradle assembleDebug` (one variant: debuggable, for `run-as` over adb) signed with the fixed key from secrets
+4. `scripts/versions.ts assets` writes the shell, rootfs, and runtime versions into the APK's assets.
+5. `gradle assembleDebug` (one variant: debuggable, for `run-as` over adb) signed with the fixed key from secrets
    (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, alias `pi-phone`).
-5. When the tests and the build pass on `master`, a GitHub release `build-<run>` with `pi-phone.apk`, `rootfs.bin`,
+6. When the tests and the build pass on `master`, a GitHub release `build-<run>` with `pi-phone.apk`, `rootfs.bin`,
    `runtime.bin`, `termux-packages.json`, and `manifest.json`; the last 10 are kept. The repository is public, so
    the phone downloads without credentials.
 

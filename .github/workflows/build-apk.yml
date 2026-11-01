@@ -25,6 +25,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run check
+      # The media tool's tests (PP-296) run the server edition's ffmpeg, the pinned release machines install: kept
+      # between runs while its pin (src/server/machine-tools.ts) is the same.
+      - uses: actions/cache@v4
+        with:
+          path: native/linux-x64/ffmpeg
+          key: ffmpeg-linux-x64-${{ hashFiles('src/server/machine-tools.ts') }}
+      - run: test -x native/linux-x64/ffmpeg/ffmpeg || node scripts/server-tools.ts linux-x64 ffmpeg
       # The UI tests drive the runner's Chrome; its sandbox needs unprivileged user namespaces, which Ubuntu 24.04
       # restricts through AppArmor.
       - name: Allow Chrome's sandbox
@@ -79,6 +86,18 @@ jobs:
       # OfficeCLI's Android release (picassio/OfficeCLI), checked against its sha256: bundled in the runtime.
       - name: OfficeCLI for Android
         run: node scripts/officecli.ts
+      # ffmpeg and ffprobe for Android (PP-296), built from pinned sources with the NDK; kept between runs while the
+      # script that builds them is the same.
+      - uses: actions/cache@v4
+        id: ffmpeg-android
+        with:
+          path: native/android-arm64/ffmpeg
+          key: ffmpeg-android-arm64-${{ hashFiles('scripts/build-ffmpeg-android.sh') }}
+      - name: ffmpeg for Android
+        if: steps.ffmpeg-android.outputs.cache-hit != 'true'
+        run: |
+          sdkmanager 'ndk;27.2.12479018'
+          ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018" bash scripts/build-ffmpeg-android.sh native/android-arm64/ffmpeg
       - name: Server dependencies for Android arm64, no lifecycle scripts
         run: npm ci --omit=dev --ignore-scripts --os=android --cpu=arm64
       - name: Server runtime

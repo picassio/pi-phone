@@ -242,6 +242,12 @@ No Termux, no laptop, no cloud VM.
   pictures, so they cost no context. A picture of a real person (a photo of someone, a named person's likeness) asks
   you on a card first. When the session's own model can write images, Pi is told that the chat shows only a model's
   text, so it still makes them with `image_generate` (naming its own model if you like).
+- **Media.** Pi's `media` tool works on images and video with ffmpeg where the session runs. On the phone it uses the
+  slim build the app carries; in the server edition, the image's; on a machine, its ffmpeg tool (Menu › Machines ›
+  Install tools) or its own. It can say what a file is (size, length, width and height, codecs); fit, crop, turn, flip,
+  convert (JPEG, PNG, WebP) and compress an image; take a video's frames (at given seconds, every few seconds, or spread
+  over it) or one contact sheet; and cut an mp4 clip, trimmed, shrunk to 720p and muted if you like. What it makes goes
+  in `media/` where the session works. `ffmpeg` and `ffprobe` are on the PATH of the phone's sessions too.
 
 ### Secrets and the wiki
 - **Secrets.** API keys and tokens in Settings › Secrets, used by name (`$NPM_TOKEN`) and never shown: output that

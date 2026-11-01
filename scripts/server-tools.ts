@@ -1,16 +1,17 @@
 /**
  * native/linux-x64/ (or linux-arm64/): the tools the server edition's image carries (PP-20), the same pinned releases
  * the app installs on machines (`src/server/machine-tools.ts`), each checked against its sha256: OfficeCLI, ripgrep, fd,
- * and Chrome headless shell (for Pi's browser and `screenshot`). Not in git; the Dockerfile runs this.
+ * Chrome headless shell (for Pi's browser and `screenshot`), and ffmpeg with ffprobe (Pi's media tool, PP-296). Not in
+ * git; the Dockerfile runs this, and CI's tests fetch ffmpeg alone (a tool's id after the target: only those).
  *
- *   node scripts/server-tools.ts [linux-x64 | linux-arm64]
+ *   node scripts/server-tools.ts [linux-x64 | linux-arm64] [tool id...]
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { CHROME_TOOL, TOOLS, type ToolSpec } from "../src/server/machine-tools.ts";
+import { CHROME_TOOL, FFMPEG_TOOL, TOOLS, type ToolSpec } from "../src/server/machine-tools.ts";
 
 const target = process.argv[2] ?? "linux-x64";
 
@@ -20,7 +21,13 @@ if (target !== "linux-x64" && target !== "linux-arm64") {
 
 const ROOT = resolve(import.meta.dirname, "..");
 const OUT = join(ROOT, "native", target);
-const wanted: ToolSpec[] = [...TOOLS.filter((tool) => ["officecli", "rg", "fd"].includes(tool.id)), CHROME_TOOL];
+const only = process.argv.slice(3);
+const all: ToolSpec[] = [...TOOLS.filter((tool) => ["officecli", "rg", "fd"].includes(tool.id)), CHROME_TOOL, FFMPEG_TOOL];
+const wanted = only.length === 0 ? all : all.filter((tool) => only.includes(tool.id));
+
+if (only.length > 0 && wanted.length !== only.length) {
+    throw new Error(`No such tools here: ${only.filter((id) => !all.some((tool) => tool.id === id)).join(", ")}. Tools: ${all.map((tool) => tool.id).join(", ")}.`);
+}
 
 for (const tool of wanted) {
     const asset = tool.assets[target];
@@ -60,14 +67,24 @@ for (const tool of wanted) {
             if (file.endsWith(".zip")) {
                 execFileSync("unzip", ["-q", file, "-d", work]);
             } else {
-                execFileSync("tar", ["-xzf", file, "-C", work]);
+                execFileSync("tar", ["-xf", file, "-C", work]);
             }
 
-            // A whole folder (Chrome: its libraries and resources beside it), or the one binary in it.
+            // A whole folder (Chrome: its libraries and resources beside it), or the one binary in it, and the tool's
+            // other programs from the same download (ffprobe beside ffmpeg).
             if (tool.whole === true) {
                 cpSync(join(work, dirname(asset.member)), dir, { recursive: true });
             } else {
                 cpSync(join(work, asset.member), join(dir, tool.command));
+
+                for (const more of asset.more ?? []) {
+                    if (more.from !== undefined) {
+                        throw new Error(`${tool.name}'s ${more.command} is a download of its own, which this does not fetch.`);
+                    }
+
+                    cpSync(join(work, more.member), join(dir, more.command));
+                    chmodSync(join(dir, more.command), 0o755);
+                }
             }
         }
 

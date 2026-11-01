@@ -39,6 +39,7 @@ export function moduleTitle(title) {
         "System prompt": t("System prompt"),
         Artifacts: t("Artifacts"),
         Images: t("Images"),
+        Media: t("Media"),
         Browser: t("Browser"),
         Subagents: t("Subagents"),
         "Agent Teams": t("Agent Teams"),

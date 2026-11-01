@@ -19,7 +19,7 @@ import { PhoneSettingsFile } from "./phone-settings.ts";
 import { UsageLimits, type UsageWindow } from "./usage-limits.ts";
 import { LimitGate, type LimitTuning, noWait, type WaitView, type Waiting } from "./limit-gate.ts";
 import { homedir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { clampThinkingLevel, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import {
@@ -98,6 +98,7 @@ import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
 import { clockText, inLanguage, inZone, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
 import { Progress } from "./progress.ts";
+import { localEngine } from "./media.ts";
 import { resolveLanguage, translator } from "./i18n.ts";
 import { newestBig, WHATS_NEW_DIR, type WhatsNew } from "./whats-new.ts";
 import {
@@ -6345,11 +6346,15 @@ export class PocketApp {
 
     // ─── Shutdown ───────────────────────────────────────────────────────────
 
-    /** The PATH of commands on the phone: `officecli` when installed and `pi-ssh` (the app's machines, through its agent) first. */
+    /**
+     * The PATH of commands on the phone: `officecli` when installed, ffmpeg and ffprobe the app carries (the media
+     * tool's, PP-296), and `pi-ssh` (the app's machines, through its agent) first.
+     */
     #toolPath(): string {
         const office = this.officecli.available() ? `${this.officecli.binDir}:` : "";
+        const media = localEngine();
 
-        return `${office}${join(this.machines.piSsh, "..")}:${process.env.PATH ?? ""}`;
+        return `${office}${media === undefined ? "" : `${dirname(media.ffmpeg)}:`}${join(this.machines.piSsh, "..")}:${process.env.PATH ?? ""}`;
     }
 
     close(): Promise<void> {

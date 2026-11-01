@@ -255,6 +255,12 @@ dự án thật.</sub>
   người có thật (ảnh của ai đó, chân dung một người có tên) sẽ hỏi bạn trên một thẻ trước. Khi mô hình của phiên
   tự viết được hình ảnh, Pi được biết rằng cuộc trò chuyện chỉ hiển thị chữ của mô hình, nên vẫn tạo hình bằng
   `image_generate` (có thể nêu chính mô hình của nó).
+- **Media.** Công cụ `media` của Pi xử lý hình ảnh và video bằng ffmpeg ở nơi phiên chạy. Trên điện thoại nó dùng bản
+  gọn mà ứng dụng mang theo; trong bản máy chủ, bản của image; trên máy tính, công cụ ffmpeg của máy (Menu › Máy tính ›
+  Cài công cụ) hoặc ffmpeg sẵn có. Nó cho biết một tệp là gì (dung lượng, độ dài, kích thước, codec); thu nhỏ vừa khung,
+  cắt, xoay, lật, đổi định dạng (JPEG, PNG, WebP) và nén ảnh; lấy khung hình của video (tại các giây cho trước, mỗi vài
+  giây, hoặc rải đều) hoặc một tờ ảnh tổng hợp; và cắt một đoạn mp4, rút gọn, thu về 720p và tắt tiếng nếu muốn. Thứ nó
+  tạo ra nằm trong `media/` ở nơi phiên làm việc. `ffmpeg` và `ffprobe` cũng có trên PATH của các phiên trên điện thoại.
 
 ### Bí mật và wiki
 - **Bí mật.** Khóa API và token trong Cài đặt › Bí mật, dùng theo tên (`$NPM_TOKEN`) và không bao giờ hiện ra: kết quả

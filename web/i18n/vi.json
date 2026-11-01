@@ -3284,6 +3284,7 @@
     "A window opens in your signed-in desktop, unlocked; it needs Chrome or Edge, not the headless machine tool. A change restarts it: its tabs close.": "Cửa sổ mở trong phiên máy đã đăng nhập, không khóa, của bạn; cần Chrome hoặc Edge, không phải công cụ headless trên máy. Đổi sẽ khởi động lại nó: các thẻ sẽ đóng.",
     "A window needs a display (the desktop setup line in Menu › Computer control) and Chrome or Chromium, not the headless machine tool. A change restarts it: its tabs close.": "Cửa sổ cần một màn hình (dòng thiết lập màn hình trong Menu › Điều khiển máy tính) và Chrome hoặc Chromium, không phải công cụ headless trên máy. Đổi sẽ khởi động lại nó: các thẻ sẽ đóng.",
     "Images": "Hình ảnh",
+    "Media": "Media",
     "makes images": "tạo hình ảnh",
     "It writes images in its answers, so Pi's image_generate may use it (Menu › Images)": "Mô hình viết hình ảnh trong câu trả lời, nên image_generate của Pi có thể dùng nó (Menu › Hình ảnh)",
     "Makes images": "Tạo hình ảnh",

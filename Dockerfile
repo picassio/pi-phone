@@ -59,6 +59,7 @@ COPY --from=build /app/whatsnew ./whatsnew
 COPY --from=build /app/node_modules ./node_modules
 COPY --chmod=755 deploy/entrypoint.sh /app/deploy/entrypoint.sh
 RUN for tool in rg fd officecli; do ln -s /app/native/linux-*/"$tool"/"$tool" /usr/local/bin/"$tool"; done \
+    && for program in ffmpeg ffprobe; do ln -s /app/native/linux-*/ffmpeg/"$program" /usr/local/bin/"$program"; done \
     && mkdir -p /data && chown node:node /data
 ENV HOME=/data/home \
     PI_PHONE_PLATFORM=server \

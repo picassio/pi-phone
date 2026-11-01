@@ -49,6 +49,14 @@ if (!existsSync(join(ROOT, "native", "android-arm64", "officecli", "officecli"))
     throw new Error("native/android-arm64/officecli is not fetched: run node scripts/officecli.ts first.");
 }
 
+// ffmpeg and ffprobe for Android (scripts/build-ffmpeg-android.sh), built before packaging: not in git. The media tool's
+// engine on the phone (PP-296, the owner's pick).
+for (const program of ["ffmpeg", "ffprobe"]) {
+    if (!existsSync(join(ROOT, "native", "android-arm64", "ffmpeg", program))) {
+        throw new Error(`native/android-arm64/ffmpeg/${program} is not built: run scripts/build-ffmpeg-android.sh native/android-arm64/ffmpeg first.`);
+    }
+}
+
 // markit's engine for Android (`fetch_content`, attachments): npm installs it only when told the platform is Android.
 if (!existsSync(join(ROOT, "node_modules", "markit-engine-android-arm64", "markit.android-arm64.node"))) {
     throw new Error("markit-engine-android-arm64 is not in node_modules: install with npm ci --os=android --cpu=arm64.");

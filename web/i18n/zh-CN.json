@@ -3304,6 +3304,7 @@
     "A window opens in your signed-in desktop, unlocked; it needs Chrome or Edge, not the headless machine tool. A change restarts it: its tabs close.": "窗口在你已登录且未锁定的桌面中打开；需要 Chrome 或 Edge，而不是无头的机器工具。更改会重启它：其标签页会关闭。",
     "A window needs a display (the desktop setup line in Menu › Computer control) and Chrome or Chromium, not the headless machine tool. A change restarts it: its tabs close.": "窗口需要显示器（菜单 › 电脑控制中的桌面设置行）以及 Chrome 或 Chromium，而不是无头的机器工具。更改会重启它：其标签页会关闭。",
     "Images": "图片",
+    "Media": "媒体",
     "makes images": "生成图片",
     "It writes images in its answers, so Pi's image_generate may use it (Menu › Images)": "它会在回答中生成图片，因此 Pi 的 image_generate 可以使用它（菜单 › 图片）",
     "Makes images": "生成图片",
