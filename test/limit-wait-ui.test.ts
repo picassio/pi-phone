@@ -240,13 +240,17 @@ test("Retry now sends the request; the phone's list shows the square; Providers 
 
     // The notice switch, as the owner turns it off and on. On a loaded machine the sheet may still slide in when the first
     // tap lands: tap again until it takes.
+    // The sheet may also draw again as its models load (CI #392: the switch was gone for the moment of a tap): wait for it.
     const flip = async (on: boolean) => {
+        const misses: string[] = [];
+
         for (let tries = 0; tries < 5 && app.config.limitNotice !== on; tries++) {
-            await page.click({ selector: ".limit-wait .switch" });
+            await until(async () => await inPage<boolean>(`return JSON.stringify(document.querySelector(".limit-wait .switch") !== null)`), "the switch", 5000).catch(() => undefined);
+            await page.click({ selector: ".limit-wait .switch" }).catch((error: Error) => misses.push(error.message));
             await until(() => app.config.limitNotice === on, `the notice ${on ? "on" : "off"}`, 3000).catch(() => undefined);
         }
 
-        assert.equal(app.config.limitNotice, on);
+        assert.equal(app.config.limitNotice, on, `taps that missed: ${misses.join("; ") || "none"}; the sheet: ${await text(".limit-wait").catch(() => "(gone)")}`);
     };
 
     await flip(false);
