@@ -226,7 +226,12 @@ No Termux, no laptop, no cloud VM.
 - **Business motion films.** [Motion Video Kit](https://github.com/echris6/motion-video-kit)'s skill for short
   launch-style commercials in code-built motion (HTML, GSAP, Three.js), judged by fresh critic subagents; Pi renders
   them on one of your machines with the HyperFrames machine tool (with ffmpeg, numpy and scipy there).
-- **Design & video.** The three above are one extension, on by default: turn it off in **Extensions** (or ask Pi), and
+- **Unslop.** [heydamir's unslop](https://github.com/heydamir/unslop) skill (by Damir Sokolovsky, CC BY 4.0): ask Pi
+  to unslop, polish or clean up a screen and it audits it against a list of AI-UI tells (glows, gradient text, emoji
+  labels, uneven spacing, shouting copy), proposes a direction on a card and waits for your answer, then fixes spacing,
+  colour, icons, copy, type, layout, details, visuals and motion, and checks the result with `screenshot`. Pi also goes
+  through its sign list before calling an HTML page or artifact done.
+- **Design & video.** The four above are one extension, on by default: turn it off in **Extensions** (or ask Pi), and
   sessions carry none of its skills and Menu › Design system goes away until it is on again.
 - **Formal checks.** pstack's [statechart](https://github.com/cursor/plugins/tree/main/pstack/skills/statechart)
   skill: Pi writes a TLA+ model of something that moves between states (a checkout, a protocol, a service), TLC
@@ -729,6 +734,8 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   licences.
 - **[motion-video-kit](https://github.com/echris6/motion-video-kit)** by echris6 (MIT): the `business-motion-film`
   skill in `third_party/motion-video-kit/`.
+- **[unslop](https://github.com/heydamir/unslop)** by Damir Sokolovsky ([@heydamir](https://x.com/heydamir), CC BY
+  4.0): the `unslop` skill in `third_party/heydamir-unslop/`, with one note added by pi-phone.
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** by Lauren Tan ([@poteto](https://github.com/poteto),
   MIT): the `statechart` skill in `third_party/pstack-statechart/`, with the four boba models of
   **[statechart-art](https://github.com/kevintngo/statechart-art)** by Kevin T. Ngo (MIT) as its examples.

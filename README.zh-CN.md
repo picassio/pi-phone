@@ -155,7 +155,10 @@
   各自采用 MIT 许可证：Pi 从其中一个模板开始制作演示文稿，并以产物形式发布。
 - **商业动效短片。** [Motion Video Kit](https://github.com/echris6/motion-video-kit) 的技能，用代码构建的动效（HTML、GSAP、Three.js）
   制作发布会风格的商业短片，由全新的评审子代理评判；Pi 在你的某台机器上用 HyperFrames 机器工具渲染（那台机器需要 ffmpeg、numpy 和 scipy）。
-- **设计与视频。** 以上三项是同一个扩展，默认开启：在 **扩展** 中关闭它（或让 Pi 关闭）后，会话不再带有它的任何技能，
+- **Unslop。** [heydamir 的 unslop](https://github.com/heydamir/unslop) 技能（作者 Damir Sokolovsky，CC BY 4.0）：让 Pi
+  unslop、打磨或整理一个界面，它会按一份 AI 界面特征清单（发光、渐变文字、表情符号标签、间距不齐、夸张文案）审查，在卡片上提出方向并等你回答，
+  然后修正间距、颜色、图标、文案、字体、布局、细节、视觉和动效，并用 `screenshot` 检查结果。Pi 在认定一个 HTML 页面或产物完成之前，也会对照这份清单检查。
+- **设计与视频。** 以上四项是同一个扩展，默认开启：在 **扩展** 中关闭它（或让 Pi 关闭）后，会话不再带有它的任何技能，
   **菜单 › 设计系统** 也会隐藏，直到再次开启。
 - **形式化检查。** pstack 的 [statechart](https://github.com/cursor/plugins/tree/main/pstack/skills/statechart) 技能：
   Pi 为在状态之间切换的东西（结账流程、协议、服务）写一个 TLA+ 模型，由 TLC 检查其中的每条规则，回复里用你的话把它画成
@@ -551,6 +554,7 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[OpenDesign](https://github.com/nexu-io/open-design)**，作者 nexu-io（Apache-2.0）：其设计系统、五个演示模板（作者 Zara Zhang，MIT）
   和 GSAP 技能（作者 GreenSock，MIT），连同各自的许可证位于 `third_party/open-design/`。
 - **[motion-video-kit](https://github.com/echris6/motion-video-kit)**，作者 echris6（MIT）：位于 `third_party/motion-video-kit/` 的 `business-motion-film` 技能。
+- **[unslop](https://github.com/heydamir/unslop)**，作者 Damir Sokolovsky（[@heydamir](https://x.com/heydamir)，CC BY 4.0）：位于 `third_party/heydamir-unslop/` 的 `unslop` 技能，pi-phone 加了一条注释。
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)**，作者 Lauren Tan（[@poteto](https://github.com/poteto)，
   MIT）：位于 `third_party/pstack-statechart/` 的 `statechart` 技能，以 Kevin T. Ngo 的
   **[statechart-art](https://github.com/kevintngo/statechart-art)**（MIT）中的四个奶茶店模型为示例。

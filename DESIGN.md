@@ -839,7 +839,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   skills (MIT, at commit `975b047`) for HTML artifacts: `html` (router), `design-artifact`, `html-wireframe`,
   `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every
   phone session (`SkillSources.builtIn`, first among the app's, after the owner's). Each gets one marked note: publish with
-  the `artifact` tool, self-contained, phone widths first, say what could not be checked. Plan mode's prompt points long
+  the `artifact` tool, self-contained, phone widths first, say what could not be checked; `design-artifact`'s also
+  points to unslop's sign list (PP-327, below). Plan mode's prompt points long
   plans to `html-plan`, as an artifact beside the numbered list.
 - **OpenDesign** (`third_party/open-design/`, PP-238; owner's choice of 2026-10-29: options A + D of PP-182, the
   content without the daemon): nexu-io/open-design (Apache-2.0) at commit `fa19ff40`, copied by
@@ -878,12 +879,23 @@ so Pi changes them through the settings tools; "the last session" is the one the
   video's skills. One marked note: render on a machine with the HyperFrames machine tool (PP-246), never on the phone;
   the scripts need ffmpeg, numpy and scipy there (say what is missing, no workaround); each Gauntlet critic is a fresh
   subagent; stills from `screenshot`.
+- **Unslop** (`third_party/heydamir-unslop/`, PP-327; owner's decision of 2026-11-01 after research PP-300, wiki
+  `resources/unslop-research`): heydamir/unslop's `skills/unslop/` (CC BY 4.0, Damir Sokolovsky) at `1d13095`, whole
+  (SKILL.md, agents/, references/ with its five webp refs, scripts/; 1.4 MB), copied with upstream's LICENSE by
+  `scripts/sync-unslop.ts` (refuses another commit or local changes), one of Design & video's skills. It fixes an
+  existing AI-looking UI: audit against `references/signs.md`, a direction the person approves, nine passes, re-render.
+  One marked note (the attribution's "modified"): look with `screenshot` (Pi's browser on a machine), never
+  `snapshot.mjs` or `story.mjs` on the phone; direction with `interview`, mockups as an `artifact`; the project's icons
+  (pi-phone's `ICONS`), never emoji, tokyo-night or a chosen design system as the brand (polish mode); images with
+  `image_generate`, asked first; keep the credits. Effective HTML's `design-artifact` note has one sentence more: go
+  through unslop's `references/signs.md` before calling a UI or artifact done. Not in the prompt (every session would
+  pay for it); a skill only.
 - **Design & video** (`extensions/design.ts`, PP-247; owner's decision of 2026-10-29): the built-in extension that
   owns all of the above, so the owner can drop it in one switch (Settings › Extensions, or `extensions.design.ts` with
   `setting_change`). On by default. While on, `PocketApp.builtInSkills()` adds `DESIGN_SKILLS` (`src/design/skills/`,
-  `third_party/open-design/skills/`, `third_party/motion-video-kit/skills/`: 12 skills) after Effective HTML's; the
-  `design.default` setting is listed; the module's `design_system` section names the default; the menu shows Design
-  system (`pocket-design` among `hello`'s extensions). Off: none of them, so sessions carry none of the 12
+  `third_party/open-design/skills/`, `third_party/motion-video-kit/skills/`, `third_party/heydamir-unslop/skills/`: 13
+  skills) after Effective HTML's; the `design.default` setting is listed; the module's `design_system` section names the default; the menu shows Design
+  system (`pocket-design` among `hello`'s extensions). Off: none of them, so sessions carry none of the 13
   descriptions, and `setDesignSystem` and `GET /api/design-systems` answer 409. The prompt's skills cache keys on the
   app's skill folders (`host.builtInSkills()`), so the switch shows from the next request, not after its 30 s. The
   person's design systems and the chosen id stay on disk while it is off.

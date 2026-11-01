@@ -13,6 +13,9 @@ skill of theirs by the same name comes first). Plan mode points to `html-plan` f
 
 Each `SKILL.md` gets one note after its front matter, marked `<!-- pi-phone: added ... -->`: publish with the `artifact`
 tool so the result opens on the phone (and write a file when asked), keep artifacts self-contained for their sandbox,
-design for phone widths first, and check the result with the `screenshot` tool (pi-phone's browser check). Nothing else is changed.
+design for phone widths first, and check the result with the `screenshot` tool (pi-phone's browser check).
+`design-artifact`'s note has one more sentence: before calling a UI or artifact done, go through the `unslop` skill's
+`references/signs.md` (`third_party/heydamir-unslop/`, listed while Design & video is on) and fix what it finds.
+Nothing else is changed.
 
 To update: copy upstream's `skills/` at a new commit here, add the same note, and update the commit above.

@@ -7,8 +7,9 @@
  *
  * All of it is the Design & video extension's (PP-247, `extensions/design.ts`): when it is on, its skills load
  * (`DESIGN_SKILLS`: the `design-system` skill, which lists and searches them with `src/design/skills/design-system/
- * systems.ts`, OpenDesign's deck templates and GSAP skills, Motion Video Kit's business-motion-film), and its Design
- * system setting (`design.default`, Menu › Design system) names the one Pi uses unless asked otherwise, in its prompt.
+ * systems.ts`, OpenDesign's deck templates and GSAP skills, Motion Video Kit's business-motion-film, heydamir's
+ * unslop), and its Design system setting (`design.default`, Menu › Design system) names the one Pi uses unless asked
+ * otherwise, in its prompt.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -25,6 +26,7 @@ export const DESIGN_SKILLS = [
     join(APP_ROOT, "src", "design", "skills"),
     join(APP_ROOT, "third_party", "open-design", "skills"),
     join(APP_ROOT, "third_party", "motion-video-kit", "skills"),
+    join(APP_ROOT, "third_party", "heydamir-unslop", "skills"),
 ];
 
 /** The person's own design systems. */

@@ -248,6 +248,7 @@ test("a session lists them as /skill: commands and in its system prompt", async 
             "html-prototype",
             "html-wireframe",
             "statechart",
+            "unslop",
         ],
     );
     await say(app, id, "hello");
@@ -268,12 +269,15 @@ test("a session lists them as /skill: commands and in its system prompt", async 
 test("with Design & video off, none of its skills load, in commands or the prompt, and they come back with it on", async () => {
     const app = await started();
     const id = await newSession(app);
-    const design = ["business-motion-film", "design-system", "gsap-core", "html-ppt-zhangzara-signal"];
+    const design = ["business-motion-film", "design-system", "gsap-core", "html-ppt-zhangzara-signal", "unslop"];
     const listed = () => app.skillCommands(id).map((each) => each.name).filter((name) => design.includes(name) || name.startsWith("gsap-") || name.startsWith("html-ppt-"));
 
     assert.equal(app.loader.list().find((module) => module.file === "design.ts")?.title, "Design & video");
     assert.equal(app.loader.enabled("design.ts"), true, "on by default");
-    assert.equal(listed().length, 12);
+    assert.equal(listed().length, 13);
+    // heydamir's unslop (PP-327), from its own folder (in another session: this one's first prompt comes with it off).
+    await say(app, await newSession(app), "design on by default");
+    assert.match(prompt, /<name>unslop<\/name>[^]*third_party\/heydamir-unslop\/skills\/unslop\/SKILL\.md/);
     await app.setExtensionEnabled(owner(app), "design.ts", false);
 
     try {
@@ -290,7 +294,8 @@ test("with Design & video off, none of its skills load, in commands or the promp
     }
 
     await say(app, id, "design on");
-    assert.equal(listed().length, 12);
+    assert.equal(listed().length, 13);
+    assert.match(prompt, /<name>unslop<\/name>/);
     assert.match(prompt, /<name>design-system<\/name>[^]*src\/design\/skills\/design-system\/SKILL\.md/);
 });
 

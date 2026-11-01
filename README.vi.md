@@ -236,7 +236,12 @@ dự án thật.</sub>
   làm quảng cáo ngắn kiểu phim ra mắt sản phẩm bằng chuyển động dựng từ mã (HTML, GSAP, Three.js), được các subagent
   phê bình mới hoàn toàn đánh giá; Pi dựng video trên một máy của bạn bằng công cụ máy HyperFrames (cần ffmpeg, numpy và
   scipy trên máy đó).
-- **Thiết kế & video.** Ba mục trên là một tiện ích, bật sẵn: tắt nó trong **Tiện ích** (hoặc nhờ Pi), thì các
+- **Unslop.** Skill [unslop của heydamir](https://github.com/heydamir/unslop) (của Damir Sokolovsky, CC BY 4.0): nhờ Pi
+  unslop, trau chuốt hoặc dọn lại một màn hình, Pi soát nó theo danh sách dấu hiệu của giao diện do AI làm (phát sáng,
+  chữ gradient, nhãn emoji, khoảng cách lệch, lời lẽ phô trương), đề xuất một hướng trên một thẻ và chờ bạn trả lời, rồi
+  sửa khoảng cách, màu, biểu tượng, chữ, kiểu chữ, bố cục, chi tiết, hình ảnh và chuyển động, và kiểm tra kết quả bằng
+  `screenshot`. Pi cũng soát danh sách dấu hiệu đó trước khi coi một trang HTML hay artifact là xong.
+- **Thiết kế & video.** Bốn mục trên là một tiện ích, bật sẵn: tắt nó trong **Tiện ích** (hoặc nhờ Pi), thì các
   phiên không mang skill nào của nó và Menu › Hệ thống thiết kế biến mất cho tới khi bật lại.
 - **Kiểm chứng hình thức.** Skill [statechart](https://github.com/cursor/plugins/tree/main/pstack/skills/statechart)
   của pstack: Pi viết một mô hình TLA+ cho thứ chuyển qua lại giữa các trạng thái (một luồng thanh toán, một giao thức,
@@ -752,6 +757,8 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   phép của chúng.
 - **[motion-video-kit](https://github.com/echris6/motion-video-kit)** của echris6 (MIT): skill `business-motion-film`
   trong `third_party/motion-video-kit/`.
+- **[unslop](https://github.com/heydamir/unslop)** của Damir Sokolovsky ([@heydamir](https://x.com/heydamir), CC BY
+  4.0): skill `unslop` trong `third_party/heydamir-unslop/`, với một ghi chú pi-phone thêm vào.
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** của Lauren Tan ([@poteto](https://github.com/poteto),
   MIT): skill `statechart` trong `third_party/pstack-statechart/`, với bốn mô hình tiệm trà sữa của
   **[statechart-art](https://github.com/kevintngo/statechart-art)** của Kevin T. Ngo (MIT) làm ví dụ.
