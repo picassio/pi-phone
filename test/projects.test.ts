@@ -219,6 +219,8 @@ test("a session's board settings: who closes tasks and its rules, kept; the proj
         assert.match(boardRules(level, "person"), /## For you.*numbered steps.*## Then Pi does/s, level);
         // What is left or waits for the person: read on the board first, not from an old note (the owner, 2026-11-01).
         assert.match(boardRules(level, "person"), /read it on the board now \(task_get, task_list\), not from the wiki.*the board is right: fix the note/s, level);
+        // pstack's interrogate (PP-316): a finding counts only when a run proves it.
+        assert.match(boardRules(level, "person"), /A finding \([^)]*\) counts only when a run proves it.*as a suspicion, with the run that would settle it/s, level);
     }
     assert.match(boardRules("full", "person"), /blocked_reason/);
 });
