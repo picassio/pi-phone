@@ -72,7 +72,14 @@ export default function createSettings(host: PocketHost) {
             value = `(could not read: ${message(error)})`;
         }
 
-        const choices = setting.choices === undefined ? "" : ` [${(await setting.choices()).join(" | ")}]`;
+        let choices = "";
+
+        // A list asked of a service (the Jev models OpenRouter offers) that does not answer says so on its own line.
+        try {
+            choices = setting.choices === undefined ? "" : ` [${(await setting.choices()).join(" | ")}]`;
+        } catch (error) {
+            choices = ` [choices could not be listed: ${message(error)}]`;
+        }
 
         return `- ${setting.id}: ${value}${choices}\n  ${setting.title}. ${setting.help}${setting.owner ? " Owner only." : ""}`;
     };
