@@ -32,11 +32,31 @@ jobs:
           path: native/linux-x64/ffmpeg
           key: ffmpeg-linux-x64-${{ hashFiles('src/server/machine-tools.ts') }}
       - run: test -x native/linux-x64/ffmpeg/ffmpeg || node scripts/server-tools.ts linux-x64 ffmpeg
+      # The statechart skill's smoke test (PP-316) runs TLC with the JRE and tla2tools.jar machines and the server image
+      # get, cached the same way; npm test finds them by TLA2TOOLS and JAVA.
+      - uses: actions/cache@v4
+        with:
+          path: native/linux-x64/tlc
+          key: tlc-linux-x64-${{ hashFiles('src/server/machine-tools.ts') }}
+      - run: test -x native/linux-x64/tlc/bin/java || node scripts/server-tools.ts linux-x64 tlc
       # The UI tests drive the runner's Chrome; its sandbox needs unprivileged user namespaces, which Ubuntu 24.04
       # restricts through AppArmor.
       - name: Allow Chrome's sandbox
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm test
+        env:
+          TLA2TOOLS: ${{ github.workspace }}/native/linux-x64/tlc/tla2tools.jar
+          JAVA: ${{ github.workspace }}/native/linux-x64/tlc/bin/java
+
+  # The server edition's image (PP-316: it carries Java and TLC): built and smoke-tested, not published; servers build
+  # their own (deploy/README.md).
+  server-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -t pi-phone-server:ci .
+      - run: sh deploy/smoke.sh pi-phone-server:ci
 
   apk:
     runs-on: ubuntu-latest

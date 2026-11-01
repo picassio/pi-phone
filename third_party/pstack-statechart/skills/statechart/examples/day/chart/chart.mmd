@@ -1,0 +1,20 @@
+---
+title: "a day at the shop"
+---
+stateDiagram-v2
+  s0: closed
+  s1: getting ready
+  state "open" as s2 {
+    s3: quiet
+    s4: busy
+    s5: a rush
+  }
+  s6: closing up
+  [*] --> s0
+  s0 --> s1: 7 am
+  s1 --> s3: tea and pearls ready
+  s3 --> s6: 9 pm [if quiet]
+  s3 --> s4: people come in
+  s4 --> s5: school's out
+  s6 --> s0: till counted
+  s5 --> s3: it calms down

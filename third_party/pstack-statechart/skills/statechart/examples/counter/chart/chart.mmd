@@ -1,0 +1,26 @@
+---
+title: "behind the counter"
+---
+stateDiagram-v2
+  direction LR
+  state "At the same time" as all {
+    state "the barista" as r0 {
+      s0: barista free
+      s1: making a drink
+      s2: calling a number
+      [*] --> s0
+      s0 --> s1: an order comes in [unless cooking pearls]
+      s1 --> s2: shaken and sealed
+      s2 --> s0: picked up
+    }
+    --
+    state "the pot" as r1 {
+      s3: full of pearls
+      s4: running low
+      s5: cooking pearls
+      [*] --> s3
+      s3 --> s4: pearls run low
+      s4 --> s5: a new batch [when barista free]
+      s5 --> s3: chewy again
+    }
+  }

@@ -1,0 +1,32 @@
+---
+title: "the pearl bug"
+---
+stateDiagram-v2
+  state "Legend" as legend {
+    lg0: Breaks NeverServeOldPearls
+    lg1: Path to the NeverServeOldPearls bug
+  }
+  class lg0 breaks
+  class lg1 bugPath
+  s0: just boiled
+  s1: chewy
+  s2: getting firm
+  s3: too old
+  s4: thrown out
+  s5: an old cup is served
+  [*] --> s0
+  s0 --> s1: an hour passes
+  s1 --> s1: an hour passes
+  s1 --> s2: an hour passes
+  s2 --> s3: an hour passes
+  s3 --> s3: a rush starts
+  s3 --> s4: thrown out
+  s3 --> s5: a cup is served [in a rush]
+  s4 --> s0: a new batch is boiled
+  classDef breaks fill:#ffecee,stroke:#e72e3b,stroke-width:2.5px,color:#cd2834
+  class s0 bugPath
+  class s1 bugPath
+  class s2 bugPath
+  class s3 bugPath
+  class s5 breaks
+  class s5 bugPath

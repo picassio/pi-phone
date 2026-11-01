@@ -12,7 +12,8 @@
  *
  * A tool may be more than one program (ffmpeg and ffprobe), need others installed first (HyperFrames: Chrome and
  * ffmpeg), or be an npm app run by a Node of its own (HyperFrames: Node's release, then the app's pinned lockfile from
- * the phone's `third_party/`, installed with `npm ci --ignore-scripts`).
+ * the phone's `third_party/`, installed with `npm ci --ignore-scripts`). One may be a runtime and a file it runs (TLC:
+ * Temurin's JRE and tla2tools.jar), with variables naming them set for bash in sessions on the machine (`sessionEnvOf`).
  *
  * One tool is not a program pi-phone pins: Chrome Remote Desktop (PP-263, `crd.ts`), Google's signed host installer for
  * Windows from a rolling address, so it is checked by its Authenticode signature (Google LLC) instead of a sha256, and
@@ -26,6 +27,7 @@ import { join, resolve } from "node:path";
 import { APP_ROOT } from "./config.ts";
 import { ChromeRemoteDesktop, CRD_SIGNER, type CrdRun, type CrdState, type CrdWord, crdWord } from "./crd.ts";
 import { HttpError } from "./errors.ts";
+import { FORMAL_MODULE } from "./formal-checks.ts";
 import type { Machine } from "./machines.ts";
 import type { Places } from "./places.ts";
 
@@ -89,6 +91,20 @@ export type ToolSpec = {
     signer?: string;
     /** Offered on Windows only, for now. */
     windowsOnly?: boolean;
+    /**
+     * Arguments the wrapper puts before the caller's, `{dir}` standing for the version's folder on the machine (TLC:
+     * `-cp {dir}/tla2tools.jar tlc2.TLC` for its Java).
+     */
+    args?: readonly string[];
+    /** Files of every platform, each downloaded and checked, kept as `<version>/<name>` (TLC's tla2tools.jar). */
+    files?: readonly (Download & { name: string })[];
+    /**
+     * Set for bash in sessions on the machine while this version is installed (`sessionEnvOf`): a file of the version's
+     * folder, or `{program}`, the program itself (TLC: `TLA2TOOLS` and `JAVA`, which the statechart skill runs).
+     */
+    sessionEnv?: Record<string, string>;
+    /** The built-in extension (its module's file) whose switch shows or hides its skills in sessions there. */
+    skillsModule?: string;
     assets: Partial<Record<Target, Asset>>;
 };
 
@@ -102,6 +118,9 @@ const BTBN_NAME = "ffmpeg-n9.0.2-17-g2a571b6068";
 /** Martin Riedl's macOS release builds of FFmpeg 9.0.2 (signed), one zip per program. */
 const RIEDL = "https://ffmpeg.martin-riedl.de/download/macos";
 const NODE = "https://nodejs.org/dist/v24.22.2";
+/** Eclipse Temurin's JRE 21 (GPLv2 with the Classpath Exception), the release's own `.sha256.txt` sums. */
+const TEMURIN = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9";
+const JRE = "jdk-21.0.13+9-jre";
 
 /** Where Chrome, Chromium, and Edge are put on macOS and Windows (Git Bash's paths), which no PATH may name. */
 export const CHROME_PATHS = [
@@ -291,6 +310,42 @@ export const HYPERFRAMES_TOOL: ToolSpec = {
     },
 };
 
+/**
+ * TLC (PP-316): the TLA+ model checker, for pstack's statechart skill (the Formal checks extension,
+ * `third_party/pstack-statechart/`, copied beside it). Eclipse Temurin's JRE 21.0.13+9 (the release's sums), unpacked
+ * whole, and tla2tools.jar 1.7.4 (MIT; the sum the skill's own `run.ts` pins). `tlc` runs TLC itself; bash in sessions
+ * on the machine has `TLA2TOOLS` and `JAVA`, which the skill's script uses instead of mise. No Android build: the
+ * phone has no Java. Bumping the JRE or the jar bumps `version`.
+ */
+export const TLC_TOOL: ToolSpec = {
+    id: "tlc",
+    name: "TLC (TLA+)",
+    command: "tlc",
+    version: "1.7.4",
+    description: "TLC checks TLA+ models, for the statechart skill (Formal checks): Temurin's JRE 21 and tla2tools.jar 1.7.4",
+    size: "about 165 MB",
+    optIn: true,
+    whole: true,
+    args: ["-XX:+UseParallelGC", "-cp", "{dir}/tla2tools.jar", "tlc2.TLC"],
+    files: [
+        {
+            name: "tla2tools.jar",
+            url: "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
+            sha256: "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+        },
+    ],
+    sessionEnv: { TLA2TOOLS: "tla2tools.jar", JAVA: "{program}" },
+    skills: "third_party/pstack-statechart/skills",
+    skillsModule: FORMAL_MODULE,
+    assets: {
+        "linux-x64": { url: `${TEMURIN}/OpenJDK21U-jre_x64_linux_hotspot_21.0.13_9.tar.gz`, sha256: "a535a1df9c6284d9618872984e026ae0352d1f7e9e0605425c0e6114f47351dd", member: `${JRE}/bin/java` },
+        "linux-arm64": { url: `${TEMURIN}/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.13_9.tar.gz`, sha256: "b1734db7ade49c3f6acc6ae06233b8c2dd90e3e2f00f67000ae1c972aaa64d8c", member: `${JRE}/bin/java` },
+        "darwin-arm64": { url: `${TEMURIN}/OpenJDK21U-jre_aarch64_mac_hotspot_21.0.13_9.tar.gz`, sha256: "225bab0a09491ef06835488cd942f5d2befa9a0410a2484f0c8bbcf7506ec09a", member: `${JRE}/Contents/Home/bin/java` },
+        "darwin-x64": { url: `${TEMURIN}/OpenJDK21U-jre_x64_mac_hotspot_21.0.13_9.tar.gz`, sha256: "c909674b1c10c261b9a3fb7e9c0efebd303e33f88a4fe84be7135b5e2d711f89", member: `${JRE}/Contents/Home/bin/java` },
+        "windows-x64": { url: `${TEMURIN}/OpenJDK21U-jre_x64_windows_hotspot_21.0.13_9.zip`, sha256: "2332c0b4cff6bed722da3567c91d5e47568bcba863fa4945d0a8d6fc76158628", member: `${JRE}/bin/java.exe` },
+    },
+};
+
 /** The tools, as the list shows them. Versions and sums are pinned: OfficeCLI's and rg's from their releases' own sums. */
 export const TOOLS: readonly ToolSpec[] = [
     {
@@ -359,6 +414,7 @@ export const TOOLS: readonly ToolSpec[] = [
     // After Chrome and ffmpeg, which it needs.
     FFMPEG_TOOL,
     HYPERFRAMES_TOOL,
+    TLC_TOOL,
     CRD_TOOL,
 ];
 
@@ -504,6 +560,15 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
         }
     }
 
+    // Files of every platform (TLC's tla2tools.jar), each a download of its own, kept by name in the version's folder.
+    const files = (tool.files ?? []).map((file, index) => ({ ...file, path: `$tmp/file-${index}` }));
+
+    for (const file of files) {
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(file.name) || file.name === "files" || file.name === "app" || file.name === "skills") {
+            throw new Error(`${tool.name}'s file name ${file.name} is not a plain name of its own in the version's folder.`);
+        }
+    }
+
     const pathOf = (url: string) => downloads.find((each) => each.url === url)!.path;
     const packs = downloads.map((each) => packOf(each.url));
     // The programs, each out of its download into the version's folder; a tar's members come out in one go.
@@ -542,7 +607,10 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
         return lines;
     };
     const wrappers = [
-        { command: tool.command, text: wrapperOf(tool, `${base}/${program}`, home, npm === undefined ? [] : [`${base}/app/${npm.bin}`]) },
+        {
+            command: tool.command,
+            text: wrapperOf(tool, `${base}/${program}`, home, npm === undefined ? (tool.args ?? []).map((arg) => arg.replaceAll("{dir}", base)) : [`${base}/app/${npm.bin}`]),
+        },
         ...(asset.more ?? []).map((more) => ({ command: more.command, text: wrapperOf(tool, `${base}/${fileOf(more.command)}`, home) })),
     ];
 
@@ -563,11 +631,12 @@ export function installScript(tool: ToolSpec, asset: Asset, home: string, window
         'elif command -v shasum >/dev/null 2>&1; then sum() { shasum -a 256 "$1" | cut -d" " -f1; }',
         'else echo "This machine has neither sha256sum nor shasum to check the download with." >&2; exit 3; fi',
         ...(packs.includes("J") ? ['if ! command -v xz >/dev/null 2>&1; then echo "This machine has no xz to unpack the .tar.xz download with." >&2; exit 3; fi'] : []),
-        ...downloads.flatMap((download) => [
+        ...[...downloads, ...files].flatMap((download) => [
             `fetch ${q(download.url)} "${download.path}"`,
             `got=$(sum "${download.path}")`,
             `if [ "$got" != ${q(download.sha256)} ]; then echo "The download's sha256 is $got, not ${download.sha256}: nothing was installed." >&2; exit 4; fi`,
         ]),
+        ...files.map((file) => `cp "${file.path}" ${dir}/${file.name}`),
         ...(whole
             ? [
                   `rm -rf ${dir}/files && mkdir -p ${dir}/files`,
@@ -934,6 +1003,9 @@ export function toolsNote(tools: Readonly<Record<string, string>>): string | und
               ]),
         ...(tools[CRD_TOOL.id] === undefined ? [] : ["Chrome Remote Desktop's host (Google's) is installed there: the owner can unlock and see it from their phone."]),
         ...(tools.officecli === undefined ? [] : ["officecli never installs or updates itself: never run its installers or officecli install."]),
+        ...(tools[TLC_TOOL.id] === undefined
+            ? []
+            : ["TLC checks TLA+ models there: bash has TLA2TOOLS (tla2tools.jar) and JAVA (Temurin's JRE 21) set for the statechart skill's script, and `tlc` runs TLC itself; never install Java or TLC another way, and never use mise."]),
         ...(hyperframes === undefined
             ? []
             : [
@@ -942,6 +1014,42 @@ export function toolsNote(tools: Readonly<Record<string, string>>): string | und
               ]),
     ].join(" ");
 }
+
+/**
+ * The variables bash gets in a session on the machine from the tools installed there at their current versions
+ * (`ToolSpec.sessionEnv`: TLC's `TLA2TOOLS` and `JAVA`), as paths under the machine's home. A tool at another version
+ * than the catalog's sets none: its files are where an older catalog put them, and Install tools updates it.
+ */
+export function sessionEnvOf(machine: Machine, catalog: readonly ToolSpec[] = TOOLS): Record<string, string> {
+    const target = targetOf(machine);
+    const env: Record<string, string> = {};
+
+    if (target === undefined) {
+        return env;
+    }
+
+    const windows = machine.remote!.platform === "windows";
+
+    for (const tool of catalog) {
+        const asset = tool.assets[target];
+
+        if (tool.sessionEnv === undefined || asset === undefined || machine.tools?.[tool.id] !== tool.version) {
+            continue;
+        }
+
+        const base = `${machine.remote!.home}/${TOOLS_DIR}/${tool.id}/${tool.version}`;
+        const program = tool.whole === true && asset.member !== undefined ? `${base}/files/${asset.member}` : `${base}/${windows ? `${tool.command}.exe` : tool.command}`;
+
+        for (const [name, value] of Object.entries(tool.sessionEnv)) {
+            env[name] = value === "{program}" ? program : `${base}/${value}`;
+        }
+    }
+
+    return env;
+}
+
+/** `env` as sh lines that export it, for the start of a command. */
+export const exportsOf = (env: Readonly<Record<string, string>>): string => Object.entries(env).map(([name, value]) => `export ${name}=${q(value)}\n`).join("");
 
 /** Where a tool's skills are on a machine, for the prompt of sessions there. */
 export function machineSkillsDir(home: string, tool: ToolSpec, version: string): string {

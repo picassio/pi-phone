@@ -157,6 +157,11 @@
   制作发布会风格的商业短片，由全新的评审子代理评判；Pi 在你的某台机器上用 HyperFrames 机器工具渲染（那台机器需要 ffmpeg、numpy 和 scipy）。
 - **设计与视频。** 以上三项是同一个扩展，默认开启：在 **扩展** 中关闭它（或让 Pi 关闭）后，会话不再带有它的任何技能，
   **菜单 › 设计系统** 也会隐藏，直到再次开启。
+- **形式化检查。** pstack 的 [statechart](https://github.com/cursor/plugins/tree/main/pstack/skills/statechart) 技能：
+  Pi 为在状态之间切换的东西（结账流程、协议、服务）写一个 TLA+ 模型，由 TLC 检查其中的每条规则，回复里用你的话把它画成
+  Mermaid 状态图，并高亮通往每条被违反规则的最短路径（exit 1 表示有规则被违反，附带编号路径）。它在有 Java 的地方运行：
+  装了 **TLC** 机器工具的机器，或服务器版。在手机上 Pi 只画一张未经检查的图，会明确说明，并提议到机器上检查。附带四个示例
+  （statechart-art 的奶茶店）。它是单独的扩展，默认开启：在 **扩展** 中关闭它（或让 Pi 关闭）后，任何会话都不再列出这个技能。
 - **Pi 看得见自己的成果。** `screenshot` 在手机自己的 WebView 中，以手机和桌面两种宽度渲染产物、HTML 或 Office 文件或网页，即使屏幕关闭也可以，
   这样 Pi 在宣布完成前会先检查页面。HTML 文件会从它自己的文件夹加载样式表、脚本和图片，所以链接了应用 CSS 的页面也会带样式显示。
 - **带测量数据的截图。** 每个宽度的 `screenshot` 都附带一份布局检查，在页面绘制前运行：哪些内容溢出了自身的框或父元素，页面是否比屏幕更宽，
@@ -215,7 +220,9 @@
   **安装工具** 里以及 `machine_add` 卡片上都会列出它们，默认勾选。另有两个因体积大而默认不勾选：**ffmpeg**
   （含 ffprobe；静态 GPL 构建，约 350 MB）和 **HyperFrames**（Linux 和 macOS），在那台机器上把 HTML 和 GSAP 合成渲染成
   MP4，并同时安装 Chrome（无头模式）和 ffmpeg（合计约 920 MB）。Pi 用 `hyperframes render <文件夹> -o film.mp4` 渲染，
-  再用 ffprobe 检查文件；HyperFrames 的遥测、更新检查和自动安装始终关闭。
+  再用 ffprobe 检查文件；HyperFrames 的遥测、更新检查和自动安装始终关闭。**TLC**（Linux、macOS、Windows x64；默认不勾选，
+  约 165 MB）：Temurin 的 Java 21 和 TLA+ 模型检查器，用于形式化检查；那台机器上的会话会有 `TLA2TOOLS` 和 `JAVA`，
+  statechart 技能也随之安装。
 - **机器上的 Pi 浏览器。** 机器上的会话在那里的无头 Chrome 中浏览（优先用机器自带的 Chrome、Chromium 或 Edge，否则用机器工具安装的），
   在同一个面板中观看（“<machine> 上的 Pi 浏览器”）。它能打开机器本地的地址，因此 Pi 可以试用你在那里运行的网页应用（`localhost:3000`），
   上传和 PDF 也使用机器上的文件。其登录状态保存在那台机器的 `~/.pi/mobile/browser` 中。
@@ -238,7 +245,7 @@
     放开它并让它继续运行。附加在服务器重启前一直有效。
 - **在任意会话中。** `machine_run` 和 `machine_copy` 可在机器上运行命令或复制文件（在设置 › 机器中为某台机器勾选“Pi 在每条命令前询问”后，那里的每个 `machine_run` 都会等你在显示该命令的卡片上允许；默认关闭，与手机上的 bash 一样）；`pi-ssh` 让 bash 能用应用的密钥执行 ssh、rsync、scp
   和端口隧道，而这些密钥任何程序都读不出来。Pi 还能用 `machine_add` 自己添加机器（比如它刚建好的虚拟机）：一张卡片列出地址、
-  SSH 密钥和主机密钥（如果 Pi 在机器上读到了主机密钥，会与之核对），以及要安装的工具（除 ffmpeg 和 HyperFrames 外默认勾选），点 **同意并连接** 即添加、
+  SSH 密钥和主机密钥（如果 Pi 在机器上读到了主机密钥，会与之核对），以及要安装的工具（除 ffmpeg、HyperFrames 和 TLC 外默认勾选），点 **同意并连接** 即添加、
   安装 pi-env、连接并安装勾选的工具；
   拒绝则什么都不保存。
 - **端口：** 机器上的端口（比如那里的开发服务器）可以在手机浏览器中打开。
@@ -432,8 +439,8 @@ Pi 会在对话里放一张带 **打开** 按钮的卡片；不点按就不会�
 | Pi 使用的设计系统 | **设计系统**：搜索、选一个，或选 *无* | “以后都用 Stripe 风格设计”、“不要默认设计系统” |
 | `image_generate` 生成图片所用的模型 | **图片**：*自动*、ChatGPT 的 GPT Image 2.5、OpenRouter 的图片模型（附价格），或标记为 *生成图片* 的你自己提供商的模型 | “以后用 Nano Banana 生成图片”、“这张用 gpt-image-2.5” |
 | API 密钥和令牌 | **密钥**。缺少某个密钥时，Pi 会通过卡片上的隐藏输入框向你索取，从不在聊天中索要 | Pi 可以索取密钥、修改密钥的标记或删除密钥。值由你输入 |
-| 其他电脑 | 先 **SSH 密钥**，再 **机器**（在那里点 **安装工具** 可安装 OfficeCLI、ripgrep、fd、Chrome、电脑操作、ffmpeg、HyperFrames） | 重命名、安装工具、端口或移除都可以。接受新的主机密钥要你自己来 |
-| 扩展（项目、知识库、Pi 的浏览器、设计与视频等） | **扩展** | “打开项目功能”、“关闭设计与视频” |
+| 其他电脑 | 先 **SSH 密钥**，再 **机器**（在那里点 **安装工具** 可安装 OfficeCLI、ripgrep、fd、Chrome、电脑操作、ffmpeg、HyperFrames、TLC） | 重命名、安装工具、端口或移除都可以。接受新的主机密钥要你自己来 |
+| 扩展（项目、知识库、Pi 的浏览器、设计与视频、形式化检查等） | **扩展** | “打开项目功能”、“关闭设计与视频” |
 | 花费与上限 | **花费** | “这个会话最多花 5 美元” |
 | 会话何时自动压缩 | **菜单 › 压缩上下文**，可针对当前会话或所有会话 | “这个会话在 60% 时压缩” |
 | 知识库、密钥和技能如何进入提示词 | **菜单 › 压缩上下文** | “把知识库索引放回这个会话的提示词” |
@@ -539,6 +546,11 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[OpenDesign](https://github.com/nexu-io/open-design)**，作者 nexu-io（Apache-2.0）：其设计系统、五个演示模板（作者 Zara Zhang，MIT）
   和 GSAP 技能（作者 GreenSock，MIT），连同各自的许可证位于 `third_party/open-design/`。
 - **[motion-video-kit](https://github.com/echris6/motion-video-kit)**，作者 echris6（MIT）：位于 `third_party/motion-video-kit/` 的 `business-motion-film` 技能。
+- **[pstack](https://github.com/cursor/plugins/tree/main/pstack)**，作者 Lauren Tan（[@poteto](https://github.com/poteto)，
+  MIT）：位于 `third_party/pstack-statechart/` 的 `statechart` 技能，以 Kevin T. Ngo 的
+  **[statechart-art](https://github.com/kevintngo/statechart-art)**（MIT）中的四个奶茶店模型为示例。
+- **[TLA+ tools](https://github.com/tlaplus/tlaplus)**（MIT）：TLC，以及 **[Eclipse Temurin](https://adoptium.net)**
+  （GPLv2 附 Classpath Exception）：它的 Java，从各自的发布版安装到机器上，并内置于服务器版镜像中。
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)**（MIT 或 Unlicense）和 **[fd](https://github.com/sharkdp/fd)**
   （MIT 或 Apache-2.0）：从它们各自的发布版安装到机器上。
 - **[FFmpeg](https://ffmpeg.org)**（这些构建为 GPL）：安装到机器上，由各机器自行从
@@ -580,6 +592,8 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[pi-browser](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-browser)**，作者 Igor Warzocha
   （howaboua，MIT）：`browser_attach` 的标签页归属（Pi 的标签页在后台打开，它们打开的窗口按 Chrome 的 opener 归 Pi，所有者的标签页不动）、
   使用浏览器自己的连接，以及找到在 `chrome://inspect/#remote-debugging` 打开了远程调试的浏览器（仅借鉴设计，未复制代码）。
+- **[pstack](https://github.com/cursor/plugins/tree/main/pstack)**（interrogate），作者 Lauren Tan：看板规则“一项发现只有
+  在一次运行证明它之后才算数”（仅借鉴措辞）。
 
 ## 许可证
 

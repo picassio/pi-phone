@@ -482,7 +482,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   tab away. pele is one 0.7 MB module, served as `/vendor/pele.mjs` and imported the first time a diagram shows.
   `mount()` draws it with `links: false`, `zoom: "auto"` (pan and zoom when large), and DOMPurify's SVG profile as
   `sanitize`. Its colors are CSS variables (`--pele-*`, set from the theme's on `.rich-diagram-canvas`), so a theme
-  change needs no redraw. A diagram pele cannot read shows its error, with the line.
+  change needs no redraw. A diagram pele cannot read shows its error, with the line. **Statechart marks** (PP-316,
+  `web/style.css`, after pstack's `references/render.md`): the statechart skill's classes on a state's node are coloured
+  from the same variables: the groups (`blue`, `orange`, `purple`, `yellow`, `teal`, `tan`, `pink`) as a 30% tint of a
+  series colour on `--pele-surface`; `breaks` (series 7, red: fill tint, border, words) and `mayBreak` (series 3,
+  orange), whose `classDef` is a style attribute with the chart's own light colours, so these rules are `!important`;
+  `bugPath` (series 8, blue border, after the bug marks so it shows on the broken state too) and `repeats` (series 4,
+  dashed). Checked in `test/statechart-ui.test.ts`.
 - **Interview** (`src/server/interviews.ts`, `extensions/interview.ts`, `web/sheets/interview.js`): pi-interview's
   `interview` tool, native. It keeps pi-interview's question format (`single, multi, text, image, info`,
   `recommended`, `conviction`, `weight`, `context`, `content`, `media`, rich options), its checks and normalisations,
@@ -726,8 +732,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `chrome-renderer.ts` (a headless Chrome that takes the render requests the phone's service would, and signs in only to
   the app's own address), OfficeCLI is the Linux build, and there is no Tailscale serving. Its tools are fetched by
   `scripts/server-tools.ts` from the machine tools' pinned releases. The image is built on the machine
-  that runs it (`docker compose up -d --build`; the owner's decision, 2026-10-20: not in CI), and checked with
-  `deploy/smoke.sh`.
+  that runs it (`docker compose up -d --build`; the owner's decision, 2026-10-20: not published from CI), and checked with
+  `deploy/smoke.sh`. Since PP-316 (owner's decision of 2026-11-01) CI's `server-image` job builds it and runs
+  `deploy/smoke.sh` on every push, as the image now carries TLC: Temurin's JRE 21 and tla2tools.jar (the TLC machine
+  tool's pinned files, ~160 MB, linked as `/opt/tlc`), with `TLA2TOOLS=/opt/tlc/tla2tools.jar` and
+  `JAVA=/opt/tlc/bin/java` set for the server and so for Pi's bash; the smoke test runs the statechart skill on the
+  boba Bug model there and wants exit 1 and the repo's chart and report.
 - **Team edition** (PP-21; `src/gateway/`, `src/controller/`, `deploy/compose.yaml`): a **gateway** in front of one
   pi-phone container per person.
   - **Sign-in:** better-auth 1.7.12 on the gateway's `node:sqlite` file, with password, the twoFactor (TOTP) and passkey
@@ -863,6 +873,26 @@ so Pi changes them through the settings tools; "the last session" is the one the
   descriptions, and `setDesignSystem` and `GET /api/design-systems` answer 409. The prompt's skills cache keys on the
   app's skill folders (`host.builtInSkills()`), so the switch shows from the next request, not after its 30 s. The
   person's design systems and the chosen id stay on disk while it is off.
+- **Formal checks** (`extensions/formal.ts`, `formal-checks.ts`, PP-316; owner's decisions of 2026-11-01 after research
+  PP-301/PP-302, wiki `resources/statechart-and-pstack-research`): pstack's `statechart` skill (cursor/plugins
+  `pstack/skills/statechart/`, MIT, Lauren Tan) at `ae5650f`, copied by `scripts/sync-statechart.ts` into
+  `third_party/pstack-statechart/skills/statechart/` (SKILL.md, references/render.md, scripts/ without test/), with
+  statechart-art's four boba models (MIT, Kevin T. Ngo, at `09c959c`: order, day, counter, bug, each with the chart
+  and report /statechart wrote) as `examples/`. It checks a TLA+ model with TLC and writes `chart.mmd` (Mermaid, in the
+  reader's words), `report.md` (each broken rule with its shortest path) and `tlc.out`; exit 0 holds, 1 a rule breaks,
+  2 an error. Needs Node 22.18+ (or Bun, Deno 2), Java 11+ and tla2tools.jar 1.7.4.
+  - **pi-phone's changes** to SKILL.md: one marked note (run only where `TLA2TOOLS` is set, a machine with the TLC
+    tool or the server edition; never install Java or TLC, never mise; `sh` the script; exit 1 is a broken rule
+    reported with its numbered path; show `chart.mmd` as a mermaid block, which the app draws with the marks above;
+    render.md only for an SVG file asked for; on the phone an unchecked chart only, said so, with no marks, and an offer
+    to check it on a machine; where the examples are), and `disable-model-invocation` dropped so Pi may pick it.
+  - **The extension**, on by default, a switch like any (Settings › Extensions, `extensions.formal.ts` with
+    `setting_change`). While on, `builtInSkills()` adds `FORMAL_SKILLS` (phone and server sessions), and sessions on a
+    machine with the TLC tool list the copy the tool put there (`ToolSpec.skillsModule`, checked in `machineSkills`).
+    Off: no session lists it (a session's skills section is made with its first prompt, so a running session keeps
+    what it had, as with Design & video). It adds no tool and no prompt section.
+  - **Not done**: pstack's other skills (Cursor's Task API and models), a mode from chart to TLA+ skeleton (not in
+    upstream's commit), a machine-tools install tool for Pi (Install tools is the owner's, in Settings › Machines).
 - **Machine tools** (`src/server/machine-tools.ts`; owner's decisions of 2026-10-18): command-line programs run where
   bash runs, which in a session on a machine is the machine, so OfficeCLI, ripgrep, and fd are installed there.
   - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT
@@ -899,6 +929,17 @@ so Pi changes them through the settings tools; "the last session" is the one the
     tools' bin. Checked on tuanlh-devbox-01 (2026-10-29): a 5 s 1080p30 render in 10 s, BeginFrame capture; tcpdump saw
     no PostHog name or address, only cdn.jsdelivr.net (the composition's GSAP) and Google Fonts (HyperFrames' font
     localization). Windows is left out: untried, and its Chrome would be a wrapper Node cannot spawn.
+    **TLC** (PP-316, `TLC_TOOL` 1.7.4, `optIn`, ~165 MB): Eclipse Temurin's JRE 21.0.13+9 (the release's `.sha256.txt`
+    sums), unpacked `whole`, its `bin/java` the program (`Contents/Home/bin/java` on macOS, `java.exe` on Windows), and
+    tla2tools.jar 1.7.4 as a `files` entry (a download of every platform, checked with the others before anything is
+    kept, then `<version>/tla2tools.jar`; the sum is the one the skill's own `run.ts` pins). `args` puts
+    `-XX:+UseParallelGC -cp {dir}/tla2tools.jar tlc2.TLC` before the caller's, so `tlc` runs TLC. `sessionEnv` gives
+    bash in sessions there `TLA2TOOLS` (the jar) and `JAVA` (the program) while the machine has this version
+    (`sessionEnvOf`, exported by `prepare` in `app.ts` after PATH), which the statechart skill's script uses instead of
+    mise. Its `skills` are the statechart skill, listed while Formal checks is on (`skillsModule`). Linux x64 and arm64,
+    macOS, Windows x64; none for Android (the phone has no Java). Checked on tuanlh-devbox-01 (2026-11-01): the install
+    script in 23 s, 161 MB; the four boba models with the session's variables in 3 to 4 s each, Bug exit 1, every chart
+    and report the same as statechart-art's.
     **Chrome Remote Desktop** (PP-263, 2026-10-31, `crd.ts`; `CRD_TOOL`, `optIn`, `windowsOnly`, `installer: "crd"`):
     Google's host, so the owner unlocks and sees a Windows machine from their phone: Pi's computer use cannot pass the
     lock screen (the secure desktop takes no UI Automation input), and CRD's host is a service that can. **The one
@@ -952,7 +993,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     Install tools: each tool's state there (installed and its version, the machine's own, not installed, no build),
     offered ones ticked. `GET /api/machines/tools` is the catalog; `POST /api/machines/<id>/tools` the status, or
     `{install: [...]}`. What is installed is kept as `Machine.tools` (machines.json).
-  - **Sessions there:** bash's command gets `PATH="$HOME/.pi/mobile/tools/bin:$PATH"` first (`prepare` in `app.ts`);
+  - **Sessions there:** bash's command gets `PATH="$HOME/.pi/mobile/tools/bin:$PATH"` first (`prepare` in `app.ts`),
+    then the installed tools' `sessionEnv` exports (TLC's `TLA2TOOLS` and `JAVA`);
     the environment section names the installed tools (`toolsNote`), with how to render with HyperFrames where it is
     (`hyperframes render <folder> -o <file>.mp4`, check with ffprobe, its own SKILL.md inside the package, never
     `npx hyperframes`); the skills section lists the installed tools' skills at their paths on the machine
@@ -1660,7 +1702,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `project_list` refuses while it is off. Pi acts as the person it works for (`requesterOf`). Its rules
     (`boardRules`, full or light) include reading a task's state on the board before telling the person what is left
     or waits for them, never from the wiki or memory, and fixing a note that differs (the owner, 2026-11-01: an old note
-    had Pi remind him of tasks he had done).
+    had Pi remind him of tasks he had done), and pstack interrogate's rule (PP-316): a finding (a bug, a broken rule, a
+    regression, a fix that works) counts only when a run proves it; what no run has shown is said as a suspicion, with
+    the run that would settle it.
   - Routes under `/api/x/projects/` (`projects`, `projects/:key`, `projects/:key/tasks`, `projects/:key/members`,
     `tasks/:ref`, `tasks/:ref/comments`, `tasks/:ref/links`, `board-mode/:conversation`); changes are sent to
     open boards as the module's `changed` event. Tests: `test/projects.test.ts`.

@@ -227,6 +227,13 @@ No Termux, no laptop, no cloud VM.
   them on one of your machines with the HyperFrames machine tool (with ffmpeg, numpy and scipy there).
 - **Design & video.** The three above are one extension, on by default: turn it off in **Extensions** (or ask Pi), and
   sessions carry none of its skills and Menu › Design system goes away until it is on again.
+- **Formal checks.** pstack's [statechart](https://github.com/cursor/plugins/tree/main/pstack/skills/statechart)
+  skill: Pi writes a TLA+ model of something that moves between states (a checkout, a protocol, a service), TLC
+  checks every rule in it, and the reply shows it as a Mermaid statechart in your words, with the shortest path to each
+  broken rule highlighted (exit 1 is a broken rule, reported with its numbered path). It runs where Java is: a machine
+  with the **TLC** machine tool, or the server edition. On the phone Pi only sketches an unchecked chart, says so, and
+  offers to check it on a machine. Four worked examples (statechart-art's boba shop) come with it. Its own extension,
+  on by default: turn it off in **Extensions** (or ask Pi), and no session lists the skill.
 - **Pi sees its work.** `screenshot` renders an artifact, an HTML or Office file, or a web page in the phone's own
   WebView, at phone and desktop widths, even with the screen off, so Pi checks a page before calling it done. An HTML
   file loads its stylesheets, scripts and pictures from its own folder, so a page linking the app's CSS shows styled.
@@ -309,7 +316,9 @@ No Termux, no laptop, no cloud VM.
   ffprobe; static GPL builds, about 350 MB) and **HyperFrames** (Linux and macOS), which renders HTML and GSAP
   compositions to MP4 there and installs Chrome (headless) and ffmpeg with it (about 920 MB in all). Pi renders with
   `hyperframes render <folder> -o film.mp4` and checks the file with ffprobe; HyperFrames' telemetry, update checks and
-  self-installs are always off.
+  self-installs are always off. **TLC** (Linux, macOS, Windows x64; unticked, about 165 MB): Temurin's Java 21 and the
+  TLA+ model checker, for Formal checks; sessions on that machine get `TLA2TOOLS` and `JAVA`, and the statechart skill
+  goes with it.
 - **Pi's browser on a machine.** A session on a machine browses in a headless Chrome there (its own Chrome, Chromium or
   Edge, else the machine tool), watched in the same panel ("Pi's browser on <machine>"). It opens the machine's own
   addresses, so Pi can try the web app you run there (`localhost:3000`), and uploads and PDFs use the machine's files.
@@ -341,7 +350,7 @@ No Termux, no laptop, no cloud VM.
   on a card that shows the command; off by default, as bash on the phone), and `pi-ssh`
   gives bash ssh, rsync, scp, and tunnels with the app's keys, which nothing can read out. Pi adds a machine itself with
   `machine_add` (a VM it just made, say): one card shows the address, the SSH key and the host key, checked against the
-  one Pi read on the machine when it could, and the tools to install (ticked, but for ffmpeg and HyperFrames); **Approve and connect** adds it,
+  one Pi read on the machine when it could, and the tools to install (ticked, but for ffmpeg, HyperFrames and TLC); **Approve and connect** adds it,
   installs pi-env, connects, and installs the ticked tools; Deny saves nothing.
 - **Ports** of a machine (a dev server there) open in the phone's browser.
 - **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's
@@ -604,8 +613,8 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | The design system Pi designs with | **Design system**: search, pick one, or *None* | "Design in the Stripe style from now on", "No default design system" |
 | The model `image_generate` makes images with | **Images**: *Automatic*, ChatGPT's GPT Image 2.5, an OpenRouter image model (with its price), or your provider's model marked *Makes images* | "Make images with Nano Banana from now on", "Use gpt-image-2.5 for this one" |
 | API keys and tokens | **Secrets**. Pi asks for a missing one with a hidden field on a card, never in the chat | Pi can ask for one, change a secret's flags, or delete one. You type the value |
-| Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
-| Extensions (Projects, Wiki, Pi's browser, Design & video, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |
+| Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames, TLC) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
+| Extensions (Projects, Wiki, Pi's browser, Design & video, Formal checks, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
 | What of the wiki, secrets and skills goes into the prompt | **Menu › Compact context** | "Put the wiki's index back in this session's prompt" |
@@ -711,6 +720,12 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   licences.
 - **[motion-video-kit](https://github.com/echris6/motion-video-kit)** by echris6 (MIT): the `business-motion-film`
   skill in `third_party/motion-video-kit/`.
+- **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** by Lauren Tan ([@poteto](https://github.com/poteto),
+  MIT): the `statechart` skill in `third_party/pstack-statechart/`, with the four boba models of
+  **[statechart-art](https://github.com/kevintngo/statechart-art)** by Kevin T. Ngo (MIT) as its examples.
+- **[TLA+ tools](https://github.com/tlaplus/tlaplus)** (MIT): TLC, and **[Eclipse Temurin](https://adoptium.net)** (GPLv2
+  with the Classpath Exception): its Java, installed on machines from their releases and built into the server
+  edition's image.
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT or Unlicense) and **[fd](https://github.com/sharkdp/fd)**
   (MIT or Apache-2.0): installed on machines from their own releases.
 - **[FFmpeg](https://ffmpeg.org)** (these builds GPL): installed on machines, downloaded by each machine from
@@ -758,6 +773,8 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   (howaboua, MIT): `browser_attach`'s tab ownership (Pi's tabs open in the background, windows they open are Pi's by
   Chrome's opener, the owner's tabs are left alone), its use of the browser's own connection, and finding a browser
   whose remote debugging was turned on at `chrome://inspect/#remote-debugging` (design only, no code).
+- **[pstack](https://github.com/cursor/plugins/tree/main/pstack)**'s interrogate by Lauren Tan: the board rule that a
+  finding counts only when a run proves it (wording only).
 
 ## License
 

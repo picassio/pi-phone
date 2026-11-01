@@ -238,6 +238,13 @@ dự án thật.</sub>
   scipy trên máy đó).
 - **Thiết kế & video.** Ba mục trên là một tiện ích, bật sẵn: tắt nó trong **Tiện ích** (hoặc nhờ Pi), thì các
   phiên không mang skill nào của nó và Menu › Hệ thống thiết kế biến mất cho tới khi bật lại.
+- **Kiểm chứng hình thức.** Skill [statechart](https://github.com/cursor/plugins/tree/main/pstack/skills/statechart)
+  của pstack: Pi viết một mô hình TLA+ cho thứ chuyển qua lại giữa các trạng thái (một luồng thanh toán, một giao thức,
+  một dịch vụ), TLC kiểm tra mọi quy tắc trong đó, và câu trả lời hiện nó thành một statechart Mermaid bằng lời của bạn,
+  tô sáng đường ngắn nhất dẫn tới mỗi quy tắc bị vi phạm (exit 1 nghĩa là có quy tắc bị vi phạm, báo kèm đường đi đánh
+  số). Nó chạy ở nơi có Java: một máy có công cụ máy **TLC**, hoặc bản server. Trên điện thoại Pi chỉ phác một biểu đồ
+  chưa kiểm tra, nói rõ như vậy, và đề nghị kiểm tra trên một máy. Kèm bốn ví dụ mẫu (tiệm trà sữa của statechart-art).
+  Là một tiện ích riêng, bật sẵn: tắt nó trong **Tiện ích** (hoặc nhờ Pi), thì không phiên nào liệt kê skill này.
 - **Pi nhìn thấy việc mình làm.** `screenshot` dựng một artifact, một tệp HTML hoặc Office, hay một trang web trong
   WebView của chính điện thoại, ở độ rộng điện thoại và máy tính, kể cả khi tắt màn hình, nên Pi kiểm tra trang trước khi
   coi là xong. Một tệp HTML tải stylesheet, script và hình ảnh từ chính thư mục của nó, nên trang liên kết tới CSS của
@@ -323,7 +330,9 @@ dự án thật.</sub>
   ffprobe; bản dựng tĩnh GPL, khoảng 350 MB) và **HyperFrames** (Linux và macOS), dựng bố cục HTML và GSAP thành
   MP4 ngay trên máy đó, cài kèm Chrome (headless) và ffmpeg (tổng khoảng 920 MB). Pi dựng bằng
   `hyperframes render <thư mục> -o film.mp4` và kiểm tra tệp bằng ffprobe; telemetry, kiểm tra cập nhật và việc tự
-  cài đặt của HyperFrames luôn tắt.
+  cài đặt của HyperFrames luôn tắt. **TLC** (Linux, macOS, Windows x64; không chọn sẵn, khoảng 165 MB): Java 21 của
+  Temurin và trình kiểm tra mô hình TLA+, cho Kiểm chứng hình thức; các phiên trên máy đó có `TLA2TOOLS` và `JAVA`, và
+  skill statechart đi kèm.
 - **Trình duyệt của Pi trên một máy.** Phiên trên máy duyệt web bằng Chrome headless ở đó (Chrome, Chromium hoặc Edge
   của máy, nếu không thì công cụ trên máy), xem trong cùng khung (“Trình duyệt của Pi trên <máy>”). Nó mở các địa
   chỉ của chính máy, nên Pi thử được ứng dụng web bạn chạy ở đó (`localhost:3000`), và việc tải lên cùng PDF dùng tệp
@@ -355,7 +364,7 @@ dự án thật.</sub>
   lệnh; mặc định tắt, như bash trên điện thoại), và `pi-ssh` cho bash dùng ssh, rsync, scp và tunnel bằng khóa của ứng
   dụng, thứ không gì đọc ra được. Pi tự thêm máy bằng `machine_add` (ví dụ một máy ảo nó vừa tạo): một thẻ hiện
   địa chỉ, khóa SSH và host key, đối chiếu với khóa Pi đọc trên chính máy khi có thể, cùng các công cụ cần cài (được chọn
-  sẵn, trừ ffmpeg và HyperFrames); **Duyệt và kết nối** thêm máy, cài pi-env, kết nối và cài các công cụ đã chọn; Từ chối thì không lưu gì.
+  sẵn, trừ ffmpeg, HyperFrames và TLC); **Duyệt và kết nối** thêm máy, cài pi-env, kết nối và cài các công cụ đã chọn; Từ chối thì không lưu gì.
 - **Cổng** của một máy (một dev server ở đó) mở được trong trình duyệt của điện thoại.
 - **Tiếp tục phiên Pi.** Tiếp tục một phiên từ Pi trên điện thoại này, một tệp `.jsonl`, hoặc `~/.pi/agent/sessions`
   của một máy, kèm lịch sử; hoặc gửi một phiên sang `pi` trên máy và mang về những gì đã làm ở đó. Pi tự làm được cả
@@ -628,8 +637,8 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Hệ thống thiết kế Pi dùng | **Hệ thống thiết kế**: tìm, chọn một cái, hoặc *Không* | “Từ giờ thiết kế theo phong cách Stripe”, “Bỏ hệ thống thiết kế mặc định” |
 | Mô hình `image_generate` dùng để tạo hình | **Hình ảnh**: *Tự động*, GPT Image 2.5 của ChatGPT, một mô hình hình ảnh của OpenRouter (kèm giá), hoặc mô hình của nhà cung cấp riêng được đánh dấu *Tạo hình ảnh* | “Từ giờ tạo hình bằng Nano Banana”, “Dùng gpt-image-2.5 cho hình này” |
 | Khóa API và token | **Bí mật**. Pi xin bí mật còn thiếu qua một ô ẩn trên thẻ, không bao giờ trong cuộc trò chuyện | Pi có thể xin một bí mật, đổi cờ của bí mật, hoặc xóa nó. Giá trị thì bạn tự gõ |
-| Máy tính khác | **Khóa SSH**, rồi **Máy** (**Cài công cụ** ở đó thêm OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames) | Có với đổi tên, cài công cụ, cổng, hoặc gỡ máy. Chấp nhận host key mới là việc của bạn |
-| Tiện ích (Dự án, Wiki, Trình duyệt của Pi, Thiết kế & video, …) | **Tiện ích** | “Bật Dự án”, “Tắt Thiết kế & video” |
+| Máy tính khác | **Khóa SSH**, rồi **Máy** (**Cài công cụ** ở đó thêm OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames, TLC) | Có với đổi tên, cài công cụ, cổng, hoặc gỡ máy. Chấp nhận host key mới là việc của bạn |
+| Tiện ích (Dự án, Wiki, Trình duyệt của Pi, Thiết kế & video, Kiểm chứng hình thức, …) | **Tiện ích** | “Bật Dự án”, “Tắt Thiết kế & video” |
 | Chi tiêu và giới hạn | **Chi tiêu** | “Giới hạn phiên này ở $5” |
 | Khi nào phiên tự nén | **Menu › Nén ngữ cảnh**, cho phiên này hoặc mọi phiên | “Nén phiên này ở 60%” |
 | Wiki, bí mật và kỹ năng nào vào prompt | **Menu › Nén ngữ cảnh** | “Đưa lại chỉ mục wiki vào prompt của phiên này” |
@@ -735,6 +744,11 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   phép của chúng.
 - **[motion-video-kit](https://github.com/echris6/motion-video-kit)** của echris6 (MIT): skill `business-motion-film`
   trong `third_party/motion-video-kit/`.
+- **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** của Lauren Tan ([@poteto](https://github.com/poteto),
+  MIT): skill `statechart` trong `third_party/pstack-statechart/`, với bốn mô hình tiệm trà sữa của
+  **[statechart-art](https://github.com/kevintngo/statechart-art)** của Kevin T. Ngo (MIT) làm ví dụ.
+- **[TLA+ tools](https://github.com/tlaplus/tlaplus)** (MIT): TLC, và **[Eclipse Temurin](https://adoptium.net)** (GPLv2
+  kèm Classpath Exception): Java của nó, cài lên các máy từ bản phát hành của chúng và có sẵn trong image của bản server.
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)** (MIT hoặc Unlicense) và **[fd](https://github.com/sharkdp/fd)**
   (MIT hoặc Apache-2.0): được cài lên các máy từ bản phát hành của chính chúng.
 - **[FFmpeg](https://ffmpeg.org)** (các bản dựng này theo GPL): cài lên các máy, mỗi máy tự tải về từ
@@ -782,6 +796,8 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   (howaboua, MIT): cách `browser_attach` giữ quyền sở hữu thẻ (thẻ của Pi mở ngầm, cửa sổ chúng mở thuộc về Pi theo
   opener của Chrome, thẻ của chủ máy được để yên), việc dùng kết nối riêng của trình duyệt, và việc tìm trình duyệt đã bật
   remote debugging ở `chrome://inspect/#remote-debugging` (chỉ thiết kế, không chép mã).
+- **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** (interrogate) của Lauren Tan: quy tắc của bảng việc
+  rằng một phát hiện chỉ được tính khi một lần chạy chứng minh nó (chỉ lấy cách diễn đạt).
 
 ## Giấy phép
 

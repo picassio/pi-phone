@@ -1,0 +1,19 @@
+---
+title: "an order of boba"
+---
+stateDiagram-v2
+  s0: in line
+  s1: ordered
+  s2: paid
+  s3: being made
+  s4: ready
+  s5: refunded
+  s6: in your hand
+  [*] --> s0
+  s0 --> s1: you order
+  s1 --> s2: you pay
+  s2 --> s3: the barista starts [if there are pearls]
+  s3 --> s4: your number is called
+  s2 --> s5: money back [if the pearls ran out]
+  s4 --> s3: it's the wrong drink
+  s4 --> s6: you pick it up

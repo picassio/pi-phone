@@ -59,6 +59,7 @@ export function moduleTitle(title) {
         "Web access": t("Web access"),
         "Interactive answers": t("Interactive answers"),
         "Design & video": t("Design & video"),
+        "Formal checks": t("Formal checks"),
         "Machine tools": t("Machine tools"),
         "Wiki (PARA)": t("Wiki (PARA)"),
         Projects: t("Projects"),

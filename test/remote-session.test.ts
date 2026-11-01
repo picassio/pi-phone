@@ -290,6 +290,33 @@ test("tools on a machine: offered, installed checked against their sha256, first
         assert.doesNotMatch(skillsTold, /third_party/, "never the phone's paths");
         assert.match(told, /officecli 1\.0\.157\. officecli never installs or updates itself/);
 
+        // TLC (PP-316): bash has TLA2TOOLS and JAVA at its files where the machine has a build of it, and its statechart
+        // skill is listed at its place there while Formal checks is on.
+        const { TLC_TOOL } = await import("../src/server/machine-tools.ts");
+        const tlcAsset = TLC_TOOL.assets[`${machine.remote!.platform}-${machine.remote!.arch}` as "linux-x64"];
+        const tlcDir = join(toolsDir, "tlc", TLC_TOOL.version);
+
+        app.machines.setTools(machineId, { hello: "1.0", tlc: TLC_TOOL.version });
+        calls["machine tools: tlc"] = ["bash", { command: 'echo "tla=$TLA2TOOLS java=$JAVA"' }];
+        const tlc = await app.commands.submit(id, owner(app), { text: "machine tools: tlc", requestId: crypto.randomUUID() });
+
+        await (await app.harness.submission(tlc.submissionId, context))!.wait(context);
+        const tlcSaid = (await modelTexts(app, id)).at(-1)!;
+
+        assert.ok(tlcSaid.includes(tlcAsset === undefined ? "tla= java=" : `tla=${tlcDir}/tla2tools.jar java=${tlcDir}/files/${tlcAsset.member}`), tlcSaid);
+        assert.ok(skillsTold.includes(join(tlcDir, "skills", "statechart", "SKILL.md")), skillsTold.slice(0, 400));
+        assert.match(told, /TLC checks TLA\+ models there: bash has TLA2TOOLS/);
+        await app.setExtensionEnabled(owner(app), "formal.ts", false);
+
+        try {
+            const off = await app.commands.submit(id, owner(app), { text: "machine tools: look again", requestId: crypto.randomUUID() });
+
+            await (await app.harness.submission(off.submissionId, context))!.wait(context);
+            assert.doesNotMatch(skillsTold, /<name>statechart<\/name>/, "Formal checks off: not listed");
+        } finally {
+            await app.setExtensionEnabled(owner(app), "formal.ts", true);
+        }
+
         // A tool that needs another installs it first, unless it is there at its version; each program gets a wrapper.
         const pairAsset = {
             url: url.replace(/hello\.tar\.gz$/, "pair.tar.gz"),
@@ -352,6 +379,7 @@ test("tools on a machine: offered, installed checked against their sha256, first
         // Its asks go: the route matches the end of any later message.
         delete calls["machine tools: say hello"];
         delete calls["machine tools: look again"];
+        delete calls["machine tools: tlc"];
         server.close();
         rmSync(toolsDir, { recursive: true, force: true });
         app.machines.setTools(machineId, {});

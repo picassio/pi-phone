@@ -128,7 +128,8 @@ import { Para } from "./para.ts";
 import { CAPTURE_EXTENSION, ParaCapture } from "./para-capture.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
-import { MachineTools, machineSkillsDir, TOOLS, TOOLS_BIN } from "./machine-tools.ts";
+import { exportsOf, MachineTools, machineSkillsDir, sessionEnvOf, TOOLS, TOOLS_BIN } from "./machine-tools.ts";
+import { FORMAL_MODULE, FORMAL_SKILLS } from "./formal-checks.ts";
 import { type CrdRun, CrdError } from "./crd.ts";
 import { Screenshots } from "./screenshots.ts";
 import { FilePages } from "./file-pages.ts";
@@ -1113,8 +1114,12 @@ export class PocketApp {
                             if (!isRemote(cwd)) {
                                 execution.env.PATH = this.#toolPath();
                             } else {
-                                // On a machine, the tools pi-phone installed there come first (`machine-tools.ts`).
-                                execution.command = `PATH="$HOME/${TOOLS_BIN}:$PATH"; export PATH\n${execution.command}`;
+                                // On a machine, the tools pi-phone installed there come first (`machine-tools.ts`), and
+                                // the variables they set for sessions (TLC's TLA2TOOLS and JAVA).
+                                const machine = this.places.machineOf(cwd);
+                                const env = machine?.remote === undefined ? "" : exportsOf(sessionEnvOf(machine, this.machineTools.catalog));
+
+                                execution.command = `PATH="$HOME/${TOOLS_BIN}:$PATH"; export PATH\n${env}${execution.command}`;
                             }
 
                             const named = namesIn(execution.command);
@@ -1195,7 +1200,8 @@ export class PocketApp {
                 const skills = this.machineTools.catalog.flatMap((tool) => {
                     const version = machine.tools?.[tool.id];
 
-                    return tool.skills === undefined || version === undefined
+                    // A tool's skills follow their extension's switch (TLC's statechart: Formal checks).
+                    return tool.skills === undefined || version === undefined || (tool.skillsModule !== undefined && !this.loader.enabled(tool.skillsModule))
                         ? []
                         : machineToolSkills(resolve(APP_ROOT, tool.skills), machineSkillsDir(machine.remote!.home, tool, version), getAgentDir());
                 });
@@ -5226,14 +5232,15 @@ export class PocketApp {
     /**
      * The app's skill folders, after Pi's own places, so a skill of the owner's by the same name comes first: pi-phone's
      * own (`src/skills/`: getting-started), Effective HTML's (artifacts), the Design & video extension's while it is on
-     * (PP-247: design-system, OpenDesign's deck templates and GSAP, Motion Video Kit's business-motion-film), and
-     * OfficeCLI's where it runs (`third_party/`).
+     * (PP-247: design-system, OpenDesign's deck templates and GSAP, Motion Video Kit's business-motion-film), Formal
+     * checks' while it is on (PP-316: pstack's statechart), and OfficeCLI's where it runs (`third_party/`).
      */
     builtInSkills(): string[] {
         return [
             join(APP_ROOT, "src", "skills"),
             join(APP_ROOT, "third_party", "effective-html", "skills"),
             ...(this.loader.enabled(DESIGN_MODULE) ? DESIGN_SKILLS : []),
+            ...(this.loader.enabled(FORMAL_MODULE) ? FORMAL_SKILLS : []),
             ...(this.officecli.available() ? [this.officecli.skillsDir] : []),
         ];
     }

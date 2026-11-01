@@ -1,4 +1,5 @@
-# pi-phone server edition (PP-20): the server and web app, with the tools Pi uses, for Linux (x64 or arm64).
+# pi-phone server edition (PP-20): the server and web app, with the tools Pi uses (TLC and its Java among them), for
+# Linux (x64 or arm64).
 # deploy/compose.yaml runs it behind Caddy; deploy/README.md says how. Data (sessions, sign-ins, the home folder Pi works
 # in) is all under /data, a volume. It runs as the image's `node` user, never root.
 #
@@ -13,7 +14,7 @@ FROM ${NODE_IMAGE} AS build
 ARG DEBIAN_MIRROR
 RUN sed -i "s|http://deb.debian.org/debian$|${DEBIAN_MIRROR}|" /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates unzip \
+    && apt-get install -y --no-install-recommends ca-certificates unzip xz-utils \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -60,8 +61,14 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --chmod=755 deploy/entrypoint.sh /app/deploy/entrypoint.sh
 RUN for tool in rg fd officecli; do ln -s /app/native/linux-*/"$tool"/"$tool" /usr/local/bin/"$tool"; done \
     && for program in ffmpeg ffprobe; do ln -s /app/native/linux-*/ffmpeg/"$program" /usr/local/bin/"$program"; done \
+    && ln -s /app/native/linux-*/tlc /opt/tlc \
+    && /opt/tlc/bin/java -version \
     && mkdir -p /data && chown node:node /data
+# TLC for the statechart skill (Formal checks, PP-316): Temurin's JRE 21 and tla2tools.jar, as the TLC machine tool sets
+# them for sessions on a machine.
 ENV HOME=/data/home \
+    TLA2TOOLS=/opt/tlc/tla2tools.jar \
+    JAVA=/opt/tlc/bin/java \
     PI_PHONE_PLATFORM=server \
     PI_CHROME_NO_SANDBOX=1 \
     NODE_ENV=production
