@@ -18,3 +18,4 @@ export class AndroidSpeechRecognition {
 export function installAndroidSpeech(): void;
 export const DICTATION_LANGUAGE_KEY: string;
 export function dictationLanguage(): string;
+export function followVoiceLanguage(read: () => string | undefined): void;

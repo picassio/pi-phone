@@ -4,7 +4,7 @@ import { onRoute, pushRoute } from "./back.js";
 import { sessionForest } from "./session-tree.js";
 import { liveMessage } from "./live.js";
 import { chooseLanguage, tServer } from "./i18n.js";
-import { DICTATION_LANGUAGE_KEY } from "./android-speech.js";
+import { DICTATION_LANGUAGE_KEY, followVoiceLanguage } from "./android-speech.js";
 
 /** This device's dictation language follows the person's choice (PP-235): a tag, or "auto" for the device's own. */
 function followDictation(choice) {
@@ -221,6 +221,9 @@ export const store = {
         return () => this.listeners.delete(listener);
     },
 };
+
+// The owner's dictation listens in Settings › Voice's language: one setting for Voice and dictation.
+followVoiceLanguage(() => (store.state.me?.role === "owner" ? store.state.server?.voice?.settings?.language : undefined));
 
 // ─── Marked-unread sessions (this browser) ──────────────────────────────────────
 

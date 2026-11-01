@@ -1,7 +1,6 @@
 // The Web Speech API's SpeechRecognition, in the Android app, on Android's own recognizer (Dictation.java): WebView has
 // none of its own. `voice.js` uses it as it would Chrome's. Android hears one utterance per start; while dictating
 // continuously this starts it again after each, and keeps every result heard so far, as Chrome does.
-import { store } from "./store.js";
 
 /** The app's bridge, when this page is in the Android app and Android has a recognizer. */
 const bridge = () => {
@@ -184,8 +183,15 @@ export const DICTATION_LANGUAGE_KEY = "pi-phone.dictation-language";
  * (the owner: two were confusing): a two-letter code, or "auto", which Android's recognizer detects among the phone's
  * languages and a browser takes as its own. Others pick theirs (Pi's `dictation.language`), else the phone's.
  */
+/** The owner's Settings › Voice language, as the store says it (`store.js` sets this; none for others). */
+let voiceLanguage = () => undefined;
+
+export function followVoiceLanguage(read) {
+    voiceLanguage = read;
+}
+
 export function dictationLanguage() {
-    const voice = store.state.me?.role === "owner" ? store.state.server?.voice?.settings?.language : undefined;
+    const voice = voiceLanguage();
 
     if (voice !== undefined) {
         return voice === "auto" && !bridge() ? navigator.language || "en-US" : voice;

@@ -52,6 +52,13 @@ test("inside the app it replaces WebView's recognizer, which never listens; it l
     store.set(speech.DICTATION_LANGUAGE_KEY, "en-US");
     assert.equal(speech.dictationLanguage(), "en-US");
     store.clear();
+
+    // The owner's is Settings › Voice's language (one setting): a code, or auto for Android's recognizer to detect.
+    speech.followVoiceLanguage(() => "vi");
+    assert.equal(speech.dictationLanguage(), "vi");
+    speech.followVoiceLanguage(() => "auto");
+    assert.equal(speech.dictationLanguage(), "auto");
+    speech.followVoiceLanguage(() => undefined);
 });
 
 test("continuous dictation: Android's utterances one after another, every result kept, until a quiet one", () => {
