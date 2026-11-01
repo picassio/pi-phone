@@ -3,6 +3,7 @@
 // Open file.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { actions, attempt, notify } from "./store.js";
+import { downloadFile } from "./download.js";
 import { copyText, html, Icon, openFile, videoUrl } from "./ui.js";
 import { t } from "./i18n.js";
 
@@ -30,6 +31,21 @@ async function peaksOf(url) {
     const top = Math.max(...peaks, 0.01);
 
     return peaks.map((peak) => peak / top);
+}
+
+/** Save a file Pi made to the device (Downloads in the app), as the file viewer's Download does (the owner's ask). */
+export function DownloadButton({ path, conversationId, compact = false }) {
+    const name = path.split("/").pop();
+
+    return html`<button
+        class=${compact ? "icon-button made-download" : "button small ghost"}
+        data-part="made-download"
+        title=${t("Download")}
+        aria-label=${t("Download {name}", { name })}
+        onClick=${() => attempt(() => downloadFile(`api/c/${conversationId}/download?path=${encodeURIComponent(path)}`, name))}
+    >
+        <${Icon} name="download" size=${14} />${compact ? "" : ` ${t("Download")}`}
+    </button>`;
 }
 
 /** audio_speak's file: play and pause, the waveform (tap to seek), the time and the file's name. */
@@ -83,12 +99,13 @@ export function MadeAudio({ audio, conversationId, voice }) {
         <figcaption class="muted small">
             <span>${clock(at)} / ${clock(length)}</span>
             <span class="made-audio-name">${[voice, audio.path.split("/").slice(-2).join("/")].filter(Boolean).join(" · ")}</span>
+            <${DownloadButton} path=${audio.path} conversationId=${conversationId} compact=${true} />
         </figcaption>
     </figure>`;
 }
 
 /** audio_transcribe's transcript: its first lines with their times, how many more, Copy and Open file. */
-export function MadeTranscript({ transcript }) {
+export function MadeTranscript({ transcript, conversationId }) {
     const lines = Array.isArray(transcript.lines) ? transcript.lines : [];
     const more = (transcript.utterances ?? 0) - lines.length;
     const copy = () =>
@@ -106,6 +123,7 @@ export function MadeTranscript({ transcript }) {
         <div class="made-transcript-actions">
             <button class="button small ghost" data-part="transcript-copy" onClick=${copy}><${Icon} name="copy" size=${14} /> ${t("Copy")}</button>
             <button class="button small ghost" data-part="transcript-open" onClick=${() => openFile(transcript.path)}><${Icon} name="external" size=${14} /> ${t("Open file")}</button>
+            <${DownloadButton} path=${transcript.path} conversationId=${conversationId} />
         </div>
     </div>`;
 }

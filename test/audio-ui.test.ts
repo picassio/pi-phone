@@ -218,6 +218,22 @@ test("audio_speak's file plays under its line with its waveform; audio_transcrib
 
     assert.match(heads[0]!, /^audio_speak ?Chào anh Tuấn, đây là bản thử\. ?marin · 0 s$/, heads[0]!);
     assert.match(heads[1]!, /^audio_transcribe ?meeting\.flac ?6 lines$/, heads[1]!);
+    // Download beside the audio and the transcript (the owner's ask): the file comes from the download route, whole.
+    const saved = await inPage<{ buttons: number; names: string[] }>(`
+        const names = [];
+        const real = URL.createObjectURL;
+        const click = HTMLAnchorElement.prototype.click;
+        HTMLAnchorElement.prototype.click = function () { names.push(this.download); };
+        for (const button of document.querySelectorAll('[data-part="made-download"]')) button.click();
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        HTMLAnchorElement.prototype.click = click;
+        return JSON.stringify({ buttons: document.querySelectorAll('[data-part="made-download"]').length, names });
+    `);
+
+    assert.equal(saved.buttons, 2);
+    assert.equal(saved.names.length, 2, JSON.stringify(saved));
+    assert.match(saved.names[0]!, /^\d{8}-\d{6}-chao-anh-tuan[-a-z]*\.m4a$/);
+    assert.match(saved.names[1]!, /^\d{8}-\d{6}-meeting\.txt$/);
     await page.evaluate(`document.querySelector('[data-part="made-audio"]').scrollIntoView({ block: "center" }); return "true";`);
     await shot("audio-player-390.jpg");
     assert.match(player.caption, /^0:00 \/ 0:0\d ?marin · audio\/\d{8}-\d{6}-chao-anh-tuan[-a-z]*\.m4a$/, player.caption);

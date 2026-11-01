@@ -9218,6 +9218,25 @@ pre.diff .del {
     margin-top: 6px;
 }
 
+/* Download beside a made file's name: small, the row stays one line. */
+.made-download.icon-button {
+    width: 28px;
+    height: 28px;
+    margin: -6px -4px -6px 0;
+}
+
+.made-video figcaption,
+.made-audio figcaption {
+    align-items: center;
+}
+
+.made-video-end {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+}
+
 .made-audio figcaption > :first-child {
     flex: none;
     white-space: nowrap;

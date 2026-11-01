@@ -204,6 +204,24 @@ test("a video video_generate made plays in the chat under its line, with its fil
     assert.equal(shown.meta, "3 s · $0.40");
     assert.equal(shown.playable, true, `its file is served, with the player's controls: ${JSON.stringify(shown)}`);
 
+    // Download beside it (the owner's ask): the whole file, by its name.
+    const saved = await inPage<{ name: string; bytes: number }>(`
+        let name = "";
+        let bytes = 0;
+        const click = HTMLAnchorElement.prototype.click;
+        const made = URL.createObjectURL;
+        URL.createObjectURL = (blob) => { bytes = blob.size; return made(blob); };
+        HTMLAnchorElement.prototype.click = function () { name = this.download; };
+        document.querySelector('[data-part="made-video"] [data-part="made-download"]').click();
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        HTMLAnchorElement.prototype.click = click;
+        URL.createObjectURL = made;
+        return JSON.stringify({ name, bytes });
+    `);
+
+    assert.match(saved.name, /^\d{8}-\d{6}-a-paper-boat-on-a-calm\.mp4$/);
+    assert.equal(saved.bytes, readFileSync(join(work, "clip.mp4")).length);
+
     if (SHOTS !== undefined) {
         await new Promise((resolve) => setTimeout(resolve, 400));
         writeFileSync(join(SHOTS, "video-made-390.jpg"), Buffer.from((await page.screenshot()).data, "base64"));

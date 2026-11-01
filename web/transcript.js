@@ -3,7 +3,7 @@
 import { Component } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { initials, personColor } from "./avatar.js";
-import { MadeAudio, MadeTranscript } from "./audio-results.js";
+import { DownloadButton, MadeAudio, MadeTranscript } from "./audio-results.js";
 import { routeSliding } from "./back.js";
 import { describeCall, describersRevision } from "./calls.js";
 import { DiffBlock } from "./diff.js";
@@ -1127,12 +1127,15 @@ function ToolStep({
                         <video src=${videoUrl(video.path, conversationId)} controls playsinline preload="metadata"></video>
                         <figcaption class="muted small">
                             <span>${[video.path.split("/").slice(-2).join("/"), video.duration === undefined ? "" : `${Math.round(video.duration)} s`, video.width === undefined ? "" : `${video.width}×${video.height}`].filter(Boolean).join(" · ")}</span>
-                            ${typeof details.cost === "number" && html`<span>$${details.cost.toFixed(2)}</span>`}
+                            <span class="made-video-end">
+                                ${typeof details.cost === "number" && html`<span>$${details.cost.toFixed(2)}</span>`}
+                                <${DownloadButton} path=${video.path} conversationId=${conversationId} compact=${true} />
+                            </span>
                         </figcaption>
                     </figure>`
                 }
                 ${spoken !== null && html`<${MadeAudio} audio=${spoken} conversationId=${conversationId} voice=${details.voice} />`}
-                ${heard !== null && html`<${MadeTranscript} transcript=${heard} />`}
+                ${heard !== null && html`<${MadeTranscript} transcript=${heard} conversationId=${conversationId} />`}
                 ${
                     made.length > 0 &&
                     html`<div class="thumbs made-images" data-part="made-images">
