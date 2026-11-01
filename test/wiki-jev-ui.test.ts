@@ -55,7 +55,8 @@ async function inPage<T>(script: string): Promise<T> {
     return JSON.parse(await page.evaluate(script)) as T;
 }
 
-const see = (script: string, what: string) => until(async () => (await inPage<boolean>(script)) === true, what);
+// A loaded machine (the full suite, CI) may take longer than until's 10 s to open the sheet and read its card.
+const see = (script: string, what: string) => until(async () => (await inPage<boolean>(script)) === true, what, 30_000);
 
 async function shot(name: string): Promise<void> {
     if (SHOTS !== undefined) {
@@ -132,7 +133,12 @@ test("Menu › Wiki › Rank with Jev: the Jev models OpenRouter offers and Off,
     // A search with Jev, then one that fails: the card says how each went (read when the sheet opens again).
     await app.para.relevant("where is the office printer", work);
     await page.navigate(`${base}/?sheet=para:settings`);
-    await see(`return JSON.stringify(/Last search \\(.*\\): \\d+ pages read, 1 kept, [\\d.]+ s, \\$0\\.00008\\./.test(document.querySelector('[data-part="wiki-rerank"]')?.textContent ?? ""))`, "the last search's outcome");
+    await see(
+        `return JSON.stringify(/Last search \\(.*\\): \\d+ pages read, 1 kept, [\\d.]+ s, \\$0\\.00008\\./.test(document.querySelector('[data-part="wiki-rerank"]')?.textContent ?? ""))`,
+        "the last search's outcome",
+    ).catch(async (error: Error) => {
+        throw new Error(`${error.message}; the card: ${await page.evaluate(`return JSON.stringify(document.querySelector('[data-part="wiki-rerank"]')?.textContent ?? "(no card)")`)}`);
+    });
     jevAnswers = "402";
     await app.para.relevant("where is the office printer", work);
     jevAnswers = "judge";

@@ -250,7 +250,9 @@ test("Retry now sends the request; the phone's list shows the square; Providers 
             await until(() => app.config.limitNotice === on, `the notice ${on ? "on" : "off"}`, 3000).catch(() => undefined);
         }
 
-        assert.equal(app.config.limitNotice, on, `taps that missed: ${misses.join("; ") || "none"}; the sheet: ${await text(".limit-wait").catch(() => "(gone)")}`);
+        const seen = await page.evaluate(`const { store } = await import("/store.js"); return JSON.stringify({ sheet: store.state.sheet?.type ?? null, hours: store.state.server?.limitWaitHours ?? "absent", serverKeys: Object.keys(store.state.server ?? {}).length, sheetText: (document.querySelector(".sheet")?.innerText ?? "(no sheet)").slice(0, 300), width: innerWidth });`);
+
+        assert.equal(app.config.limitNotice, on, `taps that missed: ${misses.join("; ") || "none"}; the page: ${seen}`);
     };
 
     await flip(false);
