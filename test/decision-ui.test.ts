@@ -138,7 +138,11 @@ test("a card Pi asks is pinned at the top until answered; the list says Pi asks 
     // The list: Pi asks you, and the Waits for you scope with this session alone.
     void other;
     await page.navigate(`${base}/`);
-    await see(`return JSON.stringify(document.querySelector('[data-part="session-scope"] button') !== null)`, "the list");
+    // A loaded CI runner can take longer than 10 s to draw the list after a navigation (CI #392, #394): 30 s, and what
+    // the page held if it never comes.
+    await see(`return JSON.stringify(document.querySelector('[data-part="session-scope"] button') !== null)`, "the list", 30_000).catch(async (error: Error) => {
+        throw new Error(`${error.message}; the page: ${await page.evaluate(`return JSON.stringify({ at: location.pathname + location.search, view: (await import("/store.js")).store.state.view ?? null, parts: [...new Set([...document.querySelectorAll("[data-part]")].map((each) => each.dataset.part))].slice(0, 25) })`)}`);
+    });
     await page.evaluate(`document.querySelector('[data-part="session-scope"] button').click(); return "true";`);
     await see(`return JSON.stringify([...document.querySelectorAll('.session-scope-menu [role="option"]')].some((each) => each.textContent.includes("Waits for you")))`, "the scope");
     await page.evaluate(`[...document.querySelectorAll('.session-scope-menu [role="option"]')].find((each) => each.textContent.includes("Waits for you")).click(); return "true";`);
