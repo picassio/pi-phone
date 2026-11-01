@@ -442,7 +442,8 @@ dự án thật.</sub>
   (endpoint không công khai của ChatGPT, chỉ khi bạn chọn). Còn có giọng và ngôn ngữ (kiểm tra khi chọn), giảm ồn trên
   mic (điện thoại sát mặt, loa ngoài hoặc trên bàn, hoặc tắt), nhận biết lượt nói (thông minh, theo nội dung bạn nói, kèm
   bao lâu thì lượt của bạn được coi là xong, chờ lâu hơn giúp khi ở nơi ồn; hoặc theo âm lượng, kèm cần nói to mức nào và
-  khoảng ngừng trước khi trả lời, để người nói ở xa hơn không bắt đầu được lượt), ai suy nghĩ và cách luân phiên nói (rảnh
+  khoảng ngừng trước khi trả lời, để người nói ở xa hơn không bắt đầu được lượt), từ cần nghe (gợi ý cho mô hình ghi âm:
+  ngôn ngữ bạn nói, từ bạn chen vào, các tên; để trống cho tới khi bạn viết, kèm tên của phiên), ai suy nghĩ và cách luân phiên nói (rảnh
   tay, chạm để nói, giữ để nói) cho phiên mới, mic trong cuộc gọi (tắt sau bấy nhiêu giây im lặng, mặc định tắt; nút tai
   nghe, phím âm lượng, cả hai hoặc không dùng phím nào để tắt mic, mặc định nút tai nghe; tắt mic trừ khi điện thoại áp tai,
   mặc định tắt vì nó sẽ tắt mic trong cuộc gọi bật loa ngoài), giọng nói nói gì khi Pi đang làm (lời của Pi ngay khi có,

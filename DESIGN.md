@@ -1192,6 +1192,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     drops them. OpenAI took both noise types (calls and dictation), null, and each eagerness with the ChatGPT sign-in
     (2026-10-28, minting only: `~/work/tmp-ocu/codex-noise-check.mjs`); any other value is a 400, as the fake OpenAI
     answers too. The page also asks the mic for the browser's echo cancelling, noise suppression and gain control.
+  - **Words to listen for** (PP-293, `voice.words`, `voice.wordsSessions`): OpenAI's transcription `prompt` in a
+    call's key, the bridge's session and Codex dictation's: `wordsHint` joins the person's words (up to 800 characters,
+    empty by default: a default fits one person only) and, with wordsSessions on, "Names:" the session's title and
+    folder and the eight sessions used last (not archived); `POST /api/voice/dictation` takes the message box's
+    `session`. Settings › Voice has a box (saved when left, Clear) and the switch.
   - **Turns by loudness** (PP-201, `voice.vad: server`): semantic VAD has no loudness threshold, so people talking
     near the owner could start a turn. With server, hands-free and tap to talk use `{type: server_vad, threshold:
     vadThreshold, silence_duration_ms: vadSilenceMs, interrupt_response: true, create_response: mode !== think}`

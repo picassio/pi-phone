@@ -153,6 +153,18 @@ test("Settings › Voice: the checked live models with their way, choices that c
     await shot("voice-vad-390");
     await app.setVoice(owner(app), { vad: "semantic", vadThreshold: 0.7, vadSilenceMs: 500 });
 
+    // Words to listen for (PP-293): none at first, a hint written and left is kept, Clear empties it; the session's names.
+    assert.equal(await inPage<string>(`document.querySelector("[data-part=voice-words] textarea").value`), "");
+    await inPage(`(() => { const box = document.querySelector("[data-part=voice-words] textarea"); box.value = "Tiếng Việt xen tiếng Anh: Sitecore, Zendesk."; box.dispatchEvent(new Event("input", { bubbles: true })); box.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+    await until(() => app.config.voice.words === "Tiếng Việt xen tiếng Anh: Sitecore, Zendesk.", "the words kept");
+    await inPage(`document.querySelector("[data-part=voice-words]").scrollIntoView({ block: "center" })`);
+    await shot("voice-words-390");
+    await inPage(`document.querySelector("[data-part=voice-words-sessions] [role=switch]").click()`);
+    await until(() => !app.config.voice.wordsSessions, "without the session's names");
+    await inPage(`document.querySelector("[data-part=voice-words] .link").click()`);
+    await until(() => app.config.voice.words === "", "cleared");
+    await app.setVoice(owner(app), { wordsSessions: true });
+
     // The mic in a call (PP-201): tap to talk for new sessions, the quiet, the mute key, proximity.
     await press("[data-part=voice-turns-default]", "Tap to talk");
     await until(() => app.config.voice.turns === "tap", "tap to talk");

@@ -425,7 +425,8 @@ No Termux, no laptop, no cloud VM.
   endpoint, only when you pick it). Also the voice and the language (checked when picked), noise reduction on the mic
   (phone at your face, speaker or table, or off), turn detection (smart, by what you say, with how soon your turn counts
   as ended, waits longer helping in a noisy room; or by loudness, with how loud you must be and the pause before it
-  answers, so people talking further away do not start a turn), who thinks and turn-taking (hands-free, tap to talk, hold to talk)
+  answers, so people talking further away do not start a turn), words to listen for (a hint the dictation model reads:
+  the language you speak, words you mix in, names; empty until you write it, with the session's names added), who thinks and turn-taking (hands-free, tap to talk, hold to talk)
   for new sessions, the mic in a call (mute after so many quiet seconds, off by default; a headset's button, the
   volume keys, both or neither as a mute key, the headset's by default; mute unless the phone is at your ear, off by
   default as it would mute a speakerphone call), what the voice says while Pi works (Pi's words as they come, or only the answer, and a short cue on

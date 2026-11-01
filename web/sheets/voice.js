@@ -38,6 +38,8 @@ export function VoiceSheet() {
     const [limit, setLimit] = useState(null);
     const [quiet, setQuiet] = useState(null);
     const [loud, setLoud] = useState(null);
+    // Words to listen for while they are being written (PP-293): saved when the box is left.
+    const [words, setWords] = useState(null);
     const [pause, setPause] = useState(null);
 
     useEffect(() => {
@@ -181,6 +183,51 @@ export function VoiceSheet() {
                 : html`${segmented(t("When hands-free answers"), "voice-eagerness", [["auto", t("Auto")], ["low", t("Waits longer")], ["medium", t("Medium")], ["high", t("Soonest")]], settings.eagerness ?? "auto", "eagerness")}
                       <p class="muted small">${t("How soon your turn counts as ended. Waits longer helps in a noisy room; By loudness keeps people further away from starting a turn.")}</p>`
         }
+        <label class="assistant-field" data-part="voice-words">
+            <span class="voice-words-head">
+                <span class="small">${t("Words to listen for")}</span>
+                ${
+                    (words ?? settings.words ?? "") !== "" &&
+                    html`<button
+                        type="button"
+                        class="link small"
+                        onClick=${(event) => {
+                            event.preventDefault();
+                            attempt(async () => {
+                                await api("settings", { voice: { words: "" } });
+                                setWords(null);
+                            });
+                        }}
+                    >
+                        ${t("Clear")}
+                    </button>`
+                }
+            </span>
+            <textarea
+                rows="4"
+                maxlength="800"
+                aria-label=${t("Words to listen for")}
+                placeholder=${t("Names, terms and how you talk: the language you speak, words of other languages you mix in, names of people, projects and tools.")}
+                value=${words ?? settings.words ?? ""}
+                onInput=${(event) => setWords(event.currentTarget.value)}
+                onChange=${(event) => {
+                    const value = event.currentTarget.value;
+
+                    attempt(async () => {
+                        await api("settings", { voice: { words: value } });
+                        setWords(null);
+                    });
+                }}
+            ></textarea>
+            <span class="muted small">${t("A hint the dictation model reads before it writes down what you say, in calls and Codex dictation. Up to 800 characters.")}</span>
+        </label>
+        <div class="limit-wait-notice" data-part="voice-words-sessions">
+            <div>
+                <div class="small">${t("Add the session's names")}</div>
+                <div class="muted small">${t("The session's title and folder, and your recent sessions' titles.")}</div>
+            </div>
+            <${Switch} on=${settings.wordsSessions !== false} label=${t("Add the session's names")} onChange=${() => change({ wordsSessions: settings.wordsSessions === false })} />
+        </div>
 
         <div class="phone-section-title">${t("New sessions")}</div>
         ${segmented(t("Voice mode"), "voice-mode-default", VOICE_MODES(), settings.mode, "mode")}

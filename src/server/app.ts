@@ -19,7 +19,7 @@ import { PhoneSettingsFile } from "./phone-settings.ts";
 import { UsageLimits, type UsageWindow } from "./usage-limits.ts";
 import { LimitGate, type LimitTuning, noWait, type WaitView, type Waiting } from "./limit-gate.ts";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { clampThinkingLevel, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import {
@@ -93,7 +93,7 @@ import { FolderFavorites } from "./folder-favorites.ts";
 import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
 import { withAssistant } from "./assistant.ts";
-import { type CallPlan, type CallStart, chatgptAccount, type VoiceEndpoints, type VoiceMode, VOICES, VoiceService, isVoiceMode, voiceInstructions, withVoice } from "./voice.ts";
+import { type CallPlan, type CallStart, chatgptAccount, type VoiceEndpoints, type VoiceMode, VOICES, VoiceService, isVoiceMode, voiceInstructions, withVoice, wordsHint } from "./voice.ts";
 import { GitHubLogin } from "./github-login.ts";
 import { PiHandoff } from "./pi-handoff.ts";
 import { clockText, inLanguage, inZone, type PhoneEvent, PhoneEvents, type Said, said } from "./phone-events.ts";
@@ -2476,11 +2476,35 @@ export class PocketApp {
         const recent = await this.#voiceContext(id);
         const instructions = voiceInstructions(mode, this.sessionMeta(id)?.title);
 
+        const words = this.voiceWords(id);
+
         return {
             mode,
             instructions: recent === "" ? instructions : `${instructions}\n\n<startup_context>\nThe session so far, newest last:\n${recent}\n</startup_context>`,
             tools: mode === "work" ? VOICE_TOOLS : [],
+            ...(words === "" ? {} : { words }),
         };
+    }
+
+    /**
+     * The dictation model's hint (PP-293): Settings › Voice's words to listen for, and with `wordsSessions` the names it
+     * may hear: the session's title and folder, and the eight sessions used last.
+     */
+    voiceWords(id?: ConversationId): string {
+        const settings = this.config.voice;
+
+        if (!settings.wordsSessions) {
+            return wordsHint(settings.words, []);
+        }
+
+        const meta = id === undefined ? undefined : this.sessionMeta(id);
+        const recent = Object.values(this.#sessions)
+            .filter((each) => each.archived !== true && each.pip === undefined && each.title !== undefined)
+            .sort((a, b) => b.updatedAt - a.updatedAt)
+            .slice(0, 8)
+            .map((each) => each.title ?? "");
+
+        return wordsHint(settings.words, [meta?.title ?? "", meta === undefined ? "" : basename(meta.cwd), ...recent]);
     }
 
     /** The person a call is for. */

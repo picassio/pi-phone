@@ -4,7 +4,7 @@
 // and turns its events into results: words as they come (`…transcription.delta`), settled when each piece is done
 // (`…completed`). Its seconds are counted in Spend when it ends.
 import { t } from "./i18n.js";
-import { api } from "./store.js";
+import { api, store } from "./store.js";
 
 /** One piece of speech, as SpeechRecognition's results hold it: its words, and whether they are settled. */
 const result = (text, isFinal) => Object.assign([{ transcript: text }], { isFinal });
@@ -33,7 +33,8 @@ export class CodexRecognition {
     }
 
     async #run() {
-        const started = await api("voice/dictation", {});
+        // The session the message box is in: its names go into the dictation model's hint (PP-293).
+        const started = await api("voice/dictation", store.state.conversationId === null ? {} : { session: store.state.conversationId });
 
         this.#dictation = started.dictation;
         this.#mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });

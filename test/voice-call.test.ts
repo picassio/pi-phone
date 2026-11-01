@@ -3,7 +3,7 @@
 // a call's set-up for each way, minutes in Spend and the daily limit, and the sign-in's token never reaching the page,
 // the logs, or a refusal's words.
 import { type App, cleanUp, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
-import { DEFAULT_VOICE, readVoice, storedVoice, withVoice, chatgptAccount, callSession, dictationSession, voiceInstructions } from "../src/server/voice.ts";
+import { DEFAULT_VOICE, readVoice, storedVoice, withVoice, chatgptAccount, callSession, dictationSession, voiceInstructions, wordsHint } from "../src/server/voice.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
 import type { User } from "../src/server/config.ts";
 import { createHandler } from "../src/server/http.ts";
@@ -332,6 +332,54 @@ test("turn detection by loudness (PP-201): server VAD with the threshold and the
     assert.deepEqual((openai.keys.get(dictation.key) as { audio: { input: Input } }).audio.input.turn_detection, { type: "server_vad", threshold: 0.8, silence_duration_ms: 700 });
     await call(`voice/dictation/${dictation.dictation}/end`, {});
     await app.setVoice(owner(app), { vad: "semantic", vadThreshold: 0.7, vadSilenceMs: 500 });
+});
+
+test("words to listen for (PP-293): none by default; the person's words and the session's names go to the dictation model as its hint, in calls and dictation", async () => {
+    type Transcription = { model: string; language?: string; prompt?: string };
+    const heard = (session: unknown) => (session as { audio: { input: { transcription: Transcription } } }).audio.input.transcription;
+
+    assert.equal(DEFAULT_VOICE.words, "", "no default words: they fit one person only");
+    assert.equal(DEFAULT_VOICE.wordsSessions, true);
+    assert.equal(heard(callSession(DEFAULT_VOICE, { mode: "work", instructions: "", tools: [] })).prompt, undefined, "no hint, no prompt");
+    assert.equal(wordsHint("  Vietnamese with English words.  ", ["pi-phone dev", "", "pi-phone dev", "work"]), "Vietnamese with English words. Names: pi-phone dev, work.");
+    assert.equal(wordsHint("", []), "");
+    assert.equal(heard(dictationSession("gpt-4o-transcribe", "vi", "near_field", DEFAULT_VOICE, "Azure, Sitecore")).prompt, "Azure, Sitecore");
+    assert.equal(withVoice(DEFAULT_VOICE, { words: "  Azure  " }).words, "Azure");
+    assert.throws(() => withVoice(DEFAULT_VOICE, { words: "x".repeat(801) }), /up to 800 characters/);
+    assert.throws(() => withVoice(DEFAULT_VOICE, { wordsSessions: "yes" }), /true or false/);
+    assert.deepEqual(readVoice({ words: 7, wordsSessions: "on" }), DEFAULT_VOICE);
+
+    // Pi's settings, and what a call and a dictation in a session carry.
+    const settings = appSettings(app).settings;
+    const set = (id: string, value: string) => settings.find((each) => each.id === id)!.apply(owner(app), value, undefined);
+
+    await set("voice.words", "Vietnamese mixed with English: Sitecore, Zendesk.");
+    assert.equal(app.config.voice.words, "Vietnamese mixed with English: Sitecore, Zendesk.");
+
+    const id = await newSession(app);
+
+    await app.commands.updateSession(id as never, owner(app), { title: "Mater SSP" });
+
+    const start = (await call(`c/${id}/voice/call`, {})).json as { call: string; key: string };
+    const inCall = heard(openai.keys.get(start.key)).prompt ?? "";
+
+    assert.match(inCall, /^Vietnamese mixed with English: Sitecore, Zendesk\. Names: Mater SSP, /, inCall);
+    app.voice.end(start.call);
+
+    const dictation = (await call("voice/dictation", { session: id })).json as { dictation: string; key: string };
+
+    assert.match(heard(openai.keys.get(dictation.key)).prompt ?? "", /Names: Mater SSP/);
+    await call(`voice/dictation/${dictation.dictation}/end`, {});
+
+    // Without the session's names: the words alone; cleared: nothing.
+    await set("voice.wordsSessions", "off");
+    assert.equal(app.voiceWords(id as never), "Vietnamese mixed with English: Sitecore, Zendesk.");
+    await set("voice.words", "none");
+    assert.equal(app.voiceWords(id as never), "");
+    await app.setVoice(owner(app), { wordsSessions: true });
+    // An archived session's name is not a word to listen for.
+    await app.commands.updateSession(id as never, owner(app), { archived: true });
+    assert.equal(app.voiceWords(), "");
 });
 
 test("the server knows a call's mic (PP-201): the page says each time it turns off or on, by whom, and the call's turn-taking", async () => {

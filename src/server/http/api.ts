@@ -1714,7 +1714,15 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
 
             if (second === "dictation" && third === undefined && method === "POST") {
-                return json(response, 200, await app.voice.dictation(user.id));
+                // The session the message box is in names the hint's words (PP-293), when the page says it.
+                const { session } = await readJson<{ session?: unknown }>(request);
+                const id = typeof session === "number" && app.sessionMeta(session as unknown as ConversationId) !== undefined ? (session as unknown as ConversationId) : undefined;
+
+                if (id !== undefined) {
+                    app.requireSee(user, id);
+                }
+
+                return json(response, 200, await app.voice.dictation(user.id, app.voiceWords(id)));
             }
 
             if (second === "dictation" && third !== undefined && parts[3] === "end" && method === "POST") {

@@ -3562,6 +3562,28 @@ pre.diff .del {
     gap: 4px;
 }
 
+/* Settings › Voice's words to listen for (PP-293): its name with Clear, and a box of a few lines. */
+.voice-words-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+}
+
+[data-part="voice-words"] textarea {
+    width: 100%;
+    min-height: 96px;
+    padding: 9px 11px;
+    border: 1px solid var(--hair-2);
+    border-radius: var(--r-control);
+    background: var(--card);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    resize: vertical;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .assist-sheet,
     .assist-backdrop,

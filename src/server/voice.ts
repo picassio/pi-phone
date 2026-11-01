@@ -94,7 +94,17 @@ export interface VoiceSettings {
     readonly vadThreshold: number;
     /** With server VAD: the silence that ends your turn, in milliseconds. */
     readonly vadSilenceMs: number;
+    /**
+     * Words to listen for (PP-293): a hint the dictation model reads before it writes down what is said (OpenAI's
+     * transcription prompt), in calls and Codex dictation; the person's own, empty by default, up to `WORDS_MAX`.
+     */
+    readonly words: string;
+    /** Add the session's names to that hint: its title and folder, and the recent sessions' titles. */
+    readonly wordsSessions: boolean;
 }
+
+/** The longest words to listen for, in characters. */
+export const WORDS_MAX = 800;
 
 export const DEFAULT_VOICE: VoiceSettings = {
     model: "gpt-realtime-2",
@@ -120,6 +130,9 @@ export const DEFAULT_VOICE: VoiceSettings = {
     // Above OpenAI's 0.5: by loudness is for a noisy place, where only the owner's close voice should count.
     vadThreshold: 0.7,
     vadSilenceMs: 500,
+    // Empty: a default fits one person only (the owner's is his own words); what is set is the person's.
+    words: "",
+    wordsSessions: true,
 };
 
 /** The models the check asks about. Others may be set by id; setting one checks it the same way. */
@@ -164,6 +177,8 @@ const KEYS = [
     "vad",
     "vadThreshold",
     "vadSilenceMs",
+    "words",
+    "wordsSessions",
 ] as const;
 const quietSeconds = (value: unknown): boolean => Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 600;
 const MODEL_ID = /^[a-z0-9][a-z0-9.\-]{1,63}$/;
@@ -204,6 +219,8 @@ export function readVoice(stored: unknown): VoiceSettings {
         vad: pick(stored.vad, (value) => VADS.includes(value as VoiceVad), DEFAULT_VOICE.vad),
         vadThreshold: pick(stored.vadThreshold, threshold, DEFAULT_VOICE.vadThreshold),
         vadSilenceMs: pick(stored.vadSilenceMs, silenceMs, DEFAULT_VOICE.vadSilenceMs),
+        words: pick(stored.words, (value) => typeof value === "string" && value.length <= WORDS_MAX, DEFAULT_VOICE.words),
+        wordsSessions: pick(stored.wordsSessions, (value) => typeof value === "boolean", DEFAULT_VOICE.wordsSessions),
     };
 }
 
@@ -369,6 +386,22 @@ export function withVoice(current: VoiceSettings, patch: unknown): VoiceSettings
         next.vadSilenceMs = patch.vadSilenceMs as number;
     }
 
+    if (patch.words !== undefined) {
+        if (typeof patch.words !== "string" || patch.words.trim().length > WORDS_MAX) {
+            throw new HttpError(400, "voice.words is text of up to 800 characters (empty for none).");
+        }
+
+        next.words = patch.words.trim();
+    }
+
+    if (patch.wordsSessions !== undefined) {
+        if (typeof patch.wordsSessions !== "boolean") {
+            throw new HttpError(400, "voice.wordsSessions is true or false.");
+        }
+
+        next.wordsSessions = patch.wordsSessions;
+    }
+
     if (patch.dailyLimit !== undefined) {
         if (patch.dailyLimit !== null && !(Number.isInteger(patch.dailyLimit) && (patch.dailyLimit as number) > 0 && (patch.dailyLimit as number) <= 1440)) {
             throw new HttpError(400, "voice.dailyLimit is a number of minutes from 1 to 1440, or null for none.");
@@ -491,6 +524,24 @@ export interface CallPlan {
     readonly instructions: string;
     /** The tools the live model has: `ask_pi` in "Pi works", none otherwise. */
     readonly tools: readonly Record<string, unknown>[];
+    /** The hint for the dictation model (PP-293): the person's words, and the session's names; empty for none. */
+    readonly words?: string;
+}
+
+/**
+ * The dictation model's hint (PP-293): the person's words, then the names it may hear (the session's, the recent ones),
+ * kept short; empty when there are none.
+ */
+export function wordsHint(words: string, names: readonly string[]): string {
+    const named = [...new Set(names.map((name) => name.trim()).filter((name) => name !== ""))].join(", ");
+    const hint = [words.trim(), named === "" ? "" : `Names: ${named}.`].filter((part) => part !== "").join(" ");
+
+    return hint.length > 1000 ? hint.slice(0, 1000) : hint;
+}
+
+/** A transcription's settings: the model, the language unless auto, and the hint when there is one. */
+function transcription(model: string, language: string, words = ""): Record<string, unknown> {
+    return { model, ...(language === "auto" ? {} : { language }), ...(words === "" ? {} : { prompt: words }) };
 }
 
 /** One call: whose, for which session, how it was set up, and since when. */
@@ -970,12 +1021,12 @@ export class VoiceService {
     }
 
     /** A Codex dictation for the message box: a short-lived key for a transcription session, which the page opens itself. */
-    async dictation(userId: string): Promise<{ dictation: string; model: string; url: string; key: string; expiresAt: number }> {
+    async dictation(userId: string, words = ""): Promise<{ dictation: string; model: string; url: string; key: string; expiresAt: number }> {
         this.#underLimit();
 
         const settings = this.#options.settings();
         const auth = await this.auth();
-        const minted = await this.mint(auth, dictationSession(settings.dictationModel, settings.language, settings.noise, settings));
+        const minted = await this.mint(auth, dictationSession(settings.dictationModel, settings.language, settings.noise, settings, words));
 
         if (minted.key === undefined) {
             throw new HttpError(minted.status === 429 ? 429 : 502, `OpenAI did not start dictation: ${minted.why}`);
@@ -1052,12 +1103,13 @@ export function dictationSession(
     language: string,
     noise: VoiceNoise = DEFAULT_VOICE.noise,
     vad: Pick<VoiceSettings, "vad" | "vadThreshold" | "vadSilenceMs"> = DEFAULT_VOICE,
+    words = "",
 ): Record<string, unknown> {
     return {
         type: "transcription",
         audio: {
             input: {
-                transcription: { model, ...(language === "auto" ? {} : { language }) },
+                transcription: transcription(model, language, words),
                 noise_reduction: noiseReduction(noise),
                 turn_detection: dictationTurns(vad),
             },
@@ -1077,7 +1129,7 @@ export function callSession(settings: VoiceSettings, plan: CallPlan): Record<str
         instructions: plan.instructions,
         audio: {
             input: {
-                transcription: { model: settings.dictationModel, ...(settings.language === "auto" ? {} : { language: settings.language }) },
+                transcription: transcription(settings.dictationModel, settings.language, plan.words ?? ""),
                 noise_reduction: noiseReduction(settings.noise),
                 turn_detection: turnDetection(settings, plan.mode),
             },
