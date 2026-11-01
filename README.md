@@ -248,6 +248,10 @@ No Termux, no laptop, no cloud VM.
   convert (JPEG, PNG, WebP) and compress an image; take a video's frames (at given seconds, every few seconds, or spread
   over it) or one contact sheet; and cut an mp4 clip, trimmed, shrunk to 720p and muted if you like. What it makes goes
   in `media/` where the session works. `ffmpeg` and `ffprobe` are on the PATH of the phone's sessions too.
+- **Watching videos.** `video_ask` asks a model that watches video about a video file where the session works, or a
+  YouTube address, through OpenRouter on your key (Gemini 3.5 Flash-Lite by default, about a cent a minute): what
+  happens, with times, what is said. A large or tall video is shrunk to a 720p mp4 first. Menu › Videos picks the model
+  (`video.askModel`); the cost is in Spend.
 
 ### Secrets and the wiki
 - **Secrets.** API keys and tokens in Settings › Secrets, used by name (`$NPM_TOKEN`) and never shown: output that

@@ -12,6 +12,7 @@ import { sshArguments } from "@earendil-works/pi-env";
 import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
 import { CustomProviders, NO_KEY } from "./custom-providers.ts";
 import { ImageGen, type ImageGenOptions } from "./image-gen.ts";
+import { Videos, type VideosOptions } from "./video-gen.ts";
 import { TeamAccountsClient } from "./team-accounts.ts";
 import { TeamMachinesClient } from "./team-machines.ts";
 import { machinePaths } from "./machine-paths.ts";
@@ -351,6 +352,7 @@ export interface OpenOptions {
     voice?: { endpoints?: VoiceEndpoints; auth?: () => Promise<{ token: string; account?: string } | undefined>; fetch?: typeof fetch };
     /** Where ChatGPT's and OpenRouter's image endpoints are, and whose ChatGPT sign-in (`image-gen.ts`): tests stand in fakes. */
     images?: Partial<Pick<ImageGenOptions, "endpoints" | "fetch" | "codexAuth">>;
+    videos?: Partial<Pick<VideosOptions, "endpoints" | "fetch">>;
 }
 
 /** A Codex token's ChatGPT account, as voice sends it. */
@@ -525,6 +527,8 @@ export class PocketApp {
     readonly voice: VoiceService;
     /** Images Pi makes and edits (PP-275): the providers signed in, their image models, the owner's choice. */
     readonly images: ImageGen;
+    /** Videos through OpenRouter (PP-297): `video_ask`'s models and asks. */
+    readonly videos: Videos;
     /** The server's side of a call once it is set up: Pi's work in, Pi's words out (`voice-bridge.ts`). */
     readonly voiceBridge: VoiceBridge;
     /** Word, Excel, and PowerPoint files for Pi's bash and the Files viewer (`officecli.ts`). */
@@ -637,6 +641,15 @@ export class PocketApp {
             reload: () => this.providers.modelRefresh.refreshAfterChange(),
             changed: () => this.providers.modelsChanged(),
             log: (line) => this.log(line),
+        });
+        this.videos = new Videos({
+            openRouterKey: async () => {
+                const key = (await this.models.getAuth("openrouter"))?.auth.apiKey;
+
+                return key === undefined || key === "" ? undefined : key;
+            },
+            askSetting: () => this.config.videoAskModel,
+            ...options.videos,
         });
         this.images = new ImageGen({
             codexAuth: async () => {
@@ -1341,6 +1354,7 @@ export class PocketApp {
             rootOf: (conversationId) => Number(this.rootOf(conversationId as unknown as ConversationId)),
             web: this.web,
             images: this.images,
+            videos: this.videos,
             envOf: (cwd) => this.places.env(cwd),
             teamServer: this.#teamServer,
             syncTeamMachines: () => this.syncTeamMachines(),
@@ -4062,6 +4076,8 @@ export class PocketApp {
                 designSystem: this.config.designSystem ?? null,
                 // The image model image_generate uses (Menu › Images, PP-275), provider/model, or null for the default.
                 imageModel: this.config.imageModel,
+                // The model video_ask watches with (Menu › Videos, PP-297), or null for the default.
+                videoAskModel: this.config.videoAskModel,
                 // The models Pi may start subagents on besides their session's own: the owner's to see and change.
                 ...(user.role === "owner"
                     ? { subagentModels: [...this.config.subagentModels] }
@@ -5593,6 +5609,25 @@ export class PocketApp {
         }
 
         this.config.imageModel = await this.images.check(model === null ? null : model.trim());
+        await this.#refreshClients();
+    }
+
+    /** The model `video_ask` watches with (Menu › Videos, PP-297): one OpenRouter lists as taking video, or null for the default. */
+    async setVideoAskModel(user: User, model: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (model !== null && typeof model !== "string") {
+            throw new HttpError(400, "The video model is an OpenRouter model id, or null for the default.");
+        }
+
+        try {
+            this.config.videoAskModel = await this.videos.checkAsk(model);
+        } catch (error) {
+            throw new HttpError(400, error instanceof Error ? error.message : String(error));
+        }
+
         await this.#refreshClients();
     }
 

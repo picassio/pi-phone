@@ -261,6 +261,10 @@ dự án thật.</sub>
   cắt, xoay, lật, đổi định dạng (JPEG, PNG, WebP) và nén ảnh; lấy khung hình của video (tại các giây cho trước, mỗi vài
   giây, hoặc rải đều) hoặc một tờ ảnh tổng hợp; và cắt một đoạn mp4, rút gọn, thu về 720p và tắt tiếng nếu muốn. Thứ nó
   tạo ra nằm trong `media/` ở nơi phiên làm việc. `ffmpeg` và `ffprobe` cũng có trên PATH của các phiên trên điện thoại.
+- **Xem video.** `video_ask` hỏi một mô hình xem được video về một tệp video ở nơi phiên làm việc, hoặc một địa chỉ
+  YouTube, qua OpenRouter bằng khóa của bạn (mặc định Gemini 3.5 Flash-Lite, khoảng một xu mỗi phút): chuyện gì xảy ra,
+  kèm thời điểm, nói gì. Video lớn hoặc cao được thu về mp4 720p trước. Menu › Video chọn mô hình (`video.askModel`);
+  chi phí nằm trong Chi tiêu.
 
 ### Bí mật và wiki
 - **Bí mật.** Khóa API và token trong Cài đặt › Bí mật, dùng theo tên (`$NPM_TOKEN`) và không bao giờ hiện ra: kết quả

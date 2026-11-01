@@ -16,6 +16,7 @@ import { InterviewSheet } from "./sheets/interview.js";
 import { WebAccessSheet } from "./sheets/web-access.js";
 import { DesignSystemSheet } from "./sheets/design-system.js";
 import { ImagesSheet } from "./sheets/images.js";
+import { VideosSheet } from "./sheets/videos.js";
 import { AccessSheet } from "./sheets/access.js";
 import { DictationSheet } from "./sheets/dictation.js";
 import { SchedulesSheet } from "./sheets/schedules.js";
@@ -236,6 +237,9 @@ function sheetBody(sheet) {
             break;
         case "images":
             body = store.state.me?.role === "owner" ? html`<${ImagesSheet} />` : null;
+            break;
+        case "videos":
+            body = store.state.me?.role === "owner" ? html`<${VideosSheet} />` : null;
             break;
         // The subagents' model and thinking (PP-281): every session's, or this session's own.
         case "subagent-settings":

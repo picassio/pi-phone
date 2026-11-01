@@ -18,6 +18,7 @@ import { DESIGN_MODULE } from "./design-systems.ts";
 import { type CustomProviderView, idFromName, type KeyChoice } from "./custom-providers.ts";
 import { type VoiceCheck, VOICES } from "./voice.ts";
 import { ImageGen } from "./image-gen.ts";
+import { DEFAULT_ASK_MODEL } from "./video-gen.ts";
 import { POPUP_MODES } from "./browser/pi-browser.ts";
 import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
 import { CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
@@ -551,6 +552,22 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 return ["auto", ...models.map((model) => `${model.id}${model.price?.imageOut === undefined ? "" : ` ($${model.price.imageOut}/M image tokens)`}`), ...problems.map((problem) => `(${problem})`)];
             },
             apply: (user, value) => app.setImageModel(user, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim().replace(/\s+\(.*\)$/, "")),
+        },
+        {
+            id: "video.askModel",
+            area: "videos",
+            title: "Model video_ask watches videos with",
+            help: `An OpenRouter model that takes video (google/gemini-3.5-flash-lite and others), or auto: ${DEFAULT_ASK_MODEL}. Pi may name another for one call (video_ask's model). Needs OpenRouter signed in.`,
+            owner: true,
+            read: () => app.config.videoAskModel ?? `auto (${DEFAULT_ASK_MODEL})`,
+            choices: async () => {
+                try {
+                    return ["auto", ...(await app.videos.askModels()).map((model) => `${model.id}${model.price === undefined ? "" : ` ($${model.price.input}/M in)`}`)];
+                } catch (error) {
+                    return ["auto", `(${error instanceof Error ? error.message : String(error)})`];
+                }
+            },
+            apply: (user, value) => app.setVideoAskModel(user, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim().replace(/\s+\(.*\)$/, "")),
         },
         {
             id: "wiki.contextTokens",

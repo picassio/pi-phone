@@ -264,6 +264,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "image_markup",
     "image_generate",
     "media",
+    "video_ask",
     "browser_open",
     "browser_snapshot",
     "browser_click",

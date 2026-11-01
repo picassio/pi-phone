@@ -207,6 +207,8 @@ interface PocketConfig {
      * in, else OpenRouter's first image model (`image-gen.ts`).
      */
     imageModel?: string;
+    /** The model `video_ask` watches videos with (PP-297), an OpenRouter model id. Absent: the default (`video-gen.ts`). */
+    videoAskModel?: string;
     /** Also listen on the phone's Tailscale address, for people on the owner's tailnet (`tailnet.ts`). Absent: off. */
     tailscale?: boolean;
     /**
@@ -618,6 +620,21 @@ export class ConfigStore {
             delete this.#config.docsImageModel;
         } else {
             this.#config.docsImageModel = model;
+        }
+
+        this.save();
+    }
+
+    /** The owner's model for `video_ask` (Menu › Videos), or null for the default. */
+    get videoAskModel(): string | null {
+        return this.#config.videoAskModel ?? null;
+    }
+
+    set videoAskModel(model: string | null) {
+        if (model === null) {
+            delete this.#config.videoAskModel;
+        } else {
+            this.#config.videoAskModel = model;
         }
 
         this.save();

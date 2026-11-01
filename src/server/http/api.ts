@@ -33,6 +33,7 @@ import type { User } from "../config.ts";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { VOICES } from "../voice.ts";
 import { ImageGen } from "../image-gen.ts";
+import { DEFAULT_ASK_MODEL } from "../video-gen.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { addressOf, deviceName } from "../devices.ts";
 import { HttpError } from "../errors.ts";
@@ -999,6 +1000,27 @@ export function createApi(options: HttpOptions, auth: Auth) {
             await app.setImageModel(user, (await readJson<{ model?: unknown }>(request)).model ?? null);
 
             return json(response, 200, { model: app.config.imageModel });
+        }
+
+        // Menu › Videos (PP-297): the models that watch videos through OpenRouter, with their prices, and the owner's choice.
+        if (first === "videos" && second === undefined && method === "GET") {
+            requireOwner(user);
+
+            let ask: { models: unknown[]; problem?: string };
+
+            try {
+                ask = { models: await app.videos.askModels() };
+            } catch (error) {
+                ask = { models: [], problem: error instanceof Error ? error.message : String(error) };
+            }
+
+            return json(response, 200, { askModel: app.config.videoAskModel, askDefault: DEFAULT_ASK_MODEL, askModels: ask.models, ...(ask.problem === undefined ? {} : { problem: ask.problem }) });
+        }
+
+        if (first === "videos" && second === "ask-model" && method === "PUT") {
+            await app.setVideoAskModel(user, (await readJson<{ model?: unknown }>(request)).model ?? null);
+
+            return json(response, 200, { askModel: app.config.videoAskModel });
         }
 
         // The Browser panel: what Pi's browser shows (frames while a tab watches), taking it over, and its input then.

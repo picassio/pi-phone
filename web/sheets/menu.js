@@ -564,6 +564,10 @@ export function MenuSheet({ places = true }) {
                 // The model image_generate makes images with (PP-275), while the Images extension is on.
                 me?.role === "owner" && allowed("settings.change") && server?.extensions?.includes("pocket-images") && item("Images", () => openSheet({ type: "images" }), server?.imageModel ?? "automatic")
             }
+            ${
+                // The models Pi's videos go through (PP-297), while the Media extension is on.
+                me?.role === "owner" && allowed("settings.change") && server?.extensions?.includes("pocket-media") && item("Videos", () => openSheet({ type: "videos" }), server?.videoAskModel ?? "automatic")
+            }
             ${me?.role === "owner" && allowed("browser.use") && item("Pi's browser", () => openSheet({ type: "browser" }), "how browser_run decides each step")}
             ${
                 // Pi uses this phone's apps (PP-141): the phone's own pi-phone only, never the team server.

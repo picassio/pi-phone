@@ -36,8 +36,13 @@ import {
     sheetArgs,
 } from "../media.ts";
 import { slugOf } from "./images.ts";
+import type { Usage } from "@earendil-works/pi-ai";
 
 const FOLDER = "media";
+/** A video larger than this is shrunk to a 720p mp4 before a model watches it. */
+const MAX_ASK_MB = 20;
+/** The most a video sent to a model may be, after shrinking (base64 in one request). */
+const MAX_SEND_MB = 45;
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 
 const DESCRIPTION =
@@ -311,5 +316,137 @@ export default function createMedia(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: "pocket-media", tools: [media] });
+    const ask = defineTool({
+        name: "video_ask",
+        description:
+            "Ask a model that watches video about a video (PP-297): the model Menu › Videos sets (setting video.askModel, Gemini Flash-Lite by default), through OpenRouter. " +
+            `Give path (a video where this session works: mp4, mov, webm, mkv; larger than ${MAX_ASK_MB} MB or taller than 720 lines, it is shrunk to a 720p mp4 first with the media tool's engine) or url (a YouTube address), and the question. ` +
+            "It answers in words, with times (0:12) when you ask for them; the cost is in Spend. model overrides the setting for this call, an OpenRouter model that takes video.",
+        parameters: Type.Object({
+            question: Type.String({ description: "What to ask about the video" }),
+            path: Type.Optional(Type.String({ description: "The video: a path, absolute or relative to this session's folder" })),
+            url: Type.Optional(Type.String({ description: "A YouTube address instead of a file" })),
+            model: Type.Optional(Type.String({ description: "An OpenRouter model that takes video, for this call only, instead of the setting video.askModel" })),
+        }),
+        execute: async (args, api, context) => {
+            if ((args.path === undefined) === (args.url === undefined)) {
+                return reply("Give path (a video file) or url (a YouTube address): one of them.", true);
+            }
+
+            if (args.question.trim() === "") {
+                return reply("Give the question: what to ask about the video.", true);
+            }
+
+            let model;
+
+            try {
+                model = await host.videos.resolveAsk(args.model);
+            } catch (error) {
+                return reply(error instanceof Error ? error.message : String(error), true);
+            }
+
+            let video: { data: Uint8Array; mimeType: string } | { url: string };
+            let shrunk: string | undefined;
+
+            if (args.url !== undefined) {
+                if (!/^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?|shorts\/|live\/)|youtu\.be\/)/.test(args.url.trim())) {
+                    return reply("url is a YouTube address (youtube.com/watch?v=…, youtu.be/…); a video elsewhere: download it, then give its path.", true);
+                }
+
+                video = { url: args.url.trim() };
+            } else {
+                const cwd = (await api.agent(context)).cwd ?? "";
+                const env = host.envOf(cwd);
+                const absolute = await env.absolutePath(args.path!, context);
+
+                if (!absolute.ok) {
+                    return reply(`Cannot find ${args.path}: ${absolute.error.message}`, true);
+                }
+
+                const engine = await engineFor(cwd, env, context);
+
+                if (typeof engine === "string") {
+                    return reply(engine, true);
+                }
+
+                const probed = await output(env, commandOf(engine, "ffprobe", probeArgs(absolute.value)), context, 60);
+                let info: MediaInfo;
+
+                try {
+                    if (probed.code !== 0) {
+                        throw new Error(probed.stderr.trim().slice(-300) || `exit ${probed.code}`);
+                    }
+
+                    info = readProbe(probed.stdout);
+                } catch (error) {
+                    return reply(`ffprobe could not read ${args.path}: ${error instanceof Error ? error.message : String(error)}`, true);
+                }
+
+                if (info.kind !== "video") {
+                    return reply(`${args.path} is ${info.kind === "image" ? "an image" : "audio"}, not a video.`, true);
+                }
+
+                let file = absolute.value;
+                const sent = info.format.split(",").some((name) => ["mov", "mp4", "webm"].includes(name));
+
+                // Too big, too tall, or a container OpenRouter does not take: a 720p mp4 first.
+                if (info.bytes > MAX_ASK_MB * 1024 * 1024 || (info.height ?? 0) > 720 || !sent) {
+                    const folder = await env.absolutePath(FOLDER, context);
+
+                    if (!folder.ok) {
+                        return reply(`Cannot save in ${FOLDER}: ${folder.error.message}`, true);
+                    }
+
+                    await env.createDir(folder.value, { recursive: true }, context);
+                    shrunk = `${folder.value}/${stamp(new Date())}-${slugOf(args.path!.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "video")}-for-model.mp4`;
+
+                    const ran = await output(env, commandOf(engine, "ffmpeg", clipArgs(file, shrunk, { height: 720 })), context);
+
+                    if (ran.code !== 0) {
+                        return reply(`ffmpeg could not shrink ${args.path}: ${ran.stderr.trim().slice(-400)}`, true);
+                    }
+
+                    file = shrunk;
+                }
+
+                const bytes = await env.readBinaryFile(file, context);
+
+                if (!bytes.ok) {
+                    return reply(`Could not read ${file}: ${bytes.error.message}`, true);
+                }
+
+                if (bytes.value.length > MAX_SEND_MB * 1024 * 1024) {
+                    return reply(`${args.path} is still ${megabytes(bytes.value.length)} as a 720p mp4; models take up to about ${MAX_SEND_MB} MB: cut the part to ask about with media (action clip, start and end) and ask about that.`, true);
+                }
+
+                video = { data: bytes.value, mimeType: file.toLowerCase().endsWith(".webm") ? "video/webm" : file.toLowerCase().endsWith(".mov") ? "video/quicktime" : "video/mp4" };
+            }
+
+            let answer;
+
+            try {
+                answer = await host.videos.ask(model, args.question, video, context.abortSignal);
+            } catch (error) {
+                return reply(error instanceof Error ? error.message : String(error), true);
+            }
+
+            const cost = answer.cost === undefined ? "cost not reported" : `cost $${answer.cost < 0.01 ? answer.cost.toFixed(4) : answer.cost.toFixed(2)}`;
+            const usage: Usage = {
+                input: answer.tokens.input,
+                output: answer.tokens.output,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: answer.tokens.input + answer.tokens.output,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: answer.cost ?? 0 },
+            };
+
+            return {
+                output: [{ type: "text" as const, text: [`${model.id} watched ${args.path ?? args.url}${shrunk === undefined ? "" : ` (shrunk to ${shrunk})`}, ${cost}:`, "", answer.text].join("\n") }],
+                details: plain({ model: model.id, ...(shrunk === undefined ? {} : { shrunk }), ...(answer.cost === undefined ? {} : { cost: answer.cost }) }),
+                usage,
+            };
+        },
+    });
+
+    return defineExtension({ name: "pocket-media", tools: [media, ask] });
 }

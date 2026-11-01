@@ -647,6 +647,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
   clip is H.264 CRF 26 veryfast, AAC 128k or muted, at most `height` (720) lines, +faststart. Output in `media/`,
   `<YYYYMMDD-HHMMSS>-<file's name>[-n|-sheet|-clip].<ext>`; Pi gets paths, sizes and dimensions. The phone's PATH has
   the ffmpeg folder (`#toolPath`). GPL notice: `third_party/ffmpeg-android/README.md`.
+- **Watching videos** (PP-297; `video-gen.ts`, `extensions/media.ts`, `web/sheets/videos.js`): `video_ask({ question,
+  path | url, model? })` through OpenRouter on the owner's key: `POST /api/v1/chat/completions` with a `video_url` part,
+  a base64 data URL (mp4, mov, webm) or a YouTube address (Gemini on AI Studio takes those alone), `usage.include`; the
+  answer and `usage.cost` (the tool result's `usage`, so Spend counts it). A file larger than 20 MB, taller than 720
+  lines, or in another container is first a 720p mp4 in `media/` (`clipArgs`, the media engine where the session
+  works); still over 45 MB, Pi is told to cut the part to ask about. The models: `GET /api/v1/models` with `video` in
+  `input_modalities` and a price (no `:free`, `:batch`, `~` routers), kept an hour. `video.askModel`
+  (`config.videoAskModel`, Menu › Videos, `setting_change`): a listed model, or null for google/gemini-3.5-flash-lite;
+  one not listed fails naming the setting.
 - **Screenshots** (`src/server/screenshots.ts`, `extensions/screenshot.ts`, `android/.../Renderer.java`; owner's decision of
   2026-10-18): Pi sees what it made. `screenshot({ artifact | path | url, widths = [390, 1280], fullPage, settle })`
   asks the app's service, which long-polls `GET /api/phone/renders` (beside `/api/phone/events`), to draw the page in an

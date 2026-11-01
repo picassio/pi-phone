@@ -540,6 +540,7 @@
     "voice.vadSilenceMs is a whole number of milliseconds from 200 to 3000.": "voice.vadSilenceMs là số mili giây nguyên từ 200 đến 3000.",
     "voice.dailyLimit is a number of minutes from 1 to 1440, or null for none.": "voice.dailyLimit là số phút từ 1 đến 1440, hoặc null để không giới hạn.",
     "The owner's dictation language is voice.language: one setting for Voice and dictation.": "Ngôn ngữ đọc chính tả của chủ là voice.language: một cài đặt cho Giọng nói và đọc chính tả.",
+    "The video model is an OpenRouter model id, or null for the default.": "Mô hình video là id mô hình của OpenRouter, hoặc null để dùng mặc định.",
     "voice.words is text of up to 800 characters (empty for none).": "voice.words là văn bản tối đa 800 ký tự (để trống nếu không có).",
     "voice.wordsSessions is true or false.": "voice.wordsSessions là true hoặc false.",
     "Voice needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "Giọng nói cần đăng nhập ChatGPT (Codex): thêm trong Cài đặt › Nhà cung cấp.",
