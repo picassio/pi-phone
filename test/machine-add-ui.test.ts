@@ -158,10 +158,12 @@ test("the machine_add card shows the machine, fits a phone, and Approve adds it 
     // ffmpeg and HyperFrames (PP-246) are listed but not ticked: they are big.
     assert.match(card, /ffmpeg \d+\.\d+\.\d+ · about 350 MB/);
     assert.match(card, /HyperFrames \d+\.\d+\.\d+ · about 320 MB; with Chrome and ffmpeg about 920 MB/);
+    // TLC (PP-316) too.
+    assert.match(card, /TLC \(TLA\+\) 1\.7\.4 · about 165 MB/);
     assert.deepEqual(
         await inPage<boolean[]>(`return JSON.stringify([...document.querySelectorAll(".machine-add-card .machine-tool input")].map((each) => each.checked))`),
-        // ffmpeg, HyperFrames and Chrome Remote Desktop (PP-263) are not ticked.
-        [true, true, true, true, true, false, false, false],
+        // ffmpeg, HyperFrames, TLC and Chrome Remote Desktop (PP-263) are not ticked.
+        [true, true, true, true, true, false, false, false, false],
     );
     const fits = await inPage<{ card: number; column: number; page: number; screen: number }>(`
         const card = document.querySelector(".machine-add-card").getBoundingClientRect();
