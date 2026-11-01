@@ -506,6 +506,7 @@ public final class MainActivity extends Activity {
     protected void onPause() {
         inFront = false;
         focused = false;
+        ProgressBubble.frontChanged();
         super.onPause();
     }
 
@@ -513,6 +514,7 @@ public final class MainActivity extends Activity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         focused = hasFocus;
+        ProgressBubble.frontChanged();
     }
 
     private void waitForServer() {

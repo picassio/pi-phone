@@ -60,17 +60,34 @@ final class ProgressBubble {
     private boolean added;
     /** How long the board stays after a tap opened the app, while Android decides on the start. */
     private static final long FOLD_AFTER_MS = 800;
+    /** The bubble on screen now, told at once when pi-phone comes to the front or goes (MainActivity). */
+    private static volatile ProgressBubble current;
+    /** The app was just opened from the board: it is see-through until it folds, and the circle comes back hidden. */
+    private boolean leaving;
     /** pi-phone in front: the bubble steps aside (the app shows the same), and an open board folds. */
     private final Runnable watchFront = new Runnable() {
         @Override
         public void run() {
-            // pi-phone in use (its window has the focus, not only shown beside another app): the bubble steps aside.
-            boolean using = MainActivity.inFront && MainActivity.focused;
-            if (added) orb.setVisibility(using ? View.GONE : View.VISIBLE);
-            if (board != null && using) fold();
+            applyFront();
             main.postDelayed(this, 700);
         }
     };
+
+    /** pi-phone in use (its window has the focus, not only shown beside another app): the board folds, the bubble steps aside. */
+    private void applyFront() {
+        boolean using = MainActivity.inFront && MainActivity.focused;
+        if (board != null && using) fold();
+        if (added) orb.setVisibility(using ? View.GONE : View.VISIBLE);
+    }
+
+    /**
+     * pi-phone came to the front or went (its window's focus): the bubble and the board follow at once, not on the next
+     * look (PP-285: after Open pi-phone they stayed over the app a moment too long).
+     */
+    static void frontChanged() {
+        ProgressBubble bubble = current;
+        if (bubble != null) bubble.main.post(bubble::applyFront);
+    }
 
     /** A ring around the logo: a quarter left open, turned while Pi works. */
     private static final class Ring extends View {
@@ -108,6 +125,7 @@ final class ProgressBubble {
     ProgressBubble(Context context, Supplier<String> token) {
         this.context = context;
         this.token = token;
+        current = this;
         this.windows = context.getSystemService(WindowManager.class);
         this.density = context.getResources().getDisplayMetrics().density;
 
@@ -285,12 +303,28 @@ final class ProgressBubble {
         windows.removeView(board);
         board.destroy();
         board = null;
+        // Back from opening the app: the circle comes back hidden, and shows on the next look if the app did not come.
+        orb.setVisibility(leaving ? View.GONE : View.VISIBLE);
+        leaving = false;
         windows.addView(orb, orbParams);
         added = true;
     }
 
+    /**
+     * The app is being opened from the board: the board goes see-through and lets touches through at once, while its
+     * window stays for Android's check of the start; it folds when the app has the focus, or after FOLD_AFTER_MS.
+     */
+    private void stepAside() {
+        if (board == null) return;
+        leaving = true;
+        board.setAlpha(0f);
+        boardParams.flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+        windows.updateViewLayout(board, boardParams);
+    }
+
     /** The circle and its board go (turned off, Android's permission taken back, or nothing runs). */
     void remove() {
+        if (current == this) current = null;
         main.removeCallbacks(watchFront);
         if (board != null) {
             windows.removeView(board);
@@ -336,7 +370,9 @@ final class ProgressBubble {
             android.util.Log.i("pi-phone", "board: tapped session " + session);
             main.post(() -> {
                 launch(new Intent(context, MainActivity.class).putExtra(PiService.EXTRA_SESSION, session), 3000);
-                // Android weighs the start after it is sent, by the windows pi shows then: the board stays a moment.
+                // Android weighs the start after it is sent, by the windows pi shows then: the board's window stays a
+                // moment, see-through.
+                stepAside();
                 main.postDelayed(ProgressBubble.this::fold, FOLD_AFTER_MS);
             });
         }
@@ -345,6 +381,7 @@ final class ProgressBubble {
         public void openApp() {
             main.post(() -> {
                 launch(new Intent(context, MainActivity.class), 3001);
+                stepAside();
                 main.postDelayed(ProgressBubble.this::fold, FOLD_AFTER_MS);
             });
         }
