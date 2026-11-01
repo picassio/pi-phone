@@ -1719,7 +1719,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
     orchestrates (no auto-unblock, no daemon). `POST projects/:key/team` starts the main session in the project's folder
     (`LEAD_RULES` in its prompt: plan, delegate, review; never implement). A task given to Pi (`onAssignedToPi`) is
     queued at once when the project runs tasks by itself (`autoRuns`), else the main session is told and asks with
-    `task_run` (an approval card, "Run PP-12 now?"). Runs (`pocket_task_runs`: queued → starting → running → done,
+    `task_run` (an approval card, "Run PP-12 now?"). A run remembers the session whose `task_run` queued it
+    (`report_to`, PP-326): every report about it (done, stopped, failed, needs the person, still working) goes to that
+    session too when it is not the main session, so a project worked from one session hears its tasks end. Runs (`pocket_task_runs`: queued → starting → running → done,
     failed, stopped, or cancelled) start at the project's place with the most room under its cap (`places`, default
     the folder with 2); each gets a worktree `<repo>/.worktrees/<ref>` on `task/<ref>` from the repository's current
     branch (`.worktrees/` in `info/exclude`), made with commands at the place (`host.run`, Git Bash on Windows), and a

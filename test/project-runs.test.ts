@@ -2,7 +2,7 @@
 // own, in a git worktree on task/<ref>, at the project's place with room; the session's end is reported to the main
 // session (done, stopped, or needs the person); the person sees the branch's diff and merges it. The phone does not hear
 // task and main sessions finish (the board says it).
-import { type App, cleanUp, context, lastText, modelTexts, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -20,8 +20,15 @@ const git = (...args: string[]) => execFileSync("git", ["-C", repo, ...args], { 
 const route: FauxResponseStep = (request) => {
     const { role, text } = lastText(request as never);
 
-    if (role === "user" && text.includes("Work on RT-2 ")) {
-        return fauxAssistantMessage([fauxToolCall("task_update", { task: "RT-2", state: "review" })], { stopReason: "toolUse" });
+    // A session that is not the main one runs RT-4 itself (PP-326).
+    if (role === "user" && text.endsWith("run RT-4 from here")) {
+        return fauxAssistantMessage([fauxToolCall("task_run", { task: "RT-4" })], { stopReason: "toolUse" });
+    }
+
+    const work = /Work on (RT-[24]) /.exec(text);
+
+    if (role === "user" && work) {
+        return fauxAssistantMessage([fauxToolCall("task_update", { task: work[1]!, state: "review" })], { stopReason: "toolUse" });
     }
 
     // The main session reviews what it hears is done: a comment, which links it to the task as leading it.
@@ -183,5 +190,21 @@ test("with automatic runs off, the main session asks the person before a task ru
     assert.equal(card.subject, "RT-3 · Wait for a yes");
     await app.answerApproval(card.id, true, owner(app));
     await until(async () => (await taskOf("RT-3")).run !== null, "the run", 20_000);
+    await app.harness.waitForIdle(context);
+});
+
+test("a task run from a session that is not the main one reports its end to that session too (PP-326)", async () => {
+    const here = await newSession(app);
+
+    await call("PUT", `board-mode/${here}`, { on: true, project: "RT" });
+    await call("POST", "projects/RT/tasks", { title: "Run from here" });
+    await app.commands.submit(here, owner(app), { text: "run RT-4 from here", requestId: crypto.randomUUID() });
+    await until(() => app.approvals.forConversation(here).some((each) => each.tool === "task_run"), "the question", 20_000);
+    await app.answerApproval(app.approvals.forConversation(here).find((each) => each.tool === "task_run")!.id, true, owner(app));
+    await until(async () => (await taskOf("RT-4")).run?.state === "done", "the run to finish", 20_000);
+
+    // The session that ran it hears it, as the main session does.
+    await until(async () => /Done: RT-4 \(Run from here\) is in Review/.test(await said(here)), `the report in session ${here}: ${await said(here)}`);
+    await until(async () => /Done: RT-4 \(Run from here\) is in Review/.test(await said(lead)), "the report in the main session");
     await app.harness.waitForIdle(context);
 });

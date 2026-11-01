@@ -1212,7 +1212,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         ),
         tool(
             "task_run",
-            "Run a task: Pi works on it in a task session of its own, in a git worktree on branch task/<ref>, at one of the project's places. Asks the person first unless the project runs tasks by itself. Reports come to the project's main session.",
+            "Run a task: Pi works on it in a task session of its own, in a git worktree on branch task/<ref>, at one of the project's places. Asks the person first unless the project runs tasks by itself. Its reports (done, stopped, failed, needs the person) come to this session, and to the project's main session.",
             Type.Object({ task: REF }),
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
@@ -1239,7 +1239,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                     }
                 }
 
-                const run = projects.queueRun({ kind: "person", person: actor.person }, ref);
+                const run = projects.queueRun({ kind: "person", person: actor.person }, ref, String(conversationId));
 
                 // On the team server, the task is given to this person's own Pi there too.
                 if (remote !== undefined) {

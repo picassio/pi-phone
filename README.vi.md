@@ -157,7 +157,7 @@ dự án thật.</sub>
   `project_update` cho Pi). Liên kết `#task:PP-3` mở một tác vụ ở bất cứ đâu. **Một nhóm agent cho mỗi dự án:** phiên
   chính của nó dẫn dắt (lên kế hoạch, hỏi trước khi chạy tác vụ, xem xét, không bao giờ viết mã); một tác vụ giao cho Pi
   chạy trong phiên tác vụ riêng, trong git worktree trên `task/PP-12`, tại nơi (điện thoại hoặc một máy) còn chỗ, nhiều
-  nhất bao nhiêu cùng lúc tùy mỗi nơi cho phép. Khi xong, nó báo về phiên chính; bạn xem diff của nhánh và gộp nó từ tác
+  nhất bao nhiêu cùng lúc tùy mỗi nơi cho phép. Khi xong, nó báo về phiên chính, và về phiên đã chạy nó nếu đó là phiên khác; bạn xem diff của nhánh và gộp nó từ tác
   vụ. Phiên tác vụ và phiên chính không gửi thông báo lên điện thoại khi xong; yêu cầu duyệt và thất bại thì có. Nhóm
   kiểm tra các phiên tác vụ mỗi phút: một lần kết thúc bị lỡ (do khởi động lại) vẫn được báo, tác vụ có phiên bị xóa sẽ
   thất bại, và tác vụ làm quá 30 phút được báo cho phiên chính. Pi có công cụ cho mọi thao tác (`project_create`,

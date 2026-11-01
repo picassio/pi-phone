@@ -147,7 +147,8 @@ No Termux, no laptop, no cloud VM.
   Light too; `board_settings` and `project_update` for Pi). `#task:PP-3` links open a task anywhere.
   **An agent team per project:** its main session leads (plans, asks before a task runs, reviews, never writes code);
   a task given to Pi runs in a task session of its own, in a git worktree on `task/PP-12`, at the place (the phone or a
-  machine) with room, as many at once as each place allows. Its end is reported to the main session; you see the
+  machine) with room, as many at once as each place allows. Its end is reported to the main session, and to the session
+  that ran it when that is another (a project worked from one session hears its tasks finish); you see the
   branch's diff and merge it from the task. Task and main sessions do not notify the phone when they finish; approvals
   and failures do. The team checks on its task sessions each minute: an end it missed (a restart) is still reported,
   a task whose session was deleted fails, and one working over 30 minutes is flagged to the main session.

@@ -128,6 +128,8 @@ export interface Run {
     endedAt: number | null;
     /** When its branch was merged, by whom, into which commit, and what it changed (git's short stat). */
     merged: RunMerge | null;
+    /** The session that ran it (task_run), which hears its reports besides the project's main session (PP-326). */
+    reportTo: string | null;
 }
 
 export interface RunMerge {
@@ -367,6 +369,10 @@ export class Projects {
 
         if (!runColumns.includes("merged")) {
             this.#db.exec("ALTER TABLE pocket_task_runs ADD COLUMN merged TEXT");
+        }
+
+        if (!runColumns.includes("report_to")) {
+            this.#db.exec("ALTER TABLE pocket_task_runs ADD COLUMN report_to TEXT");
         }
 
         if (!columns.includes("open")) {
@@ -1211,7 +1217,7 @@ export class Projects {
     }
 
     /** Queue a run of a task: Pi works on it in a task session. A person's start, or Pi's after the person said yes. */
-    queueRun(actor: Actor, ref: string): Run {
+    queueRun(actor: Actor, ref: string, reportTo: string | null = null): Run {
         const { project, task } = this.#editTask(actor, ref);
 
         if (task.state === "done") {
@@ -1237,8 +1243,8 @@ export class Projects {
 
         this.#transaction(() => {
             this.#db
-                .prepare("INSERT INTO pocket_task_runs (id, task_id, project_id, state, created_at) VALUES (?, ?, ?, 'queued', ?)")
-                .run(id, task.id, project.id, now);
+                .prepare("INSERT INTO pocket_task_runs (id, task_id, project_id, state, created_at, report_to) VALUES (?, ?, ?, 'queued', ?, ?)")
+                .run(id, task.id, project.id, now, reportTo);
 
             if (task.assignee !== "pi") {
                 this.#db.prepare("UPDATE pocket_tasks SET assignee = 'pi', updated_at = ? WHERE id = ?").run(now, task.id);
@@ -1789,6 +1795,7 @@ export class Projects {
             startedAt: row.started_at === null ? null : Number(row.started_at),
             endedAt: row.ended_at === null ? null : Number(row.ended_at),
             merged: typeof row.merged === "string" ? (JSON.parse(row.merged) as RunMerge) : null,
+            reportTo: typeof row.report_to === "string" ? row.report_to : null,
         }));
     }
 

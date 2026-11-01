@@ -169,6 +169,7 @@ export class Team {
                 found.project,
                 `Failed: ${found.task.ref} (${found.task.title}). Its session #${session} is gone (deleted). Work so far is on branch ${run.branch ?? "?"} at ${run.place ?? "?"}. Decide: run it again, or ask the person.`,
                 `${found.task.ref} · task session #${session}`,
+                run,
             );
         }
 
@@ -188,6 +189,7 @@ export class Team {
             found.project,
             `Still working: ${found.task.ref} (${found.task.title}) has worked for ${Math.round((now - since) / 60_000)} minutes in session #${session} without stopping. Check on it: read that session; message it to wrap up or change course; or leave it.`,
             `${found.task.ref} · task session #${session}`,
+            run,
         );
     }
 
@@ -347,7 +349,7 @@ export class Team {
             const note = error instanceof Error ? error.message : String(error);
 
             this.#projects.setRun(run.id, { state: "failed", note, endedAt: Date.now() });
-            await this.#report(project, `Failed to start ${task.ref} (${task.title}) at ${place.folder}: ${note}`, "the team");
+            await this.#report(project, `Failed to start ${task.ref} (${task.title}) at ${place.folder}: ${note}`, "the team", run);
 
             return;
         }
@@ -367,7 +369,7 @@ export class Team {
             const note = `Its session could not start: ${error instanceof Error ? error.message : String(error)}`;
 
             this.#projects.setRun(run.id, { state: "failed", note, worktree: worktree.folder, branch: worktree.branch, base: worktree.base, endedAt: Date.now() });
-            await this.#report(project, `Failed to start ${task.ref} (${task.title}): ${note}`, "the team");
+            await this.#report(project, `Failed to start ${task.ref} (${task.title}): ${note}`, "the team", run);
 
             return;
         }
@@ -460,9 +462,9 @@ export class Team {
         if (event.kind === "failed") {
             this.#projects.setRun(run.id, { state: "failed", note: "Its session's run failed.", endedAt: Date.now() });
             await this.#host.settleSession(event.session, "its run failed");
-            await this.#report(project, `Failed: ${task.ref} (${task.title}). Its session #${event.session} failed; open it to see why. Work so far is on ${where}.`, from);
+            await this.#report(project, `Failed: ${task.ref} (${task.title}). Its session #${event.session} failed; open it to see why. Work so far is on ${where}.`, from, run);
         } else if (event.kind === "approval") {
-            await this.#report(project, `Needs the person: ${task.ref} (${task.title}). Its session #${event.session} waits for an approval: ${event.text}`, from);
+            await this.#report(project, `Needs the person: ${task.ref} (${task.title}). Its session #${event.session} waits for an approval: ${event.text}`, from, run);
 
             return;
         } else if (event.kind === "done") {
@@ -473,12 +475,14 @@ export class Team {
                     project,
                     `Done: ${task.ref} (${task.title}) is in ${STATE_NAMES[task.state]}. ${await this.#summary(task, run, event.text)}\nIts work is on ${where}. Review it, then move it on.`,
                     from,
+                    run,
                 );
             } else if (task.state === "blocked") {
                 await this.#report(
                     project,
                     `Needs the person: ${task.ref} (${task.title}) is blocked: ${task.blockedReason ?? "no reason given"}. Its session #${event.session} waits.`,
                     from,
+                    run,
                 );
 
                 return;
@@ -489,6 +493,7 @@ export class Team {
                     project,
                     `Stopped: ${task.ref} (${task.title}) is still ${STATE_NAMES[task.state]}, but its session #${event.session} stopped. Its last words: ${this.#host.text.quoted(event.text, 300)}. Work so far is on ${where}. Decide: message that session to go on, run it again, or ask the person.`,
                     from,
+                    run,
                 );
             }
         }
@@ -522,13 +527,16 @@ export class Team {
         await this.#report(project, `${task.ref} (${task.title}) was given to Pi. Ask the person whether to run it now: task_run with task ${task.ref}.`, "the board");
     }
 
-    /** Tell the project's main session, after its current work; nothing when it has none. */
-    async #report(project: Project, message: string, from: string): Promise<void> {
-        if (project.mainSession === null || this.#host.sessionTitle(Number(project.mainSession)) === undefined) {
-            return;
-        }
+    /**
+     * Tell the project's main session, and the session that ran the task (`run.reportTo`, PP-326) when it is another,
+     * after their current work; a session that is gone hears nothing.
+     */
+    async #report(project: Project, message: string, from: string, run?: Run): Promise<void> {
+        const sessions = new Set([project.mainSession, run?.reportTo ?? null].filter((each): each is string => each !== null && this.#host.sessionTitle(Number(each)) !== undefined));
 
-        await this.#host.sendToSession({ userId: project.owner, session: Number(project.mainSession), message, via: from });
+        for (const session of sessions) {
+            await this.#host.sendToSession({ userId: project.owner, session: Number(session), message, via: from });
+        }
     }
 
     #readyRun(run: Run): { place: string; branch: string; base: string } {
