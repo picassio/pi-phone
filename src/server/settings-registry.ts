@@ -709,11 +709,17 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "dictation.language",
             area: "dictation",
             title: "The language dictation listens for, on every device of one person",
-            help: "A language tag (vi-VN, en-US, zh-CN, …), or auto for each device's own language. Target: the person's name. Menu › Dictation sets it too.",
+            help: "A language tag (vi-VN, en-US, zh-CN, …), or auto for each device's own language. Target: the person's name. The owner's is voice.language (one setting for Voice and dictation; Menu › Dictation sets it).",
             owner: true,
             target: "person",
-            read: (target) => person(target).dictation ?? "auto",
-            apply: (_user, value, target) => app.setDictationLanguage(person(target), value.trim()),
+            read: (target) => (person(target).role === "owner" ? `voice.language: ${app.config.voice.language}` : (person(target).dictation ?? "auto")),
+            apply: (_user, value, target) => {
+                if (person(target).role === "owner") {
+                    throw new HttpError(400, "The owner's dictation language is voice.language: one setting for Voice and dictation.");
+                }
+
+                return app.setDictationLanguage(person(target), value.trim());
+            },
         },
         // ─── Onboarding (PP-234) ───
         {

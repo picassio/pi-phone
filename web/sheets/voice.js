@@ -9,11 +9,11 @@ import { Choice, html, Icon, Sheet, Switch } from "../ui.js";
 import { VOICE_MODES, VOICE_TURNS } from "../voice-view.js";
 import { deviceVoice } from "../voice-call.js";
 
-/** Languages people pick most; any other two-letter code the model takes works through Pi's settings. */
-const LANGUAGES = ["vi", "en", "zh", "ja", "ko", "th", "id", "fr", "de", "es", "pt", "ru"];
+/** Languages people pick most; any other two-letter code the model takes works through Pi's settings. Menu › Dictation's too. */
+export const LANGUAGES = ["vi", "en", "zh", "ja", "ko", "th", "id", "fr", "de", "es", "pt", "ru"];
 
 const names = new Intl.DisplayNames([navigator.language || "en"], { type: "language" });
-const named = (code) => {
+export const named = (code) => {
     try {
         return `${names.of(code)} (${code})`;
     } catch {

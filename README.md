@@ -435,6 +435,8 @@ No Termux, no laptop, no cloud VM.
   server.
 - **Codex dictation**: Settings › Dictation can let Codex (`gpt-4o-transcribe` on your ChatGPT sign-in) listen to the
   mic instead of Android's recognizer; words still show in the box as they are heard, and nothing is sent by itself.
+  Its language is Settings › Voice's, one setting for Voice and dictation: Auto (Codex hears the language you speak;
+  Android's recognizer picks among the phone's languages, Android 14 and later) or a language.
 - **The phone's assistant.** Pick pi as the digital assistant (Menu › Assistant walks you through it), then hold the
   side key in any app: a pi sheet comes up over it, already listening. Your words show as you speak, then wait for
   Send, or go by themselves after 3 seconds. They go to the last session you were in, a new session, or one session

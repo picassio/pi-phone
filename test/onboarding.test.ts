@@ -217,11 +217,13 @@ test("the dictation language is one person's on all their devices, set in the ap
 
     await app.attach(tab.client);
     assert.equal((await app.hello(me)).user.dictation, "auto");
-    await dictation.apply(me, "vi-VN", me.name);
-    assert.equal(await dictation.read(me.name), "vi-VN");
+    // The owner's is Settings › Voice's language, one setting for Voice and dictation (the owner: two were confusing).
+    assert.equal(await dictation.read(me.name), "voice.language: auto");
+    await assert.rejects(async () => dictation.apply(me, "vi-VN", me.name), /voice\.language/);
+    app.setDictationLanguage(me, "vi-VN");
     assert.equal((await app.hello(me)).user.dictation, "vi-VN");
     assert.deepEqual(tab.last("dictation"), { dictation: "vi-VN" });
-    await assert.rejects(async () => dictation.apply(me, "Vietnamese please", me.name), /language tag/);
+    assert.throws(() => app.setDictationLanguage(me, "Vietnamese please"), /language tag/);
     app.setDictationLanguage(me, "auto");
     assert.equal(me.dictation, undefined);
 

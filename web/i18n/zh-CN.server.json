@@ -621,6 +621,7 @@
     "voice.noise is near_field, far_field, or off.": "voice.noise 为 near_field、far_field 或 off。",
     "voice.eagerness is auto, low, medium, or high.": "voice.eagerness 为 auto、low、medium 或 high。",
     "voice.dailyLimit is a number of minutes from 1 to 1440, or null for none.": "voice.dailyLimit 是 1 到 1440 之间的分钟数，或 null 表示不限。",
+    "The owner's dictation language is voice.language: one setting for Voice and dictation.": "主人的听写语言就是 voice.language：语音和听写共用一个设置。",
     "voice.words is text of up to 800 characters (empty for none).": "voice.words 是最多 800 个字符的文字（留空表示没有）。",
     "voice.wordsSessions is true or false.": "voice.wordsSessions 是 true 或 false。",
     "Voice needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "语音需要 ChatGPT（Codex）登录：请在 设置 › 提供商 中添加。",

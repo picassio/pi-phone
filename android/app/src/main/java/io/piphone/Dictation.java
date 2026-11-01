@@ -81,11 +81,32 @@ final class Dictation implements RecognitionListener {
         recognizer.setRecognitionListener(this);
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.getPackageName());
+        language(intent, language);
         recognizer.startListening(intent);
+    }
+
+    /**
+     * The language to listen for: a tag; or "auto" (Settings › Voice's Auto, one setting for Voice and dictation), which
+     * Android detects among the phone's languages from Android 14, starting from the first; before 14 Android has no
+     * detection, and auto is the phone's first language.
+     */
+    private static void language(Intent intent, String language) {
+        if (!"auto".equals(language)) {
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, language);
+            return;
+        }
+        android.os.LocaleList phone = android.os.LocaleList.getDefault();
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, phone.get(0).toLanguageTag());
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            java.util.ArrayList<String> tags = new java.util.ArrayList<>();
+            for (int index = 0; index < phone.size(); index++) tags.add(phone.get(index).toLanguageTag());
+            intent.putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION, true);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES, tags);
+            intent.putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH, RecognizerIntent.LANGUAGE_SWITCH_BALANCED);
+        }
     }
 
     /** Android answered the microphone request. */

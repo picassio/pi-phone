@@ -452,6 +452,8 @@ dự án thật.</sub>
   trên gói ChatGPT của bạn. Token đăng nhập ở lại trên máy chủ.
 - **Nhập giọng nói bằng Codex**: Cài đặt › Nhập giọng nói có thể để Codex (`gpt-4o-transcribe` qua đăng nhập ChatGPT của
   bạn) nghe micro thay cho trình nhận dạng của Android; chữ vẫn hiện trong ô nhập ngay khi nghe được, và không gì tự gửi đi.
+  Ngôn ngữ của nó là của Cài đặt › Giọng nói, một cài đặt cho Giọng nói và nhập giọng nói: Tự động (Codex tự nghe ngôn ngữ
+  bạn nói; trình nhận dạng của Android chọn trong các ngôn ngữ của điện thoại, Android 14 trở lên) hoặc một ngôn ngữ.
 - **Trợ lý của điện thoại.** Chọn pi làm trợ lý kỹ thuật số (Menu › Trợ lý hướng dẫn từng bước), rồi giữ phím bên
   trong bất kỳ ứng dụng nào: một bảng pi hiện lên phía trên, đã sẵn sàng lắng nghe. Lời bạn nói hiện ra khi bạn nói, rồi chờ
   bạn bấm Gửi, hoặc tự gửi sau 3 giây. Chúng được gửi tới phiên bạn mở gần nhất, một phiên mới, hoặc một phiên bạn

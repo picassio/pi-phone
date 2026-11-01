@@ -1192,6 +1192,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
     drops them. OpenAI took both noise types (calls and dictation), null, and each eagerness with the ChatGPT sign-in
     (2026-10-28, minting only: `~/work/tmp-ocu/codex-noise-check.mjs`); any other value is a 400, as the fake OpenAI
     answers too. The page also asks the mic for the browser's echo cancelling, noise suppression and gain control.
+  - **One language** (the owner: two settings were confusing): the owner's dictation language is `voice.language`
+    (Menu › Dictation sets it; `dictation.language` refuses the owner). `dictationLanguage()` gives it to Android's
+    recognizer, where "auto" sets EXTRA_ENABLE_LANGUAGE_DETECTION among `LocaleList.getDefault()` (Android 14+;
+    before, the phone's first language), and a browser takes auto as its own language. Others keep their own.
   - **Words to listen for** (PP-293, `voice.words`, `voice.wordsSessions`): OpenAI's transcription `prompt` in a
     call's key, the bridge's session and Codex dictation's: `wordsHint` joins the person's words (up to 800 characters,
     empty by default: a default fits one person only) and, with wordsSessions on, "Names:" the session's title and

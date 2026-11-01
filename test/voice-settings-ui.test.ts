@@ -201,7 +201,19 @@ test("Codex dictation: Settings › Dictation picks it; the mic opens a transcri
     await sheet("dictation");
     await press("[data-part=dictation-engine]", "Codex");
     await until(() => app.config.voice.engine === "codex", "the Codex engine");
+
+    // One language for Voice and dictation (the owner: two settings were confusing): Menu › Dictation's is Settings ›
+    // Voice's, with Auto; in a browser Auto is the browser's language.
+    assert.equal(app.config.voice.language, "auto");
+    assert.match(await inPage<string>(`document.querySelector("[data-part=dictation-language] .choice").innerText`), /Auto: the language you speak/);
+    await inPage(`document.querySelector("[data-part=dictation-language] .choice").click()`);
+    await until(async () => inPage<boolean>(`document.querySelector(".choice-menu [role=option]") !== null`), "the languages");
+    await inPage(`[...document.querySelectorAll(".choice-menu [role=option]")].find((each) => each.innerText.includes("(vi)")).click()`);
+    await until(() => app.config.voice.language === "vi", "Vietnamese for Voice and dictation");
+    await until(async () => (await inPage<string>(`(async () => (await import("/android-speech.js")).dictationLanguage())()`)) === "vi", "dictation listens for it");
     await shot("voice-dictation-390");
+    await app.setVoice(owner(app), { language: "auto" });
+    await until(async () => (await inPage<string>(`(async () => (await import("/android-speech.js")).dictationLanguage())()`)) === (await inPage<string>("navigator.language")), "Auto: the browser's in a browser");
 
     const id = await newSession(app);
 

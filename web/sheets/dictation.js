@@ -1,50 +1,20 @@
-// Settings › Dictation: the language the mic listens for on this device (`android-speech.js`, `voice.js`). The phone's
-// language unless one is picked; kept in this browser, as each device may speak its own.
-import { useState } from "preact/hooks";
-import { DICTATION_LANGUAGE_KEY } from "../android-speech.js";
-import { api, attempt, closeSheet, notify, openSheet, store } from "../store.js";
+// Menu › Dictation: who listens to the message box's mic, and the language it listens for. The language is Settings ›
+// Voice's, one setting for Voice and dictation (the owner: two were confusing): Auto, or a language. Android's recognizer
+// detects Auto among the phone's languages (Android 14 and later); Codex hears it itself.
+import { api, attempt, closeSheet, openSheet, store } from "../store.js";
 import { Choice, html, Sheet } from "../ui.js";
 import { t } from "../i18n.js";
-
-/** Languages Google's recognizer hears well, by BCP 47 tag; names come from the browser, in its own language. */
-const LANGUAGES = [
-    "vi-VN", "en-US", "en-GB", "en-AU", "en-IN", "zh-CN", "zh-TW", "yue-Hant-HK", "ja-JP", "ko-KR", "th-TH", "id-ID",
-    "ms-MY", "fil-PH", "hi-IN", "fr-FR", "de-DE", "es-ES", "es-MX", "pt-BR", "pt-PT", "it-IT", "nl-NL", "pl-PL", "ru-RU",
-    "uk-UA", "tr-TR", "ar-SA", "he-IL", "sv-SE", "nb-NO", "da-DK", "fi-FI", "cs-CZ", "el-GR", "hu-HU", "ro-RO",
-];
-
-const names = new Intl.DisplayNames([navigator.language || "en"], { type: "language" });
-const named = (tag) => {
-    try {
-        return `${names.of(tag)} (${tag})`;
-    } catch {
-        return tag;
-    }
-};
+import { LANGUAGES, named } from "./voice.js";
 
 export function DictationSheet() {
-    const [picked, setPicked] = useState(localStorage.getItem(DICTATION_LANGUAGE_KEY) ?? "");
-    const phone = navigator.language || "en-US";
-    const pick = (tag) => {
-        if (tag === "") {
-            localStorage.removeItem(DICTATION_LANGUAGE_KEY);
-        } else {
-            localStorage.setItem(DICTATION_LANGUAGE_KEY, tag);
-        }
-
-        setPicked(tag);
-        notify("info", t("Dictation listens for {language}.", { language: named(tag === "" ? phone : tag) }));
-        // Every device of theirs follows it, and Pi can read and set it (`dictation.language`, PP-235).
-        void attempt(() => api("me", { dictation: tag === "" ? "auto" : tag }));
-    };
-
     // Who listens (PP-190): the phone's or browser's recognizer, or Codex on the owner's ChatGPT sign-in (Settings › Voice).
     const voice = store.state.server?.voice;
     const codex = voice?.settings.engine === "codex";
+    const language = voice?.settings.language ?? "auto";
 
     return html`<${Sheet} title=${t("Dictation")} onClose=${closeSheet}>
         <p class="muted small">
-            ${t("Tap the mic beside Send and speak: words show in the message box as they are heard, and nothing is sent by itself. In the app, Android's own speech recognizer listens (Google's, as voice typing uses); in a browser, the browser's. The language you pick here goes for all your devices.")}
+            ${t("Tap the mic beside Send and speak: words show in the message box as they are heard, and nothing is sent by itself. In the app, Android's own speech recognizer listens (Google's, as voice typing uses); in a browser, the browser's.")}
         </p>
         ${
             voice &&
@@ -56,21 +26,30 @@ export function DictationSheet() {
                         <button class=${codex ? "on" : ""} aria-pressed=${codex} onClick=${() => attempt(() => api("settings", { voice: { engine: "codex" } }))}>${t("Codex")}</button>
                     </div>
                     <p class="muted small">
-                        ${codex ? t("Codex ({model}) on your ChatGPT sign-in; audio goes to OpenAI. Its model and language are in Settings › Voice.", { model: voice.settings.dictationModel }) : t("Free, as voice typing is. Codex is on your ChatGPT sign-in.")}
+                        ${codex ? t("Codex ({model}) on your ChatGPT sign-in; audio goes to OpenAI.", { model: voice.settings.dictationModel }) : t("Free, as voice typing is. Codex is on your ChatGPT sign-in.")}
                         ${" "}
                         <button class="link small" onClick=${() => openSheet({ type: "voice" })}>${t("Voice settings")}</button>
                     </p>
                 </div>
             </div>`
         }
-        <div class="field">
+        <div class="field" data-part="dictation-language">
             <div class="label">${t("Language")}</div>
             <${Choice}
                 label=${t("Language")}
-                value=${picked}
-                options=${[{ value: "", label: t("The phone's: {language}", { language: named(phone) }) }, ...LANGUAGES.map((tag) => ({ value: tag, label: named(tag) }))]}
-                onChange=${pick}
+                value=${language}
+                options=${[{ value: "auto", label: t("Auto: the language you speak") }, ...LANGUAGES.map((code) => ({ value: code, label: named(code) }))]}
+                onChange=${(value) => attempt(() => api("settings", { voice: { language: value } }))}
             />
+            <p class="muted small">
+                ${
+                    language !== "auto"
+                        ? t("The same as Settings › Voice › Language: one setting for Voice and dictation.")
+                        : codex
+                          ? t("Codex hears the language you speak, mixed languages too. The same as Settings › Voice › Language.")
+                          : t("Android's recognizer picks among your phone's languages (Android 14 and later; add English in Android's language settings to be heard in both). The same as Settings › Voice › Language.")
+                }
+            </p>
         </div>
     <//>`;
 }
