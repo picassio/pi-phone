@@ -188,7 +188,7 @@ function AgentRow({ agent }) {
                 title=${t("Stop")}
                 onClick=${stop}
             >
-                <${Icon} name="stop" size=${13} />
+                <${Icon} name="stop" size=${14} />
             </button>`
         }
     </div>`;
@@ -289,7 +289,7 @@ function Bar({ agents, active, open, held }) {
                         store.set({ subagentsOpen: null });
                     }}
                 >
-                    <${Icon} name="close" size=${13} />
+                    <${Icon} name="close" size=${14} />
                 </button>`
             }
         </div>

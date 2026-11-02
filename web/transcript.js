@@ -394,7 +394,7 @@ function UserEntry({ entry, view, users }) {
                 ${name && html`<b class="prompt-author" data-part="prompt-author">${name}</b>`}
                 ${entry.at && html`<span class="prompt-time">${clock(entry.at)}</span>`}
                 ${scheduled && html`<span class="prompt-time">· ${t("scheduled")}</span>`}
-                ${spoken && html`<span class="prompt-time voice-mark" data-part="voice-mark">· <${Icon} name="mic" size=${11} /> ${t("voice")}</span>`}
+                ${spoken && html`<span class="prompt-time voice-mark" data-part="voice-mark">· <${Icon} name="mic" size=${12} /> ${t("voice")}</span>`}
                 ${via && viaNote && html`<span class="prompt-time">· ${team ? (peerText === undefined ? viaNote : t("a linked session")) : t("via {where}", { where: peerText === undefined ? viaNote : t("a linked session") })}</span>`}
             </span>
             <div class="prompt-body" data-part="prompt-text">
@@ -1107,7 +1107,7 @@ function ToolStep({
                 class=${`step-decision ${decision.allow ? "allowed" : "denied"}`}
                 title=${new Date(decision.at).toLocaleString()}
             >
-                <${Icon} name="shield" size=${13} /> ${decided(decision)}
+                <${Icon} name="shield" size=${14} /> ${decided(decision)}
             </div>`
         }
         ${

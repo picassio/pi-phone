@@ -204,7 +204,7 @@ export function PeeksButton() {
         title=${on ? "Hide peek tiles (Alt+P)" : "Peek at other sessions (Alt+P)"}
         onClick=${togglePeeks}
     >
-        <${Icon} name="tiles" size=${18} />
+        <${Icon} name="tiles" size=${16} />
         ${waiting && html`<span class="peek-dot" aria-hidden="true"></span>`}
     </button>`;
 }
@@ -618,7 +618,7 @@ function AgentRows({ agents, compact }) {
                         boardFocus: more[0].conversationId,
                     })}
             >
-                <${Icon} name="fork" size=${13} />
+                <${Icon} name="fork" size=${14} />
                 <span class="agent-more-count">${t("{n} more", { n: more.length })}</span>
                 ${waitingMore > 0 && html`<span class="agent-more-wait">${waitWords}</span>`}
                 <${Icon} name="chevron" size=${14} />

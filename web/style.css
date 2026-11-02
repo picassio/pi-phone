@@ -1153,11 +1153,11 @@ kbd {
 .title-sub > .title-branch {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     flex: 0 1 auto;
     min-width: 0;
     height: 20px;
-    padding: 0 7px;
+    padding: 0 8px;
     border-radius: calc(var(--r-tag) + 1px);
     background: var(--card);
     font: 11px / 1 var(--mono);
@@ -1187,7 +1187,7 @@ kbd {
 }
 
 .title-sub > .title-worktree {
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -1274,7 +1274,7 @@ kbd {
     .changes-button {
         height: 28px;
         padding: 0 10px;
-        font-size: 11.5px;
+        font-size: 12px;
     }
 }
 
@@ -1322,7 +1322,7 @@ kbd {
     background: var(--accent-fill);
     color: var(--accent-ink);
     font-size: 0.68rem;
-    font-weight: 700;
+    font-weight: 600;
     display: grid;
     place-items: center;
     padding: 0 4px;
@@ -1336,7 +1336,7 @@ kbd {
     min-width: 18px;
     display: inline-grid;
     place-items: center;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.7rem;
 }
 
@@ -1453,7 +1453,7 @@ kbd {
     border-radius: var(--r-card);
     background: var(--card);
     color: var(--accent);
-    font-size: 12.5px;
+    font-size: 13px;
     text-align: left;
 }
 
@@ -1512,7 +1512,7 @@ kbd {
     align-items: center;
     gap: 0 8px;
     min-width: 0;
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 22px;
 }
 
@@ -1526,7 +1526,7 @@ kbd {
     border-radius: 50%;
     background: color-mix(in srgb, var(--who) 20%, transparent);
     color: var(--who);
-    font-size: 9.5px;
+    font-size: 10px;
     font-weight: 600;
     line-height: 1;
 }
@@ -1674,7 +1674,7 @@ kbd {
     border-radius: var(--r-tag);
     background: var(--card-2);
     color: var(--text);
-    font: 12.5px var(--mono);
+    font: 13px var(--mono);
 }
 
 .md strong {
@@ -1792,7 +1792,7 @@ kbd {
     flex: none;
     height: 24px;
     margin-left: auto;
-    padding: 0 9px;
+    padding: 0 8px;
     border-radius: var(--r-seg);
     font-size: 12px;
     color: var(--muted);
@@ -1815,7 +1815,7 @@ kbd {
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
     background: var(--code-bg);
-    font: 12.5px / 1.6 var(--mono);
+    font: 13px / 1.6 var(--mono);
 }
 
 .code pre {
@@ -1878,14 +1878,14 @@ kbd {
     align-items: center;
     gap: 4px;
     min-height: 26px;
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.6;
 }
 
 .reaction {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     height: 26px;
     padding: 0 10px;
     border: 1px solid var(--hair-2);
@@ -1898,7 +1898,7 @@ kbd {
 }
 
 .reaction > span {
-    font: 11.5px var(--mono);
+    font: 12px var(--mono);
 }
 
 @media (hover: hover) {
@@ -1975,7 +1975,7 @@ kbd {
     width: 32px;
     height: 32px;
     border-radius: var(--r-row);
-    font-size: 17px;
+    font-size: 16px;
     line-height: 1;
 }
 
@@ -2049,7 +2049,7 @@ kbd {
 
 .activity-failed {
     flex: none;
-    padding: 1px 7px;
+    padding: 1px 8px;
     border-radius: var(--r-pill);
     background: var(--err-soft);
     color: var(--err);
@@ -2058,7 +2058,7 @@ kbd {
 
 .activity-time {
     flex: none;
-    font: 11.5px var(--mono);
+    font: 12px var(--mono);
     font-variant-numeric: tabular-nums;
     color: var(--faint);
 }
@@ -2189,7 +2189,7 @@ kbd {
 .step-label {
     flex: none;
     max-width: 45%;
-    font: 600 12.5px var(--mono);
+    font: 600 13px var(--mono);
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
@@ -2199,7 +2199,7 @@ kbd {
 .step-subject {
     flex: 1;
     min-width: 0;
-    font: 12.5px var(--mono);
+    font: 13px var(--mono);
     color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
@@ -2372,7 +2372,7 @@ pre.diff .del {
     margin-left: -8px;
     border-radius: var(--r-seg);
     text-align: left;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--accent);
     overflow-wrap: anywhere;
     transition: background-color var(--t-hover) var(--ease-out);
@@ -2472,7 +2472,7 @@ pre.diff .del {
 }
 
 .approval-ask {
-    font-size: 14.5px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.35;
     color: var(--text);
@@ -2527,7 +2527,7 @@ pre.diff .del {
     width: 100%;
     max-width: var(--column, 760px);
     margin: 0 auto;
-    padding: 9px 12px;
+    padding: 8px 12px;
     border-radius: 14px;
     text-align: left;
     color: var(--text);
@@ -2607,7 +2607,7 @@ pre.diff .del {
 
 .pgb-head b {
     font-size: 0.95rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .pgb-counts {
@@ -2661,7 +2661,7 @@ pre.diff .del {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 11px 16px;
+    padding: 12px 16px;
 }
 
 /* The session's square: its folder's color, its initial. */
@@ -2675,7 +2675,7 @@ pre.diff .del {
     background: var(--av);
     color: #1a1b26;
     font-size: 0.82rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .pgb-text {
@@ -2721,7 +2721,7 @@ pre.diff .del {
 }
 
 .pgb-badge {
-    padding: 1px 7px;
+    padding: 1px 8px;
     border-radius: 99px;
     font-size: 0.68rem;
     font-weight: 600;
@@ -2773,11 +2773,9 @@ pre.diff .del {
 }
 
 .pgb-sec {
-    padding: 9px 16px 3px;
+    padding: 8px 16px 3px;
     font-size: 0.66rem;
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--dim, var(--muted));
 }
 
@@ -3193,7 +3191,7 @@ pre.diff .del {
     background: var(--card);
     color: var(--text);
     font-size: 13px;
-    font-weight: 550;
+    font-weight: 500;
 }
 
 .assist-pill-name {
@@ -3245,8 +3243,6 @@ pre.diff .del {
     margin: 10px 8px 6px;
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--faint);
 }
 
@@ -3273,7 +3269,7 @@ pre.diff .del {
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text);
-    font-weight: 550;
+    font-weight: 500;
 }
 
 .assist-menu small {
@@ -3291,7 +3287,7 @@ pre.diff .del {
 .assist-menu p,
 .assist-menu-note {
     margin: 6px 10px 4px;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -3317,8 +3313,8 @@ pre.diff .del {
     min-height: 86px;
     padding-top: 4px;
     color: var(--text);
-    font-size: 21px;
-    font-weight: 450;
+    font-size: 20px;
+    font-weight: 400;
     line-height: 1.35;
     letter-spacing: -0.01em;
     text-wrap: pretty;
@@ -3406,7 +3402,7 @@ pre.diff .del {
     gap: 6px;
     border-color: var(--hair);
     border-radius: var(--r-pill);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .assist-from button {
@@ -3613,7 +3609,7 @@ pre.diff .del {
 [data-part="voice-words"] textarea {
     width: 100%;
     min-height: 96px;
-    padding: 9px 11px;
+    padding: 8px 12px;
     border: 1px solid var(--hair-2);
     border-radius: var(--r-control);
     background: var(--card);
@@ -3636,7 +3632,7 @@ pre.diff .del {
 /* A phone control card that follows along: said in the warning tone, as it widens what Pi may touch. */
 .phone-control-follow {
     margin-top: 4px;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--warn);
 }
 
@@ -3704,7 +3700,7 @@ pre.diff .del {
     height: 26px;
     border: 1px solid var(--hair);
     border-radius: 50%;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
 }
 
@@ -3748,8 +3744,6 @@ pre.diff .del {
     margin: 6px 0 -6px;
     font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
     color: var(--muted);
 }
 
@@ -3773,7 +3767,7 @@ pre.diff .del {
     color: var(--text);
     text-align: left;
     font: inherit;
-    font-size: 13.5px;
+    font-size: 14px;
     cursor: pointer;
 }
 
@@ -3789,7 +3783,7 @@ pre.diff .del {
 .approval pre.cmd {
     padding: 10px 12px;
     border: 0;
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.5;
 }
 
@@ -3831,7 +3825,7 @@ pre.diff .del {
     height: 36px;
     padding: 0 16px;
     border-radius: var(--r-control);
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 .approval-actions .button.primary {
@@ -3888,7 +3882,7 @@ pre.diff .del {
 .live-line {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
     min-width: 0;
     padding: 2px 2px 0;
     font-size: 13px;
@@ -3925,7 +3919,7 @@ pre.diff .del {
 
 .live-time {
     flex: none;
-    font: 11.5px var(--mono);
+    font: 12px var(--mono);
     font-variant-numeric: tabular-nums;
     color: var(--faint);
 }
@@ -3974,7 +3968,7 @@ pre.diff .del {
 
 .live-retry {
     flex: none;
-    padding: 1px 9px;
+    padding: 1px 8px;
     font: inherit;
     font-size: 12px;
     color: var(--accent);
@@ -4013,7 +4007,7 @@ pre.diff .del {
 
     .live-line.limited .live-limit {
         flex: 1 1 auto;
-        padding-left: 25px;
+        padding-left: 24px;
     }
 }
 
@@ -4045,7 +4039,7 @@ pre.diff .del {
     flex-direction: column;
     gap: 4px;
     min-width: 0;
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 1.45;
 }
 
@@ -4085,7 +4079,7 @@ pre.diff .del {
     height: 36px;
     padding: 0 16px;
     border-radius: var(--r-control);
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 @media not (pointer: coarse) {
@@ -4159,7 +4153,7 @@ pre.diff .del {
 .live-thought-label {
     margin-bottom: 4px;
     color: var(--faint);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .live-thought-text {
@@ -4194,7 +4188,7 @@ pre.diff .del {
     border-radius: var(--r-card);
     background: var(--err-soft);
     color: var(--err);
-    font-size: 13.5px;
+    font-size: 14px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
@@ -4210,7 +4204,7 @@ pre.diff .del {
 .divider-body {
     text-align: left;
     margin-top: 0.5rem;
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 .history {
@@ -4479,7 +4473,7 @@ pre.diff .del {
     gap: 0.5rem;
     width: 100%;
     text-align: left;
-    padding: 7px 10px;
+    padding: 8px 10px;
     border-radius: var(--r-row);
     font-size: 13px;
     transition: background-color var(--t-hover) var(--ease-out);
@@ -4538,13 +4532,13 @@ pre.diff .del {
 .file-option mark {
     background: none;
     color: var(--accent);
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .file-note {
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
-    padding: 7px 10px;
+    padding: 8px 10px;
 }
 
 .command-hint.wraps {
@@ -4552,7 +4546,7 @@ pre.diff .del {
 }
 
 .command-hint {
-    font-size: 12.5px;
+    font-size: 13px;
     padding: 0 10px 6px;
     white-space: nowrap;
     overflow: hidden;
@@ -4643,7 +4637,7 @@ pre.diff .del {
     gap: 6px;
     min-width: 0;
     height: 30px;
-    padding: 0 10px 0 11px;
+    padding: 0 10px 0 12px;
     border-radius: var(--r-pill);
     background: var(--hover);
     font-size: 13px;
@@ -4812,7 +4806,7 @@ pre.diff .del {
     height: 28px;
     padding: 0 10px;
     border-radius: var(--r-pill);
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--muted);
     transition:
@@ -5024,7 +5018,7 @@ pre.diff .del {
 }
 
 .voice-mic-words small {
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
 }
 
@@ -5165,7 +5159,7 @@ pre.diff .del {
     justify-content: center;
     gap: 4px 14px;
     padding-top: calc(3px + 5px * var(--space-y));
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 16px;
     color: var(--muted);
     white-space: nowrap;
@@ -5327,7 +5321,7 @@ pre.diff .del {
     border: 1px solid var(--warn-line);
     background: var(--warn-soft);
     color: var(--text);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .guard-confirm .primary {
@@ -5523,7 +5517,7 @@ pre.diff .del {
     background: var(--accent-fill);
     color: var(--accent-ink);
     box-shadow: 0 0 0 2px var(--bg);
-    font: 600 9.5px/1 var(--mono);
+    font: 600 10px/1 var(--mono);
     animation: popin var(--t-in) var(--ease-out);
 }
 
@@ -5611,7 +5605,7 @@ pre.diff .del {
     display: grid;
     place-items: center;
     border-radius: var(--r-row);
-    font: 600 12.5px var(--mono);
+    font: 600 13px var(--mono);
     color: var(--muted);
     animation: rise-in 0.38s var(--ease-out) backwards;
     animation-delay: calc(min(var(--i, 0), 14) * 18ms);
@@ -5693,9 +5687,9 @@ pre.diff .del {
 .new-button {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     height: 30px;
-    padding: 0 11px 0 9px;
+    padding: 0 12px 0 8px;
     border-radius: calc(var(--r-row) - 1px);
     background: var(--accent-fill);
     color: var(--accent-ink);
@@ -5764,9 +5758,9 @@ pre.diff .del {
     border: 0;
     border-radius: 0;
     background: none;
-    padding: 7px 0;
+    padding: 8px 0;
     min-width: 0;
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 .search input:focus-visible {
@@ -5784,7 +5778,7 @@ pre.diff .del {
     flex: none;
     border: 1px solid var(--hair);
     border-radius: var(--r-tag);
-    font-size: 10.5px;
+    font-size: 11px;
     color: var(--faint);
 }
 
@@ -5845,7 +5839,7 @@ pre.diff .del {
     padding: 4px 6px;
     border: 1px solid var(--hair);
     border-radius: var(--r-tag);
-    font: 10.5px / 1 var(--mono);
+    font: 11px / 1 var(--mono);
     color: var(--faint);
     white-space: nowrap;
     opacity: 1;
@@ -5913,7 +5907,7 @@ pre.diff .del {
     place-items: center;
     padding: 0 6px;
     border-radius: var(--r-seg);
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
     transition: color var(--t-hover) var(--ease-out);
 }
@@ -6205,7 +6199,7 @@ pre.diff .del {
     display: grid;
     grid-template-columns: 8px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0 11px;
+    gap: 0 12px;
     width: 100%;
     /* 36px, 32px, and 29px. */
     height: calc(24px + 12px * var(--space-y));
@@ -6408,7 +6402,7 @@ pre.diff .del {
 }
 
 .session-title {
-    font-size: 13.5px;
+    font-size: 14px;
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
@@ -6453,7 +6447,7 @@ pre.diff .del {
 .launcher mark {
     background: none;
     color: var(--accent);
-    font-weight: 800;
+    font-weight: 600;
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 2px;
@@ -6463,7 +6457,7 @@ pre.diff .del {
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 7px;
+    gap: 8px;
     font: 11px var(--mono);
     color: var(--faint);
     transition: opacity var(--t-hover) var(--ease-out);
@@ -6496,7 +6490,7 @@ pre.diff .del {
     display: grid;
     place-items: center;
     height: 18px;
-    padding: 0 7px;
+    padding: 0 8px;
     border-radius: var(--r-pill);
     background: var(--warn-soft);
     color: var(--warn);
@@ -6552,7 +6546,7 @@ pre.diff .del {
     position: absolute;
     top: 50%;
     right: 6px;
-    margin-top: -13px;
+    margin-top: -12px;
     display: flex;
     gap: 4px;
 }
@@ -6671,9 +6665,9 @@ pre.diff .del {
     margin-top: 6px;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     min-width: 0;
-    padding: 4px 4px 4px 9px;
+    padding: 4px 4px 4px 8px;
     border: 1px solid var(--accent-line);
     border-radius: var(--r-control);
     background: var(--accent-soft);
@@ -6750,7 +6744,7 @@ pre.diff .del {
     display: flex;
     align-items: center;
     height: 36px;
-    padding: 0 10px 0 29px;
+    padding: 0 10px 0 28px;
 }
 
 .session-placeholder span {
@@ -6830,7 +6824,7 @@ pre.diff .del {
     grid-template-columns: 84px minmax(0, 1fr);
     gap: 12px;
     margin: 0;
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 1.75;
 }
 
@@ -6881,7 +6875,7 @@ pre.diff .del {
     border-radius: var(--r-control);
     background: var(--card);
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 500;
 }
 
@@ -6979,7 +6973,7 @@ pre.diff .del {
 
 .splash-meta {
     flex: none;
-    font: 11.5px var(--mono);
+    font: 12px var(--mono);
     color: var(--faint);
 }
 
@@ -7163,7 +7157,7 @@ pre.diff .del {
     padding: 3px 8px;
     border: 1px solid var(--hair-2);
     border-radius: 99px;
-    font: 600 11.5px/1.3 var(--mono);
+    font: 600 12px/1.3 var(--mono);
     color: var(--usage, var(--muted));
     white-space: nowrap;
 }
@@ -7248,7 +7242,7 @@ pre.diff .del {
 }
 
 .field .choice {
-    font-size: 14.5px;
+    font-size: 14px;
     border-radius: calc(var(--r-control) + 1px);
 }
 
@@ -7317,7 +7311,7 @@ pre.diff .del {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 9px 0;
+    padding: 8px 0;
     border-bottom: 1px solid var(--hair);
 }
 
@@ -7462,7 +7456,7 @@ pre.diff .del {
     padding: 0.55rem 0.8rem;
     border-bottom: 1px solid var(--line);
     font-size: 0.82rem;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text);
 }
 
@@ -7634,7 +7628,7 @@ pre.diff .del {
 }
 
 .branch-picker .pop-menu-row-sub {
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -7676,14 +7670,14 @@ pre.diff .del {
 .model-menu .pop-menu-head {
     padding: 12px 14px 8px;
     border-bottom: 0;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--muted);
 }
 
 .model-menu .pop-menu-link {
-    gap: 5px;
-    font-size: 12.5px;
+    gap: 4px;
+    font-size: 13px;
     color: var(--accent);
 }
 
@@ -7712,7 +7706,7 @@ pre.diff .del {
 }
 
 .model-menu .pop-menu-row-name {
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 .model-menu .pop-menu-row.current .pop-menu-row-name {
@@ -7731,7 +7725,7 @@ pre.diff .del {
 
 .model-menu .pop-menu-foot .label {
     margin-bottom: 8px;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--muted);
 }
@@ -7739,7 +7733,7 @@ pre.diff .del {
 .model-scope {
     display: inline-flex;
     align-items: center;
-    margin-left: 5px;
+    margin-left: 4px;
     font-size: 11px;
     font-weight: 400;
     white-space: nowrap;
@@ -7796,7 +7790,7 @@ pre.diff .del {
     border-radius: var(--r-seg);
     background: none;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
 }
 
@@ -7952,7 +7946,7 @@ pre.diff .del {
     border-radius: var(--r-row);
     background: var(--bg);
     border: 0;
-    font-size: 13.5px;
+    font-size: 14px;
     color: var(--text);
     text-decoration: none;
     margin-bottom: 2px;
@@ -8002,12 +7996,12 @@ pre.diff .del {
 .field > .label {
     margin: 0;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .field input,
 .field textarea {
-    font-size: 14.5px;
+    font-size: 14px;
     border-radius: calc(var(--r-control) + 1px);
 }
 
@@ -8084,8 +8078,8 @@ pre.diff .del {
     border: 1px solid transparent;
     background: var(--card-2);
     border-radius: var(--r-control);
-    padding: 7px 16px;
-    font-size: 13.5px;
+    padding: 8px 16px;
+    font-size: 14px;
     font-weight: 500;
     text-decoration: none;
     color: var(--text);
@@ -8153,9 +8147,9 @@ pre.diff .del {
 
 .button.small {
     min-height: 30px;
-    padding: 4px 11px;
+    padding: 4px 12px;
     border-radius: calc(var(--r-row) - 1px);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .button.wide {
@@ -8185,8 +8179,8 @@ pre.diff .del {
     min-height: 28px;
     border: 0;
     border-radius: var(--r-seg);
-    padding: 4px 11px;
-    font-size: 12.5px;
+    padding: 4px 12px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--muted);
     background: none;
@@ -8652,10 +8646,10 @@ pre.diff .del {
 
 .provider .provider-needs {
     display: inline-block;
-    padding: 1px 7px;
+    padding: 1px 8px;
     border-radius: var(--r-pill);
     background: var(--warn-soft);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
 }
 
@@ -9100,7 +9094,7 @@ pre.diff .del {
 
 .artifact-name {
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -9133,7 +9127,7 @@ pre.diff .del {
     border-radius: var(--r-card);
     background: var(--card);
     color: var(--body);
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 @media (max-width: 480px) {
@@ -9521,9 +9515,9 @@ pre.diff .del {
     overflow: hidden;
     display: flex;
     align-items: flex-start;
-    gap: 11px;
+    gap: 12px;
     min-height: 44px;
-    padding: 12px 12px 13px 14px;
+    padding: 12px 12px 12px 14px;
     border-radius: var(--r-card);
     background:
         linear-gradient(100deg, color-mix(in srgb, var(--level) 9%, transparent), transparent 48%),
@@ -9531,7 +9525,7 @@ pre.diff .del {
     box-shadow: var(--pop);
     color: var(--text);
     text-align: left;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.4;
     pointer-events: auto;
@@ -9821,7 +9815,7 @@ body.plain-page {
     gap: 6px;
     padding: 4px;
     color: var(--faint);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .chat-log {
@@ -9860,7 +9854,7 @@ body.plain-page {
 }
 
 .chat-meta {
-    font-size: 11.5px;
+    font-size: 12px;
     display: flex;
     gap: 6px;
     padding: 0 4px;
@@ -9884,7 +9878,7 @@ body.plain-page {
         calc(var(--r-window) + 2px) var(--r-tag);
     background: var(--card-2);
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
@@ -9917,10 +9911,10 @@ body.plain-page {
     background: none;
     color: var(--text);
     resize: none;
-    padding: 5px 0;
+    padding: 4px 0;
     max-height: 30vh;
     overflow-x: hidden;
-    font: 13.5px/1.45 var(--sans);
+    font: 14px/1.45 var(--sans);
 }
 
 .chat-compose .round.send {
@@ -10003,9 +9997,9 @@ body.plain-page {
 
 .chat-event {
     text-align: center;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--faint);
-    margin: 5px 0;
+    margin: 4px 0;
 }
 
 .chat-msg.open .chat-text,
@@ -10032,7 +10026,7 @@ body.plain-page {
     background: var(--card);
     color: var(--muted);
     font-size: 12px;
-    padding: 5px 10px;
+    padding: 4px 10px;
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 3;
@@ -10060,7 +10054,7 @@ body.plain-page {
 
 .mention {
     color: var(--accent);
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .mention.me {
@@ -10095,7 +10089,7 @@ body.plain-page {
     background: var(--card);
     border: 1px solid var(--hair);
     border-radius: calc(var(--r-control) + 1px);
-    padding: 9px 8px 9px 12px;
+    padding: 8px 8px 8px 12px;
 }
 
 .pin-main {
@@ -10108,7 +10102,7 @@ body.plain-page {
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem;
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .pin-text {
@@ -10138,7 +10132,7 @@ textarea.notes {
     align-items: center;
     gap: 6px 10px;
     padding: 6px 10px 6px 14px;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
     background: var(--card);
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
@@ -10362,7 +10356,7 @@ textarea.notes {
     background: var(--card);
     padding: 12px 14px;
     margin: 0;
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 /* A switch with its label, inside a card such as an extension's. */
@@ -10387,8 +10381,8 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 11px 14px;
-    font-size: 13.5px;
+    padding: 12px 14px;
+    font-size: 14px;
 }
 
 .schedule > .icon {
@@ -10434,8 +10428,8 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 11px 14px;
-    font-size: 13.5px;
+    padding: 12px 14px;
+    font-size: 14px;
 }
 
 .sheet-list:has(> .lesson.pending) {
@@ -10567,7 +10561,7 @@ textarea.notes {
 
 .running-task {
     font-size: 13px;
-    padding: 9px 14px;
+    padding: 8px 14px;
     border-top: 1px solid var(--hair);
 }
 
@@ -10602,7 +10596,7 @@ textarea.notes {
     gap: 6px 12px;
     min-height: 48px;
     padding: 10px 14px;
-    font-size: 13.5px;
+    font-size: 14px;
     color: var(--text);
 }
 
@@ -10616,7 +10610,7 @@ textarea.notes {
 .spend-row > .mono {
     width: 64px;
     text-align: right;
-    font-size: 12.5px;
+    font-size: 13px;
     font-variant-numeric: tabular-nums;
 }
 
@@ -10720,7 +10714,7 @@ textarea.notes {
     border: 1px solid var(--hair);
     border-radius: var(--r-tag);
     background: none;
-    font-size: 10.5px;
+    font-size: 11px;
     color: var(--faint);
 }
 
@@ -10791,11 +10785,11 @@ textarea.notes {
     justify-content: center;
     gap: 6px;
     height: 28px;
-    padding: 0 11px;
+    padding: 0 12px;
     border: 1px solid transparent;
     border-radius: var(--r-pill);
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
 }
 
@@ -10866,7 +10860,7 @@ textarea.notes {
     display: flex;
     justify-content: space-between;
     gap: 8px;
-    padding: 12px 10px 5px;
+    padding: 12px 10px 4px;
     font-size: 12px;
     font-weight: 500;
     color: var(--faint);
@@ -10948,7 +10942,7 @@ textarea.notes {
     border-radius: var(--r-pill);
     background: var(--card);
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -11168,7 +11162,7 @@ textarea.notes {
 
 .tc-desk {
     display: flex;
-    gap: 5px;
+    gap: 4px;
     height: 62px;
     padding: 6px;
     border-radius: 9px;
@@ -11320,7 +11314,7 @@ textarea.notes {
     grid-template-columns: 9.5rem 1fr;
     gap: 8px 18px;
     margin: 0;
-    font-size: 13.5px;
+    font-size: 14px;
     align-items: baseline;
 }
 
@@ -11377,13 +11371,13 @@ textarea.notes {
     flex-wrap: wrap;
     align-items: baseline;
     gap: 0.4rem;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--text);
 }
 
 .look-name small {
-    font: 10.5px var(--mono);
+    font: 11px var(--mono);
     color: var(--faint);
 }
 
@@ -11617,7 +11611,7 @@ textarea.notes {
 
 .people-person-name {
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -11633,7 +11627,7 @@ textarea.notes {
 }
 
 .people-role {
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -11659,14 +11653,14 @@ textarea.notes {
 }
 
 .people-turns-hint {
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--muted);
 }
 
 .people-turns .button {
     min-height: 28px;
     border-radius: calc(var(--r-row) - 1px);
-    padding: 0 11px;
+    padding: 0 12px;
     font-size: 12px;
     flex: none;
 }
@@ -11674,13 +11668,13 @@ textarea.notes {
 .people-pin {
     display: flex;
     align-items: flex-start;
-    gap: 9px;
+    gap: 8px;
     margin: 0 2px;
-    padding: 9px 12px;
+    padding: 8px 12px;
     border: 1px solid var(--hair);
     border-radius: calc(var(--r-control) + 1px);
     text-align: left;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--body);
 }
 
@@ -11716,7 +11710,7 @@ textarea.notes {
     min-height: 160px;
     resize: none;
     border-radius: var(--r-card);
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 .people-button.on {
@@ -11865,7 +11859,7 @@ textarea.notes {
     flex: 1;
     min-width: 0;
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 500;
 }
 
@@ -11886,9 +11880,9 @@ textarea.notes {
 
 .peek-line {
     display: flex;
-    gap: 7px;
+    gap: 8px;
     min-width: 0;
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.5;
     color: var(--body);
 }
@@ -11989,7 +11983,7 @@ textarea.notes {
     flex-direction: column;
     gap: 3px;
     min-width: 0;
-    padding: 7px 9px 8px;
+    padding: 8px 8px 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-control);
     background: var(--card-2);
@@ -12062,7 +12056,7 @@ textarea.notes {
 .agent-tile-state {
     flex: none;
     color: var(--faint);
-    font-size: 10.5px;
+    font-size: 11px;
     letter-spacing: 0.02em;
 }
 
@@ -12078,7 +12072,7 @@ textarea.notes {
     overflow: hidden;
     overflow-wrap: anywhere;
     color: var(--muted);
-    font: 11.5px / 1.45 var(--mono);
+    font: 12px / 1.45 var(--mono);
 }
 
 /* In a peek tile, one line each: the square and the name, then what it does, cut short. */
@@ -12130,7 +12124,7 @@ textarea.notes {
     border-radius: var(--r-control);
     background: transparent;
     color: var(--muted);
-    font: 500 11.5px / 1.4 var(--sans);
+    font: 500 12px / 1.4 var(--sans);
     text-align: left;
     cursor: pointer;
     transition:
@@ -12185,7 +12179,7 @@ textarea.notes {
     margin-left: auto;
     overflow: hidden;
     color: var(--muted);
-    font: 500 11.5px / 1.4 var(--sans);
+    font: 500 12px / 1.4 var(--sans);
     white-space: nowrap;
     text-overflow: ellipsis;
 }
@@ -12236,7 +12230,7 @@ textarea.notes {
     flex: 1;
     min-width: 0;
     color: var(--faint);
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
     white-space: nowrap;
 }
@@ -12275,7 +12269,7 @@ textarea.notes {
     border-radius: calc(var(--r-row) - 1px);
     background: var(--card-2);
     color: var(--text);
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
 }
 
@@ -12311,7 +12305,7 @@ textarea.notes {
     left: 50%;
     z-index: 2;
     transform: translateX(-50%);
-    padding: 5px 12px;
+    padding: 4px 12px;
     border-radius: var(--r-pill);
     background: var(--warn);
     box-shadow: var(--pop);
@@ -12430,12 +12424,12 @@ textarea.notes {
     z-index: 2;
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
     min-height: 42px;
     padding: 0 10px;
     background: var(--card);
     border-bottom: 1px solid var(--hair);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .dv.folded .dv-head {
@@ -12535,7 +12529,7 @@ textarea.notes {
     display: inline-flex;
     gap: 6px;
     flex: none;
-    font: 11.5px var(--mono);
+    font: 12px var(--mono);
 }
 
 .dv-chip {
@@ -12587,7 +12581,7 @@ textarea.notes {
     gap: 6px;
     flex: none;
     height: 26px;
-    padding: 0 9px 0 7px;
+    padding: 0 8px 0 8px;
     border: 1px solid var(--hair-2);
     border-radius: var(--r-seg);
     font-size: 12px;
@@ -12789,7 +12783,7 @@ textarea.notes {
 .dv-hunk td {
     padding: 6px 12px;
     color: var(--accent);
-    font-size: 11.5px;
+    font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -12810,7 +12804,7 @@ textarea.notes {
     padding: 2px 10px;
     border-radius: calc(var(--r-tag) + 1px);
     color: var(--accent);
-    font: 11.5px var(--mono);
+    font: 12px var(--mono);
 }
 
 @media (hover: hover) {
@@ -12821,7 +12815,7 @@ textarea.notes {
 
 .dv-reading {
     color: var(--muted);
-    font: 11.5px var(--mono);
+    font: 12px var(--mono);
 }
 
 /* A note under a line ("No newline at end of file") starts where the code does: past the numbers, and the sign. */
@@ -12836,7 +12830,7 @@ textarea.notes {
 }
 
 .dv-note span {
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .dv-empty {
@@ -12913,9 +12907,9 @@ textarea.notes {
     flex: none;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     height: 20px;
-    padding: 0 7px;
+    padding: 0 8px;
     border-radius: calc(var(--r-tag) + 1px);
     background: var(--card);
     color: var(--muted);
@@ -12944,7 +12938,7 @@ textarea.notes {
 }
 
 .dr-viewed {
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 /* The layout and Look again, together at the end of the row, or of the next one when there is no room. */
@@ -12977,7 +12971,7 @@ textarea.notes {
 @media (pointer: fine) {
     .dr-filter,
     .ft-filter {
-        font-size: 12.5px;
+        font-size: 13px;
     }
 }
 
@@ -13028,7 +13022,7 @@ textarea.notes {
     border-radius: var(--r-seg);
     text-align: left;
     color: var(--body);
-    font: 12.5px var(--mono);
+    font: 13px var(--mono);
     white-space: nowrap;
 }
 
@@ -13206,7 +13200,7 @@ textarea.notes {
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--faint);
-    font: 11.5px var(--mono);
+    font: 12px var(--mono);
 }
 
 /* The switch between Files and Changes, and the review's layout: a track with the chosen one raised. */
@@ -13392,7 +13386,7 @@ textarea.notes {
 .ft-row mark {
     background: none;
     color: var(--accent);
-    font-weight: 800;
+    font-weight: 600;
 }
 
 .ft-parent {
@@ -13446,7 +13440,7 @@ textarea.notes {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font: 600 12.5px var(--mono);
+    font: 600 13px var(--mono);
     color: var(--text);
 }
 
@@ -13574,7 +13568,7 @@ textarea.notes {
 
 .browser-bar .badge {
     border-radius: var(--r-pill);
-    font: 600 9.5px var(--mono);
+    font: 600 10px var(--mono);
 }
 
 .browser-bar .badge.err {
@@ -13628,7 +13622,7 @@ textarea.notes {
     outline: 0;
     padding: 0;
     background: transparent;
-    font: 12.5px var(--mono);
+    font: 13px var(--mono);
     text-overflow: ellipsis;
 }
 
@@ -13839,7 +13833,7 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 11px 14px;
+    padding: 12px 14px;
     background: var(--bg);
     color: var(--text);
     text-align: left;
@@ -13939,7 +13933,7 @@ textarea.notes {
     min-height: 0;
     overflow: auto;
     padding: 6px 0;
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 1.7;
 }
 
@@ -14075,7 +14069,7 @@ textarea.notes {
 
 .note-line {
     text-align: center;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
 }
 
@@ -14091,7 +14085,7 @@ textarea.notes {
     display: flex;
     gap: 6px;
     align-items: baseline;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
     overflow-wrap: anywhere;
 }
@@ -14115,7 +14109,7 @@ textarea.notes {
 
 .link.danger {
     color: var(--err);
-    font-weight: 700;
+    font-weight: 600;
 }
 
 /* The file viewer: line numbers, the line asked for marked, long lines wrapped. */
@@ -14207,7 +14201,7 @@ textarea.notes {
 
 .find-count {
     color: var(--faint);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .find-results {
@@ -14221,7 +14215,7 @@ textarea.notes {
     flex-direction: column;
     gap: 0.15rem;
     text-align: left;
-    padding: 9px 12px;
+    padding: 8px 12px;
     border-radius: var(--r-control);
     border: 0;
     transition: background-color var(--t-hover) var(--ease-out);
@@ -14243,7 +14237,7 @@ textarea.notes {
 }
 
 .find-snippet {
-    font-size: 13.5px;
+    font-size: 14px;
     overflow-wrap: anywhere;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -14891,7 +14885,7 @@ textarea.notes {
     border-radius: var(--r-row);
     background: none;
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 @media (hover: hover) {
@@ -14985,7 +14979,7 @@ textarea.notes {
     align-items: center;
     justify-content: center;
     position: relative;
-    gap: 5px;
+    gap: 4px;
     height: 66px;
     padding: 8px 4px;
     border-radius: var(--r-card);
@@ -15035,7 +15029,7 @@ textarea.notes {
     border-radius: var(--r-pill);
     background: var(--accent-fill);
     color: var(--accent-ink);
-    font: 600 9.5px/1 var(--mono);
+    font: 600 10px/1 var(--mono);
     box-shadow: none;
 }
 
@@ -15552,13 +15546,13 @@ textarea.notes {
     .answer-actions > button:not(.reaction),
     .link.small,
     .running-head .link {
-        padding-block: 11px;
-        margin-block: -11px;
+        padding-block: 12px;
+        margin-block: -12px;
     }
     /* A task's Stop or Cancel, at the end of its row: wider too. */
     .running-task .link.small {
-        padding-inline: 7px;
-        margin-inline: -7px;
+        padding-inline: 8px;
+        margin-inline: -8px;
     }
     .answer-actions > button:not(.reaction) {
         min-width: 40px;
@@ -15610,8 +15604,8 @@ textarea.notes {
         height: 38px;
     }
     .pop-menu-link {
-        padding-block: 11px;
-        margin-block: -11px;
+        padding-block: 12px;
+        margin-block: -12px;
     }
 }
 
@@ -15727,7 +15721,7 @@ textarea.notes {
     border-top: 1px solid var(--hair);
     color: var(--text);
     font: inherit;
-    font-size: 13.5px;
+    font-size: 14px;
     text-align: left;
     cursor: pointer;
     transition: background-color var(--t-hover) var(--ease-out);
@@ -16000,7 +15994,7 @@ textarea.notes {
     padding: 0.35rem 0.75rem 0.45rem;
     border-top: 1px solid var(--hair);
     color: var(--warn);
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.4;
 }
 
@@ -16057,7 +16051,7 @@ textarea.notes {
     width: 1rem;
     padding-top: 0.05rem;
     color: var(--ok);
-    font-weight: 700;
+    font-weight: 600;
     text-align: center;
 }
 
@@ -16388,12 +16382,12 @@ textarea.notes {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     height: 30px;
-    padding: 0 11px;
+    padding: 0 12px;
     border: 1px solid var(--hair);
     border-radius: var(--r-pill);
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--text);
     transition: background-color var(--t-hover) var(--ease-out);
@@ -16516,12 +16510,12 @@ textarea.notes {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
 }
 
 .board-session-name {
     min-width: 0;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--text);
     white-space: nowrap;
@@ -16538,7 +16532,7 @@ textarea.notes {
 
 .board-summary {
     max-width: 100%;
-    padding-left: 17px;
+    padding-left: 16px;
     font-size: 12px;
     color: var(--muted);
     white-space: nowrap;
@@ -16626,7 +16620,7 @@ textarea.notes {
     gap: 10px;
     height: 30px;
     padding: 0 4px;
-    font-size: 11.5px;
+    font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
 }
@@ -16637,7 +16631,7 @@ textarea.notes {
 }
 
 .board-status-name {
-    font: 600 11.5px var(--mono);
+    font: 600 12px var(--mono);
     color: var(--text);
 }
 
@@ -16772,7 +16766,7 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
     min-width: 0;
 }
 
@@ -16788,7 +16782,7 @@ textarea.notes {
 .board-detail-state {
     flex: none;
     margin-left: auto;
-    padding: 2px 9px;
+    padding: 2px 8px;
     border-radius: var(--r-pill);
     background: color-mix(in srgb, var(--state) 14%, transparent);
     color: var(--state);
@@ -17083,7 +17077,7 @@ textarea.notes {
     border: 1px solid var(--hair);
     border-radius: var(--r-float);
     box-shadow: var(--pop);
-    font: 14.5px/1.6 var(--sans);
+    font: 14px/1.6 var(--sans);
     transform-origin: bottom right;
     animation: pip-in 0.32s var(--ease-out);
 }
@@ -17274,7 +17268,7 @@ textarea.notes {
 .pip-context {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     margin-right: 4px;
     font: 11px var(--mono);
     color: var(--muted);
@@ -17354,7 +17348,7 @@ textarea.notes {
     align-items: center;
     gap: 8px;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .pip-steps.working {
@@ -17389,7 +17383,7 @@ textarea.notes {
 .pip-report-head {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     width: 100%;
     min-height: 20px;
     margin-bottom: 6px;
@@ -17413,7 +17407,7 @@ textarea.notes {
 }
 
 .pip-report-text {
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 1.55;
 }
 
@@ -17460,7 +17454,7 @@ textarea.notes {
 
 .pip-hello {
     margin: 0;
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--text);
 }
@@ -17468,7 +17462,7 @@ textarea.notes {
 .pip-intro {
     margin: 0;
     color: var(--muted);
-    font-size: 13.5px;
+    font-size: 14px;
     text-wrap: pretty;
 }
 
@@ -17521,7 +17515,7 @@ textarea.notes {
     border-radius: calc(var(--r-control) + 1px);
     background: var(--warn-soft);
     color: var(--warn);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .pip-approval .button {
@@ -17546,7 +17540,7 @@ textarea.notes {
     border-radius: calc(var(--r-control) + 1px);
     background: var(--card);
     color: var(--body);
-    font-size: 12.5px;
+    font-size: 13px;
     text-align: left;
 }
 
@@ -17559,7 +17553,7 @@ textarea.notes {
 .pip-memory-count {
     flex: none;
     color: var(--muted);
-    font: 11.5px var(--mono);
+    font: 12px var(--mono);
     font-variant-numeric: tabular-nums;
 }
 
@@ -17641,7 +17635,7 @@ textarea.notes {
     align-items: flex-end;
     min-height: 48px;
     gap: 4px;
-    padding: 1px 5px;
+    padding: 1px 4px;
     border: 1px solid var(--hair-2);
     border-radius: calc(var(--r-float) + 4px);
     background: var(--card);
@@ -17759,7 +17753,7 @@ textarea.notes {
     }
 
     .pip-head {
-        padding: 23px 10px 10px 14px;
+        padding: 24px 10px 10px 14px;
         grid-template-columns: 32px minmax(0, 1fr) repeat(4, 40px);
     }
 
@@ -17888,7 +17882,7 @@ textarea.notes {
     border: 0;
     color: var(--text);
     font: inherit;
-    font-size: 13.5px;
+    font-size: 14px;
     text-align: left;
     cursor: pointer;
     transition: background-color var(--t-hover) var(--ease-out);
@@ -17992,7 +17986,7 @@ textarea.notes {
     border-radius: var(--r-pill);
     background: none;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
     transition:
         background-color var(--t-hover) var(--ease-out),
         border-color var(--t-hover) var(--ease-out),
@@ -18089,7 +18083,7 @@ textarea.notes {
     align-items: baseline;
     gap: 0.6rem;
     padding: 8px 14px;
-    font-size: 12.5px;
+    font-size: 13px;
     overflow-wrap: anywhere;
 }
 
@@ -18589,7 +18583,7 @@ pre.gallery-code {
     padding: 0 10px;
     border-radius: var(--r-row);
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 .session-scope-button .icon:last-child {
@@ -18629,10 +18623,10 @@ pre.gallery-code {
     align-items: center;
     gap: 8px;
     width: 100%;
-    padding: 7px 10px;
+    padding: 8px 10px;
     border-radius: var(--r-row);
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
     text-align: left;
 }
 
@@ -18645,7 +18639,7 @@ pre.gallery-code {
     margin-left: auto;
     flex: none;
     color: var(--faint);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .session-scope-menu button.on,
@@ -18657,8 +18651,6 @@ pre.gallery-code {
     padding: 8px 10px 3px;
     color: var(--faint);
     font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
 }
 
 .scope-sec:empty {
@@ -18689,7 +18681,7 @@ pre.gallery-code {
     align-items: center;
     gap: 6px;
     min-width: 0;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--muted);
 }
 
@@ -18827,24 +18819,17 @@ pre.gallery-code {
 
 .sessions .session-group > .group-head .group-name b {
     font-weight: 500;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--faint);
     letter-spacing: 0.02em;
 }
 
 .sessions .session-group > .group-head .group-count {
     order: 1;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--faint);
 }
 
-.sessions .session-group > .group-head .group-count::before {
-    content: "(";
-}
-
-.sessions .session-group > .group-head .group-count::after {
-    content: ")";
-}
 
 .sessions .session-group > .group-head::after {
     content: "";
@@ -18997,7 +18982,7 @@ pre.gallery-code {
     min-width: 0;
     height: 26px;
     padding: 0 8px;
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .sg-new {
@@ -19027,12 +19012,12 @@ pre.gallery-code {
     min-width: 0;
     gap: 3px;
     margin-left: 4px;
-    padding: 0 5px;
+    padding: 0 4px;
     overflow: hidden;
     border-radius: 999px;
     background: var(--hover);
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: 11px;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
@@ -19171,11 +19156,11 @@ pre.gallery-code {
 /* The scope menu as the design has it: a project's key in a chip. */
 .scope-key {
     flex: none;
-    padding: 1px 5px;
+    padding: 1px 4px;
     border-radius: var(--r-tag);
     background: var(--accent-soft);
     color: var(--accent);
-    font: 600 10.5px var(--mono);
+    font: 600 11px var(--mono);
 }
 
 /* A bare sheet (an extension's task sheet): no title bar, only the grip on a phone; what is in it fills the body edge to
@@ -19239,7 +19224,7 @@ pre.gallery-code {
     min-height: 34px;
     padding: 6px 14px;
     border-bottom: 1px solid var(--hair);
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
 }
 
@@ -19374,7 +19359,7 @@ pre.gallery-code {
     max-width: 300px;
     text-align: center;
     color: var(--faint);
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 .pb-takeover {
@@ -19406,7 +19391,7 @@ pre.gallery-code {
     height: 32px;
     border-radius: var(--r-row, 8px);
     background: var(--card-2);
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--text);
 }
 
@@ -19435,7 +19420,7 @@ pre.gallery-code {
     gap: 6px;
     min-width: 0;
     max-width: 100%;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
 }
 
@@ -19462,7 +19447,7 @@ pre.gallery-code {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--accent);
 }
 
@@ -19471,7 +19456,7 @@ pre.gallery-code {
     flex: none;
     padding: 6px 14px;
     border-bottom: 1px solid var(--hair);
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--text);
     background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
@@ -19493,7 +19478,7 @@ pre.gallery-code {
 
 .pb-hint {
     margin: 0;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
 }
 
@@ -19557,7 +19542,7 @@ pre.gallery-code {
     flex-direction: column;
     flex: 1;
     min-width: 0;
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .pb-preview-text span {
@@ -19663,11 +19648,11 @@ pre.gallery-code {
 }
 
 .pu-tag {
-    padding: 1px 7px;
+    padding: 1px 8px;
     border-radius: var(--r-seg);
     background: var(--card);
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .pu-note {
@@ -19694,7 +19679,7 @@ pre.gallery-code {
     border: 0;
     border-radius: var(--r-seg);
     padding: 4px 10px;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
     background: none;
 }
@@ -19771,18 +19756,18 @@ pre.gallery-code {
     margin: 0;
     padding-left: 22px;
     color: var(--text);
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.5;
 }
 
 .pr-now {
     color: var(--accent);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .pr-detail {
     color: var(--warn);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 @media (max-width: 480px) {
@@ -19810,7 +19795,7 @@ pre.gallery-code {
 .pv-team-tag {
     display: inline-block;
     margin-left: 4px;
-    padding: 0 7px;
+    padding: 0 8px;
     border: 1px solid var(--accent-line);
     border-radius: 999px;
     color: var(--accent);
@@ -19904,8 +19889,6 @@ pre.gallery-code {
 .welcome-step {
     font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
     color: var(--muted);
 }
 
@@ -19937,7 +19920,7 @@ pre.gallery-code {
     align-items: center;
     gap: 12px;
     width: 100%;
-    padding: 13px 14px;
+    padding: 12px 14px;
     border: 0;
     border-top: 1px solid var(--hair);
     background: var(--card);
@@ -20005,7 +19988,7 @@ button.welcome-row:hover {
     height: 30px;
     border-radius: 8px;
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 600;
     color: #fff;
 }
 
@@ -20023,7 +20006,7 @@ button.welcome-row:hover {
 }
 
 .welcome-note {
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
 }
 
@@ -20048,7 +20031,7 @@ button.welcome-row:hover {
     flex: none;
     margin: 8px auto 0;
     width: min(100% - 24px, 760px);
-    padding: 9px 12px;
+    padding: 8px 12px;
     border: 1px solid var(--hair);
     border-radius: 12px;
     background: var(--card);
@@ -20114,13 +20097,13 @@ button.welcome-row:hover {
     margin: 8px 0 2px;
     padding: 0;
     list-style: none;
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 .guide-items li {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
 }
 
 .guide-items li.done {
@@ -20177,10 +20160,8 @@ button.welcome-row:hover {
 }
 
 .whats-new-tag {
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
     color: var(--accent);
 }
 

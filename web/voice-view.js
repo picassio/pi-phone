@@ -73,7 +73,7 @@ export function VoiceButton({ session }) {
         onMouseDown=${(event) => event.preventDefault()}
         onClick=${() => attempt(() => startVoice(session))}
     >
-        <${Icon} name="voice" size=${17} />
+        <${Icon} name="voice" size=${16} />
     </button>`;
 }
 
@@ -157,7 +157,7 @@ export function Recent() {
     return html`<div class="voice-recent" ref=${list} data-part="voice-recent">
         ${rows.slice(-8).map(
             (row) => html`<div class="voice-line" key=${row.key}>
-                <${Icon} name=${row.icon} size=${13} />
+                <${Icon} name=${row.icon} size=${14} />
                 <span><b>${row.who}</b> · ${row.text.length > 400 ? `${row.text.slice(0, 400)}…` : row.text}</span>
             </div>`,
         )}
@@ -217,7 +217,7 @@ export function VoicePanel({ leaving = false }) {
             ${
                 beside &&
                 html`<button class="icon-button" type="button" aria-label=${t("Close the panel (the call goes on)")} title=${t("Close")} onClick=${hideVoice}>
-                    <${Icon} name="close" size=${17} />
+                    <${Icon} name="close" size=${16} />
                 </button>`
             }
         </header>
@@ -350,7 +350,7 @@ export function CallControls({ call, onType, onShow = null }) {
             ${
                 approvals > 0 &&
                 html`<div class="assist-notice" data-part="voice-approval">
-                    <${Icon} name="shield" size=${18} />
+                    <${Icon} name="shield" size=${16} />
                     <div><b>${t("Pi needs your OK")}</b><p>${t("Approvals need a tap: see the card in the chat.")}</p></div>
                     ${onShow && html`<button class="button small" onClick=${onShow}>${t("Show")}</button>`}
                 </div>`

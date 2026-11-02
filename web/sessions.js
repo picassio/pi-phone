@@ -490,7 +490,7 @@ function SessionRow({
                 <span class="session-l1">
                     <${Icon} name=${session.group ? "board" : remote ? "monitor" : "folder"} size=${12} />
                     <span class="session-where">${place}</span>
-                    ${pinned && html`<span class="session-pinned" title=${t("Pinned")}><${Icon} name="pin" size=${10} /></span>`}
+                    ${pinned && html`<span class="session-pinned" title=${t("Pinned")}><${Icon} name="pin" size=${12} /></span>`}
                     ${filed && html`<span class="sg-tag" title=${t("In the group {name}", { name: filed })}><${Icon} name="folder" size=${9} />${filed}</span>`}
                     <span class="session-side">
                         ${
@@ -499,7 +499,7 @@ function SessionRow({
                                 class=${`session-fork ${live > 0 ? "" : "failed"}`}
                                 title=${subagentsTip(counts)}
                             >
-                                <${Icon} name="fork" size=${10} />${live > 0 ? live : failed}
+                                <${Icon} name="fork" size=${12} />${live > 0 ? live : failed}
                             </span>`
                         }
                         ${!fork && person && html`<${Avatar} person=${person} size=${16} />`}
@@ -532,7 +532,7 @@ function SessionRow({
                     (branch || task || settled) &&
                     html`<span class="session-l3">
                         ${task && html`<span class="session-ref">${task[1]}</span>`}
-                        ${branch && html`<${Icon} name="fork" size=${10} /><span class="session-branch">${branch}</span>`}
+                        ${branch && html`<${Icon} name="fork" size=${12} /><span class="session-branch">${branch}</span>`}
                         ${settled && html`<span class="session-reason">${settled}</span>`}
                     </span>`
                 }
@@ -572,7 +572,7 @@ function SessionRow({
                 ${foldTrouble && html`<span class=${`group-trouble ${foldTrouble}`} aria-hidden="true"></span>`}
                 <span class="session-fold-pill">
                     ${kids}
-                    <${Icon} name="down" size=${10} />
+                    <${Icon} name="down" size=${12} />
                 </span>
             </button>`
         }
@@ -883,10 +883,10 @@ function ScopePicker({ scope, onScope, sessions, home, mine }) {
             open &&
             html`<div class="session-scope-menu" role="listbox" aria-label=${t("Show")}>
                 ${option("all", null, "All", `${live.length} active`)}
-                ${option("waits", html`<${Icon} name="chat" size=${13} />`, t("Waits for you"), `${live.filter((session) => session.waiting).length}`)}
+                ${option("waits", html`<${Icon} name="chat" size=${14} />`, t("Waits for you"), `${live.filter((session) => session.waiting).length}`)}
                 ${filed.length > 0 && html`<div class="scope-sec">${t("Groups")}</div>`}
                 ${filed.map(({ group, count }) =>
-                    option(`fg:${group.id}`, html`<${Icon} name=${group.pinned ? "pin" : "folder"} size=${13} />`, group.name, `${count}`),
+                    option(`fg:${group.id}`, html`<${Icon} name=${group.pinned ? "pin" : "folder"} size=${14} />`, group.name, `${count}`),
                 )}
                 ${teams.size > 0 && html`<div class="scope-sec">${t("Projects")}</div>`}
                 ${[...teams.values()]
@@ -906,7 +906,7 @@ function ScopePicker({ scope, onScope, sessions, home, mine }) {
                     .map((folder) =>
                         option(
                             `folder:${folder.cwd}`,
-                            html`<${Icon} name=${folder.cwd.startsWith("machine:") ? "monitor" : "folder"} size=${13} />`,
+                            html`<${Icon} name=${folder.cwd.startsWith("machine:") ? "monitor" : "folder"} size=${14} />`,
                             folderPlace(folder.cwd),
                             `${folder.count}`,
                         ),
@@ -1680,7 +1680,7 @@ function AllSessions({ compact = false }) {
                         aria-label=${t("Clear")}
                         onClick=${() => setQuery("")}
                     >
-                        <${Icon} name="close" size=${13} />
+                        <${Icon} name="close" size=${14} />
                     </button>`
                     : html`<span
                             class="search-keys"
@@ -1794,7 +1794,7 @@ function AllSessions({ compact = false }) {
                                             ? html`<b>${group.label}</b>`
                                             : group.label
                                     }
-                                    ${folder?.pinned && html`<span class="sg-pin" title=${t("Pinned")}><${Icon} name="pin" size=${10} /></span>`}
+                                    ${folder?.pinned && html`<span class="sg-pin" title=${t("Pinned")}><${Icon} name="pin" size=${12} /></span>`}
                                 </span>
                                 ${
                                     trouble &&
@@ -1808,7 +1808,7 @@ function AllSessions({ compact = false }) {
                                 <span class="group-count" data-part="session-group-count">
                                     ${group.count ?? group.total}
                                 </span>
-                                ${group.key !== "flat" && html`<${Icon} name="down" size=${11} />`}
+                                ${group.key !== "flat" && html`<${Icon} name="down" size=${12} />`}
                             </button>`
                             : null
                     }

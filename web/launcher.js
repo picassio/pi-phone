@@ -914,7 +914,7 @@ export function Launcher({ leaving, returnTo }) {
                 />
                 <kbd class="launcher-escape" aria-hidden="true">${t("esc")}</kbd>
                 <button class="launcher-close" aria-label=${t("Close launcher")} onClick=${close}>
-                    <${Icon} name="close" size=${18} />
+                    <${Icon} name="close" size=${16} />
                 </button>
             </div>
             <div

@@ -1456,7 +1456,7 @@ export function ExtensionRailButtons() {
                 aria-pressed=${spec.page === undefined ? undefined : open}
                 onClick=${() => (open ? closePage() : activate(record, spec))}
             >
-                <${Icon} path=${pathOf(spec)} size=${18} />
+                <${Icon} path=${pathOf(spec)} size=${16} />
                 ${badge !== "" && html`<span class="rail-count">${badge}</span>`}
             </button>`;
         })}

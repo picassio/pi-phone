@@ -306,7 +306,7 @@ export function BranchPicker() {
                 </span>
             </header>
             <label class="search pop-menu-search">
-                <${Icon} name="search" size=${15} />
+                <${Icon} name="search" size=${16} />
                 <input
                     ref=${search}
                     placeholder=${t("Switch to or make a branch")}

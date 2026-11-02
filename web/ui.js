@@ -1788,7 +1788,7 @@ export function Sheet({ title, onClose, children, wide = false, actions = null, 
                 ${
                     onBack &&
                     html`<button class="icon-button sheet-back" onClick=${onBack} aria-label=${t("Back")}>
-                        <${Icon} name="back" size=${18} />
+                        <${Icon} name="back" size=${16} />
                     </button>`
                 }
                 <h2>${title}</h2>
@@ -2184,7 +2184,7 @@ export function MultiChoice({ options, onAdd, label, placeholder = t("Add…"), 
             open &&
             html`<div ref=${menu} class=${`pop-menu choice-menu multi-choice ${open.down ? "down" : ""}`} style=${anchorStyle(open)} role="listbox" aria-multiselectable="true" aria-label=${label}>
                 <label class="search pop-menu-search">
-                    <${Icon} name="search" size=${15} />
+                    <${Icon} name="search" size=${16} />
                     <input placeholder=${t("Find")} aria-label=${t("Find")} value=${query} onInput=${(event) => setQuery(event.currentTarget.value)} />
                 </label>
                 <div class="pop-menu-list">
@@ -2206,7 +2206,7 @@ export function MultiChoice({ options, onAdd, label, placeholder = t("Add…"), 
                                         data-value=${option.value}
                                         onClick=${() => toggle(option.value)}
                                     >
-                                        <span class=${`mc-box ${on ? "on" : ""}`} aria-hidden="true">${on && html`<${Icon} name="check" size=${11} />`}</span>
+                                        <span class=${`mc-box ${on ? "on" : ""}`} aria-hidden="true">${on && html`<${Icon} name="check" size=${12} />`}</span>
                                         <span class="pop-menu-row-text">
                                             <span class="pop-menu-row-name">${option.label}</span>
                                             ${option.detail && html`<span class="pop-menu-row-sub">${option.detail}</span>`}

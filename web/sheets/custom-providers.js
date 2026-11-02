@@ -341,15 +341,22 @@ function ProviderForm({ provider, secrets, onDone }) {
     </div>`;
 }
 
-/** The owner's OpenAI-compatible providers, each with Edit and Remove, and Add. `changed`: the models changed. */
-export function CustomProviders({ changed }) {
+/**
+ * The owner's OpenAI-compatible providers, each with Edit and Remove, and Add. `changed`: the models changed;
+ * `onLoaded`: called once the list is in (or failed to come), so the sheet shows what is under it without moving it.
+ */
+export function CustomProviders({ changed, onLoaded }) {
     const [state, setState] = useState(null);
     const [editing, setEditing] = useState(null);
     const load = () =>
         attempt(async () => {
-            const answer = await api("custom-providers");
+            try {
+                const answer = await api("custom-providers");
 
-            setState(answer);
+                setState(answer);
+            } finally {
+                onLoaded?.();
+            }
         });
 
     useEffect(() => {

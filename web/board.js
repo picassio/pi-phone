@@ -115,7 +115,7 @@ function VoiceRow({ problem, setProblem }) {
                     callFrom(opens).catch((error) => setProblem(error.message));
                 }}
             >
-                <${Icon} name="voice" size=${15} />${t("Voice")}
+                <${Icon} name="voice" size=${16} />${t("Voice")}
             </button>
         </div>
         ${

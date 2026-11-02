@@ -185,7 +185,7 @@ function TreeFolder({ path, depth, ctx }) {
             >
                 ${
                     entry.dir
-                        ? html`<${Icon} name="chevron" size=${11} class=${`chev ${open ? "open" : ""}`} />`
+                        ? html`<${Icon} name="chevron" size=${12} class=${`chev ${open ? "open" : ""}`} />`
                         : html`<span class="ft-spacer"></span>`
                 }
                 <span class="ft-name">${entry.name}</span>
@@ -588,12 +588,12 @@ function FilesTab({ changes, covering }) {
                     aria-label=${t("Fold every folder")}
                     onClick=${() => update(() => new Set())}
                 >
-                    <${Icon} name="down" size=${15} />
+                    <${Icon} name="down" size=${16} />
                 </button>
                 ${
                     canSteer() &&
                     html`<label class="icon-button" title=${t("Upload files into {folder}", { folder: shortPath(uploadDir, server?.home) })} aria-label=${t("Upload files")}>
-                        <${Icon} name="upload" size=${15} />
+                        <${Icon} name="upload" size=${16} />
                         <input type="file" multiple hidden onChange=${uploadFiles} />
                     </label>`
                 }
@@ -608,7 +608,7 @@ function FilesTab({ changes, covering }) {
                         reloadChanges(id);
                     }}
                 >
-                    <${Icon} name="reload" size=${15} />
+                    <${Icon} name="reload" size=${16} />
                 </button>
             </div>
             <div class="ft-tree" role="tree" aria-label=${t("Files")} onKeyDown=${onTreeKey}>
@@ -764,7 +764,7 @@ export function FilesPanel({ leaving = false }) {
                     title=${t("Close (Alt+E)")}
                     onClick=${() => setFilesOpen(false)}
                 >
-                    <${Icon} name="close" size=${17} />
+                    <${Icon} name="close" size=${16} />
                 </button>`
             }
         </header>
@@ -798,6 +798,6 @@ export function FilesButton() {
         title=${t("Files and changes (Alt+E)")}
         onClick=${() => toggleFiles()}
     >
-        <${Icon} name="folder" size=${18} />
+        <${Icon} name="folder" size=${16} />
     </button>`;
 }

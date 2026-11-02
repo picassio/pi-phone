@@ -139,7 +139,7 @@ function Allowed() {
                     }
                 </span>
                 <button class="icon-button" type="button" aria-label=${t("Take {model} off", { model: nameOf(spec) })} onClick=${() => save(spec, false)}>
-                    <${Icon} name="close" size=${15} />
+                    <${Icon} name="close" size=${16} />
                 </button>
             </div>`;
         })}

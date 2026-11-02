@@ -247,7 +247,7 @@ class ChatLine extends Component {
                 html`<div class="chat-meta">
                     <span class="chat-name">${mine ? t("You") : senderName(message, users)}</span>
                     <span class="muted">${clock(message.at)}</span>
-                    ${pinned && html`<${Icon} name="pin" size=${11} class="muted" />`}
+                    ${pinned && html`<${Icon} name="pin" size=${12} class="muted" />`}
                 </div>`
             }
             ${
@@ -566,7 +566,7 @@ function ChatTab({ highlight, focus }) {
             disabled=${text.trim() === "" || sending}
             onClick=${send}
         >
-            ${sending ? html`<${Spinner} />` : html`<${Icon} name="send" size=${18} />`}
+            ${sending ? html`<${Spinner} />` : html`<${Icon} name="send" size=${16} />`}
         </button>
     </div>`;
 }
@@ -805,7 +805,7 @@ function PeopleTabs({ ask, focus }) {
                 class="people-pin"
                 onClick=${() => (featured.entryId !== undefined ? jumpToEntry(featured.entryId) : setHighlight(featured.chatId))}
             >
-                <${Icon} name="pin" size=${13} />
+                <${Icon} name="pin" size=${14} />
                 <span><b>${t("Pinned by {name}", { name: pinnedBy })}</b> · ${featured.text}</span>
             </button>`
         }

@@ -156,7 +156,7 @@ export function FileView({ path, line, onOpen = openFile, onLoad }) {
                 ${file.entries.map((entry) =>
                     item(
                         html`<span class="file-entry">
-                            <${Icon} name=${entry.dir ? "folder" : "file"} size=${15} /> ${entry.name}
+                            <${Icon} name=${entry.dir ? "folder" : "file"} size=${16} /> ${entry.name}
                             ${entry.dir ? "/" : ""}
                         </span>`,
                         () => onOpen(`${file.path}/${entry.name}`),
@@ -305,7 +305,7 @@ export function FileSheet({ path, line }) {
             title=${t("Download (to Downloads on the phone)")}
             onClick=${() => downloadSessionFile(file.path, name)}
         >
-            <${Icon} name="download" size=${18} />
+            <${Icon} name="download" size=${16} />
         </button>`;
 
     return html`<${Sheet} title=${name} onClose=${closeSheet} wide=${true} actions=${download || null}>

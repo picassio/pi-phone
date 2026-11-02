@@ -90,7 +90,7 @@ export function MadeAudio({ audio, conversationId, voice }) {
         ></audio>
         <div class="made-audio-row">
             <button class="made-audio-play" data-part="audio-play" aria-label=${playing ? t("Pause") : t("Play")} onClick=${toggle}>
-                <${Icon} name=${playing ? "pause" : "play"} size=${18} />
+                <${Icon} name=${playing ? "pause" : "play"} size=${16} />
             </button>
             <div class="made-audio-wave" role="slider" aria-label=${t("Position")} aria-valuemin="0" aria-valuemax=${Math.round(length)} aria-valuenow=${Math.round(at)} onClick=${seek}>
                 ${(peaks ?? Array(BARS).fill(0.15)).map((peak, index) => html`<i class=${index / BARS < done ? "on" : ""} style=${`height:${Math.round(12 + peak * 88)}%`}></i>`)}

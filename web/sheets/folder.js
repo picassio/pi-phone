@@ -482,7 +482,7 @@ export function CwdSheet({ mode, start, title }) {
         aria-current=${path === folder ? "location" : undefined}
         onClick=${() => load(path)}
     >
-        <${Icon} name=${icon} size=${15} />
+        <${Icon} name=${icon} size=${16} />
         <span>${name}</span>
         ${key && html`<span class="fp-key">${key}</span>`}
     </button>`;
@@ -502,7 +502,7 @@ export function CwdSheet({ mode, start, title }) {
                 disabled=${!listing?.parent}
                 onClick=${up}
             >
-                <${Icon} name="up" size=${18} />
+                <${Icon} name="up" size=${16} />
             </button>
             ${
                 editing !== null
@@ -547,7 +547,7 @@ export function CwdSheet({ mode, start, title }) {
                                         <${Icon}
                                             key=${`${crumb.path}/`}
                                             name="chevron"
-                                            size=${11}
+                                            size=${12}
                                             class="fp-sep"
                                         />`,
                           )}
@@ -598,7 +598,7 @@ export function CwdSheet({ mode, start, title }) {
                         aria-label=${t("Never mind")}
                         onClick=${() => setMissing(null)}
                     >
-                        <${Icon} name="close" size=${15} />
+                        <${Icon} name="close" size=${16} />
                     </button>
                 </span>
             </div>`
@@ -620,7 +620,7 @@ export function CwdSheet({ mode, start, title }) {
                                 ? attempt(async () => load((await api(`machines/${encodeURIComponent(machine.id)}/folder`, {})).path))
                                 : load(joinPlace(machine.id, machine.home))}
                     >
-                        <${Icon} name=${machine.team ? "users" : "monitor"} size=${15} />
+                        <${Icon} name=${machine.team ? "users" : "monitor"} size=${16} />
                         <span>${machine.name}</span>
                         ${health[machine.id]?.ok === false && html`<${StateTag} tone="err" label=${t("Can't connect")} />`}
                     </button>`,
@@ -720,7 +720,7 @@ export function CwdSheet({ mode, start, title }) {
                         disabled=${saving}
                         onClick=${toggleFavorite}
                     >
-                        <${Icon} name="star" size=${15} />
+                        <${Icon} name="star" size=${16} />
                     </button>`
                 }
             </div>

@@ -154,7 +154,7 @@ export function TrustBar() {
                 title=${t("Not now: ask again in a new tab")}
                 onClick=${() => putOff(info.folder)}
             >
-                <${Icon} name="close" size=${13} />
+                <${Icon} name="close" size=${14} />
             </button>
         </span>
     </div>`;

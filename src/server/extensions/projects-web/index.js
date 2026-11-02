@@ -1437,7 +1437,7 @@ export default function projects(pocket) {
                         <button role="menuitem" onClick=${() => {
                             setMenu(null);
                             navigator.clipboard.writeText(`${location.origin}/?page=projects:projects#task:${task.ref}`).then(() => pocket.notify("info", t("Copied the link to {ref}.", { ref: task.ref })), failed);
-                        }}><${Icon} name="copy" size=${15} />${t("Copy link")}</button>
+                        }}><${Icon} name="copy" size=${16} />${t("Copy link")}</button>
                         <div class="pt-menu-label">${t("Type")}</div>
                         ${TYPES.map(
                             (each) => html`<button role="menuitemradio" aria-checked=${each.id === task.type} class=${each.id === task.type ? "on" : ""} onClick=${() => {
@@ -2080,7 +2080,7 @@ export default function projects(pocket) {
                 onInput=${(event) => setText(event.currentTarget.value)}
                 onKeyDown=${(event) => event.key === "Enter" && (event.ctrlKey || event.metaKey) && (event.preventDefault(), send())}
             ></textarea>
-            <button class="pt-send" aria-label=${t("Send")} disabled=${text.trim() === ""}><${Icon} name="send" size=${17} /></button>
+            <button class="pt-send" aria-label=${t("Send")} disabled=${text.trim() === ""}><${Icon} name="send" size=${16} /></button>
         </form>`;
     }
 
@@ -2450,7 +2450,7 @@ export default function projects(pocket) {
 
         return html`<div class="pj-board-sheet">
             <div class="pj-picker-head">
-                <button class="icon-button" aria-label=${t("Back")} onClick=${onBack}><${Icon} name="back" size=${18} /></button>
+                <button class="icon-button" aria-label=${t("Back")} onClick=${onBack}><${Icon} name="back" size=${16} /></button>
                 <input
                     class="pj-picker-search"
                     type="search"

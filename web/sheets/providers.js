@@ -68,8 +68,13 @@ export function ProvidersSheet() {
         load();
     }, [store.state.models]);
     // The plan limits of each signed-in subscription account (src/server/usage-limits.ts), as the sheet opens.
+    // The list shows once they and the OpenAI-compatible providers above it are in (PP-336): their bars and rows coming
+    // in later moved the rows, so a tap landed on another one.
+    const [usageIn, setUsageIn] = useState(false);
+    const [customIn, setCustomIn] = useState(false);
+
     useEffect(() => {
-        void loadUsage();
+        void loadUsage().then(() => setUsageIn(true));
     }, []);
     useLayoutEffect(() => {
         if (!auth) {
@@ -78,6 +83,7 @@ export function ProvidersSheet() {
         }
     }, [auth]);
     const owner = me?.role === "owner";
+    const settled = providers !== null && usageIn && (customIn || !(owner && roleAllows("providers.custom")));
 
     const login = (provider, type, button) => {
         loginButton.current = button;
@@ -199,7 +205,7 @@ export function ProvidersSheet() {
             html`<${SubagentModels} />`
         }
         ${store.state.auth && html`<${AuthDialog} inline=${true} />`}
-        ${owner && roleAllows("providers.custom") && html`<${CustomProviders} changed=${store.state.models} />`}
+        ${owner && roleAllows("providers.custom") && html`<${CustomProviders} changed=${store.state.models} onLoaded=${() => setCustomIn(true)} />`}
         <label class="search">
             <${Icon} name="search" size=${16} />
             <input
@@ -208,8 +214,8 @@ export function ProvidersSheet() {
                 onInput=${(event) => setQuery(event.currentTarget.value)}
             />
         </label>
-        ${providers === null && html`<${Loader} label=${t("Loading providers")} />`}
-        <div class="sheet-list">
+        ${!settled && html`<${Loader} label=${t("Loading providers")} />`}
+        <div class="sheet-list" style=${settled ? "" : "display: none"}>
             ${
                 providers !== null &&
                 list.length === 0 &&

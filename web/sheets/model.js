@@ -279,12 +279,12 @@ export function ModelPicker() {
                     }
                 </span>
                 <button class="pop-menu-link" onClick=${() => openSheet({ type: "providers" })}>
-                    <${Icon} name="key" size=${13} /> ${t("Providers")}</button>
+                    <${Icon} name="key" size=${14} /> ${t("Providers")}</button>
             </header>
             ${
                 searchable &&
                 html`<label class="search pop-menu-search">
-                    <${Icon} name="search" size=${15} />
+                    <${Icon} name="search" size=${16} />
                     <input
                         ref=${search}
                         placeholder=${t("Search models")}
@@ -369,7 +369,7 @@ export function ModelPicker() {
                             ${
                                 sessionIsDefault
                                     ? html`<span class="pop-menu-default-mark">
-                                          <${Icon} name="check" size=${13} /> ${t("Default")}</span>`
+                                          <${Icon} name="check" size=${14} /> ${t("Default")}</span>`
                                     : html`<button
                                           class="pop-menu-link"
                                           title=${t("New sessions start with this model and thinking level")}

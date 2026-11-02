@@ -50,7 +50,7 @@ export function SchedulesSheet() {
             html`<div class="sheet-list">
                 ${view.schedules.map(
                     (schedule) => html`<div class="schedule" key=${schedule.id}>
-                        <${Icon} name="clock" size=${15} />
+                        <${Icon} name="clock" size=${16} />
                         <div class="grow">
                             <div>${schedule.text}</div>
                             <div class="muted small">

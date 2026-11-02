@@ -276,7 +276,7 @@ function CiWatchBar() {
                     <span class="ci-dot" aria-hidden="true"></span>
                     <span class="ci-name">${watch.workflow}</span>
                     <span class="ci-meta">#${watch.number}</span>
-                    <span class="ci-branch"><${Icon} name="fork" size=${11} />${watch.branch}</span>
+                    <span class="ci-branch"><${Icon} name="fork" size=${12} />${watch.branch}</span>
                     <span class="ci-time" aria-label=${t("watched for")}>${elapsed(watch.startedAt)}</span>
                 </a>
                 ${
@@ -287,7 +287,7 @@ function CiWatchBar() {
                         title=${t("Stop watching")}
                         onClick=${() => attempt(() => actions.stopCiWatch(watch))}
                     >
-                        <${Icon} name="close" size=${13} />
+                        <${Icon} name="close" size=${14} />
                     </button>`
                 }
             </div>`,
@@ -1177,7 +1177,7 @@ export function Composer() {
                 <span>
                     <strong>${t("View only.")}</strong> ${t("You can read along, react, and chat with the people here.")}</span>
                 <button class="button small" onClick=${() => openSheet({ type: "chat" })}>
-                    <${Icon} name="chat" size=${15} /> ${t("Chat")}</button>
+                    <${Icon} name="chat" size=${16} /> ${t("Chat")}</button>
             </div>
             <${StatusLine} />
         </footer>`;
@@ -1225,7 +1225,7 @@ export function Composer() {
                                     title=${queuedReports(item) ? t("Discard these reports: Pi will not get them") : t("Withdraw")}
                                     onClick=${() => attempt(() => actions.withdraw(item.id))}
                                 >
-                                    <${Icon} name="close" size=${13} />
+                                    <${Icon} name="close" size=${14} />
                                 </button>`
                             }
                         </div>`,
@@ -1430,7 +1430,7 @@ export function Composer() {
                                         file.preview &&
                                         html`<img class="chip-thumb" src=${file.preview} alt="" />`
                                     }
-                                    ${file.state === "uploading" ? html`<${Spinner} />` : file.preview ? "" : html`<${Icon} name="clip" size=${13} />`}
+                                    ${file.state === "uploading" ? html`<${Spinner} />` : file.preview ? "" : html`<${Icon} name="clip" size=${14} />`}
                                     <span class="chip-name" title=${file.name}>${file.name}</span>
                                     <span class="muted">${formatBytes(file.size)}</span>
                                     <button
@@ -1474,7 +1474,7 @@ export function Composer() {
                             title=${t("Attach files")}
                             onClick=${() => picker.current?.click()}
                         >
-                            <${Icon} name="clip" size=${17} />
+                            <${Icon} name="clip" size=${16} />
                         </button>
                         <input
                             ref=${picker}
@@ -1860,7 +1860,7 @@ function StatusLine() {
                 title=${guard.detail}
                 onClick=${() => openSheet({ type: "extensions" })}
             >
-                <${Icon} name="shield" size=${11} />
+                <${Icon} name="shield" size=${12} />
                 <span><span class="word">${t("guard")}${" "}</span>${state}</span>
             </button>`,
         );

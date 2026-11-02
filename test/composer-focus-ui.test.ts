@@ -229,7 +229,7 @@ test("at 320 px wide, Stop stays inside the message box while Pi works", real, a
     for (const words of ["", "a few words"]) {
         await page.type({ selector: BOX }, words);
         await setBusy(true);
-        const fit = await inPage<{ scroll: number; client: number; stop: number; right: number }>(`
+        const fit = await inPage<{ scroll: number; client: number; stop: number; right: number; parts: string[] }>(`
             const row = document.querySelector(".composer-row");
             const stop = row.querySelector(".stop-button").getBoundingClientRect();
             return JSON.stringify({
@@ -237,6 +237,8 @@ test("at 320 px wide, Stop stays inside the message box while Pi works", real, a
                 client: row.clientWidth,
                 stop: stop.right,
                 right: row.getBoundingClientRect().right,
+                // What takes the room, for a failure's message.
+                parts: [...row.children].map((part) => part.className.split(" ")[0] + " " + Math.round(part.getBoundingClientRect().width * 10) / 10),
             });
         `);
 

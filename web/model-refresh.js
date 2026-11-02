@@ -61,7 +61,7 @@ export function RefreshModels() {
             aria-busy=${loading}
             onClick=${refreshModels}
         >
-            <${Icon} name="reload" size=${15} />
+            <${Icon} name="reload" size=${16} />
             ${loading ? t("Refreshing models…") : t("Refresh models")}
         </button>
         <div class="model-refresh-status small" role="status" aria-live="polite">

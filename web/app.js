@@ -206,10 +206,10 @@ function Topbar() {
                                         title=${view.branch?.detached ? t("No branch: switch to one") : t("Switch or make a branch")}
                                         onClick=${() => openSheet({ type: "branch" })}
                                     >
-                                        <${Icon} name="fork" size=${10} /><span class="title-branch-name">${branch}</span>
+                                        <${Icon} name="fork" size=${12} /><span class="title-branch-name">${branch}</span>
                                     </button>`
                                   : html`<span class="title-branch" title=${t("The git branch")}>
-                                        <${Icon} name="fork" size=${10} /><span class="title-branch-name">${branch}</span>
+                                        <${Icon} name="fork" size=${12} /><span class="title-branch-name">${branch}</span>
                                     </span>`)
                           }
                           ${

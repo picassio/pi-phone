@@ -586,7 +586,7 @@ export function BrowserPanel({ leaving = false }) {
             ${
                 beside &&
                 html`<button class="icon-button" type="button" aria-label=${t("Close the panel")} title=${t("Close")} onClick=${() => setBrowserOpen(false)}>
-                    <${Icon} name="close" size=${17} />
+                    <${Icon} name="close" size=${16} />
                 </button>`
             }
         </header>

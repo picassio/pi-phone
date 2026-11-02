@@ -34,6 +34,7 @@ let server: Server;
 let browsers: Browsers;
 let page: BrowserPage;
 let base = "";
+let slow = false;
 
 async function inPage<T>(script: string): Promise<T> {
     return JSON.parse(await page.evaluate(script)) as T;
@@ -89,7 +90,12 @@ before(async () => {
     });
     // It answers (there is no real machine behind it).
     Object.assign(app.places, { health: async () => ({ [devbox]: { ok: true, at: Date.now() } }) });
-    server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
+    const handler = createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} });
+
+    // With `slow` on, the plan limits and the OpenAI-compatible providers answer a second late, as on a phone.
+    server = createServer((request, response) =>
+        slow && /\/api\/(usage-limits|custom-providers)/.test(request.url ?? "") ? setTimeout(() => handler(request, response), 1200) : handler(request, response),
+    );
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     browsers = new Browsers({ dataDir: mkdtempSync(join(root, "unslop-ui-browser-")), load: async () => undefined, save: () => {} });
@@ -223,4 +229,25 @@ test("Wiki settings: Capture model, Embedding model and Open questions are the a
     await shot("unslop-wiki-capture-390.jpg");
     await page.evaluate(`document.querySelectorAll('.choice-menu .pop-menu-row')[1].click(); return "true";`);
     await until(async () => (await app.para.settings()).captureModel !== "auto", "the pick kept");
+});
+
+test("Providers: the list stays where it first shows while the plan limits and the OpenAI-compatible providers come in (PP-336)", real, async () => {
+    slow = true;
+
+    try {
+        await page.navigate(`${base}/?sheet=providers`);
+
+        // Where the first provider row is the moment it can be tapped, and a while later.
+        const firstRow = `const row = [...document.querySelectorAll(".sheet .sheet-list .provider")].find((each) => !each.closest(".custom-providers") && each.getClientRects().length > 0);
+            return JSON.stringify(row === undefined ? null : Math.round(row.getBoundingClientRect().top));`;
+
+        await until(async () => (await inPage<number | null>(firstRow)) !== null, "a provider row", 30_000);
+
+        const shown = await inPage<number>(firstRow);
+
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+        assert.equal(await inPage<number>(firstRow), shown, "the row did not move");
+    } finally {
+        slow = false;
+    }
 });

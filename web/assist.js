@@ -522,7 +522,7 @@ export function AssistView() {
         settings.from !== false &&
         html`<div class="assist-chips">
             <span class=${`chip assist-from ${fromOn ? "" : "off"}`} data-part="assist-from">
-                <${Icon} name="phone" size=${13} />
+                <${Icon} name="phone" size=${14} />
                 ${t("From {app}", { app: from.label })}
                 <button
                     aria-label=${fromOn ? t("Don't say you're in {app}", { app: from.label }) : t("Say you're in {app}", { app: from.label })}
@@ -569,11 +569,11 @@ export function AssistView() {
                 ${
                     (targetId !== null || sent) &&
                     html`<button class="icon-button" title=${t("Open in pi-phone")} aria-label=${t("Open in pi-phone")} onClick=${open}>
-                        <${Icon} name="external" size=${18} />
+                        <${Icon} name="external" size=${16} />
                     </button>`
                 }
                 <button class="icon-button" title=${t("Close")} aria-label=${t("Close")} onClick=${close}>
-                    <${Icon} name="close" size=${18} />
+                    <${Icon} name="close" size=${16} />
                 </button>
             </header>
             <div class="assist-body" aria-live="polite">
@@ -621,7 +621,7 @@ export function AssistView() {
                 ${
                     phase === "problem" &&
                     html`<div class="assist-notice ${said.mic ? "error" : ""}" data-part="assist-problem">
-                        <${Icon} name="mic" size=${18} />
+                        <${Icon} name="mic" size=${16} />
                         <div><b>${said.title}</b><p>${said.text}</p></div>
                     </div>`
                 }
@@ -674,7 +674,7 @@ export function AssistView() {
                                 onClick=${() => send(text)}
                             >
                                 ${countdown !== null && html`<svg class="assist-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" /></svg>`}
-                                <${Icon} name="send" size=${18} />
+                                <${Icon} name="send" size=${16} />
                             </button>
                         </div>
                         ${

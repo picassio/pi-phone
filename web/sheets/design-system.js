@@ -55,7 +55,7 @@ export function DesignSystemSheet() {
             html`${state.chosen !== null && !chosen && html`<p class="wiki-problem">${t("The design system {id} is gone; pick another or none.", { id: state.chosen })}</p>`}
                 ${state.problems.map((problem) => html`<p class="wiki-problem mono small">${t("Not a design system: {problem}", { problem })}</p>`)}
                 <label class="search">
-                    <${Icon} name="search" size=${15} />
+                    <${Icon} name="search" size=${16} />
                     <input type="search" aria-label=${t("Search design systems")} placeholder=${t("Search design systems")} value=${query} onInput=${(event) => setQuery(event.currentTarget.value)} />
                 </label>
                 <div class="sheet-list">

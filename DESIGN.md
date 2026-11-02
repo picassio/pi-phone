@@ -179,7 +179,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
 - **StateTag** (`web/ui.js`, PP-330; also to extensions as `pocket.StateTag`): a thing's state at the end of its title
   line as a word and a small dot in the theme's green, yellow, red or muted ("Connected", "Ready", "Needs sign-in",
   "On"), never a ✓ or ⚠ dingbat. pi-phone's own screens had unslop's pass (PP-328, the owner's OK on the mockups of
-  2026-11-02); `test/unslop-ui.test.ts` holds them to it.
+  2026-11-02); `test/unslop-ui.test.ts` holds them to it. Its rules for `web/style.css`: whole-pixel type sizes (11, 12,
+  13, 14, 16, 20, 24; a few 10 and 15 in tight places), weights 400 to 600, section labels in sentence case without
+  letter spacing, counts as a plain number after the label ("Settled 50"), paddings, margins and gaps on the 4 px grid
+  (2 px steps and 1 to 3 px nudges inside small controls), icons at 12, 14 or 16 px (19 and up only in the rail and
+  empty states), no hue gradients. The Providers list shows once the plan limits and the OpenAI-compatible providers
+  are in, so nothing moves under a tap.
 - **Machines** (`src/server/machines.ts`, `web/sheets/machines.js`): other computers sessions can work on, through
   `@earendil-works/pi-env` (its daemon on the machine, deployed over ssh and verified by hash). `machines.json` holds
   name, `user@host[:port]`, and the SSH key; host keys the owner accepted are in `~/.ssh/pi-phone_known_hosts` under
