@@ -693,18 +693,21 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                     ${t("Terminal")}
                 </button>`
             }
-            ${state === "connected" && html`<button class="button small" onClick=${() => openSheet({ type: "forwards", machineId: machine.id })}>${t("Ports")}</button>`}
-            ${state === "connected" && (!team || manage) && html`<button class="button small" disabled=${toolsOpen} onClick=${() => setToolsOpen(true)}>${t("Install tools")}</button>`}
             ${state === "connected" && html`<button class="button small" disabled=${busy !== null} onClick=${detect}>${busy === "detect" ? t("Testing…") : t("Test")}</button>`}
+            ${state === "connected" && (!team || manage) && html`<button class="button small" disabled=${toolsOpen} onClick=${() => setToolsOpen(true)}>${t("Install tools")}</button>`}
+            </div>
+            <div class="action-group" data-part="machine-more">
+                ${state === "connected" && html`<button class="button small quiet" onClick=${() => openSheet({ type: "forwards", machineId: machine.id })}>${t("Ports")}</button>`}
+                ${(!team || manage) && html`<button class="button small quiet" onClick=${() => setEditing(true)}>${team ? t("Rename") : t("Edit")}</button>`}
+                ${(!team || manage) && state === "connected" && html`<button class="button small quiet" disabled=${busy !== null} onClick=${connect}>${busy === "connect" ? t("Updating…") : t("Update helper")}</button>`}
+                ${(!team || manage) && key && html`<button class="button small quiet" onClick=${copyKey}>${t("Copy public key")}</button>`}
             </div>
             ${
+                // What cannot be undone: last, in red, on a line of its own (each still asks first).
                 (!team || manage) &&
-                html`<div class="action-group">
-                    ${state === "connected" && html`<button class="button small ghost" disabled=${busy !== null} onClick=${connect}>${busy === "connect" ? t("Updating…") : t("Update helper")}</button>`}
-                    ${key && html`<button class="button small ghost" onClick=${copyKey}>${t("Copy public key")}</button>`}
-                    <button class="button small ghost" onClick=${() => setEditing(true)}>${team ? t("Rename") : t("Edit")}</button>
-                    ${machine.hostKey && !team && html`<button class="button small ghost" disabled=${busy !== null} onClick=${forget}>${t("Forget host key")}</button>`}
-                    <button class="button small ghost" disabled=${busy !== null} onClick=${remove}>${t("Remove")}</button>
+                html`<div class="action-group danger-group" data-part="machine-danger">
+                    ${machine.hostKey && !team && html`<button class="button small danger" disabled=${busy !== null} onClick=${forget}>${t("Forget host key")}</button>`}
+                    <button class="button small danger" disabled=${busy !== null} onClick=${remove}>${t("Remove")}</button>
                 </div>`
             }
         </div>

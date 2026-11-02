@@ -10589,7 +10589,8 @@ textarea.notes {
 
 .spend-total strong {
     color: var(--text);
-    font: 600 30px var(--mono);
+    font: 500 32px var(--mono);
+    font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
 }
 
@@ -18324,6 +18325,37 @@ pre.gallery-code {
     display: none;
 }
 
+/* A row's less used actions as quiet text, and what cannot be undone in red on a line of its own (PP-331). */
+.button.quiet,
+.button.danger {
+    background: none;
+    border-color: transparent;
+    color: var(--muted);
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.button.danger {
+    color: var(--err);
+}
+
+@media (hover: hover) {
+    .button.quiet:hover {
+        background: var(--hover);
+        color: var(--text);
+    }
+
+    .button.danger:hover {
+        background: color-mix(in oklab, var(--err) 12%, transparent);
+    }
+}
+
+.provider-actions .danger-group {
+    align-self: stretch;
+    padding-top: 8px;
+    border-top: 1px solid var(--hair);
+}
+
 .ssh-key .mono {
     overflow-wrap: anywhere;
 }
@@ -19165,9 +19197,10 @@ pre.gallery-code {
     gap: 0;
 }
 
-/* A Spend row's second line (the wiki's embeddings: requests, tokens, since when). */
+/* A Spend row's second line (the wiki's embeddings: requests, tokens, since when): wraps rather than cut off. */
 .spend-sub {
     display: block;
+    white-space: normal;
 }
 
 /* ─── Pi's browser (browser-panel.js): docks where the Files tile does (it shares its frame), covers the screen on phones */

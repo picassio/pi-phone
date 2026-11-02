@@ -4,7 +4,15 @@ import { api, attempt, closeSheet, openSheet, store } from "../store.js";
 import { html, Icon, Loader, Sheet } from "../ui.js";
 import { t, tn, tx } from "../i18n.js";
 
-const money = (amount) => `$${amount.toFixed(2)}`;
+// One format for every figure on the sheet (PP-332): the device's grouping, two decimals (four under a cent), tabular
+// digits in the CSS; large counts short (21.3M), dates without the year when it is this one.
+const money = (amount) => {
+    const digits = amount > 0 && amount < 0.01 ? 4 : 2;
+
+    return `$${amount.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+};
+const count = (n) => n.toLocaleString(undefined, n >= 100_000 ? { notation: "compact", maximumFractionDigits: 1 } : {});
+const day = (ms) => new Date(ms).toLocaleDateString(undefined, new Date(ms).getFullYear() === new Date().getFullYear() ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
 const largest = (rows) => rows.reduce((max, row) => Math.max(max, row.spent), 1);
 
 /** A spend limit, and (for the owner) a way to change it. */
@@ -116,10 +124,10 @@ export function SpendSheet() {
                 <div class="sheet-list">
                     <div class="spend-row">
                         <span class="grow">
-                            ${t("Search by meaning and image descriptions")}
-                            <small class="muted spend-sub">${tn(data.wiki.requests, "{n} request · {tokens} tokens · since {date}", "{n} requests · {tokens} tokens · since {date}", { tokens: data.wiki.tokens.toLocaleString(), date: new Date(data.wiki.since).toLocaleDateString() })}</small>
+                            ${t("Search by meaning and images")}
+                            <small class="muted spend-sub">${tn(data.wiki.requests, "{n} request · {tokens} tokens · since {date}", "{n} requests · {tokens} tokens · since {date}", { n: count(data.wiki.requests), tokens: count(data.wiki.tokens), date: day(data.wiki.since) })}</small>
                         </span>
-                        <span class="mono">${data.wiki.cost > 0 && data.wiki.cost < 0.01 ? `${data.wiki.cost.toFixed(4)}` : money(data.wiki.cost)}</span>
+                        <span class="mono">${money(data.wiki.cost)}</span>
                     </div>
                 </div>
                 <p class="muted small">${t("Indexing pages and each search by meaning (OpenRouter): counted in the total, not in anyone's limit.")}</p>
@@ -164,9 +172,9 @@ export function SpendSheet() {
                     <div class="spend-row">
                         <span class="grow">
                             ${t("Images made")}
-                            <small class="muted spend-sub">${t("today {today} · this month {month}", { today: data.images.today, month: data.images.month })}</small>
+                            <small class="muted spend-sub">${t("today {today} · this month {month}", { today: count(data.images.today), month: count(data.images.month) })}</small>
                         </span>
-                        <span class="mono">${tn(data.images.today, "{n} image", "{n} images")}</span>
+                        <span class="mono">${count(data.images.today)}</span>
                     </div>
                 </div>
                 <p class="muted small">${t("Counted on your ChatGPT plan, not in the money above. Images from OpenRouter are in their session's spend.")}</p>

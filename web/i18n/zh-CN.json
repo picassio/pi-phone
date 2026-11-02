@@ -3422,5 +3422,6 @@
     "Allowed": "已允许",
     "Asked to drive": "已请求接管",
     "Needs a key": "需要密钥",
-    "Uses your {provider} sign-in.": "使用你的 {provider} 登录。"
+    "Uses your {provider} sign-in.": "使用你的 {provider} 登录。",
+    "Search by meaning and images": "按语义搜索与图片"
 }

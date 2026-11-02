@@ -134,3 +134,54 @@ test("states are a word and a dot, never ✓ or ⚠: Machines, Providers, Wiki (
     await page.evaluate(`document.querySelector('[data-part="wiki-rerank"]').scrollIntoView({ block: "center" }); return "true";`);
     await shot("unslop-wiki-390.jpg");
 });
+
+test("Machines: three main buttons, the rest quiet, Forget host key and Remove last in red on a line of their own (PP-331)", real, async () => {
+    await page.navigate(`${base}/?sheet=machines`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="machine-danger"]') !== null)`, "the machine's actions");
+
+    const groups = await inPage<{ kind: string; buttons: string[] }[]>(
+        `return JSON.stringify([...document.querySelectorAll(".machine .provider-actions .action-group")].map((group) => ({ kind: [...group.querySelectorAll("button")].map((button) => button.classList.contains("danger") ? "danger" : button.classList.contains("quiet") ? "quiet" : "button").join(","), buttons: [...group.querySelectorAll("button")].map((button) => button.textContent.trim()) })))`,
+    );
+
+    assert.deepEqual(groups, [
+        { kind: "button,button,button", buttons: ["Terminal", "Test", "Install tools"] },
+        { kind: "quiet,quiet,quiet,quiet", buttons: ["Ports", "Edit", "Update helper", "Copy public key"] },
+        { kind: "danger,danger", buttons: ["Forget host key", "Remove"] },
+    ]);
+
+    const colors = await inPage<{ remove: string; err: string; ports: string; terminal: string }>(
+        `const style = (text) => getComputedStyle([...document.querySelectorAll(".machine .provider-actions button")].find((button) => button.textContent.trim() === text));
+        const probe = document.createElement("span");
+        probe.style.color = "var(--err)";
+        document.body.append(probe);
+        const err = getComputedStyle(probe).color;
+        probe.remove();
+        return JSON.stringify({ remove: style("Remove").color, err, ports: style("Ports").backgroundColor, terminal: style("Terminal").backgroundColor });`,
+    );
+
+    assert.equal(colors.remove, colors.err, "Remove is in the theme's red");
+    assert.equal(colors.ports, "rgba(0, 0, 0, 0)", "Ports is quiet text, without a button's fill");
+    assert.notEqual(colors.terminal, "rgba(0, 0, 0, 0)", "Terminal is a button");
+    await page.evaluate(`document.querySelector('[data-part="machine-danger"]').scrollIntoView({ block: "center" }); return "true";`);
+    await shot("unslop-machines-actions-390.jpg");
+});
+
+test("Spend: one number format, the device's grouping and short large counts, its second line whole (PP-332)", real, async () => {
+    app.spend.wikiUsed({ model: "openai/text-embedding-3-small", tokens: 21_256_201, cost: 7624.48 });
+    for (let i = 1; i < 3746; i++) {
+        app.spend.wikiUsed({ model: "openai/text-embedding-3-small", tokens: 0, cost: 0 });
+    }
+
+    await page.navigate(`${base}/?sheet=spend`);
+    await see(`return JSON.stringify(document.querySelector(".spend-sub") !== null)`, "the wiki's spend");
+
+    const shown = await inPage<{ total: string; sub: string; cut: boolean }>(
+        `const sub = document.querySelector(".spend-sub");
+        return JSON.stringify({ total: document.querySelector(".spend-total strong").textContent, sub: sub.textContent.trim(), cut: sub.scrollWidth > sub.clientWidth + 1 });`,
+    );
+
+    assert.equal(shown.total, "$7,624.48");
+    assert.match(shown.sub, /^3,746 requests · 21\.3M tokens · since [A-Z][a-z]{2} \d{1,2}$/);
+    assert.equal(shown.cut, false, "the second line is not cut off");
+    await shot("unslop-spend-390.jpg");
+});
