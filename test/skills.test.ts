@@ -44,13 +44,16 @@ import {
 
 /** The system prompt of the newest request to Pi, its sections as JSON. */
 let prompt = "";
+/** The skills section as the newest request has it: the last one sent (a change comes as a system message of its own). */
+let skillsNow = "";
 
 const route: FauxResponseStep = (context) => {
-    prompt = JSON.stringify(
-        (context.messages as { role: string; sections?: Record<string, string> }[])
-            .filter((message) => message.role === "system")
-            .map((message) => message.sections ?? {}),
-    );
+    const sections = (context.messages as { role: string; sections?: Record<string, string> }[])
+        .filter((message) => message.role === "system")
+        .map((message) => message.sections ?? {});
+
+    prompt = JSON.stringify(sections);
+    skillsNow = sections.findLast((each) => each.skills !== undefined)?.skills ?? "";
 
     return fauxAssistantMessage([fauxText(`echo: ${lastText(context as never).text}`)]);
 };
@@ -297,6 +300,31 @@ test("with Design & video off, none of its skills load, in commands or the promp
     assert.equal(listed().length, 13);
     assert.match(prompt, /<name>unslop<\/name>/);
     assert.match(prompt, /<name>design-system<\/name>[^]*src\/design\/skills\/design-system\/SKILL\.md/);
+});
+
+test("a session that began with Design & video and Formal checks on loses their skills from its next request once they are off, and has them again when they come back (PP-324)", async () => {
+    const app = await started();
+    const id = await newSession(app);
+
+    await say(app, id, "both on");
+    assert.match(skillsNow, /<name>unslop<\/name>/);
+    assert.match(skillsNow, /<name>statechart<\/name>/);
+    await app.setExtensionEnabled(owner(app), "design.ts", false);
+    await app.setExtensionEnabled(owner(app), "formal.ts", false);
+
+    try {
+        await say(app, id, "both off");
+        assert.doesNotMatch(skillsNow, /<name>unslop<\/name>/);
+        assert.doesNotMatch(skillsNow, /<name>statechart<\/name>/);
+        assert.match(skillsNow, /<name>html<\/name>/, "Effective HTML's stay");
+    } finally {
+        await app.setExtensionEnabled(owner(app), "design.ts", true);
+        await app.setExtensionEnabled(owner(app), "formal.ts", true);
+    }
+
+    await say(app, id, "both back");
+    assert.match(skillsNow, /<name>unslop<\/name>/);
+    assert.match(skillsNow, /<name>statechart<\/name>/);
 });
 
 /** Pi's own answers to "trust this project?", from the CLI's code (the package does not export it). */
