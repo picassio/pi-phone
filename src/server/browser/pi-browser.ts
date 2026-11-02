@@ -723,6 +723,12 @@ export class PiBrowser {
     /** When Pi or a person last used it (an action, a tap, a tab shown): idle tabs close (`idleFor`). */
     #usedAt = Date.now();
     #casting: BrowserPage | undefined;
+    /**
+     * Each start of the frames' number: a start that an awaited picture held up, and that another start (a resize, a
+     * retry) overtook meanwhile, stops there. By the page alone it went on, as the newer start casts the same page, and
+     * its screencast's start then failed the newer one's ("Screencast is already active", browser.test.ts:556).
+     */
+    #castRun = 0;
     #stopFrames: (() => void) | undefined;
     readonly #tuning: FrameTuning;
     /** The last picture of the page in front: a panel opened later shows it at once (a still page sends no frames). */
@@ -1964,6 +1970,7 @@ export class PiBrowser {
         this.#casting = page;
         this.#framed = false;
 
+        const run = ++this.#castRun;
         let off = () => {};
         let watchdog: NodeJS.Timeout | undefined;
 
@@ -1994,10 +2001,16 @@ export class PiBrowser {
             this.#shown(page, { jpeg, width: this.#state.viewport.width, height: this.#state.viewport.height });
         } catch (error) {
             failed = `the first picture: ${String(error)}`;
-            this.#options.log(`browser frames: ${failed}`);
+
+            // One an overtaken start waited on says nothing: a resize under it can leave it unanswered, and the newer
+            // start's picture is the one that counts.
+            if (this.#castRun === run) {
+                this.#options.log(`browser frames: ${failed}`);
+            }
         }
 
-        if (this.#casting !== page) {
+        // Stopped meanwhile, or started again (the same page, by another start): that one goes on, not this.
+        if (this.#castRun !== run || this.#casting !== page) {
             return;
         }
 
@@ -2031,7 +2044,7 @@ export class PiBrowser {
             return;
         }
 
-        if (!this.#framed && this.#casting === page) {
+        if (!this.#framed && this.#casting === page && this.#castRun === run) {
             watchdog = setTimeout(() => {
                 if (!this.#framed) {
                     this.#tryAgain(page, failed ?? "the page sent no picture");

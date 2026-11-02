@@ -36,6 +36,8 @@ class FakeDevtools {
     delays: Record<string, number> = {};
     #socket: WebSocket | undefined;
     #frames = 0;
+    /** Whether a screencast runs: Chrome refuses a second start while one does ("Screencast is already active"). */
+    casting = false;
 
     constructor() {
         this.#server.on("connection", (socket) => {
@@ -59,6 +61,24 @@ class FakeDevtools {
                     }
 
                     return;
+                }
+
+                if (method === "Page.startScreencast") {
+                    if (this.casting) {
+                        socket.send(JSON.stringify({ id, error: { code: -32000, message: "Screencast is already active" } }));
+
+                        return;
+                    }
+
+                    this.casting = true;
+
+                    return answer({});
+                }
+
+                if (method === "Page.stopScreencast") {
+                    this.casting = false;
+
+                    return answer({});
                 }
 
                 if (method === "Page.getFrameTree") {
@@ -142,7 +162,7 @@ const engineOf = (devtools: FakeDevtools): BrowserEngine => ({
         stage: async (name: string) => name,
 });
 
-async function browserOn(devtools: FakeDevtools, tuning: { ackWaitMs?: number } = {}) {
+async function browserOn(devtools: FakeDevtools, tuning: { ackWaitMs?: number } = {}, log: (line: string) => void = () => {}) {
     await devtools.listening();
 
     const engine = engineOf(devtools);
@@ -156,7 +176,7 @@ async function browserOn(devtools: FakeDevtools, tuning: { ackWaitMs?: number } 
             state = changed;
         },
         frame: (frame) => frames.push(frame),
-        log: () => {},
+        log,
         frames: { pictureMs: 150, firstMs: 150, backoffMs: [50, 100], failAfter: 3, ...tuning },
     });
 
@@ -355,6 +375,23 @@ test("with Chrome: a page busy when the panel opens gets its picture once it is 
     } finally {
         await browser.close();
     }
+});
+
+test("frames started again while the first picture still waits (a resize): the start overtaken stops there, and one screencast runs (browser.test.ts:556)", async () => {
+    const devtools = new FakeDevtools();
+    const logged: string[] = [];
+    const { browser } = await browserOn(devtools, {}, (line) => logged.push(line));
+
+    // The first start's picture never comes (a resize under it, a loaded machine); the resize's start has its own.
+    devtools.captures = ["hang", "ok"];
+    browser.watch();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The page it answers with is beyond this fake (it reads no elements): the frames' restart comes before that.
+    await browser.resize(1, "phone").catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    assert.deepEqual(logged.filter((line) => line.startsWith("browser frames")), [], "no second start while one runs, and no word from the start overtaken");
+    assert.equal(devtools.casting, true, "the newer start's screencast runs");
 });
 
 test("a picture from the screencast is enough: no retry while frames come, though the capture hangs", async () => {
