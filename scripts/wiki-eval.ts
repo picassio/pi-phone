@@ -9,7 +9,7 @@
  *
  *   OPENROUTER_API_KEY=… node scripts/wiki-eval.ts [--configs A,B,C,D] [--out report.md]
  *   OPENROUTER_API_KEY=… node scripts/wiki-eval.ts --wiki ~/.pi/wiki --cases cases.json   (a real wiki, read only)
- *   … --as query [--match 0.5] [--candidates 25] [--later 1000]   (as wiki_query asks, every scope, at most 4 pages,
+ *   … --as query [--match 0.5] [--candidates 25] [--later 1000] [--start 1500]   (as wiki_query asks, every scope, at most 4 pages,
  *   with its Jev numbers changed: PP-361)
  *
  * Each way runs in a wiki of its own in a temporary home; nothing touches the owner's wiki: `--wiki` copies its folder
@@ -115,7 +115,7 @@ const CASES_FILE = argument("--cases");
 const AS_QUERY = argument("--as") === "query";
 /** With --as query, wiki_query's Jev numbers to measure (`ParaHost.queryTuning`): --match 0.5 --candidates 25 --later 1000. */
 const number = (name: string) => (argument(name) === undefined ? undefined : Number(argument(name)));
-const TUNING = { match: number("--match"), candidates: number("--candidates"), later: number("--later") };
+const TUNING = { match: number("--match"), candidates: number("--candidates"), later: number("--later"), start: number("--start") };
 
 if ((WIKI === undefined) !== (CASES_FILE === undefined)) {
     throw new Error("--wiki and --cases go together: a real wiki and the questions for it.");

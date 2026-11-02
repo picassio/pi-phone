@@ -106,7 +106,9 @@ const JEV_CANDIDATES = 15;
  * wiki_query's (PP-361, measured on the owner's wiki 2026-11-02 with `scripts/wiki-eval.ts --as query`, 30 questions):
  * 25 candidates and 1,000 characters of later lines put the right page first 92% (88% with 15 and 500), for 0.77 extra
  * pages a query instead of 0.70; lowering the least score kept from 0.6 to 0.45 found one question more (100%) for
- * 0.97 extra pages, so it stays at 0.6.
+ * 0.97 extra pages, so it stays at 0.6. The owner asked for more characters: 2,000 of later lines measured the same
+ * (92%, 0.73 extra, 6% more Jev cost) and 3,000 no better; a longer start (3,000) put the right page first only 85%,
+ * and 4,000 + 4,000 gave pages to questions the wiki has none for (75% left empty) at twice the cost.
  */
 const QUERY_CANDIDATES = 25;
 
@@ -158,7 +160,7 @@ export interface ParaHost {
      * (`JEV_MATCH`), the search's candidates (`JEV_CANDIDATES`), and the characters of a long page's later lines Jev
      * reads (`EXCERPT_LATER`). The app leaves it out.
      */
-    readonly queryTuning?: { match?: number; candidates?: number; later?: number };
+    readonly queryTuning?: { match?: number; candidates?: number; later?: number; start?: number };
 }
 
 export class Para {
@@ -631,7 +633,7 @@ export class Para {
             seen.add(path);
             pool.push({
                 result,
-                text: page === null ? `${result.frontmatter.title}\n${result.snippet}` : excerpt(page.frontmatter.title, page.body, options.deep === true ? words : [], this.#host.queryTuning?.later),
+                text: page === null ? `${result.frontmatter.title}\n${result.snippet}` : excerpt(page.frontmatter.title, page.body, options.deep === true ? words : [], this.#host.queryTuning?.later, options.deep === true ? this.#host.queryTuning?.start : undefined),
                 fromSearch: true,
                 words: (hits.get(path)?.count ?? 0) >= enough,
             });
@@ -650,7 +652,7 @@ export class Para {
                 continue;
             }
 
-            const text = excerpt(page.frontmatter.title, page.body, options.deep === true ? words : [], this.#host.queryTuning?.later);
+            const text = excerpt(page.frontmatter.title, page.body, options.deep === true ? words : [], this.#host.queryTuning?.later, options.deep === true ? this.#host.queryTuning?.start : undefined);
 
             pool.push({
                 result: {
@@ -1066,21 +1068,21 @@ function searchOrder(pool: Candidate[]): Candidate[] {
 
 /** How much of a page Jev reads: its start, as before, and at most this much of its later lines holding the query's words. */
 const EXCERPT_START = 1500;
-const EXCERPT_LATER = 1000;
+const EXCERPT_LATER = 2000;
 
 /**
  * What Jev reads of a page (PP-361): its title and start (the first 1,500 characters, without section marks), and when
- * the page is longer, up to 1,000 characters of the lines further down that hold the most of the query's telling `words`
+ * the page is longer, up to 2,000 characters of the lines further down that hold the most of the query's telling `words`
  * (half of them and at least two, or the one there is; folded, in the page's order, "…" between runs). By the start alone, a fact in a
  * section added later (a long project page's) was never read: the owner's search for the AKS trial cluster found
  * nothing. A line with one common word ("deploy") is not enough: on the owner's wiki that made Jev keep 0.93 extra
  * pages a question instead of 0.10.
  */
-export function excerpt(title: string, body: string, words: readonly string[] = [], budget = EXCERPT_LATER): string {
+export function excerpt(title: string, body: string, words: readonly string[] = [], budget = EXCERPT_LATER, first = EXCERPT_START): string {
     const plain = body.replace(/^#+\s*/gm, "").replace(/\n{2,}/g, "\n");
-    const start = `${title}\n${plain}`.slice(0, EXCERPT_START);
+    const start = `${title}\n${plain}`.slice(0, first);
 
-    if (`${title}\n${plain}`.length <= EXCERPT_START || words.length === 0) {
+    if (`${title}\n${plain}`.length <= first || words.length === 0) {
         return start;
     }
 
@@ -1090,7 +1092,7 @@ export function excerpt(title: string, body: string, words: readonly string[] = 
     let offset = 0;
 
     for (const [at, text] of plain.split("\n").entries()) {
-        if (offset + title.length + 1 >= EXCERPT_START && text.trim() !== "") {
+        if (offset + title.length + 1 >= first && text.trim() !== "") {
             const said = fold(text);
             const hits = folded.filter((word) => said.includes(word)).length;
 
