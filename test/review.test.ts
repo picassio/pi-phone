@@ -91,6 +91,9 @@ test("/review's arguments: each target, a link or a number for a pull request, a
     assert.match((parseReviewArgs("pr") as { error: string }).error, /needs a pull request/);
     assert.match((parseReviewArgs("pr feature") as { error: string }).error, /number or its github\.com link/);
     assert.match((parseReviewArgs("everything") as { error: string }).error, /Unknown review target/);
+    // A link after `changes` is not dropped (it reviewed the folder instead); a link alone is a pull request.
+    assert.match((parseReviewArgs("changes https://github.com/o/r/pull/11") as { error: string }).error, /changes takes nothing after it; for a pull request use pr https:\/\/github\.com\/o\/r\/pull\/11/);
+    assert.deepEqual(parseReviewArgs("https://github.com/o/r/pull/11"), { target: { kind: "pr", pr: "https://github.com/o/r/pull/11" } });
     assert.equal(expandReviewCommand("/reviewer"), undefined);
     assert.match(String(expandReviewCommand("/review pr 7")), /^\/review pr 7\n\n<review-request>\n.*"target":"pr","ref":"7".*\n<\/review-request>$/s);
 });

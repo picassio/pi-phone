@@ -41,6 +41,9 @@ const KINDS: Record<string, ReviewTarget["kind"]> = {
     folders: "folders",
 };
 
+/** A GitHub pull request's link. */
+const PR_LINK = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+\S*$/;
+
 /** A command line's words: spaces split them, and "double" or 'single' quotes keep spaces in one. */
 function words(text: string): string[] {
     return [...text.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((match) => match[1] ?? match[2] ?? match[3]!);
@@ -57,12 +60,22 @@ export function parseReviewArgs(text: string): { target: ReviewTarget; extra?: s
     const tail = at === -1 ? "" : text.slice(at).replace(/^\s*--extra\s*/, "");
     const extraWords = words(tail);
     const extra = extraWords.join(" ").trim();
-    const [word, ...rest] = words(head);
+    const [first, ...others] = words(head);
+    // A pull request's link alone is its review: `/review https://github.com/o/r/pull/11`.
+    const linkAlone = first !== undefined && PR_LINK.test(first);
+    const word = linkAlone ? "pr" : first;
+    const rest = linkAlone ? [first!, ...others] : others;
     const kind = word === undefined ? "changes" : KINDS[word.toLowerCase()];
     const withExtra = (target: ReviewTarget) => (extra === "" ? { target } : { target, extra });
 
     if (kind === undefined) {
         return { error: `Unknown review target "${word}": use changes, branch <base>, commit <sha>, pr <number or link>, or folder <paths>.` };
+    }
+
+    // `changes` takes nothing after it: a link or a word there was meant for another target, never dropped (the
+    // owner's `/review changes <a pull request's link>` reviewed this folder's changes instead, 2026-11-02).
+    if (kind === "changes" && rest.length > 0) {
+        return { error: `changes takes nothing after it; for a pull request use pr ${rest[0]}.` };
     }
 
     if (kind === "changes") {
@@ -83,7 +96,7 @@ export function parseReviewArgs(text: string): { target: ReviewTarget; extra?: s
 
     const value = rest[0]!;
 
-    if (kind === "pr" && !/^(#?\d+|https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+\S*)$/.test(value)) {
+    if (kind === "pr" && !/^#?\d+$/.test(value) && !PR_LINK.test(value)) {
         return { error: `pr takes a pull request's number or its github.com link, not "${value}".` };
     }
 
