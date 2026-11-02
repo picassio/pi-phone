@@ -4,7 +4,7 @@
 // notifications and installing the app. On a team server whose accounts give the person models, the second step picks
 // the one Pi starts with. Full screen on a phone, a card over the app on a wide screen. With PHONE_SHOTS set to a
 // folder, screenshots go there (onboarding-built-*.png).
-import { type App, cleanUp, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -95,14 +95,16 @@ before(async () => {
     await cdp.send("Page.enable");
 });
 
-after(async () => {
-    cdp?.close();
-    await engine?.close();
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => cdp?.close(),
+        () => engine?.close(),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("in a browser: language, a model, this browser; finished, it stays finished", real, async () => {
     await open(390);

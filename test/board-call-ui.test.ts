@@ -4,7 +4,7 @@
 // fits its window and mutes; the board shows Voice as a bar; ending the chip goes back to the bubble. The board's Voice
 // line talks to another target; ending Voice in the panel goes back to the board; without the phone's digital assistant
 // role it says so, with Android's Default apps a tap away. With PHONE_SHOTS, screenshots go there.
-import { type App, cleanUp, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -120,15 +120,17 @@ before(async () => {
     await until(async () => (await inPage<string>("location.pathname").catch(() => "")) === "/", "signed in", 20_000);
 });
 
-after(async () => {
-    cdp?.close();
-    await engine?.close();
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    await openai?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => cdp?.close(),
+        () => engine?.close(),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => openai?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("a double tap: the board in Voice, to Menu › Assistant's session; the dash makes it a chip; the board shows it as a bar; ending the chip goes back to the bubble", real, async () => {
     const id = await newSession(app);

@@ -4,7 +4,7 @@
 // of it (`voiceCall`); when the sheet goes, the call is handed over (ended here, the notification kept), and the app's
 // window starts it again in the same session (`/s/:id?voice=start`); without the microphone the sheet sends the person
 // to pi-phone; home's Voice makes a session named Voice and calls in it. With PHONE_SHOTS, screenshots go there.
-import { type App, cleanUp, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -119,15 +119,17 @@ before(async () => {
     await until(async () => (await inPage<string>("location.pathname").catch(() => "")) === "/", "signed in", 20_000);
 });
 
-after(async () => {
-    cdp?.close();
-    await engine?.close();
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    await openai?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => cdp?.close(),
+        () => engine?.close(),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => openai?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("the sheet starts a call when it opens; its controls take the foot; it hands the call over when it goes, and the window starts it again", real, async () => {
     const id = await newSession(app);

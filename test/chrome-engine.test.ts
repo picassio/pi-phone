@@ -67,6 +67,24 @@ test("a Chrome that writes its port late is reached at that port, never at port 
     }
 });
 
+test("close waits for Chrome's helpers, which write the profile's cache after the browser has gone, then removes it (PP-329)", async () => {
+    const helperPid = join(dir, "helper.pid");
+
+    process.env.FAKE_CHROME_HELPER_PIDFILE = helperPid;
+
+    try {
+        const engine = new ChromeEngine(chrome);
+
+        await engine.newTab();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        // Before: ENOTEMPTY, rmdir '<profile>/Default/Cache', as the helper wrote on after the browser had gone.
+        await engine.close();
+        assert.equal(alive(Number(readFileSync(helperPid, "utf8"))), false, "its helper ended before close() was done");
+    } finally {
+        delete process.env.FAKE_CHROME_HELPER_PIDFILE;
+    }
+});
+
 test("a process that never closes its Chrome still ends, and its Chrome with it (Build APK #347)", async () => {
     rmSync(pidFile, { force: true });
 

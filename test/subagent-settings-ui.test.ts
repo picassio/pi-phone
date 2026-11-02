@@ -1,7 +1,7 @@
 // The subagents' model and thinking in a real browser (PP-281): Menu › Subagents sets every session's with the app's own
 // dropdowns, and the models Pi may also use are added several at once from a dropdown that ticks, and taken off one by
 // one; a session's own sheet sets its own over them. Nothing runs past a phone's screen or a desktop's.
-import { type App, cleanUp, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -71,13 +71,15 @@ before(async () => {
     await see(`return JSON.stringify((await import("/store.js")).store.state.me?.role === "owner")`, "signed in");
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("Menu › Subagents: every session's model and thinking, and models added several at once, taken off one by one", real, async () => {
     const id = await newSession(app);

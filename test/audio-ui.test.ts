@@ -2,7 +2,7 @@
 // dropdowns (transcription model, reading model, default voice) kept as the settings audio.*; the voice's sample made
 // once by the reading model and served as m4a; audio_speak's file in a player with its waveform under its line;
 // audio_transcribe's first lines with their times, how many more, and Open file. With PHONE_SHOTS, screenshots go there.
-import { type App, cleanUp, context, home, lastText, newSession, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, home, lastText, newSession, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import { execFileSync } from "node:child_process";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
@@ -120,15 +120,17 @@ before(async () => {
     execFileSync(engine!.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=duration=45:sample_rate=16000", "-ac", "1", join(work, "meeting.flac")]);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    sockets.close();
-    http.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => sockets.close(),
+        () => http.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 async function shot(name: string): Promise<void> {
     if (SHOTS !== undefined) {

@@ -4,7 +4,7 @@
 // itself" they go 3 seconds after the person stops, to a new session, without the app once its chip is dropped; no
 // microphone sends the person to pi-phone; nothing heard says so; × closes the sheet. With PHONE_SHOTS set to a
 // folder, screenshots at 390 px go there.
-import { type App, cleanUp, lastText, modelTexts, newSession, openApp, owner, say, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, lastText, modelTexts, newSession, openApp, owner, say, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -138,14 +138,16 @@ before(async () => {
     await until(async () => (await inPage<string>("location.pathname").catch(() => "")) === "/", "signed in", 20_000);
 });
 
-after(async () => {
-    cdp?.close();
-    await engine?.close();
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => cdp?.close(),
+        () => engine?.close(),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("I tap Send: it listens at once, shows the words as heard, and sends them to the last session with the app in front", real, async () => {
     const id = await newSession(app);

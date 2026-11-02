@@ -1,4 +1,4 @@
-import { type App, cleanUp, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -101,13 +101,15 @@ before(async () => {
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 // Issue #83, reported by @vitalNohj: Enter after a click on Plan pressed it again, and plan mode went back off.
 test("a click on Plan leaves the focus in the message box", real, async () => {

@@ -2,7 +2,7 @@
 // the rows shown start where they did, earlier messages and jumps still reach back, replies are still sanitized, and
 // what animates on open plays only when someone asks for it. In a real Chromium, at phone size. From pi-pocket 0.21.0
 // (#139, by nohj), adapted to pi-phone (PP-133).
-import { type App, cleanUp, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -165,13 +165,15 @@ before(async () => {
     );
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("the transcript stays at the bottom as an answer streams, and as rows come", real, async () => {
     await fresh();

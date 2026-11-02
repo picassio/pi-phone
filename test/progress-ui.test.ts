@@ -1,7 +1,7 @@
 // The floating progress board's page in a real browser (PP-283): `/?board=1` lists the session at work with what it
 // does and its count in the title, and says nothing runs once it is done; This phone (in the app) has the board's
 // switches, the bubble only once Android allows it. Nothing runs past a phone's screen.
-import { type App, cleanUp, lastText, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, lastText, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -94,13 +94,15 @@ before(async () => {
     await see(`return JSON.stringify((await import("/store.js")).store.state.me?.role === "owner")`, "signed in");
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("the board page: the session at work with what it does, counted in the title; then nothing runs", real, async () => {
     const id = await newSession(app);

@@ -1,4 +1,4 @@
-import { type App, cleanUp, home, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, home, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -195,13 +195,15 @@ before(async () => {
     page = await browsers.open(1);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test(
     "a sign-in that asks twice shows the second question, though it came before the first answer's reply",

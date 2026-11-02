@@ -3,7 +3,7 @@
 // models the check found with the way each is set up; a choice there changes the server's settings (checked live);
 // Check again asks OpenAI again; Settings › Dictation's engine; the message box's mic with Codex writes what the
 // transcription session hears into the box; minutes show in Spend. With PHONE_SHOTS set to a folder, screenshots go there.
-import { type App, cleanUp, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -102,15 +102,17 @@ before(async () => {
     await until(async () => (await inPage<string>("location.pathname").catch(() => "")) === "/", "signed in", 20_000);
 });
 
-after(async () => {
-    cdp?.close();
-    await engine?.close();
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    await openai?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => cdp?.close(),
+        () => engine?.close(),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => openai?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("Settings › Voice: the checked live models with their way, choices that change the server's settings, and Check again", real, async () => {
     await sheet("voice");

@@ -3,7 +3,7 @@
 // the service worker shows what is pushed (one per session, with its session to open), Send a test and Turn off work.
 // Headless Chrome cannot subscribe with a real push service: the page's `pushManager.subscribe` answers with a
 // subscription of real keys at a push service of this test's own, and DevTools hands pushes to the service worker.
-import { type App, cleanUp, openApp, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, openApp, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
@@ -96,15 +96,17 @@ before(async () => {
     await until(async () => (await inPage<string>("location.pathname").catch(() => "")) === "/" && (await inPage<boolean>(`document.querySelector(".composer, .home-list, .sidebar") !== null`).catch(() => false)), "the app", 20_000);
 });
 
-after(async () => {
-    cdp?.close();
-    await engine?.close();
-    server?.closeAllConnections();
-    server?.close();
-    service?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => cdp?.close(),
+        () => engine?.close(),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => service?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("Menu › Notifications turns them on here; a run's end is pushed; the service worker shows it; test and off work", real, async () => {
     await inPage(`(async () => { const { openSheet } = await import("/store.js"); openSheet({ type: "notifications" }); })()`);

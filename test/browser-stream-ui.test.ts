@@ -2,7 +2,7 @@
 // app in another at a phone's size. The panel draws each picture on a canvas from a JPEG it fetches (one request
 // waiting at the server for the next), never from the event stream; it tells the server how big it draws them, and the
 // frames are no bigger; a change on the page shows within moments.
-import { type App, cleanUp, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -76,15 +76,17 @@ before(async () => {
     await inViewer(`(async () => { const { setBrowserOpen } = await import("/browser-panel.js"); setBrowserOpen(true); })()`);
 });
 
-after(async () => {
-    viewer?.close();
-    await viewerEngine?.close();
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    await pi?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => viewer?.close(),
+        () => viewerEngine?.close(),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => pi?.close(),
+        () => cleanUp(),
+    ),
+);
 
 /** The panel picture's middle pixel. */
 const middle = () =>

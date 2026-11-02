@@ -1,7 +1,7 @@
 // A session's subagents in its menu (PP-280, the owner's option B): the one at work first with a row of its own, the
 // idle ones folded into one row that opens in place, so fourteen of them leave the session's own actions on a phone's
 // screen. Nothing runs past it, on a phone or a desktop.
-import { type App, cleanUp, lastText, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, lastText, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -104,13 +104,15 @@ before(async () => {
     await see(`return JSON.stringify((await import("/store.js")).store.state.me?.role === "owner")`, "signed in");
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("fourteen subagents: the one at work has its row, the idle fold into one that opens in place; the session's actions stay on screen", real, async () => {
     const id = await newSession(app);

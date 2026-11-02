@@ -1,7 +1,7 @@
 // Images in a real browser (PP-275): a picture image_generate made shows in the chat from its saved file, under the
 // tool's line with what it cost; Menu › Images lists the image models of the providers signed in, Automatic first and
 // OpenRouter's with their price, and a tap picks one.
-import { type App, cleanUp, context, home, lastText, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, home, lastText, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -116,14 +116,16 @@ before(async () => {
     page = await browsers.open(1);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    stub.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => stub.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("a made image shows under image_generate's line from its file, with its count and cost", real, async () => {
     app.config.lastModel ??= { provider: "faux", modelId: "faux-1", thinkingLevel: "off" };

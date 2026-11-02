@@ -4,7 +4,7 @@
 // joins it; the view is full screen on a phone and a panel at the right on a wide screen; the words heard and spoken,
 // mute, hold to talk and End work; the session's voice mode is in the model menu; voice turns are marked in the
 // transcript; the sign-in's token never reaches the page. With PHONE_SHOTS set to a folder, screenshots go there.
-import { type App, cleanUp, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -181,15 +181,17 @@ before(async () => {
     await until(async () => (await inPage<string>("location.pathname").catch(() => "")) === "/", "signed in", 20_000);
 });
 
-after(async () => {
-    cdp?.close();
-    await engine?.close();
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    await openai?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => cdp?.close(),
+        () => engine?.close(),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => openai?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("on a phone: the voice button starts a call by key, full screen; words, mute, hold to talk and End work; the token never reaches the page", real, async () => {
     const id = await newSession(app);

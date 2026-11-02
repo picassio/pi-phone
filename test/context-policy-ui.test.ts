@@ -1,7 +1,7 @@
 // What goes into the prompt, in a real browser (PP-276): Menu › Compact context shows this session's choices and every
 // session's, and a change reaches the session; a message the wiki's pages came with shows only the person's words, and
 // its menu has the pages, folded until asked for (the owner's option C). Nothing runs past a phone's screen.
-import { type App, cleanUp, context, home, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, home, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -86,13 +86,15 @@ before(async () => {
     page = await browsers.open(1);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("a message the wiki's pages came with shows only the person's words, its menu the pages; Compact context sets what the prompt holds", real, async () => {
     app.config.lastModel ??= { provider: "faux", modelId: "faux-1", thinkingLevel: "off" };

@@ -395,6 +395,27 @@ export function activePort(file: string): number | undefined {
     return Number.isInteger(port) && port > 0 && port <= 65535 ? port : undefined;
 }
 
+/**
+ * A Chrome and its helpers (renderers, the GPU and network services: its process group, as it starts in a group of its
+ * own) get `signal`; whether any of them was still there.
+ */
+function signalGroup(child: ChildProcess, signal: NodeJS.Signals | 0): boolean {
+    if (child.pid === undefined) {
+        return false;
+    }
+
+    try {
+        process.kill(GROUPS ? -child.pid : child.pid, signal);
+
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** Chrome starts in a process group of its own where there are groups (not on Windows). */
+const GROUPS = process.platform !== "win32";
+
 /** The Chromes this process started and has not seen end: killed when it exits, so none is left behind. */
 const started = new Set<ChildProcess>();
 let killsAtExit = false;
@@ -409,7 +430,7 @@ function keepUntilExit(child: ChildProcess): void {
         killsAtExit = true;
         process.once("exit", () => {
             for (const each of started) {
-                each.kill("SIGKILL");
+                signalGroup(each, "SIGKILL");
             }
         });
     }
@@ -465,7 +486,9 @@ export class ChromeEngine implements BrowserEngine {
         this.#child = spawn(
             this.#binary,
             ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${this.#profile}`, "--no-first-run", "--no-default-browser-check", "--disable-gpu", ...this.#flags, "about:blank"],
-            { stdio: "ignore" },
+            // A group of its own, so close() can wait for its helpers too: they write the profile's cache after the
+            // browser process has gone (PP-329: ENOTEMPTY on Default/Cache, and the test file never exited).
+            { stdio: "ignore", detached: GROUPS },
         );
         keepUntilExit(this.#child);
 
@@ -532,18 +555,27 @@ export class ChromeEngine implements BrowserEngine {
         this.#child = undefined;
         this.#port = undefined;
 
-        // Chrome writes to its profile until it has gone: wait for it (5 s at most), then remove the profile. One that
-        // does not stop is killed: a Chrome left running keeps this process alive (a CI job hung on it for 20 minutes).
-        if (child !== undefined && child.exitCode === null && child.signalCode === null) {
-            const gone = new Promise<void>((resolve) => child.once("exit", () => resolve()));
-            const wait = (ms: number) => Promise.race([gone, new Promise((resolve) => setTimeout(resolve, ms))]);
+        // Chrome and its helpers write to the profile until they have all gone: wait for them (5 s at most), then remove
+        // the profile. Those that do not stop are killed: a Chrome left running keeps this process alive (a CI job hung
+        // on it for 20 minutes).
+        if (child !== undefined) {
+            const alive = () => (GROUPS ? signalGroup(child, 0) : child.exitCode === null && child.signalCode === null);
+            const until = async (ms: number) => {
+                const end = Date.now() + ms;
 
-            child.kill();
-            await wait(5000);
+                while (alive() && Date.now() < end) {
+                    await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+            };
 
-            if (child.exitCode === null && child.signalCode === null) {
-                child.kill("SIGKILL");
-                await wait(2000);
+            if (alive()) {
+                signalGroup(child, "SIGTERM");
+                await until(5000);
+            }
+
+            if (alive()) {
+                signalGroup(child, "SIGKILL");
+                await until(2000);
             }
         }
 

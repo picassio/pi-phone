@@ -1,6 +1,8 @@
 // A stand-in for Chrome as `ChromeEngine` starts it (Build APK #347): it makes its DevToolsActivePort empty first, as
 // Chrome does, and writes the port a moment later (FAKE_CHROME_WRITE_MS), then answers DevTools' HTTP: a new tab is
-// "fake-tab", and no tab is listed. It runs until it is killed, writing its pid to FAKE_CHROME_PIDFILE.
+// "fake-tab", and no tab is listed. It runs until it is killed, writing its pid to FAKE_CHROME_PIDFILE. With
+// FAKE_CHROME_HELPER_PIDFILE, it starts a helper that writes the profile's cache after it has gone (PP-329).
+import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
@@ -13,6 +15,10 @@ if (profile === undefined) {
 
 if (process.env.FAKE_CHROME_PIDFILE !== undefined) {
     writeFileSync(process.env.FAKE_CHROME_PIDFILE, String(process.pid));
+}
+
+if (process.env.FAKE_CHROME_HELPER_PIDFILE !== undefined) {
+    spawn(process.execPath, [join(import.meta.dirname, "fake-chrome-helper.ts"), profile, process.env.FAKE_CHROME_HELPER_PIDFILE], { stdio: "ignore" }).unref();
 }
 
 const file = join(profile, "DevToolsActivePort");

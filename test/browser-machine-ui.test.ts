@@ -3,7 +3,7 @@
 // someone using the window there shows in the panel; browser_attach's card shows the machine, port, version and profile;
 // the attached browser's tabs show with its label and Detach, and a sign-in card fills its page; Settings › Machines
 // sets how Pi's browser runs there. With PHONE_SHOTS set to a folder, screenshots at 390 and 1280 px go there.
-import { type App, cleanUp, context, lastText, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, lastText, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -119,17 +119,19 @@ before(async () => {
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
 });
 
-after(async () => {
-    await app?.browserFor(app.cwdOf(session), session).close().catch(() => {});
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    site?.close();
-    foreign?.kill();
-    await run(`pkill -f -- "user-data-dir=${home}/.pi/mobile/browser/profile"; true`);
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => app?.browserFor(app.cwdOf(session), session).close().catch(() => {}),
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => site?.close(),
+        () => foreign?.kill(),
+        () => run(`pkill -f -- "user-data-dir=${home}/.pi/mobile/browser/profile"; true`),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 async function open(viewport: typeof VIEWPORTS.mobile, panel: boolean): Promise<void> {
     await page.setViewport(viewport);

@@ -1,7 +1,7 @@
 // pi-phone's own screens after the unslop pass (PP-328, the owner's OK of 2026-11-02 on the mockups pp328-unslop), in a
 // real browser at a phone's width: states are a word and a small dot, never a ✓ or ⚠ dingbat (PP-330). With
 // PHONE_SHOTS, screenshots go there.
-import { type App, cleanUp, home, newSession, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, home, newSession, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/faux";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -104,13 +104,15 @@ before(async () => {
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("states are a word and a dot, never ✓ or ⚠: Machines, Providers, Wiki (PP-330)", real, async () => {
     await page.navigate(`${base}/?sheet=machines`);

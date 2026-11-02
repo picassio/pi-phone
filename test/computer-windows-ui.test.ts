@@ -2,7 +2,7 @@
 // (`test/support/fake-windows.ts`): the machine says pi-phone's task is not set up, with what Set up makes; Set up makes
 // it (the owner's tap is their yes) and the machine is ready, with Check (what ocu reads, through the bridge) and Remove;
 // nobody signed in says so. With PHONE_SHOTS set to a folder, screenshots go there.
-import { type App, cleanUp, openApp, root, scriptedModel } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, openApp, root, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -62,15 +62,17 @@ before(async () => {
     await page.navigate(`http://127.0.0.1:${(server.address() as { port: number }).port}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
 });
 
-after(async () => {
-    app?.computerControl.close();
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    await windows?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => app?.computerControl.close(),
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => windows?.close(),
+        () => cleanUp(),
+    ),
+);
 
 const inPage = async <T>(script: string): Promise<T> => JSON.parse(await page.evaluate(script)) as T;
 const machineText = () => inPage<string>(`return JSON.stringify(document.querySelector(".computer-control-sheet [data-part=computer-machine]")?.innerText ?? "")`);

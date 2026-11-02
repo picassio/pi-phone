@@ -1,17 +1,6 @@
 // The subagents bar in a real browser at phone size where this machine has Chromium: it says what works, Stop stops
 // one, and a person's message that looks like a report stays theirs.
-import {
-    type App,
-    cleanUp,
-    context,
-    lastText,
-    newSession,
-    openApp,
-    owner,
-    root,
-    scriptedModel,
-    until,
-} from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, lastText, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -144,13 +133,15 @@ before(async () => {
     );
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("the bar says what works; Stop stops one", real, async () => {
     const id = await started(0);

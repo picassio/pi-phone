@@ -4,7 +4,7 @@
 // the picture with the box on what Pi clicked, the minutes left and Stop; Take over makes a tap a click and refuses Pi;
 // Menu › Computer control lists the machine, keeps the Never list and stops the session. With PHONE_SHOTS set to a
 // folder, screenshots at 390 and 1280 px go there.
-import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -86,14 +86,16 @@ before(async () => {
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
 });
 
-after(async () => {
-    app?.computerControl.close();
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => app?.computerControl.close(),
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 const inPage = async <T>(script: string): Promise<T> => JSON.parse(await page.evaluate(script)) as T;
 const text = (selector: string) => inPage<string>(`return JSON.stringify(document.querySelector(${JSON.stringify(selector)})?.innerText ?? "")`);

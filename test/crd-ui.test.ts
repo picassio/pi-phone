@@ -3,7 +3,7 @@
 // (opens outside the app) and Copy link, a hidden field for the command and the PIN twice; nothing is wider than a phone;
 // what is typed goes to the machine, and the card goes once it is connected. With CRD_SHOTS set to a folder, screenshots
 // go there.
-import { type App, cleanUp, context, newSession, openApp, owner, root, scriptedModel, until as waitFor } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, newSession, openApp, owner, root, scriptedModel, until as waitFor } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -81,13 +81,15 @@ before(async () => {
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 const inPage = async <T>(script: string): Promise<T> => JSON.parse(await page.evaluate(script)) as T;
 const text = (selector: string) => inPage<string>(`return JSON.stringify(document.querySelector(${JSON.stringify(selector)})?.innerText ?? "")`);

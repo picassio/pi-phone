@@ -221,3 +221,27 @@ export function fakeTab(id: ConversationId | undefined, user: User, protocol = 2
 export function cleanUp(): void {
     rmSync(root, { recursive: true, force: true });
 }
+
+/**
+ * An `after` hook's steps, in order, each run even when one before it failed; then the failure (PP-329: a browser that
+ * failed to close skipped `server.close()` and `app.close()`, and their open handles kept the test file running forever).
+ */
+export async function cleanUpAll(...steps: (() => unknown)[]): Promise<void> {
+    const failed: unknown[] = [];
+
+    for (const step of steps) {
+        try {
+            await step();
+        } catch (error) {
+            failed.push(error);
+        }
+    }
+
+    if (failed.length === 1) {
+        throw failed[0];
+    }
+
+    if (failed.length > 1) {
+        throw new AggregateError(failed, `${failed.length} cleanup steps failed`);
+    }
+}

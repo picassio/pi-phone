@@ -3,7 +3,7 @@
 // block, which the chat draws with pele: the states on the shortest path to the bug have the theme's bug-path border,
 // the state that breaks the rule the theme's red, and the legend says which is which. Without Chromium or TLC (the
 // phone) it is skipped; CI runs it with both, as did tuanlh-devbox-01. With PHONE_SHOTS, screenshots go there.
-import { type App, cleanUp, context, home, lastText, newSession, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, home, lastText, newSession, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -95,13 +95,15 @@ before(async () => {
     page = await browsers.open(1);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 async function shot(name: string): Promise<void> {
     if (SHOTS !== undefined) {

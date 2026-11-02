@@ -2,7 +2,7 @@
 // again, with Retry now and Stop; the session's row has the limited square; the account card offers the other account
 // and Move sends the request there; the Providers sheet has the longest wait and the notice switch. On a phone the line
 // and the card stay inside the column. With LIMITS_SHOTS set to a folder, screenshots at 390 and 1280 px go there.
-import { type App, cleanUp, home, owner, pastWelcome, root, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, home, owner, pastWelcome, root, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -81,14 +81,16 @@ before(async () => {
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    provider?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => provider?.close(),
+        () => cleanUp(),
+    ),
+);
 
 async function until(check: () => Promise<boolean> | boolean, what: string, timeoutMs = 20_000): Promise<void> {
     const started = Date.now();

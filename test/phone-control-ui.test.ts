@@ -4,7 +4,7 @@
 // phone's apps, removed again) and the device; the phone_control card shows the apps and minutes, fits a phone's column,
 // and Approve and start starts the session, whose live line in the session says so and stops it. With PHONE_SHOTS set
 // to a folder, screenshots at 390 and 1280 px go there.
-import { type App, cleanUp, lastText, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, lastText, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -68,14 +68,16 @@ before(async () => {
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
 });
 
-after(async () => {
-    phone.detach();
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => phone.detach(),
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 const inPage = async <T>(script: string): Promise<T> => JSON.parse(await page.evaluate(script)) as T;
 const text = (selector: string) => inPage<string>(`return JSON.stringify(document.querySelector(${JSON.stringify(selector)})?.innerText ?? "")`);

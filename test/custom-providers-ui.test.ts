@@ -3,7 +3,7 @@
 // window typed, Save; the models reach the tab's model list; Edit opens the form with what was saved; Remove takes it
 // out. On a phone the form stays inside the sheet. With PROVIDER_SHOTS set to a folder, screenshots at 390 and 1280 px
 // go there (provider-custom-*.jpg).
-import { type App, cleanUp, home, pastWelcome, root, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, home, pastWelcome, root, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -66,15 +66,17 @@ before(async () => {
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    stub?.close();
-    await app?.close();
-    rmSync(file, { force: true });
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => stub?.close(),
+        () => app?.close(),
+        () => rmSync(file, { force: true }),
+        () => cleanUp(),
+    ),
+);
 
 async function until(check: () => Promise<boolean> | boolean, what: string, timeoutMs = 20_000): Promise<void> {
     const started = Date.now();

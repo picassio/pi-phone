@@ -906,7 +906,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   skills) after Effective HTML's; the `design.default` setting is listed; the module's `design_system` section names the default; the menu shows Design
   system (`pocket-design` among `hello`'s extensions). Off: none of them, so sessions carry none of the 13
   descriptions, and `setDesignSystem` and `GET /api/design-systems` answer 409. The prompt's skills cache keys on the
-  app's skill folders (`host.builtInSkills()`), so the switch shows from the next request, not after its 30 s. The
+  app's skill folders (`host.builtInSkills()`), so the switch shows from the next request, not after its 30 s: a running
+  session gets the new list as a later system message (its first stays earlier in its context, as Pi Durable keeps them;
+  `test/skills.test.ts`, PP-324). The
   person's design systems and the chosen id stay on disk while it is off.
 - **Formal checks** (`extensions/formal.ts`, `formal-checks.ts`, PP-316; owner's decisions of 2026-11-01 after research
   PP-301/PP-302, wiki `resources/statechart-and-pstack-research`): pstack's `statechart` skill (cursor/plugins
@@ -1826,7 +1828,11 @@ when the web menu asks (`window.PiPhoneApp.checkForUpdates()`, owner only, shown
 - Different shell, newer versionCode: "App update available"; the APK is downloaded, checked, and committed through
   `PackageInstaller`; Android asks the user to confirm (needs "install unknown apps" for pi once). Data stays.
 
-Type checking (`tsc`) runs in CI; tests run on the phone (`npm test`) and in CI.
+Type checking (`tsc`) runs in CI; the full `npm test` runs in CI and on a devbox, never on the phone (AGENTS.md), with
+a per-test timeout of 3 minutes and `--test-force-exit`, so a stuck test fails by name instead of stalling the run
+(PP-329). UI tests' `after` hooks go through `cleanUpAll` (`test/helpers.ts`): every step runs even when one fails.
+`ChromeEngine` starts Chrome in a process group of its own and `close()` waits for the whole group (its helpers write
+the profile's cache after the browser has gone) before it removes the profile.
 
 ## 6. Tasks
 

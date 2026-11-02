@@ -2,7 +2,7 @@
 // address, key and host key (matched with the one Pi read), fits a phone's column, and Approve and connect adds the
 // machine, which the New session folder picker lists at once, without a reload. With MACHINE_SHOTS set to a folder,
 // screenshots at 390 and 1280 px go there.
-import { type App, cleanUp, lastText, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, lastText, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -106,14 +106,16 @@ before(async () => {
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
 });
 
-after(async () => {
-    sshd?.kill();
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => sshd?.kill(),
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 const inPage = async <T>(script: string): Promise<T> => JSON.parse(await page.evaluate(script)) as T;
 const text = (selector: string) => inPage<string>(`return JSON.stringify(document.querySelector(${JSON.stringify(selector)})?.innerText ?? "")`);

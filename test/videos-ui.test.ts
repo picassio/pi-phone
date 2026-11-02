@@ -2,7 +2,7 @@
 // OpenRouter, Automatic first with the default it means, each with its price; a tap picks one, as the settings
 // video.model and video.askModel keep it. A video video_generate made plays in the chat under its line, with its
 // length and cost. With PHONE_SHOTS, screenshots go there.
-import { type App, cleanUp, context, home, lastText, newSession, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, home, lastText, newSession, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
@@ -122,14 +122,16 @@ before(async () => {
     page = await browsers.open(1);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    stub.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => stub.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("Menu › Videos lists Automatic and the models that watch videos with their price; a tap picks one; the menu names it", real, async () => {
     await page.setViewport(VIEWPORTS.mobile);

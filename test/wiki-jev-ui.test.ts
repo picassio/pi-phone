@@ -2,7 +2,7 @@
 // of the Jev models OpenRouter offers and Off, a pick kept as wiki.rerankModel, the last search's outcome or failure on
 // the card; and Pi's browser's run model as the same kind of dropdown, the session's own model or a listed Jev, saved
 // when picked, with Test. With PHONE_SHOTS, screenshots go there.
-import { type App, cleanUp, home, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, home, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/faux";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -99,13 +99,15 @@ before(async () => {
     page = await browsers.open(1);
 });
 
-after(async () => {
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("Menu › Wiki › Rank with Jev: the Jev models OpenRouter offers and Off, a pick kept, the last search's outcome and failure", real, async () => {
     await page.setViewport(VIEWPORTS.mobile);
@@ -130,8 +132,18 @@ test("Menu › Wiki › Rank with Jev: the Jev models OpenRouter offers and Off,
     await page.evaluate(`[...document.querySelectorAll('.choice-menu .pop-menu-row')].find((row) => row.textContent.includes("Jev 1.13")).click(); return "true";`);
     await until(() => app.config.wikiRerankModel === "typesafe/jev-1.13", "kept as wiki.rerankModel");
 
-    // A search with Jev, then one that fails: the card says how each went (read when the sheet opens again).
-    await app.para.relevant("where is the office printer", work);
+    // A search with Jev, then one that fails: the card says how each went (read when the sheet opens again). The page
+    // saved in before() is searchable once the wiki's index has caught up: until then the search finds nothing for Jev
+    // to read, and keeps no outcome (without PHONE_SHOTS' pauses it ran first, and the card never had one).
+    await until(
+        async () => {
+            await app.para.relevant("where is the office printer", work);
+
+            return (await app.para.rerank()).last !== null;
+        },
+        "a search Jev ranked",
+        30_000,
+    );
     await page.navigate(`${base}/?sheet=para:settings`);
     await see(
         `return JSON.stringify(/Last search \\(.*\\): \\d+ pages read, 1 kept, [\\d.]+ s, \\$0\\.00008\\./.test(document.querySelector('[data-part="wiki-rerank"]')?.textContent ?? ""))`,

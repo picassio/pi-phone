@@ -1,7 +1,7 @@
 // pi-phone's own screens in a real browser: the terminal (a shell through the local pi-env daemon, its key row, Paste
 // and Select, and taking the shell up again after the sheet closed), the Files panel's upload and empty folder, and
 // the Continue in Pi sheet of a session that has not gone to Pi.
-import { type App, cleanUp, home, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, home, owner, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -86,14 +86,16 @@ before(async () => {
     page = await browsers.open(1);
 });
 
-after(async () => {
-    closeTerminals?.();
-    await browsers?.closeAll({ final: true });
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => closeTerminals?.(),
+        () => browsers?.closeAll({ final: true }),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("the terminal runs a shell, takes Paste and the key row, selects its text, and is taken up again", real, async () => {
     const { id } = await app.commands.createSession(owner(app), { cwd: work });

@@ -3,7 +3,7 @@
 // setting through its card. The checklist bar under the session's header: one line on a phone with the part Pi is on,
 // opening to the whole list; the whole list on a wide screen. With PHONE_SHOTS set to a folder, screenshots go there
 // (onboarding-built-*.png).
-import { type App, cleanUp, lastText, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, lastText, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import assert from "node:assert/strict";
@@ -117,14 +117,16 @@ before(async () => {
     await until(async () => (await inPage<boolean>(`document.querySelector("[data-part=home-list]") !== null`).catch(() => false)), "the app", 20_000);
 });
 
-after(async () => {
-    cdp?.close();
-    await engine?.close();
-    server?.closeAllConnections();
-    server?.close();
-    await app?.close();
-    cleanUp();
-});
+after(() =>
+    cleanUpAll(
+        () => cdp?.close(),
+        () => engine?.close(),
+        () => server?.closeAllConnections(),
+        () => server?.close(),
+        () => app?.close(),
+        () => cleanUp(),
+    ),
+);
 
 test("Menu › Getting started opens the guide; the checklist bar follows Pi's ticks; a setting waits on its card", real, async () => {
     // The menu, as a person opens it, with Getting started first among the app's things.
