@@ -3,7 +3,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { agoText, t, tx } from "../i18n.js";
 import { api, attempt, closeSheet, notify, openSheet } from "../store.js";
-import { Choice, copyText, html, Icon, Loader, Sheet } from "../ui.js";
+import { Choice, copyText, html, Icon, Loader, Sheet, StateTag } from "../ui.js";
 import { windowsSetupScript } from "../windows-setup.js";
 import { CrdConnectForm } from "../crd-connect.js";
 
@@ -511,8 +511,8 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             <div>
                 ${machine.name}
                 ${team && html` <span class="pv-team-tag">${t("Team")}</span>`}
-                ${state === "connected" && health?.ok !== false && html` <span class="ok">✓</span>`}
-                ${state === "connected" && health?.ok === false && html` <span class="warn">⚠</span>`}
+                ${state === "connected" && health?.ok !== false && html`<${StateTag} label=${t("Connected")} />`}
+                ${state === "connected" && health?.ok === false && html`<${StateTag} tone="err" label=${t("Can't connect")} />`}
             </div>
             <div class="muted small mono">${address(machine)}</div>
             <div class="muted small">

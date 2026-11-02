@@ -430,6 +430,45 @@ kbd {
     color: var(--err);
 }
 
+/* A state as a word and a small dot (PP-330, `StateTag`): quiet text, the colour only in the dot; at the end of its line. */
+.state-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.state-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+}
+
+.state-tag.warn .state-dot {
+    background: var(--warn);
+}
+
+.state-tag.err .state-dot {
+    background: var(--err);
+}
+
+.state-tag.off .state-dot {
+    background: var(--faint);
+}
+
+/* A title line with a state at its end: the name on the left, the state on the right. */
+:where(div):has(> .state-tag) {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    column-gap: 8px;
+}
+
 .pi {
     font-family: Georgia, "Times New Roman", serif;
     color: var(--brand);

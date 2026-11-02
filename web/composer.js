@@ -219,7 +219,7 @@ function DriverBar() {
             turns.driver !== undefined &&
             driverHere &&
             html`<button class="button small" disabled=${asked} onClick=${() => run("ask")}>
-                ${asked ? t("Asked ✓") : t("Ask to drive")}
+                ${asked ? t("Asked to drive") : t("Ask to drive")}
             </button>`
         }
         ${

@@ -176,6 +176,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   style, the model and branch menus' `.pop-menu` rows, not the system's `<select>`: fixed to the screen under its field (over
   it with too little room), closed by a tap elsewhere, a scroll, a resize, or Escape. **Settings by link:** `/?sheet=<name>`
   opens a settings sheet (`LINKED_SHEETS` in `app.js`), so Pi can screenshot the app's own sheets after changing them.
+- **StateTag** (`web/ui.js`, PP-330; also to extensions as `pocket.StateTag`): a thing's state at the end of its title
+  line as a word and a small dot in the theme's green, yellow, red or muted ("Connected", "Ready", "Needs sign-in",
+  "On"), never a ✓ or ⚠ dingbat. pi-phone's own screens had unslop's pass (PP-328, the owner's OK on the mockups of
+  2026-11-02); `test/unslop-ui.test.ts` holds them to it.
 - **Machines** (`src/server/machines.ts`, `web/sheets/machines.js`): other computers sessions can work on, through
   `@earendil-works/pi-env` (its daemon on the machine, deployed over ssh and verified by hash). `machines.json` holds
   name, `user@host[:port]`, and the SSH key; host keys the owner accepted are in `~/.ssh/pi-phone_known_hosts` under

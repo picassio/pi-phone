@@ -41,7 +41,7 @@ tags: []
 `;
 
 export default function wiki(pocket) {
-    const { html, useState, useEffect, useRef, Markdown, Icon, Loader, Switch, Choice, t, tn, tx } = pocket;
+    const { html, useState, useEffect, useRef, Markdown, Icon, Loader, Switch, Choice, StateTag, t, tn, tx } = pocket;
     /** Each category's name and hint, by id. */
     const categoryText = {
         projects: [t("Projects"), t("Goals with an end")],
@@ -512,7 +512,7 @@ export default function wiki(pocket) {
                 </div>
                 <div class="provider">
                     <div>
-                        <div>${t("Search by meaning")} ${settings.embeddingModel && html`<span class="ok">✓</span>`}</div>
+                        <div>${t("Search by meaning")} ${settings.embeddingModel && html`<${StateTag} label=${t("On")} />`}</div>
                         <div class="muted small">
                             ${t("Keyword search always works. With an OpenRouter embedding model, search also finds pages by meaning, in the wiki and in your documents. Each search waits for the model to embed the query: some answer in 0.2 s, others in over 1 s. Changing it embeds the wiki and your documents again.")}
                         </div>
@@ -584,7 +584,7 @@ export default function wiki(pocket) {
 
         return html`<div class="provider" data-part="wiki-rerank">
             <div>
-                <div>${t("Rank with Jev")} ${rerank.model && html`<span class="ok">✓</span>`}</div>
+                <div>${t("Rank with Jev")} ${rerank.model && html`<${StateTag} label=${t("On")} />`}</div>
                 <div class="muted small">
                     ${t("Jev reads each page the search found and keeps only those that help with the message or the query, best first: the pages that come with your messages, and wiki_query. About 0.5 s and $0.0001 a search, with your OpenRouter key. Off: the search's own order, by its score.")}
                 </div>

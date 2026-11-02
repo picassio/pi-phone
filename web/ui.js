@@ -2240,6 +2240,14 @@ export function Switch({ on, disabled, label, onChange }) {
     </button>`;
 }
 
+/**
+ * A thing's state as a word and a small dot in the theme's colour, at the end of its title line (PP-330): `ok` (green),
+ * `warn` (yellow), `err` (red), or `off` (muted). Never a ✓ or ⚠ dingbat.
+ */
+export function StateTag({ tone = "ok", label, title }) {
+    return html`<span class=${`state-tag ${tone}`} data-part="state-tag" title=${title}><span class="state-dot" aria-hidden="true"></span>${label}</span>`;
+}
+
 /** A row in a menu: a label, an optional hint on the right, and what a tap does. */
 /** A row of a sheet's list: its label and hint are written in English and shown in the person's language (PP-81). */
 export function item(label, run, hint) {

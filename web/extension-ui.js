@@ -20,7 +20,7 @@ import { leaveSafeMode, onSafeModeEnd, safeMode } from "./safe-mode.js";
 import { api, closeSheet, insertIntoComposer, notify, onExtensionEvent, openSheet, store } from "./store.js";
 import { setCallSummary } from "./turns.js";
 import { pickFolder } from "./sheets/folder.js";
-import { Choice, html, Icon, iconPath, Loader, Markdown, railState, Sheet, Spinner, Switch } from "./ui.js";
+import { Choice, html, Icon, iconPath, Loader, Markdown, railState, Sheet, Spinner, StateTag, Switch } from "./ui.js";
 
 /**
  * The version of `pocket`. It goes up only when something extensions use changes in a way that breaks them; additions
@@ -828,6 +828,8 @@ function pocketFor(record) {
         Switch,
         /** The app's own dropdown (`{ value, options: [{ value, label, detail? }], onChange, label }`), not the system's. */
         Choice,
+        /** A state as a word and a small dot (`{ tone: "ok" | "warn" | "err" | "off", label }`), never a ✓. */
+        StateTag,
         /**
          * The app's words in the person's language (PP-84): `t` takes an English sentence with {placeholders} and their
          * values, `tn` a count with its one and other sentences, `tx` a sentence with elements in it; English where the

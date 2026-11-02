@@ -2,7 +2,7 @@
 // Laid out as the Providers sheet: one provider row, and the sign-in as its device-code event.
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet } from "../store.js";
-import { copyText, html, Loader, Sheet } from "../ui.js";
+import { copyText, html, Loader, Sheet, StateTag } from "../ui.js";
 import { t, tx } from "../i18n.js";
 
 export function GitHubSheet() {
@@ -39,7 +39,7 @@ export function GitHubSheet() {
             html`<div class="sheet-list">
                 <div class="provider">
                     <div>
-                        <div>GitHub ${signedIn && html` <span class="ok">✓</span>`}</div>
+                        <div>GitHub ${signedIn && html`<${StateTag} label=${t("Signed in")} />`}</div>
                         <div class="muted small">
                             ${signedIn ? t("signed in · {login}", { login: status.login }) : status.state === "waiting" ? t("signing in") : t("not configured")}
                         </div>

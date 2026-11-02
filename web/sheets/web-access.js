@@ -2,18 +2,18 @@
 // sign-in, a key (kept in Settings › Secrets), or an address — with a test search. Off until a provider is picked.
 import { useEffect, useState } from "preact/hooks";
 import { api, attempt, closeSheet, openSheet } from "../store.js";
-import { Choice, html, Loader, Sheet } from "../ui.js";
+import { Choice, html, Loader, Sheet, StateTag } from "../ui.js";
 import { t, tx } from "../i18n.js";
 
-/** What a provider's key is: the secret it reads, whether it is optional, and whether it is there. */
-function keyLine(key, missing) {
+/** What a provider's key is: the secret it reads and whether it is optional (whether it is there: the `StateTag` on its title). */
+function keyLine(key) {
     const name = html`<span class="mono">${key.secret}</span>`;
 
     if (key.optional) {
-        return missing ? tx("Key: the secret {name} (optional).", { name }) : tx("Key: the secret {name} (optional) ✓.", { name });
+        return tx("Key: the secret {name} (optional).", { name });
     }
 
-    return missing ? tx("Key: the secret {name}.", { name }) : tx("Key: the secret {name} ✓.", { name });
+    return tx("Key: the secret {name}.", { name });
 }
 
 /** What a test search found: how many, how fast, and the first one's title. */
@@ -129,7 +129,14 @@ export function WebAccessSheet() {
             chosen &&
             html`<div class="provider">
                 <div>
-                    <div>${chosen.name}</div>
+                    <div>
+                        ${chosen.name}
+                        ${
+                            chosen.missing && !chosen.key.optional
+                                ? html`<${StateTag} tone="warn" label=${chosen.key.kind === "pi" ? t("Needs sign-in") : t("Needs a key")} />`
+                                : html`<${StateTag} label=${t("Ready")} />`
+                        }
+                    </div>
                     <div class="muted small mono">${chosen.id}${chosen.price ? ` · ${chosen.price}` : ""}</div>
                     <div class="small">
                         ${
@@ -139,9 +146,9 @@ export function WebAccessSheet() {
                                           provider: chosen.key.provider,
                                           link: html`<button class="link" onClick=${() => openSheet({ type: "providers" })}>${t("sign in under Providers")}</button>`,
                                       })
-                                    : t("Uses your {provider} sign-in ✓.", { provider: chosen.key.provider })
+                                    : t("Uses your {provider} sign-in.", { provider: chosen.key.provider })
                                 : chosen.key.kind === "secret"
-                                  ? keyLine(chosen.key, chosen.missing)
+                                  ? keyLine(chosen.key)
                                   : t("Needs no key.")
                         }
                         ${" "}<a href=${chosen.site} target="_blank" rel="noopener">${new URL(chosen.site).hostname}</a>

@@ -5,7 +5,7 @@ import { useEffect, useState } from "preact/hooks";
 import { formatDate, t } from "../i18n.js";
 import { pushId, pushSupport, turnPushOff, turnPushOn } from "../push.js";
 import { api, attempt, closeSheet, notify } from "../store.js";
-import { html, Sheet } from "../ui.js";
+import { html, Sheet, StateTag } from "../ui.js";
 
 /** Why this browser gets no notifications, as the card says it; undefined when it can. */
 function unavailable(support) {
@@ -52,7 +52,7 @@ export function NotificationsSheet() {
         <div class="sheet-list">
             <div class="provider" data-part="push-here">
                 <div>
-                    <div>${support === "install" ? t("On this iPhone") : t("On this device")} ${on && html`<span class="ok">✓</span>`}</div>
+                    <div>${support === "install" ? t("On this iPhone") : t("On this device")} ${on && html`<${StateTag} label=${t("On")} />`}</div>
                     <div class="muted small">
                         ${
                             reason ??

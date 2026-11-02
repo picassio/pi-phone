@@ -168,7 +168,7 @@ function Choice({ label, detail, current, onClick }) {
             <span>${label}</span>
             ${detail && html`<span class="muted small mono">${detail}</span>`}
         </span>
-        ${current && html`<span class="trust-current">${t("✓ current")}</span>`}
+        ${current && html`<span class="trust-current">${t("Current")}</span>`}
     </button>`;
 }
 

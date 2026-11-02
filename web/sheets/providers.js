@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { t, tx } from "../i18n.js";
 import { api, attempt, closeSheet, closeSignIn, loadUsage, openSheet, roleAllows, signInAnswered, store } from "../store.js";
 import { UsageBars } from "../usage.js";
-import { html, Icon, item, Loader, Sheet, Switch } from "../ui.js";
+import { html, Icon, item, Loader, Sheet, StateTag, Switch } from "../ui.js";
 import { RefreshModels } from "../model-refresh.js";
 import { CustomProviders } from "./custom-providers.js";
 
@@ -238,8 +238,8 @@ export function ProvidersSheet() {
                             ${provider.account && html` <span class="muted small">· ${t("account of {name}", { name: family(provider).name })}</span>`}
                             ${
                                 provider.needsSignIn
-                                    ? html` <span class="warn provider-needs">${t("needs sign-in")}</span>`
-                                    : provider.configured && html` <span class="ok">✓</span>`
+                                    ? html`<${StateTag} tone="warn" label=${t("Needs sign-in")} />`
+                                    : provider.configured && html`<${StateTag} label=${t("Ready")} />`
                             }
                         </div>
                         <div class="muted small">
@@ -343,7 +343,7 @@ function TeamRow({ provider, of, renaming, nameField, onLogin, onLogout, onRenam
                 ${provider.account.name}${" "}
                 <span class="pv-team-tag">${t("Team")}</span>${" "}
                 <span class="muted small">· ${t("team account of {name}", { name: of })}</span>
-                ${provider.configured && html` <span class="ok">✓</span>`}
+                ${provider.configured && html`<${StateTag} label=${t("Ready")} />`}
             </div>
             <div class="muted small">
                 ${

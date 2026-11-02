@@ -16,7 +16,7 @@ import {
     scoped,
     store,
 } from "../store.js";
-import { APPLE, html, Icon, Sheet, shortPath } from "../ui.js";
+import { APPLE, html, Icon, Sheet, shortPath, StateTag } from "../ui.js";
 import { piSessionsAvailable } from "./pi-sessions.js";
 import { continueInPiAt } from "./pi-handoff.js";
 import { joinPlace, missingFolder, splitPlace } from "../place.js";
@@ -622,7 +622,7 @@ export function CwdSheet({ mode, start, title }) {
                     >
                         <${Icon} name=${machine.team ? "users" : "monitor"} size=${15} />
                         <span>${machine.name}</span>
-                        ${health[machine.id]?.ok === false && html`<span class="warn" aria-label=${t("Can't connect")}>⚠</span>`}
+                        ${health[machine.id]?.ok === false && html`<${StateTag} tone="err" label=${t("Can't connect")} />`}
                     </button>`,
                 )}
                 ${favorites.length > 0 && html`<div class="fp-places-title">${t("Favorites")}</div>`}

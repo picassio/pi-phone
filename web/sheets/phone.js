@@ -5,7 +5,7 @@ import { useState } from "preact/hooks";
 import { downloadFile } from "../download.js";
 import { t } from "../i18n.js";
 import { api, attempt, closeSheet, notify, store } from "../store.js";
-import { html, Sheet, Switch } from "../ui.js";
+import { html, Sheet, StateTag, Switch } from "../ui.js";
 
 /**
  * While Pi works (PP-283): the progress board in the pi notification, the floating bubble over other apps (Android asks
@@ -135,7 +135,7 @@ export function PhoneSheet() {
                 app &&
                 html`<div class="provider">
                     <div>
-                        <div>${t("Notifications")} ${notifications && html`<span class="ok">✓</span>`}</div>
+                        <div>${t("Notifications")} ${notifications && html`<${StateTag} label=${t("On")} />`}</div>
                         <div class="muted small">
                             ${t("When the app is not in front: a session finished, failed, or asks you to approve a command. Tap one to open its session.")}
                         </div>
@@ -149,7 +149,7 @@ export function PhoneSheet() {
                 <${ProgressBoardSettings} app=${app} thenLook=${thenLook} />
                 <div class="provider">
                     <div>
-                        <div>${t("Run with the screen off")} ${unrestricted && html`<span class="ok">✓</span>`}</div>
+                        <div>${t("Run with the screen off")} ${unrestricted && html`<${StateTag} label=${t("Allowed")} />`}</div>
                         <div class="muted small">
                             ${
                                 unrestricted

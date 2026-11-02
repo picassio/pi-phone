@@ -3414,5 +3414,13 @@
     "Sign in to OpenRouter in Settings › Providers to use it. Until then the search keeps its own order.": "在“设置 › 提供商”中登录 OpenRouter 以使用。在此之前，搜索保持自己的顺序。",
     "Jev model": "Jev 模型",
     "Last search ({time}): {why}, so it kept the search's own order.": "上次搜索（{time}）：{why}，因此保留了搜索自己的顺序。",
-    "Last search ({time}): {read} pages read, {kept} kept, {seconds} s, ${cost}.": "上次搜索（{time}）：读了 {read} 页，保留 {kept} 页，{seconds} 秒，${cost}。"
+    "Last search ({time}): {read} pages read, {kept} kept, {seconds} s, ${cost}.": "上次搜索（{time}）：读了 {read} 页，保留 {kept} 页，{seconds} 秒，${cost}。",
+    "Connected": "已连接",
+    "Ready": "就绪",
+    "Needs sign-in": "需要登录",
+    "On": "已开启",
+    "Allowed": "已允许",
+    "Asked to drive": "已请求接管",
+    "Needs a key": "需要密钥",
+    "Uses your {provider} sign-in.": "使用你的 {provider} 登录。"
 }

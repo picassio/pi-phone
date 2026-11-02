@@ -3394,5 +3394,13 @@
     "Sign in to OpenRouter in Settings › Providers to use it. Until then the search keeps its own order.": "Đăng nhập OpenRouter trong Cài đặt › Nhà cung cấp để dùng. Trước đó tìm kiếm giữ thứ tự của chính nó.",
     "Jev model": "Mô hình Jev",
     "Last search ({time}): {why}, so it kept the search's own order.": "Lần tìm gần nhất ({time}): {why}, nên giữ thứ tự của chính tìm kiếm.",
-    "Last search ({time}): {read} pages read, {kept} kept, {seconds} s, ${cost}.": "Lần tìm gần nhất ({time}): đọc {read} trang, giữ {kept}, {seconds} giây, ${cost}."
+    "Last search ({time}): {read} pages read, {kept} kept, {seconds} s, ${cost}.": "Lần tìm gần nhất ({time}): đọc {read} trang, giữ {kept}, {seconds} giây, ${cost}.",
+    "Connected": "Đã kết nối",
+    "Ready": "Sẵn sàng",
+    "Needs sign-in": "Cần đăng nhập",
+    "On": "Bật",
+    "Allowed": "Được phép",
+    "Asked to drive": "Đã xin cầm lái",
+    "Needs a key": "Cần khóa",
+    "Uses your {provider} sign-in.": "Dùng đăng nhập {provider} của bạn."
 }

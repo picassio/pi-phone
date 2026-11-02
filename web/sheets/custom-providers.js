@@ -4,7 +4,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { t, tn } from "../i18n.js";
 import { api, attempt } from "../store.js";
-import { html, Icon, Loader } from "../ui.js";
+import { html, Icon, Loader, StateTag } from "../ui.js";
 
 /** Found models past this many get a box to find them by. */
 const FIND_AT = 8;
@@ -385,7 +385,7 @@ export function CustomProviders({ changed }) {
                           </div>`
                         : html`<div class="provider family" key=${provider.id}>
                               <div>
-                                  <div>${provider.name} ${provider.configured ? html`<span class="ok">✓</span>` : html`<span class="warn provider-needs">${t("no key")}</span>`}</div>
+                                  <div>${provider.name} ${provider.configured ? html`<${StateTag} label=${t("Ready")} />` : html`<${StateTag} tone="warn" label=${t("No key")} />`}</div>
                                   <div class="muted small cp-url mono">${provider.baseUrl}</div>
                                   <div class="muted small">${keyWords(provider)} · ${t("{n} models", { n: provider.models.length })}</div>
                               </div>
