@@ -1179,6 +1179,31 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **Chrome** (a machine's, the server edition's): Chrome opens a window a click opens and blocks one without (no
     setting); a `Page.windowOpen` takes the new tab in at once (`#adoptPopupsOnce`, between actions too), its opener
     from `Target.getTargetInfo`'s `openerId`.
+- **Scripts that read the page** (`browser_eval`, PP-244: a brand's computed colours, fonts and spacing; DOM queries).
+  `BrowserPage.evaluateIsolated` runs the expression with `Runtime.evaluate` (`returnByValue`, `awaitPromise` when
+  asked, `timeout` 10 s and the call's own 11 s) in the main frame's isolated world `pi-eval` (`Page.createIsolatedWorld`):
+  it shares the DOM, not the page's JS objects. Before each script, every frame in the page's frame tree (frames of
+  other sites are in other processes and out of reach) gets that world made one that only reads, by
+  `browser/eval-world.js` (`Runtime.callFunctionOn`, idempotent; also `Page.addScriptToEvaluateOnNewDocument` with the
+  world's name for documents to come): `Document.prototype.cookie`, frames' `contentWindow`/`contentDocument`, the
+  navigator's members but what it says of the browser, and every window property but a reading allowlist (`KEEP`, the
+  language's own, the DOM's node interfaces and reading ones) become accessors that throw "… is not available in
+  browser_eval"; on every DOM interface's prototype every setter throws, every method outside a reading allowlist
+  (`READS`: querySelectorAll, getAttribute, getPropertyValue, getBoundingClientRect, …) throws, and getters of promises
+  the page settles later (`ready`, `finished`, `loaded`, …) throw. So nothing holds a token (cookies, storage, caches,
+  cookieStore), nothing sends (fetch, XHR, sockets, beacons, workers, windows, postMessage), no HTML or attribute goes
+  in (an `onerror` would run in the page's world, where cookies are), and nothing is left to run later (timers,
+  listeners, observers). Overrides are non-configurable; one that cannot be made is answered by name and the script
+  does not run. `input.value`/`valueAsNumber`/`valueAsDate` and `textarea.value` read empty for password fields and for
+  fields holding a value the person typed on a card (`cardFills`, passed in each time, kept append-only in the world).
+  `location` is unforgeable, so a `javascript:` address set there would run in the page's world: the page's scripts are
+  off while the script runs (`Emulation.setScriptExecutionDisabled`), which drops such a navigation for good (it is not
+  queued). Not a fully closed box: a plain http navigation (`location.href = …`), or a `postMessage` to a cross-site
+  child frame through `window[0]`, still sends what the script read of the page, as Pi could with `browser_open`. The
+  answer is the value's JSON with card values taken out (`hideTypedJson`: raw and as escaped in JSON), withheld while a
+  short card value shows (PP-228), fenced as the page's, cut at 50,000 characters with a note outside the fence. Secret
+  values in it are redacted as in every tool result. Setting `browser.eval` (Settings › Pi's browser › Scripts,
+  `setting_change`): on (the default) or off, when the tool refuses naming it. Allowed in plan mode (Pi's browser is).
 - **The Browser panel's pictures** (`PiBrowser.#startFrames`, PP-199): while a tab watches, a capture first (`surface:
   false`, 5 s), then the screencast. A capture is held as long as the page's main thread is busy (headless Chrome, a
   big dialog rendering), and a still page's screencast sends nothing: when no picture came 4 s after the cast started,

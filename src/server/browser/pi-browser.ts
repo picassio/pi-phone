@@ -1396,6 +1396,26 @@ export class PiBrowser {
     }
 
     /**
+     * Run a script that reads the page in front (browser_eval, PP-244: `BrowserPage.evaluateIsolated`), its value as JSON
+     * text, with what the person typed on a card kept out of it as every other read keeps it out: the fields read as
+     * empty there, their values are taken out of the answer, and while a value too short to take out shows, there is no
+     * answer (PP-228).
+     */
+    evaluate(session: number, expression: string, awaitPromise: boolean): Promise<{ json: string } | { withheld: string }> {
+        return this.#run(session, "Running a script that reads the page", async ({ page }) => {
+            const fills = page.cardFills();
+
+            if (fills.length > 0 && shortCardValueShowing(fills, await page.observe())) {
+                return { withheld: SHORT_VALUE_NOTE };
+            }
+
+            const json = await page.evaluateIsolated(expression, { awaitPromise, hidden: fills.map((fill) => fill.value) });
+
+            return { json: page.hideTypedJson(json) };
+        });
+    }
+
+    /**
      * What is in view, as a JPEG (or a PNG, to keep); with `index`, only the dialog, menu or list that control is in, or
      * the control (PP-118). `whole` says which.
      */

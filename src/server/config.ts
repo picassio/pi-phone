@@ -203,6 +203,8 @@ interface PocketConfig {
      * first), or "off" (the page gets none). Absent: allow.
      */
     browserPopups?: PopupMode;
+    /** Whether browser_eval runs scripts that read the page in Pi's browser (PP-244). Absent: on. */
+    browserEval?: boolean;
     /** The design system Pi designs with unless asked otherwise (`design-systems.ts`), by its id. Absent: none. */
     designSystem?: string;
     /** The model that describes images in documents (PP-49), provider/modelId; none when unset. */
@@ -734,6 +736,20 @@ export class ConfigStore {
             delete this.#config.browserPopups;
         } else {
             this.#config.browserPopups = mode;
+        }
+
+        this.save();
+    }
+
+    get browserEval(): boolean {
+        return this.#config.browserEval ?? true;
+    }
+
+    set browserEval(on: boolean) {
+        if (on) {
+            delete this.#config.browserEval;
+        } else {
+            this.#config.browserEval = false;
         }
 
         this.save();

@@ -88,11 +88,28 @@ const reply = (text: string, isError = false) => ({ output: [{ type: "text" as c
 export function shotCaption(page: { title: string; url: string; width: number; height: number }, what: string, saved: string): string {
     return `${fencedPage(`${page.title || "(no title)"} — ${page.url}`)}\nAs Pi's browser shows it (${page.width}×${page.height} CSS pixels${what}).${saved}`;
 }
+/** How much of a script's value `browser_eval` gives (about 50 KB). */
+export const EVAL_MAX = 50_000;
+
+/** What browser_eval says while the owner has it off. */
+export const EVAL_OFF =
+    "browser_eval is off: the owner turned off scripts that read the page (setting browser.eval, Settings › Pi's browser › Scripts). Read the page with browser_snapshot, browser_text or browser_screenshot, or ask to turn it on with setting_change.";
+
+/**
+ * What Pi gets of a browser_eval script's value (PP-244): its JSON fenced as the page's (a page's text in it can say
+ * anything), cut at `EVAL_MAX` characters with a note outside the fence when longer.
+ */
+export function evalAnswer(json: string): string {
+    const cut = json.length > EVAL_MAX;
+
+    return `${fencedPage(cut ? json.slice(0, EVAL_MAX) : json)}${cut ? `\n(The value was cut at ${EVAL_MAX.toLocaleString("en")} of its ${json.length.toLocaleString("en")} characters: return less, or a part at a time.)` : ""}`;
+}
+
 /** How much of a whole page `browser_text` gives at once. */
 const TEXT_MAX = 40_000;
 
 /** In every prompt while the module is on. */
-export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; a window a page opens (a sign-in popup) becomes a tab in front, and when it closes itself the page that opened it comes back; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_open with machine browses on one of the owner's machines (its Chrome, its own addresses such as localhost:3000) from then on; browser_attach drives a browser already running on a machine (Playwright, agent-browser, a Chrome started with --remote-debugging-port), after the owner's card, and browser_detach lets it go. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code as text. When a page asks to sign in and the sign-in is saved as secrets you may use (secrets_list), type them by name: browser_type with secret: "NAME" (a password field too), or browser_run values {"password": {"secret": "NAME"}}; their values go into the page, never to you. Otherwise call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
+export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press and browser_hover; every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture; browser_eval runs a JavaScript expression that reads the page (computed colours, fonts, spacing; DOM queries) and gives its value as JSON. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; a window a page opens (a sign-in popup) becomes a tab in front, and when it closes itself the page that opened it comes back; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_open with machine browses on one of the owner's machines (its Chrome, its own addresses such as localhost:3000) from then on; browser_attach drives a browser already running on a machine (Playwright, agent-browser, a Chrome started with --remote-debugging-port), after the owner's card, and browser_detach lets it go. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code as text. When a page asks to sign in and the sign-in is saved as secrets you may use (secrets_list), type them by name: browser_type with secret: "NAME" (a password field too), or browser_run values {"password": {"secret": "NAME"}}; their values go into the page, never to you. Otherwise call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
 
 export default function createBrowser(host: PocketHost) {
     /** The session's own browser at the place it works in: the phone's, or its machine's Chrome (its own tabs there). */
@@ -468,6 +485,39 @@ export default function createBrowser(host: PocketHost) {
 
                     return `${page.title} — ${page.url}\n\n${page.text}${page.cut ? `\n\n(cut at ${TEXT_MAX} characters)` : ""}`;
                 }),
+        }),
+        defineTool({
+            name: "browser_eval",
+            description:
+                "Run a JavaScript expression that reads the page in Pi's browser, such as computed styles (colours, fonts, spacing) or DOM queries, and get its value back as JSON (about 50 KB at most). " +
+                "It runs in a world of its own that shares the page's DOM but not its scripts, and only reads: no cookies, storage, network (fetch, XMLHttpRequest, WebSocket, sendBeacon), timers, listeners, workers or windows, and nothing it sets or calls changes the page (methods that only read, such as querySelectorAll, getComputedStyle, getPropertyValue, getAttribute and getBoundingClientRect, work). " +
+                "Password fields and what the person typed on a card read as empty. With await, a promise it gives is awaited; 10 seconds at most. Return plain data (strings, numbers, booleans, arrays and objects of them): a page's element comes back as {}.",
+            parameters: Type.Object({
+                expression: Type.String({ description: "A JavaScript expression, like [...document.querySelectorAll('h1,h2')].map(e => getComputedStyle(e).fontFamily)" }),
+                await: Type.Optional(Type.Boolean({ description: "Await the promise it gives (an async function called at once)" })),
+            }),
+            replay: "safe",
+            execute: async (args, api, context) => {
+                if (!host.browserEval()) {
+                    return reply(EVAL_OFF, true);
+                }
+
+                const owner = mayBrowse(api.conversationId);
+
+                if (owner !== true) {
+                    return reply(owner, true);
+                }
+
+                try {
+                    const browser = await browserOf(api, context);
+                    const answer = await browser.evaluate(Number(api.conversationId), args.expression, args.await ?? false);
+
+                    return "withheld" in answer ? reply(answer.withheld, true) : reply(evalAnswer(answer.json));
+                } catch (error) {
+                    // A script's error can quote the page.
+                    return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
+                }
+            },
         }),
         defineTool({
             name: "browser_screenshot",

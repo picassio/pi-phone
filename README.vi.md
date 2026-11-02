@@ -196,6 +196,12 @@ dự án thật.</sub>
   trước, vẫn trao đổi được với trang đã mở nó, và Pi được báo; khi nó tự đóng, trang đó trở lại phía trước. **Cài đặt ›
   Trình duyệt của Pi › Cửa sổ trang mở ra** (`browser.popups`): *Cho phép*, *Hỏi* (một thẻ trước) hoặc *Tắt* (trang
   không mở được cửa sổ nào). Chrome trên một máy mở cửa sổ do một cú bấm mở, như Chrome vẫn làm.
+  **`browser_eval`** chạy một biểu thức JavaScript đọc trang và trả giá trị dạng JSON (màu, phông chữ, khoảng cách đã
+  tính của một thương hiệu, truy vấn DOM; tối đa khoảng 50 KB, tối đa 10 giây). Nó chạy trong một môi trường cô lập dùng
+  chung DOM của trang nhưng không dùng chung script của trang, và chỉ đọc: ở đó không có cookie, bộ nhớ trang, mạng, hẹn
+  giờ, trình nghe sự kiện, worker hay cửa sổ, không gì nó gán hay gọi làm thay đổi trang, và script của trang tạm dừng
+  khi nó chạy. Ô mật khẩu và những gì bạn gõ trên thẻ đọc ra là rỗng, và giá trị bạn gõ trên thẻ bị lấy ra khỏi câu trả
+  lời của nó. **Cài đặt › Trình duyệt của Pi › Đoạn mã** (`browser.eval`): *Bật* (mặc định) hoặc *Tắt*.
   **Mỗi phiên có các tab riêng**, và khung của nó chỉ hiện các tab đó; đăng nhập thì dùng chung cho mọi phiên trên
   điện thoại (hoặc trên một máy). Tab của một phiên đóng sau 30 phút không dùng (không đóng khi bạn đang xem hoặc đang
   tiếp quản), và đóng ngay khi phiên bị lưu trữ hoặc xóa; đăng nhập vẫn giữ. Trang được dàn trang như trên điện
@@ -657,6 +663,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | GitHub cho `git` và `gh` của Pi | **GitHub**: một mã thiết bị | Không với việc đăng nhập. Có với việc đăng xuất |
 | **OpenRouter** (cần cho Jev, tìm kiếm theo ngữ nghĩa của wiki, và tìm kiếm web qua OpenRouter) | **Nhà cung cấp › OpenRouter**: đăng nhập, hoặc **Khóa API** | Không, đăng nhập là việc của bạn |
 | **Jev** làm mô hình cho `browser_run` | **Trình duyệt của Pi › Mô hình chạy**: *Jev*, id `typesafe/jev-1.13`, cho mọi phiên hoặc chỉ phiên này (*Mô hình của phiên* dùng mô hình riêng của từng phiên) | “Dùng Jev cho browser run” (hoặc “…chỉ trong phiên này”) |
+| Đoạn mã đọc trang trong trình duyệt của Pi (`browser_eval`) | **Trình duyệt của Pi › Đoạn mã**: *Bật* (mặc định) hoặc *Tắt* | “Tắt đoạn mã trong trình duyệt” |
 | Cửa sổ trang mở ra trong trình duyệt của Pi trên điện thoại (cửa sổ đăng nhập) | **Trình duyệt của Pi › Cửa sổ trang mở ra**: *Cho phép* (một tab ở trước, mặc định), *Hỏi* (một thẻ trước), *Tắt* | “Hỏi tôi trước khi trang mở cửa sổ” |
 | Tìm kiếm theo ngữ nghĩa của **Wiki** | **Wiki** (hoặc *Cài đặt wiki* từ trình khởi chạy tìm kiếm) **› Tìm theo ngữ nghĩa**: chọn một mô hình embedding của OpenRouter, ví dụ `openai/text-embedding-3-small`. Tắt nghĩa là chỉ tìm theo từ khóa | “Đặt mô hình embedding của wiki là openai/text-embedding-3-small” |
 | Ghi nhận wiki và ngữ cảnh prompt | **Wiki**: số phút rảnh trước khi ghi nhận một phiên, mô hình viết phần ghi nhận, số token wiki trong mỗi prompt, tùy chọn lint | “Ghi nhận phiên rảnh sau 30 phút”, “dùng claude-haiku để ghi nhận wiki” |

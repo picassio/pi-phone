@@ -187,6 +187,12 @@ No Termux, no laptop, no cloud VM.
   that still talks to its page, and Pi is told; when it closes itself, the page comes back to the front. **Settings ›
   Pi's browser › Windows pages open** (`browser.popups`): *Allow*, *Ask* (a card first) or *Off* (pages get none).
   A machine's Chrome opens a window a click opens, as Chrome does.
+  **`browser_eval`** runs a JavaScript expression that reads the page and gives its value as JSON (computed colours,
+  fonts and spacing for a brand, DOM queries; about 50 KB at most, 10 seconds at most). It runs in an isolated world
+  that shares the page's DOM but not its scripts, and only reads: no cookies, storage, network, timers, listeners,
+  workers or windows there, nothing it sets or calls changes the page, and the page's own scripts pause while it runs.
+  Password fields and what you typed on a card read as empty, and your card values are taken out of its answer.
+  **Settings › Pi's browser › Scripts** (`browser.eval`): *On* (the default) or *Off*.
   **Each session has its own tabs**, and its panel shows only those; sign-ins are shared by every session on the phone
   (or on a machine). A session's tabs close after 30 minutes unused (not while you watch or have taken over), and at once
   when it is archived or deleted; the sign-ins stay. Pages are laid out as a phone's, or as a desktop's (1280 px, a
@@ -632,6 +638,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | GitHub for Pi's `git` and `gh` | **GitHub**: a device code | No for signing in. Yes for signing out |
 | **OpenRouter** (needed for Jev, the wiki's search by meaning, and OpenRouter web search) | **Providers › OpenRouter**: sign in, or **API key** | No, signing in is yours |
 | **Jev** as the model for `browser_run` | **Pi's browser › Run model**: pick a Jev model OpenRouter offers (such as *TypeSafe: Jev 1.14*) from the list, for every session or only this one (*The session's own model* uses each session's own model); *Test* asks it one decision | "Use Jev for browser runs" (or "…in this session only") |
+| Scripts that read the page in Pi's browser (`browser_eval`) | **Pi's browser › Scripts**: *On* (the default) or *Off* | "Turn off browser scripts" |
 | Windows pages open in Pi's browser on the phone (sign-in popups) | **Pi's browser › Windows pages open**: *Allow* (a tab in front, the default), *Ask* (a card first), *Off* | "Ask me before a page opens a window" |
 | **Wiki** search by meaning | **Wiki** (or *Wiki settings* from the search launcher) **› Search by meaning**: pick an OpenRouter embedding model, such as `openai/text-embedding-3-small`. Off means keyword search only | "Set the wiki embedding model to openai/text-embedding-3-small" |
 | **Wiki** search ranked by Jev | **Wiki › Rank with Jev**: a Jev model OpenRouter offers (`typesafe/jev-1.14` by default when OpenRouter is signed in), or *Off* for the search's own order | "Rank the wiki search with jev-1.13", "turn off Jev ranking for the wiki" |

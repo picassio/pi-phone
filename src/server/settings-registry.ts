@@ -462,6 +462,16 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             apply: (user, value) => app.setBrowserPopups(user, value.trim().toLowerCase()),
         },
         {
+            id: "browser.eval",
+            area: "browser",
+            title: "Scripts that read the page (browser_eval)",
+            help: "on (the default: Pi may run a script that reads the page in Pi's browser, such as its colours and fonts, in a world of its own with no cookies, storage, network, or changes to the page) or off (browser_eval refuses).",
+            owner: true,
+            read: () => (app.config.browserEval ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (user, value) => app.setBrowserEval(user, onOff(value)),
+        },
+        {
             id: "browser.machineMode",
             area: "browser",
             title: "How Pi's browser runs on a machine",

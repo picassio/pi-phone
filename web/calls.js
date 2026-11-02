@@ -139,6 +139,8 @@ export function describeCall(call) {
             return { icon: "◍", label: t("Reads"), subject: t("the page") };
         case "browser_text":
             return { icon: "◍", label: t("Reads"), subject: t("the whole page") };
+        case "browser_eval":
+            return { icon: "◍", label: t("Reads with a script"), subject: short(String(args.expression ?? ""), 80), mono: true };
         case "browser_screenshot":
             return { icon: "◍", label: t("Looks at"), subject: t("the page") };
         case "browser_click":

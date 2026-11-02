@@ -369,6 +369,8 @@ export interface PocketHost {
     detachBrowser(session: number): Promise<string>;
     /** The run model for a session's `browser_run`: "session", or a Jev model's OpenRouter id (the session's own, else the owner's). */
     browserRunModel(conversationId: ConversationId): string;
+    /** Whether browser_eval runs scripts that read the page (setting `browser.eval`, Settings › Pi's browser; PP-244). */
+    browserEval(): boolean;
     /** A provider's API key from the app's sign-ins (OpenRouter's, for Jev), or undefined when it is not signed in. */
     apiKey(provider: string): Promise<string | undefined>;
     /** Ask a session's own model a prompt alone (no history, no tools): its reply's text; it counts as the session's spend. */

@@ -1240,6 +1240,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, { popups: app.config.browserPopups });
             }
 
+            // Whether browser_eval runs scripts that read the page (Settings › Pi's browser, PP-244).
+            if (second === "eval" && third === undefined && method === "GET") {
+                return json(response, 200, { eval: app.config.browserEval });
+            }
+
+            if (second === "eval" && third === undefined && method === "PUT") {
+                app.setBrowserEval(user, (await readJson<{ eval?: unknown }>(request)).eval);
+
+                return json(response, 200, { eval: app.config.browserEval });
+            }
+
             // The run model `browser_run` decides with (Settings › Browser), and a test of a Jev model: one decision.
             if (second === "run-model" && third === undefined && method === "GET") {
                 return json(response, 200, { model: app.config.browserRunModel });

@@ -125,6 +125,45 @@ function PopupsRow() {
     </div>`;
 }
 
+/** Whether browser_eval runs scripts that read the page (PP-244): On or Off, saved when tapped. */
+function EvalRow() {
+    const [on, setOn] = useState(null);
+    const choices = [
+        [true, t("On")],
+        [false, t("Off")],
+    ];
+
+    useEffect(() => {
+        void attempt(async () => setOn((await api("browser/eval")).eval));
+    }, []);
+
+    if (on === null) {
+        return html`<${Loader} label=${t("Reading the setting")} />`;
+    }
+
+    return html`<div class="sheet-list">
+        <${Row}
+            title=${t("Scripts that read the page")}
+            detail=${on
+                ? t("Pi may run a script that reads the page (its colours, fonts and spacing, or what is on it), in a world of its own with no cookies, storage or network, that changes nothing; what you type on a card reads as empty.")
+                : t("browser_eval refuses: Pi reads pages only as their controls, text and pictures.")}
+        >
+            <div class="segmented">
+                ${choices.map(
+                    ([key, label]) =>
+                        html`<button
+                            class=${on === key ? "on" : ""}
+                            aria-pressed=${on === key}
+                            onClick=${() => key !== on && attempt(async () => setOn((await api("browser/eval", { eval: key }, { method: "PUT" })).eval))}
+                        >
+                            ${label}
+                        </button>`,
+                )}
+            </div>
+        <//>
+    </div>`;
+}
+
 export function BrowserSheet() {
     const conversation = store.state.view.conversation;
     const id = store.state.conversationId;
@@ -175,5 +214,7 @@ export function BrowserSheet() {
         }
         <div class="label">${t("Windows on the phone")}</div>
         <${PopupsRow} />
+        <div class="label">${t("Scripts")}</div>
+        <${EvalRow} />
     <//>`;
 }

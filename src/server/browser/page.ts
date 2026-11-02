@@ -9,6 +9,14 @@ import { readFileSync } from "node:fs";
 import type { Cdp } from "./cdp.ts";
 
 const SNAPSHOT = readFileSync(new URL("./snapshot.js", import.meta.url), "utf8");
+/** What makes the world browser_eval's scripts run in one that only reads the page (PP-244; `eval-world.js`). */
+const EVAL_WORLD = readFileSync(new URL("./eval-world.js", import.meta.url), "utf8");
+/** The isolated world browser_eval's scripts run in, by name: one per frame, shared by the frames of an origin. */
+export const EVAL_WORLD_NAME = "pi-eval";
+/** How long a browser_eval script may take, awaiting included. */
+export const EVAL_MS = 10_000;
+
+type FrameTree = { frame: { id: string }; childFrames?: FrameTree[] };
 
 /** Addresses Pi's browser never loads (Fetch patterns): the app itself, this device, and the local network (a page could act as you). */
 export const BLOCKED_URLS = [
@@ -360,6 +368,148 @@ export class BrowserPage {
         }
 
         return result;
+    }
+
+    /**
+     * JSON text with what the person typed through a card taken out (`hideTyped`), as written in it too: a value with a
+     * quote or a backslash is escaped in JSON, and reads as what it reads as, in JSON.
+     */
+    hideTypedJson(text: string): string {
+        let result = text;
+
+        for (const [value, shown] of [...this.#typed].sort(([a], [b]) => b.length - a.length)) {
+            const written = JSON.stringify(value).slice(1, -1);
+            const replacement = JSON.stringify(shown).slice(1, -1);
+
+            result = result.split(written).join(replacement).split(value).join(replacement);
+        }
+
+        return result;
+    }
+
+    /** Whether the world browser_eval runs in is made so in this tab's documents to come (`EVAL_WORLD`). */
+    #evalWorld = false;
+
+    /**
+     * Run a script that reads the page (browser_eval, PP-244), in an isolated world of the main frame: it shares the DOM,
+     * not the page's scripts. First every frame of the page gets that world made one that reads the page and
+     * nothing else (`eval-world.js`: no cookies, storage, network, timers, events, windows, or changing anything; the
+     * fields holding `hidden`, and password fields, read as empty), and the documents to come too. While it runs, the
+     * page's own scripts are off, so a `javascript:` address it navigates to never runs in the page's world (a
+     * navigation it starts is dropped then, not kept for later). Answers its value as JSON text (`undefined`, or a
+     * number JSON has no word for, as written); throws a clear error when it throws, takes over `EVAL_MS`, or the world
+     * could not be made so.
+     */
+    async evaluateIsolated(expression: string, { awaitPromise, hidden }: { awaitPromise: boolean; hidden: readonly string[] }): Promise<string> {
+        if (!this.#evalWorld) {
+            await this.cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: `(${EVAL_WORLD})([])`, worldName: EVAL_WORLD_NAME });
+            this.#evalWorld = true;
+        }
+
+        type Answer = {
+            result?: { type?: string; subtype?: string; value?: unknown; unserializableValue?: string };
+            exceptionDetails?: { text?: string; exception?: { description?: string } };
+        };
+        let answer: Answer;
+
+        // The page's scripts are off before its frames are listed, so none is added by them meanwhile.
+        await this.cdp.send("Emulation.setScriptExecutionDisabled", { value: true });
+
+        try {
+            const context = await this.#evalWorlds(hidden);
+
+            try {
+                answer = await this.cdp.send<Answer>(
+                    "Runtime.evaluate",
+                    { expression, contextId: context, returnByValue: true, awaitPromise, timeout: EVAL_MS, userGesture: false },
+                    EVAL_MS + 1000,
+                );
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+
+                throw new Error(/took longer than|Execution was terminated/.test(message) ? `The script did not finish within ${EVAL_MS / 1000} seconds.` : `The script could not run: ${message}`);
+            }
+        } finally {
+            await this.cdp.send("Emulation.setScriptExecutionDisabled", { value: false });
+        }
+
+        if (answer.exceptionDetails !== undefined) {
+            const description = answer.exceptionDetails.exception?.description ?? answer.exceptionDetails.text ?? "an error";
+
+            if (/Execution was terminated/.test(description)) {
+                throw new Error(`The script did not finish within ${EVAL_MS / 1000} seconds.`);
+            }
+
+            const message = description
+                .split("\n")
+                .filter((line) => !/^\s+at /.test(line))
+                .join("\n")
+                .slice(0, 1000);
+
+            throw new Error(`The script threw: ${this.hideTyped(message)}`);
+        }
+
+        const result = answer.result ?? {};
+
+        if (result.unserializableValue !== undefined) {
+            return result.unserializableValue;
+        }
+
+        if (result.value === undefined) {
+            return result.type === "undefined" ? "undefined" : `(a ${result.subtype ?? result.type ?? "value"} that is not plain data: return strings, numbers, booleans, arrays or objects of them)`;
+        }
+
+        return JSON.stringify(result.value);
+    }
+
+    /**
+     * Make the world browser_eval runs in one that only reads (`EVAL_WORLD`) in every frame of the page, with the
+     * person's card values `hidden`; answers the main frame's world. Throws when a frame's could not be made so.
+     */
+    async #evalWorlds(hidden: readonly string[]): Promise<number> {
+        // Every frame of the page in this renderer, the main one first: a script reaches a same-origin frame's globals
+        // (`window[0]`), another realm each, whose origin DevTools does not always say (an about:srcdoc frame's is "://").
+        // Frames in other processes (another site's) are not in this tree, and a script cannot reach into them.
+        const frames: string[] = [];
+        const walk = (node: FrameTree) => {
+            frames.push(node.frame.id);
+
+            for (const child of node.childFrames ?? []) {
+                walk(child);
+            }
+        };
+
+        walk((await this.cdp.send<{ frameTree: FrameTree }>("Page.getFrameTree")).frameTree);
+
+        let context: number | undefined;
+
+        for (const frameId of frames) {
+            const world = await this.cdp.send<{ executionContextId: number }>("Page.createIsolatedWorld", { frameId, worldName: EVAL_WORLD_NAME });
+            const made = await this.cdp.send<{ result?: { value?: unknown }; exceptionDetails?: { exception?: { description?: string } } }>("Runtime.callFunctionOn", {
+                functionDeclaration: EVAL_WORLD,
+                executionContextId: world.executionContextId,
+                arguments: [{ value: [...hidden] }],
+                returnByValue: true,
+            });
+
+            if (made.exceptionDetails !== undefined) {
+                throw new Error(`browser_eval could not prepare the page: ${made.exceptionDetails.exception?.description?.split("\n")[0] ?? "an error"}.`);
+            }
+
+            const failed = Array.isArray(made.result?.value) ? (made.result.value as unknown[]).map(String) : [];
+
+            if (failed.length > 0) {
+                throw new Error(`browser_eval does not run on this page: it could not make ${failed.slice(0, 10).join(", ")} unavailable to the script.`);
+            }
+
+            context ??= world.executionContextId;
+        }
+
+        if (context === undefined) {
+            throw new StalePage("The page has no frame to run the script in: read it again.");
+        }
+
+        return context;
     }
 
     /** A read with the person's typing hidden in what Pi is told; its guards stay, so a stale read is still seen. */

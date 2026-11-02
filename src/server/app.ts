@@ -1201,6 +1201,7 @@ export class PocketApp {
             attachBrowser: (cwd, session, options, ask) => this.attachBrowser(cwd, session, options, ask),
             detachBrowser: (session) => this.detachBrowser(session),
             browserRunModel: (id) => this.sessionMeta(this.rootOf(id))?.browserRunModel ?? this.config.browserRunModel,
+            browserEval: () => this.config.browserEval,
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
             askSessionModel: async (id, prompt, maxTokens) => (await askSessionModel(this, id, prompt, { maxTokens })).text,
             chargeSession: (id, key, usage) => chargeSession(this, id, key, usage),
@@ -5950,6 +5951,19 @@ export class PocketApp {
         }
 
         return { model: chosen, text: reply.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("").trim() };
+    }
+
+    /** Whether browser_eval runs scripts that read the page (Settings › Pi's browser, PP-244). The owner's. */
+    setBrowserEval(user: User, on: unknown): void {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (typeof on !== "boolean") {
+            throw new HttpError(400, "Scripts that read the page are on (true) or off (false).");
+        }
+
+        this.config.browserEval = on;
     }
 
     /**
