@@ -236,7 +236,10 @@ No Termux, no laptop, no cloud VM.
 - **Design systems.** 152 looks from [OpenDesign](https://github.com/nexu-io/open-design) (brands' public styles such
   as Stripe or Linear, and styles such as editorial or brutalist), each a DESIGN.md and its CSS tokens: name one, or
   pick a default in **Menu › Design system**, and Pi uses its colours, fonts, and spacing in pages, artifacts, and
-  Office decks and documents.
+  Office decks and documents. **Your own from a website:** give Pi a site's address ("make a design system from
+  coral.example") and it opens the site in Pi's browser, measures its colours, fonts, type scale, spacing, radii and
+  shadows with `browser_eval`, writes the system into your own (listed first), shows a sample page, and says which
+  values it chose rather than measured.
 - **Deck templates and motion.** Five HTML slide deck templates and GSAP's animation skills from
   [OpenDesign](https://github.com/nexu-io/open-design), each under its own MIT licence: Pi starts a deck from one and
   publishes it as an artifact.

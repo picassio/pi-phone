@@ -906,8 +906,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `tokens.css` and `manifest.json` each (2.8 MB of 41 MB: no previews, translations or derived files), and an
     `index.json` the sync script writes (id, name, category, and a one-line summary from under DESIGN.md's title, as
     upstream's manifest descriptions are mostly a generic "Bundled OpenDesign package for X"). The person's own are
-    `<data>/design-systems/<id>/` in the same shape (Pi writes them when asked; brand-extract, PP-240, waits for
-    `browser_eval`, PP-244), listed first and winning over a
+    `<data>/design-systems/<id>/` in the same shape (Pi writes them when asked, or measures them from a site with
+    brand-extract, below), listed first and winning over a
     bundled id; a folder there missing a file or a valid manifest is listed as a problem, never skipped silently. Every
     tokens.css binds the schema's core tokens (`REQUIRED_TOKENS`: colour roles, three font stacks, type scale, spacing,
     radii; all bundled ones do).
@@ -917,6 +917,17 @@ so Pi changes them through the settings tools; "the last session" is the one the
     than a tool: no extra tool in every session's list, and Pi reads the files itself. The skill says how to apply one:
     paste the `:root` block into an artifact and style only through `var(--*)`; in officecli, map `--bg`, `--fg`,
     `--muted`, `--border`, `--accent` and the first font family of each stack.
+  - **The `brand-extract` skill** (`src/design/skills/brand-extract/`, PP-240; the idea and format are OpenDesign's):
+    from a site's address, Pi opens it in Pi's browser at desktop size, gives `measure.js` (one expression, 14 KB of
+    JSON at most on real sites, about 150 ms) to `browser_eval`, looks with `browser_screenshot`, binds every token of
+    the schema from the measurements (the main buttons' fill is the accent, or the links' colour when buttons are
+    neutral; spacing from the base unit the paddings share; hover states and absent status colours are mixed and said
+    as chosen), writes the three files into the person's folder, runs `systems.ts check`, and shows a sample page with
+    `screenshot`. Values only, never logos or images. With browser_eval off it says so and stops (no guessing from a
+    picture). `measure.js`: computed styles of up to 4,000 visible elements; text colours weighted by characters,
+    backgrounds and borders by area; headings, a paragraph, a link, the buttons; sizes, families, loaded faces;
+    spacing, radii, shadows; the widest centred container's max-width; `:root` custom properties whose names say
+    colour, font, size, space, radius or shadow. `test/brand-extract.test.ts` checks it on a brand page in Chrome.
   - **Default** (`design.default`, `config.designSystem`; Menu › Design system, `sheets/design-system.js`, `GET
     /api/design-systems`, `POST /api/settings { designSystem }`): none by default. When set, a `design_system` prompt
     section (phone sessions only, where the files are) names it, its summary and both file paths; Pi uses it unless

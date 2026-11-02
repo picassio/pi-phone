@@ -7,7 +7,7 @@
  *
  * All of it is the Design & video extension's (PP-247, `extensions/design.ts`): when it is on, its skills load
  * (`DESIGN_SKILLS`: the `design-system` skill, which lists and searches them with `src/design/skills/design-system/
- * systems.ts`, OpenDesign's deck templates and GSAP skills, Motion Video Kit's business-motion-film, heydamir's
+ * systems.ts`, `brand-extract`, which measures a site into one of the person's own (PP-240), OpenDesign's deck templates and GSAP skills, Motion Video Kit's business-motion-film, heydamir's
  * unslop), and its Design system setting (`design.default`, Menu › Design system) names the one Pi uses unless asked
  * otherwise, in its prompt.
  */

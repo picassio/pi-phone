@@ -2,7 +2,7 @@
  * Design systems, slide deck templates, motion, and business films for Pi's pages, artifacts, and Office files.
  *
  * The Design & video extension (PP-247). While it is on, the app adds its skills to every phone session
- * (`DESIGN_SKILLS` in `design-systems.ts`: design-system, OpenDesign's five deck templates and five GSAP skills, Motion
+ * (`DESIGN_SKILLS` in `design-systems.ts`: design-system and brand-extract, OpenDesign's five deck templates and five GSAP skills, Motion
  * Video Kit's business-motion-film, heydamir's unslop), the `design.default` setting is offered (Menu › Design system), and this module's
  * `design_system` prompt section names the default design system. Off: none of these, so sessions carry no extra
  * skill descriptions.

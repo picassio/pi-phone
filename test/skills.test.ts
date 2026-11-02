@@ -231,6 +231,7 @@ test("a session lists them as /skill: commands and in its system prompt", async 
         commands.filter((name) => !["everywhere", "here"].includes(name)).sort(),
         [
             "big-pics-little-words",
+            "brand-extract",
             "business-motion-film",
             "design-artifact",
             "design-system",
@@ -272,12 +273,12 @@ test("a session lists them as /skill: commands and in its system prompt", async 
 test("with Design & video off, none of its skills load, in commands or the prompt, and they come back with it on", async () => {
     const app = await started();
     const id = await newSession(app);
-    const design = ["business-motion-film", "design-system", "gsap-core", "html-ppt-zhangzara-signal", "unslop"];
+    const design = ["brand-extract", "business-motion-film", "design-system", "gsap-core", "html-ppt-zhangzara-signal", "unslop"];
     const listed = () => app.skillCommands(id).map((each) => each.name).filter((name) => design.includes(name) || name.startsWith("gsap-") || name.startsWith("html-ppt-"));
 
     assert.equal(app.loader.list().find((module) => module.file === "design.ts")?.title, "Design & video");
     assert.equal(app.loader.enabled("design.ts"), true, "on by default");
-    assert.equal(listed().length, 13);
+    assert.equal(listed().length, 14);
     // heydamir's unslop (PP-327), from its own folder (in another session: this one's first prompt comes with it off).
     await say(app, await newSession(app), "design on by default");
     assert.match(prompt, /<name>unslop<\/name>[^]*third_party\/heydamir-unslop\/skills\/unslop\/SKILL\.md/);
@@ -297,9 +298,11 @@ test("with Design & video off, none of its skills load, in commands or the promp
     }
 
     await say(app, id, "design on");
-    assert.equal(listed().length, 13);
+    assert.equal(listed().length, 14);
     assert.match(prompt, /<name>unslop<\/name>/);
     assert.match(prompt, /<name>design-system<\/name>[^]*src\/design\/skills\/design-system\/SKILL\.md/);
+    // brand-extract (PP-240), next to it.
+    assert.match(prompt, /<name>brand-extract<\/name>[^]*src\/design\/skills\/brand-extract\/SKILL\.md/);
 });
 
 test("a session that began with Design & video and Formal checks on loses their skills from its next request once they are off, and has them again when they come back (PP-324)", async () => {

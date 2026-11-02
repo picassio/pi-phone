@@ -246,7 +246,10 @@ dự án thật.</sub>
 - **Hệ thống thiết kế.** 152 phong cách từ [OpenDesign](https://github.com/nexu-io/open-design) (phong cách công khai của
   các thương hiệu như Stripe hay Linear, và các phong cách như editorial hay brutalist), mỗi cái là một DESIGN.md và
   các token CSS của nó: nêu tên một cái, hoặc chọn mặc định ở **Menu › Hệ thống thiết kế**, và Pi dùng màu, phông chữ và
-  khoảng cách của nó cho trang, artifact, bản trình chiếu và tài liệu Office.
+  khoảng cách của nó cho trang, artifact, bản trình chiếu và tài liệu Office. **Của riêng bạn, từ một trang web:** đưa
+  Pi địa chỉ một trang ("làm design system từ coral.example"), Pi mở trang đó trong Pi's browser, đo màu, phông chữ,
+  thang cỡ chữ, khoảng cách, bo góc và đổ bóng bằng `browser_eval`, ghi hệ thống vào mục của bạn (hiện đầu danh sách),
+  làm một trang mẫu để xem, và nói giá trị nào Pi tự chọn chứ không đo được.
 - **Mẫu trình chiếu và chuyển động.** Năm mẫu bản trình chiếu HTML và các skill hoạt ảnh GSAP từ
   [OpenDesign](https://github.com/nexu-io/open-design), mỗi cái theo giấy phép MIT riêng: Pi bắt đầu một bản trình chiếu
   từ một mẫu và xuất bản nó thành artifact.

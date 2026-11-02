@@ -163,7 +163,9 @@
   的设计技能），以及 **交互式回答**：带地图的行程、计算器、检查清单等，以能保留状态、可以直接操作的界面呈现。
 - **设计系统。** 来自 [OpenDesign](https://github.com/nexu-io/open-design) 的 152 种外观（Stripe、Linear 等品牌的公开风格，
   以及杂志风、野兽主义等风格），每种包含一份 DESIGN.md 及其 CSS 令牌：说出一个名字，或在 **菜单 › 设计系统** 中选一个默认值，
-  Pi 就会在网页、产物以及 Office 演示文稿和文档中使用它的颜色、字体和间距。
+  Pi 就会在网页、产物以及 Office 演示文稿和文档中使用它的颜色、字体和间距。**从网站生成你自己的：** 给 Pi 一个网址
+  （“用 coral.example 做一个设计系统”），Pi 会在 Pi 的浏览器中打开它，用 `browser_eval` 测量颜色、字体、字号阶梯、间距、圆角和阴影，
+  写入你自己的设计系统（排在最前），做一个示例页面给你看，并说明哪些值是它选的而不是测得的。
 - **演示模板与动效。** 来自 [OpenDesign](https://github.com/nexu-io/open-design) 的五个 HTML 幻灯片模板和 GSAP 动画技能，
   各自采用 MIT 许可证：Pi 从其中一个模板开始制作演示文稿，并以产物形式发布。
 - **商业动效短片。** [Motion Video Kit](https://github.com/echris6/motion-video-kit) 的技能，用代码构建的动效（HTML、GSAP、Three.js）
