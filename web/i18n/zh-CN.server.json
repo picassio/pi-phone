@@ -739,5 +739,6 @@
     "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "音频需要 ChatGPT（Codex）登录：在“设置 › 提供商”中添加。",
     "Rank with Jev takes a Jev model's OpenRouter id (typesafe/jev-1.14), off, or default.": "用 Jev 排序接受 Jev 模型的 OpenRouter id（typesafe/jev-1.14）、off 或 default。",
     "Sign in to OpenRouter first (Settings › Providers): Jev runs on its key.": "请先登录 OpenRouter（设置 › 提供商）：Jev 使用它的密钥运行。",
-    "{1} is not one of the Jev models OpenRouter offers ({2}).": "{1} 不是 OpenRouter 提供的 Jev 模型（{2}）。"
+    "{1} is not one of the Jev models OpenRouter offers ({2}).": "{1} 不是 OpenRouter 提供的 Jev 模型（{2}）。",
+    "That is not a target /review takes: changes, branch <base>, commit <sha>, pr <number or link>, or folder <paths>, then --extra and a focus.": "/review 不接受这个目标：changes、branch <基础分支>、commit <sha>、pr <编号或链接> 或 folder <路径>，之后可加 --extra 和关注点。"
 }

@@ -54,6 +54,13 @@ dự án thật.</sub>
   bạn cho phép qua một thẻ. Công cụ `models` của Pi liệt kê các mô hình sẵn sàng, hạn mức và phần còn lại. Dòng tạo
   subagent ghi nó chạy trên gì và vì sao. Pi đổi được qua thẻ (`subagents.model`, `subagents.thinking`,
   `subagents.sessionModel`, `subagents.sessionThinking`).
+- **Review code bằng subagent.** `/review` (hoặc "review PR này") cho một subagent với ngữ cảnh mới và công cụ chỉ đọc
+  review các thay đổi chưa commit của thư mục, nhánh so với nhánh gốc, một commit, một pull request GitHub (theo số hoặc
+  link: chỉ fetch, không checkout) hoặc các thư mục, theo bộ tiêu chí của pi-review (phát hiện P0 đến P3, kết luận, điều
+  người cần kiểm tra) và `REVIEW_GUIDELINES.md` của dự án. `/review` không kèm gì mở một bảng có các pull request đang
+  mở. Kết quả là một thẻ: Sửa những lỗi này đặt tin nhắn sửa vào ô nhập, chưa gửi; Đăng lên GitHub đăng review của pull
+  request với bình luận theo dòng ("Request changes" khi có P0 hoặc P1, nếu không thì "Comment") sau khi bạn cho phép
+  qua một thẻ.
 - **Danh sách phiên theo kiểu T3 Code.** Một bộ chọn phạm vi (Tất cả, từng dự án, từng thư mục, Đã lưu trữ) thay cho
   các tab; Đã ghim, Đang hoạt động (các phiên tác vụ đang chạy của một dự án nằm dưới phiên chính của nó), và một ngăn
   **Đã cất** thu gọn. Một phiên tự cất sau một ngày rảnh, khi lượt chạy tác vụ của nó kết thúc, hoặc khi nhánh của nó
@@ -759,6 +766,8 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   trong `third_party/motion-video-kit/`.
 - **[unslop](https://github.com/heydamir/unslop)** của Damir Sokolovsky ([@heydamir](https://x.com/heydamir), CC BY
   4.0): skill `unslop` trong `third_party/heydamir-unslop/`, với một ghi chú pi-phone thêm vào.
+- **[pi-review](https://github.com/earendil-works/pi-review)** của Earendil (MIT): bộ tiêu chí review của nó, giữ nguyên, trong
+  `third_party/pi-review/`, mà subagent của `/review` làm theo.
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** của Lauren Tan ([@poteto](https://github.com/poteto),
   MIT): skill `statechart` trong `third_party/pstack-statechart/`, với bốn mô hình tiệm trà sữa của
   **[statechart-art](https://github.com/kevintngo/statechart-art)** của Kevin T. Ngo (MIT) làm ví dụ.

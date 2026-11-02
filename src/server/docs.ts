@@ -7,6 +7,7 @@
 import type { ContextPolicy } from "./context-policy.ts";
 import type { SubagentDefaults } from "./subagent-defaults.ts";
 import type { PiLink } from "./pi-handoff.ts";
+import type { ReviewMeta } from "./review.ts";
 import {
     type CheckpointInfo,
     type ConversationId,
@@ -198,6 +199,8 @@ export type SubagentRecord = {
     dealtAt?: number;
     /** A model the owner allowed on a card for this subagent alone (PP-281): work may go to it there. */
     approvedModel?: string;
+    /** What it reviews, when the `review` tool started it (PP-357): the card's title, and what posting it needs. */
+    review?: ReviewMeta;
 };
 
 /** A subagent's report waiting to go to its parent: all those waiting go together, as one message. */

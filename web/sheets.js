@@ -4,6 +4,7 @@ import { ChatSheet } from "./chat.js";
 import { ExtensionSheet, onExtensionsGone } from "./extension-ui.js";
 import { AppearanceSheet } from "./sheets/appearance.js";
 import { BranchPicker } from "./sheets/branch.js";
+import { ReviewSheet } from "./sheets/review.js";
 import { ExtensionsSheet } from "./sheets/extensions.js";
 import { FileSheet } from "./sheets/file.js";
 import { FindSheet } from "./sheets/find.js";
@@ -200,6 +201,9 @@ function sheetBody(sheet) {
             break;
         case "branch":
             body = view.conversation ? html`<${BranchPicker} />` : null;
+            break;
+        case "review":
+            body = view.conversation ? html`<${ReviewSheet} />` : null;
             break;
         case "cwd":
             body = html`<${CwdSheet} mode=${sheet.mode} start=${sheet.start} title=${sheet.title} />`;

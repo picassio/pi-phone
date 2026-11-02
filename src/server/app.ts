@@ -131,6 +131,7 @@ import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { exportsOf, MachineTools, machineSkillsDir, sessionEnvOf, TOOLS, TOOLS_BIN } from "./machine-tools.ts";
 import { FORMAL_MODULE, FORMAL_SKILLS } from "./formal-checks.ts";
+import { reviewTargets } from "./review.ts";
 import { type CrdRun, CrdError } from "./crd.ts";
 import { Screenshots } from "./screenshots.ts";
 import { FilePages } from "./file-pages.ts";
@@ -1284,31 +1285,7 @@ export class PocketApp {
             onSessionEvent: (listener) =>
                 this.phoneEvents.subscribe((event) => listener({ kind: event.kind, session: event.session, text: event.text })),
             quietSessions: (test) => this.phoneEvents.quiet(test),
-            run: async (cwd, command, timeoutSeconds = 120) => {
-                const folder = await this.workspace.checkPlace(cwd);
-                let stdout = "";
-                let stderr = "";
-                const result = await this.places.env(folder).exec(
-                    command,
-                    {
-                        timeout: timeoutSeconds,
-                        onOutput: (text, _context, info) => {
-                            if (info.stream === "stdout") {
-                                stdout += text;
-                            } else {
-                                stderr += text;
-                            }
-                        },
-                    },
-                    context,
-                );
-
-                if (!result.ok) {
-                    return { code: -1, stdout, stderr: `${stderr}${result.error.message}` };
-                }
-
-                return { code: result.value.exitCode ?? -1, stdout, stderr };
-            },
+            run: (cwd, command, timeoutSeconds = 120) => this.runIn(cwd, command, timeoutSeconds),
             sessionTitle: (session) => this.sessionMeta(session as unknown as ConversationId)?.title,
             sessionMachine: (session) => (this.sessionMeta(session as unknown as ConversationId) === undefined ? undefined : this.places.machineOf(this.cwdOf(session as unknown as ConversationId))?.name),
             cwdOf: (id) => this.cwdOf(id),
@@ -5269,6 +5246,45 @@ export class PocketApp {
             ...(this.loader.enabled(FORMAL_MODULE) ? FORMAL_SKILLS : []),
             ...(this.officecli.available() ? [this.officecli.skillsDir] : []),
         ];
+    }
+
+    /** A shell command in `cwd`, where it is (the phone, or a machine): its exit code and output. */
+    async runIn(cwd: string, command: string, timeoutSeconds = 120): Promise<{ code: number; stdout: string; stderr: string }> {
+        const folder = await this.workspace.checkPlace(cwd);
+        let stdout = "";
+        let stderr = "";
+        const result = await this.places.env(folder).exec(
+            command,
+            {
+                timeout: timeoutSeconds,
+                onOutput: (text, _context, info) => {
+                    if (info.stream === "stdout") {
+                        stdout += text;
+                    } else {
+                        stderr += text;
+                    }
+                },
+            },
+            context,
+        );
+
+        if (!result.ok) {
+            return { code: -1, stdout, stderr: `${stderr}${result.error.message}` };
+        }
+
+        return { code: result.value.exitCode ?? -1, stdout, stderr };
+    }
+
+    /**
+     * What `/review`'s sheet offers for a session (PP-357): the open pull requests of its repository (gh where it works;
+     * why not, when gh cannot), its recent commits, and whether it has REVIEW_GUIDELINES.md. Branches come from
+     * `GET .../branches`.
+     */
+    async reviewTargets(id: ConversationId, user: User) {
+        this.requireSee(user, id);
+        this.requireSteer(user);
+
+        return reviewTargets((command) => this.runIn(this.cwdOf(id), command, 60));
     }
 
     /** Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`). */

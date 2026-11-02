@@ -40,6 +40,11 @@
   可为该会话单独设置。只有你在聊天中要求时，Pi 才会用其他模型：从你在那里允许的模型中选（可一次添加多个，每个都显示上下文和套餐额度），
   或在你通过卡片允许之后。Pi 的 `models` 工具列出可用的模型、额度及剩余量。创建子代理的那一行会注明它运行在什么模型上以及原因。
   Pi 可通过卡片修改这些设置（`subagents.model`、`subagents.thinking`、`subagents.sessionModel`、`subagents.sessionThinking`）。
+- **由子代理审查代码。** `/review`（或“审查这个 PR”）让一个上下文全新、只能读的子代理审查文件夹中未提交的改动、分支相对基础分支的
+  改动、某个提交、某个 GitHub 拉取请求（按编号或链接：只 fetch，不 checkout）或若干文件夹，使用 pi-review 的审查准则（P0 到 P3
+  的问题、结论、需要人工确认的事项）和项目的 `REVIEW_GUIDELINES.md`。只输入 `/review` 会打开一个列出未关闭拉取请求的面板。结果是一张
+  卡片：“修复这些”把修复消息放进输入框，不发送；“发布到 GitHub”在你通过卡片允许后，把拉取请求的审查连同逐行评论发到 GitHub
+  （有 P0 或 P1 时为 “Request changes”，否则为 “Comment”）。
 - **仿照 T3 Code 的会话列表。** 用范围选择器（全部、各个项目、各个文件夹、已归档）代替标签页；列表分为已置顶、进行中（项目的任务会话显示在其主会话下方）
   和折叠起来的 **已搁置** 区。会话闲置一天、任务运行结束或分支合并后会自动搁置，有新动态时再回来；也可以手动搁置和取消搁置
   （Pi 则使用 `session_settle`）。每一行显示所在位置、时间（或已运行多久）、标题、分支或任务，以及状态。
@@ -555,6 +560,7 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
   和 GSAP 技能（作者 GreenSock，MIT），连同各自的许可证位于 `third_party/open-design/`。
 - **[motion-video-kit](https://github.com/echris6/motion-video-kit)**，作者 echris6（MIT）：位于 `third_party/motion-video-kit/` 的 `business-motion-film` 技能。
 - **[unslop](https://github.com/heydamir/unslop)**，作者 Damir Sokolovsky（[@heydamir](https://x.com/heydamir)，CC BY 4.0）：位于 `third_party/heydamir-unslop/` 的 `unslop` 技能，pi-phone 加了一条注释。
+- **[pi-review](https://github.com/earendil-works/pi-review)**，作者 Earendil（MIT）：它的审查准则，原样保存在 `third_party/pi-review/`，`/review` 的子代理按它审查。
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)**，作者 Lauren Tan（[@poteto](https://github.com/poteto)，
   MIT）：位于 `third_party/pstack-statechart/` 的 `statechart` 技能，以 Kevin T. Ngo 的
   **[statechart-art](https://github.com/kevintngo/statechart-art)**（MIT）中的四个奶茶店模型为示例。

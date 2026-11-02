@@ -66,6 +66,7 @@ import { describeMoment, describeRepeat, knownZone } from "./when.ts";
 import { snippet } from "./projection.ts";
 import { globalModelSettings, projectModelDefault } from "./project-model.ts";
 import { expandPromptTemplate, expandSkillCommand, unwrapSkill } from "./prompts.ts";
+import { expandReviewCommand } from "./review.ts";
 import { clientKey, ownRequest, requestFor } from "./requests.ts";
 import { type Resend, resendContent, resendRequest, ResendTask, userContent } from "./resend.ts";
 import { whyUnanswered } from "./subagent-runs.ts";
@@ -779,12 +780,16 @@ export class Commands {
         // A known secret's value pasted into a message stays out of the conversation: its name takes its place. So does a
         // value an extension hides here (`host.hide`): its label does.
         const typed = app.secrets.redact(request.text.trim(), id);
-        // `/skill:name request` sends the skill with the request; `/name arguments`, Pi's prompt template of that name.
-        const text = typed.startsWith("/skill:")
-            ? (expandSkillCommand(typed, app.skillCommands(id)) ?? typed)
-            : typed.startsWith("/")
-              ? (expandPromptTemplate(typed, app.promptTemplates(id)) ?? typed)
-              : typed;
+        // `/skill:name request` sends the skill with the request; `/name arguments`, Pi's prompt template of that name;
+        // `/review …` (PP-357), unless a template of that name is there, asks Pi to start the review tool.
+        const template = typed.startsWith("/") && !typed.startsWith("/skill:") ? expandPromptTemplate(typed, app.promptTemplates(id)) : undefined;
+        const review = template === undefined ? expandReviewCommand(typed) : undefined;
+
+        if (typeof review === "object") {
+            throw new HttpError(400, "That is not a target /review takes: changes, branch <base>, commit <sha>, pr <number or link>, or folder <paths>, then --extra and a focus.");
+        }
+
+        const text = typed.startsWith("/skill:") ? (expandSkillCommand(typed, app.skillCommands(id)) ?? typed) : (template ?? review ?? typed);
         const attachments = request.attachments ?? [];
 
         if (text === "" && attachments.length === 0) {

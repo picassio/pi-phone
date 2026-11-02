@@ -738,5 +738,6 @@
     "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "Âm thanh cần đăng nhập ChatGPT (Codex): thêm trong Cài đặt › Nhà cung cấp.",
     "Rank with Jev takes a Jev model's OpenRouter id (typesafe/jev-1.14), off, or default.": "Xếp hạng bằng Jev nhận mã OpenRouter của một mô hình Jev (typesafe/jev-1.14), off, hoặc default.",
     "Sign in to OpenRouter first (Settings › Providers): Jev runs on its key.": "Hãy đăng nhập OpenRouter trước (Cài đặt › Nhà cung cấp): Jev chạy bằng khóa của nó.",
-    "{1} is not one of the Jev models OpenRouter offers ({2}).": "{1} không phải một mô hình Jev mà OpenRouter cung cấp ({2})."
+    "{1} is not one of the Jev models OpenRouter offers ({2}).": "{1} không phải một mô hình Jev mà OpenRouter cung cấp ({2}).",
+    "That is not a target /review takes: changes, branch <base>, commit <sha>, pr <number or link>, or folder <paths>, then --extra and a focus.": "/review không nhận mục tiêu này: changes, branch <nhánh gốc>, commit <sha>, pr <số hoặc link>, hoặc folder <đường dẫn>, rồi --extra và điều cần tập trung."
 }

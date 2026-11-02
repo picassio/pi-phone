@@ -1385,7 +1385,7 @@ export function Composer() {
                         ${
                             parsed.command.args &&
                             html` <span class="command-args">${parsed.command.args}</span>`
-                        } <span class="muted">${t("· {description} · not sent to Pi", { description: parsed.command.description })}</span>
+                        } <span class="muted">${parsed.command.toPi ? t("· {description} · sent to Pi", { description: parsed.command.description }) : t("· {description} · not sent to Pi", { description: parsed.command.description })}</span>
                     </div>`
                 }
                 ${

@@ -39,6 +39,7 @@ import type { PocketHost } from "../host.ts";
 import type { ResolvedSubagentDefaults } from "../subagent-defaults.ts";
 import { levelAtMost, sameModel, THINKING_LEVELS } from "../models.ts";
 import { requestFor } from "../requests.ts";
+import { diffLines, githubReview, parseReviewResult, prepareReview, quote, type ReviewTarget, reviewGuidelines, reviewPrompt } from "../review.ts";
 import { whyUnanswered } from "../subagent-runs.ts";
 
 // Exclude Agent Teams by name even while it is off; enabling it later must not give nested agents delegation.
@@ -1064,6 +1065,139 @@ export default function createSubagents(host: PocketHost) {
         },
     });
 
+    // Code review by a subagent (PP-357): `start` looks the target up where the session works and starts a reviewer with
+    // pi-review's rubric and the read-only tools; its answer comes back as a report the app draws as a card. `post` puts
+    // a pull request's review on GitHub, after the person allows it on a card.
+    const review = defineTool({
+        name: "review",
+        description:
+            "Code review by a subagent with a fresh context (it answers later, as a subagent report the app shows as a card). " +
+            "action start: target changes (the folder's uncommitted changes, the default), branch (ref: the base branch), commit (ref: a sha), " +
+            "pr (ref: a GitHub pull request's number or link; read without checking it out), or folders (paths); extra: a focus. " +
+            "action post: name (the reviewer, review-…): post its pull request review to GitHub, after the person approves on a card. " +
+            "When the report comes, do not repeat its findings: the person sees them on the card.",
+        parameters: Type.Object({
+            action: Type.Union([Type.Literal("start"), Type.Literal("post")]),
+            target: Type.Optional(Type.Union([Type.Literal("changes"), Type.Literal("branch"), Type.Literal("commit"), Type.Literal("pr"), Type.Literal("folders")])),
+            ref: Type.Optional(Type.String({ description: "branch: the base; commit: the sha; pr: the number or link" })),
+            paths: Type.Optional(Type.Array(Type.String(), { description: "folders: the paths" })),
+            extra: Type.Optional(Type.String({ description: "What to focus on, in the person's words" })),
+            name: Type.Optional(Type.String({ description: "post: the reviewer's name" })),
+        }),
+        // Not rerun after a crash: it may have started a reviewer or posted already.
+        replay: "unsafe",
+        execute: async (args, api, context) => {
+            const text = (value: string) => ({ output: [{ type: "text" as const, text: value }] });
+            const cwd = host.cwdOf(api.conversationId);
+            const run = (command: string) => host.run(cwd, command, 120);
+
+            if (args.action === "post") {
+                const registry = await api.snapshot(SubagentsDoc, api.conversationId, context);
+                const record = args.name === undefined ? undefined : registry?.agents[args.name];
+                const pr = record?.review?.pr;
+
+                if (record === undefined || pr === undefined) {
+                    return text(`${args.name ?? "(no name)"} is not a review of a pull request here.`);
+                }
+
+                const answered = record.reported.at(-1);
+                const answer =
+                    answered === undefined
+                        ? undefined
+                        : await api.commit(async (tx) => (await tx.entry(AssistantEntry, answered))?.model?.[0] as AssistantMessage | undefined, context);
+                const result = parseReviewResult(textOf(answer));
+
+                if (result === undefined) {
+                    return text(`${args.name} has no finished review to post (its answer has no review-result block).`);
+                }
+
+                const shown = diffLines((await run(`git diff ${quote(pr.mergeBase)} ${quote(pr.headSha)}`)).stdout);
+                const posted = githubReview(result, shown);
+                const allowed = await host.approvals.request(
+                    {
+                        id: `review-post-${String(api.conversationId)}-${String(api.callId)}`,
+                        conversationId: api.conversationId as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "review",
+                        subject: `Post this review to PR #${pr.number}?`,
+                        reason: `${pr.repo} · as you (gh) · ${posted.event === "REQUEST_CHANGES" ? "Request changes" : "Comment"} · ${posted.comments.length} line comment${posted.comments.length === 1 ? "" : "s"} and a summary with the verdict${result.callouts.length === 0 ? "" : " and the callouts"}.`,
+                        createdAt: Date.now(),
+                    },
+                    context as never,
+                );
+
+                if (!allowed.allow) {
+                    return text("The person did not allow posting it; nothing went to GitHub.");
+                }
+
+                const fence = `PI_REVIEW_${Date.now()}`;
+                const sent = await run(
+                    `gh api --method POST ${quote(`repos/${pr.repo}/pulls/${pr.number}/reviews`)} --input - <<'${fence}'\n${JSON.stringify({ commit_id: pr.headSha, ...posted })}\n${fence}`,
+                );
+
+                if (sent.code !== 0) {
+                    return text(`GitHub did not take the review: ${(sent.stderr.trim() || sent.stdout.trim()).slice(0, 600)}`);
+                }
+
+                const url = (JSON.parse(sent.stdout) as { html_url?: string }).html_url ?? pr.url;
+
+                return text(`Posted to PR #${pr.number} (${posted.event === "REQUEST_CHANGES" ? "Request changes" : "Comment"}, ${posted.comments.length} line comments): ${url}`);
+            }
+
+            const target: ReviewTarget =
+                args.target === undefined || args.target === "changes"
+                    ? { kind: "changes" }
+                    : args.target === "folders"
+                      ? { kind: "folders", paths: args.paths ?? (args.ref === undefined ? [] : [args.ref]) }
+                      : args.ref === undefined || args.ref.trim() === ""
+                        ? (() => {
+                              throw new Error(`${args.target} needs ref.`);
+                          })()
+                        : args.target === "branch"
+                          ? { kind: "branch", base: args.ref }
+                          : args.target === "commit"
+                            ? { kind: "commit", sha: args.ref }
+                            : { kind: "pr", pr: args.ref.replace(/^#/, "") };
+
+            if (target.kind === "folders" && target.paths.length === 0) {
+                throw new Error("folders needs paths.");
+            }
+
+            const { meta, instructions } = await prepareReview(run, target);
+            const prompt = reviewPrompt(instructions, await reviewGuidelines(run), args.extra?.trim() || undefined);
+            const registry = await api.snapshot(SubagentsDoc, api.conversationId, context);
+            const slug = (meta.pr === undefined ? meta.kind : `pr-${meta.pr.number}`).replace(/[^a-z0-9-]/g, "");
+            let name = `review-${slug}`;
+
+            for (let n = 2; registry !== null && registry !== undefined && Object.hasOwn(registry.agents, name); n += 1) {
+                name = `review-${slug}-${n}`;
+            }
+
+            // Read only: it looks with git and reads files; it has no edit or write.
+            const parent = await api.agent(context);
+            const tools = ["read", "bash", "grep", "find", "ls"].filter((tool) => parent.tools.some((each) => each.name === tool));
+            const started = await subagent.execute({ action: "spawn", name, message: prompt, tools }, api, context);
+
+            await api.commit(async (tx) => {
+                const state = await tx.doc(SubagentsDoc, api.conversationId);
+
+                const record = state.agents[name];
+
+                if (record !== undefined) {
+                    record.review = meta;
+                }
+            }, context);
+
+            const said = (started.output ?? []).map((part) => (part.type === "text" ? part.text : "")).join("");
+
+            return {
+                output: [{ type: "text" as const, text: `Reviewing ${meta.label}${meta.files === undefined ? "" : ` (${meta.files} files)`} in the subagent ${name}. ${said} Its findings come back as a card the person sees: when its report comes, do not repeat them; say in a line what you will do next, if anything.` }],
+                ...(started.details === undefined ? {} : { details: started.details }),
+            };
+        },
+    });
+
     // Which models Pi may use, with their limits (PP-281): read only, for picking one the person asks for.
     const models = defineTool({
         name: "models",
@@ -1090,7 +1224,7 @@ export default function createSubagents(host: PocketHost) {
     const SubagentTools: Extension = defineExtension({
         name: "pocket-subagents",
         tasks: [Anchor, Reporter, Courier],
-        tools: [subagent, models],
+        tools: [subagent, models, review],
         // Fixed: the settings and the allowed models change without sending it again (the models tool reads them).
         sections: [section("subagents", () => GUIDE)],
     });

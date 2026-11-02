@@ -9,6 +9,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ContextPart } from "../context-policy.ts";
 import type { SubagentPart } from "../subagent-defaults.ts";
 import { CiWatchesDoc } from "../docs.ts";
+import { describe } from "../errors.ts";
 import { HttpError } from "../errors.ts";
 import type { CommandRequest } from "../extension-commands.ts";
 import { serveImage, serveLocalVideo, serveVideo, TYPES, VIDEO_TYPES } from "./assets.ts";
@@ -598,6 +599,13 @@ export async function conversationRoutes(
         await app.workspace.revertChange(id, user, body.path);
 
         return json(response, 200, { ok: true });
+    }
+
+    // `/review`'s sheet (PP-357): open pull requests, recent commits, review guidelines.
+    if (third === "review-targets" && fourth === undefined && method === "GET") {
+        return json(response, 200, await app.reviewTargets(id, user).catch((error: unknown) => {
+            throw new HttpError(409, describe(error));
+        }));
     }
 
     if (third === "branches" && fourth === undefined && method === "GET") {

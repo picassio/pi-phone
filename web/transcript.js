@@ -30,6 +30,7 @@ import {
 import { setBrowserOpen } from "./browser-panel.js";
 import { CrdConnectForm } from "./crd-connect.js";
 import { BrowserRunCard } from "./browser-run-card.js";
+import { parseReviewResult, ReviewCard } from "./review-card.js";
 import { ScreenCard } from "./guide.js";
 import { levelName, openSubagent, stateOf } from "./subagents.js";
 import { prefs } from "./theme.js";
@@ -71,6 +72,8 @@ import { LimitSwitch, windowName } from "./usage.js";
 import { t, timeAgo, tn, tx } from "./i18n.js";
 
 const REPORT = /^\[subagent (\S+) (answered|failed)([^\]]*)\]\s?([\s\S]*)$/;
+/** `/review …` and the request `expandReviewCommand` (src/server/review.ts) puts after it. */
+const REVIEW_REQUEST = /^(\/review[^\n]*)\n\n<review-request>\n[\s\S]*\n<\/review-request>$/;
 /** Where the next report starts, in a message of several that arrived together (`extensions/subagents.ts`). */
 const NEXT_REPORT = /\n\n(?=\[subagent \S+ (?:answered|failed))/;
 
@@ -225,6 +228,12 @@ function Report({ report, view, fresh }) {
     const child = view.subagents.find((agent) => agent.name === name);
     // A failed one says why: "failed: stopped before it answered", "failed: Bad request".
     const why = verb === "failed" ? after.replace(/^:\s*/, "") : "";
+    // A reviewer's answer (PP-357): its findings as a card, when its review-result block is right.
+    const reviewed = verb === "answered" && text.includes("```review-result") ? parseReviewResult(text) : null;
+
+    if (reviewed) {
+        return html`<${ReviewCard} name=${name} child=${child} result=${reviewed} fresh=${fresh} />`;
+    }
 
     return html`<div
         class=${`report ${verb === "failed" ? "failed" : ""} ${fresh ? "enter" : ""}`}
@@ -323,7 +332,9 @@ function UserEntry({ entry, view, users }) {
         via && /^linked session \S+$/.test(via[1])
             ? /\n<linked-session-message>\n([\s\S]*)\n<\/linked-session-message>$/.exec(sent)?.[1]
             : undefined;
-    const body = peerText ?? (scheduled ? sent.slice(SCHEDULED.length) : spoken ? sent.slice(VOICE.length) : sent);
+    const said = peerText ?? (scheduled ? sent.slice(SCHEDULED.length) : spoken ? sent.slice(VOICE.length) : sent);
+    // `/review …` as typed: the request the server added for Pi (`expandReviewCommand`) stays out of sight (PP-357).
+    const body = REVIEW_REQUEST.exec(said)?.[1] ?? said;
     const files = attachments ? parseAttachments(attachments) : [];
     // `/skill:name request`: the skill by name, and the request.
     const skill = SKILL.exec(body);

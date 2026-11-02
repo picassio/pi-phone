@@ -306,6 +306,17 @@ export function subagentView(
             : {}),
         ...(failureDealtWith(record) ? { dealt: true } : {}),
         ...(reporting ? { reporting: true } : {}),
+        // A review's title and size, for its card (PP-357); a pull request's number and link, not its shas.
+        ...(record.review === undefined
+            ? {}
+            : {
+                  review: {
+                      kind: record.review.kind,
+                      label: record.review.label,
+                      ...(record.review.files === undefined ? {} : { files: record.review.files }),
+                      ...(record.review.pr === undefined ? {} : { pr: { number: record.review.pr.number, url: record.review.pr.url } }),
+                  },
+              }),
     };
 }
 

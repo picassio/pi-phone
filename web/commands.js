@@ -344,6 +344,16 @@ const COMMANDS = [
         run: () => toggleFiles("changes"),
     },
     {
+        // Code review by a subagent (PP-357): with nothing after it, the sheet that picks what; typed, it goes to Pi as
+        // `/review …`, which the server turns into the review tool's call.
+        name: "review",
+        args: "[changes | branch <base> | commit <sha> | pr <n> | folder <paths>] [--extra focus]",
+        description: "Code review by a subagent: changes, a branch, a commit, a GitHub PR, or folders",
+        toPi: true,
+        available: () => isSession() && store.state.server?.extensions?.includes("pocket-subagents") === true,
+        run: (arg) => (arg === "" ? openSheet({ type: "review" }) : actions.submit(`/review ${arg}`, [], store.state.view.live?.busy ? "steer" : "followUp")),
+    },
+    {
         name: "branch",
         args: "[name]",
         description: "Switch the folder to another git branch, or make one",

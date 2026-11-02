@@ -176,6 +176,24 @@ so Pi changes them through the settings tools; "the last session" is the one the
   style, the model and branch menus' `.pop-menu` rows, not the system's `<select>`: fixed to the screen under its field (over
   it with too little room), closed by a tap elsewhere, a scroll, a resize, or Escape. **Settings by link:** `/?sheet=<name>`
   opens a settings sheet (`LINKED_SHEETS` in `app.js`), so Pi can screenshot the app's own sheets after changing them.
+- **Code review** (`src/server/review.ts`, the `review` tool in `extensions/subagents.ts`, `web/sheets/review.js`,
+  `web/review-card.js`; PP-357, the owner's mockup of 2026-11-02 after research PP-309, wiki
+  `resources/pi-review-research`): `review` start looks the target up where the session works (`app.runIn`: the phone
+  or a machine): uncommitted changes (`git status`), a branch (merge base, its upstream first), a commit, a GitHub pull
+  request (`gh pr view`, then `git fetch origin pull/<n>/head <base>` and the merge base: nothing is checked out; the
+  reviewer reads with `git diff` and `git show <head>:<path>`), or folders. It spawns `review-<target>` through the
+  `subagent` tool's own code (models, thinking and reports as for any subagent) with read-only tools (read, bash, grep,
+  find, ls) and one message: pi-review's rubric (`third_party/pi-review/REVIEW_RUBRIC.md`, MIT, as upstream wrote it),
+  the target's instructions, a focus, `REVIEW_GUIDELINES.md` from the repository's top, and pi-phone's output format,
+  which ends with a `review-result` JSON block (verdict, findings P0 to P3 with file, line, body and suggestion,
+  callouts). The record keeps `review` (label, files, the pull request's repo, number, head and merge base). The report
+  draws as a card when its block parses (else as any report); Fix these uses `insertIntoComposer`; Post to GitHub asks
+  Pi to run `review` post, which reads the reviewer's last answer, asks the person on a card, and posts
+  `repos/<repo>/pulls/<n>/reviews` with `gh api` (line comments on lines `git diff <base> <head>` shows, the rest in the
+  summary; "Request changes" for a P0 or P1, else "Comment", never "Approve"). `/review …` in the message box goes to
+  Pi expanded (`expandReviewCommand`): the command as typed, then a `<review-request>` the transcript hides. `/review`
+  alone opens the sheet (`GET /api/c/:id/review-targets`: `gh pr list`, the last commits, whether there are guidelines;
+  branches from `.../branches`). Tests: `test/review.test.ts`, `test/review-ui.test.ts`.
 - **StateTag** (`web/ui.js`, PP-330; also to extensions as `pocket.StateTag`): a thing's state at the end of its title
   line as a word and a small dot in the theme's green, yellow, red or muted ("Connected", "Ready", "Needs sign-in",
   "On"), never a ✓ or ⚠ dingbat. pi-phone's own screens had unslop's pass (PP-328, the owner's OK on the mockups of

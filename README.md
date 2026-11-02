@@ -51,6 +51,12 @@ No Termux, no laptop, no cloud VM.
   you allow it on a card. Pi's `models` tool lists the models that are ready, their limits and what is left. The spawn
   line says what each subagent runs on and why. Pi changes these on a card (`subagents.model`, `subagents.thinking`,
   `subagents.sessionModel`, `subagents.sessionThinking`).
+- **Code review by a subagent.** `/review` (or "review this PR") has a subagent with a fresh context and read-only
+  tools review the folder's uncommitted changes, the branch against a base, a commit, a GitHub pull request (by number
+  or link: fetched, never checked out), or folders, with pi-review's rubric (P0 to P3 findings, a verdict, what a person
+  should check) and the project's `REVIEW_GUIDELINES.md`. `/review` alone opens a sheet with the open pull requests. The
+  report is a card: Fix these puts the fix message in the message box, unsent; Post to GitHub posts a pull request's
+  review with line comments ("Request changes" for a P0 or P1, else "Comment") after you allow it on a card.
 - **A session list after T3 Code.** A scope picker (All, each project, each folder, Archived) instead of tabs; Pinned,
   Active (a project's running task sessions under its main session), and a folded **Settled** shelf. A session settles
   by itself after a day idle, when its task run ends, or when its branch is merged, and comes back with new activity;
@@ -736,6 +742,8 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   skill in `third_party/motion-video-kit/`.
 - **[unslop](https://github.com/heydamir/unslop)** by Damir Sokolovsky ([@heydamir](https://x.com/heydamir), CC BY
   4.0): the `unslop` skill in `third_party/heydamir-unslop/`, with one note added by pi-phone.
+- **[pi-review](https://github.com/earendil-works/pi-review)** by Earendil (MIT): its review rubric, as written, in
+  `third_party/pi-review/`, which `/review`'s subagent follows.
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** by Lauren Tan ([@poteto](https://github.com/poteto),
   MIT): the `statechart` skill in `third_party/pstack-statechart/`, with the four boba models of
   **[statechart-art](https://github.com/kevintngo/statechart-art)** by Kevin T. Ngo (MIT) as its examples.
