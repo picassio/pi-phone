@@ -1,7 +1,7 @@
 // pi-phone's own screens after the unslop pass (PP-328, the owner's OK of 2026-11-02 on the mockups pp328-unslop), in a
 // real browser at a phone's width: states are a word and a small dot, never a ✓ or ⚠ dingbat (PP-330). With
 // PHONE_SHOTS, screenshots go there.
-import { type App, cleanUp, home, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
+import { type App, cleanUp, home, newSession, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/faux";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -184,4 +184,43 @@ test("Spend: one number format, the device's grouping and short large counts, it
     assert.match(shown.sub, /^3,746 requests · 21\.3M tokens · since [A-Z][a-z]{2} \d{1,2}$/);
     assert.equal(shown.cut, false, "the second line is not cut off");
     await shot("unslop-spend-390.jpg");
+});
+
+test("flat marks: no hue gradients; an idle session already read shows no mark (PP-334)", real, async () => {
+    await newSession(app);
+    await page.navigate(`${base}/`);
+    await see(`return JSON.stringify(document.querySelectorAll(".session-status").length >= 1)`, "the session");
+
+    const marks = await inPage<{ seen: number; seenSvgs: number; gradients: string[] }>(
+        `const gradients = [...document.styleSheets].flatMap((sheet) => { try { return [...sheet.cssRules]; } catch { return []; } })
+            .filter((rule) => rule.style && /(linear|radial)-gradient\\([^)]*var\\(--(spark|brand|accent)\\)/.test(rule.style.background + rule.style.backgroundImage))
+            .map((rule) => rule.selectorText);
+        return JSON.stringify({
+            seen: document.querySelectorAll(".status-idle.seen").length,
+            seenSvgs: document.querySelectorAll(".status-idle.seen svg").length,
+            gradients,
+        });`,
+    );
+
+    assert.ok(marks.seen >= 1, "an idle session already read");
+    assert.equal(marks.seenSvgs, 0, "shows no cloud");
+    assert.deepEqual(marks.gradients, [], "no hue gradient in the app's styles");
+    await shot("unslop-sessions-390.jpg");
+});
+
+test("Wiki settings: Capture model, Embedding model and Open questions are the app's dropdowns, no system select (PP-335)", real, async () => {
+    await page.navigate(`${base}/?sheet=para:settings`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="wiki-capture-model"] .choice') !== null)`, "the capture model's dropdown");
+
+    const shown = await inPage<{ selects: number; capture: string }>(
+        `return JSON.stringify({ selects: document.querySelectorAll(".wiki-settings select").length, capture: document.querySelector('[data-part="wiki-capture-model"] .choice-text').textContent.trim() })`,
+    );
+
+    assert.equal(shown.selects, 0);
+    assert.match(shown.capture, /The default model for new sessions/);
+    await page.evaluate(`document.querySelector('[data-part="wiki-capture-model"] .choice').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelectorAll('.choice-menu .pop-menu-row').length >= 2)`, "the models");
+    await shot("unslop-wiki-capture-390.jpg");
+    await page.evaluate(`document.querySelectorAll('.choice-menu .pop-menu-row')[1].click(); return "true";`);
+    await until(async () => (await app.para.settings()).captureModel !== "auto", "the pick kept");
 });

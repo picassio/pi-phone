@@ -483,10 +483,22 @@ export default function wiki(pocket) {
                         </div>
                         <div class="field">
                             <div class="label">${t("Capture model")}</div>
-                            <select value=${settings.captureModel} onChange=${(event) => save({ captureModel: event.currentTarget.value })} disabled=${busy}>
-                                <option value="auto">${t("The default model for new sessions")}</option>
-                                ${settings.models.map((model) => html`<option value=${`${model.provider}/${model.id}`}>${model.provider}/${model.id}</option>`)}
-                            </select>
+                            <div data-part="wiki-capture-model">
+                                <${Choice}
+                                    label=${t("Capture model")}
+                                    value=${settings.captureModel}
+                                    disabled=${busy}
+                                    options=${[
+                                        { value: "auto", label: t("The default model for new sessions") },
+                                        ...settings.models.map((model) => ({ value: `${model.provider}/${model.id}`, label: model.name, detail: `${model.provider}/${model.id}` })),
+                                        // A model no longer listed still shows as chosen.
+                                        ...(settings.captureModel === "auto" || settings.models.some((model) => `${model.provider}/${model.id}` === settings.captureModel)
+                                            ? []
+                                            : [{ value: settings.captureModel, label: settings.captureModel }]),
+                                    ]}
+                                    onChange=${(next) => next !== settings.captureModel && save({ captureModel: next })}
+                                />
+                            </div>
                         </div>
                     </div>
                     <div class="provider-actions">
@@ -523,14 +535,18 @@ export default function wiki(pocket) {
                             embedding?.signedIn &&
                             html`<div class="field">
                                 <div class="label">${t("Embedding model for search")}</div>
-                                <select
-                                    value=${settings.embeddingModel ?? ""}
-                                    disabled=${busy}
-                                    onChange=${(event) => save({ embeddingModel: event.currentTarget.value === "" ? null : event.currentTarget.value })}
-                                >
-                                    <option value="">${t("Off: keyword search only")}</option>
-                                    ${embedding.models.map((model) => html`<option value=${model.id}>${model.name} · ${price(model)}</option>`)}
-                                </select>
+                                <div data-part="wiki-embedding-model">
+                                    <${Choice}
+                                        label=${t("Embedding model for search")}
+                                        value=${settings.embeddingModel ?? ""}
+                                        disabled=${busy}
+                                        options=${[
+                                            { value: "", label: t("Off: keyword search only"), detail: t("by keywords only") },
+                                            ...embedding.models.map((model) => ({ value: model.id, label: model.name, detail: `${model.id} · ${price(model)}` })),
+                                        ]}
+                                        onChange=${(next) => next !== (settings.embeddingModel ?? "") && save({ embeddingModel: next === "" ? null : next })}
+                                    />
+                                </div>
                                 ${chosen && html`<div class="muted small mono">${chosen.id} · ${price(chosen)} · ${t("up to {n} tokens", { n: chosen.context })}</div>`}
                             </div>`
                         }
@@ -543,14 +559,13 @@ export default function wiki(pocket) {
                         <div class="muted small">${t("wiki_lint fixes simple problems by itself, and calls pages stale after {days} days.", { days: settings.lintStaleDays })}</div>
                         <div class="field">
                             <div class="label">${t("Open questions are stale after")}</div>
-                            <select
-                                aria-label=${t("Open questions are stale after")}
+                            <${Choice}
+                                label=${t("Open questions are stale after")}
                                 value=${String(settings.lintQuestionDays)}
                                 disabled=${busy}
-                                onChange=${(event) => save({ lintQuestionDays: Number(event.currentTarget.value) })}
-                            >
-                                ${[...new Set([3, 7, 14, 30, settings.lintQuestionDays])].sort((a, b) => a - b).map((days) => html`<option value=${String(days)}>${t("{n} days", { n: days })}</option>`)}
-                            </select>
+                                options=${[...new Set([3, 7, 14, 30, settings.lintQuestionDays])].sort((a, b) => a - b).map((days) => ({ value: String(days), label: t("{n} days", { n: days }) }))}
+                                onChange=${(next) => save({ lintQuestionDays: Number(next) })}
+                            />
                         </div>
                         <label class="check wiki-switch">
                             <${Switch} on=${settings.lintAutoFix} label=${t("Fix simple problems")} disabled=${busy} onChange=${() => save({ lintAutoFix: !settings.lintAutoFix })} />
