@@ -306,7 +306,9 @@ No Termux, no laptop, no cloud VM.
   in, **Jev ranks the search** (Menu › Wiki › Rank with Jev): it reads each page the search found (by keyword, by
   meaning, and pages holding the message's words, Vietnamese syllables too) and keeps those that help with your message
   or Pi's `wiki_query`, best first; about 0.5 s and $0.0001 a search, counted in Spend. Off, the search keeps its own
-  order; when Jev fails, the search's order is kept and the log and `wiki_query`'s answer say why.
+  order; when Jev fails, the search's order is kept and the log and `wiki_query`'s answer say why. For `wiki_query`,
+  Jev also reads a long page's later lines that hold the question's words, so a section added at its end counts; a
+  query in a session's scope also names the good pages in other scopes ("Also in other scopes").
 - **Documents** (rail › Documents): your documents in folders, as markdown pages rendered like the wiki.
   - **The page:** the place (Mine, Team, a board) is its header, with **+ Page** and a ⋯ for a new folder, deleted
     pages and the settings; search has a row of its own. Folders are sections with their page count, each with a ⋯

@@ -321,7 +321,9 @@ dự án thật.</sub>
   (theo từ khóa, theo nghĩa, và các trang có các từ của tin nhắn, kể cả âm tiết tiếng Việt) và giữ những trang giúp ích
   cho tin nhắn của bạn hoặc `wiki_query` của Pi, tốt nhất trước; khoảng 0,5 giây và $0.0001 mỗi lần tìm, tính vào Chi
   tiêu. Tắt đi thì giữ thứ tự của tìm kiếm; khi Jev lỗi, thứ tự đó được giữ và nhật ký cùng câu trả lời của
-  `wiki_query` nói lý do.
+  `wiki_query` nói lý do. Với `wiki_query`, Jev đọc thêm những dòng phía sau của một trang dài có chứa các từ trong câu
+  hỏi, nên một mục thêm vào cuối trang vẫn được tính; tìm trong scope của phiên cũng nêu tên các trang phù hợp ở scope
+  khác ("Also in other scopes").
 - **Tài liệu** (thanh bên › Tài liệu): tài liệu của bạn trong các thư mục, là các trang markdown hiển thị như wiki.
   - **Trang:** nơi chứa (Của tôi, Nhóm, một bảng) là tiêu đề của nó, kèm **+ Trang** và một ⋯ cho thư mục mới, trang đã
     xóa và cài đặt; tìm kiếm có hàng riêng. Thư mục là các mục kèm số trang, mỗi mục có một ⋯ (trang hoặc thư mục bên
