@@ -8,6 +8,7 @@ import type { ContextPolicy } from "./context-policy.ts";
 import type { SubagentDefaults } from "./subagent-defaults.ts";
 import type { PiLink } from "./pi-handoff.ts";
 import type { ReviewMeta } from "./review.ts";
+import type { ReviewLoopState } from "./review-loop.ts";
 import {
     type CheckpointInfo,
     type ConversationId,
@@ -524,6 +525,17 @@ export type CiWatch = {
 };
 
 /** The runs a conversation watches, by `repo#runId`. Removing one stops its task at its next look. Forks start empty. */
+/** Review's checkpoint and unsent comments (PP-358, `review-loop.ts`): with the session, and a fork takes them along. */
+export const ReviewLoopDoc = defineDoc<ReviewLoopState>({
+    kind: "phone.review-loop",
+    version: 1,
+    ...rebased,
+    scope: "conversation",
+    history: "latest",
+    fork: "current",
+    initial: () => ({ comments: [] }),
+});
+
 export const CiWatchesDoc = defineDoc<{ items: Record<string, CiWatch> }>({
     kind: "phone.ci-watches",
     version: 1,

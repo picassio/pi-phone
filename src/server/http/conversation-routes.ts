@@ -40,7 +40,7 @@ export async function conversationRoutes(
 ): Promise<void> {
     const { app, request, response, url, user } = api;
     const method = request.method ?? "GET";
-    const [, , third, fourth] = parts;
+    const [, , third, fourth, fifth] = parts;
 
     // Its limit for messages to other sessions (`session-control.ts`): what it is, and how much of it went this hour.
     if (third === "send-limit" && method === "GET") {
@@ -606,6 +606,43 @@ export async function conversationRoutes(
         return json(response, 200, await app.reviewTargets(id, user).catch((error: unknown) => {
             throw new HttpError(409, describe(error));
         }));
+    }
+
+    // Review's comments and checkpoints (PP-358).
+    if (third === "review-loop") {
+        const fail = (error: unknown) => {
+            throw error instanceof HttpError ? error : new HttpError(409, describe(error));
+        };
+
+        if (fourth === undefined && method === "GET") {
+            return json(response, 200, await app.reviewLoop(id, user, url.searchParams.get("since") === "1").catch(fail));
+        }
+
+        if (fourth === "diff" && method === "GET") {
+            const text = await app
+                .reviewLoopDiff(id, user, url.searchParams.get("base") ?? "", url.searchParams.get("current") ?? "", url.searchParams.get("path") ?? "")
+                .catch(fail);
+
+            return send(response, 200, text, "text/plain; charset=utf-8");
+        }
+
+        if (fourth === "comments" && method === "POST") {
+            return json(response, 200, { comments: await app.reviewComment(id, user, { add: await readJson(request) }) });
+        }
+
+        if (fourth === "comments" && fifth !== undefined && method === "PUT") {
+            const body = ((await readJson(request)) ?? {}) as { body?: unknown };
+
+            return json(response, 200, { comments: await app.reviewComment(id, user, { id: fifth, body: typeof body.body === "string" ? body.body : null }) });
+        }
+
+        if (fourth === "comments" && fifth !== undefined && method === "DELETE") {
+            return json(response, 200, { comments: await app.reviewComment(id, user, { id: fifth, body: null }) });
+        }
+
+        if (fourth === "send" && method === "POST") {
+            return json(response, 200, await app.sendReview(id, user).catch(fail));
+        }
     }
 
     if (third === "branches" && fourth === undefined && method === "GET") {

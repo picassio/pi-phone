@@ -57,6 +57,11 @@ No Termux, no laptop, no cloud VM.
   should check) and the project's `REVIEW_GUIDELINES.md`. `/review` alone opens a sheet with the open pull requests. The
   report is a card: Fix these puts the fix message in the message box, unsent; Post to GitHub posts a pull request's
   review with line comments ("Request changes" for a P0 or P1, else "Comment") after you allow it on a card.
+- **Comments in Review, and Since last review.** In Changes, a tap on a line number (new or old side) opens a comment
+  box under the line, and a file's note button comments on the whole file. Send review puts them in the message box as
+  feedback for Pi ("Please address the following review feedback: 1. path:line (current) …"), unsent, and checkpoints
+  the folder: "Since last review" then shows only what changed after it, and vs HEAD marks the files not changed since
+  as reviewed. Comments and checkpoints stay with the session, on every device and on machines.
 - **A session list after T3 Code.** A scope picker (All, each project, each folder, Archived) instead of tabs; Pinned,
   Active (a project's running task sessions under its main session), and a folded **Settled** shelf. A session settles
   by itself after a day idle, when its task run ends, or when its branch is merged, and comes back with new activity;

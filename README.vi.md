@@ -61,6 +61,11 @@ dự án thật.</sub>
   mở. Kết quả là một thẻ: Sửa những lỗi này đặt tin nhắn sửa vào ô nhập, chưa gửi; Đăng lên GitHub đăng review của pull
   request với bình luận theo dòng ("Request changes" khi có P0 hoặc P1, nếu không thì "Comment") sau khi bạn cho phép
   qua một thẻ.
+- **Bình luận trong Review, và Từ lần review trước.** Trong Thay đổi, chạm số dòng (phía mới hoặc cũ) mở ô bình luận
+  ngay dưới dòng, và nút ghi chú của tệp bình luận cho cả tệp. Gửi review đặt chúng vào ô nhập làm phản hồi cho Pi
+  ("Please address the following review feedback: 1. path:line (current) …"), chưa gửi, và lưu mốc của thư mục: "Từ lần
+  review trước" sau đó chỉ hiện những gì đổi sau mốc, còn so với HEAD đánh dấu các tệp không đổi từ đó là đã review.
+  Bình luận và mốc đi theo phiên, trên mọi thiết bị và trên máy.
 - **Danh sách phiên theo kiểu T3 Code.** Một bộ chọn phạm vi (Tất cả, từng dự án, từng thư mục, Đã lưu trữ) thay cho
   các tab; Đã ghim, Đang hoạt động (các phiên tác vụ đang chạy của một dự án nằm dưới phiên chính của nó), và một ngăn
   **Đã cất** thu gọn. Một phiên tự cất sau một ngày rảnh, khi lượt chạy tác vụ của nó kết thúc, hoặc khi nhánh của nó

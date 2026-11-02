@@ -194,6 +194,20 @@ so Pi changes them through the settings tools; "the last session" is the one the
   Pi expanded (`expandReviewCommand`): the command as typed, then a `<review-request>` the transcript hides. `/review`
   alone opens the sheet (`GET /api/c/:id/review-targets`: `gh pr list`, the last commits, whether there are guidelines;
   branches from `.../branches`). Tests: `test/review.test.ts`, `test/review-ui.test.ts`.
+- **Review's comments and checkpoints** (`src/server/review-loop.ts`, `web/diff.js`; PP-358, the owner's mockup of
+  2026-11-02, after pi-review-loop): a checkpoint is a git commit of the whole working folder (untracked files too,
+  ignored ones not) made with a temporary index (`read-tree HEAD`, `add -A`, `write-tree`, `commit-tree` on HEAD) and
+  kept by `refs/pi-phone/review/<sha>`: the person's index, stash and branches do not change. "Since last review"
+  (Review's default once there is a commit) is `git diff` from the checkpoint (HEAD before the first) to a snapshot
+  tree made the same way (`GET /api/c/:id/review-loop?since=1` gives its `base`, `current` and files;
+  `.../review-loop/diff?base&current&path` each diff). vs HEAD is the Changes list as before, with a "reviewed" chip on
+  files not in the since list. Comments (`ReviewLoopDoc`, with the session, `fork: "current"`): a file, a side (new,
+  old, or file), a line, the mode the old side meant (since or head) and words; `POST/PUT/DELETE
+  .../review-loop/comments`. A line number's tap in Review opens the comment box under its row (`CommentRows` in both
+  layouts), the file header's note button a note above its lines. Send review (`POST .../review-loop/send`) composes
+  pi-review-loop's feedback ("Please address the following review feedback: 1. path:line (current|reviewed|HEAD)"),
+  checkpoints, clears the comments, and the app puts the text in the message box (`insertIntoComposer`). Git runs
+  where the session works (`app.runIn`). Tests: `test/review-loop.test.ts`, `test/review-loop-ui.test.ts`.
 - **StateTag** (`web/ui.js`, PP-330; also to extensions as `pocket.StateTag`): a thing's state at the end of its title
   line as a word and a small dot in the theme's green, yellow, red or muted ("Connected", "Ready", "Needs sign-in",
   "On"), never a ✓ or ⚠ dingbat. pi-phone's own screens had unslop's pass (PP-328, the owner's OK on the mockups of

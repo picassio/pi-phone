@@ -12988,6 +12988,101 @@ textarea.notes {
     color: var(--muted);
 }
 
+/* Review's comparison and Send review (PP-358): the switch and the button on one line, what it compares below. */
+.dr-loop {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px 0;
+}
+
+.dr-loop .segmented button {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.dr-loop-meta {
+    flex-basis: 100%;
+}
+
+/* A comment under a diff's line, the box for writing one, and a file's notes above its lines. */
+.dv-n.commenting {
+    color: var(--accent);
+    box-shadow: inset 2px 0 var(--accent);
+}
+
+.dv-comment-row > td {
+    padding: 4px 8px 8px 48px;
+    white-space: normal;
+}
+
+.dv-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+}
+
+.dv-comment {
+    max-width: 640px;
+    padding: 8px 12px;
+    border-left: 2px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    background: color-mix(in oklab, var(--accent) 7%, transparent);
+    font: 13px/1.5 var(--sans);
+    color: var(--text);
+}
+
+.dv-comment-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.dv-comment-body {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.dv-comment-box {
+    max-width: 640px;
+    padding: 8px;
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    background: var(--card);
+    font-family: var(--sans);
+}
+
+.dv-comment-box textarea {
+    width: 100%;
+    min-height: 64px;
+    resize: vertical;
+    font: 13px/1.5 var(--sans);
+}
+
+.dv-comment-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.dv-note-tool {
+    position: relative;
+}
+
+.dv-note-count {
+    margin-left: 2px;
+    font: 11px var(--mono);
+}
+
+.dv-chip.ok {
+    color: var(--ok);
+}
+
 /* The folder gives way when there is no room; the branch, a way to switch it, stays in sight. */
 .dr-where {
     flex: 0 1 auto;

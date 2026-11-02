@@ -94,6 +94,7 @@ import {
     SessionsDoc,
     type SubagentRecord,
     SubagentsDoc,
+    ReviewLoopDoc,
     TurnsDoc,
 } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
@@ -132,6 +133,7 @@ import { Machines } from "./machines.ts";
 import { exportsOf, MachineTools, machineSkillsDir, sessionEnvOf, TOOLS, TOOLS_BIN } from "./machine-tools.ts";
 import { FORMAL_MODULE, FORMAL_SKILLS } from "./formal-checks.ts";
 import { reviewTargets } from "./review.ts";
+import { changedSince, composeFeedback, diffSince, makeCheckpoint, newComment, snapshotTree } from "./review-loop.ts";
 import { type CrdRun, CrdError } from "./crd.ts";
 import { Screenshots } from "./screenshots.ts";
 import { FilePages } from "./file-pages.ts";
@@ -5285,6 +5287,92 @@ export class PocketApp {
         this.requireSteer(user);
 
         return reviewTargets((command) => this.runIn(this.cwdOf(id), command, 60));
+    }
+
+    /**
+     * Review's state for a session (PP-358): its checkpoint and unsent comments, and with `since`, what changed after the
+     * checkpoint (HEAD before the first): the snapshot tree it was compared with (the diffs' `current`) and the files.
+     */
+    async reviewLoop(id: ConversationId, user: User, since: boolean) {
+        this.requireSee(user, id);
+        this.requireSteer(user);
+
+        const state = (await this.harness.snapshot(ReviewLoopDoc, id, context)) ?? { comments: [] };
+
+        if (!since) {
+            return state;
+        }
+
+        const run = (command: string) => this.runIn(this.cwdOf(id), command, 60);
+        const base = state.checkpoint?.sha ?? "HEAD";
+        const current = await snapshotTree(run);
+
+        return { ...state, since: { base, current, files: await changedSince(run, base, current) } };
+    }
+
+    /** One file's diff from the checkpoint (or HEAD) to the snapshot `current` (PP-358). */
+    async reviewLoopDiff(id: ConversationId, user: User, base: string, current: string, path: string): Promise<string> {
+        this.requireSee(user, id);
+        this.requireSteer(user);
+
+        return diffSince((command) => this.runIn(this.cwdOf(id), command, 60), base, current, path);
+    }
+
+    /** Add, change (`body`), or remove (`body` null) a comment of Review's (PP-358); the comments after it. */
+    async reviewComment(id: ConversationId, user: User, change: { add: unknown } | { id: string; body: string | null }) {
+        this.requireSee(user, id);
+        this.requireSteer(user);
+
+        const added = "add" in change ? newComment(change.add) : undefined;
+
+        if ("add" in change && added === undefined) {
+            throw new HttpError(400, "A comment needs a file, a side (new, old, or file), a line for a line's comment, and words.");
+        }
+
+        return this.harness.commit(async (tx) => {
+            const state = await tx.doc(ReviewLoopDoc, id);
+
+            if (added !== undefined) {
+                state.comments.push(added);
+            } else if ("id" in change) {
+                const index = state.comments.findIndex((each) => each.id === change.id);
+
+                if (index === -1) {
+                    throw new HttpError(404, "There is no such comment.");
+                }
+
+                if (change.body === null || change.body.trim() === "") {
+                    state.comments.splice(index, 1);
+                } else {
+                    state.comments[index]!.body = change.body.trim().slice(0, 4000);
+                }
+            }
+
+            return state.comments.map((each) => ({ ...each }));
+        }, context);
+    }
+
+    /**
+     * Send review (PP-358): the comments as feedback for the message box (not sent), a checkpoint of the folder now, and
+     * no comments left. With none, only the checkpoint: everything counts as reviewed.
+     */
+    async sendReview(id: ConversationId, user: User): Promise<{ text: string; checkpoint: { sha: string; at: number } }> {
+        this.requireSee(user, id);
+        this.requireSteer(user);
+
+        const sha = await makeCheckpoint((command) => this.runIn(this.cwdOf(id), command, 60));
+        const checkpoint = { sha, at: Date.now() };
+        const text = await this.harness.commit(async (tx) => {
+            const state = await tx.doc(ReviewLoopDoc, id);
+            const feedback = composeFeedback(state.comments);
+
+            state.comments = [];
+            state.checkpoint = checkpoint;
+
+            return feedback;
+        }, context);
+
+        return { text, checkpoint };
     }
 
     /** Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`). */
