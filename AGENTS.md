@@ -25,10 +25,13 @@
 - Pin direct dependencies to exact versions. Install with `npm install --ignore-scripts`.
 - Don't migrate what we don't need: features removed from pi-pocket (DESIGN.md section 3) stay removed unless the
   user asks for them.
-- Checks run on the phone: `npm run check` (tsc 6 + `scripts/check-web-imports.ts`) and the test files you touched, one
-  at a time (`node --test test/x.test.ts`). Never the full `npm test` on the phone: its parallel test processes (about
-  300 MB each) run the phone out of memory and Android kills pi-phone's server (exit 137, 2026-11-01). The full suite,
-  UI tests (they need a Chromium) and ffmpeg or Java tests run on a machine (the owner's devbox) or in CI.
+- Heavy work runs on a machine (the owner's devbox), not on the phone: it heats the phone and drains its battery (the
+  owner's rule, 2026-11-02), and parallel test processes (about 300 MB each) run it out of memory until Android kills
+  pi-phone's server (exit 137, 2026-11-01). On the devbox: type checks (`npx tsc`, `npm run check`), the test files you
+  touched and the full `npm test`, UI tests (they need a Chromium), ffmpeg or Java tests, evaluations and sweeps
+  (`scripts/wiki-eval.ts`), builds and drawing or rendering experiments. Send the working tree there as a patch
+  against `origin/master` and run it in a clean checkout. On the phone only what is light: reading, editing, git, and
+  one small test file when the change touches the phone itself. CI runs everything on each push.
 - Every release has notes (the owner's rule): the release job writes them from the commits since the previous release
   (`scripts/release-notes.ts`). So write each commit's subject for people, with its kind and scope: `feat(machines): …`
   is listed as new, `fix(…): …` as a fix, anything else under other changes.
