@@ -379,10 +379,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   0.45-0.7 there), best first, at most four for a message. A short query (two telling words, four words) also keeps the
   pages whose accent-free title holds its words: Jev scores a bare keyword's page 0.39-0.46. `wiki_query` ranks the
   same way (`Para.query`), reading pages in its `exclusive` turn but not holding it while Jev answers, with two
-  differences (PP-361, PP-362, the owner's answers of 2026-11-02): Jev also reads up to 500 characters of a long page's
-  later lines holding half the query's telling words (`excerpt(…, words)`; a section added at a page's end was never
-  read: on the owner's wiki, as wiki_query, right page present 92% → 100%, first 88% → 92%, extra pages 0.17 → 0.72 of
-  four; not for a message's pages, where it made 0.15 → 0.75 extra pages in the prompt); and a scoped query also
+  differences (PP-361, PP-362, the owner's answers of 2026-11-02): 25 candidates instead of 15, and Jev also reads up
+  to 1,000 characters of a long page's later lines holding half the query's telling words (`excerpt(…, words)`; a
+  section added at a page's end was never read). On the owner's wiki (30 questions, `--as query`): right page first
+  88% → 92%, present 92% → 96%, extra pages 0.17 → 0.73 of four; the least score stays 0.6 (0.45 found one question more
+  for 0.97 extra pages). Not for a message's pages, where it made 0.15 → 0.75 extra pages in the prompt. A scoped query also
   ranks the other scopes' candidates in the same request and names the good ones under "Also in other scopes" (path,
   title, scope, score), also when its own scope has none. `scripts/wiki-eval.ts --as query` measures wiki_query. The model is
   `config.wikiRerankModel` (`wiki.rerankModel`, Menu › Wiki): absent, typesafe/jev-1.14 when OpenRouter is signed in;

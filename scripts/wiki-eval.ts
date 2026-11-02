@@ -9,7 +9,8 @@
  *
  *   OPENROUTER_API_KEY=… node scripts/wiki-eval.ts [--configs A,B,C,D] [--out report.md]
  *   OPENROUTER_API_KEY=… node scripts/wiki-eval.ts --wiki ~/.pi/wiki --cases cases.json   (a real wiki, read only)
- *   … --as query   (each question as wiki_query asks it, every scope, at most 4 pages: PP-361)
+ *   … --as query [--match 0.5] [--candidates 25] [--later 1000]   (as wiki_query asks, every scope, at most 4 pages,
+ *   with its Jev numbers changed: PP-361)
  *
  * Each way runs in a wiki of its own in a temporary home; nothing touches the owner's wiki: `--wiki` copies its folder
  * there first, and `--cases` gives the questions for it (`[{ q, kind, gold: [slug or path], ok?: [...] }]`), searched
@@ -112,6 +113,9 @@ const WIKI = argument("--wiki");
 const CASES_FILE = argument("--cases");
 /** `--as query`: each question as wiki_query asks it (PP-361), instead of as a message. */
 const AS_QUERY = argument("--as") === "query";
+/** With --as query, wiki_query's Jev numbers to measure (`ParaHost.queryTuning`): --match 0.5 --candidates 25 --later 1000. */
+const number = (name: string) => (argument(name) === undefined ? undefined : Number(argument(name)));
+const TUNING = { match: number("--match"), candidates: number("--candidates"), later: number("--later") };
 
 if ((WIKI === undefined) !== (CASES_FILE === undefined)) {
     throw new Error("--wiki and --cases go together: a real wiki and the questions for it.");
@@ -171,6 +175,7 @@ for (const config of CONFIGS) {
         rerankModel: () => config.jev,
         jevModels: () => jevModels.list(),
         fetch,
+        queryTuning: Object.fromEntries(Object.entries(TUNING).filter(([, value]) => value !== undefined)),
     });
 
     await para.updateSettings({ embeddingModel: config.embedding });

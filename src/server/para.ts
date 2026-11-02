@@ -102,6 +102,13 @@ const WIKI_MATCH = 0.5;
 export const JEV_MATCH = 0.6;
 /** Pages qmd's search gives Jev to judge, besides the pages that hold the query's telling words. */
 const JEV_CANDIDATES = 15;
+/**
+ * wiki_query's (PP-361, measured on the owner's wiki 2026-11-02 with `scripts/wiki-eval.ts --as query`, 30 questions):
+ * 25 candidates and 1,000 characters of later lines put the right page first 92% (88% with 15 and 500), for 0.77 extra
+ * pages a query instead of 0.70; lowering the least score kept from 0.6 to 0.45 found one question more (100%) for
+ * 0.97 extra pages, so it stays at 0.6.
+ */
+const QUERY_CANDIDATES = 25;
 
 /** wiki_query's arguments (pi-para's `WikiQueryParams`). */
 export type WikiQueryArgs = { query: string; global?: boolean; category?: "projects" | "areas" | "resources" | "archives"; limit?: number };
@@ -146,6 +153,12 @@ export interface ParaHost {
     jevModels(): Promise<JevModel[]>;
     /** How Jev is reached: the global fetch, or a test's stand-in. */
     readonly fetch: typeof fetch;
+    /**
+     * wiki_query's Jev numbers, for `scripts/wiki-eval.ts --as query` to measure others (PP-361): the least score kept
+     * (`JEV_MATCH`), the search's candidates (`JEV_CANDIDATES`), and the characters of a long page's later lines Jev
+     * reads (`EXCERPT_LATER`). The app leaves it out.
+     */
+    readonly queryTuning?: { match?: number; candidates?: number; later?: number };
 }
 
 export class Para {
@@ -484,7 +497,7 @@ export class Para {
 
                       return (await this.#candidates(args.query, { ...options, scope: undefined })).filter((each) => !inScope.has(`${each.result.page.category}/${each.result.page.slug}`));
                   });
-        const both = await this.#rank(args.query, [...pool, ...elsewhere], ranker);
+        const both = await this.#rank(args.query, [...pool, ...elsewhere], ranker, this.#host.queryTuning?.match);
         const outside = new Set(elsewhere);
         const ranked: typeof both =
             "kept" in both
@@ -583,7 +596,7 @@ export class Para {
         const { store, wikiDir } = await this.open();
         const pi = this.#pi!;
         const found = await pi.searchWiki(store, query, {
-            limit: JEV_CANDIDATES,
+            limit: options.deep === true ? (this.#host.queryTuning?.candidates ?? QUERY_CANDIDATES) : JEV_CANDIDATES,
             graphBoost: false,
             includeArchives: options.includeArchives,
             ...(options.scope === undefined ? {} : { scope: options.scope }),
@@ -618,7 +631,7 @@ export class Para {
             seen.add(path);
             pool.push({
                 result,
-                text: page === null ? `${result.frontmatter.title}\n${result.snippet}` : excerpt(page.frontmatter.title, page.body, options.deep === true ? words : []),
+                text: page === null ? `${result.frontmatter.title}\n${result.snippet}` : excerpt(page.frontmatter.title, page.body, options.deep === true ? words : [], this.#host.queryTuning?.later),
                 fromSearch: true,
                 words: (hits.get(path)?.count ?? 0) >= enough,
             });
@@ -637,7 +650,7 @@ export class Para {
                 continue;
             }
 
-            const text = excerpt(page.frontmatter.title, page.body, options.deep === true ? words : []);
+            const text = excerpt(page.frontmatter.title, page.body, options.deep === true ? words : [], this.#host.queryTuning?.later);
 
             pool.push({
                 result: {
@@ -684,6 +697,7 @@ export class Para {
         query: string,
         pool: Candidate[],
         given?: Ranker,
+        match = JEV_MATCH,
     ): Promise<{ model: string; kept: { candidate: Candidate; score: number }[]; below: { candidate: Candidate; score: number }[] } | { model: string; error: string } | { off: string }> {
         const ranker = given ?? (await this.#ranker());
 
@@ -717,7 +731,7 @@ export class Para {
 
         const named = titleWords(query);
         const scored = pool.map((candidate, index) => ({ candidate, score: judged.scores[index]! })).sort((a, b) => b.score - a.score);
-        const keep = (each: (typeof scored)[number]) => each.score >= JEV_MATCH || (named !== undefined && named.every((word) => fold(each.candidate.result.page.title).includes(word)));
+        const keep = (each: (typeof scored)[number]) => each.score >= match || (named !== undefined && named.every((word) => fold(each.candidate.result.page.title).includes(word)));
         const kept = scored.filter(keep);
 
         this.#lastRerank = { at: Date.now(), model: ranker.model, read: pool.length, kept: kept.length, ms: judged.ms, cost: judged.cost };
@@ -1052,17 +1066,17 @@ function searchOrder(pool: Candidate[]): Candidate[] {
 
 /** How much of a page Jev reads: its start, as before, and at most this much of its later lines holding the query's words. */
 const EXCERPT_START = 1500;
-const EXCERPT_LATER = 500;
+const EXCERPT_LATER = 1000;
 
 /**
  * What Jev reads of a page (PP-361): its title and start (the first 1,500 characters, without section marks), and when
- * the page is longer, up to 500 characters of the lines further down that hold the most of the query's telling `words`
+ * the page is longer, up to 1,000 characters of the lines further down that hold the most of the query's telling `words`
  * (half of them and at least two, or the one there is; folded, in the page's order, "…" between runs). By the start alone, a fact in a
  * section added later (a long project page's) was never read: the owner's search for the AKS trial cluster found
  * nothing. A line with one common word ("deploy") is not enough: on the owner's wiki that made Jev keep 0.93 extra
  * pages a question instead of 0.10.
  */
-export function excerpt(title: string, body: string, words: readonly string[] = []): string {
+export function excerpt(title: string, body: string, words: readonly string[] = [], budget = EXCERPT_LATER): string {
     const plain = body.replace(/^#+\s*/gm, "").replace(/\n{2,}/g, "\n");
     const start = `${title}\n${plain}`.slice(0, EXCERPT_START);
 
@@ -1089,7 +1103,7 @@ export function excerpt(title: string, body: string, words: readonly string[] = 
     }
 
     const picked: typeof lines = [];
-    let room = EXCERPT_LATER;
+    let room = budget;
 
     for (const line of [...lines].sort((a, b) => b.hits - a.hits || a.at - b.at)) {
         const text = line.text.slice(0, room - 2);
