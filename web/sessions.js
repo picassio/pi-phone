@@ -549,9 +549,12 @@ function SessionRow({
                             ? html`<span class="status-work" role="img" aria-label=${t("Working")} title=${t("Working")}></span>`
                             : session.failed
                               ? html`<span class="status-fail" role="img" aria-label=${t("Failed")} title=${t("Its last run failed")}></span>`
-                              : html`<span class=${`status-idle ${mark.shape}`} role="img" aria-label=${mark.label || t("Idle")} title=${mark.label || t("Idle")}>
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9a4.5 4.5 0 0 0 1 9z" /></svg>
-                                </span>`
+                              : mark.shape === "fresh"
+                                ? html`<span class=${`status-idle ${mark.shape}`} role="img" aria-label=${mark.label} title=${mark.label}>
+                                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9a4.5 4.5 0 0 0 1 9z" /></svg>
+                                  </span>`
+                                : // Idle and read: nothing to say, so no mark (PP-334; the cloud on every row said nothing).
+                                  html`<span class="status-idle seen" aria-label=${t("Idle")}></span>`
                 }
             </span>
         </button>

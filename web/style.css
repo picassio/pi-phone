@@ -3174,9 +3174,10 @@ pre.diff .del {
     border-radius: 6px;
     display: grid;
     place-items: center;
-    background: linear-gradient(135deg, var(--brand), var(--spark));
-    color: var(--accent-ink);
-    font: 800 12px var(--mono);
+    background: var(--raised);
+    box-shadow: inset 0 0 0 1px var(--hair);
+    color: var(--text);
+    font: 500 12px var(--mono);
 }
 
 .assist-pill {
@@ -5643,7 +5644,7 @@ pre.diff .del {
     bottom: 3px;
     height: 2px;
     border-radius: 1px;
-    background: linear-gradient(90deg, var(--accent), var(--spark));
+    background: var(--accent);
 }
 
 .ws .unread-dot {
@@ -18806,7 +18807,7 @@ pre.gallery-code {
     transform: rotate(45deg);
 }
 
-/* Idle: a cloud, as in T3 Code; finished and not read yet, in the folder's color. */
+/* Idle: finished and not read yet, a cloud in the folder's color (as in T3 Code); idle and read, nothing (PP-334). */
 .status-idle {
     display: inline-flex;
     color: var(--faint);
