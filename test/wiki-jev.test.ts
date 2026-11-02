@@ -5,18 +5,22 @@ import { type App, cleanUp, openApp, owner, scriptedModel, until, work } from ".
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/faux";
-import { fold, tellingWords, titleWords } from "../src/server/para.ts";
+import { excerpt, fold, tellingWords, titleWords } from "../src/server/para.ts";
 
 type Question = { instructions: string };
 /** What the fake Jev was asked: the query, and the notes (each page's title line). */
 const asked: { query: string; titles: string[] }[] = [];
 /** How the fake OpenRouter answers decisions now. */
 let mode: "judge" | "402" = "judge";
-/** The fake Jev's judgement: the title words that make a page right for a query, and the score for a bare keyword. */
-const RIGHT: [RegExp, string, number][] = [
-    [/printer/i, "Office printer", 0.93],
-    [/đối tác|dong a|đông á/i, "Đông Á", 0.95],
-    [/^zalo$/i, "Zalo", 0.42],
+/**
+ * The fake Jev's judgement: the words that make a page right for a query (in its title line, or anywhere in what Jev
+ * reads of it), and the score for a bare keyword.
+ */
+const RIGHT: [RegExp, string, number, "title" | "note"][] = [
+    [/printer/i, "Office printer", 0.93, "title"],
+    [/đối tác|dong a|đông á/i, "Đông Á", 0.95, "title"],
+    [/^zalo$/i, "Zalo", 0.42, "title"],
+    [/trial cluster/i, "dw-aks-np-trial-eastus-provisioning", 0.9, "note"],
 ];
 const lines: string[] = [];
 
@@ -40,18 +44,21 @@ const fakeOpenRouter = (async (url: string | URL | Request, init?: RequestInit) 
     }
 
     const body = JSON.parse(String(init?.body)) as { state: { query: string }; questions: Record<string, Question> };
-    const titles = Object.values(body.questions).map((question) => /"""\n(.*)\n/.exec(question.instructions)?.[1] ?? "");
+    const notes = Object.values(body.questions).map((question) => /"""\n([\s\S]*?)\n"""/.exec(question.instructions)?.[1] ?? "");
+    const titles = notes.map((note) => note.split("\n")[0] ?? "");
     const rule = RIGHT.find(([query]) => query.test(body.state.query));
 
     asked.push({ query: body.state.query, titles });
 
     return Response.json({
-        answers: Object.fromEntries(titles.map((title, index) => [`P${index}`, { noul: rule !== undefined && title.includes(rule[1]) ? rule[2] : 0.12 }])),
+        answers: Object.fromEntries(notes.map((note, index) => [`P${index}`, { noul: rule !== undefined && (rule[3] === "note" ? note : titles[index]!).includes(rule[1]) ? rule[2] : 0.12 }])),
         usage: { cost: 0.00002, input_tokens: 400 },
     });
 }) as typeof fetch;
 
 let app: App;
+/** A long page's first sections: patching notes, no word of the trial cluster. */
+const LONG = Array.from({ length: 40 }, (_, index) => `- Patching note ${index}: node image refresh dry run, PDBs ready, StatefulSets ready, no Warning events.`).join("\n");
 
 const PAGES: [string, string, string][] = [
     ["resources/office-printer", "Office printer", "The printer is on the third floor of the office; paper is in the grey cabinet."],
@@ -73,6 +80,9 @@ before(async () => {
 
         await app.para.save(path, `---\ntitle: ${title}\npara: ${category}\nscope:\n  - work\ntags: []\n---\n\n## Key facts\n\n${body}\n`, true);
     }
+
+    // A long page of another scope whose fact is in a section added at its end (PP-361, PP-362).
+    await app.para.save("projects/aks-test-cluster", `---\ntitle: "AKS test cluster: disable auto-patching"\npara: projects\nscope:\n  - psn\ntags: []\n---\n\n## Key facts\n\n${LONG}\n\n## Trial cluster for the patch step\n\n- New cluster dw-aks-np-trial-eastus-provisioning in dataweavers-aks-test, created with create-aks-resource.ps1 from main.\n`, true);
 
     await until(async () => (await app.para.searchKeywords("printer")).length >= 2 && (await app.para.searchKeywords("Zalo")).length >= 2, "indexed", 20_000);
 });
@@ -127,7 +137,34 @@ test("wiki_query ranked by Jev: the pages that help with Jev's score, or none wi
 
     const none = (await app.para.query({ query: "office door night" }, work, true)).content[0]!.text;
 
-    assert.match(none, /No wiki pages found for "office door night"\. Jev \(typesafe\/jev-1\.14\) read the \d+ the search found and judged none to help with it \(each under 0\.6\)\. Nearest: /);
+    assert.match(none, /No wiki pages found for "office door night" in this scope \([^)]+\)\. Jev \(typesafe\/jev-1\.14\) read the \d+ the search found and judged none to help with it \(each under 0\.6\)\. Nearest: /);
+});
+
+test("Jev reads a long page's start and the lines holding the query's words, so a fact in a later section is kept (PP-361)", async () => {
+    const body = `## Key facts\n\n${LONG}\n\n## Trial cluster\n\n- New cluster dw-aks-np-trial-eastus-provisioning, created with create-aks-resource.ps1.\n`;
+    const read = excerpt("AKS test cluster", body, tellingWords("create-aks-resource.ps1 trial cluster"));
+
+    assert.ok(read.startsWith("AKS test cluster\nKey facts\n- Patching note 0"), "its start");
+    assert.match(read, /…\nTrial cluster\n- New cluster dw-aks-np-trial-eastus-provisioning, created with create-aks-resource\.ps1\./, "the lines holding the words, its heading too");
+    assert.ok(read.length <= 2000, String(read.length));
+    assert.equal(excerpt("Short", "One line."), "Short\nOne line.", "a short page whole");
+
+    const found = (await app.para.query({ query: "create-aks-resource.ps1 trial cluster", global: true }, work, true)).content[0]!.text;
+
+    assert.match(found, /### Result 1: AKS test cluster: disable auto-patching \(projects\/aks-test-cluster\.md\)[\s\S]*Score: 0\.900/);
+});
+
+test("a scoped wiki_query also names the good pages in other scopes, also when this scope has none (PP-362)", async () => {
+    const scoped = await app.para.query({ query: "create-aks-resource.ps1 trial cluster" }, work, true);
+    const text = scoped.content[0]!.text;
+
+    assert.match(text, /^No wiki pages found for "create-aks-resource\.ps1 trial cluster" in this scope \([^)]+\)\./);
+    assert.doesNotMatch(text, /may not have content/);
+    assert.match(text, /## Also in other scopes \(1\)\n.*\n- projects\/aks-test-cluster: AKS test cluster: disable auto-patching \(scope: psn; Score 0\.90\)/);
+    assert.equal((scoped.details as { otherScopes?: number }).otherScopes, 1);
+
+    // In scope, and nothing elsewhere: no such section.
+    assert.doesNotMatch((await app.para.query({ query: "office printer floor" }, work, true)).content[0]!.text, /Also in other scopes/);
 });
 
 test("a Jev failure keeps the search's own order and says so: in the log, in wiki_query's answer, and in Menu › Wiki", async () => {

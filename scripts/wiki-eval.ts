@@ -9,6 +9,7 @@
  *
  *   OPENROUTER_API_KEY=… node scripts/wiki-eval.ts [--configs A,B,C,D] [--out report.md]
  *   OPENROUTER_API_KEY=… node scripts/wiki-eval.ts --wiki ~/.pi/wiki --cases cases.json   (a real wiki, read only)
+ *   … --as query   (each question as wiki_query asks it, every scope, at most 4 pages: PP-361)
  *
  * Each way runs in a wiki of its own in a temporary home; nothing touches the owner's wiki: `--wiki` copies its folder
  * there first, and `--cases` gives the questions for it (`[{ q, kind, gold: [slug or path], ok?: [...] }]`), searched
@@ -109,6 +110,8 @@ const argument = (name: string) => {
 };
 const WIKI = argument("--wiki");
 const CASES_FILE = argument("--cases");
+/** `--as query`: each question as wiki_query asks it (PP-361), instead of as a message. */
+const AS_QUERY = argument("--as") === "query";
 
 if ((WIKI === undefined) !== (CASES_FILE === undefined)) {
     throw new Error("--wiki and --cases go together: a real wiki and the questions for it.");
@@ -200,7 +203,12 @@ for (const config of CONFIGS) {
 
     for (const each of cases) {
         const started = Date.now();
-        const found = (await para.relevant(each.q, cwd)).map((page) => named(page.path, each.gold));
+        // `--as query`: as wiki_query asks (every scope, at most 4 pages); else as the pages that come with a message.
+        const paths =
+            AS_QUERY
+                ? [...(await para.query({ query: each.q, global: true, limit: 4 }, cwd, false)).content.map((part) => part.text).join("\n").matchAll(/### Result \d+: .* \(((?:projects|areas|resources|archives)\/[^)]+)\.md\)/g)].map((match) => match[1]!)
+                : (await para.relevant(each.q, cwd)).map((page) => page.path);
+        const found = paths.map((path) => named(path, each.gold));
 
         ms += Date.now() - started;
         noise += found.filter((path) => !each.gold.includes(path) && !(each.ok ?? []).includes(path)).length;

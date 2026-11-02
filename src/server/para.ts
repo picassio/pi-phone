@@ -460,7 +460,7 @@ export class Para {
         }
 
         const limit = args.limit ?? 10;
-        const options = { scope: args.global === true ? undefined : scope, includeArchives: args.category === "archives", category: args.category };
+        const options = { scope: args.global === true ? undefined : scope, includeArchives: args.category === "archives", category: args.category, deep: true };
         // A model chosen without the OpenRouter sign-in fails at once (`#rank` says why): nothing to search for it.
         const pool = "error" in ranker ? [] : await this.exclusive(async () => {
             const found = await this.#candidates(args.query, options);
@@ -474,7 +474,34 @@ export class Para {
 
             return this.#candidates(args.query, options);
         });
-        const ranked = await this.#rank(args.query, pool, ranker);
+        // A scoped query also reads the other scopes' candidates (PP-362), in the same request to Jev: the good pages there
+        // are named after this scope's, so it never says "nothing" when the answer is one scope away.
+        const elsewhere =
+            args.global === true || "error" in ranker
+                ? []
+                : await this.exclusive(async () => {
+                      const inScope = new Set(pool.map((each) => `${each.result.page.category}/${each.result.page.slug}`));
+
+                      return (await this.#candidates(args.query, { ...options, scope: undefined })).filter((each) => !inScope.has(`${each.result.page.category}/${each.result.page.slug}`));
+                  });
+        const both = await this.#rank(args.query, [...pool, ...elsewhere], ranker);
+        const outside = new Set(elsewhere);
+        const ranked: typeof both =
+            "kept" in both
+                ? { model: both.model, kept: both.kept.filter((each) => !outside.has(each.candidate)), below: both.below.filter((each) => !outside.has(each.candidate)) }
+                : both;
+        const others = "kept" in both ? both.kept.filter((each) => outside.has(each.candidate)).slice(0, 5) : [];
+        const otherLines =
+            others.length === 0
+                ? []
+                : [
+                      `## Also in other scopes (${others.length})`,
+                      `Pages outside this scope (${scope.name}) that Jev judges to help; read one with wiki_read, or ask with global: true for more.`,
+                      ...others.map(
+                          (each) =>
+                              `- ${each.candidate.result.page.category}/${each.candidate.result.page.slug}: ${each.candidate.result.page.title} (scope: ${(each.candidate.result.frontmatter.scope ?? []).join(", ") || "none"}; Score ${each.score.toFixed(2)})`,
+                      ),
+                  ];
 
         if ("error" in ranked) {
             this.#host.log(`wiki_query: ${ranked.error}; the search's own order is kept`);
@@ -490,7 +517,7 @@ export class Para {
 
         const scopeName = args.global === true ? "global (all scopes)" : scope.name;
         const kept = ranked.kept.slice(0, limit);
-        const details = { resultCount: kept.length, scopeUsed: args.global === true ? "global" : scope.name, rankedBy: ranked.model };
+        const details = { resultCount: kept.length, scopeUsed: args.global === true ? "global" : scope.name, rankedBy: ranked.model, ...(others.length === 0 ? {} : { otherScopes: others.length }) };
 
         if (kept.length === 0) {
             const near = ranked.below.slice(0, 3).map((each) => `${each.candidate.result.page.category}/${each.candidate.result.page.slug} (${each.score.toFixed(2)})`);
@@ -500,10 +527,13 @@ export class Para {
                     {
                         type: "text",
                         text: [
-                            `No wiki pages found for "${args.query}". Jev (${ranked.model}) read the ${pool.length} the search found and judged none to help with it (each under ${JEV_MATCH}).`,
-                            ...(near.length === 0 ? [] : [`Nearest: ${near.join(", ")}.`]),
-                            "The wiki may not have content on this topic yet.",
-                        ].join(" "),
+                            [
+                                `No wiki pages found for "${args.query}"${args.global === true ? "" : ` in this scope (${scope.name})`}. Jev (${ranked.model}) read the ${pool.length} the search found and judged none to help with it (each under ${JEV_MATCH}).`,
+                                ...(near.length === 0 ? [] : [`Nearest: ${near.join(", ")}.`]),
+                                ...(others.length === 0 ? ["The wiki may not have content on this topic yet."] : []),
+                            ].join(" "),
+                            ...(others.length === 0 ? [] : ["", ...otherLines]),
+                        ].join("\n"),
                     },
                 ],
                 details,
@@ -532,6 +562,7 @@ export class Para {
             "",
             ...(open.length === 0 ? [] : [`## Open questions on these pages (${open.length})`, "If what you know or find answers one, resolve it. " + pi.RESOLVE_HOW, ...open, ""]),
             pi.formatQueryResults(kept.map((each) => ({ ...each.candidate.result, score: each.score }))),
+            ...(otherLines.length === 0 ? [] : ["", ...otherLines]),
         ].join("\n");
 
         return { content: [{ type: "text", text }], details };
@@ -541,11 +572,13 @@ export class Para {
      * The pages Jev judges for a query: pi-para's search (keywords, and meaning when the wiki has embeddings; not the
      * pages these link to, which the query is not about), and the pages that hold its telling words: qmd's keyword search
      * wants every word on one page, and a message's words rarely are. A page holding at least two of them (or the one,
-     * when there is one) is a candidate; each with its title and the start of its body for Jev to read.
+     * when there is one) is a candidate; each with its title and the start of its body for Jev to read, and with `deep`
+     * (wiki_query, PP-361) its later lines holding the query's words too. Not for the pages that come with a message:
+     * there it made Jev keep 0.75 extra pages a message instead of 0.15 on the owner's wiki, each one in the prompt.
      */
     async #candidates(
         query: string,
-        options: { scope: ProjectScope | undefined; includeArchives: boolean; category?: WikiQueryArgs["category"] },
+        options: { scope: ProjectScope | undefined; includeArchives: boolean; category?: WikiQueryArgs["category"]; deep?: boolean },
     ): Promise<Candidate[]> {
         const { store, wikiDir } = await this.open();
         const pi = this.#pi!;
@@ -585,7 +618,7 @@ export class Para {
             seen.add(path);
             pool.push({
                 result,
-                text: page === null ? `${result.frontmatter.title}\n${result.snippet}` : excerpt(page.frontmatter.title, page.body),
+                text: page === null ? `${result.frontmatter.title}\n${result.snippet}` : excerpt(page.frontmatter.title, page.body, options.deep === true ? words : []),
                 fromSearch: true,
                 words: (hits.get(path)?.count ?? 0) >= enough,
             });
@@ -604,7 +637,7 @@ export class Para {
                 continue;
             }
 
-            const text = excerpt(page.frontmatter.title, page.body);
+            const text = excerpt(page.frontmatter.title, page.body, options.deep === true ? words : []);
 
             pool.push({
                 result: {
@@ -1017,9 +1050,61 @@ function searchOrder(pool: Candidate[]): Candidate[] {
     return [...chosen, ...pool.filter((each) => each.words && !chosen.includes(each))];
 }
 
-/** What Jev reads of a page: its title and the start of its body, without the section marks, at most 1500 characters. */
-function excerpt(title: string, body: string): string {
-    return `${title}\n${body.replace(/^#+\s*/gm, "").replace(/\n{2,}/g, "\n")}`.slice(0, 1500);
+/** How much of a page Jev reads: its start, as before, and at most this much of its later lines holding the query's words. */
+const EXCERPT_START = 1500;
+const EXCERPT_LATER = 500;
+
+/**
+ * What Jev reads of a page (PP-361): its title and start (the first 1,500 characters, without section marks), and when
+ * the page is longer, up to 500 characters of the lines further down that hold the most of the query's telling `words`
+ * (half of them and at least two, or the one there is; folded, in the page's order, "…" between runs). By the start alone, a fact in a
+ * section added later (a long project page's) was never read: the owner's search for the AKS trial cluster found
+ * nothing. A line with one common word ("deploy") is not enough: on the owner's wiki that made Jev keep 0.93 extra
+ * pages a question instead of 0.10.
+ */
+export function excerpt(title: string, body: string, words: readonly string[] = []): string {
+    const plain = body.replace(/^#+\s*/gm, "").replace(/\n{2,}/g, "\n");
+    const start = `${title}\n${plain}`.slice(0, EXCERPT_START);
+
+    if (`${title}\n${plain}`.length <= EXCERPT_START || words.length === 0) {
+        return start;
+    }
+
+    const folded = [...new Set(words.map(fold))];
+    const enough = Math.min(folded.length, Math.max(2, Math.ceil(folded.length / 2)));
+    const lines: { at: number; text: string; hits: number }[] = [];
+    let offset = 0;
+
+    for (const [at, text] of plain.split("\n").entries()) {
+        if (offset + title.length + 1 >= EXCERPT_START && text.trim() !== "") {
+            const said = fold(text);
+            const hits = folded.filter((word) => said.includes(word)).length;
+
+            if (hits >= enough) {
+                lines.push({ at, text, hits });
+            }
+        }
+
+        offset += text.length + 1;
+    }
+
+    const picked: typeof lines = [];
+    let room = EXCERPT_LATER;
+
+    for (const line of [...lines].sort((a, b) => b.hits - a.hits || a.at - b.at)) {
+        const text = line.text.slice(0, room - 2);
+
+        if (room - text.length - 2 < 0 || text.length === 0) {
+            break;
+        }
+
+        picked.push({ ...line, text });
+        room -= text.length + 2;
+    }
+
+    const later = picked.sort((a, b) => a.at - b.at).map((each, index, all) => (index > 0 && all[index - 1]!.at === each.at - 1 ? each.text : `…\n${each.text}`));
+
+    return [start, ...later].join("\n");
 }
 
 /** Lower case without Vietnamese marks ("Đông Á" → "dong a"). */
