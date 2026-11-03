@@ -734,6 +734,8 @@
     "Drags": "拖动",
     "Focuses": "聚焦",
     "Double-clicks": "双击",
+    "Selects": "选中",
+    "everything": "全部",
     "Right-clicks": "右键点击",
     "Long-presses": "长按",
     "[{from}] onto [{to}]": "把 [{from}] 拖到 [{to}]",

@@ -218,6 +218,71 @@ export type Element = {
 /** A file a page downloads (PP-376), as DevTools tells it: its id, the name the page gives it, where from, and how far it is. */
 export type Download = { guid: string; name: string; url: string; state: "inProgress" | "completed" | "canceled"; received: number; total: number; told?: boolean };
 
+/**
+ * What to select (PP-376: `browser_select_text`): a text (the first place it shows in view, else the first), every
+ * character (`all`), or characters `start` to `end`; on the page, or in a control (in a field, its own selection).
+ */
+export type TextSelection = { text?: string; all?: boolean; start?: number; end?: number };
+
+/**
+ * Select in a frame's document (`node` -1: its text; else in that control): `{from, to, length}` in characters of the
+ * field's value or the text's, or why not. Text across elements is matched with any white space between.
+ */
+const SELECT_TEXT = `(async (node, spec) => {
+  const visible=e=>e && e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true});
+  const textNodes=root=>{
+    const out=[], roots=[root];
+    for (let i=0; i<roots.length && roots.length<200; i++) {
+      const walker=document.createTreeWalker(roots[i], NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT);
+      let n;
+      while ((n=walker.nextNode())) {
+        if (n.nodeType===1) { if (n.shadowRoot) roots.push(n.shadowRoot); continue; }
+        const p=n.parentElement;
+        if (p && !p.closest('script,style,noscript,template') && visible(p)) out.push(n);
+      }
+    }
+    return out;
+  };
+  // A start at a node's end is the next node's start (not across a block's edge), an end there is that node's end.
+  const at=(nodes, offset, end)=>{
+    let seen=0;
+    for (const n of nodes) { const length=n.textContent.length; if (offset<seen+length || (offset===seen+length && end)) return [n, offset-seen]; seen+=length; }
+    return offset===seen && nodes.length ? [nodes[nodes.length-1], nodes[nodes.length-1].textContent.length] : null;
+  };
+  const find=(whole, text)=>{
+    const pattern=new RegExp(text.trim().replace(/[.*+?^\${}()|[\\]\\\\]/g,'\\\\$&').replace(/\\s+/g,'\\\\s+'),'g');
+    return [...whole.matchAll(pattern)].map(m=>[m.index, m.index+m[0].length]);
+  };
+  const e=node<0 ? null : window.__piBrowser?.nodes.get(node);
+  if (node>=0 && !e?.isConnected) return {error:'it is gone'};
+  if (e && e.tagName==='INPUT' && e.type==='password') return {error:'it is a password field'};
+  if (e && (e.tagName==='TEXTAREA' || (e.tagName==='INPUT' && typeof e.selectionStart==='number'))) {
+    const length=e.value.length;
+    let range;
+    if (spec.all) range=[0,length];
+    else if (spec.text!==undefined) range=find(e.value, spec.text)[0];
+    else { const from=Math.max(0,Math.min(spec.start ?? 0,length)); range=[from, Math.max(from,Math.min(spec.end ?? length,length))]; }
+    if (!range) return {error:'its value does not have that text'};
+    e.focus({preventScroll:true});
+    e.setSelectionRange(range[0], range[1]);
+    return {from:range[0], to:range[1], length};
+  }
+  const nodes=textNodes(e ?? document.body);
+  const whole=nodes.map(n=>n.textContent).join('');
+  const shown=r=>{ const b=r.getBoundingClientRect(); return b.width>0 && b.bottom>0 && b.top<innerHeight && b.right>0 && b.left<innerWidth; };
+  const rangeOf=([from, to])=>{ const s=at(nodes, from, false), t=at(nodes, to, true); if (!s || !t) return null; const r=document.createRange(); r.setStart(s[0], s[1]); r.setEnd(t[0], t[1]); return r; };
+  let range;
+  if (spec.all) range=[0, whole.length];
+  else if (spec.text!==undefined) { const all=find(whole, spec.text); range=all.find(each=>{ const r=rangeOf(each); return r && shown(r); }) ?? all[0]; }
+  else { const from=Math.max(0,Math.min(spec.start ?? 0,whole.length)); range=[from, Math.max(from,Math.min(spec.end ?? whole.length,whole.length))]; }
+  const chosen=range && rangeOf(range);
+  if (!chosen) return {error: e ? 'its text does not have that' : 'the page does not show that text'};
+  if (e && e.isContentEditable) e.focus({preventScroll:true});
+  if (!shown(chosen)) chosen.startContainer.parentElement?.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
+  getSelection().setBaseAndExtent(chosen.startContainer, chosen.startOffset, chosen.endContainer, chosen.endOffset);
+  return {from:range[0], to:range[1], length:whole.length};
+})`;
+
 /** How a control is clicked (PP-376): once, twice, with the right button, or a long press. */
 export type ClickKind = "single" | "double" | "right" | "long";
 /** A long press's length by default, and its bounds, in ms. */
@@ -1974,6 +2039,74 @@ export class BrowserPage {
         }
 
         await Promise.all([down, this.cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...keys })]);
+    }
+
+    /**
+     * Select text (PP-376): on the page (the main frame's, then each frame in view), or in a control (a field's own
+     * selection, focused; another control's text). Never in a password field or a field the person filled from a card,
+     * nor a text that is (part of) what they typed there: whether it is found would tell it. Answers the characters
+     * selected and how many the field or text has; the selection's own text is not read back.
+     */
+    async selectText(observed: Observed, element: Element | undefined, spec: TextSelection): Promise<{ from: number; to: number; length: number; frame?: string }> {
+        if (spec.text !== undefined) {
+            const text = spec.text.trim();
+            const typed = [...this.#typed.keys()];
+
+            if (text === "" || this.hideTyped(text) !== text || (text.length >= MIN_TYPED_HIDDEN && typed.some((value) => value.includes(text)))) {
+                throw new Error(text === "" ? "Give the text to select." : "That text is what the person typed on a card: Pi does not look for it.");
+            }
+        }
+
+        if (element !== undefined) {
+            if (element.role === "password" || this.#cardFills.some((fill) => fill.node === element.node)) {
+                throw new Error(`[${element.index}] holds what the person typed (a password, or a card's value): Pi does not select in it.`);
+            }
+
+            if (!(await this.#fresh(observed, element.node))) {
+                throw new StalePage("The page changed since it was read: read it again.");
+            }
+
+            const done = await this.#evaluateAt<{ from: number; to: number; length: number } | { error: string }>(element.node, (local) => `${SELECT_TEXT}(${local}, ${JSON.stringify(spec)})`, {
+                awaitPromise: true,
+                userGesture: true,
+            });
+
+            if ("error" in done) {
+                throw new Error(`Could not select in [${element.index}] ${element.label}: ${done.error}.`);
+            }
+
+            this.#afterInput = { node: element.node, kind: "click" } as RawAction;
+
+            return done;
+        }
+
+        const here = await this.evaluate<{ from: number; to: number; length: number } | { error: string }>(`${SELECT_TEXT}(-1, ${JSON.stringify(spec)})`, true);
+
+        if (!("error" in here) || spec.text === undefined) {
+            if ("error" in here) {
+                throw new Error(`Could not select on the page: ${here.error}.`);
+            }
+
+            return here;
+        }
+
+        // Not in the page's own text: in the frames in view (their text is in the read too).
+        const frames = await this.#childFrames();
+        const boxes = await this.#frameBoxes(frames, { w: observed.w, h: observed.h });
+
+        for (const frame of frames) {
+            if ((boxes.get(frame.frameId) ?? null) === null) {
+                continue;
+            }
+
+            const there = await this.#evaluateIn<{ from: number; to: number; length: number } | { error: string }>(frame, `${SELECT_TEXT}(-1, ${JSON.stringify(spec)})`, { awaitPromise: true }).catch(() => null);
+
+            if (there !== null && !("error" in there)) {
+                return { ...there, frame: frameName(frame.url) };
+            }
+        }
+
+        throw new Error(`Could not select on the page: ${here.error}.`);
     }
 
     /**

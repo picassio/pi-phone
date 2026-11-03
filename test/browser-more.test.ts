@@ -89,6 +89,13 @@ const PAGES: Record<string, string> = {
             photo.addEventListener('mousedown', (e) => { if (!touched && e.button === 0) since = performance.now(); });
             photo.addEventListener('mouseup', (e) => { if (!touched && e.button === 0 && e.detail === 1) out.textContent = 'Held ' + (performance.now() - since >= 1000 ? 'long' : 'short') + ' by mouse'; });
         </script>`,
+    // Text to select: on the page (across elements too), in fields, in an editor; what is selected shows on the page.
+    "/select": `<!doctype html><title>Select</title><meta name="viewport" content="width=device-width">
+        <p>The quick brown fox jumps over the lazy dog.</p><p>Second <b>bold words</b> here.</p>
+        <label>Title <input id="title" value="Quarterly report draft"></label><br><label>Body <textarea id="body">alpha beta gamma</textarea></label>
+        <div contenteditable="true" aria-label="Editor" role="textbox">Edit me please</div><label>PIN <input id="pin" type="password" value="9876"></label>
+        <p id="sel">Nothing selected</p>
+        <script>document.addEventListener('selectionchange', () => { const a = document.activeElement; sel.textContent = 'Selection: ' + ((a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) ? a.value.slice(a.selectionStart, a.selectionEnd) : getSelection().toString()); });</script>`,
     "/card": `<!doctype html><title>Card</title><meta name="viewport" content="width=device-width">
         <label>Card number <input id="card"></label><br><label>PIN <input id="pin" type="password"></label><br>
         <button onclick="out.textContent = 'Paid with ' + card.value + (pin.value === '4321' ? ' and the PIN' : ' without the PIN')">Pay</button>
@@ -332,6 +339,43 @@ test("with Chrome: browser_click double-clicks, right-clicks (the page's context
         const desktop = await browser.resize(1, "desktop");
 
         assert.match(await browser.click(1, number(desktop, /\[(\d+)\] button "Photo"/), false, { how: "long", ms: 1200 }), /Held long by mouse/);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("with Chrome: browser_select_text selects a text on the page (across elements), in a field (its text, all, characters), in an editor; never in a password field or what the person typed (PP-376)", { skip }, async () => {
+    const browser = browserHere();
+    const selection = async () => /Selection: (.*)/.exec(await browser.snapshot(1))?.[1];
+
+    try {
+        const page = await browser.open(1, "http://pi.test/select");
+        const fox = await browser.selectText(1, undefined, { text: "brown fox  jumps" });
+
+        assert.match(fox, /^Selected "brown fox  jumps" \(characters 10 to 25\) of \d+ on the page\.\n/);
+        assert.equal(await selection(), "brown fox jumps");
+        await browser.selectText(1, undefined, { text: "Second bold words" });
+        assert.equal(await selection(), "Second bold words");
+
+        const title = number(page, /\[(\d+)\] textbox "Title"/);
+
+        assert.match(await browser.selectText(1, title, { all: true }), /^Selected characters 0 to 22 of 22 in \[\d+\]\.\n[\s\S]*textbox "Title" value "Quarterly report draft" focused/);
+        assert.equal(await selection(), "Quarterly report draft");
+        await browser.selectText(1, title, { text: "report" });
+        assert.equal(await selection(), "report");
+        await browser.selectText(1, number(page, /\[(\d+)\] textbox "Body"/), { start: 6, end: 10 });
+        assert.equal(await selection(), "beta");
+        await browser.selectText(1, number(page, /\[(\d+)\] textbox "Editor"/), { text: "me" });
+        assert.equal(await selection(), "me");
+
+        await assert.rejects(browser.selectText(1, undefined, { text: "purple elephant" }), /the page does not show that text/);
+        await assert.rejects(browser.selectText(1, number(page, /\[(\d+)\] password "PIN"/), { all: true }), /holds what the person typed/);
+
+        // A value the person typed on a card is never looked for: whether it is found would tell it.
+        await browser.fillFields(1, [{ index: title, value: "Secret plan 2027", hide: true }]);
+        await browser.snapshot(1);
+        await assert.rejects(browser.selectText(1, undefined, { text: "plan 20" }), /what the person typed on a card/);
+        await assert.rejects(browser.selectText(1, number(await browser.snapshot(1), /\[(\d+)\] textbox "Title"/), { start: 0, end: 3 }), /holds what the person typed/);
     } finally {
         await browser.close();
     }

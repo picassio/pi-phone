@@ -151,6 +151,12 @@ export function describeCall(call) {
             };
         case "browser_hover":
             return { icon: "◍", label: t("Points at"), subject: `[${args.index ?? ""}]` };
+        case "browser_select_text":
+            return {
+                icon: "◍",
+                label: t("Selects"),
+                subject: [args.text !== undefined ? `“${short(args.text, 60)}”` : args.all ? t("everything") : `${args.start ?? 0}–${args.end ?? ""}`, args.index === undefined ? "" : `[${args.index}]`].filter(Boolean).join(" "),
+            };
         case "browser_focus":
             return { icon: "◍", label: t("Focuses"), subject: `[${args.index ?? ""}]` };
         case "browser_drag":

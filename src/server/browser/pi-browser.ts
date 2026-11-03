@@ -16,6 +16,7 @@ import {
     cardHideTargets,
     chordOf,
     type ClickKind,
+    type TextSelection,
     type Element,
     type Observed,
     type PictureClip,
@@ -1399,6 +1400,28 @@ export class PiBrowser {
             await page.hover(observed, element);
 
             return this.#read();
+        });
+    }
+
+    /**
+     * Select text (PP-376): on the page by its text, or in control `index` (its text, every character, or characters
+     * `start` to `end`). Says what was selected by Pi's own words and counts, never the selection's text.
+     */
+    selectText(session: number, index: number | undefined, spec: TextSelection): Promise<string> {
+        const what = spec.all === true ? "everything" : spec.text !== undefined ? JSON.stringify(spec.text) : `characters ${spec.start ?? 0} to ${spec.end ?? "the end"}`;
+
+        return this.#run(session, index === undefined ? `Selecting ${what}` : this.#doing(`Selecting ${what} in`, index), async ({ page }) => {
+            const observed = this.#tab?.observed;
+
+            if (observed === undefined) {
+                throw new Error("Read the page first (browser_snapshot or browser_open).");
+            }
+
+            const element = index === undefined ? undefined : this.#element(index).element;
+            const done = await page.selectText(observed, element, spec);
+            const where = index === undefined ? `on the page${done.frame === undefined ? "" : ` (in a frame: ${done.frame})`}` : `in [${index}]`;
+
+            return `Selected ${spec.text !== undefined ? `${JSON.stringify(spec.text)} (characters ${done.from} to ${done.to})` : `characters ${done.from} to ${done.to}`} of ${done.length} ${where}.\n${await this.#read()}`;
         });
     }
 

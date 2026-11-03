@@ -1440,6 +1440,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
   contextmenu); `long` a press held `duration_ms` (300 to 5,000, 800 by default): `Input.dispatchTouchEvent` start and
   end while pages are laid out as a phone's (touch on), the left button held at desktop size. The point is checked as
   a click's. Two touches within Chrome's double-tap time are a double tap to the page.
+- **Selecting text in Pi's browser** (`browser_select_text`, `BrowserPage.selectText`, `SELECT_TEXT`, PP-376): in a
+  field (input with a selection, textarea) its own selection (`setSelectionRange`, focused): all, a text in its value,
+  or characters start to end (clamped). Elsewhere a DOM range set with `setBaseAndExtent` over the visible text nodes
+  of the page, or of the control (open shadow roots included): its text matched with any white space between words
+  (across elements), the first place in view else the first (scrolled to), or characters by position; a start at a
+  node's end begins at the next node, so a selection does not take a block's edge. The page's text first, then each
+  frame in view. No clipboard. The answer names Pi's own text and the characters, never the selection's text; a
+  password field, a field filled from a card, and a text that is (part of) a card value (3 characters or more) are
+  refused, as whether it is found would tell the value.
 - **Downloads in Pi's browser** (PP-376; `PiBrowser.#takeDownloads`, `BrowserEngine.downloads`): each tab's page has
   `Browser.setDownloadBehavior` `allowAndName` into its engine's folder, events on (for the browser's profile, which is
   pi-phone's own): a `ChromeEngine`'s temporary folder (removed with it), a machine's `~/.pi/mobile/browser/downloads`
