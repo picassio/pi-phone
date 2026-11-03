@@ -2436,6 +2436,26 @@ pre.diff .del {
     font-family: var(--mono);
 }
 
+/* A linked session's message (PP-352): an agent's card, its session's name, then what it is, Open at the end. */
+.linked-head .linked-name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text);
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.linked-head .linked-kicker {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.linked-head .linked-open {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
 .report-why {
     color: var(--err);
     font-size: 13px;

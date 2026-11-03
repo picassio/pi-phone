@@ -2,7 +2,8 @@
 // that started it, whose row has a fold with how many; folding hides it and holds across a reload; above the
 // transcripts, "Started from" and "Linked session" lead from one to the other. With PHONE_SHOTS set to a folder,
 // screenshots at 390 px go there.
-import { type App, cleanUp, cleanUpAll, newSession, openApp, say, scriptedModel, until, work } from "./helpers.ts";
+import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/faux";
+import { type App, cleanUp, cleanUpAll, lastText, modelTexts, newSession, openApp, say, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -62,7 +63,14 @@ before(async () => {
         return;
     }
 
-    app = await openApp(scriptedModel());
+    // The card test's long message gets a short answer, so the card and the answer fit the screen.
+    app = await openApp(
+        scriptedModel((request) => {
+            const { text } = lastText(request as never);
+
+            return fauxAssistantMessage([fauxText(text.includes("Check the build.") ? "On it." : `echo: ${text}`)]);
+        }),
+    );
     server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -118,6 +126,56 @@ test("a session Pi starts shows under the one that started it, folds away, and e
     await until(async () => (await inPage<string>("location.pathname")) === `/s/${starter}`, "to the starter");
     await until(async () => (await text("[data-part=linked-sessions]")).includes("Linked session"), "Linked session");
     assert.match(await text("[data-part=linked-sessions]"), /Build check/);
+});
+
+test("a message from a linked session shows as an agent's card, with its session and Open; the model reads it as before (PP-352)", real, async () => {
+    const starter = await newSession(app);
+
+    await say(app, starter, "ask another session");
+    const long = Array.from({ length: 40 }, (_, at) => `- step ${at + 1}: check **part ${at + 1}** of the build`).join("\n");
+    const { id: started } = await app.sessionControl.startLinked(starter, { cwd: work, message: `Check the build.\n\n${long}`, title: "Card check", key: crypto.randomUUID() });
+
+    await cdp.send("Page.navigate", { url: `${base}/s/${started}` });
+    await until(async () => (await inPage<boolean>(`document.querySelector('[data-from="linked"]') !== null`)), "the card", 20_000);
+    const card = await inPage<{ name: string; open: boolean; bold: boolean; folded: boolean; head: string }>(`(() => {
+        const card = document.querySelector('[data-from="linked"]');
+
+        return {
+            name: card.querySelector('[data-part="linked-name"]').textContent.trim(),
+            open: card.querySelector('[data-part="linked-open"]') !== null,
+            bold: card.querySelector('[data-part="linked-body"] strong') !== null,
+            folded: !card.querySelector('[data-part="linked-body"]').textContent.includes("step 40"),
+            head: card.querySelector('[data-part="linked-head"]').textContent,
+        };
+    })()`);
+
+    assert.equal(card.name, "ask another session");
+    assert.equal(card.open, true, "Open, as the owner sees the session");
+    assert.equal(card.bold, true, "its text as Markdown");
+    assert.equal(card.folded, true, "a long one folded");
+    assert.match(card.head, /Linked session/);
+    // Nothing of a person's message: no avatar or author.
+    assert.equal(await inPage<boolean>(`document.querySelector('[data-from="linked"] [data-part="author-mark"]') === null`), true);
+    // What the model reads is as it was: the marker and the text.
+    assert.ok((await modelTexts(app, started as never)).some((each) => each.includes(`[via session #${String(starter)} `) && each.includes("Check the build.")));
+    const toCard = `document.querySelector('[data-from="linked"]').scrollIntoView({ block: "start" })`;
+
+    await inPage(toCard);
+    await shot("linked-card-390");
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await inPage(toCard);
+    await shot("linked-card-1280");
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+
+    // Show all unfolds it, and the card stays where it is: the message sheet does not open.
+    assert.match(await text('[data-part="linked-more"]'), /Show all · 42 lines/);
+    await inPage(`document.querySelector('[data-part="linked-more"]').click()`);
+    await until(async () => (await text('[data-part="linked-body"]')).includes("step 40"), "all of it");
+    assert.equal(await inPage<boolean>(`document.querySelector(".sheet") === null`), true);
+
+    // Open goes to the session it came from.
+    await inPage(`document.querySelector('[data-part="linked-open"]').click()`);
+    await until(async () => (await inPage<string>("location.pathname")) === `/s/${starter}`, "to the session it came from");
 });
 
 test("a session whose linked sessions work shows as working, at any depth (PP-337)", real, async () => {

@@ -100,3 +100,7 @@ is skipped on purpose.
 - A session waiting on its linked sessions from 0.28.0 (PP-337): merge 040e2fc (7141664), `atWork` and `linkedAtWork`
   for the row's square and `data-state`, with a test in `linked-sessions-ui.test.ts`. Not taken: the Priority tab's
   Working group (pi-phone's list has no Priority tab).
+- A linked session's message as an agent's card from 0.28.0 (PP-352): merge 35fc9eb (1030306), as `LinkedMessage` for
+  pi-phone's `[via session #N “title”]` marker, on the app's report card with three small rules (no new theme parts),
+  the name from the session list, and its row deps. Not taken: `LinkedSessionPeersDoc` and `linkedPeers` (pi-phone's
+  marker has the session's id; the list says whether this person can see it), pocket's own card styles.

@@ -775,6 +775,8 @@
     "Started from": "Bắt đầu từ",
     "Started from another session": "Bắt đầu từ một phiên khác",
     "Linked session": "Phiên liên kết",
+    "Show all · {n} line": "Xem tất cả · {n} dòng",
+    "Show all · {n} lines": "Xem tất cả · {n} dòng",
     "+{n} more": "+{n} nữa",
     "Refreshing models…": "Đang làm mới mô hình…",
     "Some providers could not refresh. See Providers for details.": "Một số nhà cung cấp không làm mới được. Xem chi tiết trong Nhà cung cấp.",

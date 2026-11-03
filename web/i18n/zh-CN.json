@@ -2962,6 +2962,8 @@
     "Started from": "发起自",
     "Started from another session": "由另一个会话发起",
     "Linked session": "关联会话",
+    "Show all · {n} line": "显示全部 · {n} 行",
+    "Show all · {n} lines": "显示全部 · {n} 行",
     "Show {n} linked session": "显示 {n} 个关联会话",
     "Show {n} linked sessions": "显示 {n} 个关联会话",
     "Hide {n} linked session": "隐藏 {n} 个关联会话",

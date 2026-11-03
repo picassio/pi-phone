@@ -326,6 +326,12 @@ function UserEntry({ entry, view, users }) {
     const via = authorId === undefined ? VIA.exec(written) : null;
     const sent = via ? written.slice(via[0].length) : written;
     const scheduled = sent.startsWith(SCHEDULED);
+    const fromSession = via && !scheduled ? SESSION_VIA.exec(via[1]) : null;
+
+    if (fromSession) {
+        return html`<${LinkedMessage} entry=${entry} from=${Number(fromSession[1])} title=${fromSession[2]} text=${sent} fresh=${fresh} />`;
+    }
+
     // Spoken in a voice call (PP-185): marked voice, as speech-to-text may have misheard.
     const spoken = !scheduled && sent.startsWith(VOICE);
     // A linked session's message: shown by its label and its fence alone, so the words before the fence (which tell Pi
@@ -466,6 +472,82 @@ function UserEntry({ entry, view, users }) {
                     html`<${EntryImages} entryId=${entry.id} count=${entry.images} label=${t("Image")} />`
                 }
             </div>
+        </div>
+    </div>`;
+}
+
+/** How another session's message is marked (`session-control.ts`, `#via`): `session #N “its title”`. */
+const SESSION_VIA = /^session #(\d+)(?: “([^”]*)”)?$/;
+/** A linked session's message folds past this many lines, or this many characters. */
+const LINKED_FOLD_LINES = 10;
+const LINKED_FOLD_CHARS = 900;
+
+/**
+ * A message from a linked session (PP-352, from pi-pocket 0.28.0): an agent's, not a person's, so it shows as an agent's
+ * card, as a subagent's report does: the session's name, Open when this person can see it, and its text as Markdown,
+ * a long one folded. What the model reads does not change. Tapping it opens its message sheet, as a person's message.
+ */
+function LinkedMessage({ entry, from, title, text, fresh }) {
+    const [open, setOpen] = useState(false);
+    const session = store.state.sessions.find((each) => each.id === from);
+    const name = session?.title ?? (title || t("Session #{n}", { n: from }));
+    // A long one folds to its first lines, whole lines, so its Markdown is never cut in a word.
+    const lines = text.split("\n");
+    const folds = lines.length > LINKED_FOLD_LINES || text.length > LINKED_FOLD_CHARS;
+    let shown = lines.slice(0, LINKED_FOLD_LINES).join("\n");
+
+    if (shown.length > LINKED_FOLD_CHARS) {
+        shown = `${shown.slice(0, LINKED_FOLD_CHARS).replace(/\s+\S*$/, "")}…`;
+    }
+
+    return html`<div class=${`user-row ${fresh ? "enter" : ""}`} data-part="prompt-row" id=${`entry-${entry.id}`}>
+        <div
+            class="report linked-message tappable"
+            data-part="prompt"
+            data-from="linked"
+            title=${t("Edit, send again, or copy")}
+            tabindex="0"
+            onClick=${(event) => openMessage(event, entry.id)}
+            onKeyDown=${(event) => {
+                if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) {
+                    event.preventDefault();
+                    openMessage(event, entry.id);
+                }
+            }}
+        >
+            <div class="report-head linked-head" data-part="linked-head">
+                <span class="linked-name" data-part="linked-name" title=${name}>${name}</span>
+                <span class="linked-kicker">${t("Linked session")}${entry.at ? ` · ${clock(entry.at)}` : ""}</span>
+                ${
+                    session &&
+                    html`<button
+                        class="link linked-open"
+                        data-part="linked-open"
+                        onClick=${(event) => {
+                            event.stopPropagation();
+                            navigate(session.id);
+                        }}
+                    >
+                        ${t("Open →")}
+                    </button>`
+                }
+            </div>
+            <div data-part="linked-body" id=${`linked-body-${entry.id}`}><${Markdown} text=${folds && !open ? shown : text} /></div>
+            ${
+                folds &&
+                html`<button
+                    class="link"
+                    data-part="linked-more"
+                    aria-expanded=${open ? "true" : "false"}
+                    aria-controls=${`linked-body-${entry.id}`}
+                    onClick=${(event) => {
+                        event.stopPropagation();
+                        setOpen(!open);
+                    }}
+                >
+                    ${open ? t("Show less") : tn(lines.length, "Show all · {n} line", "Show all · {n} lines")}
+                </button>`
+            }
         </div>
     </div>`;
 }
@@ -2928,6 +3010,15 @@ function rowDeps(entry) {
 
         if (entry.text.startsWith("[subagent ")) {
             deps.push(agentsKey(view));
+        }
+
+        // A linked session's message names its session: it shows again when that session's name or access changes.
+        const from = /^\[via session #(\d+)[ \]]/.exec(entry.text)?.[1];
+
+        if (from !== undefined) {
+            const session = store.state.sessions.find((each) => each.id === Number(from));
+
+            deps.push(from, session === undefined ? undefined : (session.title ?? ""));
         }
     }
 

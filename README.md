@@ -147,7 +147,9 @@ No Termux, no laptop, no cloud VM.
   task. A session Pi starts is linked to the one that started it: it shows under that one in the list (a pill with
   how many folds them away, with a dot when one waits for you or failed), "Started from" and "Linked session" links
   above the transcripts lead from one to the other, and its spend counts toward the starter's limit. While a linked
-  session works (at any depth), the one that started it shows as working too: it waits for the report.
+  session works (at any depth), the one that started it shows as working too: it waits for the report. A message from
+  another session shows as an agent's card, not as yours: that session's name, **Open**, its text as Markdown, and a
+  long one folded to **Show all**.
 - **Projects** (an extension, off until you turn it on in Settings › Extensions): boards of tasks that keep work from
   being forgotten. Pi asks once before it tracks a session's work on a board ("Track this on the board?"), then keeps
   its tasks current with `task_create`, `task_update`, and `task_comment`. Epics, Stories, Tasks, Bugs, and Sub-tasks;
