@@ -77,6 +77,18 @@ const PAGES: Record<string, string> = {
             }, true);
             addEventListener('keyup', () => { const f = document.activeElement; after.textContent = 'Focus ' + f.id + ', selected ' + ((f.selectionEnd ?? 0) - (f.selectionStart ?? 0)) + ', notes ' + JSON.stringify(notes.value); });
         </script>`,
+    // A photo that opens on a double click, has its own context menu, and a long press (a finger's, or the mouse's).
+    "/clicks": `<!doctype html><title>Clicks</title><meta name="viewport" content="width=device-width">
+        <button id="photo" style="width:160px;height:90px">Photo</button><p id="out">Nothing yet</p>
+        <script>
+            photo.addEventListener('dblclick', () => { out.textContent = 'Opened full size'; });
+            photo.addEventListener('contextmenu', (e) => { e.preventDefault(); out.textContent = 'Menu: Save, Share'; });
+            let since = 0, touched = false;
+            photo.addEventListener('touchstart', () => { since = performance.now(); touched = true; });
+            photo.addEventListener('touchend', () => { out.textContent = 'Held ' + (performance.now() - since >= 1000 ? 'long' : 'short') + ' by touch'; });
+            photo.addEventListener('mousedown', (e) => { if (!touched && e.button === 0) since = performance.now(); });
+            photo.addEventListener('mouseup', (e) => { if (!touched && e.button === 0 && e.detail === 1) out.textContent = 'Held ' + (performance.now() - since >= 1000 ? 'long' : 'short') + ' by mouse'; });
+        </script>`,
     "/card": `<!doctype html><title>Card</title><meta name="viewport" content="width=device-width">
         <label>Card number <input id="card"></label><br><label>PIN <input id="pin" type="password"></label><br>
         <button onclick="out.textContent = 'Paid with ' + card.value + (pin.value === '4321' ? ' and the PIN' : ' without the PIN')">Pay</button>
@@ -298,6 +310,28 @@ test("with Chrome: browser_focus puts the focus on a control without a click, in
         const board = await browser.open(1, "http://pi.test/board");
 
         await assert.rejects(browser.focus(1, number(board, /\[(\d+)\] clickable "Write the report"/)), /did not take the focus/);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("with Chrome: browser_click double-clicks, right-clicks (the page's context menu), and long-presses for as long as asked, a finger's on a phone's layout and the mouse's at desktop size (PP-376)", { skip }, async () => {
+    const browser = browserHere();
+
+    try {
+        const page = await browser.open(1, "http://pi.test/clicks");
+        const photo = number(page, /\[(\d+)\] button "Photo"/);
+
+        assert.match(await browser.click(1, photo, false, { how: "double" }), /Opened full size/);
+        assert.match(await browser.click(1, photo, false, { how: "right" }), /Menu: Save, Share/);
+        assert.match(await browser.click(1, photo, false, { how: "long", ms: 300 }), /Held short by touch/);
+        // Two touches close together are a double tap to Chrome: the next one waits.
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        assert.match(await browser.click(1, photo, false, { how: "long", ms: 1200 }), /Held long by touch/);
+
+        const desktop = await browser.resize(1, "desktop");
+
+        assert.match(await browser.click(1, number(desktop, /\[(\d+)\] button "Photo"/), false, { how: "long", ms: 1200 }), /Held long by mouse/);
     } finally {
         await browser.close();
     }

@@ -1435,6 +1435,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   read says `focused` on the listed control with the focus: `snapshot.js` gives its own (`focused`) or that a frame
   element has it (`active_frame`); then the frame whose element is the parent's active one (`DOM.describeNode` of the
   active element against `DOM.getFrameOwner`'s node, kept in each frame's box) gives its own, down to 4 levels.
+- **Click kinds in Pi's browser** (`browser_click`'s `how`, PP-376; as computer_act's): `double` is two presses and
+  releases with `clickCount` 1 then 2 (click, click, dblclick); `right` the right button (`buttons` 2: the page's
+  contextmenu); `long` a press held `duration_ms` (300 to 5,000, 800 by default): `Input.dispatchTouchEvent` start and
+  end while pages are laid out as a phone's (touch on), the left button held at desktop size. The point is checked as
+  a click's. Two touches within Chrome's double-tap time are a double tap to the page.
 - **Downloads in Pi's browser** (PP-376; `PiBrowser.#takeDownloads`, `BrowserEngine.downloads`): each tab's page has
   `Browser.setDownloadBehavior` `allowAndName` into its engine's folder, events on (for the browser's profile, which is
   pi-phone's own): a `ChromeEngine`'s temporary folder (removed with it), a machine's `~/.pi/mobile/browser/downloads`

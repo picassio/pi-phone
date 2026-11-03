@@ -189,7 +189,9 @@ No Termux, no laptop, no cloud VM.
   the pointer moving in steps and a page's own drag and drop getting its drag events and data; the read marks what can
   be dragged, and `browser_run` drags too. `browser_press` presses chords as well (Ctrl+A, Ctrl+Enter, Shift+Tab,
   Ctrl+K, Meta+K for a macOS page), and never a character into a password field. `browser_focus` puts the focus on a
-  control without clicking it, and the read marks the control that has the focus (in a frame too). Lists a page draws itself
+  control without clicking it, and the read marks the control that has the focus (in a frame too). `browser_click`
+  double-clicks, right-clicks (a page's own context menu) and long-presses for as long as asked (a finger's while
+  pages are laid out as a phone's, the mouse's at desktop size). Lists a page draws itself
   (a select with its own scroll area) work too: every option is listed, a click scrolls it into view, `browser_select`
   opens the list and picks by name, `browser_scroll` scrolls the list, and a letter jumps by type-ahead.
   `browser_screenshot` can save its picture as a PNG or JPEG in the session's folder (for `doc_image` or a report),

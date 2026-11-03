@@ -15,6 +15,7 @@ import {
     BrowserPage,
     cardHideTargets,
     chordOf,
+    type ClickKind,
     type Element,
     type Observed,
     type PictureClip,
@@ -1372,14 +1373,17 @@ export class PiBrowser {
         return `${verb} [${index}]${element === undefined ? "" : ` ${element.label}`}`;
     }
 
-    click(session: number, index: number, acceptDialog = false): Promise<string> {
-        return this.#run(session, this.#doing("Clicking", index), async ({ page }) => {
+    /** Click control `index`: once, or (PP-376) twice, with the right button, or a long press of `ms`. */
+    click(session: number, index: number, acceptDialog = false, { how = "single", ms }: { how?: ClickKind; ms?: number } = {}): Promise<string> {
+        const verb = { single: "Clicking", double: "Double-clicking", right: "Right-clicking", long: "Long-pressing" }[how];
+
+        return this.#run(session, this.#doing(verb, index), async ({ page }) => {
             const { observed, element } = this.#element(index);
 
             await page.setAcceptDialogs(acceptDialog);
 
             try {
-                await page.click(observed, element);
+                await page.click(observed, element, { how, ...(ms === undefined ? {} : { ms }) });
 
                 return await this.#read();
             } finally {

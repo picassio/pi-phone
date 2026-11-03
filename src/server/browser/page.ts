@@ -218,6 +218,12 @@ export type Element = {
 /** A file a page downloads (PP-376), as DevTools tells it: its id, the name the page gives it, where from, and how far it is. */
 export type Download = { guid: string; name: string; url: string; state: "inProgress" | "completed" | "canceled"; received: number; total: number; told?: boolean };
 
+/** How a control is clicked (PP-376): once, twice, with the right button, or a long press. */
+export type ClickKind = "single" | "double" | "right" | "long";
+/** A long press's length by default, and its bounds, in ms. */
+export const LONG_PRESS_MS = 800;
+export const LONG_PRESS_RANGE = { min: 300, max: 5000 } as const;
+
 /** The shortest value text hiding (`Page.hideTyped`) covers: a shorter one would hide every "42" on the page. */
 export const MIN_TYPED_HIDDEN = 3;
 
@@ -1140,6 +1146,7 @@ export class BrowserPage {
         }
 
         this.#fromSurface = phone;
+        this.#touch = viewport.mobile;
 
         if (!local) {
             // Requests to the local addresses pause (only those) and fail: navigations, frames, scripts, fetches alike.
@@ -1277,7 +1284,11 @@ export class BrowserPage {
      * Lay the page out at another size (PP-15): a phone's (`mobile`, touch, a phone's user agent) or a desktop's (no touch,
      * a desktop Chrome's user agent). An open page loads again, so its site serves the page for that size.
      */
+    /** Whether the page is laid out as a phone's, with touch: a long press is then a finger's. */
+    #touch = true;
+
     async resize(viewport: { width: number; height: number; mobile: boolean }, { phone = false }: { phone?: boolean } = {}): Promise<void> {
+        this.#touch = viewport.mobile;
         await this.#metrics(viewport, phone);
 
         if (!viewport.mobile) {
@@ -1568,14 +1579,45 @@ export class BrowserPage {
         await this.settle(Math.max(0, done - Date.now()));
     }
 
-    async click(observed: Observed, element: Element): Promise<void> {
+    /**
+     * Click a control: once (the default), twice (`double`: a double click), with the right button (`right`: its context
+     * menu), or a long press (`long`, held `ms`: a finger's, with touch, as a phone's page is laid out; else the mouse's).
+     */
+    async click(observed: Observed, element: Element, { how = "single", ms = LONG_PRESS_MS }: { how?: ClickKind; ms?: number } = {}): Promise<void> {
         if (!(await this.#fresh(observed, element.node))) {
             throw new StalePage("The page changed since it was read: read it again.");
         }
 
         const before = this.#loads;
+        const point = await this.#point(element);
 
-        await this.#click(await this.#point(element));
+        if (how === "single") {
+            await this.#click(point);
+        } else if (how === "double") {
+            await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+
+            for (const clickCount of [1, 2]) {
+                for (const type of ["mousePressed", "mouseReleased"]) {
+                    await this.cdp.send("Input.dispatchMouseEvent", { type, x: point.x, y: point.y, button: "left", buttons: type === "mousePressed" ? 1 : 0, clickCount });
+                }
+            }
+        } else if (how === "right") {
+            await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+
+            for (const type of ["mousePressed", "mouseReleased"]) {
+                await this.cdp.send("Input.dispatchMouseEvent", { type, x: point.x, y: point.y, button: "right", buttons: type === "mousePressed" ? 2 : 0, clickCount: 1 });
+            }
+        } else if (this.#touch) {
+            await this.cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: point.x, y: point.y }] });
+            await new Promise((resolve) => setTimeout(resolve, ms));
+            await this.cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        } else {
+            await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+            await this.cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", buttons: 1, clickCount: 1 });
+            await new Promise((resolve) => setTimeout(resolve, ms));
+            await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", buttons: 0, clickCount: 1 });
+        }
+
         this.#afterInput = { node: element.node, kind: "click" } as RawAction;
         await this.#followNavigation(before);
     }
