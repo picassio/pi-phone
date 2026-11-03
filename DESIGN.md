@@ -2273,6 +2273,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
     rule (no path).
   - `pocket.openPageOf(module, page)` opens another module's page (never its sheets), once that module is ready. A
     board's Docs button uses it to open Documents on the board's place (PP-47).
+- **Priority in the session list** (PP-346, pi-pocket 0.27's Priority tab, adapted). pi-phone's list has a scope
+  picker instead of tabs, folder groups and a Settled shelf: Priority is a scope there (`sessions.js`,
+  `priorityGroups`), which groups by what a session asks of you and nothing else (pins, folder groups, links and
+  settling do not shape it; a row names its folder group): Needs you (a call waiting, `approval` in the session list:
+  the oldest call of the session and its subagents, cut to 200 characters, with how many wait; a failed run not yet
+  seen, with `failure`, its reason cut to 120; failed subagents nobody dealt with, `failedAgents`), Ready to read,
+  Working, Quiet (folded at first). A call is answered in its row with a peek tile's rules (`PeekApproval`: a command
+  too long to show whole, or a card with more to answer, opens where it waits); Dismiss marks a failed run seen and
+  dismisses failed subagents; Mark all read marks finished runs seen, clears marks and reads chat; both undo from their
+  notice (`seenSnapshot`, `restoreSeen`, `setChatReadAt`). The open session stays in the group it was in as it opened
+  while it is read. The rail's Sessions button counts what needs you. `sessions.listOpens` (a person's: last, all,
+  priority; Appearance; tabs hear `list-opens`) picks the scope the list opens on, once per page load. Not taken:
+  pocket's "Show N more" cut of Needs you, the call opening in place with keyboard focus, and the theme-surface parts.
 
 ## 5. Build
 

@@ -392,11 +392,36 @@ export function markChatRead() {
         return;
     }
 
-    localStorage.setItem(CHAT_READ_PREFIX + conversationId, String(last));
-    store.set((state) => ({
-        chatRead: last,
-        chatReads: { ...state.chatReads, [conversationId]: last },
-    }));
+    setChatReadAt(conversationId, last);
+}
+
+/** How far this browser read a session's chat, as storage has it: another tab's read counts before its event arrives. */
+export function chatReadStored(id) {
+    return Number(localStorage.getItem(CHAT_READ_PREFIX + id)) || 0;
+}
+
+/**
+ * Set how far this browser read a session's chat, from the session list too (Priority's Mark read, PP-346): `at` is the
+ * time of the newest message read, or 0 for none (the way back from an undo). The open session's own mark follows.
+ */
+export function setChatReadAt(id, at) {
+    if (at > 0) {
+        localStorage.setItem(CHAT_READ_PREFIX + id, String(at));
+    } else {
+        localStorage.removeItem(CHAT_READ_PREFIX + id);
+    }
+
+    store.set((state) => {
+        const chatReads = { ...state.chatReads };
+
+        if (at > 0) {
+            chatReads[id] = at;
+        } else {
+            delete chatReads[id];
+        }
+
+        return { chatReads, ...(id === state.conversationId ? { chatRead: at } : {}) };
+    });
 }
 
 function applyChat(data) {
@@ -858,6 +883,8 @@ const handlers = {
             ...(data.connection === undefined ? {} : { streamId: data.connection }),
         });
     },
+    // What the session list shows when the app opens (PP-346), chosen on any of their devices or by Pi.
+    "list-opens": (data) => store.state.me && store.set({ me: { ...store.state.me, listOpens: data.listOpens } }),
     // The person chose another language, on this device or another (PP-81).
     language: (data) => chooseLanguage(data.language),
     // The first-run welcome finished, skipped, or to show again (PP-234), on this device or another.

@@ -75,7 +75,12 @@ dự án thật.</sub>
   các tab; Đã ghim, Đang hoạt động (các phiên tác vụ đang chạy của một dự án nằm dưới phiên chính của nó), và một ngăn
   **Đã cất** thu gọn. Một phiên tự cất sau một ngày rảnh, khi lượt chạy tác vụ của nó kết thúc, hoặc khi nhánh của nó
   được gộp, và quay lại khi có hoạt động mới; cũng có thể Cất và Bỏ cất bằng tay (và `session_settle` cho Pi). Mỗi dòng
-  cho biết nơi làm việc, thời gian (hoặc đã làm bao lâu), tiêu đề, nhánh hoặc tác vụ, và trạng thái.
+  cho biết nơi làm việc, thời gian (hoặc đã làm bao lâu), tiêu đề, nhánh hoặc tác vụ, và trạng thái. Phạm vi
+  **Ưu tiên** xếp phiên theo việc chúng cần ở bạn: Cần bạn (một lệnh chờ trả lời, với Từ chối và Cho phép ngay trong
+  dòng; một lượt chạy hoặc subagent thất bại, với Bỏ qua), Sẵn sàng để đọc (Đánh dấu tất cả đã đọc), Đang làm, và Yên
+  tĩnh thu gọn; Bỏ qua và Đánh dấu đã đọc báo bằng một thông báo có thể hoàn tác, và nút Phiên trên thanh bên đếm số việc cần
+  bạn. Giao diện › Danh sách phiên mở ở chọn cái hiện khi ứng dụng mở: chế độ xem dùng lần cuối trên thiết bị, Tất cả,
+  hoặc Ưu tiên (`sessions.listOpens`).
 - **Thay đổi có thể xem lại.** Pi sửa tệp bằng công cụ edit và write của nó, nên mọi thay đổi đều hiện thành diff; một
   lệnh bash ghi tệp dự án bằng script (`sed -i`, `cat > file`, `writeFileSync`, `tee`) vẫn chạy, kèm lời nhắc trong kết
   quả là hãy dùng edit; tệp tạm thì không có lời nhắc (dưới /tmp hoặc $TMPDIR, tên dạng `*.local.*`, hoặc bị git bỏ qua

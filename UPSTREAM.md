@@ -98,8 +98,8 @@ is skipped on purpose.
   `snapshot().scroll` of `host.browser`, which pi-phone does not have; `types/pocket.d.ts` and the docs (the Extension
   builder's `server-part.md` instead).
 - A session waiting on its linked sessions from 0.28.0 (PP-337): merge 040e2fc (7141664), `atWork` and `linkedAtWork`
-  for the row's square and `data-state`, with a test in `linked-sessions-ui.test.ts`. Not taken: the Priority tab's
-  Working group (pi-phone's list has no Priority tab).
+  for the row's square and `data-state`, with a test in `linked-sessions-ui.test.ts`. The Priority tab's Working group
+  came with Priority (PP-346): a session waiting on its linked sessions at work is in Working.
 - A linked session's message as an agent's card from 0.28.0 (PP-352): merge 35fc9eb (1030306), as `LinkedMessage` for
   pi-phone's `[via session #N “title”]` marker, on the app's report card with three small rules (no new theme parts),
   the name from the session list, and its row deps. Not taken: `LinkedSessionPeersDoc` and `linkedPeers` (pi-phone's
@@ -132,3 +132,14 @@ is skipped on purpose.
   `avatars.test.ts` and a UI test at 390 and 1280 px. Differs: the picture's address is relative (`api/avatar/…`, for a
   shared space's <base>); the server checks the size itself too; Pi gets `people.photo`; the words through `t()`;
   spacing on the 4 px grid. Not taken: `docs/map.md` (pi-phone has none).
+- Skipped by the owner (2026-11-03): #199, fast session switching (merge fe51bac and its fixes 70f629a, e4d6626):
+  ported and measured with `scripts/bench-open.ts` (PP-356), it made no measurable gain on the phone, where the
+  server is the app's own; and #206, session tabs (merge df7f5a2): the list, the launcher and the rail's 1-9 already
+  switch sessions.
+- Priority from 0.27 (PP-346): merge 89a377f (e45df85, 931d6c8, 3602a3a, 5dc87dd, 5cb3fa0), the session list's
+  `approval`, `failure` and `failedAgents`, `seenSnapshot`/`restoreSeen`, `setChatReadAt`; and from 910f8ae/576dd8a
+  only that a call with a card (pocket's `form`) is declined or opened, not allowed, in the row. Differs: Priority is a
+  scope of pi-phone's picker, not a tab; the call's row uses pi-phone's `PeekApproval`; a person's
+  `sessions.listOpens` picks what the list opens on. Not taken: the Show N more cut, opening a call in place with focus
+  and keyboard order, the theme-surface parts and docs, pocket's tabs and their sliding marker (pi-phone has none), and
+  the ask extension of 910f8ae (pi-phone's `host.ask` came with PP-167).

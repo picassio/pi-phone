@@ -201,6 +201,7 @@ import {
 import { Spend } from "./spend.ts";
 import { Transcripts } from "./transcripts.ts";
 import { Workspace } from "./workspace.ts";
+import { whyUnanswered } from "./subagent-runs.ts";
 
 const context = BACKGROUND_CONTEXT;
 
@@ -294,6 +295,42 @@ function forBoard(entries: readonly SubagentEntry[]): SubagentEntry[] {
     const kept = new Set(done.sort((a, b) => when(b) - when(a)).slice(0, BOARD_FINISHED));
 
     return entries.filter((entry) => !finished(entry) || kept.has(entry));
+}
+
+/** How much of a failed run's reason the session list carries: it goes to every tab on each change. */
+const FAILURE_TEXT = 120;
+/** How much of a waiting call the session list carries (a tile's peek has more): enough to tell calls apart. */
+const ASK_SUBJECT = 200;
+const ASK_REASON = 200;
+/** The most failed subagents a session's row names: the list goes to every tab. */
+const FAILED_AGENTS = 5;
+
+/** The call a session waits on, as its row in the session list carries it (Priority's Needs you, PP-346). */
+type SessionAsk = {
+    id: string;
+    conversationId: number;
+    tool: string;
+    subject: string;
+    reason: string;
+    requestedBy?: string;
+    /** A card with more to answer than allow or deny (a secret, an interview, a machine): answered on its card. */
+    form?: true;
+    /** When it asked (the server's clock). */
+    at: number;
+    /** How many calls wait in the session, its subagents' too. */
+    count: number;
+};
+
+/**
+ * A session's failed subagents that nobody dealt with, newest first: what the list's Dismiss needs (the failure is named
+ * by when it failed, as `dismissSubagent` takes it). Stopped ones did not fail, and the rest are dealt with.
+ */
+function failedSubagents(entries: readonly SubagentEntry[]): { name: string; conversationId: number; at: number }[] {
+    return entries
+        .filter((entry) => subagentState(entry) === "failed" && entry.dealt !== true)
+        .sort((a, b) => (b.answeredAt ?? 0) - (a.answeredAt ?? 0))
+        .slice(0, FAILED_AGENTS)
+        .map((entry) => ({ name: entry.name, conversationId: Number(entry.conversationId), at: entry.answeredAt ?? 0 }));
 }
 
 /**
@@ -606,7 +643,7 @@ export class PocketApp {
      * Conversations whose last run ended because the model or provider failed (not stopped by someone), since this
      * server started: the session list marks them until their next run starts.
      */
-    readonly #failed = new Set<ConversationId>();
+    readonly #failed = new Map<ConversationId, string>();
     readonly #agents = new Map<ConversationId, AgentState>();
 
     /** The newest chat message (not activity) of each conversation, for unread dots in the session list. */
@@ -1745,7 +1782,7 @@ export class PocketApp {
                     this.#sessions[String(change.value.conversationId)] !== undefined &&
                     !this.#failed.has(change.value.conversationId)
                 ) {
-                    this.#failed.add(change.value.conversationId);
+                    this.#failed.set(change.value.conversationId, whyUnanswered(change.value.reason, change.value.detail).slice(0, FAILURE_TEXT));
                     sessionsChanged = true;
                 }
             }
@@ -3053,6 +3090,24 @@ export class PocketApp {
     }
 
     /**
+     * What the session list of `user` shows when the app opens (`sessions.listOpens`, Appearance, PP-346): "last" (the
+     * view each device last used), "all", or "priority". Their tabs hear it (`list-opens`).
+     */
+    setListOpens(user: User, opens: unknown): void {
+        if (opens !== "last" && opens !== "all" && opens !== "priority") {
+            throw new HttpError(400, "The session list opens on last, all, or priority.");
+        }
+
+        this.config.updateUser(user.id, { listOpens: opens === "last" ? undefined : opens });
+
+        for (const client of this.#clients) {
+            if (client.user.id === user.id) {
+                client.send("list-opens", { listOpens: opens });
+            }
+        }
+    }
+
+    /**
      * The newest release marked big whose What's new card `user` has not seen (PP-235): for the owner, once past the
      * welcome (a new person starts with the welcome, not with what changed).
      */
@@ -4178,6 +4233,8 @@ export class PocketApp {
                 dictation: user.dictation ?? "auto",
                 // Their appearance options that follow them on every device (PP-345).
                 appearance: this.appearanceOf(user),
+                // What the session list shows when the app opens (PP-346): last (each device's last view), all, or priority.
+                listOpens: user.listOpens ?? "last",
                 // A big release's card they have not seen yet (PP-235), or null.
                 whatsNew: this.whatsNewFor(user) ?? null,
             },
@@ -4370,6 +4427,39 @@ export class PocketApp {
     }
 
     /** The session list, with who is in each session and its newest chat message. Scoped people see only theirs. */
+    /**
+     * The call each session waits on, by session: the oldest one waiting there or in a subagent of it, cut short (the list
+     * goes to every tab), and how many wait. Priority's Needs you answers it in its row (PP-346).
+     */
+    #oldestAsks(): Map<string, SessionAsk> {
+        const asks = new Map<string, SessionAsk>();
+
+        for (const request of this.approvals.all()) {
+            const session = String(this.rootOf(request.conversationId));
+            const kept = asks.get(session);
+
+            if (kept !== undefined && kept.at <= request.createdAt) {
+                kept.count++;
+
+                continue;
+            }
+
+            asks.set(session, {
+                id: request.id,
+                conversationId: Number(request.conversationId),
+                tool: request.tool,
+                subject: request.subject.slice(0, ASK_SUBJECT),
+                reason: request.reason.slice(0, ASK_REASON),
+                ...(request.requestedBy === undefined ? {} : { requestedBy: request.requestedBy }),
+                ...(request.form === undefined ? {} : { form: true as const }),
+                at: request.createdAt,
+                count: (kept?.count ?? 0) + 1,
+            });
+        }
+
+        return asks;
+    }
+
     sessions(user?: User) {
         const waiting = new Set(
             this.approvals.all().map((approval) => String(this.rootOf(approval.conversationId))),
@@ -4385,6 +4475,7 @@ export class PocketApp {
 
         const people = new Map<string, Map<string, string>>();
         const subagents = this.#subagentsBySession();
+        const oldest = this.#oldestAsks();
         // The sessions in a wait for a provider's limit, their subagents' included: when the next request goes out.
         const limited = new Map<string, number>();
 
@@ -4426,6 +4517,9 @@ export class PocketApp {
                 const chat = this.#lastChat.get(id);
                 const endedAt = this.#endedAt.get(Number(id) as unknown as ConversationId);
                 const counts = countSubagents(subagents.get(id) ?? []);
+                const failure = this.#failed.get(Number(id) as unknown as ConversationId);
+                const failedAgents = failedSubagents(subagents.get(id) ?? []);
+                const ask = oldest.get(id);
                 // Which of Pi's sessions it continues is the owner's to know (the Pi sessions sheet), not the list's.
                 const { fromPi: _fromPi, piLink, linkedFrom, ...shown } = meta;
                 // Linking does not share the origin: do not leak its id to someone who only sees the new chat.
@@ -4457,9 +4551,9 @@ export class PocketApp {
                     ...(asks.has(id) ? { asks: asks.get(id)! } : {}),
                     ...(limited.has(id) ? { limited: limited.get(id)! } : {}),
                     ...(endedAt === undefined ? {} : { endedAt }),
-                    ...(this.#failed.has(Number(id) as unknown as ConversationId)
-                        ? { failed: true }
-                        : {}),
+                    ...(failure === undefined ? {} : { failed: true, failure }),
+                    ...(failedAgents.length === 0 ? {} : { failedAgents }),
+                    ...(ask === undefined ? {} : { approval: ask }),
                     ...(model === undefined ? {} : { model: model.modelId }),
                     ...(here.length === 0 ? {} : { people: here }),
                     ...(chat === undefined ? {} : { chatAt: chat.at, chatBy: chat.userId }),

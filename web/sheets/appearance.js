@@ -459,6 +459,27 @@ export function AppearanceSheet() {
                 </div>
             <//>
             <${SettingRow}
+                title=${t("Session list opens on")}
+                detail=${t("When the app opens: the view you last used on this device, all sessions, or Priority (what needs you first). On all your devices")}
+            >
+                <div class="segmented">
+                    ${[
+                        ["last", t("Last used")],
+                        ["all", t("All")],
+                        ["priority", t("Priority")],
+                    ].map(
+                        ([value, label]) =>
+                            html`<button
+                                class=${(store.state.me?.listOpens ?? "last") === value ? "on" : ""}
+                                aria-pressed=${(store.state.me?.listOpens ?? "last") === value}
+                                onClick=${() => attempt(() => api("me", { listOpens: value }))}
+                            >
+                                ${label}
+                            </button>`,
+                    )}
+                </div>
+            <//>
+            <${SettingRow}
                 title=${t("Motion")}
                 detail=${t("Auto follows your system's reduced-motion setting")}
             >

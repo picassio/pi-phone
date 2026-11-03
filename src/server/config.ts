@@ -61,6 +61,11 @@ export interface User {
     guide?: string;
     /** The language dictation listens for on their devices (a tag: "vi-VN"); absent: each device's own. */
     dictation?: string;
+    /**
+     * What the session list shows when the app opens (PP-346): "all" or "priority" (sessions by what they ask of you);
+     * absent: the view each device last used.
+     */
+    listOpens?: "all" | "priority";
     /** The release (`whatsnew/<version>.md`) whose What's new card they dismissed or saw (PP-235). */
     whatsNewSeen?: string;
     /**
@@ -926,7 +931,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen" | "appearance" | "avatar">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen" | "appearance" | "avatar" | "listOpens">>,
     ): void {
         const user = this.userById(id);
 
@@ -975,6 +980,10 @@ export class ConfigStore {
 
         if (user.avatar === undefined) {
             delete user.avatar;
+        }
+
+        if (user.listOpens === undefined) {
+            delete user.listOpens;
         }
 
         this.save();

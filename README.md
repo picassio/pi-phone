@@ -71,7 +71,11 @@ No Termux, no laptop, no cloud VM.
   Active (a project's running task sessions under its main session), and a folded **Settled** shelf. A session settles
   by itself after a day idle, when its task run ends, or when its branch is merged, and comes back with new activity;
   Settle and Un-settle by hand too (and `session_settle` for Pi). Rows show where, the time (or how long it has been
-  working), the title, the branch or task, and the status.
+  working), the title, the branch or task, and the status. The scope **Priority** sorts them by what they ask of you:
+  Needs you (a call to answer, with Deny and Allow in its row; a failed run or failed subagents, with Dismiss), Ready to
+  read (Mark all read), Working, and a folded Quiet; Dismiss and Mark all read say so in a notice that undoes them, and
+  the rail's Sessions button counts what needs you. Appearance › Session list opens on picks what shows when the app
+  opens: the last view used on the device, All, or Priority (`sessions.listOpens`).
 - **Edits you can review.** Pi changes files with its edit and write tools, so every change shows as a diff; a bash
   command that writes project files by script (`sed -i`, `cat > file`, `writeFileSync`, `tee`) still runs, with a
   reminder in its result to use edit; scratch files get none (under /tmp or $TMPDIR, named `*.local.*`, or ignored by

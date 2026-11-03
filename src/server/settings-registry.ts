@@ -526,6 +526,18 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["on", "off"],
             apply: (user, value) => app.keptPages.setOn(user, onOff(value)),
         },
+        // ─── The session list (PP-346) ───
+        {
+            id: "sessions.listOpens",
+            area: "sessions",
+            title: "What the session list shows when the app opens, for one person",
+            help: "last (the default: the view each device last used), all (every session), or priority (sessions by what they ask of you: Needs you, Ready to read, Working, Quiet). Target: the person's name. Appearance › Session list opens on.",
+            owner: true,
+            target: "person",
+            read: (target) => person(target).listOpens ?? "last",
+            choices: () => ["last", "all", "priority"],
+            apply: (_user, value, target) => app.setListOpens(person(target), value.trim().toLowerCase()),
+        },
         // ─── Web access ───
         {
             id: "web.provider",

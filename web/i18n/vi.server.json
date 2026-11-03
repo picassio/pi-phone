@@ -663,6 +663,7 @@
     "This team machine's key is missing on the team server.": "Máy chủ nhóm đang thiếu khóa của máy nhóm này.",
     "The team server signs only a sign-in to the machine with its key.": "Máy chủ nhóm chỉ ký bằng khóa của máy cho việc đăng nhập vào máy đó.",
     "The dictation language is a language tag such as vi-VN or en-US, or auto.": "Ngôn ngữ nhập giọng nói là một mã ngôn ngữ như vi-VN hay en-US, hoặc auto.",
+    "The session list opens on last, all, or priority.": "Danh sách phiên mở ở `last`, `all` hoặc `priority`.",
     "What's new is show or seen.": "Thẻ Có gì mới chỉ là show hoặc seen.",
     "The welcome is show, done, or skipped.": "Màn hình chào mừng chỉ là show, done hoặc skipped.",
     "Only the owner has the welcome.": "Chỉ chủ sở hữu mới có màn hình chào mừng.",

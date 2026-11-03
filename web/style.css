@@ -19749,6 +19749,138 @@ pre.gallery-code {
     text-overflow: ellipsis;
 }
 
+/* Priority (PP-346): Needs you's head in the warning colour, a group's button (Dismiss all, Mark all read) at the end of
+ * its line as a folder group's menu is, and what a row needs under its line: the call with Deny and Allow, or what
+ * failed with Dismiss. */
+.sessions .session-group[data-group^="priority:"] {
+    position: relative;
+}
+
+.sessions .session-group:has(> .group-action) > .group-head {
+    padding-right: 96px;
+}
+
+.sessions .session-group:has(> .group-action) > .group-head::after {
+    display: none;
+}
+
+.sessions .session-group > .group-head.attn .group-name b {
+    color: var(--warn);
+    font-weight: 600;
+}
+
+.sessions .session-group > .group-action {
+    position: absolute;
+    top: 8px;
+    right: 6px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: var(--r-tag);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+@media (hover: hover) {
+    .sessions .session-group > .group-action:hover {
+        background: var(--hover);
+    }
+}
+
+.priority-clear {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 10px 4px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.priority-clear .icon {
+    color: var(--ok);
+}
+
+.need-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 8px 8px calc(8px + var(--linked-depth, 0) * 14px);
+    padding: 8px 12px;
+    border: 1px solid var(--warn-line);
+    border-radius: var(--r-control);
+    background: var(--warn-soft);
+}
+
+.need-area.need-failed {
+    flex-direction: row;
+    align-items: center;
+    border-color: var(--err-line);
+    background: var(--err-soft);
+}
+
+.need-what {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.need-tool {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--warn);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.need-command {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.need-why {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.need-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.need-when {
+    color: var(--faint);
+    font-size: 12px;
+}
+
+.need-area .button.small {
+    flex: none;
+}
+
+/* The rail's Sessions button: how many sessions need you (PP-346). */
+.rail-button .rail-needs {
+    background: var(--warn);
+    color: var(--bg);
+}
+
 /* Dragging with a mouse: where it would land, and what is carried. */
 .sessions .session-group > .group-head.sg-drop {
     outline: 1.5px dashed var(--accent-line);

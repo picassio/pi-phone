@@ -485,7 +485,7 @@ function PeekLine({ line }) {
  * Whether a call's command is short enough to show whole on its tile: only then may it be allowed from there. Shown
  * whole, it is never clamped; the tile also measures that it fits (`PeekTile`), as wide characters take more room.
  */
-const wholeOnTile = (approval) =>
+export const wholeOnTile = (approval) =>
     approval.subject.length <= ALLOW_LENGTH && !/[\r\n]/.test(approval.subject);
 
 /** The call a session waits on, in full when it is short, and why the guard asks. */
@@ -504,9 +504,10 @@ function PeekAsk({ approval, compact, who }) {
 
 /**
  * Allow or deny a call from its tile, as from its card: the same rules, the same request. A command that does not show
- * whole is not allowed from here: Open shows it on its card, in the conversation that asks (a subagent's, maybe).
+ * whole is not allowed from here: Open shows it on its card, in the conversation that asks (a subagent's, maybe). The
+ * session list's Priority answers a call in its row with it too (PP-346).
  */
-function PeekApproval({ approval, me, rule, whole }) {
+export function PeekApproval({ approval, me, rule, whole }) {
     const [busy, setBusy] = useState(false);
 
     const answer = (allow) => {
