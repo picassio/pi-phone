@@ -188,6 +188,8 @@ export function describeCall(call) {
             return { icon: "◍", label: t("Asks you"), subject: t("to sign in") };
         case "browser_ask_code":
             return { icon: "◍", label: t("Asks you"), subject: t("for a code") };
+        case "computer_run":
+            return { icon: "◍", label: t("Computer run"), subject: short(args.goal ?? "", 100) };
         case "computer_sign_in":
             return { icon: "◍", label: t("Asks you"), subject: args.username === undefined && args.password === undefined ? t("for a code") : t("to sign in") };
         case "browser_ask_user":

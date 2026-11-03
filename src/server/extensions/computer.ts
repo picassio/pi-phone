@@ -20,7 +20,9 @@ import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { ComputerApp, ComputerSession } from "../computer-control.ts";
 import { MINUTES } from "../computer-control.ts";
+import { runOnComputer } from "../computer-run.ts";
 import { lockedNote } from "../computer-windows.ts";
+import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
 import { ChromeRemoteDesktop, CRD_HEADLESS, crdConnected, crdWord, installPlan, removePlan } from "../crd.ts";
 import type { DesktopApp } from "../computer-outline.ts";
 import { COMPUTER_TOOLS } from "../deferred-tools.ts";
@@ -41,7 +43,7 @@ export const SIGN_IN_LABELS = { username: "Username", password: "Password", code
 export const signInSecret = (machineName: string, app: string) => `LOGIN_${`${machineName}_${app}`.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`;
 
 /** In every prompt while the module is on. */
-export const COMPUTER = `Computer control: you can see and operate desktop apps on the owner's machines (Linux, and Windows with pi-phone's task: computer_control status says), in a control session the owner approves on a card. computer_control start names the machine, the apps (as computer_control status or the card's error lists them: their window titles or names) and the minutes you need (5 to 60; ask again with a new card for more); only those apps may be read or touched, so ask with a new card for another, or with follow: true when the work opens other apps (a dialog of another program). Then computer_screen reads an app's window as numbered elements (with States: checked, focused, disabled and the like when they hold), computer_act clicks, sets values, types, presses keys and scrolls, and answers with the window after it (use the newest numbers), and computer_screenshot shows the window as a picture. Act on elements by their index: clicking a point needs the real-mouse mode, not on yet. When an action says the window changed since it was read, nothing was done: read it again and use the new numbers. A Covered: line means other windows are on top of parts of it, which are black in its picture; with the whole window covered or minimised there is no picture. Never type a password or a one-time code as text: fill a password field ([password] in the outline) with set_value or type_text and secret: "NAME" (one of the owner's saved secrets you may use, secrets_list), whose value goes into the field and never to you; otherwise call computer_sign_in with the fields' numbers (username, password, code): the owner types them on a card, they go straight into the window, and you read [password for <app>] and the like in their place. Never ask for a password or a code in the chat. pi-phone itself, banking and payment apps, password managers and the owner's Never list are never read or controlled. While the owner has taken the computer over (the panel's Take over), wait until they hand it back. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with computer_control stop as soon as you are done; it also ends shortly after your turn ends. A window on the machine shows that you are using it, with Stop. Say plainly what you read or did, and what you could not.`;
+export const COMPUTER = `Computer control: you can see and operate desktop apps on the owner's machines (Linux, and Windows with pi-phone's task: computer_control status says), in a control session the owner approves on a card. computer_control start names the machine, the apps (as computer_control status or the card's error lists them: their window titles or names) and the minutes you need (5 to 60; ask again with a new card for more); only those apps may be read or touched, so ask with a new card for another, or with follow: true when the work opens other apps (a dialog of another program). Then computer_screen reads an app's window as numbered elements (with States: checked, focused, disabled and the like when they hold), computer_act clicks, sets values, types, presses keys and scrolls, and answers with the window after it (use the newest numbers), and computer_screenshot shows the window as a picture. computer_run carries out one concrete goal in an app on its own, a step at a time (a goal, every text to put in values, a secret as { secret: NAME }), as browser_run does in Pi's browser: faster and cheaper than driving each step yourself; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Act on elements by their index: clicking a point needs the real-mouse mode, not on yet. When an action says the window changed since it was read, nothing was done: read it again and use the new numbers. A Covered: line means other windows are on top of parts of it, which are black in its picture; with the whole window covered or minimised there is no picture. Never type a password or a one-time code as text: fill a password field ([password] in the outline) with set_value or type_text and secret: "NAME" (one of the owner's saved secrets you may use, secrets_list), whose value goes into the field and never to you; otherwise call computer_sign_in with the fields' numbers (username, password, code): the owner types them on a card, they go straight into the window, and you read [password for <app>] and the like in their place. Never ask for a password or a code in the chat. pi-phone itself, banking and payment apps, password managers and the owner's Never list are never read or controlled. While the owner has taken the computer over (the panel's Take over), wait until they hand it back. Ask the owner before anything that pays, sends, books, or deletes. Stop the session with computer_control stop as soon as you are done; it also ends shortly after your turn ends. A window on the machine shows that you are using it, with Stop. Say plainly what you read or did, and what you could not.`;
 
 export default function createComputer(host: PocketHost) {
     const control = host.computer;
@@ -615,6 +617,110 @@ export default function createComputer(host: PocketHost) {
         },
     });
 
+    const runTool = defineTool({
+        name: "computer_run",
+        description:
+            "Carry out one concrete goal in an app's window in a computer control session on its own, a step at a time, each step decided by the run model the owner picked (Settings › Browser: this session's model, or Jev), as browser_run does in Pi's browser. " +
+            "Give every text it may put into a field in values (a name for each: {\"name\": \"Ada\"}); it never types anything else. It clicks elements, fills fields, presses Enter, Tab or Escape, scrolls and waits, with every check of computer_act (the session's apps only, password fields take a saved secret only). " +
+            "Answers how it ended (done, or why it stopped: needs_value, blocked, stuck_loop, unverified_done, budget, stale, decision_error), its steps, time and cost, and the window as it is. " +
+            "What each step sends: with Jev, OpenRouter (openrouter.ai) gets, with the owner's OpenRouter key, the goal, the values (a secret by its name only), the window's title and text (its elements and values), and the recent steps; with this session's model, its provider gets the same. " +
+            "A run clicks and types without asking anyone, so a window's text can steer it: never give it a goal that pays, sends, books or deletes.",
+        parameters: Type.Object({
+            goal: Type.String({ description: "One concrete goal in this app, with everything it requires (\"In Settings, turn on Dark mode and close the dialog\")" }),
+            machine,
+            app: appParam,
+            values: Type.Optional(
+                Type.Record(Type.String(), Type.Union([Type.String(), Type.Object({ secret: Type.String({ description: "A saved secret's name: put into the field (a password field too), never shown to you or the run model" }) })]), {
+                    description: "Texts it may put into fields, by name: a text, or { secret: NAME } for one of the owner's saved secrets",
+                }),
+            ),
+            max_steps: Type.Optional(Type.Integer({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
+        }),
+        execute: async (args, api) => {
+            let session: ComputerSession;
+
+            try {
+                session = sessionOf(api.conversationId, args.machine);
+            } catch (error) {
+                return reply(message(error), true);
+            }
+
+            const model = host.browserRunModel(api.conversationId as never);
+            let decider: Decider;
+
+            if (model === "session") {
+                decider = new SessionDecider((prompt) => host.askSessionModel(api.conversationId as never, prompt, 600));
+            } else {
+                const key = await host.apiKey("openrouter");
+
+                if (key === undefined) {
+                    return reply(`The run model is ${model}, through OpenRouter, which is not signed in: sign in to OpenRouter in Settings › Providers, or pick this session's model in Settings › Browser.`, true);
+                }
+
+                decider = new JevDecider(key, model);
+            }
+
+            // Secrets by name: their values go into fields only; the run model and Pi see their names.
+            const values: Record<string, string> = {};
+            const secrets: Record<string, string> = {};
+
+            for (const [name, given] of Object.entries(args.values ?? {})) {
+                if (typeof given === "string") {
+                    values[name] = given;
+                    continue;
+                }
+
+                const value = host.secrets.value(given.secret);
+
+                if (value === undefined) {
+                    return reply(`There is no secret ${given.secret}: secrets_list says which you may use.`, true);
+                }
+
+                values[name] = value;
+                secrets[name] = value;
+                host.secrets.used([given.secret]);
+            }
+
+            // The values' names stand for the secrets' own names when the window or ocu says them back.
+            const secretName = (name: string) => {
+                const given = args.values?.[name];
+
+                return typeof given === "object" ? given.secret : name;
+            };
+
+            try {
+                const result = await runOnComputer(
+                    {
+                        read: async () => (await control.screen(session, args.app)).text,
+                        act: async (action) => {
+                            const done = await control.act(
+                                session,
+                                args.app,
+                                action.op === "set_value" && action.secret !== undefined ? { ...action, secret: secretName(action.secret) } : action,
+                            );
+
+                            return { did: done.did, text: done.text };
+                        },
+                        wait: async () => {
+                            await pause(2000);
+                        },
+                    },
+                    decider,
+                    { goal: args.goal, values, secrets, maxSteps: args.max_steps ?? 25, timeMs: 10 * 60_000, progress: () => {} },
+                );
+
+                if (model !== "session" && result.decisions > 0) {
+                    await host.chargeSession(api.conversationId as never, `openrouter/${model}`, { ...result.tokens, cost: result.cost });
+                }
+
+                return reply(`${report(result, decider.label, result.window, fencedScreen, "The window now:")}\n${footer(session)}`, result.status !== "done");
+            } catch (error) {
+                // A failed read or step can quote the window: fenced as the report is.
+                return reply(fencedScreen(message(error)), true);
+            }
+        },
+    });
+
     const shotTool = defineTool({
         name: "computer_screenshot",
         description: `See an app's window as a picture in a computer control session; parts other windows cover are black (and listed), and a minimised or wholly covered window has no picture (ocu says why). With path, also save it (.png) where this session works. ${MARKS_NOTE} Each mark is on an element (index, from the newest computer_screen) or an area in the picture's pixels.`,
@@ -788,7 +894,7 @@ export default function createComputer(host: PocketHost) {
 
     return defineExtension({
         name: "pocket-computer",
-        tools: [controlTool, screenTool, actTool, shotTool, signInTool],
+        tools: [controlTool, screenTool, actTool, runTool, shotTool, signInTool],
         sections: [section("computer", () => (control.unavailable() === undefined ? COMPUTER : ""))],
     });
 }

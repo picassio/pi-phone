@@ -1626,7 +1626,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
     module's hook checks the folder, machines and ask-first (`browserSecretNames` covers `computer_act`), the value goes
     to ocu alone with `allow_password_input: true`, and what Pi reads, the panel's status and the card say
     `[secret NAME]`. A password field takes only that: plain text or a character key there is refused before ocu,
-    pointing to `secret` or `computer_sign_in`),
+    pointing to `secret` or `computer_sign_in`), `computer_run` (PP-180, `computer-run.ts`: browser_run's loop for a
+    window: each step reads ocu's outline through `ComputerControl` (so every computer_act check holds), offers CLICK on
+    elements that are not containers, SET_VALUE on fields (roles by ocu's AT-SPI and UI Automation names; Linux's
+    `text` with a value or action, never Windows' label `text`; disabled and readonly left out), PRESS_ENTER, TAB,
+    ESCAPE, SCROLL on the largest list or document, WAIT, DONE, BLOCKED; asks the same run model with the same answer
+    checks (`readAnswers`, `concealSecrets`: a `{ secret }` value goes to ocu by name and reaches the run model as
+    `[secret NAME]`); a window changed under a step is read again up to 3 times; stops on needs_value, stuck_loop (3
+    unchanged), unverified_done, budget (steps, 10 min); its report is `report()` fenced with `fencedScreen`; charged
+    like browser_run; its secrets go through `browserSecretNames`),
     `computer_screenshot` (PNG, marks by element or area; what the owner typed on a sign-in card blacked out over
     every mark), and `computer_sign_in` (PP-183, modelled on `browser_sign_in`): Pi names the username, password or
     code field by its number from its newest read (each still the element it read; a username that is a password

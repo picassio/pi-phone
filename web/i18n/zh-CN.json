@@ -757,6 +757,8 @@
     "Closes": "关闭",
     "this session's tabs": "此会话的标签页",
     "Browser run": "浏览器任务",
+    "Computer run": "电脑任务",
+    "computer_run decides each step of a goal in an app on your computer with the same run model, and sends it the window's title and text (its elements and their values) instead of a page's.": "computer_run 用同一个运行模型决定你电脑上某个应用中目标的每一步，发送给它的是窗口的标题和文字（其中的元素及其值），而不是网页的内容。",
     "Asks you": "请你",
     "to sign in": "登录",
     "for a code": "输入验证码",

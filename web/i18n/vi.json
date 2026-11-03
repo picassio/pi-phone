@@ -177,6 +177,8 @@
     "Closes": "Đóng",
     "this session's tabs": "các tab của phiên này",
     "Browser run": "Chạy trình duyệt",
+    "Computer run": "Chạy trên máy tính",
+    "computer_run decides each step of a goal in an app on your computer with the same run model, and sends it the window's title and text (its elements and their values) instead of a page's.": "computer_run dùng cùng mô hình chạy để quyết định từng bước của một mục tiêu trong một ứng dụng trên máy tính của bạn, và gửi cho nó tiêu đề và nội dung của cửa sổ (các phần tử và giá trị của chúng) thay cho nội dung của trang.",
     "Asks you": "Hỏi bạn",
     "to sign in": "để đăng nhập",
     "for a code": "một mã",

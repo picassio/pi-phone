@@ -14,7 +14,7 @@ import { createToolSearchTool } from "@earendil-works/pi-durable/tool-search";
 export const DEFERRED_EXTENSION = "deferred-tools";
 
 /** The tools a computer control session works with: offered once one starts (`computer_control` start). */
-export const COMPUTER_TOOLS = ["computer_screen", "computer_act", "computer_screenshot", "computer_sign_in"] as const;
+export const COMPUTER_TOOLS = ["computer_screen", "computer_act", "computer_run", "computer_screenshot", "computer_sign_in"] as const;
 
 /** The tools a phone control session works with: offered once one starts (`phone_control` start). */
 export const PHONE_TOOLS = ["phone_screen", "phone_act", "phone_screenshot"] as const;

@@ -572,14 +572,21 @@ export async function runGoal(page: RunPage, decider: Decider, options: RunOptio
 /**
  * A run's report for Pi: how it ended, its time and cost, then, fenced as the page's (`fencedPage`), why it stopped,
  * its steps (named by the page's controls) and the page as it is: a page's words never pass for the run's own.
+ * computer_run's (PP-180) is the same, fenced as a window's, with the window as it is.
  */
-export function report(result: RunResult, decider: string, page: string): string {
+export function report(
+    result: Pick<RunResult, "status" | "reason" | "detail" | "steps" | "decisions" | "cost" | "ms">,
+    decider: string,
+    page: string,
+    fence: (text: string) => string = fencedPage,
+    now = "The page now:",
+): string {
     const head =
         result.status === "done" ? `Done in ${result.steps.length} ${result.steps.length === 1 ? "step" : "steps"}` : `Stopped (${result.reason}) after ${result.steps.length} ${result.steps.length === 1 ? "step" : "steps"}`;
     const lines = result.steps.map((step) => `${step.step}. ${step.did}${step.ok === false ? " (it did not seem to work)" : ""}`);
 
     return [
         `${head}. ${(result.ms / 1000).toFixed(1)} s, ${result.decisions} ${result.decisions === 1 ? "decision" : "decisions"} by ${decider}${result.cost > 0 ? `, $${result.cost.toFixed(5)}` : ""}.`,
-        fencedPage([...(result.detail ? [`Why it stopped: ${result.detail}`] : []), ...lines, "", "The page now:", page].join("\n")),
+        fence([...(result.detail ? [`Why it stopped: ${result.detail}`] : []), ...lines, "", now, page].join("\n")),
     ].join("\n");
 }

@@ -411,7 +411,9 @@ No Termux, no laptop, no cloud VM.
   (the machine, the apps it names by their windows, for the minutes Pi asks for, 5 to 60; for more it asks again), Pi
   reads a window as numbered elements and clicks, sets values, types, presses keys and scrolls, and takes pictures of
   it (`computer_control`, `computer_screen`, `computer_act`, `computer_screenshot`, `computer_sign_in`), through
-  Computer use (ocu, a machine tool) running there over the app's own ssh. A small window on the machine says Pi is using it, with **Stop**;
+  Computer use (ocu, a machine tool) running there over the app's own ssh. For one concrete goal in an app ("turn on
+  Dark mode in Settings") Pi can hand the steps to `computer_run`, which decides each with the same run model as
+  `browser_run` (Settings › Pi's browser) and stops with a reason when it cannot go on. A small window on the machine says Pi is using it, with **Stop**;
   the session ends at its time, soon after Pi's turn ends, or on Stop. Following along (when Pi asks) lets an app the
   named ones open join. Password fields are marked in what Pi reads, and Pi never types a password as text: it fills one
   with a saved secret by name (`computer_act` with `secret`, the same folder and ask-first rules as everywhere; the value

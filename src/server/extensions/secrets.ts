@@ -58,7 +58,7 @@ function redactJson(value: JsonValue, redact: (text: string) => string): JsonVal
 }
 
 /**
- * The secrets a browser call (PP-32) or a computer call (`computer_act`'s set_value and type_text, PP-178) types by
+ * The secrets a browser call (PP-32) or a computer call (`computer_act`'s set_value and type_text, PP-178; computer_run's values) types by
  * name, and a line saying so for an approval card; undefined for any other call, or one that names none.
  */
 export function browserSecretNames(tool: string, args: Record<string, unknown>): { names: string[]; subject: string } | undefined {
@@ -72,12 +72,13 @@ export function browserSecretNames(tool: string, args: Record<string, unknown>):
         return { names: [args.secret], subject: `Fill [secret ${args.secret}] into ${where}${typeof args.app === "string" ? ` of ${args.app}` : ""} on the computer` };
     }
 
-    if (tool === "browser_run" && typeof args.values === "object" && args.values !== null) {
+    if ((tool === "browser_run" || tool === "computer_run") && typeof args.values === "object" && args.values !== null) {
         const names = Object.values(args.values as Record<string, unknown>).flatMap((value) =>
             typeof value === "object" && value !== null && typeof (value as { secret?: unknown }).secret === "string" ? [(value as { secret: string }).secret] : [],
         );
+        const run = tool === "browser_run" ? "Browser run" : "Computer run";
 
-        return names.length === 0 ? undefined : { names, subject: `Browser run "${String(args.goal ?? "").slice(0, 80)}" types ${names.map((name) => `[secret ${name}]`).join(", ")}` };
+        return names.length === 0 ? undefined : { names, subject: `${run} "${String(args.goal ?? "").slice(0, 80)}" types ${names.map((name) => `[secret ${name}]`).join(", ")}` };
     }
 
     return undefined;
