@@ -325,6 +325,23 @@ export interface ExtensionCommand {
 export type CommandInfo = Omit<ExtensionCommand, "handler"> & { id: string; name: string };
 
 /** What the app gives its extensions. Extensions are reloaded on edit; the host is not. */
+/**
+ * What `host.sessions.start` takes (PP-380): `title`, `cwd` (a folder, the app's default without one), `model`
+ * (`provider/modelId`, or a new session's), `thinking` (any level; one the model lacks becomes its nearest lower one),
+ * and `message`, the first message, sent as the person's own words.
+ */
+export type SessionStart = { title?: string; cwd?: string; model?: string; thinking?: string; message?: string };
+
+/**
+ * Ordinary sessions an extension starts (`extension-sessions.ts`, PP-380, from pi-pocket 0.28.0), for the person Pi
+ * works for in `source`, with their checks. A call again with the same `key` returns the session the first made, and
+ * sends its message once.
+ */
+export interface SessionsApi {
+    /** Start an ordinary session for the person Pi works for in `source`, like New session. */
+    start(source: ConversationId, request: SessionStart, key: string): Promise<{ session: ConversationId }>;
+}
+
 export interface PocketHost {
     readonly approvals: Approvals;
     readonly agentDir: string;
@@ -606,13 +623,18 @@ export interface PocketHost {
     readonly wikiCapture: Pick<ParaCapture, "capture" | "status" | "setMinutes">;
     /** The Jev model that ranks the wiki's search (Menu › Wiki, `wiki.rerankModel`): a listed Jev id, "off", or "default". */
     setWikiRerankModel(model: unknown): Promise<void>;
-    /** Other sessions, as the person a session works for (`session-control.ts`): the sessions tools. */
-    readonly sessions: Pick<
+    /**
+     * Other sessions, as the person a session works for (`session-control.ts`): the sessions tools; and `start`, an
+     * ordinary session an extension starts (`SessionsApi`, PP-380).
+     */
+    readonly sessions: SessionsApi &
+        Pick<
         SessionControl,
         | "list"
         | "status"
         | "read"
         | "start"
+        | "startLinked"
         | "send"
         | "stop"
         | "wait"

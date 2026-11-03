@@ -343,7 +343,8 @@ No Termux, no laptop, no cloud VM.
 - **Drop-in extensions.** Your own extension modules, added with **Add drop-in…** in Settings › Extensions (a `.ts`
   file, or a `.zip` holding one) or by Pi with `extension_install` once you approve its card (files and first lines
   shown), each off until you turn it on. They can use pi-pocket 0.22's `host.ask` (a card whose values reach only the extension), `host.hide`
-  and `host.commandEnv`, not `host.browser` yet; one whose tool has a built-in tool's name is refused, with why. Tool
+  and `host.commandEnv`, and pi-pocket 0.28's `host.sessions.start` (a new ordinary session for the person Pi works
+  for, with their checks, once for a key), not `host.browser` yet; one whose tool has a built-in tool's name is refused, with why. Tool
   schemas are built with `@earendil-works/pi-schema` (`obj`, `str`, `opt`, …); one built with TypeBox's `Type` (from
   `@earendil-works/pi-ai` before Pi 1.5, or `typebox`) is refused, saying so.
   **Remove** takes one away (Settings › Extensions, after a confirm in its row, or ask Pi: `app_action

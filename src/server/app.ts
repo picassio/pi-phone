@@ -129,6 +129,7 @@ import {
 import { WebPush } from "./web-push.ts";
 import { Forwards } from "./forwards.ts";
 import { SessionControl } from "./session-control.ts";
+import { ExtensionSessions } from "./extension-sessions.ts";
 import { Para } from "./para.ts";
 import { CAPTURE_EXTENSION, ParaCapture } from "./para-capture.ts";
 import { PiSessions } from "./pi-sessions.ts";
@@ -576,6 +577,8 @@ export class PocketApp {
     readonly paraCapture: ParaCapture = new ParaCapture(this);
     /** Sessions acting on other sessions (`session-control.ts`). */
     readonly sessionControl = new SessionControl(this);
+    /** Ordinary sessions extensions start (`extension-sessions.ts`, PP-380: `host.sessions.start`). */
+    readonly extensionSessions = new ExtensionSessions(this);
     /** Theme folders: the app's look and layout, built in and the owner's (`themes.ts`). */
     readonly themes: Themes;
     /** What extension modules add to the app: their routes, browser modules, and events (`extension-web.ts`). */

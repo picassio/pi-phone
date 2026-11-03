@@ -95,6 +95,13 @@ without a tool description saying it. A section about one of its tools looks for
 - `host.commandEnv((run) => ({ NAME: "value" }) | undefined)`: adds variables to the commands sessions run (`run`:
   `{ conversationId, command, cwd }`). Returns how to stop: pass it to `web.onDispose`.
 - `host.notice(level, message, conversationId?)`: a notice to the log and the open tabs.
+- `host.sessions.start(source, { title?, cwd?, model?, thinking?, message? }, key)`: a new ordinary session, like New
+  session, for the person Pi works for in session `source` (usually `api.conversationId`); answers `{ session }`, its
+  id. `model` is `provider/modelId`; `thinking` a level, lowered to one the model has; `message` its first message, as
+  that person's own words. Their checks come first and a refusal makes nothing: an invited person, a source past its
+  spend limit, a folder that is not there, a model that cannot be used, a blank message or one with no model to take
+  it. The same `key` again (use `${api.taskId}:${api.callId}` in a tool) returns the first session, for the first
+  call's person, and sends the message once.
 - `host.browser` is pi-pocket's and pi-phone does not have it: a drop-in that needs it is refused.
 
 ## Why a drop-in is refused or fails

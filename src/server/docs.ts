@@ -479,6 +479,23 @@ export const ScheduleDoc = defineDoc<{ items: Record<string, Schedule> }>({
     initial: () => ({ items: {} }),
 });
 
+/** One `host.sessions.start` call of an extension (PP-380): the session it made, and the person it acted for. */
+export type ExtensionSessionCall = { at: number; conversationId?: number; by?: string };
+
+/**
+ * The `host.sessions.start` calls made from a conversation, by the hash of their key (`extension-sessions.ts`): a repeat
+ * of a key finds the session its first call made. Kept to the newest 1000, 30 days at most.
+ */
+export const ExtensionSessionCallsDoc = defineDoc<{ items: Record<string, ExtensionSessionCall> }>({
+    kind: "pocket.extension-session-calls",
+    version: 1,
+    ...rebased,
+    scope: "conversation",
+    history: "latest",
+    fork: "initial",
+    initial: () => ({ items: {} }),
+});
+
 /** The last check of a goal: whether it passed, its exit code, and the end of its output. */
 export type GoalCheck = { passed: boolean; code: number; at: number; tail: string };
 

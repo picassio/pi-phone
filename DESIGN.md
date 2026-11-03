@@ -545,6 +545,17 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `cannotAllow`), anyone who can steer declines, and a plain Allow is refused. `AskCard` in `transcript.js`; the
   decision is kept with `ask: true` (Answered / Declined). Built-in modules and drop-ins use them; pi-pocket's
   `host.browser` is not ported (Pi's browser here is pi-phone's own).
+- **Sessions an extension starts** (from pi-pocket 0.28.0, PP-380; `extension-sessions.ts`): `host.sessions.start(source,
+  { title?, cwd?, model?, thinking?, message? }, key)` makes an ordinary top-level session, like New session (not
+  linked: pi-phone has no pi-pocket `linkedSessions`; Pi's own `session_start` is `host.sessions.startLinked`), for the
+  person Pi works for in `source`, with their checks before anything is made (who may start sessions, the source's
+  spend limit, the folder, the model's provider, a blank message, a message with no model to take it). The session and
+  a record of the call (`ExtensionSessionCallsDoc` on the source, by `sha256(session:<source>:<key>)`, the newest 1000
+  kept 30 days) are one commit: `Commands.createSession` takes the model, the thinking level and an `init` that runs
+  in its commit, where a second call with the same key that finds the record throws, so its commit makes nothing. A
+  repeat returns the first session, acts for the first call's person, skips the creation checks, and sends the first
+  message once (its request id is found before `Commands.submit`, whose spend check would refuse a repeat). Thinking
+  is lowered to a level the session's model has (`levelAtMost`). The Extension builder's `server-part.md` documents it.
 - **Drop-in extensions** (PP-171; the owner's decisions of 2026-10-26; `reload.ts`, `web/sheets/extensions.js`): the
   loader gets `<data>/extensions`, whose `node_modules` is linked to the app's (`prepareDropInFolder`), so a module
   imports the packages the server runs. The owner puts files there; nothing downloads them, and the secrets

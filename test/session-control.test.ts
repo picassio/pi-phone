@@ -66,7 +66,7 @@ test("Pi lists the sessions with its tool", async () => {
 test("a session starts another, messages it, waits for it, reads it, and stops it; never itself", async () => {
     const caller = await session("hello");
     const control = app.sessionControl;
-    const { id } = await control.start(caller, { cwd: work, message: "first task", key: crypto.randomUUID() });
+    const { id } = await control.startLinked(caller, { cwd: work, message: "first task", key: crypto.randomUUID() });
     const target = id as unknown as ConversationId;
 
     // Linked to the session that started it (PP-157): it shows under that one, and its spend counts toward its limit.
@@ -191,7 +191,7 @@ test("a session works for its person with their rights: someone invited to one s
     assert.deepEqual(app.sessionControl.list(shared).map((each) => each.id), [Number(shared)]);
     await assert.rejects(app.sessionControl.read(shared, Number(ownerSession)), /not shared with you/);
     await assert.rejects(
-        app.sessionControl.start(shared, { cwd: work, message: "x", key: crypto.randomUUID() }),
+        app.sessionControl.startLinked(shared, { cwd: work, message: "x", key: crypto.randomUUID() }),
         /invited to one session/,
     );
 });

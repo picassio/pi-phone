@@ -17,6 +17,7 @@ import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
 import { clip, defang, quoted } from "./fence.ts";
+import type { SessionsApi, SessionStart } from "./host.ts";
 import { formatPlace } from "./places.ts";
 import type { SessionGroup, SessionGroupsRequest, SessionGroupsView } from "./session-groups.ts";
 
@@ -89,7 +90,7 @@ function messageLine(message: Message): string {
     return "";
 }
 
-export class SessionControl {
+export class SessionControl implements SessionsApi {
     readonly #app: PocketApp;
     /** When each session sent or started something, for the hourly limit. */
     readonly #sent = new Map<number, number[]>();
@@ -223,7 +224,16 @@ export class SessionControl {
         ].join("\n");
     }
 
-    async start(
+    /**
+     * An ordinary session an extension starts for the person Pi works for in `source` (`host.sessions.start`, PP-380,
+     * as pi-pocket 0.28.0 names it): `extension-sessions.ts`.
+     */
+    start(source: ConversationId, request: SessionStart, key: string): Promise<{ session: ConversationId }> {
+        return this.#app.extensionSessions.start(source, request, key);
+    }
+
+    /** Pi's session_start: a session linked to the calling one (it shows under it), sent `message` as from that session. */
+    async startLinked(
         caller: ConversationId,
         request: { cwd: string; message: string; title?: string; key: string },
     ): Promise<{ id: number }> {

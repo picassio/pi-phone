@@ -82,3 +82,11 @@ is skipped on purpose.
   with pi-phone's section. Not taken: adeb991 (a guard for a live reload before the host has `toolNames`: pi-phone's
   built-in modules do not reload live), 35ac7c8 and the texts of d623bff (pocket's own sections and tools; pi-phone's
   differ).
+- Sessions an extension starts from 0.28.0 (PP-380): 4886743, 0abf34e, a4ef5cf, 51ca85a, 7e11259, 65030c7, 794133a,
+  18f31e0, 7ce5424 and a962d17 as `extension-sessions.ts` (one key one session, keys apart, a repeat for the first
+  call's person, a refused first message makes nothing, thinking lowered, records pruned, the race's message sent
+  once) and the tests of `test/extension-sessions.test.ts`. Differs: pi-phone has no pi-pocket `linkedSessions` or its
+  calls document, so the records are in `ExtensionSessionCallsDoc`; `Commands.createSession` gained `model`,
+  `thinkingLevel` and `init`; `host.sessions` was pi-phone's session tools, so their `start` (Pi's session_start) is
+  now `startLinked`; the docs are the Extension builder's `server-part.md`. Not taken: 7fb3337 (PiP's test: pi-phone
+  has no PiP), 0cef8d4 (pocket's version marks and docs site), the `types/pocket.d.ts` and docs-site parts.

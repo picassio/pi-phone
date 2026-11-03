@@ -29,6 +29,7 @@ import {
     type SubmissionId,
     type Task,
     type TaskRuntime,
+    type Tx,
 } from "@earendil-works/pi-durable";
 import { baseProvider } from "./accounts.ts";
 import type { PocketApp } from "./app.ts";
@@ -367,10 +368,19 @@ export class Commands {
         {
             projectDefaults = true,
             linkedFrom,
+            model,
+            thinkingLevel,
+            init,
         }: {
             projectDefaults?: boolean;
             /** The session that started this one (Pi's session_start, PP-157): it shows under that one. Never from a request body. */
             linkedFrom?: ConversationId;
+            /** The model it starts on, instead of a new session's (an extension's `host.sessions.start`, PP-380). */
+            model?: ModelRef;
+            /** The thinking level it starts on; with `model` absent, for a new session's model. */
+            thinkingLevel?: ModelThinkingLevel;
+            /** More of the commit that makes it, after its agent and its row in the list: a throw makes nothing. */
+            init?: (tx: Tx, id: ConversationId) => Promise<void>;
         } = {},
     ): Promise<{ id: ConversationId }> {
         const app = this.#app;
@@ -398,7 +408,11 @@ export class Commands {
             title ?? basename(folder),
             async ({ cwd, worktree }) => {
                 // An internal caller about to apply a person's explicit model keeps its previous starting pair.
-                const initial = this.#defaultModel(undefined, projectDefaults ? cwd : undefined);
+                const defaults = this.#defaultModel(undefined, projectDefaults ? cwd : undefined);
+                const initial = {
+                    model: model ?? defaults.model,
+                    thinkingLevel: thinkingLevel ?? defaults.thinkingLevel,
+                };
                 const conversation = await app.harness.createConversation(
                     {
                         ownership: { kind: "ownerless" },
@@ -421,6 +435,7 @@ export class Commands {
                                 ...(worktree === undefined ? {} : { worktree }),
                                 ...(linkedFrom === undefined ? {} : { linkedFrom: { id: Number(linkedFrom) } }),
                             };
+                            await init?.(tx, id);
                         },
                     },
                     context,

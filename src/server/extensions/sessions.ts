@@ -71,7 +71,7 @@ export default function createSessions(host: PocketHost) {
             title: opt(str({ description: "A short title; without one, the first message names it" })),
         }, { open: true }),
         execute: async (args, api) => {
-            const started = await host.sessions.start(api.conversationId, {
+            const started = await host.sessions.startLinked(api.conversationId, {
                 cwd: args.folder,
                 message: args.message,
                 ...(args.title === undefined ? {} : { title: args.title }),

@@ -90,7 +90,7 @@ test("a session Pi starts shows under the one that started it, folds away, and e
 
     // Pi acts for whoever asked for the work: the owner, here.
     await say(app, starter, "check the build in another session");
-    const { id: started } = await app.sessionControl.start(starter, { cwd: work, message: "check the build", title: "Build check", key: crypto.randomUUID() });
+    const { id: started } = await app.sessionControl.startLinked(starter, { cwd: work, message: "check the build", title: "Build check", key: crypto.randomUUID() });
 
     await cdp.send("Page.navigate", { url: `${base}/` });
     await until(async () => (await shown(Number(starter))) && (await shown(started)), "both rows", 20_000);
