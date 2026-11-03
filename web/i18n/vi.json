@@ -152,6 +152,7 @@
     "Clicks": "Nhấp",
     "Points at": "Trỏ vào",
     "Drags": "Kéo",
+    "Focuses": "Đặt tiêu điểm vào",
     "[{from}] onto [{to}]": "[{from}] vào [{to}]",
     "[{from}] by {dx}, {dy} px": "[{from}] đi {dx}, {dy} px",
     "Types": "Gõ",

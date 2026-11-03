@@ -1430,6 +1430,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   press of a key that types a character (not Enter) is refused while the focus is in a password field
   (`focusedPassword`: the deep active element in the main frame, or, when a frame has the focus, in any frame); the
   panel's keys (the person's own) are not checked.
+- **Focus in Pi's browser** (`browser_focus`, `BrowserPage.focus`, PP-376): the control's own `focus()` in its frame (a
+  user gesture there, as for typing), checked against the deep active element; one that takes none is an error. The
+  read says `focused` on the listed control with the focus: `snapshot.js` gives its own (`focused`) or that a frame
+  element has it (`active_frame`); then the frame whose element is the parent's active one (`DOM.describeNode` of the
+  active element against `DOM.getFrameOwner`'s node, kept in each frame's box) gives its own, down to 4 levels.
 - **Downloads in Pi's browser** (PP-376; `PiBrowser.#takeDownloads`, `BrowserEngine.downloads`): each tab's page has
   `Browser.setDownloadBehavior` `allowAndName` into its engine's folder, events on (for the browser's profile, which is
   pi-phone's own): a `ChromeEngine`'s temporary folder (removed with it), a machine's `~/.pi/mobile/browser/downloads`

@@ -34,9 +34,12 @@ const FRAME_TEXT = 3000;
 /** A frame of the page besides the main one (PP-376): the connection its scripts run on, its parent, and its address. */
 type ChildFrame = { frameId: string; parentId: string; cdp: Cdp; url: string };
 /** Where a frame's content is in the main frame's view (CSS pixels): its top left, and the part of it in view. */
-type FrameBox = { x: number; y: number; clip: { left: number; top: number; right: number; bottom: number } };
-/** A frame's content box in its parent's view, whether it is shown, and a point in it as the parent's, if it is not covered there. */
-type OwnerBox = { x: number; y: number; w: number; h: number; shown: boolean; hit: { x: number; y: number } | null };
+type FrameBox = { x: number; y: number; clip: { left: number; top: number; right: number; bottom: number }; owner?: number };
+/**
+ * A frame's content box in its parent's view, whether it is shown, and a point in it as the parent's, if it is not covered
+ * there; and its frame element's node in the parent (`owner`, DevTools' backend id).
+ */
+type OwnerBox = { x: number; y: number; w: number; h: number; shown: boolean; hit: { x: number; y: number } | null; owner?: number };
 
 /**
  * Run on a frame's element in its parent (`DOM.getFrameOwner`): where its content is in the parent's view, whether it is
@@ -185,6 +188,9 @@ export type Observed = {
     omitted: number;
     /** Each frame read besides the main one (PP-376), by its slot: its page key, as `page_key` is the main frame's. */
     frame_keys?: Record<string, unknown>;
+    /** The listed control that has the focus (PP-376), by its node; and whether a frame has it instead. */
+    focused?: number;
+    active_frame?: boolean;
 };
 
 /** A control on the page, numbered for Pi: what it is, what it holds, and what can be done with it. */
@@ -205,6 +211,8 @@ export type Element = {
     frame?: string;
     /** It can be dragged (browser_drag). */
     draggable?: boolean;
+    /** It has the focus (PP-376): keys go to it. */
+    focused?: boolean;
 };
 
 /** A file a page downloads (PP-376), as DevTools tells it: its id, the name the page gives it, where from, and how far it is. */
@@ -301,6 +309,7 @@ export function elementsOf(observed: Observed): Element[] {
                 ...(action.expanded === undefined ? {} : { expanded: action.expanded }),
                 ...(action.frame === undefined ? {} : { frame: action.frame }),
                 ...(action.draggable === "true" ? { draggable: true } : {}),
+                ...(observed.focused === action.node ? { focused: true } : {}),
             };
             byNode.set(action.node, element);
         }
@@ -349,6 +358,10 @@ export function describe(observed: Observed, elements: Element[]): string {
 
             if (element.draggable === true) {
                 parts.push("draggable");
+            }
+
+            if (element.focused === true) {
+                parts.push("focused");
             }
 
             if (element.frame !== undefined) {
@@ -657,9 +670,31 @@ export class BrowserPage {
                 returnByValue: true,
             });
 
-            return answer.result?.value ?? null;
+            const box = answer.result?.value ?? null;
+
+            return box === null ? null : { ...box, owner: backendNodeId };
         } finally {
             void parent.send("Runtime.releaseObject", { objectId: object.objectId }).catch(() => {});
+        }
+    }
+
+    /** The element with the focus in a frame (the main one without `frame`), inside open shadow roots too: its backend node id. */
+    async #activeNode(frame: ChildFrame | undefined): Promise<number | undefined> {
+        const cdp = frame?.cdp ?? this.cdp;
+        const world = frame === undefined ? undefined : (await cdp.send<{ executionContextId: number }>("Page.createIsolatedWorld", { frameId: frame.frameId, worldName: READ_WORLD_NAME })).executionContextId;
+        const { result } = await cdp.send<{ result: { objectId?: string } }>("Runtime.evaluate", {
+            expression: "(() => { let e=document.activeElement; while (e && e.shadowRoot && e.shadowRoot.activeElement) e=e.shadowRoot.activeElement; return e; })()",
+            ...(world === undefined ? {} : { contextId: world }),
+        });
+
+        if (result.objectId === undefined) {
+            return undefined;
+        }
+
+        try {
+            return (await cdp.send<{ node: { backendNodeId: number } }>("DOM.describeNode", { objectId: result.objectId })).node.backendNodeId;
+        } finally {
+            void cdp.send("Runtime.releaseObject", { objectId: result.objectId }).catch(() => {});
         }
     }
 
@@ -694,7 +729,7 @@ export class BrowserPage {
                     bottom: Math.min(parent.clip.bottom, y + owner.h),
                 };
 
-                box = clip.right - clip.left >= 1 && clip.bottom - clip.top >= 1 ? { x, y, clip } : null;
+                box = clip.right - clip.left >= 1 && clip.bottom - clip.top >= 1 ? { x, y, clip, ...(owner.owner === undefined ? {} : { owner: owner.owner }) } : null;
             }
 
             boxes.set(frameId, box);
@@ -847,7 +882,27 @@ export class BrowserPage {
         omitted += Math.max(0, actions.length - 250);
         actions.splice(250);
 
-        return { ...main, actions, guards, frame_keys: frameKeys, marker: markers, text: texts.join("\n"), omitted };
+        // The focus in a frame: down from the main frame, each time to the frame whose element has its parent's focus.
+        let focused = main.focused;
+        let within: ChildFrame | undefined;
+        let inFrame = main.active_frame === true;
+
+        for (let depth = 0; depth < 4 && focused === undefined && inFrame; depth++) {
+            const active = await this.#activeNode(within).catch(() => undefined);
+            const parentId = within?.frameId ?? this.#mainFrame;
+            const at = shown.findIndex((frame) => frame.parentId === parentId && active !== undefined && boxes.get(frame.frameId)?.owner === active);
+            const read = reads[at];
+
+            if (at < 0 || read === null || read === undefined) {
+                break;
+            }
+
+            within = shown[at]!;
+            focused = read.focused === undefined ? undefined : this.#slotOf(within.frameId) * FRAME_SPAN + read.focused;
+            inFrame = read.active_frame === true;
+        }
+
+        return { ...main, actions, guards, frame_keys: frameKeys, marker: markers, text: texts.join("\n"), omitted, ...(focused === undefined ? {} : { focused }) };
     }
 
     /**
@@ -1432,30 +1487,53 @@ export class BrowserPage {
         return point;
     }
 
+    /**
+     * Put the focus on a control (PP-376: `browser_focus`), without clicking it: it must be there, shown, enabled, and
+     * take the focus. Keys pressed next go to it.
+     */
+    async focus(observed: Observed, element: Element): Promise<void> {
+        if (!(await this.#fresh(observed, element.node))) {
+            throw new StalePage("The page changed since it was read: read it again.");
+        }
+
+        const why = await this.#takeFocus(element, false);
+
+        if (why !== null) {
+            throw new Error(`[${element.index}] ${element.label} did not take the focus (${why}): click it, or focus another control.`);
+        }
+
+        this.#afterInput = { node: element.node, kind: "click" } as RawAction;
+    }
+
     /** Put the focus in a field to type into: it must be there, shown, enabled, not read-only, and take the focus. */
     async #focus(element: Element): Promise<void> {
-        const why = await this.#evaluateAt<string | null>(
+        const why = await this.#takeFocus(element, true);
+
+        if (why !== null) {
+            throw new StalePage(`[${element.index}] ${element.label} did not take the typing (${why}): nothing was typed. Read the page again.`);
+        }
+    }
+
+    /** Focus a control (one to type into: not read-only, with `typing`): null when it has the focus, else why not. */
+    async #takeFocus(element: Element, typing: boolean): Promise<string | null> {
+        return this.#evaluateAt<string | null>(
             element.node,
-            (local) => `(async node => {
+            (local) => `(async (node, typing) => {
             const e=window.__piBrowser?.nodes.get(node);
             if (!e?.isConnected) return 'gone';
             if (e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]')) return 'disabled';
             if (!e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return 'hidden';
-            if (e.readOnly || e.getAttribute('aria-readonly')==='true') return 'read-only';
+            if (typing && (e.readOnly || e.getAttribute('aria-readonly')==='true')) return 'read-only';
             e.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
             e.focus({preventScroll:true});
             await new Promise(done=>{ requestAnimationFrame(()=>requestAnimationFrame(done)); setTimeout(done,150); });
             let active=document.activeElement;
             while (active && active.shadowRoot && active.shadowRoot.activeElement) active=active.shadowRoot.activeElement;
             return active===e || e.contains(active) || (e.shadowRoot && e.shadowRoot.contains(active)) ? null : 'focus went to '+(active?.tagName?.toLowerCase() ?? 'nothing');
-          })(${local})`,
+          })(${local}, ${typing})`,
             // A frame of another site takes the focus only with a gesture.
             { awaitPromise: true, userGesture: true },
         );
-
-        if (why !== null) {
-            throw new StalePage(`[${element.index}] ${element.label} did not take the typing (${why}): nothing was typed. Read the page again.`);
-        }
     }
 
     async #click(point: { x: number; y: number }): Promise<void> {

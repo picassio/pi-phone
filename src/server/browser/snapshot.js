@@ -198,6 +198,10 @@
     document.title,text,semantics,page_key[6]];
   const omitted=Math.max(0,actions.length-250);
   actions.splice(250);
+  // Which listed control has the focus (PP-376), or whether a frame has it (its own read says which of its controls).
+  const active=cache.active();
+  const focused=active && actions.some(a=>cache.nodes.get(a.node)===active) ? identity(active) : undefined;
+  const active_frame=!!active && (active.tagName==='IFRAME' || active.tagName==='FRAME');
   return {url:location.href,title:document.title,w:innerWidth,h:innerHeight,text,
-    scroll:{y:scrollY,height},actions,marker,page_key,guards,omitted};
+    scroll:{y:scrollY,height},actions,marker,page_key,guards,omitted,focused,active_frame};
 })()

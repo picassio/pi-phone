@@ -274,6 +274,35 @@ test("with Chrome: browser_press presses chords the page hears (Ctrl+A selects a
     }
 });
 
+test("with Chrome: browser_focus puts the focus on a control without a click, in a frame of another site too; the read says which control has it (PP-376)", { skip }, async () => {
+    const browser = browserHere();
+
+    try {
+        const page = await browser.open(1, "http://pi.test/keys");
+
+        assert.doesNotMatch(page, /focused/);
+
+        const focused = await browser.focus(1, number(page, /\[(\d+)\] textbox "Name"/));
+
+        assert.match(focused, /\[\d+\] textbox "Name" value "" focused\n/);
+        assert.match(await browser.press(1, "Shift+Tab"), /\[\d+\] textbox "Notes" value "" focused\n[\s\S]*Focus notes/);
+
+        // In the payment site's frame: the read follows the focus into it, and keys go there.
+        const checkout = await browser.open(1, "http://pi.test/checkout");
+        const card = await browser.focus(1, number(checkout, /\[(\d+)\] textbox "Card number"/));
+
+        assert.match(card, new RegExp(`\\[\\d+\\] textbox "Card number" value "" focused \\(in a frame: pay\\.test:${port}\\)`));
+        assert.match(await browser.press(1, "4"), /textbox "Card number" value "4" focused/);
+
+        // Something that takes no focus says so.
+        const board = await browser.open(1, "http://pi.test/board");
+
+        await assert.rejects(browser.focus(1, number(board, /\[(\d+)\] clickable "Write the report"/)), /did not take the focus/);
+    } finally {
+        await browser.close();
+    }
+});
+
 test("with Chrome: a file the page downloads is saved where the session works and named in the answer; one over 25 MB is cancelled; a browser that keeps none says so (PP-376)", { skip }, async () => {
     const folder = mkdtempSync(join(tmpdir(), "pi-downloads-"));
     const saved: string[] = [];

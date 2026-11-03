@@ -198,7 +198,8 @@ dự án thật.</sub>
   `browser_drag` kéo một ô điều khiển thả vào ô khác hoặc theo một khoảng dời (thanh trượt, thẻ kanban, danh sách sắp xếp,
   bản đồ), con trỏ di chuyển từng bước và kéo-thả riêng của trang nhận đủ sự kiện kéo và dữ liệu; bản đọc trang ghi rõ cái gì
   kéo được, và `browser_run` cũng kéo được. `browser_press` cũng nhấn tổ hợp phím (Ctrl+A, Ctrl+Enter, Shift+Tab,
-  Ctrl+K, Meta+K cho trang macOS), và không bao giờ gõ một ký tự vào ô mật khẩu. Danh sách do trang tự vẽ (một ô chọn có vùng cuộn riêng) cũng dùng được: mọi lựa chọn đều được
+  Ctrl+K, Meta+K cho trang macOS), và không bao giờ gõ một ký tự vào ô mật khẩu. `browser_focus` đặt tiêu điểm vào một ô
+  mà không nhấp, và bản đọc trang ghi rõ ô đang có tiêu điểm (cả trong khung). Danh sách do trang tự vẽ (một ô chọn có vùng cuộn riêng) cũng dùng được: mọi lựa chọn đều được
   liệt kê, một cú nhấp cuộn nó vào tầm nhìn, `browser_select` mở danh sách và chọn theo tên, `browser_scroll` cuộn
   danh sách, và một chữ cái nhảy tới mục theo kiểu gõ trước. `browser_screenshot` có thể lưu hình dạng PNG hoặc
   JPEG vào thư mục của phiên (cho `doc_image` hoặc một báo cáo), và chỉ chụp hộp thoại, menu hoặc danh sách chứa

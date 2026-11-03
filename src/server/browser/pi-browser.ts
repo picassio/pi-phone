@@ -1398,6 +1398,17 @@ export class PiBrowser {
         });
     }
 
+    /** Put the focus on control `index` without clicking it (PP-376). */
+    focus(session: number, index: number): Promise<string> {
+        return this.#run(session, this.#doing("Focusing", index), async ({ page }) => {
+            const { observed, element } = this.#element(index);
+
+            await page.focus(observed, element);
+
+            return this.#read();
+        });
+    }
+
     /** Drag control `index` onto control `to`, or by an offset in CSS pixels (PP-376). */
     drag(session: number, index: number, to: { index: number } | { dx: number; dy: number }): Promise<string> {
         const where = "index" in to ? `onto [${to.index}]` : `by ${to.dx}, ${to.dy} px`;

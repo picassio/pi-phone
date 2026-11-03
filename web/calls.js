@@ -147,6 +147,8 @@ export function describeCall(call) {
             return { icon: "◍", label: t("Clicks"), subject: `[${args.index ?? ""}]` };
         case "browser_hover":
             return { icon: "◍", label: t("Points at"), subject: `[${args.index ?? ""}]` };
+        case "browser_focus":
+            return { icon: "◍", label: t("Focuses"), subject: `[${args.index ?? ""}]` };
         case "browser_drag":
             return {
                 icon: "◍",
