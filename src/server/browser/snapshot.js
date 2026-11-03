@@ -155,7 +155,7 @@
   // As browser-use reads pages, which looks at the cursor too.
   const listedNodes=new Set(actions.map(a=>cache.nodes.get(a.node)));
   let looked=0;
-  for (const e of all('div,span,li,p,img,svg,label,section,article,[onclick],[tabindex]')) {
+  for (const e of all('div,span,li,p,img,svg,label,section,article,[onclick],[oncontextmenu],[ondblclick],[tabindex]')) {
     if (e===document.body || e===document.documentElement) continue;
     if (++looked>4000 || actions.length>=300) break;
     if (listedNodes.has(e) || e.closest(selector) || e.querySelector(selector)) continue;
@@ -163,12 +163,15 @@
     if (r.width<8 || r.height<8 || r.bottom<=0 || r.right<=0 || r.top>=innerHeight || r.left>=innerWidth) continue;
     if (r.width*r.height>innerWidth*innerHeight*0.5) continue;
     const tab=e.getAttribute('tabindex');
-    const clickable=e.hasAttribute('onclick') || (tab!==null && tab!=='-1') || /^(pointer|grab|move)$/.test(getComputedStyle(e).cursor) ||
+    // A right-click or double-click handler counts too (a box that opens its own menu: browser_click how right).
+    const handled=e.hasAttribute('onclick') || e.hasAttribute('oncontextmenu') || e.hasAttribute('ondblclick');
+    const clickable=handled || (tab!==null && tab!=='-1') || /^(pointer|grab|move)$/.test(getComputedStyle(e).cursor) ||
       e.getAttribute('draggable')==='true';
     if (!clickable || !visible(e)) continue;
     const parent=e.parentElement;
-    if (parent && parent!==document.body && getComputedStyle(parent).cursor==='pointer' && !e.hasAttribute('onclick')) continue;
-    const label=(name(e)||hint(e)).replace(/\s+/g,' ').trim().slice(0,200);
+    if (parent && parent!==document.body && getComputedStyle(parent).cursor==='pointer' && !handled) continue;
+    // One with a handler of its own and no words (an empty box to right-click) goes by its id.
+    const label=(name(e)||hint(e)||(handled && e.id ? `#${e.id}` : '')).replace(/\s+/g,' ').trim().slice(0,200);
     if (!label) continue;
     const x=r.x+r.width/2, y=r.y+r.height/2;
     if (x<0 || y<0 || x>=innerWidth || y>=innerHeight) continue;

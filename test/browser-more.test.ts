@@ -83,6 +83,7 @@ const PAGES: Record<string, string> = {
     // A photo that opens on a double click, has its own context menu, and a long press (a finger's, or the mouse's).
     "/clicks": `<!doctype html><title>Clicks</title><meta name="viewport" content="width=device-width">
         <button id="photo" style="width:160px;height:90px">Photo</button><p id="out">Nothing yet</p>
+        <div id="hot-spot" style="width:200px;height:80px;border:1px dashed #888" oncontextmenu="event.preventDefault(); out.textContent = 'Box menu'"></div>
         <script>
             photo.addEventListener('dblclick', () => { out.textContent = 'Opened full size'; });
             photo.addEventListener('contextmenu', (e) => { e.preventDefault(); out.textContent = 'Menu: Save, Share'; });
@@ -343,6 +344,11 @@ test("with Chrome: browser_click double-clicks, right-clicks (the page's context
 
         assert.match(await browser.click(1, photo, false, { how: "double" }), /Opened full size/);
         assert.match(await browser.click(1, photo, false, { how: "right" }), /Menu: Save, Share/);
+        // An empty box with only a right-click handler is listed by its id, and right-clicks (the owner's live check on
+        // the-internet.herokuapp.com/context_menu).
+        const box = number(page, /\[(\d+)\] clickable "#hot-spot"/);
+
+        assert.match(await browser.click(1, box, false, { how: "right" }), /Box menu/);
         assert.match(await browser.click(1, photo, false, { how: "long", ms: 300 }), /Held short by touch/);
         // Two touches close together are a double tap to Chrome: the next one waits.
         await new Promise((resolve) => setTimeout(resolve, 700));
