@@ -117,9 +117,32 @@ const picked = () =>
         });
     `);
 
+/**
+ * A real tap on what `selector` finds once nothing moves around it: no animation runs on it, inside it, or on what holds
+ * it. The account card rises in with a transform (`pop`, 0.35 s), and while it runs the card, not the screen, is what
+ * the dropdown's fixed list is placed in: the list shows about 170 px lower until the card stops, and a tap measured
+ * then lands on the chat under it, which closes the list (PP-373, "Home picked" on CI).
+ */
+async function tapStill(selector: string): Promise<void> {
+    await until(
+        async () =>
+            await inPage<boolean>(`
+                const box = document.querySelector(${JSON.stringify(selector)});
+
+                return JSON.stringify(box !== null && document.getAnimations().every((each) => {
+                    const target = each.effect?.target;
+
+                    return each.playState !== "running" || !(target instanceof Element) || !(target.contains(box) || box.contains(target));
+                }));
+            `),
+        `${selector} still`,
+    );
+    await page.click({ selector });
+}
+
 /** The dropdown's list, opened: each account's name and its window's use, in order. */
 async function choices(): Promise<string[][]> {
-    await page.click({ selector: ".limit-card-move .choice" });
+    await tapStill(".limit-card-move .choice");
     await until(async () => await inPage<boolean>(`return JSON.stringify(document.querySelector(".choice-menu .pop-menu-row") !== null)`), "the dropdown's list");
 
     return await inPage<string[][]>(`
@@ -214,10 +237,12 @@ test("the live line, the limited square, the account card with every account, an
     await shot("limit-wait-390-open");
 
     // The person picks the second, not the emptiest, and moves: the request goes through Home, and the session answers.
-    await page.click({ selector: ".choice-menu .pop-menu-row:nth-child(2)" });
-    await until(async () => (await picked())?.to === "anthropic~home", "Home picked");
+    await tapStill(".choice-menu .pop-menu-row:nth-child(2)");
+    await until(async () => (await picked())?.to === "anthropic~home", "Home picked").catch(async (error: Error) => {
+        throw new Error(`${error.message}; the card: ${JSON.stringify(await picked())}; the list open: ${await page.evaluate(`return JSON.stringify(document.querySelector(".choice-menu") !== null)`)}`);
+    });
     assert.equal((await picked())?.label, "Move to Anthropic · Home");
-    await page.click({ selector: ".limit-card-move .button" });
+    await tapStill(".limit-card-move .button");
     await until(async () => (await app.agentState(id))?.model?.provider === "anthropic~home" && !app.isBusy(id), "the move and the answer");
     await until(async () => (await text(".limit-card")) === "", "the card to go");
 });
@@ -270,7 +295,7 @@ test("Retry now sends the request; the phone's list shows the square; Providers 
     assert.equal(await banner(), false, "no banner while the card is up");
 
     // Wait puts the card away: the banner of the full window shows again.
-    await page.click({ selector: ".limit-card-actions .button" });
+    await tapStill(".limit-card-actions .button");
     await until(async () => (await text(".limit-card")) === "" && (await banner()), "the card gone, the banner back");
     assert.match(await text(".usage-warning"), /Default: 5-hour limit at 100%/);
     behave = () => ({ text: "answered" });
@@ -329,7 +354,7 @@ test("with none of the person's own accounts left, the card lists the team's, ma
     await page.navigate(`${base}/s/${id}`);
     await until(async () => (await text(".limit-card")) !== "", "the phone's card");
     await shot("limit-team-390");
-    await page.click({ selector: ".limit-card-move .button" });
+    await tapStill(".limit-card-move .button");
     await until(async () => (await app.agentState(id))?.model?.provider === "anthropic~team-x" && !app.isBusy(id), "the move and the answer");
 });
 
