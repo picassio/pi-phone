@@ -86,7 +86,13 @@ async function inPage<T>(script: string): Promise<T> {
     return JSON.parse(await page.evaluate(script)) as T;
 }
 
-const see = (script: string, what: string) => until(async () => (await inPage<boolean>(script)) === true, what);
+/** Wait until the page's script says true; when it never does, say where the app was: its address and the session it shows. */
+const see = (script: string, what: string) =>
+    until(async () => (await inPage<boolean>(script)) === true, what).catch(async (error: Error) => {
+        throw new Error(
+            `${error.message}; the page: ${await page.evaluate(`const { store } = await import("/store.js"); return JSON.stringify({ at: location.pathname, history: history.state, shows: store.state.conversationId, sheet: store.state.sheet?.type ?? null, steps: document.querySelectorAll('[data-part="tool-call"]').length })`)}`,
+        );
+    });
 
 before(async () => {
     if (chromium === undefined) {

@@ -77,7 +77,13 @@ async function inPage<T>(script: string): Promise<T> {
     return JSON.parse(await page.evaluate(script)) as T;
 }
 
-const see = (script: string, what: string) => until(async () => (await inPage<boolean>(script)) === true, what);
+/** Wait until the page's script says true; when it never does, say where the app was: its address and the session it shows. */
+const see = (script: string, what: string) =>
+    until(async () => (await inPage<boolean>(script)) === true, what).catch(async (error: Error) => {
+        throw new Error(
+            `${error.message}; the page: ${await page.evaluate(`const { store } = await import("/store.js"); return JSON.stringify({ at: location.pathname, history: history.state, shows: store.state.conversationId, sheet: store.state.sheet?.type ?? null, steps: document.querySelectorAll('[data-part="tool-call"]').length })`)}`,
+        );
+    });
 
 before(async () => {
     if (real.skip !== false) {
@@ -227,15 +233,19 @@ test("audio_speak's file plays under its line with its waveform; audio_transcrib
         const click = HTMLAnchorElement.prototype.click;
         HTMLAnchorElement.prototype.click = function () { names.push(this.download); };
         for (const button of document.querySelectorAll('[data-part="made-download"]')) button.click();
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        // Each button fetches its file, then saves it: both, in the order their fetches end.
+        for (let waited = 0; names.length < 2 && waited < 20000; waited += 50) await new Promise((resolve) => setTimeout(resolve, 50));
         HTMLAnchorElement.prototype.click = click;
         return JSON.stringify({ buttons: document.querySelectorAll('[data-part="made-download"]').length, names });
     `);
 
     assert.equal(saved.buttons, 2);
     assert.equal(saved.names.length, 2, JSON.stringify(saved));
-    assert.match(saved.names[0]!, /^\d{8}-\d{6}-chao-anh-tuan[-a-z]*\.m4a$/);
-    assert.match(saved.names[1]!, /^\d{8}-\d{6}-meeting\.txt$/);
+    // The smaller transcript's fetch can end first (CI and the devbox under load, PP-373): by kind, not by order.
+    const [audioName, textName] = [...saved.names].sort((a, b) => Number(a.endsWith(".txt")) - Number(b.endsWith(".txt")));
+
+    assert.match(audioName!, /^\d{8}-\d{6}-chao-anh-tuan[-a-z]*\.m4a$/, JSON.stringify(saved));
+    assert.match(textName!, /^\d{8}-\d{6}-meeting\.txt$/, JSON.stringify(saved));
     await page.evaluate(`document.querySelector('[data-part="made-audio"]').scrollIntoView({ block: "center" }); return "true";`);
     await shot("audio-player-390.jpg");
     assert.match(player.caption, /^0:00 \/ 0:0\d ?marin · audio\/\d{8}-\d{6}-chao-anh-tuan[-a-z]*\.m4a$/, player.caption);
