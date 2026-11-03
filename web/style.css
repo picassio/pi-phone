@@ -11143,6 +11143,180 @@ textarea.notes {
     text-overflow: ellipsis;
 }
 
+/* Running now as a board (PP-355): a session's model, spend and waiting call; the message it works on, a line until
+ * tapped; and the scheduled messages on a timeline, a lane for each session, with the list under it. */
+.rb-counts {
+    margin: 0 0 8px;
+}
+
+.rb-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 0 14px 8px;
+    background: var(--card);
+}
+
+.rb-facts:empty {
+    display: none;
+}
+
+.rb-approval {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--warn);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.rb-prompt {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    padding: 8px 14px;
+    border-top: 1px solid var(--hair);
+    text-align: left;
+}
+
+.rb-prompt-text {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 13px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.rb-prompt.open .rb-prompt-text {
+    max-height: 240px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.rb-scheduled {
+    margin-top: 16px;
+}
+
+.rb-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.rb-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 12px 12px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+}
+
+.rb-axis {
+    position: relative;
+    height: 20px;
+    margin-left: 120px;
+    border-bottom: 1px solid var(--hair);
+}
+
+.rb-tick {
+    position: absolute;
+    bottom: 4px;
+    color: var(--faint);
+    font: 11px var(--mono);
+    white-space: nowrap;
+    transform: translateX(-50%);
+}
+
+.rb-tick.rb-now {
+    color: var(--accent);
+    transform: none;
+}
+
+.rb-lane {
+    display: flex;
+    align-items: center;
+    min-height: 28px;
+}
+
+.rb-lane-name {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    width: 120px;
+    padding-right: 8px;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: left;
+}
+
+.rb-lane-name > span:last-child {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.rb-track {
+    position: relative;
+    flex: 1;
+    height: 20px;
+    border-radius: var(--r-pill);
+    background: var(--card);
+}
+
+.rb-mark {
+    position: absolute;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    margin-left: -6px;
+    border: 2px solid var(--bg);
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.rb-mark.held {
+    background: var(--warn);
+}
+
+.rb-schedules {
+    margin-top: 8px;
+}
+
+.rb-schedule-text {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--text);
+    text-align: left;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.rb-held {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    margin-top: 4px;
+    color: var(--muted);
+}
+
+@media (max-width: 699px) {
+    .rb-axis {
+        margin-left: 88px;
+    }
+
+    .rb-lane-name {
+        width: 88px;
+    }
+}
+
 /* Spend: a person or a session, what Pi spent for it, and its limit. */
 .spend-total {
     display: flex;

@@ -2273,6 +2273,17 @@ so Pi changes them through the settings tools; "the last session" is the one the
     rule (no path).
   - `pocket.openPageOf(module, page)` opens another module's page (never its sheets), once that module is ready. A
     board's Docs button uses it to open Documents on the board's place (PP-47).
+- **Running now as a board** (PP-355, after pi-pocket 0.28's #232 and its b4 fixes). pi-phone keeps Running now as a
+  sheet (the rail's pulse) rather than pocket's board in the conversation's place: `GET /api/running/board`
+  (`runningBoard` in `running.ts`) gives the sessions at work (a scheduled message's sleeping task is not work: it is
+  left out, and a session with nothing else too) with their folder, model, spend, oldest waiting call and the message
+  they work on (`lastPrompt`, the newest `pi.user` entry within 400, cut at 2,000 characters, kept while the newest entry
+  stays the same), each task's `since` (when this server first saw it: the task graph has no start time), and every
+  scheduled message the person can see, soonest first, with its next times (`upcomingOf`: up to 24 within 8 days, kept
+  until it changes; `when.ts` keeps one formatter per zone) and `held` (`Schedules.held`). The sheet asks every 2 s and
+  moves its elapsed times and countdowns each second between answers; its timeline has a lane per session and a mark
+  per time, over 24 hours or 8 days. Not taken: pocket's session matrix, filters and zone names, its board layout and
+  the bar per run (pi-phone's tasks are rows), and the theme-surface parts.
 - **Favorite models** (PP-350, after pi-pocket 0.28's #169). pi-pocket keeps stars in each browser's localStorage;
   pi-phone keeps them with the person (`User.favoriteModels`, `provider/modelId` in the order starred, at most 100),
   so every device and Pi see the same: `hello`'s `user.favoriteModels`, `POST /api/model-favorites` (one star),

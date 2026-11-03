@@ -152,6 +152,11 @@ No Termux, no laptop, no cloud VM.
 - **Schedules and goals.** Pi messages itself later or on repeat (`schedule`), and a session can keep working toward a
   goal it checks. Archiving a session cancels none of its schedules: a notice says how many repeating ones keep
   running there and opens them (Pi's `session_archive` says so too), and its Schedules mark each "Session archived".
+- **Running now.** The rail's pulse opens everything at work across sessions: each session's model, spend, the call it
+  waits on and the message it works on (a tap shows it whole), each task with how long it has been at work, and Stop;
+  then every scheduled message on a timeline (the next 24 hours or 8 days, a lane per session, a mark each time one goes
+  out), with a countdown, its repeat, who set it, Cancel, and a held one saying why and that it is cancelled at its time
+  unless that changes first. Times move each second.
 - **Other sessions.** Pi can list, read, start, message, wait for, and stop the app's other sessions, as the person it
   works for. It can also get a stuck session going again, each time after you say yes on a card: fork it before the
   message that stopped it (`session_fork`), start a new context there (`session_new_context`), or compact it

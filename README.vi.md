@@ -162,6 +162,10 @@ dự án thật.</sub>
   hướng tới một mục tiêu mà nó tự kiểm tra. Lưu trữ một phiên không hủy lịch hẹn nào của nó: một thông báo cho biết bao nhiêu
   lịch lặp lại vẫn chạy ở đó và mở chúng ra (`session_archive` của Pi cũng nói vậy), và Lịch hẹn của phiên đánh dấu từng cái
   “Phiên đã lưu trữ”.
+- **Đang chạy.** Biểu tượng nhịp tim trên thanh bên mở mọi việc đang làm ở các phiên: mô hình, chi phí, lệnh đang chờ và tin
+  nhắn phiên đang xử lý (chạm để xem đủ), mỗi tác vụ với thời gian đã chạy, và Dừng; rồi mọi tin nhắn đã lên lịch trên một
+  dòng thời gian (24 giờ hoặc 8 ngày tới, mỗi phiên một làn, mỗi lần gửi một dấu), kèm đếm ngược, lặp lại, người đặt, Hủy,
+  và tin đang giữ thì nói lý do và rằng đến giờ nó sẽ bị hủy trừ khi điều đó thay đổi trước. Thời gian chạy từng giây.
 - **Phiên khác.** Pi có thể liệt kê, đọc, mở, nhắn tin, chờ và dừng các phiên khác của ứng dụng, với tư cách người mà
   nó làm việc cho. Nó cũng có thể gỡ kẹt một phiên, mỗi lần sau khi bạn đồng ý trên một thẻ: rẽ nhánh phiên đó ngay
   trước tin nhắn làm nó dừng (`session_fork`), mở ngữ cảnh mới ở đó (`session_new_context`), hoặc nén nó

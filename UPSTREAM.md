@@ -152,3 +152,10 @@ is skipped on purpose.
   setting and the models tool; Providers lists every model with a star (pi-phone's subagent models live in Menu ›
   Subagents, PP-281). Not taken: the full-height model library pane, its Allowed filter and legend (the subagent
   models list is not in Providers here), and sign-in-ui.test.ts's library parts.
+- Running now board from 0.28 (PP-355): the server of merge 9ede945 (#232 by @vitalNohj: 0ad8052's `runningBoard`,
+  `since`, `Schedules.held`, `when.ts`'s formatter per zone; a15227c's schedule tasks out of Now; 3479406's kept times),
+  and from 5510f8c 6b8a476 (elapsed times and countdowns tick between answers) and 3f2e9b2 (a held schedule is
+  cancelled at its time). The web part is rewritten into pi-phone's Running now sheet: sessions at work, then a
+  timeline of the schedules and their list. Not taken: `running-board.js` as a board in the conversation's place, its
+  session matrix, phone filters, zone names, run bars with their message on hover (the message is a row here), Stop
+  pills, and the theme-surface parts.

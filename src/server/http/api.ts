@@ -44,7 +44,7 @@ import { resolveLanguage, translator } from "../i18n.ts";
 import { inLanguage } from "../phone-events.ts";
 import { machinePaths } from "../machine-paths.ts";
 import { formatPlace, isRemote, parsePlace } from "../places.ts";
-import { activity, runningNow } from "../running.ts";
+import { activity, runningBoard, runningNow } from "../running.ts";
 import { conversationRoutes } from "./conversation-routes.ts";
 import { createEventStreams } from "./events.ts";
 import { extensionRoute } from "./extension-routes.ts";
@@ -534,6 +534,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
             app.themes.remove(second);
 
             return json(response, 200, { ok: true });
+        }
+
+        // Running now as a board (PP-355): the sessions at work and every scheduled message, with its next times.
+        if (first === "running" && second === "board" && method === "GET") {
+            return json(response, 200, await runningBoard(app, user));
         }
 
         if (first === "running" && method === "GET") {
