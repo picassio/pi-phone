@@ -56,7 +56,8 @@ dự án thật.</sub>
   chat: trong các mô hình bạn cho phép ở đó (thêm nhiều cái cùng lúc, mỗi cái hiện ngữ cảnh và hạn mức gói), hoặc sau khi
   bạn cho phép qua một thẻ. Công cụ `models` của Pi liệt kê các mô hình sẵn sàng, hạn mức và phần còn lại. Dòng tạo
   subagent ghi nó chạy trên gì và vì sao. Pi đổi được qua thẻ (`subagents.model`, `subagents.thinking`,
-  `subagents.sessionModel`, `subagents.sessionThinking`).
+  `subagents.sessionModel`, `subagents.sessionThinking`). Dòng trạng thái của một subagent hiện chi phí của chính nó, không có
+  giới hạn: giới hạn là của phiên.
 - **Review code bằng subagent.** `/review` (hoặc "review PR này") cho một subagent với ngữ cảnh mới và công cụ chỉ đọc
   review các thay đổi chưa commit của thư mục, nhánh so với nhánh gốc, một commit, một pull request GitHub (theo số hoặc
   link: chỉ fetch, không checkout) hoặc các thư mục, theo bộ tiêu chí của pi-review (phát hiện P0 đến P3, kết luận, điều

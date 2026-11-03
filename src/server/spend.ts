@@ -245,6 +245,11 @@ export class Spend {
         this.#stopOverLimit();
     }
 
+    /** What one conversation spent, its subagents not counted: a subagent's own cost (PP-339). */
+    conversationSpent(id: ConversationId): number {
+        return this.#costs.get(id) ?? 0;
+    }
+
     /** What a session spent: itself and its subagents. */
     sessionSpent(root: ConversationId): number {
         let spent = 0;

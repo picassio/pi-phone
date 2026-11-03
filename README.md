@@ -53,7 +53,8 @@ No Termux, no laptop, no cloud VM.
   chat: from the models you allow there (added several at once, each shown with its context and plan limit), or after
   you allow it on a card. Pi's `models` tool lists the models that are ready, their limits and what is left. The spawn
   line says what each subagent runs on and why. Pi changes these on a card (`subagents.model`, `subagents.thinking`,
-  `subagents.sessionModel`, `subagents.sessionThinking`).
+  `subagents.sessionModel`, `subagents.sessionThinking`). A subagent's status line shows what it cost itself, with no
+  limit: the limit is its session's.
 - **Code review by a subagent.** `/review` (or "review this PR") has a subagent with a fresh context and read-only
   tools review the folder's uncommitted changes, the branch against a base, a commit, a GitHub pull request (by number
   or link: fetched, never checked out), or folders, with pi-review's rubric (P0 to P3 findings, a verdict, what a person

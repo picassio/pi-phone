@@ -104,3 +104,4 @@ is skipped on purpose.
   pi-phone's `[via session #N “title”]` marker, on the app's report card with three small rules (no new theme parts),
   the name from the session list, and its row deps. Not taken: `LinkedSessionPeersDoc` and `linkedPeers` (pi-phone's
   marker has the session's id; the list says whether this person can see it), pocket's own card styles.
+- A subagent's own spend from 0.28.0 (PP-339): merge 5fa8872 (5655371), `conversationSpent` and its test, as it was.

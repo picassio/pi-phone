@@ -4449,7 +4449,9 @@ export class PocketApp {
         const agent = (room.value?.docs["pi.agent"] ?? {}) as AgentState;
         const forkedFrom = meta?.forkedFrom;
         const root = this.rootOf(room.id);
-        const budget = this.#sessions[String(root)]?.budget;
+        const subagent = meta === undefined && room.parent !== undefined;
+        // A subagent shows what it cost itself (PP-339): the session's spend and limit are on the session.
+        const budget = subagent ? undefined : this.#sessions[String(root)]?.budget;
 
         return {
             id: room.id,
@@ -4473,10 +4475,11 @@ export class PocketApp {
             ...(forkedFrom === undefined ? {} : { forkedFrom }),
             // The session's spend with its subagents', and its limit, with what counts against it.
             spend: {
-                spent:
-                    budget === undefined
-                        ? this.spend.sessionSpent(root)
-                        : this.spend.budgetSpent(root),
+                spent: subagent
+                    ? this.spend.conversationSpent(room.id)
+                    : budget === undefined
+                      ? this.spend.sessionSpent(root)
+                      : this.spend.budgetSpent(root),
                 ...(budget === undefined ? {} : { budget }),
             },
             ...(meta?.worktree === undefined

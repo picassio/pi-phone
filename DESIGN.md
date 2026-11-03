@@ -483,7 +483,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `modelsReport`: by provider with its plan windows (`usage-limits.ts`, asked afresh), each model ready or why not,
   context, highest thinking, price, and subagent marks. Menu › Subagents holds every session's two dropdowns and the
   allowed list (rows with state and plan bar, `MultiChoice` to add several, X to take one off); Settings › Providers
-  keeps a row to it.
+  keeps a row to it. A subagent's view (`conversationInfo`) carries its own spend, `Spend.conversationSpent`, with no
+  limit (PP-339, from pi-pocket 0.28.0): its session's spend and limit stay on the session's.
 - **Secrets** (`src/server/secrets.ts`, `extensions/secrets.ts`, `web/sheets/secrets.js`): API keys and tokens Pi uses
   without seeing them, in Settings › Secrets. Each has an env-var name, a value (8+ characters, one line), a
   description, folders it may be used in (none: anywhere), whether machines may use it, and whether each use asks

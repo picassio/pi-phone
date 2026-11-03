@@ -40,7 +40,7 @@
 - **子代理使用你选的模型。** 菜单 › 子代理 设置 Pi 创建子代理时用的模型和思考级别，适用于所有会话；会话菜单中的“子代理的模型”
   可为该会话单独设置。只有你在聊天中要求时，Pi 才会用其他模型：从你在那里允许的模型中选（可一次添加多个，每个都显示上下文和套餐额度），
   或在你通过卡片允许之后。Pi 的 `models` 工具列出可用的模型、额度及剩余量。创建子代理的那一行会注明它运行在什么模型上以及原因。
-  Pi 可通过卡片修改这些设置（`subagents.model`、`subagents.thinking`、`subagents.sessionModel`、`subagents.sessionThinking`）。
+  Pi 可通过卡片修改这些设置（`subagents.model`、`subagents.thinking`、`subagents.sessionModel`、`subagents.sessionThinking`）。子智能体的状态栏显示它自己的花费，不带上限：上限属于它的会话。
 - **由子代理审查代码。** `/review`（或“审查这个 PR”）让一个上下文全新、只能读的子代理审查文件夹中未提交的改动、分支相对基础分支的
   改动、某个提交、某个 GitHub 拉取请求（按编号或链接：只 fetch，不 checkout）或若干文件夹，使用 pi-review 的审查准则（P0 到 P3
   的问题、结论、需要人工确认的事项）和项目的 `REVIEW_GUIDELINES.md`。只输入 `/review` 会打开一个列出未关闭拉取请求的面板。结果是一张
