@@ -136,20 +136,14 @@ test("a card Pi asks is pinned at the top until answered; the list says Pi asks 
     await page.evaluate(`document.querySelector('[data-part="decision-bar"] .decision').click(); return "true";`);
     await see(`return JSON.stringify((await import("/store.js")).store.state.sheet?.type === "interview")`, "the form");
     await page.evaluate(`(await import("/store.js")).closeSheet(); return "true";`);
+    // The form's history entry comes off a moment later (back.js steps back past it). A navigation started before that
+    // step is cancelled by it, and the page stays on /s/<id> (CI #394-#396, PP-373): wait until history is back on the
+    // session's own entry.
+    await see(`return JSON.stringify((history.state?.pocket?.layers ?? 0) === 0 && location.pathname === "/s/${id}")`, "the form's entry off history", 30_000);
 
     // The list: Pi asks you, and the Waits for you scope with this session alone.
     void other;
     await page.navigate(`${base}/`);
-    // CI #396 found the page back on /s/<id> after this navigation (the session that waits for you reopened): go to the
-    // list through the app until it stays there.
-    await until(
-        async () =>
-            await inPage<boolean>(
-                `const { navigate } = await import("/store.js"); if (location.pathname !== "/") navigate(null); return JSON.stringify(location.pathname === "/" && document.querySelector('[data-part="session-scope"] button') !== null);`,
-            ),
-        "on the list",
-        30_000,
-    ).catch(() => undefined);
     // A loaded CI runner can take longer than 10 s to draw the list after a navigation (CI #392, #394): 30 s, and what
     // the page held if it never comes.
     await see(`return JSON.stringify(document.querySelector('[data-part="session-scope"] button') !== null)`, "the list", 30_000).catch(async (error: Error) => {
