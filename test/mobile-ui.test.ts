@@ -174,6 +174,32 @@ test("back closes the open file, then the Files tile, then leaves the session", 
     await reach({ path: "/" }, "back to the list");
 });
 
+// A session opened while back.js still takes a closed sheet's entry off history, before that traversal lands (Getting
+// started closes Menu, then opens its session after a request): the app stays on the session. It used to follow the
+// address the traversal landed on and show the list under /s/<id> (PP-373: videos-ui and audio-ui on a busy runner).
+test("a session opened while a closed sheet's history entry comes off stays open", real, async () => {
+    await fresh();
+    await page.evaluate(`(await import("/store.js")).openSheet({ type: "menu" })`);
+    await reach({ sheet: "menu", layers: 1 }, "the menu's entry");
+    // The session opens in the same task as back.js's step back past the menu's entry: always before it lands.
+    await page.evaluate(`
+        const { closeSheet, navigate } = await import("/store.js");
+        const go = history.go;
+
+        history.go = (delta) => {
+            history.go = go;
+            go.call(history, delta);
+            navigate(${Number(first)});
+        };
+        closeSheet();
+    `);
+    await reach({ path: `/s/${first}`, layers: 0, sheet: null }, "the session's entry");
+    await until(async () => (await inPage<boolean>(`return JSON.stringify(document.querySelector('[data-part="composer"]') !== null)`)) === true, "the session drawn").catch(async () => {
+        assert.fail(`the app shows ${await page.evaluate(`return JSON.stringify({ id: (await import("/store.js")).store.state.conversationId, at: location.pathname })`)}`);
+    });
+    assert.equal(await inPage<number | null>(`return JSON.stringify((await import("/store.js")).store.state.conversationId)`), Number(first));
+});
+
 // Issue #2: on a phone, Enter from the on-screen keyboard makes a new line; from a physical keyboard (Bluetooth) it sends,
 // and Shift+Enter makes a new line. The on-screen keyboard's key events have no `code`; a physical keyboard's say "Enter".
 test("on a phone, Enter from a physical keyboard sends, from the on-screen keyboard it makes a new line", real, async () => {

@@ -46,7 +46,9 @@ let expected = null;
 
 /**
  * Go `delta` entries through history and wait until there. With `follow`, the traversal should stay on the route the
- * app shows, and should it land on another one, the app follows the address.
+ * app shows, and should it land on another one, the app follows the address: unless the app went to another route while
+ * it was on its way (a session opened just after a sheet closed: Getting started does that after a request). That route
+ * is newer, and its own entry follows this traversal in the queue (PP-373).
  */
 function traverse(delta, { follow = false } = {}) {
     return new Promise((resolve) => {
@@ -58,7 +60,7 @@ function traverse(delta, { follow = false } = {}) {
 
         const timer = setTimeout(done, TRAVERSE_MS);
 
-        expected = { done, follow };
+        expected = { done, follow, from: shown };
         history.go(delta);
     });
 }
@@ -139,11 +141,11 @@ function settle() {
 
 addEventListener("popstate", (event) => {
     if (expected) {
-        const { done, follow } = expected;
+        const { done, follow, from } = expected;
 
         done();
 
-        if (follow && routeOf(location.pathname) !== shown) {
+        if (follow && shown === from && routeOf(location.pathname) !== shown) {
             shown = routeOf(location.pathname);
             routeListener();
         }
