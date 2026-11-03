@@ -59,7 +59,8 @@ What the subagent does (and you, making one by hand with `extension_install`):
 
 - **Safety.** Never ask for a password, key or token in the chat: a value the drop-in needs is typed on a card with
   `host.ask` (it reaches only the drop-in) or kept in Settings › Secrets. Never write into `<data>/extensions` yourself
-  or reach into the app's API, database or WebView: `extension_install`, `setting_change` and `app_action` are the way
+  or reach into the app's API, database or WebView: `extension_install`, `setting_change` and `app_action` (its
+  `extensions.remove` takes a drop-in away) are the way
   in. A drop-in's data goes in `<host.dataDir>/extension-data/<name>/`, never in `<name>/`, which an update replaces.
 - **The owner's UI rules** (the browser part): no emoji anywhere; line icons only, by the app's names (`pocket.Icon`,
   `icon:`); dropdowns are `pocket.Choice` and `pocket.MultiChoice`, never a system `<select>`; a state is

@@ -96,8 +96,23 @@ export function createCreator(host: PocketHost, web: ExtensionWeb, made: () => M
         install: async (pkg) => {
             await host.dropIns.install(userId, pkg, true, { creator: true });
         },
-        remove: (file) => host.dropIns.remove(userId, file),
+        remove: async (file) => {
+            await host.dropIns.remove(userId, file);
+        },
     });
+    /**
+     * A state as it stands: a made drop-in removed some other way (Settings › Extensions' Remove, `app_action
+     * extensions.remove`, PP-372) has nothing installed; its versions stay, to restore.
+     */
+    const fresh = (state: MadeState): MadeState => {
+        if (state.current !== null && !host.extensionModules.list().some((each) => each.file === `${state.module}.ts`)) {
+            state.current = null;
+            state.phase = "removed";
+            made().save(state);
+        }
+
+        return state;
+    };
     /** A state as the card shows it: with whether it is switched on now. */
     const view = (state: MadeState) => ({ ...state, enabled: state.current !== null && host.dropIns.enabled(`${state.module}.ts`) });
     const changed = (state: MadeState) => {
@@ -113,7 +128,7 @@ export function createCreator(host: PocketHost, web: ExtensionWeb, made: () => M
             throw new Error(`Pi made no drop-in ${madeModule(name)}: start one with extension_create.`);
         }
 
-        return state;
+        return fresh(state);
     };
     const card = async (api: ToolExecutionApi, context: unknown, tool: string, subject: string, reason: string) =>
         host.approvals.request(
@@ -142,7 +157,7 @@ export function createCreator(host: PocketHost, web: ExtensionWeb, made: () => M
                 },
             );
 
-    web.route("GET", "made", () => ({ made: made().list().map(view) }));
+    web.route("GET", "made", () => ({ made: made().list().map(fresh).map(view) }));
     web.route("GET", "made/:name", (request) => answer(() => stateOf(request.params.name ?? "")));
     web.route("POST", "made/:name/keep", (request) =>
         answer(() => {
@@ -303,7 +318,7 @@ export function createCreator(host: PocketHost, web: ExtensionWeb, made: () => M
                 const store = made();
 
                 if (args.action === "list") {
-                    const all = store.list();
+                    const all = store.list().map(fresh);
 
                     return reply(
                         all.length === 0

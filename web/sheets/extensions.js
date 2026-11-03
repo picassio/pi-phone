@@ -102,6 +102,27 @@ export function ExtensionsSheet() {
     const [data, setData] = useState(null);
     const [problem, setProblem] = useState(null);
     const [busy, setBusy] = useState(null);
+    // The drop-in whose Remove asks first (PP-372), and whether its data goes too.
+    const [removing, setRemoving] = useState(null);
+    const [withData, setWithData] = useState(false);
+    const remove = (module) => {
+        setBusy(module.file);
+        attempt(async () => {
+            const result = await api(`extensions/${encodeURIComponent(module.file)}${withData ? "?data=1" : ""}`, undefined, { method: "DELETE" });
+
+            setData(result);
+            setRemoving(null);
+            notify(
+                "info",
+                result.data.kept
+                    ? t("Removed {file}. Its data stays in {folder}.", { file: result.file, folder: result.data.folder })
+                    : t("Removed {file}.", { file: result.file }),
+            );
+        }).finally(() => {
+            setBusy(null);
+            load();
+        });
+    };
     const load = () =>
         api("extensions").then(
             (result) => {
@@ -156,6 +177,20 @@ export function ExtensionsSheet() {
                                 ${tools.length > 0 ? t(" · tools: {tools}", { tools: tools.join(", ") }) : ""}
                                 ${module.required ? t(" · required") : ""}
                             </div>
+                            ${
+                                removing === module.file &&
+                                html`<div class="extension-remove" data-part="extension-remove">
+                                    <span class="small">${t("Remove {file}? It is switched off, and its files go: {files}.", { file: module.file, files: [".ts", ".js", "/"].map((end) => `${module.file.replace(/\.ts$/, "")}${end}`).join(", ") })}</span>
+                                    <label class="extension-remove-data small">
+                                        <${Switch} on=${withData} label=${t("Also delete its data")} onChange=${() => setWithData(!withData)} />
+                                        <span>${withData ? t("Its data in extension-data goes too.") : t("Its data in extension-data stays.")}</span>
+                                    </label>
+                                    <div class="extension-remove-actions">
+                                        <button class="button ghost small" disabled=${busy !== null} onClick=${() => setRemoving(null)}>${t("Cancel")}</button>
+                                        <button class="button danger small" disabled=${busy !== null} onClick=${() => remove(module)}>${t("Remove")}</button>
+                                    </div>
+                                </div>`
+                            }
                         </div>
                         <div class="extension-actions">
                             <${Switch}
@@ -173,6 +208,22 @@ export function ExtensionsSheet() {
                                     onClick=${() => change(module, "/reload", {})}
                                 >
                                     ${t("Reload")}
+                                </button>`
+                            }
+                            ${
+                                owner &&
+                                module.source === "drop-in" &&
+                                removing !== module.file &&
+                                html`<button
+                                    class="link small danger"
+                                    data-part="extension-remove-button"
+                                    disabled=${busy !== null}
+                                    onClick=${() => {
+                                        setWithData(false);
+                                        setRemoving(module.file);
+                                    }}
+                                >
+                                    ${t("Remove")}
                                 </button>`
                             }
                         </div>

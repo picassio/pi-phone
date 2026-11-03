@@ -539,6 +539,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
   yes (the upload's confirm, the card), and it is switched off (and uninstalled) before its files change. It lands off.
   A `.js` alone is refused: the loader's modules are `.ts`, and a `.js` beside one is its browser part.
   `/?sheet=extensions` opens the sheet.
+  **Removing** (PP-372; before it pi-phone had no way, and Pi must never delete the app's data files itself):
+  `PocketApp.removeDropIn(user, file, { data })`, the owner's: switched off and uninstalled (`loader.apply`), then
+  `removeModule` deletes `<name>.ts`, the files named for it (`<name>.js`) and `<name>/` from the drop-in folder only
+  (a drop-in named like a built-in, never loaded, can be removed too; a built-in never). `<data>/extension-data/<name>/`
+  stays unless `data`, and the answer says where it is. Callers: Settings › Extensions' Remove on each drop-in (an
+  inline confirm in its row, the app's own, with a switch for its data; `DELETE /api/extensions/<file>?data=1`),
+  `app_action extensions.remove` (args `file`, and `data` on|off, default off: `AppAction.optional` lets an arg be left
+  out; the card first, as every app action), and the Creator's Undo past a first version. A made drop-in removed this
+  way shows as removed on its cards (`fresh` in `creator.ts`), its versions kept to restore.
 - **More places for browser parts** (PP-371; the owner's OK of 2026-11-03 on the mockup pp371-mockup;
   `web/extension-ui.js`): five additions to `pocket` (the API stays 2), each kept per module version like the rest, so
   turning a module off, a reload, or a failure takes them away, and safe mode loads none. `KINDS` gains `dock`,

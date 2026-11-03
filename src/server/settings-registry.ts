@@ -75,6 +75,8 @@ export type AppAction = {
     help: string;
     owner: boolean;
     args: Record<string, string>;
+    /** The args it can do without (each says its default); the rest must be given. */
+    optional?: readonly string[];
     /** In words, for the card: what this run of it will do. */
     describe(args: Record<string, string>): string;
     run(user: User, args: Record<string, string>): Promise<string>;
@@ -1424,6 +1426,35 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 await app.reloadExtension(args.file ?? "");
 
                 return `Reloaded ${args.file}.`;
+            },
+        },
+        {
+            id: "extensions.remove",
+            area: "extensions",
+            title: "Remove a drop-in",
+            help: "Turn a drop-in off and delete its files from the drop-in folder: <name>.ts, <name>.js and its folder <name>/. Its data in extension-data/<name>/ stays, unless data is on. Built-in extensions are not removed: turn them off instead.",
+            owner: true,
+            args: {
+                file: "The drop-in's file, like water.ts (settings area extensions lists them)",
+                data: "on to delete its data in extension-data/<name>/ too; off (the default) keeps it",
+            },
+            optional: ["data"],
+            describe: (args) => {
+                const file = (args.file ?? "").trim();
+                const data = (args.data ?? "").trim() !== "" && onOff(args.data ?? "");
+
+                return `Remove the drop-in ${file}: switch it off and delete its files${data ? ", and its data in extension-data" : "; its data in extension-data stays"}`;
+            },
+            run: async (user, args) => {
+                const data = (args.data ?? "").trim() !== "" && onOff(args.data ?? "");
+                const done = await app.removeDropIn(user, args.file ?? "", { data });
+                const said = done.data.kept
+                    ? ` Its data is kept in ${done.data.folder}: extensions.remove with data on deletes it.`
+                    : data && done.data.existed
+                      ? ` Its data in ${done.data.folder} was deleted too.`
+                      : " It had no data in extension-data.";
+
+                return `Removed ${done.file}: ${done.removed.join(", ") || "no files were left"}.${said}`;
             },
         },
         {

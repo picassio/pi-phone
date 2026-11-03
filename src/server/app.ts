@@ -1367,7 +1367,7 @@ export class PocketApp {
             dropIns: {
                 replaces: (pkg) => this.dropInReplaces(pkg),
                 install: (userId, pkg, replace, options) => this.installDropIn(this.#person(userId), pkg, replace, options),
-                remove: (userId, file) => this.removeDropIn(this.#person(userId), file),
+                remove: (userId, file, options) => this.removeDropIn(this.#person(userId), file, options),
                 enabled: (file) => this.loader.enabled(file),
             },
             extensionModules: {
@@ -5641,25 +5641,47 @@ export class PocketApp {
     }
 
     /**
-     * Take a drop-in away (PP-369: Undo past a made drop-in's first version): switched off and uninstalled first, then
-     * its module, the files named for it, and its folder are removed. The owner's; never a built-in module.
+     * Remove a drop-in (PP-372: Settings › Extensions' Remove, `app_action extensions.remove`; PP-369's Undo past a made
+     * drop-in's first version): switched off and uninstalled first, then its module `<name>.ts`, the files named for it
+     * (`<name>.js`) and its folder `<name>/` are deleted from the drop-in folder. Its data in
+     * `<data>/extension-data/<name>/` stays unless `data` (then it goes too). The owner's; never a built-in module (a
+     * drop-in named like one, never loaded, can be removed). Answers what went, and where its data is.
      */
-    async removeDropIn(user: User, file: string): Promise<void> {
+    async removeDropIn(
+        user: User,
+        given: string,
+        { data = false }: { data?: boolean } = {},
+    ): Promise<{ file: string; removed: string[]; data: { folder: string; kept: boolean; existed: boolean } }> {
         if (user.role !== "owner") {
             throw new HttpError(403, "Only the owner removes extensions.");
         }
 
+        const file = given.trim().endsWith(".ts") ? given.trim() : `${given.trim()}.ts`;
+        const name = file.slice(0, -".ts".length);
         const module = this.loader.list().find((each) => each.file === file);
+        const clash = this.loader.nameClashes().some((each) => each.file === file);
 
-        if (module?.source !== "drop-in") {
+        if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(name) || (module?.source !== "drop-in" && !clash)) {
             throw new HttpError(404, `There is no drop-in ${file}.`);
         }
 
-        this.config.setExtensionEnabled(file, false);
-        await this.loader.apply(file);
-        removeModule(file, this.#dropInFolder());
+        if (module !== undefined) {
+            this.config.setExtensionEnabled(file, false);
+            await this.loader.apply(file);
+        }
+
+        const removed = removeModule(file, this.#dropInFolder());
+        const folder = join(this.dataDir, "extension-data", name);
+        const existed = existsSync(folder);
+
+        if (data && existed) {
+            rmSync(folder, { recursive: true, force: true });
+        }
+
         await this.#refreshClients();
         this.notice("info", `${user.name} removed the drop-in ${file}.`);
+
+        return { file, removed, data: { folder, kept: existed && !data, existed } };
     }
 
     #dropInFolder(): string {

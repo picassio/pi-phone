@@ -133,7 +133,7 @@ export default function createSettings(host: PocketHost) {
                                       "Actions (app_action):",
                                       ...doing.map(
                                           (action) =>
-                                              `- ${action.id}: ${action.title}. ${action.help}${Object.keys(action.args).length === 0 ? "" : ` Args: ${Object.entries(action.args).map(([name, what]) => `${name} (${what})`).join("; ")}.`}`,
+                                              `- ${action.id}: ${action.title}. ${action.help}${Object.keys(action.args).length === 0 ? "" : ` Args: ${Object.entries(action.args).map(([name, what]) => `${name}${(action.optional ?? []).includes(name) ? ", optional" : ""} (${what})`).join("; ")}.`}`,
                                       ),
                                   ]),
                             "",
@@ -212,7 +212,7 @@ export default function createSettings(host: PocketHost) {
                     mayChange(action, person.role);
 
                     const given = args.args ?? {};
-                    const missing = Object.keys(action.args).filter((name) => (given[name] ?? "").trim() === "");
+                    const missing = Object.keys(action.args).filter((name) => !(action.optional ?? []).includes(name) && (given[name] ?? "").trim() === "");
 
                     if (missing.length > 0) {
                         throw new Error(`${action.id} needs ${missing.join(", ")}.`);
@@ -236,7 +236,7 @@ export default function createSettings(host: PocketHost) {
     const install = defineTool({
         name: "extension_install",
         description:
-            "Install a drop-in extension you wrote: a module (.ts), a folder holding one, or a .zip, on this phone. The owner sees its files and first lines on a card and installs it; it lands switched off, for the owner to turn on in Settings > Extensions (or setting_change extensions.<file> on).",
+            "Install a drop-in extension you wrote: a module (.ts), a folder holding one, or a .zip, on this phone. The owner sees its files and first lines on a card and installs it; it lands switched off, for the owner to turn on in Settings > Extensions (or setting_change extensions.<file> on). Remove one with app_action extensions.remove (the owner's card); never delete its files yourself.",
         parameters: Type.Object({
             path: Type.String({ description: "The module file, its folder, or a .zip: absolute, ~/..., or relative to the session's folder" }),
         }),

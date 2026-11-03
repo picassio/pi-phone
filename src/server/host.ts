@@ -513,8 +513,11 @@ export interface PocketHost {
             replace: boolean,
             options?: { creator?: boolean },
         ): Promise<{ file: string; installed: boolean; replaces: string[] }>;
-        /** Take a drop-in away: switched off, then its files removed (PP-369's Undo). The owner's. */
-        remove(userId: string, file: string): Promise<void>;
+        /**
+         * Take a drop-in away (PP-372; PP-369's Undo): switched off, then its files removed; its data in
+         * extension-data stays unless `data`. The owner's.
+         */
+        remove(userId: string, file: string, options?: { data?: boolean }): Promise<unknown>;
         /** Whether a module is switched on now. */
         enabled(file: string): boolean;
     };

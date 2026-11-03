@@ -315,6 +315,9 @@ No Termux, no laptop, no cloud VM.
   file, or a `.zip` holding one) or by Pi with `extension_install` once you approve its card (files and first lines
   shown), each off until you turn it on. They can use pi-pocket 0.22's `host.ask` (a card whose values reach only the extension), `host.hide`
   and `host.commandEnv`, not `host.browser` yet; one whose tool has a built-in tool's name is refused, with why.
+  **Remove** takes one away (Settings › Extensions, after a confirm in its row, or ask Pi: `app_action
+  extensions.remove` on your card): it is switched off and its files go (`<name>.ts`, `<name>.js`, `<name>/`); its
+  data in `extension-data/<name>/` stays unless you ask for that to go too.
   Besides rail buttons, menu rows, launcher actions, pages and sheets, a drop-in can show a one-line strip right above
   the message box (in every session or the ones it picks; two drop-ins' at most, the newest), a small floating panel you
   drag anywhere and close with × (kept where you put it; on a phone, clear of the message box and the keyboard), a tab

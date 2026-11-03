@@ -1933,6 +1933,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, await app.extensions(user));
         }
 
+        // Remove a drop-in (PP-372): Settings › Extensions' Remove, after its confirm. Its data stays unless `data=1`.
+        if (first === "extensions" && second !== undefined && third === undefined && method === "DELETE") {
+            const removed = await app.removeDropIn(user, second, { data: url.searchParams.get("data") === "1" });
+
+            return json(response, 200, { ...removed, ...(await app.extensions(user)) });
+        }
+
         if (
             first === "extensions" &&
             second !== undefined &&

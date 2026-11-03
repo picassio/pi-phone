@@ -5594,6 +5594,30 @@ pre.diff .del {
     gap: 0.45rem;
 }
 
+/* Removing a drop-in (PP-372) asks in its own row first: what goes, and whether its data goes too. */
+.extension-remove {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--err-line);
+    border-radius: var(--r-control);
+    background: var(--err-soft);
+}
+
+.extension-remove-data {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.extension-remove-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
 /* The on and off switch (`Switch` in ui.js), in every sheet that has one. */
 .switch {
     position: relative;

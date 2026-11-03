@@ -328,7 +328,9 @@ dự án thật.</sub>
   `.ts`, hoặc tệp `.zip` chứa nó) hoặc do Pi thêm bằng `extension_install` khi bạn duyệt thẻ (hiện các tệp và những
   dòng đầu), mỗi cái tắt cho đến khi bạn bật. Chúng dùng được `host.ask` của pi-pocket 0.22 (một thẻ mà giá trị chỉ
   tới được tiện ích), `host.hide` và `host.commandEnv`, chưa dùng được `host.browser`; một tiện ích có công cụ trùng
-  tên công cụ có sẵn sẽ bị từ chối, kèm lý do.
+  tên công cụ có sẵn sẽ bị từ chối, kèm lý do. **Gỡ** để bỏ một drop-in (Cài đặt › Tiện ích, sau khi xác nhận ngay
+  trong dòng của nó, hoặc nhờ Pi: `app_action extensions.remove` qua thẻ của bạn): nó bị tắt và các tệp của nó bị xóa
+  (`<name>.ts`, `<name>.js`, `<name>/`); dữ liệu của nó trong `extension-data/<name>/` được giữ, trừ khi bạn muốn xóa cả.
   Ngoài nút ở thanh bên, dòng trong menu, hành động trong trình khởi chạy, trang và bảng, một drop-in còn có thể hiện
   một dải cao một dòng ngay trên ô nhập tin nhắn (ở mọi phiên hoặc những phiên nó chọn; tối đa hai drop-in, cái mới
   nhất), một bảng nhỏ nổi mà bạn kéo đi đâu cũng được và đóng bằng × (giữ chỗ bạn đặt; trên điện thoại thì tránh ô
