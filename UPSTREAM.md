@@ -97,3 +97,6 @@ is skipped on purpose.
 - `host.roleOf` from 0.27 (PP-343): merge 1023cf5 (d2454d6), its `roleOf` and test (as a drop-in's route). Not taken:
   `snapshot().scroll` of `host.browser`, which pi-phone does not have; `types/pocket.d.ts` and the docs (the Extension
   builder's `server-part.md` instead).
+- A session waiting on its linked sessions from 0.28.0 (PP-337): merge 040e2fc (7141664), `atWork` and `linkedAtWork`
+  for the row's square and `data-state`, with a test in `linked-sessions-ui.test.ts`. Not taken: the Priority tab's
+  Working group (pi-phone's list has no Priority tab).

@@ -155,7 +155,7 @@ dự án thật.</sub>
   và giao việc cho nhánh đó. Một phiên Pi mở được liên kết với phiên đã mở nó: nó hiện bên dưới phiên đó trong danh
   sách (một nhãn cho biết số lượng, bấm để thu gọn, có chấm khi một phiên đang chờ bạn hoặc thất bại), các liên kết
   "Bắt đầu từ" và "Phiên liên kết" phía trên bản ghi dẫn qua lại, và chi tiêu của nó tính vào giới hạn của phiên khởi
-  tạo.
+  tạo. Khi một phiên liên kết đang chạy (ở bất kỳ cấp nào), phiên đã mở nó cũng hiện là đang chạy: nó đang chờ báo cáo.
 - **Dự án** (một tiện ích, tắt cho đến khi bạn bật trong Cài đặt › Tiện ích): các bảng tác vụ để công việc không bị
   quên. Pi hỏi một lần trước khi theo dõi công việc của một phiên trên bảng ("Theo dõi việc này trên bảng?"), rồi cập
   nhật tác vụ bằng `task_create`, `task_update` và `task_comment`. Epic, Story, Tác vụ, Lỗi và Tác vụ con; Hộp thư đến →

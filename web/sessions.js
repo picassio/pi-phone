@@ -319,7 +319,7 @@ export function selectFromList(id) {
  * work, a failed run (solid while new, drawn once seen), finished since this browser last looked or marked unread
  * (solid), and read or never run (hollow).
  */
-function stateMark(session, working, marked, unseen = finishedUnseen(session)) {
+function stateMark(session, working, marked, unseen = finishedUnseen(session), linkedWork = false) {
     const fresh = marked || unseen;
 
     if (session.waiting) {
@@ -335,6 +335,11 @@ function stateMark(session, working, marked, unseen = finishedUnseen(session)) {
         return { shape: "working", label: t("Working") };
     }
 
+    // It waits for the reports of the sessions it started, which are at work (PP-337).
+    if (linkedWork) {
+        return { shape: "working", label: t("Its linked sessions are working") };
+    }
+
     if (session.failed) {
         return fresh
             ? { shape: "failed", label: t("Failed, not read") }
@@ -342,6 +347,37 @@ function stateMark(session, working, marked, unseen = finishedUnseen(session)) {
     }
 
     return fresh ? { shape: "fresh", label: t("Not read") } : { shape: "seen", label: "" };
+}
+
+/** Whether Pi works in a session itself: a run, a request waiting for a limit, its subagents, or background tasks. */
+function atWork(session) {
+    const counts = session.subagents ?? {};
+
+    return session.busy || session.limited !== undefined || (counts.working ?? 0) + (counts.waiting ?? 0) > 0 || session.background > 0;
+}
+
+/**
+ * The sessions whose linked sessions, at any depth, are at work (PP-337, from pi-pocket 0.28.0): one that started them
+ * waits for their reports, so it is at work too, though nothing runs in it until they answer.
+ */
+function linkedAtWork(sessions) {
+    const byId = new Map(sessions.map((session) => [session.id, session]));
+    const working = new Set();
+
+    for (const session of sessions) {
+        if (session.archived || !atWork(session)) {
+            continue;
+        }
+
+        let parent = session.linkedFrom?.id;
+
+        while (parent !== undefined && !working.has(parent)) {
+            working.add(parent);
+            parent = byId.get(parent)?.linkedFrom?.id;
+        }
+    }
+
+    return working;
 }
 
 /** A row's state for themes (`data-state`), by its square's shape: a documented name that stays when the squares change. */
@@ -391,6 +427,7 @@ function SessionRow({
     pressing,
     folders,
     team = false,
+    linkedWork = false,
     settled = null,
     filed,
     onPick,
@@ -445,7 +482,7 @@ function SessionRow({
     const fork = !session.waiting && (live > 0 || failed > 0);
     const person = collabs ? (session.people ?? []).find((each) => each.id !== meId) : undefined;
     // `unseen`: finished since this browser last looked; its result is unread, so its title reads bold.
-    const mark = stateMark(session, live > 0, marked, unseen);
+    const mark = stateMark(session, live > 0, marked, unseen, linkedWork);
     // Archive (and Settle, and Move to group) for people who steer, pin, and mark-unread show on hover; an archived
     // session only comes back. None where nothing hovers (`hovers`): a long press opens them there.
     const movable = grouping && !session.archived;
@@ -546,8 +583,8 @@ function SessionRow({
                           ? html`<span class="status-need" role="img" aria-label=${steers ? t("Needs you") : t("Waiting")} title=${session.asks !== undefined ? t("Pi asks you: {title}", { title: session.asks }) : steers ? t("Needs you") : t("Waiting for approval")}></span>`
                           : session.limited !== undefined
                             ? html`<span class="status-limit" role="img" aria-label=${t("Waiting for a limit")} title=${t("Waiting for a limit: next try at {time}", { time: clockAt(session.limited) })}></span>`
-                            : session.busy
-                            ? html`<span class="status-work" role="img" aria-label=${t("Working")} title=${t("Working")}></span>`
+                            : session.busy || linkedWork
+                            ? html`<span class="status-work" role="img" aria-label=${mark.label} title=${mark.label}></span>`
                             : session.failed
                               ? html`<span class="status-fail" role="img" aria-label=${t("Failed")} title=${t("Its last run failed")}></span>`
                               : mark.shape === "fresh"
@@ -927,6 +964,8 @@ const listKept = { query: "", scroll: 0 };
 
 function AllSessions({ compact = false }) {
     const { sessions, sessionsLoaded, server, pinned, sessionGroups } = store.state;
+    // Sessions waiting on the linked sessions they started, which are at work (PP-337): their squares say so.
+    const linkedWork = useMemo(() => linkedAtWork(sessions), [sessions]);
     const canStart = canSteer() && !scoped();
     const [query, setQueryState] = useState(() => (compact ? "" : listKept.query));
     const [chosenScope, setScopeState] = useState(readScope);
@@ -1615,6 +1654,7 @@ function AllSessions({ compact = false }) {
             pressing=${pressing === session.id}
             folders=${false}
             team=${group.team?.has(session.id)}
+            linkedWork=${linkedWork.has(session.id)}
             settled=${group.key === "settled" || folder ? settledOf(session) : null}
             filed=${group.key === "flat" ? groupOf(session.id, sessionGroups)?.name : undefined}
             onPick=${onPick}

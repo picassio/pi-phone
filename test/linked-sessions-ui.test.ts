@@ -119,3 +119,45 @@ test("a session Pi starts shows under the one that started it, folds away, and e
     await until(async () => (await text("[data-part=linked-sessions]")).includes("Linked session"), "Linked session");
     assert.match(await text("[data-part=linked-sessions]"), /Build check/);
 });
+
+test("a session whose linked sessions work shows as working, at any depth (PP-337)", real, async () => {
+    const top = await newSession(app);
+
+    await say(app, top, "start a team");
+    const { id: middle } = await app.sessionControl.startLinked(top, { cwd: work, message: "lead it", title: "Lead", key: crypto.randomUUID() });
+
+    await say(app, middle as never, "start a helper");
+    const { id: bottom } = await app.sessionControl.startLinked(middle as never, { cwd: work, message: "help", title: "Helper", key: crypto.randomUUID() });
+    const mark = (id: number) => inPage<{ state: string; label: string }>(`(() => {
+        const row = document.querySelector(${JSON.stringify(row(id))});
+
+        return { state: row?.dataset.state ?? "", label: row?.querySelector(".status-work")?.getAttribute("aria-label") ?? "" };
+    })()`);
+
+    await cdp.send("Page.navigate", { url: `${base}/` });
+    await until(async () => (await shown(Number(top))) && (await shown(bottom)), "the rows", 20_000);
+    await until(async () => !app.isBusy(bottom as never) && (await mark(Number(top))).state !== "working", "all at rest", 20_000);
+
+    // The helper two levels down works: both sessions above it wait for its report.
+    await inPage(`(async () => {
+        const { store } = await import("/store.js");
+
+        store.set((state) => ({ sessions: state.sessions.map((session) => (session.id === ${bottom} ? { ...session, busy: true } : session)) }));
+    })()`);
+    await until(async () => (await mark(Number(top))).state === "working", "the top session working");
+    assert.deepEqual(await mark(Number(top)), { state: "working", label: "Its linked sessions are working" });
+    assert.deepEqual(await mark(middle), { state: "working", label: "Its linked sessions are working" });
+    assert.deepEqual(await mark(bottom), { state: "working", label: "Working" });
+    await shot("linked-working-390");
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await shot("linked-working-1280");
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+
+    // At rest again: so is the session that waited.
+    await inPage(`(async () => {
+        const { store } = await import("/store.js");
+
+        store.set((state) => ({ sessions: state.sessions.map((session) => (session.id === ${bottom} ? { ...session, busy: false } : session)) }));
+    })()`);
+    await until(async () => (await mark(Number(top))).state !== "working", "the top session at rest");
+});

@@ -1355,6 +1355,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   a session never messages or stops itself; messages carry `[via session #N "title"]`; an hourly limit on sends and starts
   per session (the owner's `sessionSendLimit` in config.json, 30 by default or none; a session's own `sendLimit`
   first; the session menu's Other sessions sheet); what is read is fenced as data. No panel, no follows, no repository watches.
+  In the list, a session whose linked sessions (`linkedFrom`, at any depth) are at work (a run, a limit wait, working
+  subagents) shows the working square with "Its linked sessions are working" (PP-337, from pi-pocket 0.28.0;
+  `linkedAtWork` in `web/sessions.js`): it waits for their reports. pi-phone has no Priority tab to move it to Working.
 - **Notifications** (`src/server/phone-events.ts`, PiService): a session's run ending (with the end of its answer),
   failing, or waiting for an approval becomes an event; PiService long-polls `GET /api/phone/events` with the owner
   token and posts a notification per session while the app is not in front. Tapping one opens the session
