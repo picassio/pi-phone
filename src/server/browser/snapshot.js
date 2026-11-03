@@ -1,10 +1,27 @@
 // The page as Pi reads it (browser/page.ts), in one Runtime.evaluate: the visible controls, numbered, with the actual DOM
 // nodes kept by id; the visible text (6,000 characters at most); and guards that tell, just before input, whether the
 // page or the control changed since. Adapted from jev-ultrafast's snapshot.js (MIT, Copyright (c) 2026 Browser Use,
-// https://github.com/browser-use/jev-ultrafast); credited in README.md.
+// https://github.com/browser-use/jev-ultrafast); credited in README.md. It runs in the main frame's own world, and in
+// an isolated world of each other frame (page.ts), whose controls the server numbers with the frame's.
 (() => {
   if (!document.body) return null;
   const cache = window.__piBrowser ||= {ids:new WeakMap(), nodes:new Map(), next:1};
+  // The document and every open shadow root in it (web components, PP-376), outermost first: their controls and text
+  // are read as the page's. 200 roots at most.
+  cache.roots = () => {
+    const found=[document];
+    for (let i=0; i<found.length && found.length<200; i++)
+      for (const e of found[i].querySelectorAll('*')) if (e.shadowRoot && found.length<200) found.push(e.shadowRoot);
+    return found;
+  };
+  const all = sel => cache.roots().flatMap(root => [...root.querySelectorAll(sel)]);
+  cache.all = all;
+  // The element with the focus, inside open shadow roots too.
+  cache.active = () => {
+    let e=document.activeElement;
+    while (e && e.shadowRoot && e.shadowRoot.activeElement) e=e.shadowRoot.activeElement;
+    return e;
+  };
   const identity = e => {
     if (!cache.ids.has(e)) cache.ids.set(e,cache.next++);
     const id=cache.ids.get(e); cache.nodes.set(id,e); return id;
@@ -17,8 +34,9 @@
   const name = (e,seen=new Set()) => {
     if (!e || seen.has(e)) return '';
     seen.add(e);
-    const referenced=(e.getAttribute('aria-labelledby')||'').split(/\s+/)
-      .map(id=>name(document.getElementById(id),seen)).filter(Boolean).join(' ');
+    const scope=e.getRootNode();
+    const referenced=(e.getAttribute('aria-labelledby')||'').split(/\s+/).filter(Boolean)
+      .map(id=>name((scope.getElementById ? scope.getElementById(id) : null) || document.getElementById(id),seen)).filter(Boolean).join(' ');
     return referenced || e.getAttribute('aria-label') ||
       [...(e.labels||[])].map(l=>name(l,seen)).filter(Boolean).join(' ') ||
       (['button','submit','reset'].includes(e.type) ? e.value : '') || e.getAttribute('alt') ||
@@ -76,7 +94,7 @@
     return null;
   };
   cache.pageKey=()=>[performance.timeOrigin,location.href,scrollX,scrollY,innerWidth,innerHeight,
-    [...document.querySelectorAll('input,textarea,select')].filter(safe)
+    all('input,textarea,select').filter(safe)
       .map(e=>[identity(e),e.value,e.checked,e.selectedIndex,e.disabled,e.readOnly])];
   cache.guard=e=>{
     if (!e?.isConnected || !visible(e)) return null;
@@ -100,7 +118,7 @@
     return false;
   };
   const actions=[];
-  for (const e of document.querySelectorAll(selector)) {
+  for (const e of all(selector)) {
     if (!listed(e) || !visible(e) || e.matches(':disabled') || e.closest('[aria-disabled="true"]')) continue;
     const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2, rname=role(e);
     if (!rname || r.width<=0 || r.height<=0) continue;
@@ -132,7 +150,8 @@
   // As browser-use reads pages, which looks at the cursor too.
   const listedNodes=new Set(actions.map(a=>cache.nodes.get(a.node)));
   let looked=0;
-  for (const e of document.body.querySelectorAll('div,span,li,p,img,svg,label,section,article,[onclick],[tabindex]')) {
+  for (const e of all('div,span,li,p,img,svg,label,section,article,[onclick],[tabindex]')) {
+    if (e===document.body || e===document.documentElement) continue;
     if (++looked>4000 || actions.length>=300) break;
     if (listedNodes.has(e) || e.closest(selector) || e.querySelector(selector)) continue;
     const r=e.getBoundingClientRect();
@@ -150,14 +169,17 @@
     listedNodes.add(e);
     actions.push({node:identity(e),role:'clickable',label,rect:{x:r.x,y:r.y,w:r.width,h:r.height},kind:'click',value:''});
   }
-  const words=[], walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
-  const range=document.createRange(); let node,length=0;
-  while ((node=walker.nextNode()) && length<6000) {
-    const value=node.textContent.trim(), parent=node.parentElement;
-    if (!value || !parent || parent.closest('script,style,noscript,template') || !visible(parent)) continue;
-    range.selectNodeContents(node); const r=range.getBoundingClientRect();
-    if (r.width>0 && r.height>0 && r.bottom>0 && r.top<innerHeight && r.right>0 && r.left<innerWidth) {
-      words.push(value); length+=value.length;
+  const words=[], range=document.createRange(); let length=0;
+  for (const root of cache.roots()) {
+    const walker=document.createTreeWalker(root===document ? document.body : root,NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node=walker.nextNode()) && length<6000) {
+      const value=node.textContent.trim(), parent=node.parentElement;
+      if (!value || !parent || parent.closest('script,style,noscript,template') || !visible(parent)) continue;
+      range.selectNodeContents(node); const r=range.getBoundingClientRect();
+      if (r.width>0 && r.height>0 && r.bottom>0 && r.top<innerHeight && r.right>0 && r.left<innerWidth) {
+        words.push(value); length+=value.length;
+      }
     }
   }
   const text=words.join('\n').slice(0,6000), height=document.documentElement.scrollHeight;

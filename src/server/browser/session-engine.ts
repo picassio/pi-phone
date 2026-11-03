@@ -222,6 +222,10 @@ export class SessionEngine implements BrowserEngine {
         return this.#engine.actAsPhone;
     }
 
+    get oopif(): boolean {
+        return this.#engine.oopif === true;
+    }
+
     get reopensToResize(): boolean {
         return this.#engine.reopensToResize;
     }

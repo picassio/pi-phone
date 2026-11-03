@@ -1388,6 +1388,28 @@ so Pi changes them through the settings tools; "the last session" is the one the
   short card value shows (PP-228), fenced as the page's, cut at 50,000 characters with a note outside the fence. Secret
   values in it are redacted as in every tool result. Setting `browser.eval` (Settings › Pi's browser › Scripts,
   `setting_change`): on (the default) or off, when the tool refuses naming it. Allowed in plan mode (Pi's browser is).
+- **Frames and shadow roots in Pi's browser** (PP-376; `BrowserPage.#withFrames`): `snapshot.js` walks the document and
+  every open shadow root in it (200 at most; `cache.roots`), so web components' controls and text are the page's; a
+  control's hit test uses its own root's `elementFromPoint`, and the focus check the deep active element. Other frames:
+  those in the page's process come from `Page.getFrameTree`; a Chrome's frames of other sites (out-of-process) are
+  attached as they come (`Target.setAutoAttach`, flattened, `waitForDebuggerOnStart`, filter `iframe`; `Cdp.adopt`),
+  each set up before it runs: the local addresses refused there too (`Fetch.enable`, on the phone's rules), its dialogs
+  answered, its own such frames attached; one whose setup fails stays paused. The phone's WebView keeps every frame in
+  the page's process (`BrowserEngine.oopif` false), so its tree has them all. Each read lists the frames (40 at most),
+  places each by its element in its parent (`DOM.getFrameOwner`, `DOM.resolveNode`, `OWNER_BOX`: content box, shown),
+  composed up to the main frame with the part in view, and runs the same snapshot in the isolated world `pi-read` of
+  each frame in view (12 at most). A frame's controls are numbered with its slot (`FRAME_SPAN`: slot × 10,000,000 +
+  its number there; the main frame is slot 0, so its numbers did not change), placed in the main view, listed only
+  where the frame shows them, and say their frame (`(in a frame: pay.example)`, "an inline frame" for srcdoc); its
+  visible text follows the page's under `[In a frame: …]` (3,000 characters each); its page key is kept by slot
+  (`frame_keys`) for the act-time check. Acting on one runs the scripts in its frame (`#evaluateAt`; the focus with a
+  user gesture, as a frame of another site takes it only so), and its point goes up frame by frame, each frame element
+  hit-tested in its parent (`#toMain`): covered or out of view there is stale. Input goes to the page's target, which
+  Chrome routes into the frame (a click by its point; `Input.insertText` and keys to the focused frame); a file field or
+  chooser is its frame's session's. `browser_text`, `browser_wait`, marks and the card's hides (`areasOf`) search the
+  frames too, so a sign-in card or a secret typed into a frame is hidden there as on the page. Not covered: closed
+  shadow roots; browser_eval stays in the main frame (its world makes frames unreachable); dialogs of a frame in the
+  page's process answer as before (declined), a frame of another site's through its session.
 - **The Browser panel's pictures** (`PiBrowser.#startFrames`, PP-199): while a tab watches, a capture first (`surface:
   false`, 5 s), then the screencast. A capture is held as long as the page's main thread is busy (headless Chrome, a
   big dialog rendering), and a still page's screencast sends nothing: when no picture came 4 s after the cast started,

@@ -16,7 +16,102 @@ export const EVAL_WORLD_NAME = "pi-eval";
 /** How long a browser_eval script may take, awaiting included. */
 export const EVAL_MS = 10_000;
 
-type FrameTree = { frame: { id: string }; childFrames?: FrameTree[] };
+type FrameTree = { frame: { id: string; parentId?: string; url?: string }; childFrames?: FrameTree[] };
+
+/** The isolated world Pi reads a frame other than the main one in (PP-376): it shares the frame's DOM, not its scripts. */
+export const READ_WORLD_NAME = "pi-read";
+/**
+ * A control's number in a frame (PP-376): the frame's slot times this, plus its number there. The main frame's slot is 0,
+ * so its numbers are as they were.
+ */
+export const FRAME_SPAN = 10_000_000;
+/** Frames read with the page at most (those in view), and frames looked at to find them. */
+const MAX_FRAMES = 12;
+const MAX_FRAMES_LISTED = 40;
+/** Each frame's visible text in a read, at most. */
+const FRAME_TEXT = 3000;
+
+/** A frame of the page besides the main one (PP-376): the connection its scripts run on, its parent, and its address. */
+type ChildFrame = { frameId: string; parentId: string; cdp: Cdp; url: string };
+/** Where a frame's content is in the main frame's view (CSS pixels): its top left, and the part of it in view. */
+type FrameBox = { x: number; y: number; clip: { left: number; top: number; right: number; bottom: number } };
+/** A frame's content box in its parent's view, whether it is shown, and a point in it as the parent's, if it is not covered there. */
+type OwnerBox = { x: number; y: number; w: number; h: number; shown: boolean; hit: { x: number; y: number } | null };
+
+/**
+ * Run on a frame's element in its parent (`DOM.getFrameOwner`): where its content is in the parent's view, whether it is
+ * shown, and, given a point of the frame, that point in the parent's view if the frame element is what is there.
+ */
+const OWNER_BOX = `function (point) {
+  if (!this.isConnected) return null;
+  const r=this.getBoundingClientRect(), s=getComputedStyle(this), px=v=>parseFloat(v)||0;
+  const x=r.left+this.clientLeft+px(s.paddingLeft), y=r.top+this.clientTop+px(s.paddingTop);
+  const w=this.clientWidth-px(s.paddingLeft)-px(s.paddingRight), h=this.clientHeight-px(s.paddingTop)-px(s.paddingBottom);
+  const shown=this.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}) && !this.closest('[aria-hidden="true"],[inert]');
+  let hit=null;
+  if (point) {
+    const at={x:x+point.x, y:y+point.y}, root=this.getRootNode();
+    hit=(root.elementFromPoint ? root : document).elementFromPoint(at.x, at.y)===this ? at : null;
+  }
+  return {x,y,w,h,shown,hit};
+}`;
+
+/** The document's and its open shadow roots' (PP-376), outermost first, in a script of its own: 200 at most. */
+const ROOTS = `(() => { const found=[document]; for (let i=0; i<found.length && found.length<200; i++) for (const e of found[i].querySelectorAll('*')) if (e.shadowRoot && found.length<200) found.push(e.shadowRoot); return found; })()`;
+
+/** All of a document's text (browser_text): its body's, and its open shadow roots' that the body's does not have. */
+const TEXT_OF = `(() => {
+  const body=document.body ? document.body.innerText : '';
+  const more=${ROOTS}.slice(1).map(root=>[...root.children].map(e=>e.innerText ?? e.textContent ?? '').join('\\n').trim()).filter(text=>text && !body.includes(text));
+  return [body, ...more].join('\\n');
+})()`;
+
+/**
+ * Where things are in a frame's view (`BrowserPage.areasOf`): a control by its node (-1: none here), or every place a
+ * text shows (in its open shadow roots and fields too).
+ */
+function areasScript(targets: readonly ({ node: number } | { text: string })[]): string {
+    return `(targets => { const roots=${ROOTS}; return targets.map(t => {
+            const seen = r => r.width>0 && r.height>0 && r.bottom>0 && r.right>0 && r.top<innerHeight && r.left<innerWidth;
+            const box = r => ({x:r.left, y:r.top, width:r.width, height:r.height});
+            if ('node' in t) {
+              const e=t.node<0 ? undefined : window.__piBrowser?.nodes.get(t.node);
+              if (!e?.isConnected) return null;
+              const r=e.getBoundingClientRect();
+              return seen(r) ? [box(r)] : null;
+            }
+            const found=[], range=document.createRange();
+            for (const root of roots) {
+              const walker=document.createTreeWalker(root===document ? (document.body || document) : root, NodeFilter.SHOW_TEXT);
+              let n;
+              while ((n=walker.nextNode()) && found.length<50) {
+                const s=n.textContent;
+                for (let at=s.indexOf(t.text); at>=0 && found.length<50; at=s.indexOf(t.text, at+t.text.length)) {
+                  range.setStart(n, at); range.setEnd(n, at+t.text.length);
+                  for (const r of range.getClientRects()) if (seen(r)) found.push(box(r));
+                }
+              }
+            }
+            // A value in a field (an input's text is no text node).
+            for (const f of roots.flatMap(root=>[...root.querySelectorAll('input,textarea')])) {
+              if (found.length>=50) break;
+              if (f.type!=='password' && typeof f.value==='string' && t.text && f.value.includes(t.text)) {
+                const r=f.getBoundingClientRect();
+                if (seen(r)) found.push(box(r));
+              }
+            }
+            return found;
+          }); })(${JSON.stringify(targets)})`;
+}
+
+/** A frame's name for Pi: its site, or what it is when it has none (an inline frame). */
+export function frameName(url: string): string {
+    try {
+        return new URL(url).host || "an inline frame";
+    } catch {
+        return "an inline frame";
+    }
+}
 
 /** Addresses Pi's browser never loads (Fetch patterns): the app itself, this device, and the local network (a page could act as you). */
 export const BLOCKED_URLS = [
@@ -69,6 +164,8 @@ type RawAction = {
     checked?: string;
     selected?: string;
     expanded?: string;
+    /** The frame it is in, by its site (PP-376); none in the main frame. */
+    frame?: string;
 };
 
 /** The page as read: its controls (raw, per action) and the guards that tell whether it changed since. */
@@ -84,6 +181,8 @@ export type Observed = {
     page_key: unknown;
     guards: Record<string, unknown>;
     omitted: number;
+    /** Each frame read besides the main one (PP-376), by its slot: its page key, as `page_key` is the main frame's. */
+    frame_keys?: Record<string, unknown>;
 };
 
 /** A control on the page, numbered for Pi: what it is, what it holds, and what can be done with it. */
@@ -100,6 +199,8 @@ export type Element = {
     fill: boolean;
     /** A drop-down list's other choices (the chosen one is `value`). */
     options?: { label: string; value: string }[];
+    /** The frame it is in, by its site (PP-376); none in the main frame. */
+    frame?: string;
 };
 
 /** The shortest value text hiding (`Page.hideTyped`) covers: a shorter one would hide every "42" on the page. */
@@ -191,6 +292,7 @@ export function elementsOf(observed: Observed): Element[] {
                 ...(action.checked === undefined ? {} : { checked: action.checked }),
                 ...(action.selected === undefined ? {} : { selected: action.selected }),
                 ...(action.expanded === undefined ? {} : { expanded: action.expanded }),
+                ...(action.frame === undefined ? {} : { frame: action.frame }),
             };
             byNode.set(action.node, element);
         }
@@ -235,6 +337,10 @@ export function describe(observed: Observed, elements: Element[]): string {
                 if (element[state] !== undefined) {
                     parts.push(`${state}=${element[state]}`);
                 }
+            }
+
+            if (element.frame !== undefined) {
+                parts.push(`(in a frame: ${element.frame})`);
             }
 
             return parts.join(" ");
@@ -339,9 +445,299 @@ export class BrowserPage {
     #mainFrame = "";
     #loading = false;
     #loads = 0;
+    /** Sessions of the page's frames in other processes (another site's: `Target.setAutoAttach`, PP-376), by frame id. */
+    readonly #oopifs = new Map<string, Cdp>();
+    /** The page's other frames as last listed, by id; and each one's slot (`FRAME_SPAN`), kept while the tab lives. */
+    #known = new Map<string, ChildFrame>();
+    readonly #slots = new Map<string, number>();
+    readonly #slotFrames = new Map<number, string>();
 
     constructor(cdp: Cdp) {
         this.cdp = cdp;
+    }
+
+    /** A frame's slot: given the first time it is seen, the same after. */
+    #slotOf(frameId: string): number {
+        let slot = this.#slots.get(frameId);
+
+        if (slot === undefined) {
+            slot = this.#slots.size + 1;
+            this.#slots.set(frameId, slot);
+            this.#slotFrames.set(slot, frameId);
+        }
+
+        return slot;
+    }
+
+    /** The frame of a slot, as last listed: a frame gone since is a page that changed. */
+    #frameOfSlot(slot: number): ChildFrame {
+        const frame = this.#known.get(this.#slotFrames.get(slot) ?? "");
+
+        if (frame === undefined || frame.cdp.closed) {
+            throw new StalePage("The frame that control was in is gone: read the page again.");
+        }
+
+        return frame;
+    }
+
+    /**
+     * The page's frames besides the main one (PP-376), parents first: those in its own process (`Page.getFrameTree`:
+     * same-site frames, and every frame on the phone's WebView), and those in other processes with their frames, by
+     * their sessions. Kept for acting on their controls.
+     */
+    async #childFrames(): Promise<ChildFrame[]> {
+        const found: ChildFrame[] = [];
+        const walk = (node: FrameTree, cdp: Cdp, parentId: string | undefined) => {
+            if (parentId !== undefined) {
+                found.push({ frameId: node.frame.id, parentId, cdp, url: node.frame.url ?? "" });
+            }
+
+            for (const child of node.childFrames ?? []) {
+                walk(child, cdp, node.frame.id);
+            }
+        };
+        const main = (await this.cdp.send<{ frameTree: FrameTree }>("Page.getFrameTree")).frameTree;
+
+        this.#mainFrame = main.frame.id;
+        walk(main, this.cdp, undefined);
+
+        // A frame's session that ends meanwhile (the frame went away) lists nothing.
+        const others = await Promise.all(
+            [...this.#oopifs.values()].map((cdp) => cdp.send<{ frameTree: FrameTree }>("Page.getFrameTree").then((tree) => ({ cdp, tree: tree.frameTree }), () => undefined)),
+        );
+
+        for (const other of others) {
+            if (other !== undefined && other.tree.frame.parentId !== undefined) {
+                walk(other.tree, other.cdp, other.tree.frame.parentId);
+            }
+        }
+
+        const listed = found.slice(0, MAX_FRAMES_LISTED);
+
+        this.#known = new Map(listed.map((frame) => [frame.frameId, frame]));
+
+        return listed;
+    }
+
+    /** The connection a frame's document is on: the page's, or the session of the process it is in. */
+    #cdpOfFrame(frameId: string): Cdp | undefined {
+        return frameId === this.#mainFrame ? this.cdp : this.#known.get(frameId)?.cdp;
+    }
+
+    /** A frame's element in its parent, asked `OWNER_BOX` (with a point of the frame, whether it is covered there). */
+    async #ownerBox(frame: ChildFrame, point: { x: number; y: number } | null): Promise<OwnerBox | null> {
+        const parent = this.#cdpOfFrame(frame.parentId);
+
+        if (parent === undefined) {
+            return null;
+        }
+
+        const { backendNodeId } = await parent.send<{ backendNodeId: number }>("DOM.getFrameOwner", { frameId: frame.frameId });
+        const { object } = await parent.send<{ object: { objectId?: string } }>("DOM.resolveNode", { backendNodeId });
+
+        if (object.objectId === undefined) {
+            return null;
+        }
+
+        try {
+            const answer = await parent.send<{ result?: { value?: OwnerBox | null } }>("Runtime.callFunctionOn", {
+                objectId: object.objectId,
+                functionDeclaration: OWNER_BOX,
+                arguments: [{ value: point }],
+                returnByValue: true,
+            });
+
+            return answer.result?.value ?? null;
+        } finally {
+            void parent.send("Runtime.releaseObject", { objectId: object.objectId }).catch(() => {});
+        }
+    }
+
+    /**
+     * Where each frame's content is in the main frame's view (`view`: its size), and the part of it in view; null for a
+     * frame not shown, out of view, or whose parent is not (by its parents' boxes, one level at a time).
+     */
+    async #frameBoxes(frames: readonly ChildFrame[], view: { w: number; h: number }): Promise<Map<string, FrameBox | null>> {
+        // A frame that went away meanwhile has no box.
+        const owners = await Promise.all(frames.map((frame) => this.#ownerBox(frame, null).catch(() => null)));
+        const boxes = new Map<string, FrameBox | null>([[this.#mainFrame, { x: 0, y: 0, clip: { left: 0, top: 0, right: view.w, bottom: view.h } }]]);
+        const at = new Map(frames.map((frame, index) => [frame.frameId, index]));
+        const resolve = (frameId: string, depth: number): FrameBox | null => {
+            const known = boxes.get(frameId);
+
+            if (known !== undefined) {
+                return known;
+            }
+
+            const index = at.get(frameId);
+            const owner = index === undefined ? null : owners[index];
+            const parent = index === undefined || depth > 8 ? null : resolve(frames[index]!.parentId, depth + 1);
+            let box: FrameBox | null = null;
+
+            if (owner !== null && owner !== undefined && owner.shown && parent !== null) {
+                const x = parent.x + owner.x;
+                const y = parent.y + owner.y;
+                const clip = {
+                    left: Math.max(parent.clip.left, x),
+                    top: Math.max(parent.clip.top, y),
+                    right: Math.min(parent.clip.right, x + owner.w),
+                    bottom: Math.min(parent.clip.bottom, y + owner.h),
+                };
+
+                box = clip.right - clip.left >= 1 && clip.bottom - clip.top >= 1 ? { x, y, clip } : null;
+            }
+
+            boxes.set(frameId, box);
+
+            return box;
+        };
+
+        for (const frame of frames) {
+            resolve(frame.frameId, 0);
+        }
+
+        return boxes;
+    }
+
+    /** The box of the frame of a slot now (`#frameBoxes`), with its parents listed again; null when it is not in view. */
+    async #boxOf(slot: number): Promise<FrameBox | null> {
+        const frames = await this.#childFrames();
+        const frameId = this.#slotFrames.get(slot);
+        const view = await this.evaluate<{ w: number; h: number }>("({w: innerWidth, h: innerHeight})");
+
+        return (await this.#frameBoxes(frames, view)).get(frameId ?? "") ?? null;
+    }
+
+    /**
+     * A point of a frame's view as a point of the main frame's view, if every frame element on the way is what is there
+     * (not covered in its parent, nor out of its view); null otherwise.
+     */
+    async #toMain(slot: number, point: { x: number; y: number }): Promise<{ x: number; y: number } | null> {
+        let frame = this.#frameOfSlot(slot);
+        let at = point;
+
+        for (let depth = 0; depth < 8; depth++) {
+            const owner = await this.#ownerBox(frame, at);
+
+            if (owner === null || !owner.shown || owner.hit === null) {
+                return null;
+            }
+
+            at = owner.hit;
+
+            if (frame.parentId === this.#mainFrame) {
+                return at;
+            }
+
+            const parent = this.#known.get(frame.parentId);
+
+            if (parent === undefined) {
+                return null;
+            }
+
+            frame = parent;
+        }
+
+        return null;
+    }
+
+    /** Run an expression in a frame's isolated world (`READ_WORLD_NAME`), as `evaluate` does in the main frame. */
+    async #evaluateIn<T>(frame: ChildFrame, expression: string, { awaitPromise = false, userGesture = false }: { awaitPromise?: boolean; userGesture?: boolean } = {}): Promise<T> {
+        const world = await frame.cdp.send<{ executionContextId: number }>("Page.createIsolatedWorld", { frameId: frame.frameId, worldName: READ_WORLD_NAME }).catch((error: unknown) => {
+            throw new StalePage(`The frame changed while it was read (${error instanceof Error ? error.message : String(error)}).`);
+        });
+        const answer = await frame.cdp.send<{ result?: { value?: unknown }; exceptionDetails?: { text?: string; exception?: { description?: string } } }>("Runtime.evaluate", {
+            expression,
+            contextId: world.executionContextId,
+            returnByValue: true,
+            awaitPromise,
+            userGesture,
+        });
+
+        if (answer.exceptionDetails !== undefined) {
+            throw new StalePage(`The frame changed while it was read (${answer.exceptionDetails.exception?.description?.split("\n")[0] ?? answer.exceptionDetails.text ?? "an error"}).`);
+        }
+
+        return answer.result?.value as T;
+    }
+
+    /**
+     * Run a script about a control, in the frame it is in (`build` gets its number there): the main frame's own world, or
+     * another frame's isolated world. `userGesture` in another frame: a frame of another site takes the focus only so.
+     */
+    async #evaluateAt<T>(node: number, build: (local: number) => string, { awaitPromise = false, userGesture = false }: { awaitPromise?: boolean; userGesture?: boolean } = {}): Promise<T> {
+        const slot = Math.floor(node / FRAME_SPAN);
+
+        if (slot === 0) {
+            return this.evaluate<T>(build(node), awaitPromise);
+        }
+
+        return this.#evaluateIn<T>(this.#frameOfSlot(slot), build(node % FRAME_SPAN), { awaitPromise, userGesture });
+    }
+
+    /**
+     * The page read with its frames in view (PP-376): each frame's controls numbered with its slot, placed in the main
+     * frame's view, and listed only where the frame shows them; its visible text after the page's, under its site.
+     */
+    async #withFrames(main: Observed): Promise<Observed> {
+        const frames = await this.#childFrames();
+
+        if (frames.length === 0) {
+            return main;
+        }
+
+        const boxes = await this.#frameBoxes(frames, { w: main.w, h: main.h });
+        const shown = frames.filter((frame) => (boxes.get(frame.frameId) ?? null) !== null).slice(0, MAX_FRAMES);
+        // A frame that navigates or goes away while it is read is left out of this read.
+        const reads = await Promise.all(shown.map((frame) => this.#evaluateIn<Observed | null>(frame, SNAPSHOT).catch(() => null)));
+        const actions = [...main.actions];
+        const guards = { ...main.guards };
+        const frameKeys: Record<string, unknown> = {};
+        const markers: unknown[] = [main.marker];
+        const texts = [main.text];
+        let omitted = main.omitted;
+
+        shown.forEach((frame, index) => {
+            const read = reads[index];
+            const box = boxes.get(frame.frameId);
+
+            if (read === null || read === undefined || box === null || box === undefined) {
+                return;
+            }
+
+            const slot = this.#slotOf(frame.frameId);
+            const name = frameName(read.url);
+
+            for (const action of read.actions) {
+                const x = box.x + action.rect.x;
+                const y = box.y + action.rect.y;
+                const cx = x + action.rect.w / 2;
+                const cy = y + action.rect.h / 2;
+
+                if (cx < box.clip.left || cx >= box.clip.right || cy < box.clip.top || cy >= box.clip.bottom) {
+                    continue;
+                }
+
+                actions.push({ ...action, node: slot * FRAME_SPAN + action.node, rect: { ...action.rect, x, y }, frame: name });
+            }
+
+            for (const [node, guard] of Object.entries(read.guards)) {
+                guards[String(slot * FRAME_SPAN + Number(node))] = guard;
+            }
+
+            frameKeys[String(slot)] = read.page_key;
+            markers.push(read.marker);
+            omitted += read.omitted;
+
+            if (read.text !== "") {
+                texts.push(`[In a frame: ${name}]\n${read.text.slice(0, FRAME_TEXT)}`);
+            }
+        });
+
+        omitted += Math.max(0, actions.length - 250);
+        actions.splice(250);
+
+        return { ...main, actions, guards, frame_keys: frameKeys, marker: markers, text: texts.join("\n"), omitted };
     }
 
     /**
@@ -562,7 +958,14 @@ export class BrowserPage {
      * Turn on what reading and acting need, block the local addresses (unless `local`: a machine's Chrome may open that
      * machine's dev servers), and dismiss dialogs (accepted only when asked).
      */
-    async init(viewport: { width: number; height: number; mobile: boolean }, { local = false, phone = false }: { local?: boolean; phone?: boolean } = {}): Promise<void> {
+    /**
+     * `oopif`: a Chrome, whose frames of other sites run in processes of their own: each is attached as it comes, so Pi
+     * reads and acts on them (PP-376). The phone's WebView keeps every frame in the page's process.
+     */
+    async init(
+        viewport: { width: number; height: number; mobile: boolean },
+        { local = false, phone = false, oopif = false }: { local?: boolean; phone?: boolean; oopif?: boolean } = {},
+    ): Promise<void> {
         await this.cdp.send("Page.enable");
         this.#blockLocal = !local;
 
@@ -610,6 +1013,59 @@ export class BrowserPage {
             this.dialog = `${String(params.type)}: ${String(params.message ?? "").slice(0, 300)}`;
             void this.cdp.send("Page.handleJavaScriptDialog", { accept: this.acceptDialogs }).catch(() => {});
         });
+
+        if (oopif) {
+            await this.#attachFrames(this.cdp);
+        }
+    }
+
+    /**
+     * Attach the frames of other sites a connection's page (or frame) has and will have, each paused until it is set up
+     * as the page is: the local addresses refused, its dialogs answered, its own such frames attached (PP-376).
+     */
+    async #attachFrames(cdp: Cdp): Promise<void> {
+        cdp.on("Target.attachedToTarget", (params) => {
+            const info = params.targetInfo as { type?: string; targetId?: string } | undefined;
+            const child = cdp.adopt(String(params.sessionId));
+
+            void (async () => {
+                if (info?.type !== "iframe" || info.targetId === undefined) {
+                    await child.send("Runtime.runIfWaitingForDebugger");
+                    child.close();
+
+                    return;
+                }
+
+                const frameId = info.targetId;
+
+                this.#oopifs.set(frameId, child);
+                child.onClose = () => {
+                    if (this.#oopifs.get(frameId) === child) {
+                        this.#oopifs.delete(frameId);
+                    }
+                };
+
+                // A frame whose setup fails stays paused (it never loads unblocked); one that went away has failed it.
+                await child.send("Page.enable");
+
+                if (this.#blockLocal) {
+                    child.on("Fetch.requestPaused", (paused) => {
+                        void child.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" }).catch(() => {});
+                    });
+                    await child.send("Fetch.enable", { patterns: BLOCKED_URLS.map((urlPattern) => ({ urlPattern })) });
+                }
+
+                child.on("Page.javascriptDialogOpening", (dialog) => {
+                    this.dialog = `${String(dialog.type)}: ${String(dialog.message ?? "").slice(0, 300)}`;
+                    void child.send("Page.handleJavaScriptDialog", { accept: this.acceptDialogs }).catch(() => {});
+                });
+                await this.#attachFrames(child);
+                await child.send("Runtime.runIfWaitingForDebugger");
+            })().catch(() => {
+                // The frame went away while it was set up: its session ended with it.
+            });
+        });
+        await cdp.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true, filter: [{ type: "iframe", exclude: false }] });
     }
 
     /**
@@ -769,8 +1225,9 @@ export class BrowserPage {
 
         if (after !== undefined) {
             // Menus and suggestions a click or typing opens: two frames, or up to 200 ms for a combobox's options.
-            await this.evaluate(
-                `(action => new Promise(resolve => {
+            await this.#evaluateAt(
+                after.node,
+                (local) => `(action => new Promise(resolve => {
                     const field=window.__piBrowser?.nodes.get(action.node);
                     const autocomplete=action.kind==='fill' && field?.getAttribute('role')==='combobox';
                     let frames=0, stopped=false;
@@ -786,8 +1243,8 @@ export class BrowserPage {
                       else requestAnimationFrame(ready);
                     };
                     requestAnimationFrame(ready);
-                  }))(${JSON.stringify({ node: after.node, kind: after.kind })})`,
-                true,
+                  }))(${JSON.stringify({ node: local, kind: after.kind })})`,
+                { awaitPromise: true },
             ).catch(() => {});
         }
 
@@ -796,7 +1253,7 @@ export class BrowserPage {
                 const observed = await this.evaluate<Observed | null>(SNAPSHOT);
 
                 if (observed !== null && observed !== undefined) {
-                    return this.#hidden(observed);
+                    return this.#hidden(await this.#withFrames(observed));
                 }
             } catch (error) {
                 if (!(error instanceof StalePage)) {
@@ -816,9 +1273,11 @@ export class BrowserPage {
             return true;
         }
 
-        const now = await this.evaluate<unknown>(`(() => { const c=window.__piBrowser; return c ? [c.pageKey(), c.guard(c.nodes.get(${node}))] : null; })()`);
+        const slot = Math.floor(node / FRAME_SPAN);
+        const now = await this.#evaluateAt<unknown>(node, (local) => `(() => { const c=window.__piBrowser; return c ? [c.pageKey(), c.guard(c.nodes.get(${local}))] : null; })()`);
+        const key = slot === 0 ? observed.page_key : observed.frame_keys?.[String(slot)];
 
-        return JSON.stringify(now) === JSON.stringify([observed.page_key, observed.guards[String(node)] ?? null]);
+        return JSON.stringify(now) === JSON.stringify([key, observed.guards[String(node)] ?? null]);
     }
 
     /**
@@ -826,24 +1285,33 @@ export class BrowserPage {
      * of a list with its own scroll area, PP-116) is scrolled into view first, as a person would, and as Playwright does.
      */
     async #point(element: Element): Promise<{ x: number; y: number }> {
-        const point = await this.evaluate<{ x: number; y: number } | null>(
-            `(async node => {
+        let point = await this.#evaluateAt<{ x: number; y: number } | null>(
+            element.node,
+            (local) => `(async node => {
             const e=window.__piBrowser?.nodes.get(node);
             if (!e?.isConnected || e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]') ||
                 !e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return null;
             const at=()=>{
               const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
               if (!r.width || !r.height || x<0 || y<0 || x>=innerWidth || y>=innerHeight) return null;
-              return e.contains(document.elementFromPoint(x,y)) ? {x,y} : null;
+              // Inside a shadow root, its own hit test: the document's names only the host.
+              const root=e.getRootNode(), hit=(root.elementFromPoint ? root : document).elementFromPoint(x,y);
+              return e.contains(hit) || (e.shadowRoot && e.shadowRoot.contains(hit)) ? {x,y} : null;
             };
             const now=at();
             if (now) return now;
             e.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
             await new Promise(done=>{ requestAnimationFrame(()=>requestAnimationFrame(done)); setTimeout(done,150); });
             return at();
-          })(${element.node})`,
-            true,
+          })(${local})`,
+            { awaitPromise: true },
         );
+        const slot = Math.floor(element.node / FRAME_SPAN);
+
+        // In a frame: the point in the main frame's view, if the frame shows it (nothing over the frame there either).
+        if (slot !== 0 && point !== null && point !== undefined) {
+            point = await this.#toMain(slot, point).catch(() => null);
+        }
 
         if (point === null || point === undefined) {
             throw new StalePage(`[${element.index}] ${element.label} changed, moved out of view, or is covered: read the page again.`);
@@ -854,8 +1322,9 @@ export class BrowserPage {
 
     /** Put the focus in a field to type into: it must be there, shown, enabled, not read-only, and take the focus. */
     async #focus(element: Element): Promise<void> {
-        const why = await this.evaluate<string | null>(
-            `(async node => {
+        const why = await this.#evaluateAt<string | null>(
+            element.node,
+            (local) => `(async node => {
             const e=window.__piBrowser?.nodes.get(node);
             if (!e?.isConnected) return 'gone';
             if (e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]')) return 'disabled';
@@ -864,10 +1333,12 @@ export class BrowserPage {
             e.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
             e.focus({preventScroll:true});
             await new Promise(done=>{ requestAnimationFrame(()=>requestAnimationFrame(done)); setTimeout(done,150); });
-            const active=document.activeElement;
-            return active===e || e.contains(active) ? null : 'focus went to '+(active?.tagName?.toLowerCase() ?? 'nothing');
-          })(${element.node})`,
-            true,
+            let active=document.activeElement;
+            while (active && active.shadowRoot && active.shadowRoot.activeElement) active=active.shadowRoot.activeElement;
+            return active===e || e.contains(active) || (e.shadowRoot && e.shadowRoot.contains(active)) ? null : 'focus went to '+(active?.tagName?.toLowerCase() ?? 'nothing');
+          })(${local})`,
+            // A frame of another site takes the focus only with a gesture.
+            { awaitPromise: true, userGesture: true },
         );
 
         if (why !== null) {
@@ -940,11 +1411,21 @@ export class BrowserPage {
             throw new StalePage("The page changed since it was read: read it again.");
         }
 
+        // The connection of the frame the control is in (PP-376): files and the file chooser are that frame's.
+        const slot = Math.floor(element.node / FRAME_SPAN);
+        const frame = slot === 0 ? undefined : this.#frameOfSlot(slot);
+        const cdp = frame?.cdp ?? this.cdp;
+
         if (element.role === "file") {
             await this.#point(element);
 
-            const field = await this.cdp.send<{ result: { objectId?: string } }>("Runtime.evaluate", { expression: `window.__piBrowser?.nodes.get(${element.node})` });
-            const multiple = await this.evaluate<boolean>(`!!window.__piBrowser?.nodes.get(${element.node})?.multiple`);
+            const world =
+                frame === undefined ? undefined : (await frame.cdp.send<{ executionContextId: number }>("Page.createIsolatedWorld", { frameId: frame.frameId, worldName: READ_WORLD_NAME })).executionContextId;
+            const field = await cdp.send<{ result: { objectId?: string } }>("Runtime.evaluate", {
+                expression: `window.__piBrowser?.nodes.get(${element.node % FRAME_SPAN})`,
+                ...(world === undefined ? {} : { contextId: world }),
+            });
+            const multiple = await this.#evaluateAt<boolean>(element.node, (local) => `!!window.__piBrowser?.nodes.get(${local})?.multiple`);
 
             if (field.result.objectId === undefined) {
                 throw new StalePage(`[${element.index}] ${element.label} is gone: read the page again.`);
@@ -954,28 +1435,28 @@ export class BrowserPage {
                 throw new Error(`[${element.index}] ${element.label} takes one file.`);
             }
 
-            await this.cdp.send("DOM.setFileInputFiles", { files: paths, objectId: field.result.objectId });
+            await cdp.send("DOM.setFileInputFiles", { files: paths, objectId: field.result.objectId });
         } else {
             const point = await this.#point(element);
             let off = () => {};
             const opened = new Promise<{ backendNodeId: number; mode: string } | undefined>((resolve) => {
                 const timer = setTimeout(() => resolve(undefined), 3000);
 
-                off = this.cdp.on("Page.fileChooserOpened", (params) => {
+                off = cdp.on("Page.fileChooserOpened", (params) => {
                     clearTimeout(timer);
                     resolve(params as { backendNodeId: number; mode: string });
                 });
             });
             let chooser: { backendNodeId: number; mode: string } | undefined;
 
-            await this.cdp.send("Page.setInterceptFileChooserDialog", { enabled: true });
+            await cdp.send("Page.setInterceptFileChooserDialog", { enabled: true });
 
             try {
                 await this.#click(point);
                 chooser = await opened;
             } finally {
                 off();
-                await this.cdp.send("Page.setInterceptFileChooserDialog", { enabled: false }).catch(() => {});
+                await cdp.send("Page.setInterceptFileChooserDialog", { enabled: false }).catch(() => {});
             }
 
             if (chooser === undefined) {
@@ -986,7 +1467,7 @@ export class BrowserPage {
                 throw new Error(`[${element.index}] ${element.label} takes one file.`);
             }
 
-            await this.cdp.send("DOM.setFileInputFiles", { files: paths, backendNodeId: chooser.backendNodeId });
+            await cdp.send("DOM.setFileInputFiles", { files: paths, backendNodeId: chooser.backendNodeId });
         }
 
         this.#afterInput = { node: element.node, kind: "click" } as RawAction;
@@ -1074,14 +1555,17 @@ export class BrowserPage {
 
         await this.#point(element);
 
-        const done = await this.evaluate<boolean>(`((node, value) => {
+        const done = await this.#evaluateAt<boolean>(
+            element.node,
+            (local) => `((node, value) => {
             const e=window.__piBrowser?.nodes.get(node);
             if (!e || e.tagName!=='SELECT' || ![...e.options].some(o=>o.value===value && !o.disabled)) return false;
             e.value=value;
             e.dispatchEvent(new Event('input',{bubbles:true}));
             e.dispatchEvent(new Event('change',{bubbles:true}));
             return true;
-          })(${element.node}, ${JSON.stringify(match.value)})`);
+          })(${local}, ${JSON.stringify(match.value)})`,
+        );
 
         if (!done) {
             throw new StalePage(`[${element.index}] ${element.label} changed: read the page again.`);
@@ -1108,7 +1592,9 @@ export class BrowserPage {
                 throw new StalePage("The page changed since it was read: read it again.");
             }
 
-            area = await this.evaluate<{ x: number; y: number; h: number } | null>(`((node, down) => {
+            area = await this.#evaluateAt<{ x: number; y: number; h: number } | null>(
+                element.node,
+                (local) => `((node, down) => {
                 const e=window.__piBrowser?.nodes.get(node);
                 if (!e?.isConnected) return null;
                 for (let s=e; s && s!==document.body && s!==document.documentElement; s=s.parentElement) {
@@ -1121,7 +1607,17 @@ export class BrowserPage {
                   return {x:(left+right)/2, y:(top+bottom)/2, h:s.clientHeight};
                 }
                 return {x: innerWidth/2, y: innerHeight/2, h: innerHeight};
-              })(${element.node}, ${direction === "down"})`);
+              })(${local}, ${direction === "down"})`,
+            );
+
+            const slot = Math.floor(element.node / FRAME_SPAN);
+
+            // In a frame: its point in the main frame's view, where the wheel goes.
+            if (slot !== 0 && area !== null && area !== undefined) {
+                const box = await this.#boxOf(slot);
+
+                area = box === null ? null : { x: Math.min(Math.max(box.x + area.x, box.clip.left + 1), box.clip.right - 1), y: Math.min(Math.max(box.y + area.y, box.clip.top + 1), box.clip.bottom - 1), h: area.h };
+            }
 
             if (area === null || area === undefined) {
                 throw new StalePage(`[${element.index}] ${element.label} is gone: read the page again.`);
@@ -1179,8 +1675,12 @@ export class BrowserPage {
 
     /** All of the page's text at once (an article, docs, a table), up to `max` characters. */
     async text(max: number): Promise<{ title: string; url: string; text: string; cut: boolean }> {
-        const page = await this.evaluate<{ title: string; url: string; text: string }>("({title: document.title, url: location.href, text: document.body ? document.body.innerText : ''})");
-        const text = this.hideTyped(page.text.replace(/\n{3,}/g, "\n\n").trim());
+        const page = await this.evaluate<{ title: string; url: string; text: string }>(`({title: document.title, url: location.href, text: ${TEXT_OF}})`);
+        // Each frame's text after the page's, under its site (PP-376); one that goes away meanwhile has none.
+        const frames = (await this.#childFrames()).slice(0, MAX_FRAMES);
+        const reads = await Promise.all(frames.map((frame) => this.#evaluateIn<{ url: string; text: string }>(frame, `({url: location.href, text: ${TEXT_OF}})`).catch(() => null)));
+        const parts = [page.text, ...reads.flatMap((read) => (read === null || read.text.trim() === "" ? [] : [`[In a frame: ${frameName(read.url)}]\n${read.text.trim()}`]))];
+        const text = this.hideTyped(parts.join("\n\n").replace(/\n{3,}/g, "\n\n").trim());
 
         return { title: this.hideTyped(page.title), url: this.hideTyped(page.url), text: text.slice(0, max), cut: text.length > max };
     }
@@ -1206,34 +1706,57 @@ export class BrowserPage {
      * (in view, case as written). Null for a control that is gone or out of view; an empty list for a text not shown.
      */
     async areasOf(targets: ({ node: number } | { text: string })[]): Promise<({ x: number; y: number; width: number; height: number }[] | null)[]> {
-        return this.evaluate(`(targets => targets.map(t => {
-            const seen = r => r.width>0 && r.height>0 && r.bottom>0 && r.right>0 && r.top<innerHeight && r.left<innerWidth;
-            const box = r => ({x:r.left, y:r.top, width:r.width, height:r.height});
-            if ('node' in t) {
-              const e=window.__piBrowser?.nodes.get(t.node);
-              if (!e?.isConnected) return null;
-              const r=e.getBoundingClientRect();
-              return seen(r) ? [box(r)] : null;
-            }
-            const found=[], walker=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), range=document.createRange();
-            let n;
-            while ((n=walker.nextNode()) && found.length<50) {
-              const s=n.textContent;
-              for (let at=s.indexOf(t.text); at>=0 && found.length<50; at=s.indexOf(t.text, at+t.text.length)) {
-                range.setStart(n, at); range.setEnd(n, at+t.text.length);
-                for (const r of range.getClientRects()) if (seen(r)) found.push(box(r));
-              }
-            }
-            // A value in a field (an input's text is no text node).
-            for (const f of document.querySelectorAll('input,textarea')) {
-              if (found.length>=50) break;
-              if (f.type!=='password' && typeof f.value==='string' && t.text && f.value.includes(t.text)) {
-                const r=f.getBoundingClientRect();
-                if (seen(r)) found.push(box(r));
-              }
-            }
+        type Area = { x: number; y: number; width: number; height: number };
+        const found = await this.evaluate<(Area[] | null)[]>(areasScript(targets.map((target) => ("node" in target && target.node >= FRAME_SPAN ? { node: -1 } : target))));
+        const slots = new Set(targets.flatMap((target) => ("node" in target && target.node >= FRAME_SPAN ? [Math.floor(target.node / FRAME_SPAN)] : [])));
+        const texts = targets.some((target) => "text" in target);
+
+        if (slots.size === 0 && !texts) {
             return found;
-          }))(${JSON.stringify(targets)})`);
+        }
+
+        // In the frames in view too (PP-376): a control there, and every place a text shows, within the frame's part in view.
+        const frames = await this.#childFrames();
+        const boxes = await this.#frameBoxes(frames, await this.evaluate<{ w: number; h: number }>("({w: innerWidth, h: innerHeight})"));
+
+        for (const frame of frames) {
+            const box = boxes.get(frame.frameId) ?? null;
+            const slot = this.#slotOf(frame.frameId);
+
+            if (box === null || (!texts && !slots.has(slot))) {
+                continue;
+            }
+
+            const there = await this.#evaluateIn<(Area[] | null)[]>(
+                frame,
+                areasScript(targets.map((target) => ("node" in target ? (Math.floor(target.node / FRAME_SPAN) === slot ? { node: target.node % FRAME_SPAN } : { node: -1 }) : target))),
+            ).catch(() => null);
+
+            targets.forEach((target, index) => {
+                const areas = there?.[index];
+
+                if (areas === null || areas === undefined) {
+                    return;
+                }
+
+                const shown = areas.flatMap((area) => {
+                    const left = Math.max(box.clip.left, box.x + area.x);
+                    const top = Math.max(box.clip.top, box.y + area.y);
+                    const right = Math.min(box.clip.right, box.x + area.x + area.width);
+                    const bottom = Math.min(box.clip.bottom, box.y + area.y + area.height);
+
+                    return right - left > 0 && bottom - top > 0 ? [{ x: left, y: top, width: right - left, height: bottom - top }] : [];
+                });
+
+                if ("node" in target) {
+                    found[index] = shown.length > 0 ? shown : null;
+                } else {
+                    found[index] = [...(found[index] ?? []), ...shown].slice(0, 50);
+                }
+            });
+        }
+
+        return found;
     }
 
     /**
@@ -1245,8 +1768,9 @@ export class BrowserPage {
             throw new StalePage("The page changed since it was read: read it again.");
         }
 
-        const found = await this.evaluate<{ x: number; y: number; width: number; height: number; whole: string } | null>(
-            `(async node => {
+        let found = await this.#evaluateAt<{ x: number; y: number; width: number; height: number; whole: string } | null>(
+            element.node,
+            (local) => `(async node => {
             const c=window.__piBrowser?.nodes.get(node);
             if (!c?.isConnected) return null;
             const e=c.closest('dialog,[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]') || c;
@@ -1261,9 +1785,26 @@ export class BrowserPage {
             if (width<4 || height<4) return null;
             const role=e===c ? 'control' : (e.getAttribute('role') || e.tagName.toLowerCase());
             return {x:Math.floor(x),y:Math.floor(y),width:Math.ceil(width),height:Math.ceil(height),whole:role};
-          })(${element.node})`,
-            true,
+          })(${local})`,
+            { awaitPromise: true },
         );
+        const slot = Math.floor(element.node / FRAME_SPAN);
+
+        // In a frame (PP-376): placed in the main frame's view, within the frame's part in view.
+        if (slot !== 0 && found !== null && found !== undefined) {
+            const box = await this.#boxOf(slot);
+
+            if (box === null) {
+                found = null;
+            } else {
+                const x = Math.max(box.clip.left, box.x + found.x);
+                const y = Math.max(box.clip.top, box.y + found.y);
+                const width = Math.min(box.clip.right, box.x + found.x + found.width) - x;
+                const height = Math.min(box.clip.bottom, box.y + found.y + found.height) - y;
+
+                found = width < 4 || height < 4 ? null : { x: Math.floor(x), y: Math.floor(y), width: Math.ceil(width), height: Math.ceil(height), whole: found.whole };
+            }
+        }
 
         if (found === null || found === undefined) {
             throw new StalePage(`[${element.index}] ${element.label} is gone or not in view: read the page again.`);
@@ -1279,10 +1820,17 @@ export class BrowserPage {
         if (text !== undefined && text !== "") {
             const until = Date.now() + 30_000;
 
-            while (Date.now() < until) {
-                const found = await this.evaluate<boolean>(`(document.body?.innerText ?? '').toLowerCase().includes(${JSON.stringify(text.toLowerCase())})`).catch(() => false);
+            const has = `(${TEXT_OF}).toLowerCase().includes(${JSON.stringify(text.toLowerCase())})`;
 
-                if (found) {
+            while (Date.now() < until) {
+                // The page's text, then its frames' (PP-376).
+                if (await this.evaluate<boolean>(has).catch(() => false)) {
+                    return true;
+                }
+
+                const frames = (await this.#childFrames().catch(() => [])).slice(0, MAX_FRAMES);
+
+                if ((await Promise.all(frames.map((frame) => this.#evaluateIn<boolean>(frame, has).catch(() => false)))).includes(true)) {
                     return true;
                 }
 

@@ -26,6 +26,10 @@ export class Cdp {
     readonly #on: { root: Cdp; sessionId: string } | undefined;
     /** A browser connection's page sessions, by id. */
     readonly #sessions = new Map<string, Cdp>();
+    /** Sessions this one attached by itself (`adopt`: a page's frames in other processes), ended with it. */
+    readonly #children = new Set<Cdp>();
+    /** The session that attached this one (`adopt`), which detaches it; undefined for one the root attached. */
+    #parent: Cdp | undefined;
     #next = 1;
     #closed = false;
     /** Called once when the connection ends, for whatever reason. */
@@ -61,6 +65,29 @@ export class Cdp {
         const session = new Cdp(this.#ws, { root: this, sessionId });
 
         this.#sessions.set(sessionId, session);
+
+        return session;
+    }
+
+    /**
+     * A session this connection attached by itself (`Target.setAutoAttach`, flattened: `Target.attachedToTarget`), as a
+     * connection of its own: a frame of the page in another process (PP-376). Its messages come on the same WebSocket;
+     * it ends when it is detached, or with this one.
+     */
+    adopt(sessionId: string): Cdp {
+        const root = this.#on?.root ?? this;
+        const session = new Cdp(this.#ws, { root, sessionId });
+
+        session.#parent = this;
+        root.#sessions.set(sessionId, session);
+        this.#children.add(session);
+        // A child of a page session is detached on that session (not the root's): its event comes there.
+        const off = this.on("Target.detachedFromTarget", (params) => {
+            if (String(params.sessionId) === sessionId) {
+                off();
+                session.#ended(new CdpError("The frame's session ended."));
+            }
+        });
 
         return session;
     }
@@ -149,8 +176,8 @@ export class Cdp {
         if (this.#on === undefined) {
             this.#ws.close();
         } else {
-            // A page session: the page and the browser stay.
-            void this.#on.root.send("Target.detachFromTarget", { sessionId: this.#on.sessionId }).catch(() => {});
+            // A page session: the page and the browser stay. One a session attached by itself is detached there.
+            void (this.#parent ?? this.#on.root).send("Target.detachFromTarget", { sessionId: this.#on.sessionId }).catch(() => {});
         }
 
         this.#ended(new CdpError("The browser's connection closed."));
@@ -219,8 +246,12 @@ export class Cdp {
             this.#on.root.#sessions.delete(this.#on.sessionId);
         }
 
-        // A browser connection's end is its page sessions' too.
-        for (const session of [...this.#sessions.values()]) {
+        if (this.#parent !== undefined) {
+            this.#parent.#children.delete(this);
+        }
+
+        // A browser connection's end is its page sessions' too, and a session's end its frames' sessions'.
+        for (const session of [...this.#sessions.values(), ...this.#children]) {
             session.#ended(error);
         }
 

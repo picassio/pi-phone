@@ -90,6 +90,11 @@ export interface BrowserEngine {
     /** Whether its pages present themselves as a phone's (a desktop Chrome does; the phone's WebView is one). */
     readonly actAsPhone: boolean;
     /**
+     * Whether a page's frames of other sites run in processes of their own, attached to be read (PP-376): a Chrome's do;
+     * the phone's WebView keeps every frame in the page's process, where the page's frame tree has them.
+     */
+    readonly oopif?: boolean;
+    /**
      * Whether a tab's view keeps the size it was opened at (the phone's WebView, on a display of that size, which draws its
      * pictures at it): a new size then reopens each tab at its address. Chrome lays a tab out at any size.
      */
@@ -450,6 +455,7 @@ export class ChromeEngine implements BrowserEngine {
     readonly asksWindows = false;
     readonly local = false;
     readonly actAsPhone = true;
+    readonly oopif = true;
     readonly reopensToResize: boolean = false;
     readonly #binary: string;
     readonly #flags: string[];
@@ -800,7 +806,7 @@ export class PiBrowser {
         const page = new BrowserPage(cdp);
         const tab: Tab = { id, page, observed: undefined, elements: [], url: "", title: "" };
 
-        await page.init(SIZES[this.#state.size], { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone });
+        await page.init(SIZES[this.#state.size], { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone, oopif: this.#options.engine.oopif === true });
 
         // A window on a machine's screen: input there that Pi did not send is someone's at the machine (PP-274).
         if (this.#options.engine.visibleOn !== undefined) {

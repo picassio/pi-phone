@@ -191,7 +191,10 @@ dự án thật.</sub>
   DevTools) và đọc chúng dưới dạng các ô điều khiển đánh số và văn bản hiển thị (biểu tượng được gọi theo tooltip,
   sprite, hình ảnh, hoặc nơi chúng dẫn tới; cả những thứ chỉ nhấp được nhờ giao diện, như nút của một hộp bật lên);
   nó nhấp, gõ, chọn, di chuột, cuộn, nhấn phím, quay lại, đọc cả trang, hoặc nhìn trang (`browser_open`,
-  `browser_click`, …). Danh sách do trang tự vẽ (một ô chọn có vùng cuộn riêng) cũng dùng được: mọi lựa chọn đều được
+  `browser_click`, …). Ô điều khiển bên trong khung (iframe: ô số thẻ của một biểu mẫu thanh toán, một khung đăng
+  nhập nhúng, một thông báo cookie trong khung, cả khung của trang web khác) và bên trong shadow root mở của web
+  component được đọc và dùng như của chính trang, mỗi ô ghi rõ khung của nó, và chữ của chúng có trong chữ của trang;
+  thẻ đăng nhập và secret đã lưu dùng được ở đó, và những gì bạn gõ trên thẻ vẫn được giấu ở đó. Danh sách do trang tự vẽ (một ô chọn có vùng cuộn riêng) cũng dùng được: mọi lựa chọn đều được
   liệt kê, một cú nhấp cuộn nó vào tầm nhìn, `browser_select` mở danh sách và chọn theo tên, `browser_scroll` cuộn
   danh sách, và một chữ cái nhảy tới mục theo kiểu gõ trước. `browser_screenshot` có thể lưu hình dạng PNG hoặc
   JPEG vào thư mục của phiên (cho `doc_image` hoặc một báo cáo), và chỉ chụp hộp thoại, menu hoặc danh sách chứa
