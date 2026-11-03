@@ -547,6 +547,24 @@ export function AppearanceSheet() {
                     onChange=${() => setPrefs({ showThinking: !p.showThinking })}
                 />
             <//>
+            <${SettingRow}
+                title=${t("Reply to a passage")}
+                detail=${t("Select words in one of Pi's replies, and a Reply button quotes them in your next message. On all your devices")}
+            >
+                <${Switch}
+                    on=${store.state.me?.appearance?.quoteReply === true}
+                    label=${t("Reply to a passage")}
+                    onChange=${() =>
+                        attempt(() =>
+                            api("me", {
+                                appearance: {
+                                    option: "quoteReply",
+                                    on: store.state.me?.appearance?.quoteReply !== true,
+                                },
+                            }),
+                        )}
+                />
+            <//>
         </div>
         <div class="label">${t("Status line")}</div>
         <div class="sheet-list">

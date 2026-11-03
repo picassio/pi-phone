@@ -12,6 +12,7 @@ import {
     suggestCommands,
 } from "./commands.js";
 import { loadFiles, mentionAt, mentionText, suggestFiles } from "./files.js";
+import { withQuote } from "./quote-text.js";
 import { remember, searchHistory, sentHistory } from "./history.js";
 import {
     actions,
@@ -763,6 +764,8 @@ export function Composer() {
         if (command.args || command.template) {
             update(`/${command.name} `);
             focusEnd();
+        } else if (store.state.replyQuote) {
+            notify("info", t("A quote cannot go with a command. Remove the quote to run it."));
         } else {
             runCommand({ command, arg: "" }, `/${command.name}`);
         }
@@ -782,7 +785,7 @@ export function Composer() {
     const canSend =
         !sending &&
         !uploading &&
-        (text.trim() !== "" || files.some((file) => file.state === "done"));
+        (text.trim() !== "" || store.state.replyQuote || files.some((file) => file.state === "done"));
 
     /** What went out stays for ↑; its pastes are done with. */
     const sent = (full) => {
@@ -830,6 +833,11 @@ export function Composer() {
             return;
         }
 
+        // A command runs or expands only when it starts the message: a quote in front would stop that.
+        if (store.state.replyQuote && (parsed || shell || template || text.trimStart().startsWith("/skill:"))) {
+            return notify("info", t("A quote cannot go with a command. Remove the quote to run it."));
+        }
+
         // What shows is what goes: words still coming would land in the emptied box.
         dictation.stop(true);
         const full = expandPastes(text, pastes);
@@ -852,7 +860,7 @@ export function Composer() {
             .map((file) => file.attachment);
         const ok = await attempt(() =>
             actions.submit(
-                full,
+                withQuote(store.state.replyQuote, full),
                 attachments,
                 busy ? sendMode : "followUp",
                 inlineFiles && mentionsFiles,
@@ -868,6 +876,7 @@ export function Composer() {
             }
 
             sent(full);
+            store.set({ replyQuote: null });
             forget(files);
             setFiles([]);
 
@@ -1449,6 +1458,20 @@ export function Composer() {
                                     </button>
                                 </span>`,
                             )}
+                        </div>`
+                    }
+                    ${
+                        store.state.replyQuote &&
+                        html`<div class="quote-strip" data-part="quote-strip">
+                            <${Icon} name="reply" size=${12} />
+                            <span class="quote-strip-text">${store.state.replyQuote}</span>
+                            <button
+                                class="icon-button small"
+                                aria-label=${t("Remove the quote")}
+                                onClick=${() => store.set({ replyQuote: null })}
+                            >
+                                <${Icon} name="close" size=${12} />
+                            </button>
                         </div>`
                     }
                     <textarea

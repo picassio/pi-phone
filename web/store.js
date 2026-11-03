@@ -157,6 +157,8 @@ export const store = {
         auth: null,
         /** A transcript message the next chat message discusses: `{ entryId, text }`. */
         chatQuote: null,
+        /** A passage of Pi's reply the next message to Pi quotes (PP-345). */
+        replyQuote: null,
         /** Text to put into the message box to Pi: `{ text, n }`, picked up by the composer. */
         composerInsert: null,
         /** Pi's prompt templates for a conversation's folder: `{ conversationId, at, list }`. */
@@ -291,6 +293,7 @@ function peopleFor(id, reads = store.state.chatReads) {
         presence: [],
         notes: null,
         chatQuote: null,
+        replyQuote: null,
         chatRead: id === null ? 0 : (reads[id] ?? 0),
     };
 }
@@ -866,6 +869,8 @@ const handlers = {
         followDictation(data.dictation);
         store.state.me && store.set({ me: { ...store.state.me, dictation: data.dictation } });
     },
+    // Their appearance options that follow them on every device (PP-345, PP-353), set on any of them or by Pi.
+    appearance: (data) => store.state.me && store.set({ me: { ...store.state.me, appearance: data.appearance } }),
     // The machines' ports open here changed: one opened, closed, or ended by itself (PP-108). The owner's tabs only.
     forwards: (data) => store.set({ forwards: data.forwards }),
     // A phone control session started or ended (PP-141).
@@ -1668,6 +1673,11 @@ export function insertIntoComposer(text, files = [], { inline = false } = {}) {
         sheet: null,
         composerInsert: { text, files, inline, n: (state.composerInsert?.n ?? 0) + 1 },
     }));
+}
+
+/** Quote a passage of Pi's reply: it waits above the message box, and the next message goes out with it (PP-345). */
+export function quoteReply(text) {
+    store.set({ replyQuote: text });
 }
 
 /** Open the chat to discuss a transcript message: the next chat message quotes it. */

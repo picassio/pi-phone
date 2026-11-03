@@ -76,7 +76,7 @@ import { Attribution, type Missing } from "./attribution.ts";
 import { inBatchOrder } from "./batch-order.ts";
 import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
-import { APP_ROOT, ConfigStore, type User, type WelcomeState } from "./config.ts";
+import { APP_ROOT, APPEARANCE_DEFAULTS, type AppearanceOptions, ConfigStore, type User, type WelcomeState } from "./config.ts";
 import { CODEMODE_MODES, type CodemodeMode, CONTEXT_PARTS, type ContextPart, type ContextPolicy, contextMode, resolveContextPolicy } from "./context-policy.ts";
 import { DEFERRED_EXTENSION, deferredToolsExtension } from "./deferred-tools.ts";
 import { type ResolvedSubagentDefaults, resolveSubagentDefaults, SESSION, SUBAGENT_PARTS, type SubagentPart, untilText, withPart } from "./subagent-defaults.ts";
@@ -3003,6 +3003,36 @@ export class PocketApp {
         }
     }
 
+    /** `user`'s appearance options that follow them on every device: theirs over the defaults. */
+    appearanceOf(user: User): AppearanceOptions {
+        return { ...APPEARANCE_DEFAULTS, ...user.appearance };
+    }
+
+    /** Turn one of `user`'s appearance options on or off (Appearance, or Pi's `appearance.*` settings); their tabs follow. */
+    setAppearance(user: User, option: unknown, on: unknown): void {
+        if (typeof option !== "string" || !Object.hasOwn(APPEARANCE_DEFAULTS, option)) {
+            throw new HttpError(400, `The appearance option is one of ${Object.keys(APPEARANCE_DEFAULTS).join(", ")}.`);
+        }
+
+        if (typeof on !== "boolean") {
+            throw new HttpError(400, "An appearance option is on or off.");
+        }
+
+        const stored = this.config.userById(user.id);
+
+        if (stored === undefined) {
+            throw new HttpError(404, "No such person.");
+        }
+
+        this.config.updateUser(stored.id, { appearance: { ...stored.appearance, [option]: on } });
+
+        for (const client of this.#clients) {
+            if (client.user.id === stored.id) {
+                client.send("appearance", { appearance: this.appearanceOf(stored) });
+            }
+        }
+    }
+
     /**
      * The language dictation listens for on every device of `user` (a BCP 47 tag such as "vi-VN"), or "auto" for each
      * device's own. Their tabs hear it (`dictation`).
@@ -4119,6 +4149,8 @@ export class PocketApp {
                 welcome: this.welcomeOf(user),
                 // The language dictation listens for on all their devices, or "auto" for each device's own (PP-235).
                 dictation: user.dictation ?? "auto",
+                // Their appearance options that follow them on every device (PP-345).
+                appearance: this.appearanceOf(user),
                 // A big release's card they have not seen yet (PP-235), or null.
                 whatsNew: this.whatsNewFor(user) ?? null,
             },

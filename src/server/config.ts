@@ -63,7 +63,20 @@ export interface User {
     dictation?: string;
     /** The release (`whatsnew/<version>.md`) whose What's new card they dismissed or saw (PP-235). */
     whatsNewSeen?: string;
+    /**
+     * Appearance options that follow them on every device, as Appearance or Pi (`appearance.*` settings) set them; an
+     * option absent has its default (`APPEARANCE_DEFAULTS`).
+     */
+    appearance?: Partial<AppearanceOptions>;
 }
+
+/** A person's appearance options that follow them on every device. */
+export type AppearanceOptions = {
+    /** A Reply button by words selected in one of Pi's replies, which quotes them in the next message (PP-345). */
+    quoteReply: boolean;
+};
+
+export const APPEARANCE_DEFAULTS: AppearanceOptions = { quoteReply: true };
 
 /** Where a person is with the first-run welcome: finished, or skipped (absent: it shows). */
 export type WelcomeState = "done" | "skipped";
@@ -911,7 +924,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen" | "appearance">>,
     ): void {
         const user = this.userById(id);
 

@@ -622,6 +622,12 @@ No Termux, no laptop, no cloud VM.
   `pocket.t` for theirs), the team server's sign-in and admin pages, the server's errors and notices, and the phone's
   notifications (with Auto, in the phone's language). This README is in Chinese and Vietnamese too: [README.zh-CN.md](README.zh-CN.md),
   [README.vi.md](README.vi.md).
+- **Reply to a passage.** Select words in one of Pi's replies, and a **Reply** button shows: by the selection with a
+  mouse; on a phone, docked at the bottom or top edge of the conversation, clear of the selection, its handles, and
+  Android's selection toolbar. It puts the passage in a quote strip above the message box (× drops it); your next
+  message goes to Pi with the passage first as a Markdown quote (up to 1,500 characters), and shows with a quote block
+  above your words. On by default; Appearance › Conversation › Reply to a passage turns it off, on all your devices,
+  and Pi changes it on a card (`appearance.quoteReply`). From pi-pocket.
 - **Quick on a phone.** A streaming answer redraws only its last block, and only what changed in it crosses the wire;
   text and the event stream go compressed, and web files are cached (ETag, 304) and fetched at once (modulepreload).
 - **Updates from GitHub.** Every passing build on `master` is a release, with release notes. The app checks it (at

@@ -1632,6 +1632,24 @@ so Pi changes them through the settings tools; "the last session" is the one the
   past the welcome; a new owner's welcome counts it as seen. Show me marks it seen and opens Getting started with
   `whatsNew` (Pi reads the file, the skill's What's new topic); Dismiss marks it seen; `onboarding.whatsNew` shows it
   again.
+- **Appearance options per person** (PP-345): most of Appearance is per browser (`theme.js`, localStorage), which Pi
+  cannot reach. An option ported from pi-pocket that Pi must be able to change is kept with the person instead
+  (`User.appearance`, `APPEARANCE_DEFAULTS` in `config.ts`): `hello`'s `user.appearance` has every option with its
+  default filled in, `POST /api/me {appearance: {option, on}}` (Appearance's switch) and the settings
+  `appearance.<option>` (target: the person) call `app.setAppearance`, and the person's tabs hear `appearance`. So far:
+  `quoteReply` (on).
+- **Reply to a passage** (PP-345, pi-pocket #204 and #209): `web/quote-reply.js` watches `selectionchange` and shows a
+  Reply button for a selection inside one `.reply` while the message box is there; `store.replyQuote` holds the
+  passage (per session), the composer shows it as a strip and sends `withQuote(passage, text)` (`quote-text.js`: `> `
+  lines, cut at 1,500 characters), refusing a command or a template with a quote; `UserEntry` shows a message that
+  starts with quote lines as `.reply-quote` (`splitQuote`). With a mouse the button sits above the selection (below
+  it at the top). On a touch screen pi-pocket put it under the selection, but in pi-phone's WebView Android's floating
+  selection toolbar goes just above the selection, or just below it when there is no room above, and the handles hang
+  under the line: the button docks at the bottom edge of the conversation, or the top, whichever is clear of the band
+  from 64 px above the selection to its handles (28 px) and 64 px below; with neither clear (a selection taller than
+  the screen, where the toolbar sits over its middle), the one clear of the words and handles. Test:
+  `test/quote-reply-ui.test.ts` (390 px touch and 1280 px). Not taken: pi-pocket's `rangeText` (math as TeX):
+  pi-phone's math has no `data-tex`, so the selection's text is used.
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

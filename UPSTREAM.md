@@ -105,3 +105,8 @@ is skipped on purpose.
   the name from the session list, and its row deps. Not taken: `LinkedSessionPeersDoc` and `linkedPeers` (pi-phone's
   marker has the session's id; the list says whether this person can see it), pocket's own card styles.
 - A subagent's own spend from 0.28.0 (PP-339): merge 5fa8872 (5655371), `conversationSpent` and its test, as it was.
+- Reply to a passage (PP-345): #204 (merge 9f6c06fc: 50ee710), #209 (merge 7c064d81: cb1b142), and from
+  release/0.28.0 da1b81a and 64e5abe (the button's look, inside the scrolling area). Differs: the switch is kept with
+  the person (`User.appearance`, setting `appearance.quoteReply`), not per browser, so Pi can change it; on a touch
+  screen the button docks at the conversation's edge, clear of Android's selection toolbar, not under the selection;
+  sizes on the 4 px grid. Not taken: f36e6b5 (math quoted as TeX): pi-phone's math has no `data-tex`.

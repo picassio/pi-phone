@@ -235,7 +235,14 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "me" && method === "POST") {
-            const body = await readJson<{ name?: string; language?: unknown; welcome?: unknown; dictation?: unknown; whatsNew?: unknown }>(request);
+            const body = await readJson<{ name?: string; language?: unknown; welcome?: unknown; dictation?: unknown; whatsNew?: unknown; appearance?: { option?: unknown; on?: unknown } }>(request);
+
+            // One of their appearance options that follow them on every device (PP-345): `{ option, on }`.
+            if (body.appearance !== undefined && body.name === undefined) {
+                app.setAppearance(user, body.appearance?.option, body.appearance?.on);
+
+                return json(response, 200, { ok: true });
+            }
 
             // The What's new card dismissed, or to show again (PP-235).
             if (body.whatsNew !== undefined && body.name === undefined) {

@@ -47,6 +47,7 @@ import {
 import { Drawer, RailNav, ResizeHandle, SessionList, toSessions } from "./sessions.js";
 // Loaded for what it does: it gives replies' Markdown the component for pages, images, and diffs in code blocks.
 import "./rich.js";
+import { QuoteReplyButton } from "./quote-reply.js";
 import { Sheets } from "./sheets.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
 import { SignIn } from "./signin.js";
@@ -580,6 +581,7 @@ function App() {
         }
         <${ExtensionOverlays} />
         <${Sheets} />
+        ${state.me.appearance?.quoteReply && html`<${QuoteReplyButton} />`}
         <${LauncherHost} />
         <${Notices} />
     </div>`;

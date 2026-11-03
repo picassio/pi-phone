@@ -642,6 +642,12 @@ dự án thật.</sub>
   Wiki, Tài liệu và Chia sẻ (tiện ích có `pocket.t` cho phần của mình), các trang đăng nhập và quản trị của máy chủ
   nhóm, lỗi và thông báo của máy chủ, và thông báo trên điện thoại (với Tự động, theo ngôn ngữ của điện thoại). README
   này có cả bản tiếng Anh ([README.md](README.md)) và tiếng Trung ([README.zh-CN.md](README.zh-CN.md)).
+- **Trả lời một đoạn.** Chọn chữ trong một câu trả lời của Pi, nút **Trả lời** hiện ra: cạnh vùng chọn khi dùng chuột;
+  trên điện thoại, ở mép dưới hoặc mép trên của cuộc trò chuyện, tránh vùng chọn, các tay nắm của nó và thanh công cụ
+  chọn chữ của Android. Nút đặt đoạn đó vào một dải trích dẫn phía trên ô nhập (× để bỏ); tin nhắn tiếp theo gửi cho Pi
+  với đoạn trích ở đầu dưới dạng trích dẫn Markdown (tối đa 1.500 ký tự), và hiện với một khối trích dẫn phía trên lời
+  của bạn. Bật sẵn; Giao diện › Cuộc trò chuyện › Trả lời một đoạn tắt nó trên mọi thiết bị của bạn, và Pi đổi nó qua
+  một thẻ (`appearance.quoteReply`). Từ pi-pocket.
 - **Nhanh trên điện thoại.** Câu trả lời đang truyền chỉ vẽ lại khối cuối, và chỉ phần thay đổi được gửi đi; văn bản và
   luồng sự kiện được nén, còn tệp web được cache (ETag, 304) và tải cùng lúc (modulepreload).
 - **Cập nhật từ GitHub.** Mỗi bản dựng đạt trên `master` là một bản phát hành, kèm ghi chú phát hành. Ứng dụng kiểm tra

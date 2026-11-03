@@ -761,6 +761,18 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["auto", "en", "zh-CN", "vi"],
             apply: (_user, value, target) => app.setLanguage(person(target), value.trim()),
         },
+        // Appearance options that follow a person on every device (PP-345).
+        {
+            id: "appearance.quoteReply",
+            area: "appearance",
+            title: "Reply to a passage, for one person",
+            help: "on or off. On: selecting words in one of Pi's replies shows a Reply button that quotes them in their next message (Appearance › Conversation). Target: the person's name. Their open tabs follow.",
+            owner: true,
+            target: "person",
+            read: (target) => (app.appearanceOf(person(target)).quoteReply ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (_user, value, target) => app.setAppearance(person(target), "quoteReply", onOff(value)),
+        },
         // ─── Notifications and dictation (PP-235: what a Getting started guide sets up) ───
         // The progress board on the phone (PP-283): the notification's rows, the floating bubble, hidden when idle.
         ...([
