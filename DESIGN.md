@@ -1449,6 +1449,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   frame in view. No clipboard. The answer names Pi's own text and the characters, never the selection's text; a
   password field, a field filled from a card, and a text that is (part of) a card value (3 characters or more) are
   refused, as whether it is found would tell the value.
+- **Whole-page pictures** (`browser_screenshot`'s `full_page`, PP-376): a clip of the page from its top, the view's
+  width and its scroll height up to `FULL_PAGE_MAX` (4,000 CSS pixels: 8,000 at a phone's two device pixels, the most a
+  model takes), with `captureBeyondViewport`. Marks by text or control and the card's hides are found anywhere in that
+  part (`areasOf` with `whole`: in the page's coordinates; frames placed with their boxes extended past the view), so
+  a value typed on a card below the fold is blacked out too; areas given are in the page's coordinates. Only engines
+  with `wholePage` (a Chrome's: the server edition's, a machine's, an attached one): the phone's pictures come from its
+  display (PP-114), a view at a time, so it is refused there in words. Not with `index`.
 - **Downloads in Pi's browser** (PP-376; `PiBrowser.#takeDownloads`, `BrowserEngine.downloads`): each tab's page has
   `Browser.setDownloadBehavior` `allowAndName` into its engine's folder, events on (for the browser's profile, which is
   pi-phone's own): a `ChromeEngine`'s temporary folder (removed with it), a machine's `~/.pi/mobile/browser/downloads`

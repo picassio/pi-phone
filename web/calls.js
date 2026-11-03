@@ -142,7 +142,7 @@ export function describeCall(call) {
         case "browser_eval":
             return { icon: "◍", label: t("Reads with a script"), subject: short(String(args.expression ?? ""), 80), mono: true };
         case "browser_screenshot":
-            return { icon: "◍", label: t("Looks at"), subject: t("the page") };
+            return { icon: "◍", label: t("Looks at"), subject: args.full_page ? t("the whole page") : t("the page") };
         case "browser_click":
             return {
                 icon: "◍",

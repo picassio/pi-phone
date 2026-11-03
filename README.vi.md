@@ -207,7 +207,8 @@ dự án thật.</sub>
   liệt kê, một cú nhấp cuộn nó vào tầm nhìn, `browser_select` mở danh sách và chọn theo tên, `browser_scroll` cuộn
   danh sách, và một chữ cái nhảy tới mục theo kiểu gõ trước. `browser_screenshot` có thể lưu hình dạng PNG hoặc
   JPEG vào thư mục của phiên (cho `doc_image` hoặc một báo cáo), và chỉ chụp hộp thoại, menu hoặc danh sách chứa
-  một ô điều khiển. Nó đánh dấu hình cho tài liệu hướng dẫn: một khung, một huy hiệu đánh số, một nhãn và mũi tên trên
+  một ô điều khiển, hoặc cả trang vượt ra ngoài phần đang hiển thị (`full_page`, 4.000 px CSS đầu tiên; trên trình duyệt
+  của máy hoặc trình duyệt được gắn vào, vì trên điện thoại hình được lấy từ màn hình, từng khung nhìn một). Nó đánh dấu hình cho tài liệu hướng dẫn: một khung, một huy hiệu đánh số, một nhãn và mũi tên trên
   một ô điều khiển hoặc một đoạn chữ, phần còn lại làm tối, và che bí mật (khung đặc cho khóa và mật khẩu, làm mờ
   mạnh cho tên); `image_markup` làm tương tự trên bất kỳ tệp hình nào, và `screenshot` lưu hình của nó bằng `save`.
   Nó tải tệp lên từ nơi phiên làm việc (`browser_upload`, vào một ô tệp hoặc nút Upload của nó), lưu trang dạng PDF

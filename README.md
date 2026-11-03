@@ -198,7 +198,9 @@ No Termux, no laptop, no cloud VM.
   (a select with its own scroll area) work too: every option is listed, a click scrolls it into view, `browser_select`
   opens the list and picks by name, `browser_scroll` scrolls the list, and a letter jumps by type-ahead.
   `browser_screenshot` can save its picture as a PNG or JPEG in the session's folder (for `doc_image` or a report),
-  and picture only the dialog, menu or list a control is in. It marks pictures up for runbooks: a box, a numbered
+  and picture only the dialog, menu or list a control is in, or the whole page past the view (`full_page`, its first
+  4,000 CSS pixels; on a machine's browser or an attached one, as the phone's pictures come from its screen a view at
+  a time). It marks pictures up for runbooks: a box, a numbered
   badge, a label and an arrow on a control or a text, the rest dimmed, and secrets hidden (a solid box for keys and
   passwords, a heavy blur for names); `image_markup` does the same on any picture file, and `screenshot` saves its
   pictures with `save`. It uploads files from where

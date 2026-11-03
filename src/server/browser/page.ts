@@ -73,10 +73,12 @@ const TEXT_OF = `(() => {
  * Where things are in a frame's view (`BrowserPage.areasOf`): a control by its node (-1: none here), or every place a
  * text shows (in its open shadow roots and fields too).
  */
-function areasScript(targets: readonly ({ node: number } | { text: string })[]): string {
-    return `(targets => { const roots=${ROOTS}; return targets.map(t => {
-            const seen = r => r.width>0 && r.height>0 && r.bottom>0 && r.right>0 && r.top<innerHeight && r.left<innerWidth;
-            const box = r => ({x:r.left, y:r.top, width:r.width, height:r.height});
+function areasScript(targets: readonly ({ node: number } | { text: string })[], whole?: number): string {
+    // `whole`: the page's first so many pixels, in its own coordinates (a whole-page picture); else the view's.
+    return `(targets => { const roots=${ROOTS}, H=${whole === undefined ? "null" : String(whole)}; return targets.map(t => {
+            const seen = r => r.width>0 && r.height>0 && r.right>0 && r.left<innerWidth &&
+              (H===null ? r.bottom>0 && r.top<innerHeight : r.bottom+scrollY>0 && r.top+scrollY<H);
+            const box = r => ({x:r.left, y:r.top+(H===null ? 0 : scrollY), width:r.width, height:r.height});
             if ('node' in t) {
               const e=t.node<0 ? undefined : window.__piBrowser?.nodes.get(t.node);
               if (!e?.isConnected) return null;
@@ -480,7 +482,10 @@ export type PictureClip = { x: number; y: number; width: number; height: number 
  * its screencast is taken so (PP-126): one from the surface just before a screencast left that Chrome's input at half
  * the coordinates, once another tab was open in it.
  */
-export type PictureOptions = { png?: boolean; clip?: PictureClip & { scale?: number }; surface?: boolean };
+export type PictureOptions = { png?: boolean; clip?: PictureClip & { scale?: number }; surface?: boolean; beyond?: boolean };
+
+/** A whole-page picture's height at most (PP-376), in CSS pixels: twice that in a phone's pixels, 8,000, as models take. */
+export const FULL_PAGE_MAX = 4000;
 
 /**
  * A key to press: a named one, or one printable character (a list's type-ahead: "G" goes to Global Payments). Keys
@@ -773,10 +778,11 @@ export class BrowserPage {
      * Where each frame's content is in the main frame's view (`view`: its size), and the part of it in view; null for a
      * frame not shown, out of view, or whose parent is not (by its parents' boxes, one level at a time).
      */
-    async #frameBoxes(frames: readonly ChildFrame[], view: { w: number; h: number }): Promise<Map<string, FrameBox | null>> {
+    async #frameBoxes(frames: readonly ChildFrame[], view: { w: number; h: number; top?: number; bottom?: number }): Promise<Map<string, FrameBox | null>> {
         // A frame that went away meanwhile has no box.
         const owners = await Promise.all(frames.map((frame) => this.#ownerBox(frame, null).catch(() => null)));
-        const boxes = new Map<string, FrameBox | null>([[this.#mainFrame, { x: 0, y: 0, clip: { left: 0, top: 0, right: view.w, bottom: view.h } }]]);
+        // `top` and `bottom`: more of the page than the view (a whole-page picture's), in the view's coordinates.
+        const boxes = new Map<string, FrameBox | null>([[this.#mainFrame, { x: 0, y: 0, clip: { left: 0, top: view.top ?? 0, right: view.w, bottom: view.bottom ?? view.h } }]]);
         const at = new Map(frames.map((frame, index) => [frame.frameId, index]));
         const resolve = (frameId: string, depth: number): FrameBox | null => {
             const known = boxes.get(frameId);
@@ -2162,11 +2168,18 @@ export class BrowserPage {
      * of the view in CSS pixels. The phone's WebView answers a capture only every other time (PP-114): its pictures come
      * from its display's frames instead.
      */
-    async screenshot(quality = 70, timeoutMs?: number, { png = false, clip, surface = true }: PictureOptions = {}): Promise<string> {
+    /** `beyond`: `clip` is of the page, past the view too (a whole-page picture, PP-376). */
+    async screenshot(quality = 70, timeoutMs?: number, { png = false, clip, surface = true, beyond = false }: PictureOptions = {}): Promise<string> {
         // A desktop Chrome from its surface, which alone has the device scale (twice the CSS pixels: sharp text).
         const shot = await this.cdp.send<{ data: string }>(
             "Page.captureScreenshot",
-            { format: png ? "png" : "jpeg", ...(png ? {} : { quality }), fromSurface: this.#fromSurface && surface, ...(clip === undefined ? {} : { clip: { ...clip, scale: clip.scale ?? 1 } }) },
+            {
+                format: png ? "png" : "jpeg",
+                ...(png ? {} : { quality }),
+                fromSurface: this.#fromSurface && surface,
+                ...(clip === undefined ? {} : { clip: { ...clip, scale: clip.scale ?? 1 } }),
+                ...(beyond ? { captureBeyondViewport: true } : {}),
+            },
             timeoutMs,
         );
 
@@ -2177,9 +2190,13 @@ export class BrowserPage {
      * Where things are in the view now, in CSS pixels (PP-119): a control by its node, or every place a text shows
      * (in view, case as written). Null for a control that is gone or out of view; an empty list for a text not shown.
      */
-    async areasOf(targets: ({ node: number } | { text: string })[]): Promise<({ x: number; y: number; width: number; height: number }[] | null)[]> {
+    /**
+     * `whole` (a whole-page picture, PP-376): anywhere in the page's first `height` CSS pixels, in the page's own
+     * coordinates (from its top left), not only in view.
+     */
+    async areasOf(targets: ({ node: number } | { text: string })[], whole?: { height: number }): Promise<({ x: number; y: number; width: number; height: number }[] | null)[]> {
         type Area = { x: number; y: number; width: number; height: number };
-        const found = await this.evaluate<(Area[] | null)[]>(areasScript(targets.map((target) => ("node" in target && target.node >= FRAME_SPAN ? { node: -1 } : target))));
+        const found = await this.evaluate<(Area[] | null)[]>(areasScript(targets.map((target) => ("node" in target && target.node >= FRAME_SPAN ? { node: -1 } : target)), whole?.height));
         const slots = new Set(targets.flatMap((target) => ("node" in target && target.node >= FRAME_SPAN ? [Math.floor(target.node / FRAME_SPAN)] : [])));
         const texts = targets.some((target) => "text" in target);
 
@@ -2187,9 +2204,12 @@ export class BrowserPage {
             return found;
         }
 
-        // In the frames in view too (PP-376): a control there, and every place a text shows, within the frame's part in view.
+        // In the frames in view too (PP-376): a control there, and every place a text shows, within the frame's part in view
+        // (in the page's first `whole.height` pixels, for a whole page: placed in the page's coordinates).
         const frames = await this.#childFrames();
-        const boxes = await this.#frameBoxes(frames, await this.evaluate<{ w: number; h: number }>("({w: innerWidth, h: innerHeight})"));
+        const view = await this.evaluate<{ w: number; h: number; y: number }>("({w: innerWidth, h: innerHeight, y: scrollY})");
+        const boxes = await this.#frameBoxes(frames, whole === undefined ? view : { ...view, top: -view.y, bottom: whole.height - view.y });
+        const down = whole === undefined ? 0 : view.y;
 
         for (const frame of frames) {
             const box = boxes.get(frame.frameId) ?? null;
@@ -2217,7 +2237,7 @@ export class BrowserPage {
                     const right = Math.min(box.clip.right, box.x + area.x + area.width);
                     const bottom = Math.min(box.clip.bottom, box.y + area.y + area.height);
 
-                    return right - left > 0 && bottom - top > 0 ? [{ x: left, y: top, width: right - left, height: bottom - top }] : [];
+                    return right - left > 0 && bottom - top > 0 ? [{ x: left, y: top + down, width: right - left, height: bottom - top }] : [];
                 });
 
                 if ("node" in target) {

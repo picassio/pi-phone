@@ -7,7 +7,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { basename } from "node:path";
-import { addressOf, LONG_PRESS_MS, LONG_PRESS_RANGE, PRESSABLE, StalePage } from "../browser/page.ts";
+import { addressOf, FULL_PAGE_MAX, LONG_PRESS_MS, LONG_PRESS_RANGE, PRESSABLE, StalePage } from "../browser/page.ts";
 import { MAX_TABS, type PiBrowser } from "../browser/pi-browser.ts";
 import { fencedPage } from "../fence.ts";
 import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
@@ -600,10 +600,11 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_screenshot",
             description:
-                `See what is in view in Pi's browser as a picture (for models that take images). With path, also save it to a file where this session works (.png or .jpg), for documents (doc_image) or reports. With index, picture only the dialog, menu or list that control is in, or else the control. The picture is what is in view: scroll first for more. Pi's browser takes calls in the order they come: one made in the same batch as other browser calls (or a codemode script that uses the browser) may land between their steps, so take the picture after them. ${MARKS_NOTE} Each mark is on a control (index), on every place a text shows (text: for a secret that is not a control), or on an area of the view in CSS pixels; a control out of view or a text not shown is an error, never a picture with it left showing.`,
+                `See what is in view in Pi's browser as a picture (for models that take images). With path, also save it to a file where this session works (.png or .jpg), for documents (doc_image) or reports. With index, picture only the dialog, menu or list that control is in, or else the control. The picture is what is in view; with full_page, the whole page from its top, past the view (its first ${FULL_PAGE_MAX.toLocaleString("en")} CSS pixels at most; not on the phone's browser, whose pictures come from its display: scroll there), where marks and areas are in the page's coordinates. Pi's browser takes calls in the order they come: one made in the same batch as other browser calls (or a codemode script that uses the browser) may land between their steps, so take the picture after them. ${MARKS_NOTE} Each mark is on a control (index), on every place a text shows (text: for a secret that is not a control), or on an area of the view in CSS pixels; a control out of view or a text not shown is an error, never a picture with it left showing.`,
             parameters: Type.Object({
                 path: Type.Optional(Type.String({ description: "Save it here too, ending in .png or .jpg: absolute or relative to this session's folder" })),
                 index: Type.Optional(Type.Integer({ minimum: 1, description: "A control: the picture is of the dialog, menu or list it is in, or of the control" })),
+                full_page: Type.Optional(Type.Boolean({ description: `The whole page from its top, past the view (${FULL_PAGE_MAX.toLocaleString("en")} CSS pixels at most)` })),
                 marks: Type.Optional(
                     Type.Array(
                         Type.Object({
@@ -634,7 +635,7 @@ export default function createBrowser(host: PocketHost) {
 
                 try {
                     // The caption is of the page as pictured, read with it (PP-129), not the browser's state afterwards.
-                    const shot = await browser.screenshot(Number(api.conversationId), { png: kind === "png", index: args.index, marks: args.marks ?? [] });
+                    const shot = await browser.screenshot(Number(api.conversationId), { png: kind === "png", index: args.index, marks: args.marks ?? [], full: args.full_page === true });
 
                     // A short value the person typed on a card shows: no picture, nothing saved (PP-228).
                     if ("withheld" in shot) {
@@ -642,7 +643,16 @@ export default function createBrowser(host: PocketHost) {
                     }
 
                     const state = shot;
-                    const what = shot.whole === undefined ? "" : shot.whole === "control" ? `, only [${args.index}]` : `, only the ${shot.whole} that [${args.index}] is in`;
+                    const what =
+                        shot.page !== undefined
+                            ? shot.page.of > shot.page.height
+                                ? `, the page's first ${shot.page.height.toLocaleString("en")} of ${shot.page.of.toLocaleString("en")} px`
+                                : ", the whole page"
+                            : shot.whole === undefined
+                              ? ""
+                              : shot.whole === "control"
+                                ? `, only [${args.index}]`
+                                : `, only the ${shot.whole} that [${args.index}] is in`;
                     let saved = "";
 
                     if (args.path !== undefined) {
@@ -665,7 +675,7 @@ export default function createBrowser(host: PocketHost) {
 
                     return {
                         output: [
-                            { type: "text" as const, text: shotCaption({ title: state.title, url: state.url, width: state.viewport.width, height: state.viewport.height }, what, saved) },
+                            { type: "text" as const, text: shotCaption({ title: state.title, url: state.url, width: state.viewport.width, height: shot.page?.height ?? state.viewport.height }, what, saved) },
                             { type: "image" as const, data: shot.data, mimeType: kind === "png" ? "image/png" : "image/jpeg" },
                         ],
                     };

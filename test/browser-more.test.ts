@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chordOf } from "../src/server/browser/page.ts";
@@ -96,6 +97,10 @@ const PAGES: Record<string, string> = {
         <div contenteditable="true" aria-label="Editor" role="textbox">Edit me please</div><label>PIN <input id="pin" type="password" value="9876"></label>
         <p id="sel">Nothing selected</p>
         <script>document.addEventListener('selectionchange', () => { const a = document.activeElement; sel.textContent = 'Selection: ' + ((a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) ? a.value.slice(a.selectionStart, a.selectionEnd) : getSelection().toString()); });</script>`,
+    // A page three views tall, with a field far below the fold, and words at its end.
+    "/long": `<!doctype html><title>Long</title><meta name="viewport" content="width=device-width">
+        <style>body{margin:0;background:#fff}</style><h1 style="margin:8px">Top of the page</h1><div style="height:1800px"></div>
+        <label>Member number <input id="member" style="width:300px;height:40px;background:#fff;border:0"></label><div style="height:1000px"></div><p>Bottom words</p>`,
     "/card": `<!doctype html><title>Card</title><meta name="viewport" content="width=device-width">
         <label>Card number <input id="card"></label><br><label>PIN <input id="pin" type="password"></label><br>
         <button onclick="out.textContent = 'Paid with ' + card.value + (pin.value === '4321' ? ' and the PIN' : ' without the PIN')">Pay</button>
@@ -378,6 +383,55 @@ test("with Chrome: browser_select_text selects a text on the page (across elemen
         await assert.rejects(browser.selectText(1, number(await browser.snapshot(1), /\[(\d+)\] textbox "Title"/), { start: 0, end: 3 }), /holds what the person typed/);
     } finally {
         await browser.close();
+    }
+});
+
+test("with Chrome: browser_screenshot's whole page goes past the view, with marks there and the card's typing blacked out anywhere in it; a browser that pictures its view only says so (PP-376)", { skip }, async () => {
+    const browser = browserHere();
+    const photon = createRequire(import.meta.url)("@silvia-odwyer/photon-node") as {
+        PhotonImage: { new_from_byteslice(bytes: Uint8Array): { get_width(): number; get_height(): number; get_raw_pixels(): Uint8Array; free(): void } };
+    };
+
+    try {
+        await browser.open(1, "http://pi.test/long");
+
+        const below = await browser.scroll(1, "down", 2);
+
+        await browser.fillFields(1, [{ index: number(below, /\[(\d+)\] textbox "Member number"/), value: "M-5551234", hide: true }]);
+        await browser.scroll(1, "up", 4);
+
+        const at = await browser.evaluate(1, "(() => { const r = document.getElementById('member').getBoundingClientRect(); return {x: r.x + 20 + scrollX, y: r.y + r.height / 2 + scrollY, height: document.documentElement.scrollHeight}; })()", false);
+        const where = JSON.parse((at as { json: string }).json) as { x: number; y: number; height: number };
+        // Marks below the view are placed (a text there is no error on a whole page).
+        const shot = await browser.screenshot(1, { png: true, full: true, marks: [{ text: "Bottom words", label: "The end" }] });
+
+        assert.ok("data" in shot);
+        assert.deepEqual(shot.page, { height: where.height, of: where.height });
+
+        const image = photon.PhotonImage.new_from_byteslice(Buffer.from(shot.data, "base64"));
+        const width = image.get_width();
+        const scale = width / 412;
+        const pixels = image.get_raw_pixels();
+        const pixel = (x: number, y: number) => [...pixels.subarray((Math.round(y * scale) * width + Math.round(x * scale)) * 4, (Math.round(y * scale) * width + Math.round(x * scale)) * 4 + 3)];
+
+        assert.equal(image.get_height(), Math.round(where.height * scale));
+        // The card's value is under a solid box, far below the view.
+        assert.deepEqual(pixel(where.x, where.y), [24, 24, 27]);
+        image.free();
+        await assert.rejects(browser.screenshot(1, { full: true, index: 1 }), /leave index out/);
+    } finally {
+        await browser.close();
+    }
+
+    // An engine whose pictures are of its view only (the phone's) says so.
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+    const viewOnly = new PiBrowser({ engine: new Proxy(engine, { get: (target, name) => (name === "wholePage" ? false : (Reflect.get(target, name) as unknown) instanceof Function ? (Reflect.get(target, name) as (...args: unknown[]) => unknown).bind(target) : Reflect.get(target, name)) }), changed: () => {}, frame: () => {}, log: () => {} });
+
+    try {
+        await viewOnly.open(1, "http://pi.test/long");
+        await assert.rejects(viewOnly.screenshot(1, { full: true }), /takes pictures of what is in view only/);
+    } finally {
+        await viewOnly.close();
     }
 });
 

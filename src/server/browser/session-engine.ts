@@ -226,6 +226,10 @@ export class SessionEngine implements BrowserEngine {
         return this.#engine.oopif === true;
     }
 
+    get wholePage(): boolean {
+        return this.#engine.wholePage === true;
+    }
+
     get downloads(): EngineDownloads | undefined {
         return this.#engine.downloads;
     }

@@ -23,6 +23,7 @@ import {
     type PictureOptions,
     describe,
     elementsOf,
+    FULL_PAGE_MAX,
     SHORT_VALUE_NOTE,
     shortCardValueShowing,
     StalePage,
@@ -116,6 +117,11 @@ export interface BrowserEngine {
      * the phone's WebView keeps every frame in the page's process, where the page's frame tree has them.
      */
     readonly oopif?: boolean;
+    /**
+     * Whether it takes a picture of the whole page, past the view (PP-376: DevTools' `captureBeyondViewport`): a Chrome's
+     * does; the phone's pictures come from its display, a view at a time.
+     */
+    readonly wholePage?: boolean;
     /**
      * Where its browser saves what pages download (PP-376), each file named by its download's id, and how a file is taken
      * from there (read, then removed). None where downloads are not kept: the phone's WebView hands them to no one, and a
@@ -484,6 +490,7 @@ export class ChromeEngine implements BrowserEngine {
     readonly local = false;
     readonly actAsPhone = true;
     readonly oopif = true;
+    readonly wholePage = true;
     readonly reopensToResize: boolean = false;
     readonly #binary: string;
     readonly #flags: string[];
@@ -1615,11 +1622,25 @@ export class PiBrowser {
      * What is in view, as a JPEG (or a PNG, to keep); with `index`, only the dialog, menu or list that control is in, or
      * the control (PP-118). `whole` says which.
      */
+    /**
+     * `full` (PP-376): the whole page from its top, past the view, `FULL_PAGE_MAX` CSS pixels at most (`page`: how tall the
+     * picture is, and the page); marks and areas are then in the page's coordinates, the card's hides found anywhere in it.
+     */
     screenshot(
         session: number,
-        { png = false, index, marks = [] }: { png?: boolean; index?: number; marks?: PageMark[] } = {},
-    ): Promise<{ data: string; whole?: string; title: string; url: string; viewport: { width: number; height: number } } | { withheld: string }> {
-        return this.#run(session, index === undefined ? "Looking at the page" : this.#doing("Looking at", index), async ({ id, page }) => {
+        { png = false, index, marks = [], full = false }: { png?: boolean; index?: number; marks?: PageMark[]; full?: boolean } = {},
+    ): Promise<{ data: string; whole?: string; page?: { height: number; of: number }; title: string; url: string; viewport: { width: number; height: number } } | { withheld: string }> {
+        if (full && index !== undefined) {
+            return Promise.reject(new Error("A whole-page picture is of the whole page: leave index out, or full_page."));
+        }
+
+        if (full && this.#options.engine.wholePage !== true) {
+            return Promise.reject(
+                new Error(`${this.#options.engine.label} takes pictures of what is in view only (from its display): scroll and take a picture of each part, or browse on a machine (browser_open with machine) for a whole-page picture.`),
+            );
+        }
+
+        return this.#run(session, full ? "Looking at the whole page" : index === undefined ? "Looking at the page" : this.#doing("Looking at", index), async ({ id, page }) => {
             let clip: PictureClip | undefined;
             let whole: string | undefined;
             // What the person typed on a card is blacked out of every picture a model gets (PP-228); a value too short
@@ -1630,22 +1651,35 @@ export class PiBrowser {
                 return { withheld: SHORT_VALUE_NOTE };
             }
 
+            let tall: { height: number; of: number } | undefined;
+
             if (index !== undefined) {
                 const { observed, element } = this.#element(index);
 
                 ({ clip, whole } = await page.area(observed, element));
+            } else if (full) {
+                const size = await page.evaluate<{ w: number; h: number }>("({w: innerWidth, h: Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0, innerHeight)})");
+
+                tall = { height: Math.min(size.h, FULL_PAGE_MAX), of: size.h };
+                clip = { x: 0, y: 0, width: size.w, height: tall.height };
             }
 
-            // Where each mark goes, read just before the picture (PP-119); the card's hides last, over every other mark.
+            // Where each mark goes, read just before the picture (PP-119); the card's hides last, over every other mark. A
+            // whole page's are found anywhere in it, in its coordinates.
+            const anywhere = tall === undefined ? undefined : { height: tall.height };
             const placed = [
-                ...(marks.length === 0 ? [] : await this.#place(page, marks, clip)),
-                ...(fills.length === 0 ? [] : typedHideMarks(await page.areasOf(cardHideTargets(fills)), clip)),
+                ...(marks.length === 0 ? [] : await this.#place(page, marks, clip, anywhere)),
+                ...(fills.length === 0 ? [] : typedHideMarks(await page.areasOf(cardHideTargets(fills), anywhere), clip)),
             ];
-            const data = await this.#options.engine.picture(id, page, placed.length === 0 ? (index === undefined ? 70 : 80) : 92, undefined, { png, ...(clip === undefined ? {} : { clip }) });
+            const data = await this.#options.engine.picture(id, page, placed.length === 0 ? (index === undefined ? 70 : 80) : 92, undefined, {
+                png,
+                ...(clip === undefined ? {} : { clip }),
+                ...(tall === undefined ? {} : { beyond: true }),
+            });
             // The page the picture is of, read in the same step (PP-129): the caption says what the picture shows, even
             // when other calls change the page right after.
             const [title, url] = await page.evaluate<[string, string]>("[document.title, location.href]").catch(() => [this.#state.title, this.#state.url] as [string, string]);
-            const about = { title, url, viewport: { ...this.#state.viewport }, ...(whole === undefined ? {} : { whole }) };
+            const about = { title, url, viewport: { ...this.#state.viewport }, ...(whole === undefined ? {} : { whole }), ...(tall === undefined ? {} : { page: tall }) };
 
             if (placed.length === 0) {
                 return { data, ...about };
@@ -1661,7 +1695,7 @@ export class PiBrowser {
      * Marks by control number, by a text shown, or by an area of the view (CSS pixels), as areas of the picture: of the
      * view, or of `clip`. A control out of view, or a text not shown, is an error: a secret left showing must not pass.
      */
-    async #place(page: BrowserPage, marks: PageMark[], clip: PictureClip | undefined): Promise<Mark[]> {
+    async #place(page: BrowserPage, marks: PageMark[], clip: PictureClip | undefined, anywhere?: { height: number }): Promise<Mark[]> {
         const targets = marks.map((mark) => {
             const named = [mark.index, mark.text, mark.area].filter((each) => each !== undefined).length;
 
@@ -1672,7 +1706,7 @@ export class PiBrowser {
             return mark.index !== undefined ? { node: this.#element(mark.index).element.node } : mark.text !== undefined ? { text: mark.text } : undefined;
         });
         const asked = targets.filter((each) => each !== undefined);
-        const found = asked.length === 0 ? [] : await page.areasOf(asked);
+        const found = asked.length === 0 ? [] : await page.areasOf(asked, anywhere);
         const placed: Mark[] = [];
         let next = 0;
 
