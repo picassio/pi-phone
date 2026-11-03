@@ -62,7 +62,9 @@ let app: App | undefined;
 
 /** The app, opened by the first test that needs it. */
 const started = async () =>
-    (app ??= await openApp(scriptedModel(route), join(root, "skills-data")));
+    // A wide window: the file's sessions take many turns with the app's whole prompt (tools and skills), and a
+    // background compaction's request (no prompt sections) must not be the one a test reads.
+    (app ??= await openApp(scriptedModel(route, { contextWindow: 1_000_000 }), join(root, "skills-data")));
 
 after(async () => {
     await app?.close();
