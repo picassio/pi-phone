@@ -110,3 +110,6 @@ is skipped on purpose.
   the person (`User.appearance`, setting `appearance.quoteReply`), not per browser, so Pi can change it; on a touch
   screen the button docks at the conversation's edge, clear of Android's selection toolbar, not under the selection;
   sizes on the 4 px grid. Not taken: f36e6b5 (math quoted as TeX): pi-phone's math has no `data-tex`.
+- A read's picture once (PP-341): #191 (merge c57e0d24: 975d9fc), with its UI test widened to 390 px and to a call
+  that brings a new picture (`fetch_content`); pi-phone's screenshot tools (`screenshot`, `browser_screenshot`,
+  `phone_screenshot`, `computer_screenshot`) bring new pictures, so they stay under the line.

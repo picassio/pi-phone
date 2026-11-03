@@ -995,6 +995,10 @@ function ToolStep({
             setFull({ call: fullCall ?? call, result: fullResult });
         });
 
+    // An image a read returned is a file already on screen elsewhere (often one the person just sent): it shows only
+    // when the call is opened (PP-341). A picture another call made (screenshot, browser_screenshot, phone_screenshot,
+    // computer_screenshot, a codemode image) is new: it shows under the line.
+    const imagesInside = call.name === "read";
     let body = null;
 
     if (open) {
@@ -1015,6 +1019,12 @@ function ToolStep({
                 >
                     ${t("Open {name} →", { name: args.path.split("/").pop() })}
                 </button>`,
+            );
+        }
+
+        if (imagesInside && result?.images > 0) {
+            parts.push(
+                html`<${EntryImages} entryId=${result.id} count=${result.images} label=${`${call.name} image`} />`,
             );
         }
 
@@ -1161,7 +1171,8 @@ function ToolStep({
     // audio_speak's file in a player, audio_transcribe's first lines (PP-307).
     const spoken = call.name === "audio_speak" && typeof details?.audio?.path === "string" ? details.audio : null;
     const heard = call.name === "audio_transcribe" && typeof details?.transcript?.path === "string" ? details.transcript : null;
-    const extras = result?.images > 0 || artifact || made.length > 0 || video !== null || spoken !== null || heard !== null;
+    const imagesUnder = result?.images > 0 && !imagesInside;
+    const extras = imagesUnder || artifact || made.length > 0 || video !== null || spoken !== null || heard !== null;
 
     return html`<div
         class=${`step ${open ? "open" : ""} ${settled ? "settled" : ""}`}
@@ -1223,7 +1234,7 @@ function ToolStep({
             extras &&
             html`<div class="step-extras" data-part="step-detail">
                 ${
-                    result?.images > 0 &&
+                    imagesUnder &&
                     html`<${EntryImages}
                         entryId=${result.id}
                         count=${result.images}

@@ -1650,6 +1650,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   the screen, where the toolbar sits over its middle), the one clear of the words and handles. Test:
   `test/quote-reply-ui.test.ts` (390 px touch and 1280 px). Not taken: pi-pocket's `rangeText` (math as TeX):
   pi-phone's math has no `data-tex`, so the selection's text is used.
+- **A call's pictures** (PP-341, pi-pocket #191): `ToolStep` shows a `read`'s images only in its opened body, as the
+  file is on screen elsewhere (often the person's own attachment); every other call's images (pi-phone's screenshot
+  tools, `fetch_content`, a codemode `image()`) are new and show under its line, closed or open.
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

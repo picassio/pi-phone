@@ -101,7 +101,8 @@ No Termux, no laptop, no cloud VM.
   tools** (every session; setting `codemode.mode`): directly or from scripts (the default), or only from scripts, where
   Pi is offered codemode and the few tools whose cards read their call (artifact, subagent, pictures, video, audio, a
   browser run, a screen, the Creator) and calls the rest from scripts. A test keeps pi-phone's own part of a new
-  session's prompt under 85,000 characters.
+  session's prompt under 85,000 characters. A picture Pi reads (often one you just sent) shows once, inside its `read`
+  call when you open it; a picture a call makes (a screenshot, `fetch_content`'s image) shows under the call's line.
 - **Sign in once.** Claude Pro/Max, other providers' OAuth, or API keys, from the Providers sheet. GitHub through a
   device code (Settings › GitHub), used by the agent's `git` and `gh`.
 - **Your own OpenAI-compatible server.** Providers › **Add an OpenAI-compatible provider**: a name, a base URL
