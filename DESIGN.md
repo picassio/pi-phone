@@ -2279,6 +2279,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
   a time, as the image guard scales (`image-guard.ts`): a phone given five photos at once decodes one at a time; what
   comes out is within 2000 px, so the guard passes it by its header. Not taken: #236's composer parts (attached files
   kept across reloads, the box dimmed while sending), left to the composer's own port (PP-377's ui1).
+- **HEIC and HEIF photos** (PP-348, pi-pocket 0.28's r028/heic-228). `heic.ts` converts one to JPEG before it is made
+  small (`model-images.ts`), in a worker (`heic-worker.ts`, 30 s and a 512 MB heap at most), one at a time; its size
+  is read from the `ispe` boxes of its top-level `meta` box first, and a photo whose size cannot be read, or past 50
+  million pixels (pocket: 64; a 48 MP camera's photo is the most here), fails at once. The decoder is libheif-js
+  1.23.5, LGPL-3.0, as WebAssembly (`wasm-bundle`): a separate npm package, loaded unchanged from `node_modules`, so
+  replaceable, with its license there and its credit in README. Checked on the phone (2026-11-03, Android arm64, Node
+  26.4.0): the test photo converted in a worker in 257 ms, 103 MB RSS. The attachment's line gets
+  `[Image: shown to you as JPEG.]` (and Pi's read tool's size note when it was scaled), which the transcript's
+  attachment list reads past; an upload whose browser says nothing useful gets its type from its name (`uploadMime`);
+  the message box shows a file chip where a browser cannot draw the photo.
 - **Running now as a board** (PP-355, after pi-pocket 0.28's #232 and its b4 fixes). pi-phone keeps Running now as a
   sheet (the rail's pulse) rather than pocket's board in the conversation's place: `GET /api/running/board`
   (`runningBoard` in `running.ts`) gives the sessions at work (a scheduled message's sleeping task is not work: it is

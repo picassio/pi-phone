@@ -1488,7 +1488,16 @@ export function Composer() {
                                 ) => html`<span class=${`chip ${file.preview ? "with-thumb" : ""}`}>
                                     ${
                                         file.preview &&
-                                        html`<img class="chip-thumb" src=${file.preview} alt="" />`
+                                        html`<img
+                                            class="chip-thumb"
+                                            src=${file.preview}
+                                            alt=""
+                                            onError=${() => {
+                                                // A browser that cannot show the photo (HEIC in Chromium, PP-348): the file's chip instead.
+                                                URL.revokeObjectURL(file.preview);
+                                                setFiles((current) => current.map((each) => (each.key === file.key ? { ...each, preview: null } : each)));
+                                            }}
+                                        />`
                                     }
                                     ${file.state === "uploading" ? html`<${Spinner} />` : file.preview ? "" : html`<${Icon} name="clip" size=${14} />`}
                                     <span class="chip-name" title=${file.name}>${file.name}</span>

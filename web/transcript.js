@@ -137,7 +137,7 @@ const SKILL = /^<skill name="([^"]+)" location="([^"]+)">\n[\s\S]*?\n<\/skill>(?
 const MENTION = /(^|[\s([{])@(?:"([^"\n]+)"|([^\s"]+))/g;
 
 /** One line of the attachment list the server adds to a message: `- path (name, mime, size bytes)`. */
-const ATTACHED = /^- (.*) \(([^,]*), ([^,]*), (\d+) bytes\)$/;
+const ATTACHED = /^- (.*) \(([^,]*), ([^,]*), (\d+) bytes\)(?: \[Image: .*)?$/;
 
 function parseAttachments(block) {
     return block

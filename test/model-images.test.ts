@@ -19,7 +19,7 @@ test("an image prepared at upload is the one a message sends, without making it 
         prepareModelImage(path, "image/png", PNG.length);
         const first = modelImage(path, "image/png");
 
-        assert.equal((await first).mimeType, "image/png");
+        assert.equal((await first).image.mimeType, "image/png");
         // The file is gone: only the prepared image can answer.
         rmSync(path);
         assert.equal(modelImage(path, "image/png"), first);
@@ -50,7 +50,7 @@ test("images are made one after another, in the order asked, and a failed one is
         prepareModelImage(broken, "image/png", 9);
         await assert.rejects(modelImage(broken, "image/png"));
         writeFileSync(broken, PNG);
-        assert.equal((await modelImage(broken, "image/png")).mimeType, "image/png");
+        assert.equal((await modelImage(broken, "image/png")).image.mimeType, "image/png");
     } finally {
         rmSync(folder, { recursive: true, force: true });
     }

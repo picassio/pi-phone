@@ -163,3 +163,8 @@ is skipped on purpose.
   `model-images.ts` and the upload route, 5309a1c's test), with images made one at a time (as pocket's HEIC fix 84c1b8b
   does for its photos, and pi-phone's image guard for requests). Not taken here: a02496d's composer (attachments kept
   across reloads, the box dimmed while sending), to stay out of the composer work done beside this port.
+- HEIC from 0.28 (PP-348): merge 6f14fc3 (6d63c68, 800ef9a, 84c1b8b, 85de3e0, 391a4b6, a0ea49d, 3d98a48) with its
+  fixture `test/fixtures/photo.heic`: `heic.ts`, `heic-worker.ts`, the note on the attachment's line, `uploadMime`,
+  the chip's fallback and the transcript's attachment pattern. heic-convert pinned to 2.1.0 (libheif-js 1.23.5).
+  Differs: 50 million pixels at most (pocket 64), images made one at a time (pocket two), no file stamps (an upload's
+  path is unique); pocket's `pip.js` part (no PiP here).

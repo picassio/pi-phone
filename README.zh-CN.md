@@ -444,7 +444,8 @@
 - **说明为什么没能启动。** 应用的某个文件未能加载（浏览器中的内容拦截器、网络）或运行时出错时，启动画面会停下，用你的语言显示
   “无法启动”及原因，而不是一直停在“正在启动”。在此之前，手机应用自己的画面会说明服务器正在解包、正在启动或已失败。
 - **手机上也流畅。** 流式回答只重绘最后一个块，而且只传输其中变化的部分；文本和事件流经过压缩传输，网页文件会被缓存（ETag、304）
-  并提前一次性获取（modulepreload）。你附上的图片在上传时就为模型准备好（一次一张），所以消息可以立即发出。
+  并提前一次性获取（modulepreload）。你附上的图片在上传时就为模型准备好（一次一张），所以消息可以立即发出；iPhone 的 HEIC 或
+  HEIF 照片以 JPEG 形式交给 Pi，消息中它那一行会注明。
 - **从 GitHub 更新。** `master` 上每次通过的构建都是一个带发布说明的版本。应用会检查更新（启动时，或设置 › 检查应用更新）：
   服务器和界面的改动几秒内就能替换上；新的 Android 外壳只需点一下即可安装。
 - **它能构建自己。** 智能体在应用内的本仓库克隆中工作并推送，CI 发布新版本，应用随后安装它。
@@ -665,6 +666,11 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
   pi-phone 不携带也不再分发它们。
 - **[HyperFrames](https://github.com/heygen-com/hyperframes)**，作者 HeyGen（Apache-2.0）：把 HTML 渲染成视频，按
   `third_party/hyperframes/` 中固定的 lockfile 从 npm 安装到机器上，由来自 nodejs.org 的 **[Node.js](https://nodejs.org)**（MIT）运行。
+- **[libheif-js](https://github.com/catdad-experiments/libheif-js)**，作者 Kiril Vatev（LGPL-3.0；libheif 作者 Dirk Farin 和
+  struktur AG，LGPL-3.0）：以 WebAssembly 把 HEIC 和 HEIF 照片解码为 JPEG。它不是 MIT：它作为独立的 npm 包随附
+  （`node_modules/libheif-js`，许可证在旁），从那里加载且未经修改，因此可以换成它的其他构建；源代码见链接。一同使用的还有
+  **[heic-convert](https://github.com/catdad-experiments/heic-convert)** 和 heic-decode（Kiril Vatev，ISC）、
+  **[jpeg-js](https://github.com/jpeg-js/jpeg-js)**（BSD-3-Clause）和 **[pngjs](https://github.com/pngjs/pngjs)**（MIT）。
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)**，作者 Leo（iFurySt）（MIT，Copyright (c) 2026 Leo）：
   机器上的电脑操作（ocu），在我们的分叉 [picassio/open-computer-use](https://github.com/picassio/open-computer-use) 中构建
   （标出并拒绝密码框），作为机器工具安装；其许可证和声明见 `third_party/open-computer-use/`。

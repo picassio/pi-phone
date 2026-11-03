@@ -2,7 +2,7 @@
  * Attached images, made small enough for the model (PP-347, from pi-pocket 0.28 #236). Making one takes a second or
  * more on a phone (`resizeImage`, Photon in WebAssembly), so it starts as the upload ends (`prepareModelImage`), while the
  * person still writes: the message that sends it finds it ready (`modelImage`). A file not prepared (after a restart, or
- * one that left the cache) is made then.
+ * one that left the cache) is made then. A HEIC or HEIF photo is made JPEG first (`heic.ts`, PP-348).
  *
  * As the image guard does (`image-guard.ts`), images are made one at a time: a phone that gets five photos pasted at
  * once decodes one, not five side by side. What is made is at most 2000 pixels a side, so the guard passes it on by its
@@ -10,15 +10,20 @@
  */
 import { readFile } from "node:fs/promises";
 import type { ImageContent } from "@earendil-works/pi-ai";
-import { resizeImage } from "@earendil-works/pi-coding-agent";
+import { formatDimensionNote, resizeImage } from "@earendil-works/pi-coding-agent";
+import { HEIC_TYPES, heicToJpeg } from "./heic.ts";
 
 /** Attached images that also go to the model itself, when it takes images. */
-export const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+export const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", ...HEIC_TYPES]);
 export const MAX_INLINE_IMAGE = 5 * 1024 * 1024;
 
 /** How many prepared images are kept: each holds up to about 4.5 MB of base64, mostly well under 1 MB. */
 const KEPT = 24;
-const prepared = new Map<string, Promise<ImageContent>>();
+
+/** An image for the model, and the note for its attachment line when the model gets something other than the file. */
+export type ModelImage = { image: ImageContent; note?: string };
+
+const prepared = new Map<string, Promise<ModelImage>>();
 /** The image being made, which the next waits for: one at a time. */
 let making: Promise<unknown> = Promise.resolve();
 
@@ -29,17 +34,42 @@ export function forModel(mime: string, size: number): boolean {
 
 /**
  * An image file for the model, at most 2000 pixels a side as Pi's read tool sends images: models refuse bigger ones once
- * a conversation holds many, and then every request fails until they leave its context. After the one being made.
+ * a conversation holds many, and then every request fails until they leave its context. A HEIC or HEIF photo is made
+ * JPEG first. The note says what differs from the file: the format, then the size in the words of Pi's read tool. After
+ * the one being made.
  */
-function make(path: string, mimeType: string): Promise<ImageContent> {
+function make(path: string, mimeType: string): Promise<ModelImage> {
     const made = making.then(async () => {
-        const image = await resizeImage(await readFile(path), mimeType);
+        let bytes: Uint8Array = await readFile(path);
+        let type = mimeType;
+
+        if (HEIC_TYPES.has(mimeType)) {
+            bytes = await heicToJpeg(bytes);
+            type = "image/jpeg";
+        }
+
+        const image = await resizeImage(bytes, type);
 
         if (image === null) {
             throw new Error("it could not be made small enough for the model");
         }
 
-        return { type: "image" as const, mimeType: image.mimeType, data: image.data };
+        const notes: string[] = [];
+
+        if (image.mimeType !== mimeType) {
+            notes.push(`[Image: shown to you as ${image.mimeType.split("/")[1]!.toUpperCase()}.]`);
+        }
+
+        const size = formatDimensionNote(image);
+
+        if (size !== undefined) {
+            notes.push(size);
+        }
+
+        return {
+            image: { type: "image" as const, mimeType: image.mimeType, data: image.data },
+            ...(notes.length === 0 ? {} : { note: notes.join(" ") }),
+        };
     });
 
     making = made.catch(() => undefined);
@@ -64,7 +94,7 @@ export function prepareModelImage(path: string, mimeType: string, size: number):
 }
 
 /** An attached image as the model gets it: the one prepared at upload, or made now. */
-export function modelImage(path: string, mimeType: string): Promise<ImageContent> {
+export function modelImage(path: string, mimeType: string): Promise<ModelImage> {
     const made = prepared.get(path);
 
     if (made === undefined) {

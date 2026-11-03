@@ -657,7 +657,8 @@ No Termux, no laptop, no cloud VM.
   "starting". Before that, the phone app's own screen says when the server is unpacking, starting, or failed.
 - **Quick on a phone.** A streaming answer redraws only its last block, and only what changed in it crosses the wire;
   text and the event stream go compressed, and web files are cached (ETag, 304) and fetched at once (modulepreload).
-  A picture you attach is made ready for the model as it uploads, one at a time, so the message goes at once.
+  A picture you attach is made ready for the model as it uploads, one at a time, so the message goes at once; an
+  iPhone's HEIC or HEIF photo reaches Pi as a JPEG, and its line in your message says so.
 - **Updates from GitHub.** Every passing build on `master` is a release, with release notes. The app checks it (at
   start, or Settings › Check for app updates): server and UI changes swap in within seconds; a new Android shell is a
   one-tap install.
@@ -904,6 +905,12 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
 - **[HyperFrames](https://github.com/heygen-com/hyperframes)** by HeyGen (Apache-2.0): rendering HTML to video,
   installed on machines from npm with its pinned lockfile in `third_party/hyperframes/`, run by
   **[Node.js](https://nodejs.org)** (MIT) from nodejs.org.
+- **[libheif-js](https://github.com/catdad-experiments/libheif-js)** by Kiril Vatev (LGPL-3.0; libheif by Dirk Farin and
+  struktur AG, LGPL-3.0): HEIC and HEIF photos decoded to JPEG, as WebAssembly. It is not MIT: it ships as its own npm
+  package (`node_modules/libheif-js`, its license beside it), loaded from there and not changed, so it can be replaced
+  with another build of it; its source is at the link. With **[heic-convert](https://github.com/catdad-experiments/heic-convert)**
+  and heic-decode by Kiril Vatev (ISC), **[jpeg-js](https://github.com/jpeg-js/jpeg-js)** (BSD-3-Clause) and
+  **[pngjs](https://github.com/pngjs/pngjs)** (MIT).
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)** by Leo (iFurySt) (MIT, Copyright (c) 2026
   Leo): computer use on machines (ocu), built in our fork
   [picassio/open-computer-use](https://github.com/picassio/open-computer-use) (password fields marked and refused) and

@@ -680,7 +680,8 @@ dự án thật.</sub>
   động hay đã lỗi.
 - **Nhanh trên điện thoại.** Câu trả lời đang truyền chỉ vẽ lại khối cuối, và chỉ phần thay đổi được gửi đi; văn bản và
   luồng sự kiện được nén, còn tệp web được cache (ETag, 304) và tải cùng lúc (modulepreload). Ảnh bạn đính kèm
-  được chuẩn bị cho mô hình ngay khi tải lên, từng ảnh một, nên tin nhắn đi ngay.
+  được chuẩn bị cho mô hình ngay khi tải lên, từng ảnh một, nên tin nhắn đi ngay; ảnh HEIC hoặc HEIF của iPhone
+  đến Pi dưới dạng JPEG, và dòng của nó trong tin nhắn ghi rõ điều đó.
 - **Cập nhật từ GitHub.** Mỗi bản dựng đạt trên `master` là một bản phát hành, kèm ghi chú phát hành. Ứng dụng kiểm tra
   (khi khởi động, hoặc Cài đặt › Kiểm tra cập nhật ứng dụng): thay đổi về máy chủ và giao diện được thay trong vài giây;
   vỏ Android mới là một lần chạm để cài.
@@ -929,6 +930,12 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
 - **[HyperFrames](https://github.com/heygen-com/hyperframes)** của HeyGen (Apache-2.0): dựng HTML thành video, cài lên
   các máy từ npm theo lockfile đã ghim trong `third_party/hyperframes/`, chạy bằng **[Node.js](https://nodejs.org)**
   (MIT) từ nodejs.org.
+- **[libheif-js](https://github.com/catdad-experiments/libheif-js)** của Kiril Vatev (LGPL-3.0; libheif của Dirk Farin và
+  struktur AG, LGPL-3.0): giải mã ảnh HEIC và HEIF thành JPEG, bằng WebAssembly. Nó không phải MIT: nó đi kèm như một
+  gói npm riêng (`node_modules/libheif-js`, giấy phép nằm bên cạnh), được nạp từ đó và không bị sửa, nên có thể thay bằng
+  một bản dựng khác; mã nguồn ở đường dẫn trên. Cùng với **[heic-convert](https://github.com/catdad-experiments/heic-convert)**
+  và heic-decode của Kiril Vatev (ISC), **[jpeg-js](https://github.com/jpeg-js/jpeg-js)** (BSD-3-Clause) và
+  **[pngjs](https://github.com/pngjs/pngjs)** (MIT).
 - **[open-computer-use](https://github.com/iFurySt/open-computer-use)** của Leo (iFurySt) (MIT, Copyright (c) 2026 Leo):
   computer use trên các máy (ocu), dựng trong bản fork [picassio/open-computer-use](https://github.com/picassio/open-computer-use)
   (ô mật khẩu được đánh dấu và từ chối) và cài dưới dạng công cụ trên máy; giấy phép và các thông báo của nó trong

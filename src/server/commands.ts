@@ -139,6 +139,8 @@ const IMAGE_MIME: Record<string, string> = {
     ".jpeg": "image/jpeg",
     ".gif": "image/gif",
     ".webp": "image/webp",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
 };
 const MAX_TITLE = 120;
 /** A title as stored: one line, so it cannot pass for more lines where it is quoted (PiP's lists, reports). */
@@ -854,12 +856,25 @@ export class Commands {
         // A document (PDF, Word, …) gets its Markdown beside it, which goes with it to a machine: Pi reads that.
         const converted = await this.#convertDocuments(id, attachments);
         const placed = await this.#placeAttachments(id, [...attachments, ...converted.map((each) => each.markdown)]);
+        // Most were made ready as they were uploaded (`model-images.ts`, PP-347); the rest are made now, in their order.
+        const images = model.input.includes("image") ? attachments.filter((file) => forModel(file.mime, file.size)) : [];
+        const made = await Promise.allSettled(images.map((file) => modelImage(file.path, file.mime)));
+        // What differs between a file and the image the model gets (a HEIC photo as JPEG, PP-348) goes on the file's line.
+        const notes = new Map<Attachment, string>();
+
+        made.forEach((result, index) => {
+            if (result.status === "fulfilled" && result.value.note !== undefined) {
+                notes.set(images[index]!, result.value.note);
+            }
+        });
+
         const lines = placed.slice(0, attachments.length).map((file, index) => {
             const original = attachments[index]!;
             const done = converted.find((each) => each.from === original);
             const markdown = done === undefined ? undefined : placed[attachments.length + converted.indexOf(done)]!;
+            const note = notes.get(original);
 
-            return `- ${file.path} (${file.name}, ${file.mime || "unknown type"}, ${file.size} bytes)${markdown === undefined ? "" : ` → as Markdown: ${markdown.path} (${markdown.size} bytes)`}`;
+            return `- ${file.path} (${file.name}, ${file.mime || "unknown type"}, ${file.size} bytes)${markdown === undefined ? "" : ` → as Markdown: ${markdown.path} (${markdown.size} bytes)`}${note === undefined ? "" : ` ${note}`}`;
         });
         // The heading whole, with files alone too: what reads the message splits it there.
         const written =
@@ -882,13 +897,9 @@ export class Commands {
             ...(wiki === undefined ? [] : [{ type: "text" as const, text: app.secrets.redact(wiki, id) }]),
         ];
 
-        // Most were made ready as they were uploaded (`model-images.ts`, PP-347); the rest are made now, in their order.
-        const images = model.input.includes("image") ? attachments.filter((file) => forModel(file.mime, file.size)) : [];
-        const made = await Promise.allSettled(images.map((file) => modelImage(file.path, file.mime)));
-
         made.forEach((result, index) => {
             if (result.status === "fulfilled") {
-                parts.push(result.value);
+                parts.push(result.value.image);
             } else {
                 app.notice("warning", `Could not attach ${images[index]!.name}: ${describe(result.reason)}`, id);
             }
@@ -1100,7 +1111,7 @@ export class Commands {
 
                 if (mime !== undefined) {
                     if (images && statSync(file).size <= MAX_INLINE_IMAGE) {
-                        parts.push(await modelImage(file, mime));
+                        parts.push((await modelImage(file, mime)).image);
                     }
 
                     continue;
