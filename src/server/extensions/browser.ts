@@ -7,8 +7,8 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { basename } from "node:path";
-import { addressOf, FULL_PAGE_MAX, LONG_PRESS_MS, LONG_PRESS_RANGE, PRESSABLE, StalePage } from "../browser/page.ts";
-import { MAX_TABS, type PiBrowser } from "../browser/pi-browser.ts";
+import { addressOf, FULL_PAGE_MAX, LONG_PRESS_MS, LONG_PRESS_RANGE, PERMISSIONS, PRESSABLE, StalePage } from "../browser/page.ts";
+import { MAX_TABS, PERMISSION_WORDS, type PiBrowser } from "../browser/pi-browser.ts";
 import { fencedPage } from "../fence.ts";
 import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
@@ -109,7 +109,7 @@ export function evalAnswer(json: string): string {
 const TEXT_MAX = 40_000;
 
 /** In every prompt while the module is on. */
-export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text, frames ("(in a frame: pay.example)": card fields, embedded sign-ins, consent banners) and web components included. Act by number with browser_click, browser_type, browser_select, browser_scroll, browser_press (keys and chords: Ctrl+A, Ctrl+Enter, Shift+Tab, Meta+K), browser_hover, browser_click's how (double, right, long: a long press), browser_focus (the focus without a click; the read marks the focused control), browser_select_text (a text on the page or in a control, or a field's characters; no clipboard) and browser_drag (onto another control, or by an offset: sliders, kanban, sortable lists, maps); every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture; browser_eval runs a JavaScript expression that reads the page (computed colours, fonts, spacing; DOM queries) and gives its value as JSON. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. A file a page downloads is saved in the session's downloads/ folder (25 MB at most; on its machine for a session there) and the answer names it; the phone's browser keeps no downloads (browse on a machine for those), and a browser you attached to saves them as it does itself. browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; a window a page opens (a sign-in popup) becomes a tab in front, and when it closes itself the page that opened it comes back; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_open with machine browses on one of the owner's machines (its Chrome, its own addresses such as localhost:3000) from then on; browser_attach drives a browser already running on a machine (Playwright, agent-browser, a Chrome started with --remote-debugging-port), after the owner's card, and browser_detach lets it go. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code as text. When a page asks to sign in and the sign-in is saved as secrets you may use (secrets_list), type them by name: browser_type with secret: "NAME" (a password field too), or browser_run values {"password": {"secret": "NAME"}}; their values go into the page, never to you. Otherwise call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
+export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text, frames and web components included. Act by number with browser_click (double, right, long press too), browser_type, browser_select, browser_scroll, browser_press (chords too: Ctrl+A, Shift+Tab), browser_hover, browser_focus, browser_select_text and browser_drag (sliders, kanban, maps); every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture; browser_eval runs a JavaScript expression that reads the page (computed colours, fonts, spacing; DOM queries) and gives its value as JSON. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. A file a page downloads is saved in the session's downloads/ folder and the answer names it (not on the phone's browser). browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; a window a page opens (a sign-in popup) becomes a tab in front, and when it closes itself the page that opened it comes back; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_open with machine browses on one of the owner's machines (its Chrome, its own addresses such as localhost:3000) from then on; browser_attach drives a browser already running on a machine (Playwright, agent-browser, a Chrome started with --remote-debugging-port), after the owner's card, and browser_detach lets it go. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code as text. When a page asks to sign in and the sign-in is saved as secrets you may use (secrets_list), type them by name: browser_type with secret: "NAME" (a password field too), or browser_run values {"password": {"secret": "NAME"}}; their values go into the page, never to you. Otherwise call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pages are denied location, camera, microphone, notifications and the clipboard; browser_permission asks the owner to allow one for a site. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
 
 export default function createBrowser(host: PocketHost) {
     /** The session's own browser at the place it works in: the phone's, or its machine's Chrome (its own tabs there). */
@@ -150,6 +150,33 @@ export default function createBrowser(host: PocketHost) {
 
         return now;
     };
+    /**
+     * Permissions a page asked for while `browser.permissions` is ask (PP-376): a card each, on this call of `tool`; each
+     * allowed for its site or left denied as the owner answers. Answers `text` with what came of them after it.
+     */
+    const permissionCards = async (api: { conversationId: unknown; taskId: unknown; callId?: string }, context: unknown, tool: string, browser: PiBrowser, session: number, text: string): Promise<string> => {
+        let now = text;
+
+        for (const ask of browser.permissionAsks()) {
+            const answer = await host.approvals.request(
+                {
+                    id: `browser-permission-${String(api.taskId)}-${String(api.callId)}-${ask.id}`,
+                    conversationId: api.conversationId as never,
+                    taskId: api.taskId as never,
+                    ...(api.callId === undefined ? {} : { callId: api.callId }),
+                    tool,
+                    subject: `${ask.origin} asks for ${PERMISSION_WORDS[ask.name]}`,
+                    reason: "A page in Pi's browser asks for this. Allow lets that site have it in Pi's browser until it closes; Deny keeps it denied. Settings › Pi's browser › Permissions: Ask.",
+                    createdAt: Date.now(),
+                },
+                context as never,
+            );
+
+            now += `\n${await browser.answerPermission(session, ask.id, answer.allow, answer.by)}`;
+        }
+
+        return now;
+    };
     /** Run a browser action of `tool` for a session: its answer, or the error in words (a stale page reads the page again). */
     const act = async (
         tool: string,
@@ -170,7 +197,9 @@ export default function createBrowser(host: PocketHost) {
             browser = await browserOf(api, context);
 
             // What the page shows, and what was done there (names of its controls), reach Pi fenced as data.
-            return reply(fencedPage(await windowCards(api, context, tool, browser, session, await work(browser, session))));
+            const done = await windowCards(api, context, tool, browser, session, await work(browser, session));
+
+            return reply(fencedPage(await permissionCards(api, context, tool, browser, session, done)));
         } catch (error) {
             if (error instanceof StalePage && browser !== undefined) {
                 try {
@@ -391,6 +420,61 @@ export default function createBrowser(host: PocketHost) {
                 const spec = { ...(args.text === undefined ? {} : { text: args.text }), ...(args.all === true ? { all: true } : {}), ...(args.start === undefined ? {} : { start: args.start }), ...(args.end === undefined ? {} : { end: args.end }) };
 
                 return act("browser_select_text", api, context, (browser, session) => browser.selectText(session, args.index, spec));
+            },
+        }),
+        defineTool({
+            name: "browser_permission",
+            description:
+                "Ask the owner on a card to allow a permission for the site in front in Pi's browser (allow false denies it again, without a card): geolocation, camera, microphone, notifications or clipboard (reading it). " +
+                "Pages are denied these by default and the answer says when one asked (setting browser.permissions: deny, or ask: a card as a page asks). Allowed lasts until the browser closes; then do again what asked for it. " +
+                "Not on the phone's browser, which allows none: browse on a machine for such a page. A headless Chrome has no location, camera or microphone of its own.",
+            parameters: Type.Object({
+                permission: Type.Union(PERMISSIONS.map((name) => Type.Literal(name))),
+                allow: Type.Optional(Type.Boolean({ description: "false: deny it again (default true: ask the owner to allow it)" })),
+            }),
+            execute: async (args, api, context) => {
+                const session = Number(api.conversationId);
+                const owner = mayBrowse(api.conversationId);
+
+                if (owner !== true) {
+                    return reply(owner, true);
+                }
+
+                const browser = await browserOf(api, context);
+                const url = browser.state().url;
+                const origin = URL.canParse(url) ? new URL(url).origin : "null";
+
+                if (!/^https?:\/\//.test(origin)) {
+                    return reply("Open the site first: Pi's browser shows no web page now.", true);
+                }
+
+                const allow = args.allow ?? true;
+
+                if (allow) {
+                    const answer = await host.approvals.request(
+                        {
+                            id: `browser-permission-${String(api.taskId)}-${String(api.callId)}`,
+                            conversationId: api.conversationId as never,
+                            taskId: api.taskId as never,
+                            ...(api.callId === undefined ? {} : { callId: api.callId }),
+                            tool: "browser_permission",
+                            subject: `Allow ${origin} ${PERMISSION_WORDS[args.permission]}`,
+                            reason: "Pi asks to let this site have it in Pi's browser, until the browser closes.",
+                            createdAt: Date.now(),
+                        },
+                        context as never,
+                    );
+
+                    if (!answer.allow) {
+                        return reply(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} said no`}: ${origin} stays denied ${PERMISSION_WORDS[args.permission]}.`, true);
+                    }
+                }
+
+                try {
+                    return reply(fencedPage(await browser.setPermission(session, origin, args.permission, allow)));
+                } catch (error) {
+                    return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
+                }
             },
         }),
         defineTool({
@@ -772,8 +856,10 @@ export default function createBrowser(host: PocketHost) {
 
                     // Windows the pages asked to open during the run, while popups is ask: the person's cards now (PP-249).
                     const windows = browser.windowAsks().length === 0 ? "" : `\n${fencedPage(await windowCards(api, context, "browser_run", browser, session, ""))}`;
+                    // Permissions the pages asked for, while browser.permissions is ask: the owner's cards now (PP-376).
+                    const permissions = browser.permissionAsks().length === 0 ? "" : `\n${fencedPage((await permissionCards(api, context, "browser_run", browser, session, "")).trim())}`;
 
-                    return reply(report(result, decider.label, page) + windows, result.status !== "done");
+                    return reply(report(result, decider.label, page) + windows + permissions, result.status !== "done");
                 } catch (error) {
                     // A failed step or page can say the page's words: fenced as the report is.
                     return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);

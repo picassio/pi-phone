@@ -243,6 +243,7 @@ export class MachineEngine implements BrowserEngine {
     readonly actAsPhone = true;
     readonly oopif = true;
     readonly wholePage = true;
+    readonly grantsPermissions = true;
     readonly reopensToResize = false;
     readonly #machine: MachineAccess;
     readonly #window: WindowOptions;

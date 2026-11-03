@@ -125,6 +125,44 @@ function PopupsRow() {
     </div>`;
 }
 
+/** What Pi's browser does when a page asks for a permission (PP-376): Deny or Ask, saved when tapped. */
+function PermissionsRow() {
+    const [mode, setMode] = useState(null);
+    const choices = [
+        ["deny", t("Deny")],
+        ["ask", t("Ask")],
+    ];
+    const details = {
+        deny: t("A page that asks for your location, camera, microphone, notifications or the clipboard is denied, and Pi is told; Pi can ask you to allow one for a site."),
+        ask: t("You answer a card when a page asks for your location, camera, microphone, notifications or the clipboard, to allow it for that site."),
+    };
+
+    useEffect(() => {
+        void attempt(async () => setMode((await api("browser/permissions")).permissions));
+    }, []);
+
+    if (mode === null) {
+        return html`<${Loader} label=${t("Reading the setting")} />`;
+    }
+
+    return html`<div class="sheet-list">
+        <${Row} title=${t("Permissions pages ask for")} detail=${details[mode]}>
+            <div class="segmented">
+                ${choices.map(
+                    ([key, label]) =>
+                        html`<button
+                            class=${mode === key ? "on" : ""}
+                            aria-pressed=${mode === key}
+                            onClick=${() => key !== mode && attempt(async () => setMode((await api("browser/permissions", { permissions: key }, { method: "PUT" })).permissions))}
+                        >
+                            ${label}
+                        </button>`,
+                )}
+            </div>
+        <//>
+    </div>`;
+}
+
 /** Whether browser_eval runs scripts that read the page (PP-244): On or Off, saved when tapped. */
 function EvalRow() {
     const [on, setOn] = useState(null);
@@ -217,6 +255,8 @@ export function BrowserSheet() {
         }
         <div class="label">${t("Windows on the phone")}</div>
         <${PopupsRow} />
+        <div class="label">${t("Permissions")}</div>
+        <${PermissionsRow} />
         <div class="label">${t("Scripts")}</div>
         <${EvalRow} />
     <//>`;

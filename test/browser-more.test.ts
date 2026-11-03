@@ -1,7 +1,9 @@
 // Pi's browser, PP-376, with a Chrome on the machine (CI): controls inside frames (another site's, in a process of its
 // own, and the page's own) and open shadow roots are read and acted on, and what the person types on a card stays
 // hidden there too.
-import { cleanUpAll } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import type { FauxResponseStep } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
@@ -101,6 +103,11 @@ const PAGES: Record<string, string> = {
     "/long": `<!doctype html><title>Long</title><meta name="viewport" content="width=device-width">
         <style>body{margin:0;background:#fff}</style><h1 style="margin:8px">Top of the page</h1><div style="height:1800px"></div>
         <label>Member number <input id="member" style="width:300px;height:40px;background:#fff;border:0"></label><div style="height:1000px"></div><p>Bottom words</p>`,
+    // A page that asks for the location and for notifications, and says what it got.
+    "/where": `<!doctype html><title>Where</title><meta name="viewport" content="width=device-width">
+        <button onclick="navigator.geolocation.getCurrentPosition(() => { out.textContent = 'Location found'; }, (e) => { out.textContent = 'Location error ' + e.code; }, { timeout: 2000 })">Find me</button>
+        <button onclick="Notification.requestPermission().then((answer) => { out.textContent = 'Notifications ' + answer; })">Notify me</button>
+        <p id="out">Nothing asked</p>`,
     "/card": `<!doctype html><title>Card</title><meta name="viewport" content="width=device-width">
         <label>Card number <input id="card"></label><br><label>PIN <input id="pin" type="password"></label><br>
         <button onclick="out.textContent = 'Paid with ' + card.value + (pin.value === '4321' ? ' and the PIN' : ' without the PIN')">Pay</button>
@@ -145,7 +152,7 @@ before(async () => {
     port = (server.address() as { port: number }).port;
 });
 
-after(() => cleanUpAll(() => server?.close()));
+after(() => cleanUpAll(() => server?.close(), () => cleanUp()));
 
 /** A browser on a headless Chrome, where pi.test and pay.test (another site) are the test server. */
 function browserHere(options: Partial<PiBrowserOptions> = {}): PiBrowser {
@@ -432,6 +439,120 @@ test("with Chrome: browser_screenshot's whole page goes past the view, with mark
         await assert.rejects(viewOnly.screenshot(1, { full: true }), /takes pictures of what is in view only/);
     } finally {
         await viewOnly.close();
+    }
+});
+
+test("with Chrome: a permission a page asks for is denied and Pi is told; the owner allows one for a site (a card as the page asks, with ask); a browser that allows none says so (PP-376)", { skip }, async () => {
+    let mode: "deny" | "ask" = "deny";
+    const origin = `http://pi.test:${port}`;
+    // As a secure site, which alone may ask for these.
+    const flags = [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox", `--unsafely-treat-insecure-origin-as-secure=${origin}`];
+    const browser = new PiBrowser({ engine: new ChromeEngine(chrome!, flags), permissions: () => mode, changed: () => {}, frame: () => {}, log: () => {} });
+
+    try {
+        const page = await browser.open(1, `${origin}/where`);
+        const found = await browser.click(1, number(page, /\[(\d+)\] button "Find me"/));
+
+        assert.match(found, new RegExp(`^The page \\(${origin.replace(/[.:/]/g, "\\$&")}\\) asked for your location: Pi's browser denied it \\(setting browser\\.permissions: deny\\)\\. If the task needs it, ask the owner with browser_permission \\(geolocation\\)\\.\\n`));
+        assert.match(found, /Location error 1/);
+        assert.match(await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/)), /asked for to show notifications: Pi's browser denied it[\s\S]*Notifications denied/);
+
+        // The owner allowed it (browser_permission's card): the page gets it when it asks again.
+        assert.match(await browser.setPermission(1, origin, "notifications", true), /may have to show notifications in Pi's browser now/);
+        assert.match(await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/)), /^The page \(.*\) asked for to show notifications: allowed, as the owner allowed it for that site\.\n[\s\S]*Notifications granted/);
+        await browser.setPermission(1, origin, "notifications", false);
+
+        // Ask: a card waits as the page asks; allowed there, it is the site's.
+        mode = "ask";
+
+        const asked = await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/));
+
+        assert.match(asked, /asked for to show notifications: denied for now; the owner answers a card to allow it for that site\./);
+        assert.deepEqual(browser.permissionAsks().map((each) => [each.origin, each.name]), [[origin, "notifications"]]);
+        assert.match(await browser.answerPermission(1, browser.permissionAsks()[0]!.id, true, "Tuan"), /may have to show notifications/);
+        assert.deepEqual(browser.permissionAsks(), []);
+        assert.match(await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/)), /Notifications granted/);
+    } finally {
+        await browser.close();
+    }
+
+    // A browser that allows no site these (the phone's WebView) says so, and refuses to allow one.
+    const engine = new ChromeEngine(chrome!, flags);
+    const none = new PiBrowser({
+        engine: new Proxy(engine, { get: (target, name) => (name === "grantsPermissions" ? false : (Reflect.get(target, name) as unknown) instanceof Function ? (Reflect.get(target, name) as (...args: unknown[]) => unknown).bind(target) : Reflect.get(target, name)) }),
+        changed: () => {},
+        frame: () => {},
+        log: () => {},
+    });
+
+    try {
+        const page = await none.open(1, `${origin}/where`);
+
+        assert.match(await none.click(1, number(page, /\[(\d+)\] button "Notify me"/)), /asked for to show notifications: Chrome denies it \(it allows no site that\): browse on a machine/);
+        await assert.rejects(none.setPermission(1, origin, "camera", true), /allows no site the camera/);
+    } finally {
+        await none.close();
+    }
+});
+
+test("with Chrome, in the app: with browser.permissions ask the tool that acted shows the owner a card as a page asks, Allow gives the site it; browser_permission asks on a card too (PP-376)", { skip }, async () => {
+    const origin = `http://pi.test:${port}`;
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox", `--unsafely-treat-insecure-origin-as-secure=${origin}`]);
+    const calls: Record<string, [string, Record<string, unknown>]> = {
+        "open where": ["browser_open", { url: `${origin}/where` }],
+        "notify me": ["browser_click", { index: 2 }],
+        "allow the camera": ["browser_permission", { permission: "camera" }],
+    };
+    const route: FauxResponseStep = (request) => {
+        const { role, text } = lastText(request as never);
+
+        for (const [ask, [tool, args]] of Object.entries(calls)) {
+            if (role === "user" && text.endsWith(ask)) {
+                return fauxAssistantMessage([fauxToolCall(tool, args as never)], { stopReason: "toolUse" });
+            }
+        }
+
+        return fauxAssistantMessage([fauxText(role === "toolResult" ? `told: ${text}` : "ok")]);
+    };
+    const app = await openApp(scriptedModel(route), join(root, "browser-more-permissions"), undefined, { browserEngine: engine });
+
+    try {
+        app.setBrowserPermissions(owner(app), "ask");
+        assert.throws(() => app.setBrowserPermissions(owner(app), "sometimes"), /deny or ask/);
+
+        const id = await newSession(app);
+        const turn = async (text: string, answer?: boolean) => {
+            const { submissionId } = await app.commands.submit(id, owner(app), { text, requestId: crypto.randomUUID() });
+            let card: ReturnType<App["approvals"]["all"]>[number] | undefined;
+
+            if (answer !== undefined) {
+                await until(() => app.approvals.forConversation(id).length > 0, "the card", 20_000);
+                card = app.approvals.forConversation(id)[0]!;
+                await app.answerApproval(card.id, answer, owner(app));
+            }
+
+            await (await app.harness.submission(submissionId, context))!.wait(context);
+
+            return { said: (await modelTexts(app, id)).at(-1)!, card };
+        };
+
+        assert.match((await turn("open where")).said, /Where — /);
+
+        const asked = await turn("notify me", true);
+
+        assert.equal(asked.card?.tool, "browser_click");
+        assert.equal(asked.card?.subject, `${origin} asks for to show notifications`);
+        assert.match(asked.said, /denied for now; the owner answers a card[\s\S]*may have to show notifications in Pi's browser now/);
+        assert.match((await turn("notify me")).said, /Notifications granted/);
+
+        const camera = await turn("allow the camera", false);
+
+        assert.equal(camera.card?.tool, "browser_permission");
+        assert.equal(camera.card?.subject, `Allow ${origin} the camera`);
+        assert.match(camera.said, /said no: http:\/\/pi\.test:\d+ stays denied the camera/);
+    } finally {
+        await app.close();
+        await engine.close();
     }
 });
 

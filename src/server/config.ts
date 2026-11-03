@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type AssistantSettings, readAssistant, storedAssistant } from "./assistant.ts";
-import type { PopupMode } from "./browser/pi-browser.ts";
+import type { PermissionMode, PopupMode } from "./browser/pi-browser.ts";
 import { type ContextPart, type ContextPolicy, DEFAULT_CONTEXT_POLICY } from "./context-policy.ts";
 import { type SubagentDefaults, type SubagentPart, withPart } from "./subagent-defaults.ts";
 
@@ -203,6 +203,11 @@ interface PocketConfig {
      * first), or "off" (the page gets none). Absent: allow.
      */
     browserPopups?: PopupMode;
+    /**
+     * What Pi's browser does when a page asks for a permission (PP-376): "deny" (Pi is told), or "ask" (the owner answers a
+     * card to allow it for that site). Absent: deny.
+     */
+    browserPermissions?: PermissionMode;
     /** Whether browser_eval runs scripts that read the page in Pi's browser (PP-244). Absent: on. */
     browserEval?: boolean;
     /** Whether people may keep artifacts as pages on their rail (PP-370, `kept-pages.ts`). Absent: on. */
@@ -731,6 +736,20 @@ export class ConfigStore {
 
     get browserPopups(): PopupMode {
         return this.#config.browserPopups ?? "allow";
+    }
+
+    get browserPermissions(): PermissionMode {
+        return this.#config.browserPermissions ?? "deny";
+    }
+
+    set browserPermissions(mode: PermissionMode) {
+        if (mode === "deny") {
+            delete this.#config.browserPermissions;
+        } else {
+            this.#config.browserPermissions = mode;
+        }
+
+        this.save();
     }
 
     set browserPopups(mode: PopupMode) {

@@ -1456,6 +1456,23 @@ so Pi changes them through the settings tools; "the last session" is the one the
   a value typed on a card below the fold is blacked out too; areas given are in the page's coordinates. Only engines
   with `wholePage` (a Chrome's: the server edition's, a machine's, an attached one): the phone's pictures come from its
   display (PP-114), a view at a time, so it is refused there in words. Not with `index`.
+- **Permissions in Pi's browser** (PP-376; `PERMISSION_WATCH`, `PiBrowser.#askedPermissions`, `browser_permission`):
+  the location, the camera, the microphone, notifications and reading the clipboard. Every document (main world; a
+  frame of another site's session too) wraps `geolocation.getCurrentPosition`/`watchPosition`,
+  `mediaDevices.getUserMedia` (camera and/or microphone by its constraints), `Notification.requestPermission` and
+  `clipboard.readText`/`read`, noting the name and origin (a frame of the page's own site notes it in the page's list),
+  the last ten; the next read takes them (`takePermissions`) and says each was denied, or allowed for that site. A
+  Chrome engine (`grantsPermissions`: the server edition's, a machine's, an attached one) answers them as Pi's browser
+  says: before `open` loads a site and on each main-frame navigation, `Browser.setPermission` for that origin, denied
+  unless the owner allowed it (`camera`, `microphone`, `geolocation`, `notifications`, `clipboard-read`; Chrome refuses
+  them on insecure origins, which cannot ask either), so a window-mode Chrome shows no prompt at the machine. The
+  owner's allowances are the session's browser's, by origin, until it closes (DevTools' overrides). Setting
+  `browser.permissions` (Settings › Pi's browser › Permissions, `setting_change`): deny (the default: Pi is told, and
+  may ask with `browser_permission`, which shows a card and grants for the site in front; `allow: false` denies again
+  without one) or ask (the tool that acted shows a card per site and permission, as windows do, and an allowed one is
+  set at once: the page must ask again). The phone's WebView allows none (its WebChromeClient denies the location,
+  and grants no permission request) and has no DevTools override, so there the answer says so and the tool refuses.
+  A headless Chrome has no location, camera or microphone: allowed, the page may still get none.
 - **Downloads in Pi's browser** (PP-376; `PiBrowser.#takeDownloads`, `BrowserEngine.downloads`): each tab's page has
   `Browser.setDownloadBehavior` `allowAndName` into its engine's folder, events on (for the browser's profile, which is
   pi-phone's own): a `ChromeEngine`'s temporary folder (removed with it), a machine's `~/.pi/mobile/browser/downloads`

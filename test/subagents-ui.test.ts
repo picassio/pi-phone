@@ -113,7 +113,9 @@ before(async () => {
         return;
     }
 
-    model = scriptedModel(route);
+    // A wide window: with the app's whole prompt (every tool offered), a background compaction's request must not be the
+    // one a test reads (as in para.test.ts).
+    model = scriptedModel(route, { contextWindow: 1_000_000 });
     app = await openApp(model);
     server = createServer(
         createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),

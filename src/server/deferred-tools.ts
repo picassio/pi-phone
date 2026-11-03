@@ -34,6 +34,7 @@ export const DEFERRED_TOOLS: readonly string[] = [
     "browser_drag",
     "browser_focus",
     "browser_select_text",
+    "browser_permission",
     "browser_forward",
     "browser_back",
     // The session list's upkeep.

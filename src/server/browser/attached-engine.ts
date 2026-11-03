@@ -218,6 +218,7 @@ export class AttachedEngine implements BrowserEngine {
     readonly actAsPhone = true;
     readonly oopif = true;
     readonly wholePage = true;
+    readonly grantsPermissions = true;
     readonly reopensToResize = false;
     readonly visibleOn: string | undefined;
     readonly remotePort: number;

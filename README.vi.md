@@ -220,6 +220,10 @@ dự án thật.</sub>
   trước, vẫn trao đổi được với trang đã mở nó, và Pi được báo; khi nó tự đóng, trang đó trở lại phía trước. **Cài đặt ›
   Trình duyệt của Pi › Cửa sổ trang mở ra** (`browser.popups`): *Cho phép*, *Hỏi* (một thẻ trước) hoặc *Tắt* (trang
   không mở được cửa sổ nào). Chrome trên một máy mở cửa sổ do một cú bấm mở, như Chrome vẫn làm.
+  Trang xin vị trí, máy ảnh, micrô, thông báo hay đọc bảng tạm sẽ bị từ chối và Pi được báo; Pi có thể hỏi bạn trên một thẻ để
+  cho phép một quyền với trang đó (`browser_permission`, đến khi trình duyệt đóng). **Cài đặt › Trình duyệt của Pi › Quyền**
+  (`browser.permissions`): *Từ chối* (mặc định) hoặc *Hỏi* (một thẻ khi trang xin). Trên trình duyệt của máy hoặc trình
+  duyệt được gắn vào; trình duyệt trên điện thoại không cho phép quyền nào.
   **`browser_eval`** chạy một biểu thức JavaScript đọc trang và trả giá trị dạng JSON (màu, phông chữ, khoảng cách đã
   tính của một thương hiệu, truy vấn DOM; tối đa khoảng 50 KB, tối đa 10 giây). Nó chạy trong một môi trường cô lập dùng
   chung DOM của trang nhưng không dùng chung script của trang, và chỉ đọc: ở đó không có cookie, bộ nhớ trang, mạng, hẹn
@@ -734,6 +738,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | **Jev** làm mô hình cho `browser_run` | **Trình duyệt của Pi › Mô hình chạy**: *Jev*, id `typesafe/jev-1.13`, cho mọi phiên hoặc chỉ phiên này (*Mô hình của phiên* dùng mô hình riêng của từng phiên) | “Dùng Jev cho browser run” (hoặc “…chỉ trong phiên này”) |
 | Đoạn mã đọc trang trong trình duyệt của Pi (`browser_eval`) | **Trình duyệt của Pi › Đoạn mã**: *Bật* (mặc định) hoặc *Tắt* | “Tắt đoạn mã trong trình duyệt” |
 | Artifact giữ thành trang trên thanh bên | **Trang**: các trang của bạn (thứ tự, *Gỡ khỏi thanh bên*); chủ sở hữu *Bật* (mặc định) hoặc *Tắt* trang cho mọi người | “Giữ paper reader thành trang”, “Đưa trang budget lên đầu”, “Tắt trang” |
+| Quyền mà trang xin trong trình duyệt của Pi (vị trí, máy ảnh, micrô, thông báo, bảng tạm) | **Trình duyệt của Pi › Quyền**: *Từ chối* (mặc định; Pi được báo và có thể hỏi bạn) hoặc *Hỏi* (một thẻ khi trang xin) | “Hỏi tôi khi trang muốn biết vị trí của tôi” |
 | Cửa sổ trang mở ra trong trình duyệt của Pi trên điện thoại (cửa sổ đăng nhập) | **Trình duyệt của Pi › Cửa sổ trang mở ra**: *Cho phép* (một tab ở trước, mặc định), *Hỏi* (một thẻ trước), *Tắt* | “Hỏi tôi trước khi trang mở cửa sổ” |
 | Tìm kiếm theo ngữ nghĩa của **Wiki** | **Wiki** (hoặc *Cài đặt wiki* từ trình khởi chạy tìm kiếm) **› Tìm theo ngữ nghĩa**: chọn một mô hình embedding của OpenRouter, ví dụ `openai/text-embedding-3-small`. Tắt nghĩa là chỉ tìm theo từ khóa | “Đặt mô hình embedding của wiki là openai/text-embedding-3-small” |
 | Ghi nhận wiki và ngữ cảnh prompt | **Wiki**: số phút rảnh trước khi ghi nhận một phiên, mô hình viết phần ghi nhận, số token wiki trong mỗi prompt, tùy chọn lint | “Ghi nhận phiên rảnh sau 30 phút”, “dùng claude-haiku để ghi nhận wiki” |

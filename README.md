@@ -212,6 +212,10 @@ No Termux, no laptop, no cloud VM.
   A window a page opens (a sign-in popup such as Microsoft's on Teams, a link to a new window) becomes a tab in front
   that still talks to its page, and Pi is told; when it closes itself, the page comes back to the front. **Settings ›
   Pi's browser › Windows pages open** (`browser.popups`): *Allow*, *Ask* (a card first) or *Off* (pages get none).
+  A page that asks for your location, the camera, the microphone, notifications or reading the clipboard is denied,
+  and Pi is told; Pi can ask you on a card to allow one for that site (`browser_permission`, until the browser closes).
+  **Settings › Pi's browser › Permissions** (`browser.permissions`): *Deny* (the default) or *Ask* (a card as a page
+  asks). On a machine's browser or an attached one; the phone's browser allows none.
   A machine's Chrome opens a window a click opens, as Chrome does.
   **`browser_eval`** runs a JavaScript expression that reads the page and gives its value as JSON (computed colours,
   fonts and spacing for a brand, DOM queries; about 50 KB at most, 10 seconds at most). It runs in an isolated world
@@ -710,6 +714,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | **Jev** as the model for `browser_run` | **Pi's browser › Run model**: pick a Jev model OpenRouter offers (such as *TypeSafe: Jev 1.14*) from the list, for every session or only this one (*The session's own model* uses each session's own model); *Test* asks it one decision | "Use Jev for browser runs" (or "…in this session only") |
 | Scripts that read the page in Pi's browser (`browser_eval`) | **Pi's browser › Scripts**: *On* (the default) or *Off* | "Turn off browser scripts" |
 | Artifacts kept as pages on the rail | **Pages**: your pages (order, *Remove from the rail*); the owner turns pages *On* (the default) or *Off* for everyone | "Keep the paper reader as a page", "Put the budget page first", "Turn off pages" |
+| Permissions pages ask for in Pi's browser (location, camera, microphone, notifications, clipboard) | **Pi's browser › Permissions**: *Deny* (the default; Pi is told and may ask you) or *Ask* (a card as a page asks) | "Ask me when a page wants my location" |
 | Windows pages open in Pi's browser on the phone (sign-in popups) | **Pi's browser › Windows pages open**: *Allow* (a tab in front, the default), *Ask* (a card first), *Off* | "Ask me before a page opens a window" |
 | **Wiki** search by meaning | **Wiki** (or *Wiki settings* from the search launcher) **› Search by meaning**: pick an OpenRouter embedding model, such as `openai/text-embedding-3-small`. Off means keyword search only | "Set the wiki embedding model to openai/text-embedding-3-small" |
 | **Wiki** search ranked by Jev | **Wiki › Rank with Jev**: a Jev model OpenRouter offers (`typesafe/jev-1.14` by default when OpenRouter is signed in), or *Off* for the search's own order | "Rank the wiki search with jev-1.13", "turn off Jev ranking for the wiki" |

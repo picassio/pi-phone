@@ -157,6 +157,10 @@ export function describeCall(call) {
                 label: t("Selects"),
                 subject: [args.text !== undefined ? `“${short(args.text, 60)}”` : args.all ? t("everything") : `${args.start ?? 0}–${args.end ?? ""}`, args.index === undefined ? "" : `[${args.index}]`].filter(Boolean).join(" "),
             };
+        case "browser_permission":
+            return args.allow === false
+                ? { icon: "◍", label: t("Denies"), subject: String(args.permission ?? "") }
+                : { icon: "◍", label: t("Asks you"), subject: t("to allow {permission}", { permission: args.permission ?? "" }) };
         case "browser_focus":
             return { icon: "◍", label: t("Focuses"), subject: `[${args.index ?? ""}]` };
         case "browser_drag":

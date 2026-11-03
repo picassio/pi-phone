@@ -24,6 +24,7 @@ import {
     describe,
     elementsOf,
     FULL_PAGE_MAX,
+    type PermissionName,
     SHORT_VALUE_NOTE,
     shortCardValueShowing,
     StalePage,
@@ -53,6 +54,23 @@ export const SIZES = { phone: VIEWPORT, desktop: { width: 1280, height: 800, mob
 export type BrowserSize = keyof typeof SIZES;
 /** Tabs open at once, at most (each is a WebView on the phone). */
 export const MAX_TABS = 6;
+
+/**
+ * What Pi's browser does when a page asks for a permission (the location, the camera, the microphone, notifications,
+ * reading the clipboard): `browser.permissions` (PP-376). deny: denied, and Pi is told (it may ask the owner with
+ * browser_permission); ask: denied for now, and the owner answers a card to allow it for that site.
+ */
+export type PermissionMode = "deny" | "ask";
+export const PERMISSION_MODES: readonly PermissionMode[] = ["deny", "ask"];
+
+/** A permission in Pi's words. */
+export const PERMISSION_WORDS: Record<PermissionName, string> = {
+    geolocation: "your location",
+    camera: "the camera",
+    microphone: "the microphone",
+    notifications: "to show notifications",
+    clipboard: "to read the clipboard",
+};
 
 /** What Pi's browser on the phone does when a page opens a window (window.open, a link to a new window): `browser.popups` (PP-249). */
 export type PopupMode = "allow" | "ask" | "off";
@@ -122,6 +140,11 @@ export interface BrowserEngine {
      * does; the phone's pictures come from its display, a view at a time.
      */
     readonly wholePage?: boolean;
+    /**
+     * Whether it answers a site's permissions as Pi's browser says (PP-376: `Browser.setPermission`): a Chrome's does; the
+     * phone's WebView denies them all, and none can be allowed there.
+     */
+    readonly grantsPermissions?: boolean;
     /**
      * Where its browser saves what pages download (PP-376), each file named by its download's id, and how a file is taken
      * from there (read, then removed). None where downloads are not kept: the phone's WebView hands them to no one, and a
@@ -491,6 +514,7 @@ export class ChromeEngine implements BrowserEngine {
     readonly actAsPhone = true;
     readonly oopif = true;
     readonly wholePage = true;
+    readonly grantsPermissions = true;
     readonly reopensToResize: boolean = false;
     readonly #binary: string;
     readonly #flags: string[];
@@ -754,6 +778,8 @@ export type PiBrowserOptions = {
     frames?: Partial<FrameTuning>;
     /** The setting `browser.popups` now (PP-249), for an engine whose windows wait (`asksWindows`); absent: allow, its default. */
     popups?(): PopupMode;
+    /** The setting `browser.permissions` now (PP-376); absent: deny, its default. */
+    permissions?(): PermissionMode;
     /** A browser Pi attached to (`browser_attach`, PP-274): its label, shown in the panel. */
     attached?: string;
     /**
@@ -824,6 +850,10 @@ export class PiBrowser {
     #notes: string[] = [];
     /** Chrome's windows being taken in now (`#adoptPopupsOnce`). */
     #adopting: Promise<void> | undefined;
+    /** The permissions the owner allowed, by site (an origin), while this browser lives (PP-376). */
+    readonly #allowed = new Map<string, Set<PermissionName>>();
+    /** Permissions pages asked for that wait for the owner's card (`browser.permissions` is ask), by id. */
+    #permissionAsks: { id: string; origin: string; name: PermissionName }[] = [];
 
     constructor(options: PiBrowserOptions) {
         this.#options = options;
@@ -911,6 +941,8 @@ export class PiBrowser {
             if (frame !== undefined && frame.parentId === undefined) {
                 tab.url = frame.url ?? "";
                 this.#set({});
+                // A site Pi's browser comes to by a link has its permissions set too (`open` sets them before it loads).
+                void this.#permissionsFor(page, tab.url);
             }
         });
         tab.url = await page.evaluate<string>("location.href").catch(() => "");
@@ -1181,6 +1213,107 @@ export class PiBrowser {
         }
     }
 
+    /** Set a site's permissions in the browser as the owner allowed them (none: all denied), where the engine answers them. */
+    async #permissionsFor(page: BrowserPage, url: string): Promise<void> {
+        if (this.#options.engine.grantsPermissions !== true) {
+            return;
+        }
+
+        let origin: string;
+
+        try {
+            origin = new URL(url).origin;
+        } catch {
+            return;
+        }
+
+        await page.setPermissions(origin, this.#allowed.get(origin) ?? new Set());
+    }
+
+    /**
+     * The permissions the page asked for since the last read (PP-376), told to Pi: allowed (the owner allowed it for that
+     * site), or denied, with what can be done; with `browser.permissions` ask, each waits for the owner's card.
+     */
+    async #askedPermissions(page: BrowserPage): Promise<void> {
+        const engine = this.#options.engine;
+        const mode = this.#options.permissions?.() ?? "deny";
+
+        for (const { name, origin } of await page.takePermissions()) {
+            const what = PERMISSION_WORDS[name];
+
+            if (this.#allowed.get(origin)?.has(name) === true) {
+                this.#notes.push(`The page (${origin}) asked for ${what}: allowed, as the owner allowed it for that site.\n`);
+            } else if (engine.grantsPermissions !== true) {
+                this.#notes.push(`The page (${origin}) asked for ${what}: ${engine.label} denies it (it allows no site that): browse on a machine (browser_open with machine) if the page needs it.\n`);
+            } else if (mode === "ask") {
+                if (!this.#permissionAsks.some((each) => each.origin === origin && each.name === name)) {
+                    this.#permissionAsks.push({ id: crypto.randomUUID(), origin, name });
+                }
+
+                this.#notes.push(`The page (${origin}) asked for ${what}: denied for now; the owner answers a card to allow it for that site.\n`);
+            } else {
+                this.#notes.push(
+                    `The page (${origin}) asked for ${what}: Pi's browser denied it (setting browser.permissions: deny). If the task needs it, ask the owner with browser_permission (${name}).\n`,
+                );
+            }
+        }
+    }
+
+    /** Permissions pages asked for that wait for the owner's card (`browser.permissions` is ask): what the tool shows. */
+    permissionAsks(): { id: string; origin: string; name: PermissionName }[] {
+        return this.#permissionAsks.map((each) => ({ ...each }));
+    }
+
+    /**
+     * Allow (or deny again) a permission for a site in this browser (PP-376), the owner's answer on a card: set in every
+     * tab on that site now, and in each it comes to, while this browser lives. Answers what Pi is told.
+     */
+    setPermission(session: number, origin: string, name: PermissionName, allow: boolean): Promise<string> {
+        return this.#run(session, `${allow ? "Allowing" : "Denying"} ${PERMISSION_WORDS[name]} for ${origin}`, async () => {
+            if (this.#options.engine.grantsPermissions !== true) {
+                throw new Error(`${this.#options.engine.label} allows no site ${PERMISSION_WORDS[name]} (its WebView denies it): browse on a machine (browser_open with machine) for a page that needs it.`);
+            }
+
+            const allowed = this.#allowed.get(origin) ?? new Set<PermissionName>();
+
+            if (allow) {
+                allowed.add(name);
+            } else {
+                allowed.delete(name);
+            }
+
+            this.#allowed.set(origin, allowed);
+            this.#permissionAsks = this.#permissionAsks.filter((each) => !(each.origin === origin && each.name === name));
+
+            for (const tab of this.#tabs) {
+                if (URL.canParse(tab.url) && new URL(tab.url).origin === origin) {
+                    await tab.page.setPermissions(origin, allowed);
+                }
+            }
+
+            return allow
+                ? `${origin} may have ${PERMISSION_WORDS[name]} in Pi's browser now, until it closes: the page asked before, so do again what asks for it (its button, or reload it).${name === "geolocation" ? " A headless Chrome has no location of its own: the page may still get none." : ""}`
+                : `${origin} is denied ${PERMISSION_WORDS[name]} in Pi's browser again.`;
+        });
+    }
+
+    /** A card's answer to a permission a page asked for (`permissionAsks`): allowed for that site, or left denied. */
+    async answerPermission(session: number, id: string, allow: boolean, by: string): Promise<string> {
+        const ask = this.#permissionAsks.find((each) => each.id === id);
+
+        if (ask === undefined) {
+            return "That permission no longer waits for an answer.";
+        }
+
+        if (!allow) {
+            this.#permissionAsks = this.#permissionAsks.filter((each) => each !== ask);
+
+            return `${by} left ${PERMISSION_WORDS[ask.name]} denied for ${ask.origin}.`;
+        }
+
+        return this.setPermission(session, ask.origin, ask.name, true);
+    }
+
     /** Windows the pages asked to open that wait for the person (`browser.popups` is ask): what the tool shows on its card. */
     windowAsks(): { id: string; url: string }[] {
         return this.#asks.map(({ id, url }) => ({ id, url }));
@@ -1243,6 +1376,7 @@ export class PiBrowser {
         const page = tab.page;
 
         await this.#takeDownloads(page);
+        await this.#askedPermissions(page);
 
         const observed = await page.observe();
 
@@ -1364,6 +1498,7 @@ export class PiBrowser {
 
     open(session: number, url: string): Promise<string> {
         return this.#run(session, `Opening ${url}`, async (tab) => {
+            await this.#permissionsFor(tab.page, url);
             await tab.page.navigate(url);
 
             return this.#read();

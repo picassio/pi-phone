@@ -146,7 +146,7 @@ import { activePortScript, AttachedEngine, type BrowserEndpoint, connectBrowser,
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
 import { installImageGuard } from "./image-guard.ts";
 import { appSettings } from "./settings-registry.ts";
-import { type BrowserEngine, type BrowserFrame, type FrameSize, PhoneEngine, PiBrowser, POPUP_MODES, type PopupMode } from "./browser/pi-browser.ts";
+import { type BrowserEngine, type BrowserFrame, type FrameSize, PERMISSION_MODES, type PermissionMode, PhoneEngine, PiBrowser, POPUP_MODES, type PopupMode } from "./browser/pi-browser.ts";
 import { PhoneRequests } from "./phone-requests.ts";
 import { PhoneControl } from "./phone-control.ts";
 import { ComputerControl, type ComputerControlOptions, shellWord } from "./computer-control.ts";
@@ -3486,6 +3486,7 @@ export class PocketApp {
             size: this.#browserSizes.of(`${place}#${session}`),
             sized: (size) => this.#browserSizes.set(`${place}#${session}`, size),
             popups: () => this.config.browserPopups,
+            permissions: () => this.config.browserPermissions,
             saveDownload: (name, bytes) => this.#saveDownload(session, name, bytes),
             // Only the owner sees Pi's browser: it may be signed in to the owner's accounts.
             changed: (state) => {
@@ -6106,6 +6107,22 @@ export class PocketApp {
         }
 
         return { model: chosen, text: reply.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("").trim() };
+    }
+
+    /**
+     * What Pi's browser does when a page asks for a permission (Settings › Pi's browser › Permissions, PP-376): deny or
+     * ask. The owner's.
+     */
+    setBrowserPermissions(user: User, mode: unknown): void {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (!PERMISSION_MODES.includes(mode as PermissionMode)) {
+            throw new HttpError(400, "Permissions pages ask for are deny or ask.");
+        }
+
+        this.config.browserPermissions = mode as PermissionMode;
     }
 
     /** Whether browser_eval runs scripts that read the page (Settings › Pi's browser, PP-244). The owner's. */

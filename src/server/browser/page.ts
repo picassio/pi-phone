@@ -360,6 +360,48 @@ const DIALOGS = `(() => {
     window.prompt = function (message, value) { show("prompt", message, state.accept); return state.accept ? String(value ?? "") : null; };
 })()`;
 
+/** The permissions a page may ask Pi's browser for (PP-376), by Pi's names; DevTools' are `PERMISSION_DESCRIPTORS`'. */
+export const PERMISSIONS = ["geolocation", "camera", "microphone", "notifications", "clipboard"] as const;
+export type PermissionName = (typeof PERMISSIONS)[number];
+const PERMISSION_DESCRIPTORS: Record<PermissionName, string> = {
+    geolocation: "geolocation",
+    camera: "camera",
+    microphone: "microphone",
+    notifications: "notifications",
+    clipboard: "clipboard-read",
+};
+
+/**
+ * In every document Pi's browser loads (PP-376): asking for a permission (the location, the camera or microphone,
+ * notifications, reading the clipboard) is noted (the last ten, with the page's origin) for the next read, which says
+ * it was denied or allowed. A frame of the page's own site notes it in the page; another site's frame in its own.
+ */
+const PERMISSION_WATCH = `(() => {
+    if (window.__piPermissions) return;
+    const asked = [];
+    Object.defineProperty(window, "__piPermissions", { value: asked });
+    const note = (names) => {
+        for (const name of names) {
+            const entry = { name, origin: location.origin };
+            let list = asked;
+            try { if (window.top !== window && Array.isArray(window.top.__piPermissions)) list = window.top.__piPermissions; } catch {}
+            list.push(entry);
+            if (list.length > 10) list.shift();
+        }
+    };
+    const wrap = (object, key, names) => {
+        if (!object || typeof object[key] !== "function") return;
+        const original = object[key];
+        object[key] = function (...args) { note(typeof names === "function" ? names(...args) : names); return original.apply(this, args); };
+    };
+    wrap(navigator.geolocation, "getCurrentPosition", ["geolocation"]);
+    wrap(navigator.geolocation, "watchPosition", ["geolocation"]);
+    wrap(navigator.mediaDevices, "getUserMedia", (want) => [...(want && want.video ? ["camera"] : []), ...(want && want.audio ? ["microphone"] : [])]);
+    wrap(window.Notification, "requestPermission", ["notifications"]);
+    wrap(navigator.clipboard, "readText", ["clipboard"]);
+    wrap(navigator.clipboard, "read", ["clipboard"]);
+})()`;
+
 export class StalePage extends Error {}
 
 /** One element per observed node, in page order, numbered from 1. */
@@ -1253,6 +1295,8 @@ export class BrowserPage {
         // they showed; DevTools' dialogs (beforeunload, a page that kept the originals) are still answered below.
         await this.cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: DIALOGS }).catch(() => {});
         await this.evaluate<unknown>(DIALOGS).catch(() => {});
+        await this.cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: PERMISSION_WATCH }).catch(() => {});
+        await this.evaluate<unknown>(PERMISSION_WATCH).catch(() => {});
         this.cdp.on("Page.javascriptDialogOpening", (params) => {
             this.dialog = `${String(params.type)}: ${String(params.message ?? "").slice(0, 300)}`;
             void this.cdp.send("Page.handleJavaScriptDialog", { accept: this.acceptDialogs }).catch(() => {});
@@ -1300,6 +1344,7 @@ export class BrowserPage {
                 }
 
                 this.#watchDownloads(child);
+                await child.send("Page.addScriptToEvaluateOnNewDocument", { source: PERMISSION_WATCH });
                 child.on("Page.javascriptDialogOpening", (dialog) => {
                     this.dialog = `${String(dialog.type)}: ${String(dialog.message ?? "").slice(0, 300)}`;
                     void child.send("Page.handleJavaScriptDialog", { accept: this.acceptDialogs }).catch(() => {});
@@ -1413,6 +1458,56 @@ export class BrowserPage {
     async setAcceptDialogs(accept: boolean): Promise<void> {
         this.acceptDialogs = accept;
         await this.evaluate<unknown>(`window.__piDialogs && (window.__piDialogs.accept = ${accept})`).catch(() => {});
+    }
+
+    /**
+     * The permissions the page and its frames asked for since the last time (PP-376), each once with its origin: the
+     * main frame's list (which frames of its own site add to), and each frame of another site's own; then none.
+     */
+    async takePermissions(): Promise<{ name: PermissionName; origin: string }[]> {
+        const take = "(() => { const p = window.__piPermissions; if (!Array.isArray(p)) return []; const s = p.slice(); p.length = 0; return s; })()";
+        const lists = await Promise.all([
+            this.evaluate<unknown>(take).catch(() => []),
+            // A frame of another site's session: its own world, by default.
+            ...[...this.#oopifs.values()].map((cdp) =>
+                cdp
+                    .send<{ result?: { value?: unknown } }>("Runtime.evaluate", { expression: take, returnByValue: true })
+                    .then((answer) => answer.result?.value, () => []),
+            ),
+        ]);
+        const seen = new Set<string>();
+
+        return lists
+            .flatMap((list) => (Array.isArray(list) ? (list as { name?: unknown; origin?: unknown }[]) : []))
+            .flatMap((each) => (PERMISSIONS.includes(each.name as PermissionName) && typeof each.origin === "string" ? [{ name: each.name as PermissionName, origin: each.origin }] : []))
+            .filter((each) => {
+                const key = `${each.name} ${each.origin}`;
+
+                if (seen.has(key)) {
+                    return false;
+                }
+
+                seen.add(key);
+
+                return true;
+            });
+    }
+
+    /**
+     * Set what the browser answers a site that asks for these permissions (PP-376: `Browser.setPermission`, kept while
+     * the browser runs): denied, or granted for those the owner allowed. A site that cannot have one at all (not a
+     * secure origin) is refused by Chrome, and has none to ask for either.
+     */
+    async setPermissions(origin: string, allowed: ReadonlySet<PermissionName>): Promise<void> {
+        if (!/^https?:\/\//.test(origin)) {
+            return;
+        }
+
+        await Promise.all(
+            PERMISSIONS.map((name) =>
+                this.cdp.send("Browser.setPermission", { permission: { name: PERMISSION_DESCRIPTORS[name] }, setting: allowed.has(name) ? "granted" : "denied", origin }).catch(() => {}),
+            ),
+        );
     }
 
     /** The dialogs the page showed since the last time, each with how it was answered; then none. */

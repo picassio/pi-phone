@@ -21,7 +21,7 @@ import { type VoiceCheck, VOICES } from "./voice.ts";
 import { ImageGen } from "./image-gen.ts";
 import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "./video-gen.ts";
 import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES } from "./audio.ts";
-import { POPUP_MODES } from "./browser/pi-browser.ts";
+import { PERMISSION_MODES, POPUP_MODES } from "./browser/pi-browser.ts";
 import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
 import { CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
 import { THINKING_LEVELS } from "./models.ts";
@@ -471,6 +471,16 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             read: () => app.config.browserPopups,
             choices: () => [...POPUP_MODES],
             apply: (user, value) => app.setBrowserPopups(user, value.trim().toLowerCase()),
+        },
+        {
+            id: "browser.permissions",
+            area: "browser",
+            title: "Permissions pages ask for in Pi's browser",
+            help: "deny (the default: a page that asks for the location, the camera, the microphone, notifications or reading the clipboard is denied, and Pi is told; Pi may ask to allow one for a site with browser_permission) or ask (the owner answers a card as a page asks, to allow it for that site). The phone's browser allows none either way.",
+            owner: true,
+            read: () => app.config.browserPermissions,
+            choices: () => [...PERMISSION_MODES],
+            apply: (user, value) => app.setBrowserPermissions(user, value.trim().toLowerCase()),
         },
         {
             id: "browser.eval",

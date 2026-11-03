@@ -53,7 +53,9 @@ const sessions = join(process.env.PI_CODING_AGENT_DIR!, "sessions");
 const image = { type: "image" as const, data: "aGVsbG8=", mimeType: "image/png" };
 
 before(async () => {
-    app = await openApp(scriptedModel(route), join(root, "pi-sessions-data"));
+    // A wide window: with the app's whole prompt (every tool offered), a background compaction's request must not be the
+    // one a test reads (as in para.test.ts).
+    app = await openApp(scriptedModel(route, { contextWindow: 1_000_000 }), join(root, "pi-sessions-data"));
 });
 
 after(async () => {
@@ -214,7 +216,7 @@ test("Pi gets the context Pi builds from the file; people get the whole conversa
 
     // The same after a restart.
     await app.close();
-    app = await openApp(scriptedModel(route), join(root, "pi-sessions-data"));
+    app = await openApp(scriptedModel(route, { contextWindow: 1_000_000 }), join(root, "pi-sessions-data"));
     assert.deepEqual(await pocketContext(id), expected);
 });
 

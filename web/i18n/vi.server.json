@@ -700,6 +700,7 @@
     "Give the provider an id: lower-case letters, digits and -.": "Hãy đặt id cho nhà cung cấp: chữ thường, chữ số và -.",
     "This provider's key could not be read: give a key, or pick a saved secret.": "Không đọc được khóa của nhà cung cấp này: hãy nhập một khóa, hoặc chọn một bí mật đã lưu.",
     "Windows pages open are allow, ask or off.": "Cửa sổ trang mở ra là allow, ask hoặc off.",
+    "Permissions pages ask for are deny or ask.": "Quyền mà trang xin là deny hoặc ask.",
     "Scripts that read the page are on (true) or off (false).": "Đoạn mã đọc trang là bật (true) hoặc tắt (false).",
     "Pi's browser here is not the phone's.": "Trình duyệt của Pi ở đây không phải của điện thoại.",
     "A window is asked for with opener, tab and gesture.": "Yêu cầu mở cửa sổ cần có opener, tab và gesture.",

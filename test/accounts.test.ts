@@ -11,11 +11,16 @@ import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/
 import { createHandler } from "../src/server/http.ts";
 
 let requested: Message[] = [];
-const model = scriptedModel((request) => {
-    requested = (request as { messages: Message[] }).messages;
+// A wide window: with the app's whole prompt (every tool offered), a background compaction's request must not be the
+// one a test reads (as in para.test.ts).
+const model = scriptedModel(
+    (request) => {
+        requested = (request as { messages: Message[] }).messages;
 
-    return fauxAssistantMessage([fauxText(`echo: ${lastText(request as never).text}`)]);
-});
+        return fauxAssistantMessage([fauxText(`echo: ${lastText(request as never).text}`)]);
+    },
+    { contextWindow: 1_000_000 },
+);
 const dataDir = join(root, "accounts-data");
 let app: App;
 

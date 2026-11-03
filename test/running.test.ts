@@ -36,7 +36,9 @@ const route: FauxResponseStep = (request) => {
 let app: App;
 
 before(async () => {
-    app = await openApp(scriptedModel(route));
+    // A wide window: with the app's whole prompt (every tool offered), a background compaction's run must not be listed
+    // as the session's (as in para.test.ts).
+    app = await openApp(scriptedModel(route, { contextWindow: 1_000_000 }));
 });
 
 after(async () => {

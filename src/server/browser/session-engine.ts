@@ -230,6 +230,10 @@ export class SessionEngine implements BrowserEngine {
         return this.#engine.wholePage === true;
     }
 
+    get grantsPermissions(): boolean {
+        return this.#engine.grantsPermissions === true;
+    }
+
     get downloads(): EngineDownloads | undefined {
         return this.#engine.downloads;
     }

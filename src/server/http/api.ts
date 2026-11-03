@@ -1259,6 +1259,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, { popups: app.config.browserPopups });
             }
 
+            // What Pi's browser does when a page asks for a permission (Settings › Pi's browser, PP-376).
+            if (second === "permissions" && third === undefined && method === "GET") {
+                return json(response, 200, { permissions: app.config.browserPermissions });
+            }
+
+            if (second === "permissions" && third === undefined && method === "PUT") {
+                app.setBrowserPermissions(user, (await readJson<{ permissions?: unknown }>(request)).permissions);
+
+                return json(response, 200, { permissions: app.config.browserPermissions });
+            }
+
             // Whether browser_eval runs scripts that read the page (Settings › Pi's browser, PP-244).
             if (second === "eval" && third === undefined && method === "GET") {
                 return json(response, 200, { eval: app.config.browserEval });
