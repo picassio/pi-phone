@@ -91,9 +91,24 @@ export default function createSessions(host: PocketHost) {
             now: opt(bool({ description: "Join the running work now instead of waiting" })),
         }, { open: true }),
         execute: async (args, api) => {
-            await host.sessions.send(api.conversationId, args.session, args.message, args.now === true, key(api));
+            const message = await host.sessions.send(api.conversationId, args.session, args.message, args.now === true, key(api));
 
-            return reply(`Sent.\n${host.sessions.status(api.conversationId, args.session)}`);
+            return reply(`Sent (message ${message}; while it waits in the queue, session_unsend takes it back to change it).\n${host.sessions.status(api.conversationId, args.session)}`);
+        },
+    });
+    // The composer's Edit on one's own queued message, for Pi (PP-344): a message this session sent, back to change it.
+    const unsend = defineTool({
+        name: "session_unsend",
+        description: "Take back a message you sent a session with session_send while it still waits in that session's queue (Pi there has not read it): it leaves the queue, and its words and files come back, to send again changed.",
+        parameters: obj({
+            session,
+            message: num({ description: "The message's number, from session_send's answer" }),
+        }, { open: true }),
+        execute: async (args, api) => {
+            const back = await host.sessions.unsend(api.conversationId, args.session, args.message);
+            const files = back.attachments.map((file) => `- ${file.path} (${file.name})`).join("\n");
+
+            return reply(`Took message ${args.message} back; it no longer waits there. It said:\n\n${back.text}${files === "" ? "" : `\n\nWith files:\n${files}`}`);
         },
     });
     const wait = defineTool({
@@ -405,7 +420,7 @@ export default function createSessions(host: PocketHost) {
 
     return defineExtension({
         name: "pocket-sessions",
-        tools: [list, read, start, send, wait, stop, settle, archive, fork, newContext, compact, approvals, groupsList, groupCreate, groupRename, groupPin, groupFold, groupOrder, groupMove, groupDelete],
+        tools: [list, read, start, send, unsend, wait, stop, settle, archive, fork, newContext, compact, approvals, groupsList, groupCreate, groupRename, groupPin, groupFold, groupOrder, groupMove, groupDelete],
         sections: [section("sessions", () => GUIDE)],
     });
 }

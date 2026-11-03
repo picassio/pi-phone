@@ -43,6 +43,7 @@ export const DEFERRED_TOOLS: readonly string[] = [
     "session_new_context",
     "session_settle",
     "session_archive",
+    "session_unsend",
     "session_groups",
     "session_group_create",
     "session_group_rename",

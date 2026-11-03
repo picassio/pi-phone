@@ -734,7 +734,9 @@ mới** trên danh sách phiên (và màn hình chính khi màn hình rộng) m�
   xuống dòng (cho các bộ gõ như Sogou vốn giữ phím Shift); Enter của bàn phím ảo để xuống dòng, và nút gửi để gửi. Đính
   kèm tệp và ảnh bằng nút kẹp giấy. **Kế hoạch** khiến Pi đọc và lên kế hoạch trước, không thay đổi gì cho đến khi bạn
   duyệt. Khi Pi đang làm, một tin nhắn có thể **Điều hướng** (đọc giữa các bước), **Xếp hàng** (sau lượt chạy), hoặc
-  **Ngắt** (dừng lượt chạy ngay, cả lệnh gọi công cụ, rồi gửi).
+  **Ngắt** (dừng lượt chạy ngay, cả lệnh gọi công cụ, rồi gửi). Tin nhắn của bạn đang chờ trong hàng có nút **Sửa**:
+  nó lấy tin nhắn về lại ô nhập cùng các tệp đính kèm, để sửa và gửi lại. Pi lấy lại tin nhắn nó đã gửi cho phiên khác bằng
+  `session_unsend`.
 - **Duyệt hoặc từ chối** các thẻ Pi đặt trong cuộc trò chuyện: lệnh rủi ro, thay đổi cài đặt, đăng nhập, câu hỏi.
 - **Menu phiên** (⋯ trên thanh trên cùng của phiên) có những thứ riêng của phiên: đổi tên, thư mục, terminal, ngữ cảnh,
   hướng dẫn, lịch hẹn, bảng. Bên dưới, trong **Ứng dụng**, là cài đặt của ứng dụng, liệt kê ở phần sau.

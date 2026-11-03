@@ -116,3 +116,7 @@ is skipped on purpose.
 - Code in people's messages (PP-351): #201 (merge 9a1be60e) and #200's commits on release/0.28.0: 19d1aba, 96731d5
   (its UI test, widened to 390 px and a quoted reply). Differs: sizes as pi-phone's `.md code` and `.md pre` (13 px, on
   the 4 px grid), not em.
+- Edit a queued message (PP-344): #194 (merge 47814d25: 9a2ac92), its server test in `test/edit-queued.test.ts`.
+  Differs: pi-phone's queue row has only Withdraw (no move to Steer, Queue or Interrupt), so Edit is a word before it;
+  the sender comes from the submission's request id, not `attribution.submitter`; files map to the session's uploads
+  by name (on a machine too); and Pi gets `session_unsend` for what `session_send` queued.

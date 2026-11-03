@@ -4766,6 +4766,19 @@ pre.diff .del {
     color: var(--muted);
 }
 
+/* Edit on one's own queued message (PP-344): a word before the withdraw mark. */
+.queued .queued-edit {
+    flex: none;
+    align-self: center;
+    padding: 4px;
+    font-size: 13px;
+}
+
+.queued:has(> .queued-text.open) > .queued-edit {
+    align-self: flex-start;
+    margin-top: 4px;
+}
+
 /* A thumb's room around the small mark. */
 @media (pointer: coarse) {
     .queued .queued-remove::after {

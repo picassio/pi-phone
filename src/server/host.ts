@@ -638,6 +638,7 @@ export interface PocketHost {
         | "start"
         | "startLinked"
         | "send"
+        | "unsend"
         | "stop"
         | "wait"
         | "approvals"

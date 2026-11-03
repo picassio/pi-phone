@@ -1396,6 +1396,8 @@ export const actions = {
     turns: (action, to) => api(`c/${current()}/turns`, { action, ...(to ? { to } : {}) }),
     setAccess: (userId, patch) => api(`users/${encodeURIComponent(userId)}`, patch),
     withdraw: (submissionId) => api(`c/${current()}/withdraw`, { submissionId }),
+    /** Take one's own queued message back to change it (PP-344): `{ text, attachments }`, for the message box. */
+    editQueued: (submissionId) => api(`c/${current()}/edit-queued`, { submissionId }),
     configure: (change) => api(`c/${current()}/configure`, change),
     /** The owner's model and thinking level for new sessions, `{ provider, modelId, thinkingLevel }`; null clears it. */
     setDefaultModel: (choice) => api("settings", { defaultModel: choice }),

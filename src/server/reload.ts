@@ -159,6 +159,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "session_read",
     "session_start",
     "session_send",
+    "session_unsend",
     "session_follow",
     "session_wait",
     "wiki_query",

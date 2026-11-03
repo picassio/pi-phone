@@ -14,6 +14,7 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 import type { Message } from "@earendil-works/pi-ai";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { PocketApp } from "./app.ts";
+import type { Attachment } from "./commands.ts";
 import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
 import { clip, defang, quoted } from "./fence.ts";
@@ -333,16 +334,29 @@ export class SessionControl implements SessionsApi {
         return this.#app.piHandoff.bringBack(user, target, asNew);
     }
 
-    async send(caller: ConversationId, id: number, message: string, now: boolean, key: string): Promise<void> {
+    /** Send a message; answers its number, by which `unsend` takes it back while it waits in the queue. */
+    async send(caller: ConversationId, id: number, message: string, now: boolean, key: string): Promise<number> {
         const { user, root, target } = this.#target(caller, id, true);
 
         this.#spend(root);
-        await this.#app.commands.submit(
+        const { submissionId } = await this.#app.commands.submit(
             target,
             user,
             { text: message, requestId: key, mode: now ? "steer" : "followUp" },
             this.#via(root),
         );
+
+        return Number(submissionId);
+    }
+
+    /**
+     * Take back a message this session sent that still waits in that session's queue (PP-344: the composer's Edit for
+     * Pi): its words and files, to send again changed.
+     */
+    async unsend(caller: ConversationId, id: number, message: number): Promise<{ text: string; attachments: Attachment[] }> {
+        const { user, root, target } = this.#target(caller, id, true);
+
+        return await this.#app.commands.editQueued(target, user, message, root);
     }
 
     /**

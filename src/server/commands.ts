@@ -5,7 +5,7 @@
  * command checks who may do it, and changes others should know about become activity lines in the session's chat.
  */
 import { randomUUID } from "node:crypto";
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import type { Context } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -23,6 +23,7 @@ import {
     type ConversationId,
     defineTask,
     type EntryId,
+    InboxDoc,
     LiveDoc,
     type ModelRef,
     type SettledSubmissionRecord,
@@ -68,7 +69,7 @@ import { snippet } from "./projection.ts";
 import { globalModelSettings, projectModelDefault } from "./project-model.ts";
 import { expandPromptTemplate, expandSkillCommand, unwrapSkill } from "./prompts.ts";
 import { expandReviewCommand } from "./review.ts";
-import { clientKey, ownRequest, requestFor } from "./requests.ts";
+import { clientKey, ownRequest, requestFor, requestPerson } from "./requests.ts";
 import { type Resend, resendContent, resendRequest, ResendTask, userContent } from "./resend.ts";
 import { whyUnanswered } from "./subagent-runs.ts";
 import { wantsTitle, writeTitle } from "./titles.ts";
@@ -84,6 +85,35 @@ import {
 const context = BACKGROUND_CONTEXT;
 
 export type Attachment = { path: string; name: string; mime: string; size: number };
+
+/**
+ * A file in a message's list of attached files (`- path (name, type, size bytes)`, as `submit` writes it, with a
+ * document's ` → as Markdown: …` after it), when it is one of the session's uploads in `uploads`: on a machine the
+ * list names the copy there, which has the same file name (`Workspace.placeUploads`). A name can hold " (", so the
+ * path is the part that ends with "-name".
+ */
+function attachedFile(line: string, uploads: string): Attachment[] {
+    const plain = line.replace(/ → as Markdown: .* \(\d+ bytes\)$/, "");
+    const tail = /, ([^,]+), (\d+) bytes\)$/.exec(plain);
+
+    if (!plain.startsWith("- ") || tail === null) {
+        return [];
+    }
+
+    const head = plain.slice(2, tail.index);
+
+    for (let at = head.indexOf(" ("); at !== -1; at = head.indexOf(" (", at + 1)) {
+        const name = head.slice(at + 2);
+        // A Windows machine's copy is named with backslashes.
+        const path = join(uploads, head.slice(0, at).split(/[\\/]/).pop()!);
+
+        if (basename(path).endsWith(`-${name}`) && existsSync(path)) {
+            return [{ path, name, mime: tail[1] === "unknown type" ? "" : tail[1]!, size: Number(tail[2]) }];
+        }
+    }
+
+    return [];
+}
 
 export interface SubmitRequest {
     text: string;
@@ -1416,6 +1446,59 @@ export class Commands {
         }
 
         return result;
+    }
+
+    /**
+     * Take one's own queued message back to change it (PP-344, from pi-pocket #194): it leaves the queue, as with
+     * `withdraw`, and its words and attached files come back for the message box. Only its sender may: the person who
+     * wrote it, or, with `via`, the session that sent it for them (`session_send`, taken back with `session_unsend`). A
+     * `/skill:` or prompt template message comes back as it was sent, expanded.
+     */
+    async editQueued(
+        id: ConversationId,
+        user: User,
+        submissionId: number,
+        via?: ConversationId,
+    ): Promise<{ text: string; attachments: Attachment[] }> {
+        const app = this.#app;
+
+        app.requireSee(user, id);
+        app.requireSteer(user);
+
+        if (!Number.isInteger(submissionId) || submissionId <= 0) {
+            throw new HttpError(400, "Say which queued message to edit.");
+        }
+
+        const found = (await app.harness.snapshot(InboxDoc, id, context))?.items.find((entry) => Number(entry.id) === submissionId);
+        // A message, not a command's card written while Pi works.
+        const item = found === undefined || found.mode === "write" ? undefined : found;
+        const submission = item === undefined ? undefined : await app.harness.submission(submissionId as unknown as SubmissionId, context);
+        const sender = requestPerson((await submission?.status(context))?.requestId);
+        const content = item?.content ?? "";
+        const first = typeof content === "string" ? content : (content.find((part) => part.type === "text")?.text ?? "");
+        const body = first.replace(FROM_PREFIX, "");
+        const own = via === undefined ? sender?.wrote === true : sender?.wrote === false && body.startsWith(`[via session #${String(via)} `);
+
+        if (item !== undefined && (sender?.userId !== user.id || !own)) {
+            throw new HttpError(403, "Only its sender can edit a queued message.");
+        }
+
+        // Taken back only if Pi has not read it yet: then what it says is the message as it was queued.
+        const result = item === undefined ? "not_found" : await app.harness.abortSubmission(submissionId as unknown as SubmissionId, context, id);
+
+        if (result !== "aborted") {
+            throw new HttpError(409, "That message has already gone to Pi.");
+        }
+
+        // A message a session sent says so first: `[via session #12 “Title”] ` (`SessionControl`, `quoted`).
+        const words = via === undefined ? body : body.replace(/^\[via session #\d+ “[^”]*”\] /, "");
+        const [written, files] = splitAttachments(words);
+        const uploads = app.workspace.uploadDirectory(id);
+
+        return {
+            text: written,
+            attachments: (files ?? "").split("\n").flatMap((line) => attachedFile(line, uploads)),
+        };
     }
 
     async configure(

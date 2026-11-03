@@ -42,6 +42,7 @@ import {
     contextLevel,
     enterMakesLine,
     enterSends,
+    fileUrl,
     formatBytes,
     formatTokens,
     html,
@@ -886,6 +887,39 @@ export function Composer() {
         }
     };
 
+    /**
+     * Take one's own queued message back to change it (PP-344): its words go above what the box holds, on a line of their
+     * own, and its files join the ones attached.
+     */
+    const editQueued = async (item) => {
+        const back = await attempt(() => actions.editQueued(item.id));
+
+        if (!back) {
+            return;
+        }
+
+        const current = drafts.get(conversationId);
+        const at = back.text.length;
+
+        setReading(null);
+        update(current.trim() === "" ? back.text : `${back.text}\n${current}`, at);
+        setFiles((list) => [
+            ...back.attachments.map((attachment) => ({
+                key: uid(),
+                name: attachment.name,
+                size: attachment.size,
+                state: "done",
+                preview: attachment.mime.startsWith("image/") ? fileUrl(attachment.path) : null,
+                attachment,
+            })),
+            ...list,
+        ]);
+        requestAnimationFrame(() => {
+            box.current?.focus();
+            box.current?.setSelectionRange(at, at);
+        });
+    };
+
     /** Put a message sent before into the box, to send again or change. */
     const recall = (value, at = value.length) => {
         update(value, at);
@@ -1226,6 +1260,21 @@ export function Composer() {
                             >
                                 ${queuedText(item)}
                             </button>
+                            ${
+                                canSteer() &&
+                                !blocked &&
+                                item.by === me?.id &&
+                                !queuedReports(item) &&
+                                (item.mode === "steer" || item.mode === "followUp") &&
+                                html`<button
+                                    class="link small queued-edit"
+                                    data-part="queued-edit"
+                                    title=${t("Take it back into the message box to change it")}
+                                    onClick=${() => editQueued(item)}
+                                >
+                                    ${t("Edit")}
+                                </button>`
+                            }
                             ${
                                 canSteer() &&
                                 (!blocked || item.by === me?.id) &&

@@ -1657,6 +1657,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `CodedText`, which finds Markdown's code only (`CODE`: a ``` fence on lines of its own, or a span closed by as many
   backticks as opened it) and leaves the rest to `MentionedText`, so `*` or `#` never change what was typed; a fence
   with a language is colored by `Highlighted`. Fenced data for Pi (`FencedText`) is untouched.
+- **Edit a queued message** (PP-344, pi-pocket #194): `Commands.editQueued` (`POST /api/c/<id>/edit-queued`) takes a
+  message that still waits in `InboxDoc` (not a command's card) back with `abortSubmission` and answers its first text
+  part (no wiki pages) without `[from: …]`, split from its attached files; each file line maps to the session's own
+  upload by its file name (`attachedFile`; on a machine the line names the copy there, same name), a document's
+  ` → as Markdown` part dropped. Only its sender: the request id says who (`requestPerson`), a person's own (`u:`)
+  for the composer's Edit; for Pi, `session_unsend` (`SessionControl.unsend`, deferred) takes back one its session
+  sent with `session_send` (`p:` and `[via session #<root> …]`, stripped), whose answer now gives the message's number.
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

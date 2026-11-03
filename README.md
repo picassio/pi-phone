@@ -710,7 +710,9 @@ card on the session list (and the home screen on a wide screen) offers a tour of
   input methods such as Sogou, which keep Shift); the on-screen keyboard's Enter makes a new line, and the send button
   sends. Attach files and photos with the paperclip. **Plan**
   makes Pi read and plan first, changing nothing until you approve. While Pi works, a message can **Steer** (read between steps),
-  **Queue** (after the run), or **Interrupt** (stop the run now, its tool call too, then send).
+  **Queue** (after the run), or **Interrupt** (stop the run now, its tool call too, then send). A message of yours that
+  waits in the queue has **Edit**: it takes it back into the message box with its files, to change and send again.
+  Pi takes back one it sent another session with `session_unsend`.
 - **Approve or deny** the cards Pi puts in the conversation: risky commands, settings changes, sign-ins, questions.
 - **The session menu** (⋯ in the session's top bar) has the session's own things: rename, folder, terminal, context,
   instructions, schedules, board. Below them, under **App**, are the app's settings, listed in the next part.

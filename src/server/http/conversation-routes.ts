@@ -242,6 +242,13 @@ export async function conversationRoutes(
         });
     }
 
+    // One's own queued message, taken back to change it (PP-344): its words and files, for the message box.
+    if (third === "edit-queued" && method === "POST") {
+        const body = await readJson<{ submissionId?: number }>(request);
+
+        return json(response, 200, await app.commands.editQueued(id, user, Number(body.submissionId)));
+    }
+
     if (third === "configure" && method === "POST") {
         await app.commands.configure(id, user, await readJson(request));
 
