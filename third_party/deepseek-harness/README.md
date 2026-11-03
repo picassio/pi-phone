@@ -18,3 +18,11 @@ of its text, rewritten for pi-phone's drop-in API:
 
 `references/server-part.md`, `references/browser-part.md`, the four templates and `scripts/check.mjs` are pi-phone's
 own, written for its drop-ins (`src/server/reload.ts`, `src/server/extension-web.ts`, `web/extension-ui.js`).
+
+The Creator flow (PP-369: `src/server/creator.ts`, `src/server/made-drop-ins.ts`, `web/made-card.js`) follows the
+shape of DeepSeek Harness's background Creator (`packages/experimental/creation-recommendations/src/index.ts` and
+`generated-bundle.ts`, at the same commit): a card before anything is made, a reserved name prefix (theirs
+`@dsh-local/view-`, ours `made-`), a subagent that writes it in a scratch folder and must end by saying it is ready,
+checks of the written files that run none of their code (one package, no links out, its own names), an install the
+owner approves, and Keep, Undo and Restore of what was installed. No code is copied: pi-phone's is written for its
+drop-ins, its approval cards and its subagents, and it keeps every installed version, not only the last.

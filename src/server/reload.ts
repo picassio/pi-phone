@@ -312,6 +312,8 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "app_action",
     "extension_install",
     "extension_inspect",
+    "extension_create",
+    "extension_made",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */

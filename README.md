@@ -333,6 +333,17 @@ No Termux, no laptop, no cloud VM.
   tab saw it add, and its newest error in a tab (each tab tells the server when an extension's page fails), never a
   file's contents. Adapted in part from DeepSeek Harness's plugin skill (MIT). Its own extension, on by default: turn
   it off in **Extensions** (or ask Pi), and no session lists the skill or the tool.
+- **Pi makes the drop-in for you (the Creator).** Ask for something in the app ("make me a pomodoro timer on the
+  rail") and Pi first shows a card, **Make a drop-in: Pomodoro**, with what it will be and where it shows: **Make it**
+  or **Not now**. On Make it, a subagent of the session (on your subagents' model) writes it as `made-pomodoro` and
+  says when it is ready; pi-phone checks it without running it (one module, nothing outside its folder, no built-in
+  tool names, 1 MB and 200 files at most, the skill's own check), then you install it on the usual card. One card in
+  the chat follows it: written, checks, installed switched off, waiting for you to switch it on (**Switch it on**),
+  checked in the app at phone and desktop widths, with **Open the subagent**. Each fix is a new version on the same
+  card; at the end **Keep**, **Undo** (back one version, or removed if it was the first) or **Restore…** any version
+  kept. Settings › Extensions lists the drop-ins Pi made with their versions, Undo and Restore…. A made drop-in has
+  the same rights as any drop-in: what keeps you safe is that you approve each card, it installs switched off, and
+  only you switch it on. Names starting with `made-` are the Creator's. Part of the Extension builder: off with it.
 - **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
   search, tracks its open questions until they are answered, and captures idle sessions into it. With OpenRouter signed
   in, **Jev ranks the search** (Menu › Wiki › Rank with Jev): it reads each page the search found (by keyword, by

@@ -3,6 +3,7 @@
 // why the app refused one.
 import { useEffect, useState } from "preact/hooks";
 import { leaveSafeMode, moduleTitle, safeMode } from "../extension-ui.js";
+import { MadeList } from "../made-card.js";
 import { api, attempt, closeSheet, notify, store } from "../store.js";
 import { html, Loader, Sheet, Switch } from "../ui.js";
 import { t, tx } from "../i18n.js";
@@ -134,6 +135,7 @@ export function ExtensionsSheet() {
         ${data?.dropIns && html`<${DropIns} folder=${data.dropIns} clashes=${data.nameClashes} onAdded=${(result) => setData({ modules: result.modules, dropIns: result.dropIns, nameClashes: result.nameClashes })} />`}
         ${problem && html`<div class="error-box">${problem}</div>`}
         ${!data && !problem && html`<${Loader} label=${t("Loading extensions")} />`}
+        <${MadeList} />
         ${
             data &&
             html`<div class="sheet-list">

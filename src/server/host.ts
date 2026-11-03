@@ -156,7 +156,13 @@ export interface ApprovalRequest {
               leftOut: string[];
               replaces: string[];
               head: string;
-          };
+          }
+        /**
+         * Pi asks to make a drop-in (`extension_create`, PP-369): its name (`made-<name>`), title, a paragraph of what it
+         * will be, and where it shows; `next` when it is a new version of one Pi made. Make it starts the subagent that
+         * writes it; nothing is installed until the install card. The owner's to answer.
+         */
+        | { type: "creator"; module: string; title: string; brief: string; places: string[]; next: boolean };
     createdAt: number;
     /** Who Pi was working for when the call asked: set by `Approvals`, not by the asker. */
     requestedBy?: string;
@@ -500,7 +506,17 @@ export interface PocketHost {
      */
     readonly dropIns: {
         replaces(pkg: DropInPackage): string[];
-        install(userId: string, pkg: DropInPackage, replace: boolean): Promise<{ file: string; installed: boolean; replaces: string[] }>;
+        /** `creator`: a made drop-in's version (PP-369), the only way a `made-` module installs. */
+        install(
+            userId: string,
+            pkg: DropInPackage,
+            replace: boolean,
+            options?: { creator?: boolean },
+        ): Promise<{ file: string; installed: boolean; replaces: string[] }>;
+        /** Take a drop-in away: switched off, then its files removed (PP-369's Undo). The owner's. */
+        remove(userId: string, file: string): Promise<void>;
+        /** Whether a module is switched on now. */
+        enabled(file: string): boolean;
     };
     /**
      * The extension modules, for `extension_inspect` (PP-368): each as the Extensions sheet has it (on or off, loaded,

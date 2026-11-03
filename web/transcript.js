@@ -30,6 +30,7 @@ import {
 import { setBrowserOpen } from "./browser-panel.js";
 import { CrdConnectForm } from "./crd-connect.js";
 import { BrowserRunCard } from "./browser-run-card.js";
+import { CreatorCard, MadeCard } from "./made-card.js";
 import { parseReviewResult, ReviewCard } from "./review-card.js";
 import { ScreenCard } from "./guide.js";
 import { KeepButton } from "./pages.js";
@@ -1113,6 +1114,7 @@ function ToolStep({
             html`<${BrowserRunCard} args=${args} status=${status} resultText=${resultText ?? slot?.output} conversationId=${conversationId} />`
         }
         ${call.name === "show_screen" && html`<${ScreenCard} args=${args} />`}
+
         ${
             decision &&
             html`<div
@@ -2293,6 +2295,10 @@ function ApprovalCard({ approval }) {
         return html`<${ExtensionInstallCard} approval=${approval} />`;
     }
 
+    if (approval.form?.type === "creator") {
+        return html`<${CreatorCard} approval=${approval} />`;
+    }
+
     if (approval.form?.type === "phone") {
         return html`<${PhoneControlCard} approval=${approval} />`;
     }
@@ -3005,6 +3011,13 @@ function Items({ items, results, slots, approvals, busy, past = false, conversat
             />
         <//>`;
         const lastCall = item.steps.findLast((step) => step.block.type === "toolCall");
+        // The Creator flow's progress card (PP-369): under the group, so it shows whether the group is open or folded,
+        // one for each drop-in an extension_create call in it started making.
+        const made = item.steps
+            .filter((step) => step.block.type === "toolCall" && step.block.name === "extension_create")
+            .map((step) => results.get(step.block.id)?.details?.module)
+            .filter((module) => typeof module === "string")
+            .map((module) => html`<${MadeCard} key=${`${item.key}:made:${module}`} name=${module.replace(/^made-/, "")} />`);
 
         // Stopped in a call, no answer follows to say so: the run ends here, as a stopped answer does.
         if (
@@ -3013,11 +3026,12 @@ function Items({ items, results, slots, approvals, busy, past = false, conversat
             index !== items.length - 1 ||
             !STOPPED.test(results.get(lastCall?.block.id)?.text ?? "")
         ) {
-            return group;
+            return made.length === 0 ? group : [group, ...made];
         }
 
         return [
             group,
+            ...made,
             html`<div key=${`${item.key}:stopped`} class="reply" data-part="reply">
                 <div class="muted small">${t("Stopped.")}</div>
             </div>`,

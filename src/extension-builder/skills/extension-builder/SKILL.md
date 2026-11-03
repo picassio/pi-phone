@@ -1,6 +1,6 @@
 ---
 name: extension-builder
-description: "Make a pi-phone drop-in extension from a request: a tool Pi can call, a rail button with a page, a menu row with a sheet, or a tool and a page that share data. Write it from a template in the session folder, check it, install it with extension_install (the owner's card), have the owner turn it on, and look at it in the live app. Use when the person asks for a new page, panel, widget, button, timer, tracker or tool in pi-phone itself, or to fix or change a drop-in."
+description: "Make a pi-phone drop-in extension from a request: a tool Pi can call, a rail button with a page, a menu row with a sheet, or a tool and a page that share data. Usually with extension_create (a subagent writes it from a template; the owner's cards install it switched off, with versions to undo), or by hand with extension_install; then the owner turns it on, and you look at it in the live app. Use when the person asks for a new page, panel, widget, button, timer, tracker or tool in pi-phone itself, or to fix or change a drop-in."
 ---
 
 # Making a pi-phone drop-in
@@ -16,7 +16,23 @@ everything the app has, secrets included, so it lands switched off and only the 
 - A visual request that names no place means a page in the app, not an HTML file or an artifact.
 - Choose the details yourself. Ask (`interview`) only when two readings would build different things.
 
+## Through the Creator (the usual way)
+
+Load `extension_create` and `extension_made` with `tool_search` when they are not offered.
+
+1. `extension_create` (name, title, a one-paragraph brief, places): the owner sees a card and says Make it or Not
+   now. On Make it, the subagent `made-<name>` writes it in `.made/made-<name>/` and its report ends
+   `READY made-<name>: <note>`. Wait for that report; do not write the files yourself.
+2. `extension_made` install: it checks the folder and installs it on the owner's card, switched off, as a version.
+   Problems come back: send them to the subagent (`subagent` send), then install again after its next READY.
+3. The owner switches it on (the progress card's button). Look at it as in step 6 below; fixes go to the subagent,
+   and each install is a new version. Then `extension_made` checked, with a one-line note.
+4. The owner keeps it, or undoes it, or restores a version (their buttons; `extension_made` keep, undo or restore
+   on their word).
+
 ## Deliver a small working version first
+
+What the subagent does (and you, making one by hand with `extension_install`):
 
 1. Pick the template that matches (table below) and copy its files into the session folder as `<cwd>/<name>/`,
    renaming the files and the template's name inside them to `<name>`. A name is lowercase letters, digits and `-`,

@@ -1059,6 +1059,51 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **Attribution**: DeepSeek Harness's `cordis-plugin-development` (MIT, at `ce7073d`): its MIT `LICENSE` and a
     README of what was adapted in `third_party/deepseek-harness/` (SKILL.md's loop, `practices.md` from its practices
     and user-actions, `verify.md` from its verification); the rest is pi-phone's own.
+  - **The Creator flow** (PP-369; owner's decisions of 2026-11-03 on the mockup pp366-mockup frames 1–3; after
+    DeepSeek Harness's background Creator, `creation-recommendations`: shape only, no code). `creator.ts` (tools and
+    routes, in this module, so off with it), `made-drop-ins.ts` (names, checks, versions), `web/made-card.js` (cards).
+    - **Rights**: a made drop-in gets the same host and rights as any drop-in (the owner's choice: no limited host).
+      Safety is the owner's cards (Make it, Install, Undo/Restore when Pi asks), the install landing switched off, and
+      only the owner switching it on. The first card says so.
+    - **Names**: `made-<name>` (`MADE_NAME`: lowercase, digits, single hyphens, up to 40 after the prefix). The prefix
+      is reserved: `PocketApp.installDropIn` refuses it unless `creator` (so `extension_install` and the upload refuse
+      it), and a name a module already has (built-in, drop-in, or a clash) is refused unless the Creator made it
+      (`made.json` there): then it is that drop-in's next version.
+    - **1. Card**: `extension_create` (name, title, brief, places from `MADE_PLACES`), owner only, from a phone session;
+      approval `form: { type: "creator", module, title, brief, places, next }` (`CreatorCard`: Make it / Not now; Allow
+      is the owner's in `answerApproval`). Not now: nothing is written.
+    - **2. Subagent**: on Make it, the scratch folder `<session cwd>/.made/made-<name>/` (a next version whose folder is
+      gone starts from the installed version's files), `made.json` saved (`phase: "writing"`, `build.n`), then
+      `api.executeTool("subagent", spawn | send)` as a nested call: the session's subagent machinery, its subagents'
+      model setting and reports. `subagentTask` gives it the brief, places, the skill's path, the folder, the file
+      rules and limits, the check command, and the ending line `READY made-<name>: <note>` or `NOT READY …: <why>`.
+      Its report reaches Pi as any subagent's; Pi then calls `extension_made install` (the tools' text and the skill
+      say so). Pi, not the server, carries the flow from report to install: no new durable task.
+    - **3. Checks** (`checkMade`, running none of its code): `packageFromPath` (no links, no `..`, one module at the top),
+      the module is `made-<name>.ts`, nothing left out (only the module, its `.js`, its folder), at most
+      `MADE_MAX_BYTES` 1 MB and `MADE_MAX_FILES` 200, no `defineTool` name among `builtInToolNames()`, and the skill's
+      `scripts/check.mjs` (its `problem:` lines; `note:` lines kept as notes). `parseReady` reads the subagent's last
+      answer (`host.lastAnswer`) first.
+    - **4. Install**: the `extension` card (the same as `extension_install`'s, from the scratch folder), then
+      `installDropIn(..., { creator: true })` (lands off), then the version kept. Switch it on: the progress card's
+      button posts `/api/extensions/<file>` (owner's), as Settings does; `setting_change` too. `extension_made
+      checked` (needs it on) records Pi's look at 390 and 1280 px.
+    - **5. Progress card**: `MadeCard` under the activity group of the `extension_create` call (outside the group, so
+      folding does not hide it), from `GET /api/x/extension-builder/made/<name>` and the module's `made` events
+      (`web.send` on every change; a browser part `extension-builder-web/` exists for that, and names the tools'
+      calls), refetched when hello's `ui` changes (a module switched). Five steps (written, checks, installed off,
+      waiting for you to switch it on, checked in the app), each done, now, to come or failed; Switch it on; Open the
+      subagent; once on or checked, the versions with Keep, Undo, Restore… (Undo and Restore ask inline first).
+    - **6. Versions**: `<data>/extensions/.versions/made-<name>/<n>/files/` + `version.json` (n, time, one-line note,
+      size), and `made.json` (the state; `current`). Every installed version is kept, newest 20 (the installed one
+      always). Undo installs the newest before `current`, or, from the first, `PocketApp.removeDropIn` (off, then
+      `removeModule`) with `current: null` and the versions kept; Restore installs a kept one; both land off. Routes
+      `POST made/<name>/keep|undo|restore` are the owner's buttons; `extension_made undo|restore` ask on a card
+      (Allow is the owner's). Settings › Extensions shows `MadeList` (every made drop-in, removed ones too).
+    - **7. No setting** beyond the module switch: every step that changes the app already waits for the owner, and
+      turning the Extension builder off removes the tools, the routes and the cards' data together.
+    - Tests: `test/creator.test.ts` (names, ready line, checks, versions, the flow with cards, the reserved prefix),
+      `test/creator-ui.test.ts` (Chrome at 390 and 1280 px, screenshots with `PHONE_SHOTS`).
 - **Machine tools** (`src/server/machine-tools.ts`; owner's decisions of 2026-10-18): command-line programs run where
   bash runs, which in a session on a machine is the machine, so OfficeCLI, ripgrep, and fd are installed there.
   - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT

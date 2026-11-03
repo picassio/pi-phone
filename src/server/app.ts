@@ -178,7 +178,8 @@ import { THEME_ID } from "./themes/format.ts";
 import { measureModelStreams } from "./timing.ts";
 import { Providers } from "./providers.ts";
 import { type ExtensionInfo, ExtensionLoader, prepareDropInFolder, Refused } from "./reload.ts";
-import { type DropInPackage, replacedBy, writePackage } from "./drop-in-install.ts";
+import { type DropInPackage, removeModule, replacedBy, writePackage } from "./drop-in-install.ts";
+import { MADE_PREFIX } from "./made-drop-ins.ts";
 import { ResendTask } from "./resend.ts";
 import { type Client, reportingOf, Room, ROOM_DOCS, subagentView } from "./room.ts";
 import { Schedules } from "./schedules.ts";
@@ -1365,7 +1366,9 @@ export class PocketApp {
             ask: (request, askContext) => ask(this.approvals, request, askContext),
             dropIns: {
                 replaces: (pkg) => this.dropInReplaces(pkg),
-                install: (userId, pkg, replace) => this.installDropIn(this.#person(userId), pkg, replace),
+                install: (userId, pkg, replace, options) => this.installDropIn(this.#person(userId), pkg, replace, options),
+                remove: (userId, file) => this.removeDropIn(this.#person(userId), file),
+                enabled: (file) => this.loader.enabled(file),
             },
             extensionModules: {
                 list: () => this.loader.list(),
@@ -1486,6 +1489,8 @@ export class PocketApp {
                               ? said("Pi asks you: {title}", { title: request.form.title })
                               : request.form?.type === "extension"
                               ? said("Pi asks to install the extension {module}", { module: request.form.module })
+                              : request.form?.type === "creator"
+                              ? said("Pi asks to make a drop-in: {title}", { title: request.form.title })
                               : request.form?.type === "interview"
                               ? request.form.count === 1
                                   ? said("Pi has a question: {title}", { title: request.form.title })
@@ -4861,6 +4866,11 @@ export class PocketApp {
             throw new HttpError(403, "Installing an extension is the owner's.");
         }
 
+        // Pi's extension_create card (PP-369): Make it starts writing a drop-in for this app, the owner's alone.
+        if (allow && (request.form?.type === "creator" || request.tool === "extension_made") && user.role !== "owner") {
+            throw new HttpError(403, "Making a drop-in is the owner's.");
+        }
+
         // Pi's machine_tools card (PP-325): Approve installs, updates or removes programs on a machine, the owner's alone.
         if (allow && request.form?.type === "machine-tools" && user.role !== "owner") {
             throw new HttpError(403, "Changing a machine's tools is the owner's.");
@@ -4873,6 +4883,7 @@ export class PocketApp {
             request.form.type !== "phone" &&
             request.form.type !== "computer" &&
             request.form.type !== "extension" &&
+            request.form.type !== "creator" &&
             request.form.type !== "machine-tools" &&
             !formAnswered
         ) {
@@ -5595,9 +5606,19 @@ export class PocketApp {
      * owner's alone. It lands switched off, and one it replaces is switched off first, so no new code runs until the owner
      * turns it on. What it would replace needs `replace`; without it, the answer says what (and nothing is written).
      */
-    async installDropIn(user: User, pkg: DropInPackage, replace: boolean): Promise<{ file: string; installed: boolean; replaces: string[] }> {
+    async installDropIn(
+        user: User,
+        pkg: DropInPackage,
+        replace: boolean,
+        { creator = false }: { creator?: boolean } = {},
+    ): Promise<{ file: string; installed: boolean; replaces: string[] }> {
         if (user.role !== "owner") {
             throw new HttpError(403, "Only the owner installs extensions.");
+        }
+
+        // made-<name> is the Creator's (PP-369): its versions are kept there, so nothing else installs one.
+        if (!creator && pkg.module.startsWith(MADE_PREFIX)) {
+            throw new HttpError(400, `${pkg.module}: names starting with made- are for drop-ins Pi makes with extension_create. Rename the module.`);
         }
 
         const replaces = this.dropInReplaces(pkg);
@@ -5617,6 +5638,28 @@ export class PocketApp {
         this.notice("info", `${user.name} installed the drop-in ${pkg.module} (off until turned on).`);
 
         return { file: pkg.module, installed: true, replaces };
+    }
+
+    /**
+     * Take a drop-in away (PP-369: Undo past a made drop-in's first version): switched off and uninstalled first, then
+     * its module, the files named for it, and its folder are removed. The owner's; never a built-in module.
+     */
+    async removeDropIn(user: User, file: string): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner removes extensions.");
+        }
+
+        const module = this.loader.list().find((each) => each.file === file);
+
+        if (module?.source !== "drop-in") {
+            throw new HttpError(404, `There is no drop-in ${file}.`);
+        }
+
+        this.config.setExtensionEnabled(file, false);
+        await this.loader.apply(file);
+        removeModule(file, this.#dropInFolder());
+        await this.#refreshClients();
+        this.notice("info", `${user.name} removed the drop-in ${file}.`);
     }
 
     #dropInFolder(): string {

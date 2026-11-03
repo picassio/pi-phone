@@ -10,16 +10,39 @@
  * kinds a browser part adds, `pocket`'s members, the icons, the theme's CSS variables) and the names a drop-in may not
  * take; with a module's name, how it stands, why it failed or was refused, what it added, and what tabs reported of its
  * browser part (`extension-inspect.ts`). Never a file's contents or a secret.
+ *
+ * The Creator flow (PP-369, `creator.ts`): `extension_create` asks the owner on a card, then a subagent writes a
+ * `made-<name>` drop-in; `extension_made` checks and installs it (the owner's card, switched off), keeps its versions,
+ * and Keep, Undo and Restore. Its routes (`/api/x/extension-builder/made/…`, the owner's) are the progress card's and
+ * Settings › Extensions' buttons, and its browser part (`extension-builder-web/`) names its tools' calls.
  */
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
+import { createCreator } from "../creator.ts";
 import { BUILDER_EXTENSION } from "../extension-builder.ts";
 import { inspect, overview } from "../extension-inspect.ts";
-import type { PocketHost } from "../host.ts";
+import type { ExtensionWeb, PocketHost } from "../host.ts";
+import { MadeDropIns } from "../made-drop-ins.ts";
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 
-export default function createExtensionBuilder(host: PocketHost) {
+export default function createExtensionBuilder(host: PocketHost, web: ExtensionWeb) {
+    let made: MadeDropIns | undefined;
+    const store = () => {
+        const folder = host.extensionModules.dropInFolder();
+
+        if (folder === undefined) {
+            throw new Error("This pi-phone has no drop-in folder.");
+        }
+
+        made ??= new MadeDropIns(folder);
+
+        return made;
+    };
+    const creator = createCreator(host, web, store);
+
+    web.client("extension-builder-web");
+
     const inspectTool = defineTool({
         name: "extension_inspect",
         description:
@@ -49,5 +72,5 @@ export default function createExtensionBuilder(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: BUILDER_EXTENSION, tools: [inspectTool] });
+    return defineExtension({ name: BUILDER_EXTENSION, tools: [inspectTool, ...creator] });
 }

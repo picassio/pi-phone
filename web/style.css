@@ -3914,6 +3914,125 @@ pre.diff .del {
     overflow: auto;
 }
 
+/* The Creator flow (PP-369, web/made-card.js): Pi asks to make a drop-in, then one card follows it as it is made. */
+.creator-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.45;
+}
+
+.made-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    margin: 4px 0 8px;
+    padding: 12px 16px;
+    border: 1px solid var(--hair-2);
+    border-radius: var(--r-window);
+    background: var(--card);
+    overflow-wrap: anywhere;
+}
+
+.made-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.made-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.made-steps,
+.made-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+}
+
+.made-steps li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--body);
+}
+
+.made-steps li[data-state="todo"] {
+    color: var(--faint);
+}
+
+.made-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--r-pill);
+    background: var(--hair-2);
+    transform: translateY(-1px);
+}
+
+.made-steps li[data-state="done"] .made-dot {
+    background: var(--ok);
+}
+
+.made-steps li[data-state="now"] .made-dot {
+    background: var(--accent);
+}
+
+.made-steps li[data-state="failed"] .made-dot {
+    background: var(--err);
+}
+
+.made-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.made-actions:empty {
+    display: none;
+}
+
+.made-versions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.made-ask {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+}
+
+.made-ver {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    border-top: 1px solid var(--hair);
+    color: var(--muted);
+}
+
+.made-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
 /* An extension's question for the person Pi works for (`host.ask`, from pi-pocket 0.22.0): a field for each value, a
    thumb's height. */
 .ask-field {

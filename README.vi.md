@@ -349,6 +349,17 @@ dự án thật.</sub>
   một tiện ích bị lỗi), không bao giờ là nội dung tệp. Một phần chuyển thể từ skill plugin của DeepSeek Harness
   (MIT). Là một tiện ích riêng, bật sẵn: tắt nó trong **Tiện ích** (hoặc nhờ Pi), và không phiên nào còn liệt kê
   skill hay công cụ này.
+- **Pi làm drop-in cho bạn (Creator).** Nhờ một thứ trong ứng dụng (“làm cho tôi đồng hồ pomodoro trên thanh bên”) và
+  Pi hiện một thẻ trước, **Làm một drop-in: Pomodoro**, nói nó sẽ là gì và hiện ở đâu: **Làm đi** hoặc **Để sau**.
+  Khi bạn chọn Làm đi, một subagent của phiên (chạy trên model dành cho subagent của bạn) viết nó với tên
+  `made-pomodoro` và báo khi xong; pi-phone kiểm tra mà không chạy nó (một module, không gì nằm ngoài thư mục của nó,
+  không trùng tên công cụ có sẵn, tối đa 1 MB và 200 tệp, cùng phép kiểm tra của skill), rồi bạn cài nó qua thẻ quen
+  thuộc. Một thẻ trong cuộc trò chuyện theo dõi nó: đã viết, kiểm tra, đã cài ở trạng thái tắt, đang chờ bạn bật
+  (**Bật nó**), đã kiểm tra trong ứng dụng ở độ rộng điện thoại và máy tính, kèm **Mở subagent**. Mỗi lần sửa là một bản
+  mới trên cùng thẻ; cuối cùng là **Giữ**, **Hoàn tác** (lùi một bản, hoặc gỡ nếu đó là bản đầu) hay **Khôi phục…** bất kỳ
+  bản nào đã giữ. Cài đặt › Tiện ích liệt kê các drop-in do Pi làm kèm các bản, Hoàn tác và Khôi phục…. Drop-in do Pi
+  làm có cùng quyền như mọi drop-in: điều giữ an toàn cho bạn là bạn duyệt từng thẻ, nó được cài ở trạng thái tắt, và chỉ bạn
+  bật nó. Tên bắt đầu bằng `made-` dành cho Creator. Là một phần của Trình tạo tiện ích: tắt cùng với nó.
 - **Một wiki PARA** ([pi-para](https://github.com/picassio/pi-para)): Pi tra cứu và viết vào đó khi làm việc, với tìm
   kiếm của qmd, theo dõi các câu hỏi mở cho đến khi được trả lời, và ghi nhận các phiên rảnh vào đó. Khi đã
   đăng nhập OpenRouter, **Jev xếp hạng kết quả tìm** (Menu › Wiki › Xếp hạng bằng Jev): nó đọc từng trang tìm được

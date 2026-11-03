@@ -312,6 +312,17 @@ export function writePackage(pkg: DropInPackage, folder: string): void {
     }
 }
 
+/** Take a module away from the drop-in folder: its file, the files named for it, and its folder. Answers what went. */
+export function removeModule(module: string, folder: string): string[] {
+    const gone = replacedBy({ module, files: [], leftOut: [], bytes: 0 }, folder);
+
+    for (const entry of gone) {
+        rmSync(join(folder, entry), { recursive: true, force: true });
+    }
+
+    return gone;
+}
+
 /** The first lines of a package's module, for the card that asks the owner. */
 export function moduleHead(pkg: DropInPackage, lines = 40): string {
     const text = pkg.files.find((file) => file.path === pkg.module)?.data.toString("utf8") ?? "";
