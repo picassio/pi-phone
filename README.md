@@ -42,9 +42,12 @@ No Termux, no laptop, no cloud VM.
   (Panel opacity, 50 to 100%) lets the app under the panel show through. Pi changes these on a card
   (`notifications.progress`, `notifications.bubble`, `notifications.bubbleHide`, `notifications.bubbleOpacity`). From
   GitHub issue #5.
-- **Decisions you cannot miss.** When Pi asks you to decide on a card, the session pins it in an amber bar at the top,
-  however far the chat scrolls, until you answer (Answer opens the form); the session list marks it "Pi asks you", and
-  its scope Waits for you lists the sessions that wait for you. The phone notifies you as for any approval.
+- **Decisions you cannot miss.** Every card that waits for you (Pi's questions, a call to allow, an install, a setting
+  or app action to approve, a drop-in Pi made waiting to be switched on or kept) is pinned in an amber bar at the top
+  of its session while it is scrolled out of view. A row's tap scrolls to its card and lights its border a moment; you
+  answer on the card. More than two fold to one line, "3 cards wait for you", and stay folded or open as you left them
+  in that session. The session list marks a question "Pi asks you", and its scope Waits for you lists the sessions
+  that wait for you. The phone notifies you as for any approval.
 - **Subagents on the model you pick.** Menu › Subagents sets the model and thinking level Pi starts subagents on, for
   every session; a session's menu (Subagents' model) sets its own over that. Pi uses another only when you ask in the
   chat: from the models you allow there (added several at once, each shown with its context and plan limit), or after

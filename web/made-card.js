@@ -8,7 +8,7 @@
 // They read the Extension builder's routes (`/api/x/extension-builder/made…`) and hear its `made` events.
 import { useEffect, useState } from "preact/hooks";
 import { t, tx } from "./i18n.js";
-import { actions, api, attempt, onExtensionEvent, store } from "./store.js";
+import { actions, api, attempt, notify, onExtensionEvent, store } from "./store.js";
 import { openSubagent } from "./subagents.js";
 import { Choice, clockTime, html, Icon, StateTag } from "./ui.js";
 
@@ -167,6 +167,12 @@ export function MadeVersions({ state, onState, keep = false }) {
 
             onState(answer.made);
             setAsking(null);
+
+            // Keep changes nothing installed: a word says it took (PP-375; the owner's "Keep did nothing visible").
+            // Pi is not told.
+            if (path === "keep") {
+                notify("info", t("Kept {module}, version {n}", { module: answer.made.module, n: answer.made.current }));
+            }
         }).finally(() => setBusy(false));
     };
 
@@ -225,12 +231,74 @@ export function MadeVersions({ state, onState, keep = false }) {
     </div>`;
 }
 
+// ─── What made cards wait for (PP-375): the waiting bar at the top of the session lists them ──────────────────────────
+
+/** Each made card that waits for the owner, by its drop-in's name: what it waits for. Several cards of one share it. */
+const waiting = new Map();
+const waitingListeners = new Set();
+
+/** The made cards that wait for the owner now: `{ key, name, module, version, kind }`, kind `switch` or `keep`. */
+export const waitingMade = () => [...waiting.values()].map((each) => each.at(-1).entry);
+
+/** Hear when what made cards wait for changes; answers how to stop. */
+export function onWaitingMade(listener) {
+    waitingListeners.add(listener);
+
+    return () => waitingListeners.delete(listener);
+}
+
+function waitingChanged() {
+    for (const listener of waitingListeners) {
+        listener();
+    }
+}
+
+/** What a made drop-in waits for the owner to do on its card: switch it on, or keep (or undo) it once checked. */
+function waitsFor(state) {
+    if (state === null || state.current === null) {
+        return undefined;
+    }
+
+    if (!state.enabled && ["installed", "checked"].includes(state.phase)) {
+        return "switch";
+    }
+
+    return state.phase === "checked" ? "keep" : undefined;
+}
+
 /** The card under an extension_create call: how its drop-in is coming along, and the owner's buttons. */
 export function MadeCard({ name }) {
     const [state, problem, setState] = useMade(name);
     const [busy, setBusy] = useState(false);
+    const shown = store.state.me?.role === "owner" && builderOn();
+    const kind = shown ? waitsFor(state) : undefined;
 
-    if (store.state.me?.role !== "owner" || !builderOn()) {
+    // While it waits for the owner, the waiting bar knows it (and leads back to this card when it is scrolled away).
+    useEffect(() => {
+        if (kind === undefined) {
+            return undefined;
+        }
+
+        const mine = { entry: { key: `made:${name}`, name, module: state.module, version: state.current, kind } };
+        const list = waiting.get(name) ?? [];
+
+        waiting.set(name, [...list, mine]);
+        waitingChanged();
+
+        return () => {
+            const left = (waiting.get(name) ?? []).filter((each) => each !== mine);
+
+            if (left.length === 0) {
+                waiting.delete(name);
+            } else {
+                waiting.set(name, left);
+            }
+
+            waitingChanged();
+        };
+    }, [name, kind, state?.current, state?.module]);
+
+    if (!shown) {
         return null;
     }
 
@@ -245,7 +313,7 @@ export function MadeCard({ name }) {
     };
     const ended = ["checked", "kept", "removed"].includes(state.phase) || (state.phase === "installed" && state.enabled);
 
-    return html`<div class="made-card" data-part="made-card" data-phase=${state.phase}>
+    return html`<div class="made-card" data-part="made-card" data-phase=${state.phase} data-waiting=${`made:${name}`}>
         <div class="made-head">
             <span class="made-title">${state.current === null ? state.module : t("{module} · version {n}", { module: state.module, n: state.current })}</span>
             <${StateTag} tone=${tone} label=${label} />

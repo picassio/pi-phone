@@ -398,9 +398,21 @@ so Pi changes them through the settings tools; "the last session" is the one the
   the tools, the Wiki page, and capture change it.
 - **Decision cards** (PP-284; owner's mockup, 2026-10-31): an interview card is an approval request with
   `form.type: "interview"`, so the phone already hears of it and the progress board counts it as waiting. The session
-  pins its open cards in `DecisionBar` (web/transcript.js, sticky at the top of the scroller; Answer opens the form's
-  sheet); `sessions()` gives a session `asks` (the first open card's title), which the list's mark says ("Pi asks you"),
-  and the list's scope `waits` shows the sessions with `waiting`.
+  pins its open cards in `DecisionBar` (web/transcript.js, sticky at the top of the scroller); `sessions()` gives a
+  session `asks` (the first open card's title), which the list's mark says ("Pi asks you"), and the list's scope
+  `waits` shows the sessions with `waiting`.
+  **The waiting bar** (PP-375; owner's decisions of 2026-11-03, the bar's look kept as it was): `DecisionBar` holds every
+  card that waits for the person: each of the session's approvals (interview cards, Allow/Deny cards, forms: an
+  install, `setting_change`, `app_action`, a sign-in, Make a drop-in…; `waitingRow` words each kind), and a made
+  drop-in's card while it waits for the owner (Switch it on, or Keep once checked: `made-card.js` keeps them in
+  `waitingMade`, registered by each mounted `MadeCard`). Cards carry `data-waiting` (`approval:<id>` on a wrapper
+  `.waiting-slot` around each approval card at the transcript's end, `made:<name>` on the made card, which stays under
+  its extension_create call); an IntersectionObserver (0.4) leaves out those on screen. A row's tap (`showWaiting`)
+  scrolls its card (the last of that key) to the middle, smoothly unless motion is reduced, and adds `waiting-lit` for
+  2 s (accent border, `--window-ring`); an interview card's own Answer opens its form. More than two rows fold to
+  one ("N cards wait for you", the count in the icon's place, a chevron), with Fold under the open list; folded or open
+  is kept per session in `localStorage` (`pocket.waitingBar.<id>`), folded unless opened. Keep on a made card says
+  "Kept <module>, version N" in a notice (Pi is not told), and its row leaves the bar.
 - **The progress board** (PP-283, GitHub issue #5; `progress.ts`, `web/board.js`, `Progress.java`,
   `ProgressBubble.java`; owner's mockup v4, 2026-10-31): `Progress` reads the app's busy conversations and pending
   approvals (sessions and subagents; others such as the wiki's capture are left out), each one's newest peek line as
@@ -2049,8 +2061,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     or the address (asked again until the sheet shows, as the linked page's opening closes sheets). For Pi's
     screenshots of what a tap shows (PP-369's live check): `/s/<id>?run=<module>:<row>` runs a session menu row (with
     that session), a menu row or a launcher action, and `?panelTab=<module>:<tab>` opens a side panel tab
-    (`openLinkedWhenReady`). The Creator flow's progress cards of the newest items render at the transcript's end, under
-    Pi's last words (under their call they went unseen); the skill's `check.mjs` applies the app's `web.client` name
+    (`openLinkedWhenReady`). The Creator flow's progress card stays under its extension_create call (at the transcript's
+    end it took room, PP-375): when it waits for the owner and is scrolled away, the waiting bar leads to it; the skill's `check.mjs` applies the app's `web.client` name
     rule (no path).
   - `pocket.openPageOf(module, page)` opens another module's page (never its sheets), once that module is ready. A
     board's Docs button uses it to open Documents on the board's place (PP-47).

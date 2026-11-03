@@ -2693,9 +2693,51 @@ pre.diff .del {
 
 .decision-go {
     flex: none;
+    display: inline-flex;
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--warn);
+}
+
+/* Folded (PP-375): how many cards wait, in the icon's place. */
+.decision-count {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Past two rows the bar folds and unfolds; this folds it again. */
+.decision-fold {
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: var(--r-pill);
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--bg);
+}
+
+.decision-fold .icon {
+    transform: rotate(180deg);
+}
+
+/* A waiting card the bar led to: its border lit in the accent a moment (PP-375). */
+.waiting-slot {
+    min-width: 0;
+}
+
+.waiting-slot > .approval,
+.made-card[data-waiting] {
+    transition:
+        border-color var(--t-border) var(--ease-out),
+        box-shadow var(--t-border) var(--ease-out);
+}
+
+.waiting-slot.waiting-lit > .approval,
+.made-card.waiting-lit {
+    border-color: var(--accent);
+    box-shadow: var(--window-ring);
 }
 
 /* ─── The floating progress board (PP-283, board.js): the pi bubble's board over the app in front ─── */

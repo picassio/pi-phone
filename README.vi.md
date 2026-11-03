@@ -45,9 +45,12 @@ dự án thật.</sub>
   xong từ lần bạn xem trước. Thanh trượt Độ đục của bảng (50 đến
   100%) cho ứng dụng bên dưới hiện xuyên qua bảng. Pi đổi được qua thẻ (`notifications.progress`, `notifications.bubble`,
   `notifications.bubbleHide`, `notifications.bubbleOpacity`). Từ GitHub issue #5.
-- **Quyết định không thể bỏ sót.** Khi Pi hỏi bạn quyết định qua một thẻ, phiên ghim nó trong một thanh màu hổ phách ở
-  đầu, dù cuộn chat xa đến đâu, cho tới khi bạn trả lời (Trả lời mở biểu mẫu); danh sách phiên ghi "Pi hỏi bạn", và phạm
-  vi Đang chờ bạn liệt kê các phiên đang chờ bạn. Điện thoại báo cho bạn như mọi yêu cầu duyệt.
+- **Quyết định không thể bỏ sót.** Mọi thẻ đang chờ bạn (câu hỏi của Pi, một lệnh cần cho phép, một lần cài đặt, một cài đặt
+  hay hành động cần duyệt, một drop-in do Pi làm đang chờ được bật hay giữ) được ghim trong một thanh màu hổ phách ở đầu
+  phiên khi nó bị cuộn khuất. Chạm vào một dòng sẽ cuộn tới thẻ của nó và làm viền thẻ sáng lên một lúc; bạn trả lời trên
+  thẻ. Nhiều hơn hai thẻ thì gộp thành một dòng “3 thẻ đang chờ bạn”, và giữ gộp hay mở như bạn để lại trong phiên đó.
+  Danh sách phiên ghi "Pi hỏi bạn" cho một câu hỏi, và phạm vi Đang chờ bạn liệt kê các phiên đang chờ bạn. Điện
+  thoại báo cho bạn như mọi yêu cầu duyệt.
 - **Subagent chạy trên mô hình bạn chọn.** Menu › Subagent đặt mô hình và mức suy nghĩ Pi dùng khi tạo subagent, cho mọi
   phiên; menu của một phiên (Mô hình của subagent) đặt riêng cho phiên đó. Pi chỉ dùng mô hình khác khi bạn yêu cầu trong
   chat: trong các mô hình bạn cho phép ở đó (thêm nhiều cái cùng lúc, mỗi cái hiện ngữ cảnh và hạn mức gói), hoặc sau khi

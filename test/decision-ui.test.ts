@@ -132,8 +132,11 @@ test("a card Pi asks is pinned at the top until answered; the list says Pi asks 
     assert.deepEqual(await outside(), []);
     await shot("decision-bar-390");
 
-    // Answer opens the card's form.
+    // The row leads back to the card, lit (PP-375), and the card's own Answer opens its form.
     await page.evaluate(`document.querySelector('[data-part="decision-bar"] .decision').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector('.waiting-lit .interview-card') !== null)`, "the card lit");
+    await see(`return JSON.stringify(document.querySelector('[data-part="decision-bar"]') === null)`, "the bar gone with the card in view");
+    await page.evaluate(`[...document.querySelectorAll('.interview-card button')].find((each) => each.textContent.trim() === "Answer").click(); return "true";`);
     await see(`return JSON.stringify((await import("/store.js")).store.state.sheet?.type === "interview")`, "the form");
     await page.evaluate(`(await import("/store.js")).closeSheet(); return "true";`);
     // The form's history entry comes off a moment later (back.js steps back past it). A navigation started before that

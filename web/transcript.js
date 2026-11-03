@@ -30,7 +30,7 @@ import {
 import { setBrowserOpen } from "./browser-panel.js";
 import { CrdConnectForm } from "./crd-connect.js";
 import { BrowserRunCard } from "./browser-run-card.js";
-import { CreatorCard, MadeCard } from "./made-card.js";
+import { CreatorCard, MadeCard, onWaitingMade, waitingMade } from "./made-card.js";
 import { parseReviewResult, ReviewCard } from "./review-card.js";
 import { ScreenCard } from "./guide.js";
 import { KeepButton } from "./pages.js";
@@ -1465,68 +1465,158 @@ function stepLive(step, results, slots, approvals, busy) {
 }
 
 /** `interview`'s card: Pi's questions wait here, and Answer opens their form. Anyone who can steer answers or skips. */
+/** A waiting card's row in the bar: its icon, what it asks in one line, and a line more. */
+function waitingRow(approval) {
+    const form = approval.form;
+    const ago = approval.createdAt ? timeAgo(approval.createdAt) : "";
+    const more = (text) => [text, ago].filter((each) => typeof each === "string" && each.trim() !== "").join(" · ");
+
+    switch (form?.type) {
+        case "interview":
+            return { icon: "chat", title: t("Pi asks you: {title}", { title: form.title }), detail: more(tn(form.count, "{n} question", "{n} questions")) };
+        case "ask":
+            return { icon: "key", title: form.title, detail: more(form.text ?? "") };
+        case "secret":
+            return { icon: "key", title: t("Pi asks for a secret: {name}", { name: form.name }), detail: more(approval.reason) };
+        case "extension":
+            return { icon: "shield", title: t("Install the extension {module}?", { module: form.module }), detail: more(form.path) };
+        case "creator":
+            return { icon: "plus", title: form.next ? t("Make the next version: {title}", { title: form.title }) : t("Make a drop-in: {title}", { title: form.title }), detail: more(form.module) };
+        case "machine":
+            return { icon: "monitor", title: t("Add {name} to your machines?", { name: form.name }), detail: more(form.address) };
+        default:
+            return approval.tool === "board_mode"
+                ? { icon: "board", title: t("Track this on the board?"), detail: more(approval.reason) }
+                : { icon: "shield", title: t("Pi asks before this {tool} call", { tool: approval.tool }), detail: more(approval.subject || approval.reason) };
+    }
+}
+
+/** A made drop-in's card waiting for the owner (PP-369): Switch it on, or Keep once Pi checked it. */
+function madeRow(made) {
+    return made.kind === "switch"
+        ? { icon: "plus", title: t("Switch on {module}", { module: made.module }), detail: t("Version {n} is installed, switched off", { n: made.version }) }
+        : { icon: "plus", title: t("Keep or undo {module}", { module: made.module }), detail: t("Version {n} is checked in the app", { n: made.version }) };
+}
+
+/** How long a card the bar leads to stays lit. */
+const LIT_MS = 2000;
+const litTimers = new WeakMap();
+
+/** Scroll the chat to a waiting card, centred, and light its border a moment, so the eye finds it. */
+function showWaiting(key) {
+    const all = document.querySelectorAll(`[data-waiting="${CSS.escape(key)}"]`);
+    const card = all[all.length - 1];
+
+    if (!card) {
+        return;
+    }
+
+    card.scrollIntoView({ behavior: document.documentElement.dataset.motion === "reduced" ? "auto" : "smooth", block: "center" });
+    clearTimeout(litTimers.get(card));
+    card.classList.add("waiting-lit");
+    litTimers.set(
+        card,
+        setTimeout(() => card.classList.remove("waiting-lit"), LIT_MS),
+    );
+}
+
+/** Where a session keeps whether its bar is folded: `open` or `folded`. */
+const foldKey = (conversationId) => `pocket.waitingBar.${conversationId}`;
+
+/** The rows that show folded, past which the bar folds unless the person opened it. */
+const UNFOLDED_ROWS = 2;
+
 /**
- * What Pi asks the person to decide (PP-284): its interview cards, pinned at the top of the session however far the chat
- * scrolls, until answered. Answer opens the card's form.
+ * Every card that waits for the person (PP-284 for interview cards, PP-375 for the rest): its interview cards, the
+ * approvals (Allow or Deny, a form to fill: an install, a setting, an app action, a sign-in…), and a made drop-in's card
+ * while it waits for the owner (Switch it on, Keep). Pinned at the top of the session however far the chat scrolls, but
+ * only those scrolled out of view: a card on screen is its own reminder. A row's tap scrolls to its card and lights it;
+ * the card's own buttons answer it. Past two rows it folds to one line, as the person last left it in this session.
  */
-function DecisionBar({ approvals }) {
-    const all = approvals.filter((approval) => approval.form?.type === "interview");
+function DecisionBar({ approvals, conversationId }) {
+    const [, madeChanged] = useState(0);
+
+    useEffect(() => onWaitingMade(() => madeChanged((n) => n + 1)), []);
+
+    const rows = [
+        ...approvals.map((approval) => ({ key: `approval:${approval.id}`, ...waitingRow(approval) })),
+        ...waitingMade().map((made) => ({ key: made.key, ...madeRow(made) })),
+    ];
     // A card on screen is its own reminder: only the ones scrolled away are pinned (the owner: two of it looked a mess).
     const [onScreen, setOnScreen] = useState(() => new Set());
-    const key = all.map((approval) => approval.id).join(" ");
+    const keys = rows.map((row) => row.key).join(" ");
+    const [fold, setFold] = useState(() => localStorage.getItem(foldKey(conversationId)));
+
+    useEffect(() => setFold(localStorage.getItem(foldKey(conversationId))), [conversationId]);
 
     useEffect(() => {
-        if (all.length === 0) {
+        if (rows.length === 0) {
             return undefined;
         }
 
-        const seen = new Set();
+        // A card can show twice (a made drop-in's, under each of its calls): on screen when any of them is.
+        const seen = new Map();
         const observer = new IntersectionObserver(
             (changes) => {
                 for (const change of changes) {
-                    const id = change.target.dataset.approval;
-
-                    if (change.isIntersecting) {
-                        seen.add(id);
-                    } else {
-                        seen.delete(id);
-                    }
+                    seen.set(change.target, change.isIntersecting ? change.target.dataset.waiting : undefined);
                 }
 
-                setOnScreen(new Set(seen));
+                setOnScreen(new Set([...seen.values()].filter((each) => each !== undefined)));
             },
             { threshold: 0.4 },
         );
 
-        for (const card of document.querySelectorAll(".interview-card[data-approval]")) {
+        for (const card of document.querySelectorAll("[data-waiting]")) {
             observer.observe(card);
         }
 
         return () => observer.disconnect();
-    }, [key]);
+    }, [keys]);
 
-    const asked = all.filter((approval) => !onScreen.has(approval.id));
+    const away = rows.filter((row) => !onScreen.has(row.key));
 
-    if (asked.length === 0) {
+    if (away.length === 0) {
         return null;
     }
 
-    return html`<div class="decision-bar" data-part="decision-bar">
-        ${asked.map(
-            (approval) => html`<button
-                type="button"
-                class="decision"
-                key=${approval.id}
-                onClick=${() => openSheet({ type: "interview", conversationId: approval.conversationId, callId: approval.form.callId })}
-            >
-                <span class="decision-icon" aria-hidden="true"><${Icon} name="chat" size=${14} /></span>
-                <span class="decision-text">
-                    <b>${t("Pi asks you: {title}", { title: approval.form.title })}</b>
-                    <small>${tn(approval.form.count, "{n} question", "{n} questions")}${approval.createdAt ? ` · ${timeAgo(approval.createdAt)}` : ""}</small>
-                </span>
-                <span class="decision-go">${t("Answer")}</span>
-            </button>`,
-        )}
+    const foldable = away.length > UNFOLDED_ROWS;
+    const folded = foldable && fold !== "open";
+    const setFolded = (next) => {
+        const value = next ? "folded" : "open";
+
+        localStorage.setItem(foldKey(conversationId), value);
+        setFold(value);
+    };
+    const row = (each) => html`<button type="button" class="decision" key=${each.key} data-key=${each.key} onClick=${() => showWaiting(each.key)}>
+        <span class="decision-icon" aria-hidden="true"><${Icon} name=${each.icon} size=${14} /></span>
+        <span class="decision-text">
+            <b>${each.title}</b>
+            ${each.detail && html`<small>${each.detail}</small>`}
+        </span>
+        <span class="decision-go">${t("Show")}</span>
+    </button>`;
+
+    return html`<div class="decision-bar" data-part="decision-bar" data-state=${folded ? "folded" : "open"}>
+        ${
+            folded
+                ? html`<button type="button" class="decision decision-folded" aria-expanded="false" data-part="decision-unfold" onClick=${() => setFolded(false)}>
+                      <span class="decision-icon decision-count" aria-hidden="true">${away.length}</span>
+                      <span class="decision-text">
+                          <b>${tn(away.length, "{n} card waits for you", "{n} cards wait for you")}</b>
+                          <small>${away.map((each) => each.title).join(" · ")}</small>
+                      </span>
+                      <span class="decision-go" aria-label=${t("Show them")}><${Icon} name="down" size=${16} /></span>
+                  </button>`
+                : away.map(row)
+        }
+        ${
+            foldable &&
+            !folded &&
+            html`<button type="button" class="decision-fold" aria-expanded="true" data-part="decision-fold" onClick=${() => setFolded(true)}>
+                <${Icon} name="down" size=${14} />${t("Fold")}
+            </button>`
+        }
     </div>`;
 }
 
@@ -2939,11 +3029,7 @@ function Items({ items, results, slots, approvals, busy, past = false, conversat
         }
     });
 
-    // The Creator flow's progress cards (PP-369) of the newest items go at the end, under Pi's last words, where the
-    // person reads on and finds Switch it on, Keep and Undo (the owner's live check: under the call, high above, they
-    // went unseen); in older items they stay under their call.
-    const tail = [];
-    const shown = items.flatMap((item, index) => {
+    return items.flatMap((item, index) => {
         if (item.type === "row") {
             return html`<${Memo} key=${item.key} deps=${rowDeps(item.entry)}>
                 <${EntryView} entry=${item.entry} />
@@ -3015,18 +3101,14 @@ function Items({ items, results, slots, approvals, busy, past = false, conversat
             />
         <//>`;
         const lastCall = item.steps.findLast((step) => step.block.type === "toolCall");
-        // The Creator flow's progress card (PP-369): one for each drop-in an extension_create call in it started making,
-        // under the group in older items (so it shows whether the group is open or folded), at the end in the newest.
-        const making = item.steps
+        // The Creator flow's progress card (PP-369): under the group, so it shows whether the group is open or folded,
+        // one for each drop-in an extension_create call in it started making. When it waits for the person (Switch it
+        // on, Keep) and is scrolled away, the waiting bar at the top leads back to it (PP-375).
+        const made = item.steps
             .filter((step) => step.block.type === "toolCall" && step.block.name === "extension_create")
             .map((step) => results.get(step.block.id)?.details?.module)
             .filter((module) => typeof module === "string")
             .map((module) => html`<${MadeCard} key=${`${item.key}:made:${module}`} name=${module.replace(/^made-/, "")} />`);
-        const made = past ? making : [];
-
-        if (!past) {
-            tail.push(...making);
-        }
 
         // Stopped in a call, no answer follows to say so: the run ends here, as a stopped answer does.
         if (
@@ -3046,8 +3128,6 @@ function Items({ items, results, slots, approvals, busy, past = false, conversat
             </div>`,
         ];
     });
-
-    return tail.length === 0 ? shown : [...shown, ...tail];
 }
 
 /** When the runs this tab saw started, per conversation: the newest message then, and the time. */
@@ -3828,7 +3908,7 @@ export function Transcript() {
         conversation.forkedFrom && sessions.find((each) => each.id === conversation.forkedFrom.id);
 
     return html`<main class="scroller" ref=${scroller} onScroll=${onScroll}>
-        <${DecisionBar} approvals=${approvals} />
+        <${DecisionBar} approvals=${approvals} conversationId=${conversation.id} />
         <div class=${`transcript ${entrance.current}`} data-part="transcript" ref=${column}>
             <${LinkedSessions} />
             ${
@@ -3876,7 +3956,10 @@ export function Transcript() {
             />
             <${PendingShells} conversationId=${conversation.id} rows=${rows} />
             ${approvals.map(
-                (approval) => html`<${ApprovalCard} key=${approval.id} approval=${approval} />`,
+                // Marked for the waiting bar (PP-375), which leads back here and lights the card.
+                (approval) => html`<div class="waiting-slot" key=${approval.id} data-waiting=${`approval:${approval.id}`}>
+                    <${ApprovalCard} approval=${approval} />
+                </div>`,
             )}
             ${(view.limitOffers ?? []).map((offer) => html`<${LimitOfferCard} key=${`${offer.conversationId}-${offer.to}`} offer=${offer} />`)}
             <${PhoneControlLine} conversationId=${conversation.id} />

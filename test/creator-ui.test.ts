@@ -121,6 +121,18 @@ async function shot(name: string): Promise<void> {
     }
 }
 
+/** The chat scrolled to its top above a tall gap, as a person scrolls up: every card below is out of view. */
+async function toTop(): Promise<void> {
+    await page.evaluate(
+        `if (!document.getElementById("test-gap")) { const gap = document.createElement("div"); gap.id = "test-gap"; gap.style.height = "2400px"; document.querySelector('[data-part="transcript"]').prepend(gap); } return "null"`,
+    );
+
+    for (let step = 0; step < 3; step++) {
+        await page.evaluate(`const scroller = document.querySelector(".scroller"); scroller.scrollTop = 0; scroller.dispatchEvent(new Event("scroll")); return "null"`);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+}
+
 /** Show the card in view, for its picture. */
 const into = (selector: string) =>
     page.evaluate(`const all = document.querySelectorAll(${JSON.stringify(selector)}); all[all.length - 1]?.scrollIntoView({ block: "center" }); return "null"`);
@@ -213,12 +225,12 @@ test("at 390 px: Make a drop-in, Make it, the progress card through install and 
 
     await settle(checked.submissionId);
     await sees(".made-card", "Checked in the app at 390 and 1280 px");
-    // At the end of the conversation, under Pi's last words, where the person reads on (the owner's live check: under
-    // the extension_create call, high above, Keep and Undo went unseen).
+    // Under its extension_create call (the owner, PP-375: at the end it took room); when it waits for the owner and is
+    // scrolled away, the waiting bar at the top leads back to it.
     assert.equal(
-        await inPage<boolean>(`const replies = document.querySelectorAll('[data-part="reply"]'); return JSON.stringify(replies.length > 0 && Boolean(replies[replies.length - 1].compareDocumentPosition(document.querySelector(".made-card")) & Node.DOCUMENT_POSITION_FOLLOWING))`),
+        await inPage<boolean>(`return JSON.stringify(document.querySelector(".made-card").previousElementSibling?.matches('[data-part="activity"]') === true)`),
         true,
-        "the card after Pi's last reply",
+        "the card right under its call's group",
     );
 
     // 4. A second version, on the owner's cards (answered here).
@@ -249,6 +261,24 @@ test("at 390 px: Make a drop-in, Make it, the progress card through install and 
     await sees(".made-card .made-ask", "It installs switched off");
     await shot("made-restore-390.jpg");
     await press(".made-card .made-ask", "Cancel");
+
+    // Keep (PP-375). Scrolled away, the card waits in the bar; its row brings it back, lit.
+    await toTop();
+    await seen(`return JSON.stringify([...document.querySelectorAll('[data-part="decision-bar"] .decision')].some((each) => each.innerText.includes("Keep or undo made-clock")))`, "Keep's row in the bar");
+    await page.evaluate(`[...document.querySelectorAll('[data-part="decision-bar"] .decision')].find((each) => each.innerText.includes("Keep or undo made-clock")).click(); return "null"`);
+    await seen(`return JSON.stringify(document.querySelector(".made-card.waiting-lit") !== null)`, "the card lit");
+    await press(".made-card", "Keep");
+    // A word says it took, the card says Kept, and Pi is not told.
+    await seen(`return JSON.stringify([...document.querySelectorAll('[data-part="notice"]')].some((each) => each.innerText.includes("Kept made-clock, version 2")))`, "Keep's notice");
+    await sees(".made-card", "Kept");
+    assert.equal(madeJson().current, 2);
+    await toTop();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.equal(
+        await inPage<boolean>(`return JSON.stringify([...document.querySelectorAll('[data-part="decision-bar"] .decision')].some((each) => each.innerText.includes("made-clock")))`),
+        false,
+        "its row left the bar",
+    );
 
     // Undo asks first, then goes back one.
     await press(".made-card", "Undo");
