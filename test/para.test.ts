@@ -147,7 +147,9 @@ const route: FauxResponseStep = (request) => {
 let app: App;
 
 before(async () => {
-    app = await openApp(scriptedModel(route));
+    // A wide window: the file's sessions take many turns with the app's whole prompt, and a background compaction's
+    // request must not be the one a test counts (as in skills.test.ts).
+    app = await openApp(scriptedModel(route, { contextWindow: 1_000_000 }));
 });
 
 after(async () => {
