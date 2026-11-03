@@ -629,6 +629,9 @@ No Termux, no laptop, no cloud VM.
   message goes to Pi with the passage first as a Markdown quote (up to 1,500 characters), and shows with a quote block
   above your words. On by default; Appearance › Conversation › Reply to a passage turns it off, on all your devices,
   and Pi changes it on a card (`appearance.quoteReply`). From pi-pocket.
+- **Code in your messages.** What you write in backticks (`` `npm test` ``) shows as code in the conversation, and a
+  ``` fence as a code block, colored when it names its language; the rest of your message stays as you typed it.
+  From pi-pocket.
 - **Quick on a phone.** A streaming answer redraws only its last block, and only what changed in it crosses the wire;
   text and the event stream go compressed, and web files are cached (ETag, 304) and fetched at once (modulepreload).
 - **Updates from GitHub.** Every passing build on `master` is a release, with release notes. The app checks it (at

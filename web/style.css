@@ -1551,6 +1551,27 @@ kbd {
     text-wrap: pretty;
 }
 
+/* Code a person wrote in backticks (PP-351): as Pi's replies show it (`.md code`, `.md pre`). */
+.user-text code {
+    padding: 2px 6px;
+    border-radius: var(--r-tag);
+    background: var(--card-2);
+    color: var(--text);
+    font: 13px var(--mono);
+}
+
+.user-text pre.user-code {
+    margin: 8px 0;
+    padding: 12px;
+    overflow-x: auto;
+    white-space: pre;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+    background: var(--code-bg);
+    color: var(--body);
+    font: 13px / 1.6 var(--mono);
+}
+
 /* What a PR watch or a webhook fenced for Pi (a check's log, a post): a block of its own, scrolling past a few lines. */
 .fenced-data {
     margin: 0.4rem 0;

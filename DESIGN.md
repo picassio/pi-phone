@@ -1653,6 +1653,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
 - **A call's pictures** (PP-341, pi-pocket #191): `ToolStep` shows a `read`'s images only in its opened body, as the
   file is on screen elsewhere (often the person's own attachment); every other call's images (pi-phone's screenshot
   tools, `fetch_content`, a codemode `image()`) are new and show under its line, closed or open.
+- **Code in people's messages** (PP-351, pi-pocket #200/#201): `UserEntry` draws a message with `QuotedText` →
+  `CodedText`, which finds Markdown's code only (`CODE`: a ``` fence on lines of its own, or a span closed by as many
+  backticks as opened it) and leaves the rest to `MentionedText`, so `*` or `#` never change what was typed; a fence
+  with a language is colored by `Highlighted`. Fenced data for Pi (`FencedText`) is untouched.
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

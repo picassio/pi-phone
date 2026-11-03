@@ -113,3 +113,6 @@ is skipped on purpose.
 - A read's picture once (PP-341): #191 (merge c57e0d24: 975d9fc), with its UI test widened to 390 px and to a call
   that brings a new picture (`fetch_content`); pi-phone's screenshot tools (`screenshot`, `browser_screenshot`,
   `phone_screenshot`, `computer_screenshot`) bring new pictures, so they stay under the line.
+- Code in people's messages (PP-351): #201 (merge 9a1be60e) and #200's commits on release/0.28.0: 19d1aba, 96731d5
+  (its UI test, widened to 390 px and a quoted reply). Differs: sizes as pi-phone's `.md code` and `.md pre` (13 px, on
+  the 4 px grid), not em.

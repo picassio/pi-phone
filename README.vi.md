@@ -649,6 +649,9 @@ dự án thật.</sub>
   với đoạn trích ở đầu dưới dạng trích dẫn Markdown (tối đa 1.500 ký tự), và hiện với một khối trích dẫn phía trên lời
   của bạn. Bật sẵn; Giao diện › Cuộc trò chuyện › Trả lời một đoạn tắt nó trên mọi thiết bị của bạn, và Pi đổi nó qua
   một thẻ (`appearance.quoteReply`). Từ pi-pocket.
+- **Code trong tin nhắn của bạn.** Phần bạn viết trong dấu backtick (`` `npm test` ``) hiện dưới dạng code trong cuộc trò
+  chuyện, và một khối ``` hiện thành khối code, có tô màu khi nó ghi tên ngôn ngữ; phần còn lại giữ nguyên như bạn gõ.
+  Từ pi-pocket.
 - **Nhanh trên điện thoại.** Câu trả lời đang truyền chỉ vẽ lại khối cuối, và chỉ phần thay đổi được gửi đi; văn bản và
   luồng sự kiện được nén, còn tệp web được cache (ETag, 304) và tải cùng lúc (modulepreload).
 - **Cập nhật từ GitHub.** Mỗi bản dựng đạt trên `master` là một bản phát hành, kèm ghi chú phát hành. Ứng dụng kiểm tra
