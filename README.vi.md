@@ -655,6 +655,10 @@ dự án thật.</sub>
 - **Code trong tin nhắn của bạn.** Phần bạn viết trong dấu backtick (`` `npm test` ``) hiện dưới dạng code trong cuộc trò
   chuyện, và một khối ``` hiện thành khối code, có tô màu khi nó ghi tên ngôn ngữ; phần còn lại giữ nguyên như bạn gõ.
   Từ pi-pocket.
+- **Nói rõ vì sao không khởi động được.** Khi một tệp của ứng dụng không tải được (trình chặn nội dung trong trình duyệt, mạng)
+  hoặc bị lỗi khi chạy, màn hình khởi động dừng lại và ghi “không khởi động được” kèm lý do, bằng ngôn ngữ của bạn, thay vì
+  đứng mãi ở “đang khởi động”. Trước đó, màn hình riêng của ứng dụng trên điện thoại cho biết máy chủ đang giải nén, đang khởi
+  động hay đã lỗi.
 - **Nhanh trên điện thoại.** Câu trả lời đang truyền chỉ vẽ lại khối cuối, và chỉ phần thay đổi được gửi đi; văn bản và
   luồng sự kiện được nén, còn tệp web được cache (ETag, 304) và tải cùng lúc (modulepreload).
 - **Cập nhật từ GitHub.** Mỗi bản dựng đạt trên `master` là một bản phát hành, kèm ghi chú phát hành. Ứng dụng kiểm tra

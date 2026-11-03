@@ -121,6 +121,72 @@
                 <div class="boot-caption">starting</div>
             </div>
         </div>
+        <!--
+            A file of the app that does not load (a content blocker, the network, a server stopped in between) or that fails
+            as it runs stops the app before it can say so, and the boot screen stays up (PP-342, from pi-pocket #249): say
+            it here, until the app's script has run. In the person's language as i18n.js picks it (pocket.language, else
+            the browser's), as its catalogs are not loaded yet.
+        -->
+        <script>
+            (function () {
+                var words = {
+                    en: [
+                        "could not start",
+                        "A file of the app did not load. A content blocker can stop one: let this address through it, then reload.",
+                        "A file of the app failed: {why} Reload to try again.",
+                    ],
+                    vi: [
+                        "không khởi động được",
+                        "Một tệp của ứng dụng không tải được. Trình chặn nội dung có thể chặn nó: cho phép địa chỉ này, rồi tải lại.",
+                        "Một tệp của ứng dụng bị lỗi: {why} Tải lại để thử lại.",
+                    ],
+                    "zh-CN": [
+                        "无法启动",
+                        "应用的一个文件未能加载。内容拦截器可能会拦下它：请放行这个地址，然后重新加载。",
+                        "应用的一个文件出错：{why} 请重新加载再试。",
+                    ],
+                };
+                var language = "en";
+                try {
+                    var choice = localStorage.getItem("pocket.language") || "auto";
+                    var tags = choice !== "auto" ? [choice] : navigator.languages || [];
+                    for (var i = 0; i < tags.length; i++) {
+                        if (/^zh\b/i.test(tags[i])) language = "zh-CN";
+                        else if (/^vi\b/i.test(tags[i])) language = "vi";
+                        else if (!/^en\b/i.test(tags[i])) continue;
+                        break;
+                    }
+                } catch (error) {}
+                var said = words[language];
+                var fail = function (detail) {
+                    var boot = document.querySelector("#app > .boot");
+                    if (!boot) return;
+                    boot.classList.add("failed");
+                    boot.querySelector(".boot-caption").textContent = said[0];
+                    var line = boot.querySelector(".boot-detail") || document.createElement("div");
+                    line.className = "boot-detail";
+                    line.setAttribute("data-part", "boot-detail");
+                    line.textContent = detail;
+                    boot.appendChild(line);
+                };
+                var watch = function (event) {
+                    var target = event.target;
+                    var app = target && target.tagName === "SCRIPT" && target.getAttribute("src") === "app.js";
+                    if (event.type === "load") {
+                        if (app) {
+                            removeEventListener("error", watch, true);
+                            removeEventListener("load", watch, true);
+                        }
+                    } else if (app) {
+                        fail(said[1]);
+                    } else if (event instanceof ErrorEvent) {
+                        fail(said[2].replace("{why}", event.message));
+                    }
+                };
+                addEventListener("error", watch, true);
+                addEventListener("load", watch, true);
+            })();
+        </script>
         <script type="module" src="app.js"></script>
     </body>
 </html>

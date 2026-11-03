@@ -634,6 +634,9 @@ No Termux, no laptop, no cloud VM.
 - **Code in your messages.** What you write in backticks (`` `npm test` ``) shows as code in the conversation, and a
   ``` fence as a code block, colored when it names its language; the rest of your message stays as you typed it.
   From pi-pocket.
+- **Says why it did not start.** When a file of the app does not load (a content blocker in a browser, the network) or
+  fails as it runs, the start screen stops and says "could not start" and why, in your language, instead of staying on
+  "starting". Before that, the phone app's own screen says when the server is unpacking, starting, or failed.
 - **Quick on a phone.** A streaming answer redraws only its last block, and only what changed in it crosses the wire;
   text and the event stream go compressed, and web files are cached (ETag, 304) and fetched at once (modulepreload).
 - **Updates from GitHub.** Every passing build on `master` is a release, with release notes. The app checks it (at

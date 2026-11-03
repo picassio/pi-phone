@@ -1668,6 +1668,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   pick in the Files tile carries a new `n`, which `FileView` gets as `refresh` and reads the file again on, keeping the
   text on screen until the new text arrives (another path shows the loader). A subagent's top bar line has a model tag
   (`.title-model`, `shortModel`) that opens the model sheet: on a phone the composer hides its model chip while Pi works.
+- **The boot screen's failure** (PP-342, pi-pocket #249): an inline script in `index.html`, before `app.js`, watches
+  `error` and `load` in the capture phase until `app.js` has run: an `error` on that script (a module of its graph did
+  not load: a content blocker, the network) or an `ErrorEvent` (a module threw as it ran) turns the static boot screen
+  to `.boot.failed` with "could not start" and the reason, in the language i18n.js would pick (`pocket.language`, else
+  the browser's: three sentences inline, as the catalogs are not loaded yet). The CSP hashes it like the other inline
+  scripts (`appPolicy`). The Android shell's own stages (unpacking, starting, a failed runtime) stay on its status
+  screen (`assets/status.html`), which hands over to the page only once the server answers. Not taken: the
+  `fingerprint.js` rename (pi-phone has no such file).
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

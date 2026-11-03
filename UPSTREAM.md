@@ -122,3 +122,7 @@ is skipped on purpose.
   by name (on a machine too); and Pi gets `session_unsend` for what `session_send` queued.
 - A shown file read again, a subagent's model in the top bar (PP-340): merge 61af2c78 (bbb9dfe, #187 and #185), its
   tests with screenshots; padding on the 4 px grid.
+- The boot screen's failure (PP-342): merge 8b68d1d0 (35c340c, #249): `index.html`'s watcher (for `app.js`, relative
+  as pi-phone's page names it), the `.boot.failed` CSS, and its UI test (a blocked and a throwing module, at 390 and
+  1280 px). Differs: the words in the person's language. Not taken: the `fingerprint.js` to `text-hash.js` rename
+  (pi-phone has neither).
