@@ -264,7 +264,8 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
     await until(async () => (await text(".computer-control-sheet")).toLowerCase().includes("never these apps"), "the sheet");
     const sheet = await text(".computer-control-sheet");
 
-    assert.match(sheet, /tuanlh-sandbox-01\s+Linux · ocu 1\.1\.2-pp\.1 · in use by session #\d+ until \d{1,2}:\d\d/);
+    // Its end in clockTime's form: the time, after the date when it falls on another day (a run near midnight).
+    assert.match(sheet, /tuanlh-sandbox-01\s+Linux · ocu 1\.1\.2-pp\.1 · in use by session #\d+ until (?:[A-Z][a-z]{2} \d{1,2} )?\d{1,2}:\d\d/);
     assert.match(sheet, /Banking and payment apps/);
     assert.match(sheet, /Password managers and authenticators/);
     await page.evaluate(`[...document.querySelectorAll(".computer-control-sheet button.chip")].find((each) => each.innerText.includes("Add")).click()`);
