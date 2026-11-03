@@ -9,7 +9,7 @@ import { useEffect, useRef } from "preact/hooks";
 import { useBack } from "./back.js";
 import { t } from "./i18n.js";
 import { OpenUiFrame } from "./openui.js";
-import { api, attempt, insertIntoComposer, notify, store } from "./store.js";
+import { api, attempt, insertIntoComposer, navigate, notify, store } from "./store.js";
 import { modeOf, paletteOf, themeVars } from "./theme.js";
 import { html, Icon, railState, StateTag } from "./ui.js";
 
@@ -80,10 +80,12 @@ const closePage = () => store.set({ page: null });
 
 /**
  * Text from an artifact into the message box of the session the person is in, after what is there: the page or the
- * viewer closes, and the person sends it, or not. With no session open, nothing goes anywhere, and it says so.
+ * viewer closes, and the person sends it, or not. With no session open (a page opened from the rail on a phone, where
+ * the rail is the home screen's), it goes to `home`, the session the artifact is from, which opens; with neither,
+ * nothing goes anywhere, and it says so.
  */
-function compose(text) {
-    if (store.state.conversationId === null) {
+function compose(text, home) {
+    if (store.state.conversationId === null && home === undefined) {
         notify("error", t("Open a session first: a page puts its text into the message box of the session you are in."));
 
         return;
@@ -95,15 +97,21 @@ function compose(text) {
         return;
     }
 
-    closePage();
+    if (store.state.conversationId === null) {
+        // Going to the session closes the page; its message box takes the text as it opens.
+        navigate(home);
+    } else {
+        closePage();
+    }
+
     insertIntoComposer(text);
 }
 
 /**
  * An artifact's frame may put text into the message box: `parent.postMessage({ type: "pi-compose", text }, "*")`. Only
- * that frame's own window counts, and only text.
+ * that frame's own window counts, and only text. `home`: the session the artifact is from (a kept page's).
  */
-export function useComposeBridge(frame) {
+export function useComposeBridge(frame, home) {
     useEffect(() => {
         const onMessage = (event) => {
             const data = event.data;
@@ -113,14 +121,14 @@ export function useComposeBridge(frame) {
             }
 
             if (typeof data.text === "string" && data.text.trim() !== "") {
-                compose(data.text);
+                compose(data.text, home);
             }
         };
 
         addEventListener("message", onMessage);
 
         return () => removeEventListener("message", onMessage);
-    }, []);
+    }, [home]);
 }
 
 /**
@@ -181,7 +189,7 @@ export function KeptPage({ id }) {
     const page = store.state.keptPages.pages.find((each) => pageId(each.conversation, each.artifact) === id);
 
     useBack(true, closePage);
-    useComposeBridge(frame);
+    useComposeBridge(frame, page?.conversation);
 
     // Esc closes it, as it closes an extension's page, unless a sheet or the launcher is over it.
     useEffect(() => {

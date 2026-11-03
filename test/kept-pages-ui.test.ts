@@ -168,6 +168,25 @@ test("Keep as a page: kept from the chat's card, on the rail, opened in the sand
         assert.equal(await inPage<boolean>(`return JSON.stringify((await import("/store.js")).store.state.page === null)`), true, "the page closed");
         await shot(`pages-compose-${width}`);
 
+        // On a phone the rail is the home screen's: a page opened from there, with no session open, puts its text into
+        // the session its artifact is from, which opens (the owner's live check, 2026-11-03).
+        if (phone) {
+            await page.evaluate(`(await import("/store.js")).navigate(null); return "true";`);
+            await see(`return JSON.stringify((await import("/store.js")).store.state.conversationId === null)`, "home, no session");
+            await page.evaluate(`(await import("/store.js")).store.set({ drawer: true }); return "true";`);
+            await see(`return JSON.stringify(${button} !== null)`, "the page's button on the home rail");
+            await page.evaluate(`${button}.click(); return "true";`);
+            await see(`return JSON.stringify(document.querySelector('[data-part="kept-page"] iframe') !== null)`, "the page, from home");
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            const home = await inPage<{ x: number; y: number }>(`
+                const box = document.querySelector('[data-part="kept-page"] iframe').getBoundingClientRect();
+                return JSON.stringify({ x: box.left + box.width / 2, y: box.top + 60 });`);
+
+            await page.tap(home);
+            await see(`return JSON.stringify((await import("/store.js")).store.state.conversationId === ${id})`, "its session opened");
+            await see(`return JSON.stringify(${asked} === ${before + 2})`, "the question in that session's message box");
+        }
+
         // Settings › Pages: listed, then removed from the rail.
         await page.evaluate(`(await import("/store.js")).openSheet({ type: "pages" }); return "true";`);
         await see(`return JSON.stringify(document.querySelector('[data-part="kept-pages-list"] [data-page="${key}"]')?.textContent.includes("Paper reader") === true)`, "the page in Settings › Pages");
