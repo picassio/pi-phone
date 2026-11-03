@@ -48,9 +48,13 @@ What the subagent does (and you, making one by hand with `extension_install`):
 5. Have it turned on: ask the owner (Settings › Extensions), or `setting_change` `extensions.<name>.ts` `on` (the owner
    approves a card). Then `extension_inspect` with its name: loaded, failed or refused and why, what it added, and,
    once a tab loaded it, its page and sheet ids and any error of its browser part.
-6. Look at it in the live app: `screenshot` with url `http://127.0.0.1:8787/?page=<name>:<page id>` (or
-   `?sheet=<name>:<sheet id>`) at widths 390 and 1280, and trust the layout check's numbers. For a tool, call it. The
-   installed drop-in is the preview: never a mock page, an HTML copy, or pictures of something else.
+6. Look at it in the live app with the `screenshot` tool (Pi's browser never opens the app's own address): url
+   `http://127.0.0.1:8787/?page=<name>:<page id>` (or `?sheet=<name>:<sheet id>`); for what a tap shows, a session's
+   address with `?run=<name>:<row id>` (a session menu, menu or launcher row runs, as a tap would: an overlay it opens)
+   or `?panelTab=<name>:<tab id>`, e.g. `http://127.0.0.1:8787/s/<session>?run=<name>:<row id>`; widths 390 and 1280,
+   and trust the layout check's numbers. For a tool, call it. The installed drop-in is the preview: never a mock page,
+   an HTML copy, or pictures of something else. In the Creator flow, then call `extension_made` `checked` with what
+   you saw, so its card offers Keep.
 7. Fix what you saw in the same files, check, install again (it replaces the old version and is switched off again:
    have it turned on), and look again. Stop when the request works; no variants or extras nobody asked for.
 8. Say what it adds and where, how you checked it, and what you could not check (`references/verify.md`).

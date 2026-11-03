@@ -213,6 +213,13 @@ test("at 390 px: Make a drop-in, Make it, the progress card through install and 
 
     await settle(checked.submissionId);
     await sees(".made-card", "Checked in the app at 390 and 1280 px");
+    // At the end of the conversation, under Pi's last words, where the person reads on (the owner's live check: under
+    // the extension_create call, high above, Keep and Undo went unseen).
+    assert.equal(
+        await inPage<boolean>(`const replies = document.querySelectorAll('[data-part="reply"]'); return JSON.stringify(replies.length > 0 && Boolean(replies[replies.length - 1].compareDocumentPosition(document.querySelector(".made-card")) & Node.DOCUMENT_POSITION_FOLLOWING))`),
+        true,
+        "the card after Pi's last reply",
+    );
 
     // 4. A second version, on the owner's cards (answered here).
     ready = "READY made-clock: round count after midnight";

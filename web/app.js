@@ -25,6 +25,7 @@ import {
     ExtensionPanel,
     ExtensionPanelButton,
     extensionPanelShown,
+    openLinkedWhenReady,
     openPageWhenReady,
     openSheetWhenReady,
 } from "./extension-ui.js";
@@ -968,6 +969,17 @@ if (linkedPage !== null) {
     // A `#…` after it is the page's own (a task, say): kept for it.
     replaceAddress(location.pathname + location.hash);
     openPageWhenReady(linkedPage[1], linkedPage[2]);
+}
+
+// An extension's side panel tab, or one of its rows run, by link (`/s/3?panelTab=notes:notes`, `/s/3?run=timer:open`):
+// what a tap would show, for Pi's screenshots (PP-369).
+for (const kind of ["panelTab", "run"]) {
+    const linkedPlace = /^([A-Za-z0-9_-]+):([A-Za-z0-9][A-Za-z0-9_.:-]{0,63})$/.exec(new URLSearchParams(location.search).get(kind) ?? "");
+
+    if (linkedPlace !== null) {
+        replaceAddress(location.pathname + location.hash);
+        openLinkedWhenReady(linkedPlace[1], linkedPlace[2], kind);
+    }
 }
 
 start();

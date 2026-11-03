@@ -2046,7 +2046,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
     folder or null; it takes the sheet's place, so the sheet comes back with the choice (`new-project` keeps a draft).
   - Links: `/?page=<module>:<page>` opens an extension's page once its module is ready (`openPageWhenReady` in
     `extension-ui.js`: opened earlier, the module list would close it); `#task:PP-3` opens a task, from a link anywhere
-    or the address (asked again until the sheet shows, as the linked page's opening closes sheets).
+    or the address (asked again until the sheet shows, as the linked page's opening closes sheets). For Pi's
+    screenshots of what a tap shows (PP-369's live check): `/s/<id>?run=<module>:<row>` runs a session menu row (with
+    that session), a menu row or a launcher action, and `?panelTab=<module>:<tab>` opens a side panel tab
+    (`openLinkedWhenReady`). The Creator flow's progress cards of the newest items render at the transcript's end, under
+    Pi's last words (under their call they went unseen); the skill's `check.mjs` applies the app's `web.client` name
+    rule (no path).
   - `pocket.openPageOf(module, page)` opens another module's page (never its sheets), once that module is ready. A
     board's Docs button uses it to open Documents on the board's place (PP-47).
 

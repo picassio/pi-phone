@@ -3233,6 +3233,7 @@
     "On now": "Đang bật",
     "Installed": "Đã cài",
     "{module} · version {n}": "{module} · bản {n}",
+    "{module} has no row {id} to run here.": "{module} không có hàng {id} để chạy ở đây.",
     "Switch it on": "Bật nó",
     "Drop-ins Pi made": "Drop-in do Pi làm",
     "Checked in the app": "Đã kiểm tra trong ứng dụng",

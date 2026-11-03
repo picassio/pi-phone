@@ -3253,6 +3253,7 @@
     "On now": "正在使用",
     "Installed": "已安装",
     "{module} · version {n}": "{module} · 第 {n} 版",
+    "{module} has no row {id} to run here.": "{module} 在这里没有可运行的 {id} 行。",
     "Switch it on": "打开它",
     "Drop-ins Pi made": "Pi 做的自备扩展",
     "Checked in the app": "已在应用中检查",

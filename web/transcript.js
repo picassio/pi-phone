@@ -2939,7 +2939,11 @@ function Items({ items, results, slots, approvals, busy, past = false, conversat
         }
     });
 
-    return items.flatMap((item, index) => {
+    // The Creator flow's progress cards (PP-369) of the newest items go at the end, under Pi's last words, where the
+    // person reads on and finds Switch it on, Keep and Undo (the owner's live check: under the call, high above, they
+    // went unseen); in older items they stay under their call.
+    const tail = [];
+    const shown = items.flatMap((item, index) => {
         if (item.type === "row") {
             return html`<${Memo} key=${item.key} deps=${rowDeps(item.entry)}>
                 <${EntryView} entry=${item.entry} />
@@ -3011,13 +3015,18 @@ function Items({ items, results, slots, approvals, busy, past = false, conversat
             />
         <//>`;
         const lastCall = item.steps.findLast((step) => step.block.type === "toolCall");
-        // The Creator flow's progress card (PP-369): under the group, so it shows whether the group is open or folded,
-        // one for each drop-in an extension_create call in it started making.
-        const made = item.steps
+        // The Creator flow's progress card (PP-369): one for each drop-in an extension_create call in it started making,
+        // under the group in older items (so it shows whether the group is open or folded), at the end in the newest.
+        const making = item.steps
             .filter((step) => step.block.type === "toolCall" && step.block.name === "extension_create")
             .map((step) => results.get(step.block.id)?.details?.module)
             .filter((module) => typeof module === "string")
             .map((module) => html`<${MadeCard} key=${`${item.key}:made:${module}`} name=${module.replace(/^made-/, "")} />`);
+        const made = past ? making : [];
+
+        if (!past) {
+            tail.push(...making);
+        }
 
         // Stopped in a call, no answer follows to say so: the run ends here, as a stopped answer does.
         if (
@@ -3037,6 +3046,8 @@ function Items({ items, results, slots, approvals, busy, past = false, conversat
             </div>`,
         ];
     });
+
+    return tail.length === 0 ? shown : [...shown, ...tail];
 }
 
 /** When the runs this tab saw started, per conversation: the newest message then, and the time. */

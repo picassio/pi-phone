@@ -386,6 +386,15 @@ export function openSheetWhenReady(module, id) {
     whenReady(module, id, "sheet");
 }
 
+/**
+ * By link, as soon as its module has loaded: open an extension's side panel tab (`/s/<id>?panelTab=module:id`), or run
+ * one of its rows (`/s/<id>?run=module:id`: a session menu row with that session, a menu row, or a launcher action),
+ * so Pi's screenshot tool can show what a tap would (PP-369's live check: an overlay a menu row opens).
+ */
+export function openLinkedWhenReady(module, id, kind) {
+    whenReady(module, id, kind);
+}
+
 function whenReady(module, id, kind) {
     const record = modules.get(module);
 
@@ -399,6 +408,21 @@ function whenReady(module, id, kind) {
 function openLinked(module, id, kind) {
     if (kind === "sheet") {
         openExtensionSheet(module, id);
+    } else if (kind === "panelTab") {
+        openExtensionPanel(module, id);
+    } else if (kind === "run") {
+        const key = `${module}:${id}`;
+        const row = [
+            ...(store.state.conversationId === null ? [] : extensionSessionMenuItems(store.state.conversationId)),
+            ...extensionMenuItems(),
+            ...extensionLauncherItems().map((item) => ({ ...item, key: item.key.replace(/^action:ext:/, "") })),
+        ].find((each) => each.key === key);
+
+        if (row === undefined) {
+            notify("error", t("{module} has no row {id} to run here.", { module, id }));
+        } else {
+            row.run();
+        }
     } else {
         openPage(module, id);
     }

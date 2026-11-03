@@ -87,6 +87,23 @@ test("each template is a package extension_install takes whole, and passes the s
     }
 });
 
+test("the check refuses a browser part named by a path, as the app does on load (PP-369's live check)", () => {
+    const folder = join(mkdtempSync(join(root, "builder-path-")), "focus");
+
+    mkdirSync(folder);
+    mkdirSync(join(folder, "focus"));
+    writeFileSync(join(folder, "focus", "index.js"), "export const pocketApi = 2;\nexport default () => {};\n");
+    writeFileSync(
+        join(folder, "focus.ts"),
+        'import { defineExtension } from "@earendil-works/pi-durable";\nexport default function create() { return defineExtension({ name: "focus", web: { client: "focus/index.js" } } as never); }\nconst web = { client: (entry: string) => entry };\nweb.client("focus/index.js");\n',
+    );
+
+    const run = check(folder);
+
+    assert.notEqual(run.status, 0, run.stdout);
+    assert.match(run.stdout, /web\.client\("focus\/index\.js"\): name a file or folder right beside the module/);
+});
+
 test("the check refuses what pi-phone cannot run or the owner's rules forbid, each said", () => {
     const folder = join(mkdtempSync(join(root, "builder-bad-")), "bad");
 

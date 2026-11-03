@@ -10,7 +10,7 @@
 import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Node calls type stripping experimental and says so on every run: not the drop-in's problem.
@@ -124,7 +124,10 @@ function checkServer(path) {
     }
 
     for (const match of source.matchAll(/web\.client\(\s*["'`]([^"'`]+)["'`]/g)) {
-        if (!statSync(join(folder, match[1]), { throwIfNoEntry: false })) {
+        // The app's own rule (src/server/extension-web.ts, ENTRY): a file or folder right beside the module, no path.
+        if (!/^[A-Za-z0-9_][A-Za-z0-9._-]*$/.test(match[1]) || match[1] === "node_modules") {
+            problems.push(`${relative(folder, path)}: web.client("${match[1]}"): name a file or folder right beside the module, such as "${basename(match[1]) || "index.js"}" or the folder's own name, with letters, digits and . _ - only (no path): the app refuses it on load`);
+        } else if (!statSync(join(folder, match[1]), { throwIfNoEntry: false })) {
             problems.push(`${relative(folder, path)}: web.client("${match[1]}"), but there is no ${match[1]} beside it`);
         }
     }

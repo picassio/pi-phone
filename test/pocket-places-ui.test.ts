@@ -214,6 +214,14 @@ for (const [size, viewport] of [["390", VIEWPORTS.mobile], ["1280", VIEWPORTS.de
         await page.click({ selector: '[data-part="extension-session-item"]' });
         await seen(`return JSON.stringify(window.placesStamped === ${session})`, "the row ran with the session's id");
         await seen(`return JSON.stringify(document.querySelector(".sheet, .overlay") === null)`, "the menu closed");
+
+        // By link, as Pi's screenshots need (PP-369): the row runs with the session, and the panel tab opens.
+        await page.navigate(`${base}/s/${session}?run=places:stamp`);
+        await seen(`return JSON.stringify(window.placesStamped === ${session})`, "?run= ran the row with the session's id");
+        await page.navigate(`${base}/s/${session}?panelTab=places:notes`);
+        await seen(`return JSON.stringify(document.querySelector('[data-part="extension-panel"]') !== null)`, "?panelTab= opened the tab");
+        await page.click({ selector: size === "390" ? '[data-part="extension-panel"] .files-back' : '[data-part="extension-panel-button"]' });
+        await seen(`return JSON.stringify(document.querySelector('[data-part="extension-panel"]') === null)`, "the panel closed again");
     });
 }
 
