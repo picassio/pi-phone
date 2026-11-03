@@ -185,7 +185,9 @@ No Termux, no laptop, no cloud VM.
   payment form's card fields, an embedded sign-in, a consent banner in a frame, another site's frames too) and inside
   web components' open shadow roots are read and used as the page's own, each named with its frame, and their text is
   in the page's; sign-in cards and saved secrets work there, and what you type on a card stays hidden there too.
-  Lists a page draws itself
+  `browser_drag` drags a control onto another or by an offset (a slider, a kanban card, a sortable list, a map), with
+  the pointer moving in steps and a page's own drag and drop getting its drag events and data; the read marks what can
+  be dragged, and `browser_run` drags too. Lists a page draws itself
   (a select with its own scroll area) work too: every option is listed, a click scrolls it into view, `browser_select`
   opens the list and picks by name, `browser_scroll` scrolls the list, and a letter jumps by type-ahead.
   `browser_screenshot` can save its picture as a PNG or JPEG in the session's folder (for `doc_image` or a report),

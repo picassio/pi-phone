@@ -166,6 +166,8 @@ type RawAction = {
     expanded?: string;
     /** The frame it is in, by its site (PP-376); none in the main frame. */
     frame?: string;
+    /** "true": it can be dragged (browser_drag): draggable, a slider, or a grab cursor. */
+    draggable?: string;
 };
 
 /** The page as read: its controls (raw, per action) and the guards that tell whether it changed since. */
@@ -201,6 +203,8 @@ export type Element = {
     options?: { label: string; value: string }[];
     /** The frame it is in, by its site (PP-376); none in the main frame. */
     frame?: string;
+    /** It can be dragged (browser_drag). */
+    draggable?: boolean;
 };
 
 /** The shortest value text hiding (`Page.hideTyped`) covers: a shorter one would hide every "42" on the page. */
@@ -293,6 +297,7 @@ export function elementsOf(observed: Observed): Element[] {
                 ...(action.selected === undefined ? {} : { selected: action.selected }),
                 ...(action.expanded === undefined ? {} : { expanded: action.expanded }),
                 ...(action.frame === undefined ? {} : { frame: action.frame }),
+                ...(action.draggable === "true" ? { draggable: true } : {}),
             };
             byNode.set(action.node, element);
         }
@@ -329,7 +334,7 @@ export function describe(observed: Observed, elements: Element[]): string {
 
             if (element.options !== undefined) {
                 parts.push(`chosen ${quote(element.value ?? "")}, other options: ${element.options.slice(0, 12).map((option) => quote(option.label)).join(", ")}${element.options.length > 12 ? `, … (${element.options.length - 12} more)` : ""}`);
-            } else if (element.fill && element.role !== "password") {
+            } else if ((element.fill && element.role !== "password") || element.role === "slider") {
                 parts.push(`value ${quote(element.value ?? "")}`);
             }
 
@@ -337,6 +342,10 @@ export function describe(observed: Observed, elements: Element[]): string {
                 if (element[state] !== undefined) {
                     parts.push(`${state}=${element[state]}`);
                 }
+            }
+
+            if (element.draggable === true) {
+                parts.push("draggable");
             }
 
             if (element.frame !== undefined) {
@@ -1400,6 +1409,90 @@ export class BrowserPage {
 
         await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
         this.#afterInput = { node: element.node, kind: "click" } as RawAction;
+    }
+
+    /**
+     * Drag a control onto another, or by an offset in CSS pixels (a slider's handle, a card to a column, an item in a
+     * sortable list, a map), as Playwright's dragTo does (PP-376): the pointer goes down on it, moves there in steps, and
+     * comes up. When the page starts an HTML5 drag (a `draggable` element), Chrome hands it over (`Input.dragIntercepted`)
+     * and the rest goes as drag events with its DataTransfer: dragenter and dragover where the pointer is, drop at the end.
+     * Answers whether it was an HTML5 drag.
+     */
+    async drag(observed: Observed, from: Element, to: { element: Element } | { dx: number; dy: number }): Promise<boolean> {
+        if (!(await this.#fresh(observed, from.node)) || ("element" in to && !(await this.#fresh(observed, to.element.node)))) {
+            throw new StalePage("The page changed since it was read: read it again.");
+        }
+
+        let start = await this.#point(from);
+        let end: { x: number; y: number };
+
+        if ("element" in to) {
+            end = await this.#point(to.element);
+
+            const again = await this.#point(from);
+
+            // Bringing the target into view moved the source: the target's point is taken again from there.
+            if (Math.abs(again.x - start.x) > 1 || Math.abs(again.y - start.y) > 1) {
+                start = again;
+                end = await this.#point(to.element);
+            }
+        } else {
+            end = { x: start.x + to.dx, y: start.y + to.dy };
+
+            const view = await this.evaluate<{ w: number; h: number }>("({w: innerWidth, h: innerHeight})");
+
+            if (end.x < 0 || end.y < 0 || end.x >= view.w || end.y >= view.h) {
+                throw new Error(`Dragging [${from.index}] by ${to.dx}, ${to.dy} px would end outside the view (${view.w}×${view.h}): drag by less, or scroll first.`);
+            }
+        }
+
+        let data: Record<string, unknown> | undefined;
+        const off = this.cdp.on("Input.dragIntercepted", (params) => {
+            data = params.data as Record<string, unknown>;
+        });
+        const steps = 12;
+        const pause = () => new Promise((resolve) => setTimeout(resolve, 16));
+        let entered = false;
+
+        await this.cdp.send("Input.setInterceptDrags", { enabled: true });
+
+        try {
+            await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: start.x, y: start.y });
+            await this.cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: start.x, y: start.y, button: "left", buttons: 1, clickCount: 1 });
+            await pause();
+
+            for (let step = 1; step <= steps; step++) {
+                const x = start.x + ((end.x - start.x) * step) / steps;
+                const y = start.y + ((end.y - start.y) * step) / steps;
+
+                if (data === undefined) {
+                    await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "left", buttons: 1 });
+                } else {
+                    await this.cdp.send("Input.dispatchDragEvent", { type: entered ? "dragOver" : "dragEnter", x, y, data });
+                    entered = true;
+                }
+
+                await pause();
+            }
+
+            if (data !== undefined) {
+                if (!entered) {
+                    await this.cdp.send("Input.dispatchDragEvent", { type: "dragEnter", x: end.x, y: end.y, data });
+                }
+
+                await this.cdp.send("Input.dispatchDragEvent", { type: "dragOver", x: end.x, y: end.y, data });
+                await this.cdp.send("Input.dispatchDragEvent", { type: "drop", x: end.x, y: end.y, data });
+            }
+
+            await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: end.x, y: end.y, button: "left", buttons: 0, clickCount: 1 });
+        } finally {
+            off();
+            await this.cdp.send("Input.setInterceptDrags", { enabled: false }).catch(() => {});
+        }
+
+        this.#afterInput = { node: from.node, kind: "click" } as RawAction;
+
+        return data !== undefined;
     }
 
     /**

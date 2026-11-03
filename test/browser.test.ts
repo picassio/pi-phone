@@ -70,7 +70,7 @@ test("an address as typed: a page opens as it is, a bare name gets https, words 
 });
 
 test("in plan mode Pi's browser works in full: reading, and clicking, typing, choosing, keys and runs too (PP-70)", () => {
-    for (const tool of ["browser_open", "browser_snapshot", "browser_text", "browser_screenshot", "browser_scroll", "browser_back", "browser_wait", "browser_hover", "browser_tabs", "browser_new_tab", "browser_click", "browser_type", "browser_select", "browser_press", "browser_close", "browser_upload", "browser_save_pdf", "browser_run", "browser_size", "browser_sign_in", "browser_ask_code", "browser_ask_user"]) {
+    for (const tool of ["browser_open", "browser_snapshot", "browser_text", "browser_screenshot", "browser_scroll", "browser_back", "browser_wait", "browser_hover", "browser_drag", "browser_tabs", "browser_new_tab", "browser_click", "browser_type", "browser_select", "browser_press", "browser_close", "browser_upload", "browser_save_pdf", "browser_run", "browser_size", "browser_sign_in", "browser_ask_code", "browser_ask_user"]) {
         assert.equal(blockedInPlanMode(tool, {}), undefined, tool);
     }
 

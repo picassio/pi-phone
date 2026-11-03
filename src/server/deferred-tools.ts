@@ -31,6 +31,7 @@ export const DEFERRED_TOOLS: readonly string[] = [
     "browser_size",
     "browser_save_pdf",
     "browser_hover",
+    "browser_drag",
     "browser_forward",
     "browser_back",
     // The session list's upkeep.

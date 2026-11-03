@@ -38,6 +38,23 @@ const PAGES: Record<string, string> = {
                 }
             });
         </script>`,
+    // Drag and drop: a kanban card (HTML5 drag and drop, with its data), a slider, and a map panned by the pointer.
+    "/board": `<!doctype html><title>Board</title><meta name="viewport" content="width=device-width">
+        <style>body{margin:8px} .col{width:150px;height:90px;border:1px solid #888;display:inline-block;vertical-align:top;margin:4px}</style>
+        <div class="col" id="todo" aria-label="To do"><div id="card" draggable="true" style="background:#ffd;padding:6px">Write the report</div></div>
+        <div class="col" id="done" aria-label="Done" tabindex="0">Done</div>
+        <p><label>Volume <input id="vol" type="range" min="0" max="100" value="10" style="width:200px" oninput="out.textContent='Volume '+this.value"></label></p>
+        <div id="map" aria-label="Map" style="width:300px;height:120px;background:#cde;cursor:grab">Map</div>
+        <p id="out">Nothing yet</p><p id="log"></p>
+        <script>
+            card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', 'card-7'); log.textContent += 'dragstart '; });
+            done.addEventListener('dragover', (e) => e.preventDefault());
+            done.addEventListener('drop', (e) => { e.preventDefault(); done.append(card); out.textContent = 'Dropped ' + e.dataTransfer.getData('text/plain') + ' in Done'; });
+            let from = null;
+            map.addEventListener('pointerdown', (e) => { from = [e.clientX, e.clientY]; map.setPointerCapture(e.pointerId); });
+            map.addEventListener('pointermove', (e) => { if (from) log.textContent += 'm'; });
+            map.addEventListener('pointerup', (e) => { out.textContent = 'Panned ' + Math.round(e.clientX - from[0]) + ',' + Math.round(e.clientY - from[1]); from = null; });
+        </script>`,
     "/card": `<!doctype html><title>Card</title><meta name="viewport" content="width=device-width">
         <label>Card number <input id="card"></label><br><label>PIN <input id="pin" type="password"></label><br>
         <button onclick="out.textContent = 'Paid with ' + card.value + (pin.value === '4321' ? ' and the PIN' : ' without the PIN')">Pay</button>
@@ -129,6 +146,39 @@ test("with Chrome: controls in a frame of another site, a frame of the page's ow
         const applied = await browser.click(1, number(coupon, /\[(\d+)\] button "Apply coupon"/));
 
         assert.match(applied, /Coupon SAVE10/);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("with Chrome: browser_drag drops a card on a column (the page's own drag and drop, with its data), moves a slider and pans a map by an offset (PP-376)", { skip }, async () => {
+    const browser = browserHere();
+
+    try {
+        const page = await browser.open(1, "http://pi.test/board");
+
+        // What can be dragged says so.
+        assert.match(page, /\[\d+\] clickable "Write the report" draggable\n/);
+        assert.match(page, /\[\d+\] slider "Volume" value "10" draggable\n/);
+        assert.match(page, /\[\d+\] clickable "Map" draggable\n/);
+
+        const dropped = await browser.drag(1, number(page, /\[(\d+)\] clickable "Write the report"/), { index: number(page, /\[(\d+)\] clickable "Done"/) });
+
+        assert.match(dropped, /^Dragged \[\d+\] onto \[\d+\] \(the page's own drag and drop\)\.\n/);
+        assert.match(dropped, /Dropped card-7 in Done/);
+
+        const slid = await browser.drag(1, number(dropped, /\[(\d+)\] slider "Volume"/), { dx: 80, dy: 0 });
+        const volume = Number(/Volume (\d+)/.exec(slid.split("Visible text:")[1] ?? "")?.[1]);
+
+        assert.ok(volume > 50, slid);
+
+        const panned = await browser.drag(1, number(slid, /\[(\d+)\] clickable "Map"/), { dx: -60, dy: 30 });
+
+        assert.match(panned, /^Dragged \[\d+\] by -60, 30 px\.\n/);
+        assert.match(panned, /Panned -60,30/);
+        // The pointer moved there in steps, as a person's does.
+        assert.match(panned, /m{5,}/);
+        await assert.rejects(browser.drag(1, number(panned, /\[(\d+)\] clickable "Map"/), { dx: 5000, dy: 0 }), /would end outside the view/);
     } finally {
         await browser.close();
     }

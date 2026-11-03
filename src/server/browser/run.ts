@@ -31,6 +31,10 @@ Recent WAIT actions are not evidence of loading. Prefer a useful visible control
 DONE requires visible evidence that ALL requirements are satisfied. If asked to open a result,
 a matching link is not enough. BLOCKED means no supported operation can make progress.`;
 
+/** DRAG's second target: where the dragged element goes (PP-376). */
+const DROP_TARGET = `Choose where the dragged element should be dropped if the next operation is DRAG: the observed element
+(a column, a list position, a place on a slider's track) the user's goal wants it on. Choose only an offered element index.`;
+
 const TARGET = `Choose the best observed target if the next operation is the one specified in this question.
 Use the user's entire goal, field values, nearby text, and recent actions. This question chooses only
 a target for that operation; another question decides which operation to execute. Do not choose
@@ -57,6 +61,7 @@ const OPERATION_LABELS: Record<string, string> = {
     CLICK: "Click an element, button, menu option, autocomplete suggestion, or calendar day.",
     TYPE_TEXT: "Enter or replace text in an editable field. The host agent supplies the value.",
     SELECT: "Select an observed dropdown value.",
+    DRAG: "Drag a draggable element onto another element (a card to a column, an item in a sortable list, a slider's handle).",
     SCROLL_DOWN: "Scroll down to see more of the page.",
     SCROLL_UP: "Scroll up to see what is above.",
     WAIT: "Wait for the page to update.",
@@ -243,7 +248,7 @@ type Target = { node: number; index: number; label: string; option?: string };
 export function actionSpace(observed: Observed) {
     const indices = new Map<number, number>();
     const elements: DecisionState["elements"] = [];
-    const targets: Record<"CLICK" | "TYPE_TEXT" | "SELECT", Record<string, Target>> = { CLICK: {}, TYPE_TEXT: {}, SELECT: {} };
+    const targets: Record<"CLICK" | "TYPE_TEXT" | "SELECT" | "DRAG", Record<string, Target>> = { CLICK: {}, TYPE_TEXT: {}, SELECT: {}, DRAG: {} };
 
     for (const action of observed.actions) {
         let index = indices.get(action.node);
@@ -275,6 +280,15 @@ export function actionSpace(observed: Observed) {
         } else {
             targets[operation][String(index)] = { node: action.node, index, label: action.label };
         }
+
+        // Something to drag (PP-376): DRAG takes it, and any element is where it may go (CLICK's targets).
+        if (action.draggable === "true" && targets.DRAG[String(index)] === undefined) {
+            targets.DRAG[String(index)] = { node: action.node, index, label: action.label };
+
+            if (!element.operations.includes("DRAG")) {
+                element.operations.push("DRAG");
+            }
+        }
     }
 
     const below = observed.scroll.y + observed.h < observed.scroll.height - 2;
@@ -296,6 +310,12 @@ export function buildQuestions(space: ReturnType<typeof actionSpace>, goal: stri
         if (Object.keys(space.targets[operation]).length > 0) {
             operations[operation] = OPERATION_LABELS[operation]!;
         }
+    }
+
+    const canDrag = Object.keys(space.targets.DRAG).length > 0 && Object.keys(space.targets.CLICK).length > 1;
+
+    if (canDrag) {
+        operations.DRAG = OPERATION_LABELS.DRAG!;
     }
 
     if (space.below) {
@@ -323,6 +343,19 @@ export function buildQuestions(space: ReturnType<typeof actionSpace>, goal: stri
                 instructions: rules({ rules: [NEXT_ACTION, TARGET], operation }),
             };
         }
+    }
+
+    if (canDrag) {
+        questions.drag_target = {
+            type: "choice",
+            criteria: Object.fromEntries(Object.entries(space.targets.DRAG).map(([key, target]) => [key, describeTarget(key, target, valueOf(target))])),
+            instructions: rules({ rules: [NEXT_ACTION, TARGET], operation: "DRAG" }),
+        };
+        questions.drop_target = {
+            type: "choice",
+            criteria: Object.fromEntries(Object.entries(space.targets.CLICK).map(([key, target]) => [key, describeTarget(key, target, valueOf(target))])),
+            instructions: rules({ rules: [NEXT_ACTION, DROP_TARGET], operation: "DRAG" }),
+        };
     }
 
     const fields = Object.entries(space.targets.TYPE_TEXT);
@@ -358,6 +391,8 @@ export interface RunPage {
     /** `secret`: the text is one of the owner's secrets, which may go into a password field too. */
     type(observed: Observed, node: number, text: string, secret: boolean): Promise<void>;
     select(observed: Observed, node: number, option: string): Promise<void>;
+    /** Drag one control onto another (PP-376). */
+    drag(observed: Observed, from: number, to: number): Promise<void>;
     scroll(direction: "up" | "down"): Promise<void>;
     wait(): Promise<void>;
     /** Whether a failure means the page changed under the action (read it again and decide again). */
@@ -499,7 +534,18 @@ export async function runGoal(page: RunPage, decider: Decider, options: RunOptio
         let typed: string | undefined;
 
         try {
-            if (operation === "CLICK" || operation === "TYPE_TEXT" || operation === "SELECT") {
+            if (operation === "DRAG") {
+                const from = space.targets.DRAG[answers.drag_target?.choice ?? ""];
+                const to = space.targets.CLICK[answers.drop_target?.choice ?? ""];
+
+                if (from === undefined || to === undefined) {
+                    return finish("stopped", "decision_error", "The run model chose DRAG without what to drag and where.");
+                }
+
+                did = `dragged [${from.index}] ${from.label} onto [${to.index}] ${to.label}`;
+                options.progress(`Dragging [${from.index}] ${from.label} onto [${to.index}] ${to.label}`);
+                await page.drag(observed, from.node, to.node);
+            } else if (operation === "CLICK" || operation === "TYPE_TEXT" || operation === "SELECT") {
                 const key = answers[`${operation.toLowerCase()}_target`]?.choice;
 
                 // The session's model may leave out answers (`readAnswers`): only the one this step needs stops it.

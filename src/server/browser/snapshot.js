@@ -72,7 +72,10 @@
     return '';
   };
   const roles=['button','link','checkbox','radio','switch','tab','menuitem','menuitemradio',
-    'option','gridcell','combobox','textbox','searchbox','spinbutton'];
+    'option','gridcell','combobox','textbox','searchbox','spinbutton','slider'];
+  // What can be dragged (browser_drag, PP-376): an element the page made draggable, a slider, or one whose cursor says so.
+  const draggable = e => e.getAttribute('draggable')==='true' || role(e)==='slider' ||
+    /^(grab|move)$/.test(getComputedStyle(e).cursor);
   const selector='a[href],button,input,textarea,select,summary,[contenteditable="true"],'+
     roles.map(role=>'[role="'+role+'"]').join(',');
   const role = e => {
@@ -87,6 +90,7 @@
       if (['button','submit','reset','image'].includes(e.type)) return 'button';
       if (e.type==='search') return 'searchbox';
       if (e.type==='number') return 'spinbutton';
+      if (e.type==='range') return 'slider';
       if (['text','email','url','tel',''].includes(e.type)) return 'textbox';
       if (e.type==='password') return 'password';
       if (e.type==='file') return 'file';
@@ -131,6 +135,7 @@
       if (value!==null) base[key]=value;
     }
     if (['checkbox','radio'].includes(e.type)) base.checked=String(e.checked);
+    if (draggable(e)) base.draggable='true';
     if (e.tagName==='SELECT') {
       for (const o of e.options) if (!o.selected && !o.disabled && !o.closest('optgroup[disabled]'))
         actions.push({...base,kind:'select',value:o.value,option:o.label,
@@ -158,7 +163,8 @@
     if (r.width<8 || r.height<8 || r.bottom<=0 || r.right<=0 || r.top>=innerHeight || r.left>=innerWidth) continue;
     if (r.width*r.height>innerWidth*innerHeight*0.5) continue;
     const tab=e.getAttribute('tabindex');
-    const clickable=e.hasAttribute('onclick') || (tab!==null && tab!=='-1') || getComputedStyle(e).cursor==='pointer';
+    const clickable=e.hasAttribute('onclick') || (tab!==null && tab!=='-1') || /^(pointer|grab|move)$/.test(getComputedStyle(e).cursor) ||
+      e.getAttribute('draggable')==='true';
     if (!clickable || !visible(e)) continue;
     const parent=e.parentElement;
     if (parent && parent!==document.body && getComputedStyle(parent).cursor==='pointer' && !e.hasAttribute('onclick')) continue;
@@ -167,7 +173,8 @@
     const x=r.x+r.width/2, y=r.y+r.height/2;
     if (x<0 || y<0 || x>=innerWidth || y>=innerHeight) continue;
     listedNodes.add(e);
-    actions.push({node:identity(e),role:'clickable',label,rect:{x:r.x,y:r.y,w:r.width,h:r.height},kind:'click',value:''});
+    actions.push({node:identity(e),role:'clickable',label,rect:{x:r.x,y:r.y,w:r.width,h:r.height},kind:'click',value:'',
+      ...(draggable(e) ? {draggable:'true'} : {})});
   }
   const words=[], range=document.createRange(); let length=0;
   for (const root of cache.roots()) {

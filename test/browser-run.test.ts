@@ -51,6 +51,7 @@ function shop(frozen = false) {
             }
         },
         select: async (_observed, node, option) => void done.push(`select ${node} ${option}`),
+        drag: async (_observed, from, to) => void done.push(`drag ${from} ${to}`),
         scroll: async (direction) => {
             done.push(`scroll ${direction}`);
 
@@ -118,6 +119,42 @@ test("each step asks one set of questions: the operations the page offers, a tar
     assert.match(hidden, /password: a secret \(its value is never shown\)/);
     assert.match(hidden, /user: tuan/);
     assert.equal(buildQuestions(space, "x", {}, false).prev_ok, undefined, "the first step has no previous step");
+});
+
+test("a page with something to drag offers DRAG: what to drag (only what can be) and where; the run drags it (PP-376)", async () => {
+    const board = (): Observed => ({
+        ...page({ query: "", searched: false }),
+        actions: [
+            { node: 4, role: "clickable", label: "Write the report", rect, kind: "click", value: "", draggable: "true" },
+            { node: 5, role: "clickable", label: "Done", rect, kind: "click", value: "" },
+        ],
+    });
+    const space = actionSpace(board());
+    const questions = buildQuestions(space, "Move the report to Done", {}, false);
+
+    assert.ok("DRAG" in (questions.operation as { criteria: object }).criteria);
+    assert.deepEqual(Object.keys((questions.drag_target as { criteria: object }).criteria), ["1"]);
+    assert.deepEqual(Object.keys((questions.drop_target as { criteria: object }).criteria), ["1", "2"]);
+    assert.deepEqual(space.elements[0]?.operations, ["CLICK", "DRAG"]);
+    // Nothing to drag: no DRAG, nor its questions.
+    assert.equal(buildQuestions(actionSpace(page({ query: "", searched: false })), "x", {}, false).drag_target, undefined);
+
+    const done: string[] = [];
+    const runPage: RunPage = {
+        observe: async () => board(),
+        click: async () => {},
+        type: async () => {},
+        select: async () => {},
+        drag: async (_observed, from, to) => void done.push(`drag ${from} ${to}`),
+        scroll: async () => {},
+        wait: async () => {},
+        stale: () => false,
+    };
+    const replies = ['{"operation": {"choice": "DRAG"}, "drag_target": {"choice": "1"}, "drop_target": {"choice": "2"}}', '{"operation": {"choice": "DONE"}, "goal_achieved": {"noul": 0.9}}'];
+    const result = await runGoal(runPage, new SessionDecider(async () => replies.shift() ?? "{}"), options());
+
+    assert.deepEqual(done, ["drag 4 5"]);
+    assert.deepEqual(result.steps.map((step) => step.did), ["dragged [1] Write the report onto [2] Done"]);
 });
 
 test("an answer that was not offered refuses the whole reply", () => {

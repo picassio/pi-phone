@@ -1410,6 +1410,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
   frames too, so a sign-in card or a secret typed into a frame is hidden there as on the page. Not covered: closed
   shadow roots; browser_eval stays in the main frame (its world makes frames unreachable); dialogs of a frame in the
   page's process answer as before (declined), a frame of another site's through its session.
+- **Drag and drop in Pi's browser** (`browser_drag`, `BrowserPage.drag`, PP-376; as Playwright's `dragTo` in
+  Chromium): both points are resolved and hit-tested as a click's (the source again after bringing the target into
+  view); an offset (`dx`, `dy`, CSS pixels) must end in the view. With `Input.setInterceptDrags` on, the pointer goes
+  down on the source and moves in 12 steps (16 ms apart, `buttons: 1`) and comes up at the end, so pointer-based
+  widgets (sliders, sortable lists, maps) see a person's drag. When the page starts an HTML5 drag, Chrome gives its
+  data (`Input.dragIntercepted`) instead of starting a system drag, and the remaining steps are `Input.dispatchDragEvent`
+  dragEnter/dragOver with that data, then dragOver and drop at the end (dragstart, dragenter, drop with the
+  DataTransfer's data, dragend all fire). The read marks `draggable` (an element with `draggable="true"`, a slider:
+  `input[type=range]` is now listed as role slider with its value, or a grab/move cursor; such elements are listed as
+  clickable too). `browser_run` offers DRAG when the page has something draggable: `drag_target` (what) and
+  `drop_target` (any clickable control), `RunPage.drag`. HTML5 drags that start inside a frame of another site are not
+  caught by the page's interception (pointer moves still go there).
 - **The Browser panel's pictures** (`PiBrowser.#startFrames`, PP-199): while a tab watches, a capture first (`surface:
   false`, 5 s), then the screencast. A capture is held as long as the page's main thread is busy (headless Chrome, a
   big dialog rendering), and a still page's screencast sends nothing: when no picture came 4 s after the cast started,

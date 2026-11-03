@@ -147,6 +147,12 @@ export function describeCall(call) {
             return { icon: "◍", label: t("Clicks"), subject: `[${args.index ?? ""}]` };
         case "browser_hover":
             return { icon: "◍", label: t("Points at"), subject: `[${args.index ?? ""}]` };
+        case "browser_drag":
+            return {
+                icon: "◍",
+                label: t("Drags"),
+                subject: args.to !== undefined ? t("[{from}] onto [{to}]", { from: args.index ?? "", to: args.to }) : t("[{from}] by {dx}, {dy} px", { from: args.index ?? "", dx: args.dx ?? 0, dy: args.dy ?? 0 }),
+            };
         case "browser_type":
             // A saved secret by its name only (PP-32): its value never reaches the call.
             return {

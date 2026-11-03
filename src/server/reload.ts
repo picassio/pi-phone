@@ -281,6 +281,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "browser_type",
     "browser_select",
     "browser_hover",
+    "browser_drag",
     "browser_upload",
     "browser_save_pdf",
     "browser_new_tab",

@@ -1265,6 +1265,18 @@ export class PiBrowser {
         });
     }
 
+    /** Drag control `index` onto control `to`, or by an offset in CSS pixels (PP-376). */
+    drag(session: number, index: number, to: { index: number } | { dx: number; dy: number }): Promise<string> {
+        const where = "index" in to ? `onto [${to.index}]` : `by ${to.dx}, ${to.dy} px`;
+
+        return this.#run(session, this.#doing(`Dragging`, index) + ` ${where}`, async ({ page }) => {
+            const { observed, element } = this.#element(index);
+            const html5 = await page.drag(observed, element, "index" in to ? { element: this.#element(to.index).element } : to);
+
+            return `Dragged [${index}] ${where}${html5 ? " (the page's own drag and drop)" : ""}.\n${await this.#read()}`;
+        });
+    }
+
     type(session: number, index: number, text: string, options: { clear?: boolean; submit?: boolean }): Promise<string> {
         return this.#run(session, this.#doing("Typing into", index), async ({ page }) => {
             const { observed, element } = this.#element(index);
@@ -1637,6 +1649,9 @@ export class PiBrowser {
                     type: (observed, node, text, secret) => (secret ? page.fill(observed, element(observed, node), text, { clear: true }) : page.type(observed, element(observed, node), text, { clear: true })),
                     select: async (observed, node, option) => {
                         await page.select(observed, element(observed, node), option);
+                    },
+                    drag: async (observed, from, to) => {
+                        await page.drag(observed, element(observed, from), { element: element(observed, to) });
                     },
                     scroll: (direction) => page.scroll(direction, 0.85),
                     wait: async () => {
