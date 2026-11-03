@@ -1,0 +1,49 @@
+/* Checklist's look: the theme's variables only, whole pixels on the 4 px grid, its own classes under ckl-. */
+.ckl-page {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    max-width: 640px;
+}
+
+.ckl-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ckl-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: var(--r-row);
+    background: var(--card);
+}
+
+.ckl-text {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+    color: var(--text);
+}
+
+.ckl-row.done .ckl-text {
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
+.ckl-add {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.ckl-add .field {
+    flex: 1;
+}

@@ -980,6 +980,36 @@ so Pi changes them through the settings tools; "the last session" is the one the
     what it had, as with Design & video). It adds no tool and no prompt section.
   - **Not done**: pstack's other skills (Cursor's Task API and models), a mode from chart to TLA+ skeleton (not in
     upstream's commit), a machine-tools install tool for Pi (Install tools is the owner's, in Settings › Machines).
+- **Extension builder** (`extensions/extension-builder.ts`, `extension-builder.ts`, PP-367; owner's decisions of
+  2026-11-03 after research PP-365, wiki `resources/deepseek-harness-creator-mode-research`): Pi makes a drop-in from
+  a chat request. A built-in extension like Formal checks, **on by default** (the owner's choice), a switch like any
+  (Settings › Extensions, `extensions.extension-builder.ts` with `setting_change`); while on, `builtInSkills()` adds
+  `BUILDER_SKILLS` (`src/extension-builder/skills/`), off no session lists it. It adds no tool and no prompt section.
+  - **The skill** `extension-builder` (SKILL.md under 8 KB; `references/` server-part, browser-part, practices,
+    verify): when a drop-in is the answer (not a setting, a theme, an artifact or an OpenUI answer); deliver a small
+    working version first from a template in the session folder (`<cwd>/<name>/`), check it, `extension_install` the
+    folder (the owner's card; it lands off), the owner turns it on (or `setting_change`, a card), look at it with
+    `screenshot` of `http://127.0.0.1:8787/?page=<module>:<id>` at 390 and 1280 px, fix the same files, report what
+    was not checked; never a mock preview. The rules: no secrets in chat (`host.ask`, Secrets), never write the
+    drop-in folder or reach into the app, data in `<data>/extension-data/<name>/` (an update replaces `<name>/`), the
+    owner's UI rules (no emoji, `ICONS` names only, `pocket.Choice`/`MultiChoice` never `<select>`, `StateTag`, whole
+    pixels on the 4 px grid, sentence case, theme variables, every word through `t()` with the drop-in's own `WORDS`
+    for vi and zh-CN, since the app's catalog has only its own words), one operation two callers (page and tool on the
+    same server function, `web.send` after a change), erasable TypeScript without `any`.
+  - **Templates**, each a real drop-in (`test/extension-builder.test.ts` loads every one; `-ui.test.ts` draws them):
+    `zone-time` (one read-only tool), `focus-timer` (rail button with a badge and a page, browser only),
+    `snippets` (menu row and launcher action to a sheet, `localStorage`, `pocket.compose`), `checklist` (routes and
+    two tools on the same functions, `web.send`, a folder client with `pocket.style`, `pocket.toolCall`). Server
+    parts type `host` and `web` with small local types (pi-phone ships no `_pocket.d.ts`); `tsc` checks them, as they
+    are under `src/`.
+  - **`scripts/check.mjs`** (in the skill): reads a drop-in folder, never runs it: one top `<name>.ts`, Node's
+    `stripTypeScriptTypes` (erasable only) then `--check` as a module, no `any`, `pocketApi = 2`, tool names against
+    `BUILT_IN_TOOLS` and icons against `ICONS` (read from the app's own `reload.ts` and `ui.js`, so they stay in step),
+    `web.client` entries present, no emoji or dingbats, no `<select>`, no part pixels; own colours are a note.
+  - `pocket.MultiChoice` (`web/ui.js`'s) is given to browser parts beside `Choice`, an addition: API version stays 2.
+  - **Attribution**: DeepSeek Harness's `cordis-plugin-development` (MIT, at `ce7073d`): its MIT `LICENSE` and a
+    README of what was adapted in `third_party/deepseek-harness/` (SKILL.md's loop, `practices.md` from its practices
+    and user-actions, `verify.md` from its verification); the rest is pi-phone's own.
 - **Machine tools** (`src/server/machine-tools.ts`; owner's decisions of 2026-10-18): command-line programs run where
   bash runs, which in a session on a machine is the machine, so OfficeCLI, ripgrep, and fd are installed there.
   - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT

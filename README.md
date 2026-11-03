@@ -315,6 +315,14 @@ No Termux, no laptop, no cloud VM.
   file, or a `.zip` holding one) or by Pi with `extension_install` once you approve its card (files and first lines
   shown), each off until you turn it on. They can use pi-pocket 0.22's `host.ask` (a card whose values reach only the extension), `host.hide`
   and `host.commandEnv`, not `host.browser` yet; one whose tool has a built-in tool's name is refused, with why.
+- **Extension builder.** Ask Pi for a new page, panel, tracker or tool in pi-phone itself and it makes a drop-in for
+  you: a small first version from one of four templates (a tool; a rail button with a page; a menu row with a sheet; a
+  tool and a page that share data, so what you do on the page Pi can do too), checked by the skill's own script,
+  installed once you approve its card, switched on by you, then looked at in the live app at phone and desktop widths
+  and fixed in place. It keeps your UI rules: the app's line icons and dropdowns, states as a word and a dot, no emoji,
+  whole pixels, every word in your language. Drop-ins' pages can use the app's multi-select list too
+  (`pocket.MultiChoice`). Adapted in part from DeepSeek Harness's plugin skill (MIT). Its own extension, on by
+  default: turn it off in **Extensions** (or ask Pi), and no session lists the skill.
 - **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
   search, tracks its open questions until they are answered, and captures idle sessions into it. With OpenRouter signed
   in, **Jev ranks the search** (Menu › Wiki › Rank with Jev): it reads each page the search found (by keyword, by
@@ -666,7 +674,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | The model `image_generate` makes images with | **Images**: *Automatic*, ChatGPT's GPT Image 2.5, an OpenRouter image model (with its price), or your provider's model marked *Makes images* | "Make images with Nano Banana from now on", "Use gpt-image-2.5 for this one" |
 | API keys and tokens | **Secrets**. Pi asks for a missing one with a hidden field on a card, never in the chat | Pi can ask for one, change a secret's flags, or delete one. You type the value |
 | Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames, TLC) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
-| Extensions (Projects, Wiki, Pi's browser, Design & video, Formal checks, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |
+| Extensions (Projects, Wiki, Pi's browser, Design & video, Formal checks, Extension builder, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
 | What of the wiki, secrets and skills goes into the prompt | **Menu › Compact context** | "Put the wiki's index back in this session's prompt" |

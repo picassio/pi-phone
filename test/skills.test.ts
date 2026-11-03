@@ -224,8 +224,9 @@ test("a session lists them as /skill: commands and in its system prompt", async 
     const app = await started();
     const id = await newSession(app, project);
 
-    // The project's and the user's, then the app's own (pi-phone's getting-started, src/skills/; Effective HTML's,
-    // OpenDesign's kept skills and pstack's statechart, third_party/), after them.
+    // The project's and the user's, then the app's own (pi-phone's getting-started, src/skills/; Extension builder's,
+    // src/extension-builder/skills/; Effective HTML's, OpenDesign's kept skills and pstack's statechart, third_party/),
+    // after them.
     const commands = app.skillCommands(id).map((each) => each.name);
 
     assert.deepEqual(commands.filter((name) => ["everywhere", "here"].includes(name)).sort(), ["everywhere", "here"]);
@@ -237,6 +238,7 @@ test("a session lists them as /skill: commands and in its system prompt", async 
             "business-motion-film",
             "design-artifact",
             "design-system",
+            "extension-builder",
             "getting-started",
             "gsap-core",
             "gsap-performance",

@@ -329,6 +329,15 @@ dự án thật.</sub>
   dòng đầu), mỗi cái tắt cho đến khi bạn bật. Chúng dùng được `host.ask` của pi-pocket 0.22 (một thẻ mà giá trị chỉ
   tới được tiện ích), `host.hide` và `host.commandEnv`, chưa dùng được `host.browser`; một tiện ích có công cụ trùng
   tên công cụ có sẵn sẽ bị từ chối, kèm lý do.
+- **Trình tạo tiện ích.** Nhờ Pi làm một trang, bảng, công cụ theo dõi hay công cụ mới ngay trong pi-phone, và Pi
+  làm cho bạn một drop-in: một bản đầu nhỏ từ một trong bốn mẫu (một công cụ; một nút ở thanh bên kèm một trang; một
+  dòng trong menu kèm một bảng; một công cụ và một trang dùng chung dữ liệu, để việc bạn làm trên trang thì Pi cũng
+  làm được), được kiểm tra bằng script riêng của skill, cài khi bạn duyệt thẻ, do bạn bật, rồi được xem trong ứng
+  dụng đang chạy ở độ rộng điện thoại và máy tính và sửa ngay tại chỗ. Nó giữ các quy tắc giao diện của bạn: biểu
+  tượng nét và danh sách chọn của ứng dụng, trạng thái là một chữ và một chấm, không emoji, pixel nguyên, mọi chữ đều
+  theo ngôn ngữ của bạn. Trang của drop-in cũng dùng được danh sách chọn nhiều của ứng dụng (`pocket.MultiChoice`).
+  Một phần chuyển thể từ skill plugin của DeepSeek Harness (MIT). Là một tiện ích riêng, bật sẵn: tắt nó trong
+  **Tiện ích** (hoặc nhờ Pi), và không phiên nào liệt kê skill này nữa.
 - **Một wiki PARA** ([pi-para](https://github.com/picassio/pi-para)): Pi tra cứu và viết vào đó khi làm việc, với tìm
   kiếm của qmd, theo dõi các câu hỏi mở cho đến khi được trả lời, và ghi nhận các phiên rảnh vào đó. Khi đã
   đăng nhập OpenRouter, **Jev xếp hạng kết quả tìm** (Menu › Wiki › Xếp hạng bằng Jev): nó đọc từng trang tìm được
@@ -690,7 +699,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Mô hình `image_generate` dùng để tạo hình | **Hình ảnh**: *Tự động*, GPT Image 2.5 của ChatGPT, một mô hình hình ảnh của OpenRouter (kèm giá), hoặc mô hình của nhà cung cấp riêng được đánh dấu *Tạo hình ảnh* | “Từ giờ tạo hình bằng Nano Banana”, “Dùng gpt-image-2.5 cho hình này” |
 | Khóa API và token | **Bí mật**. Pi xin bí mật còn thiếu qua một ô ẩn trên thẻ, không bao giờ trong cuộc trò chuyện | Pi có thể xin một bí mật, đổi cờ của bí mật, hoặc xóa nó. Giá trị thì bạn tự gõ |
 | Máy tính khác | **Khóa SSH**, rồi **Máy** (**Cài công cụ** ở đó thêm OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames, TLC) | Có với đổi tên, cài công cụ, cổng, hoặc gỡ máy. Chấp nhận host key mới là việc của bạn |
-| Tiện ích (Dự án, Wiki, Trình duyệt của Pi, Thiết kế & video, Kiểm chứng hình thức, …) | **Tiện ích** | “Bật Dự án”, “Tắt Thiết kế & video” |
+| Tiện ích (Dự án, Wiki, Trình duyệt của Pi, Thiết kế & video, Kiểm chứng hình thức, Trình tạo tiện ích, …) | **Tiện ích** | “Bật Dự án”, “Tắt Thiết kế & video” |
 | Chi tiêu và giới hạn | **Chi tiêu** | “Giới hạn phiên này ở $5” |
 | Khi nào phiên tự nén | **Menu › Nén ngữ cảnh**, cho phiên này hoặc mọi phiên | “Nén phiên này ở 60%” |
 | Wiki, bí mật và kỹ năng nào vào prompt | **Menu › Nén ngữ cảnh** | “Đưa lại chỉ mục wiki vào prompt của phiên này” |

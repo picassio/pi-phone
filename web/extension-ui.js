@@ -20,7 +20,7 @@ import { leaveSafeMode, onSafeModeEnd, safeMode } from "./safe-mode.js";
 import { api, closeSheet, insertIntoComposer, notify, onExtensionEvent, openSheet, store } from "./store.js";
 import { setCallSummary } from "./turns.js";
 import { pickFolder } from "./sheets/folder.js";
-import { Choice, html, Icon, iconPath, Loader, Markdown, railState, Sheet, Spinner, StateTag, Switch } from "./ui.js";
+import { Choice, html, Icon, iconPath, Loader, Markdown, MultiChoice, railState, Sheet, Spinner, StateTag, Switch } from "./ui.js";
 
 /**
  * The version of `pocket`. It goes up only when something extensions use changes in a way that breaks them; additions
@@ -60,6 +60,7 @@ export function moduleTitle(title) {
         "Interactive answers": t("Interactive answers"),
         "Design & video": t("Design & video"),
         "Formal checks": t("Formal checks"),
+        "Extension builder": t("Extension builder"),
         "Machine tools": t("Machine tools"),
         "Wiki (PARA)": t("Wiki (PARA)"),
         Projects: t("Projects"),
@@ -828,6 +829,11 @@ function pocketFor(record) {
         Switch,
         /** The app's own dropdown (`{ value, options: [{ value, label, detail? }], onChange, label }`), not the system's. */
         Choice,
+        /**
+         * The app's list to tick several from (`{ options: [{ value, label, detail?, group?, disabled?, chosen? }], onAdd,
+         * label, placeholder? }`, `onAdd` given the values ticked), not the system's (PP-367).
+         */
+        MultiChoice,
         /** A state as a word and a small dot (`{ tone: "ok" | "warn" | "err" | "off", label }`), never a ✓. */
         StateTag,
         /**
