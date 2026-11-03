@@ -230,7 +230,7 @@
   你在登录卡片上输入的用户名，之后也和密码一样对 Pi 隐藏。
 - **自备扩展。** 你自己的扩展模块：在设置 › 扩展中用 **添加自备扩展…** 添加（一个 `.ts` 文件，或包含它的 `.zip`），
   或由 Pi 用 `extension_install` 安装（你先在卡片上看到文件和开头几行并同意），每个都先处于关闭状态，直到你打开它。它们可以使用 pi-pocket 0.22 的
-  `host.ask`（一张卡片，填写的值只交给扩展）、`host.hide` 和 `host.commandEnv`，以及 pi-pocket 0.28 的 `host.sessions.start`（为 Pi 正在服务的人新建一个普通会话，按此人的权限检查，同一个 key 只建一次），暂时不能用 `host.browser`；工具与内置工具同名的模块会被拒绝，并说明原因。工具的 schema 用 `@earendil-works/pi-schema`（`obj`、`str`、`opt`……）构建；用 TypeBox 的 `Type`（Pi 1.5 之前来自 `@earendil-works/pi-ai`，或 `typebox`）构建的模块会被拒绝，并说明原因。
+  `host.ask`（一张卡片，填写的值只交给扩展）、`host.hide` 和 `host.commandEnv`，pi-pocket 0.27 的 `host.roleOf`（按 id 查一个人的角色），以及 pi-pocket 0.28 的 `host.sessions.start`（为 Pi 正在服务的人新建一个普通会话，按此人的权限检查，同一个 key 只建一次），暂时不能用 `host.browser`；工具与内置工具同名的模块会被拒绝，并说明原因。工具的 schema 用 `@earendil-works/pi-schema`（`obj`、`str`、`opt`……）构建；用 TypeBox 的 `Type`（Pi 1.5 之前来自 `@earendil-works/pi-ai`，或 `typebox`）构建的模块会被拒绝，并说明原因。
   **移除** 可以去掉一个（设置 › 扩展，在它的那一行里确认后；或让 Pi 用 `app_action extensions.remove`，由你在卡片上同意）：
   它会被关闭，其文件被删除（`<name>.ts`、`<name>.js`、`<name>/`）；它在 `extension-data/<name>/` 中的数据会保留，除非你要求一并删除。
   除了侧栏按钮、菜单项、启动器操作、页面和面板，自备扩展还可以在消息框正上方显示一行高的条（在所有会话或它选定的会话中；

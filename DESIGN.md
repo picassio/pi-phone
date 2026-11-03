@@ -544,7 +544,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   asker in `ApprovalAnswer.values` only. The person Pi works for answers it (the owner when nobody is known;
   `cannotAllow`), anyone who can steer declines, and a plain Allow is refused. `AskCard` in `transcript.js`; the
   decision is kept with `ask: true` (Answered / Declined). Built-in modules and drop-ins use them; pi-pocket's
-  `host.browser` is not ported (Pi's browser here is pi-phone's own).
+  `host.browser` is not ported (Pi's browser here is pi-phone's own). `host.roleOf(personId)` (from pi-pocket 0.27,
+  PP-343) gives a person's role from `config.userById`, undefined for an id that is no person; its other half, the
+  scroll position in `host.browser`'s snapshot, is not taken with `host.browser`.
 - **Sessions an extension starts** (from pi-pocket 0.28.0, PP-380; `extension-sessions.ts`): `host.sessions.start(source,
   { title?, cwd?, model?, thinking?, message? }, key)` makes an ordinary top-level session, like New session (not
   linked: pi-phone has no pi-pocket `linkedSessions`; Pi's own `session_start` is `host.sessions.startLinked`), for the

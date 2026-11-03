@@ -1267,6 +1267,7 @@ export class PocketApp {
             },
             modelProblem: (ref, fresh) => this.providers.problem(ref, fresh),
             requesterOf: (conversationId) => this.attribution.requesterOf(conversationId),
+            roleOf: (personId) => this.config.userById(personId)?.role,
             ready: () => this.#ready,
             people: () => this.config.users.map((user) => ({ id: user.id, name: user.name, role: user.role })),
             devices: (userId) => this.devices(this.#person(userId)),

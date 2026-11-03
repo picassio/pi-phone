@@ -94,3 +94,6 @@ is skipped on purpose.
   (the subagents and sessions guides, and the guidelines for a `[via session …]` message): pi-phone never had pocket's
   ASD-STE100 rules for agent messages, so nothing is replaced; agent-teams and linked sessions are pocket's, not here.
   Not taken: merge 36d33c7 (2628427d, `pip.md`'s language: PiP), and the PiP parts of d01a97b.
+- `host.roleOf` from 0.27 (PP-343): merge 1023cf5 (d2454d6), its `roleOf` and test (as a drop-in's route). Not taken:
+  `snapshot().scroll` of `host.browser`, which pi-phone does not have; `types/pocket.d.ts` and the docs (the Extension
+  builder's `server-part.md` instead).

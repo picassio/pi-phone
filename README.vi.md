@@ -354,7 +354,8 @@ dự án thật.</sub>
 - **Tiện ích drop-in.** Module tiện ích của riêng bạn, thêm bằng **Thêm drop-in…** trong Cài đặt › Tiện ích (một tệp
   `.ts`, hoặc tệp `.zip` chứa nó) hoặc do Pi thêm bằng `extension_install` khi bạn duyệt thẻ (hiện các tệp và những
   dòng đầu), mỗi cái tắt cho đến khi bạn bật. Chúng dùng được `host.ask` của pi-pocket 0.22 (một thẻ mà giá trị chỉ
-  tới được tiện ích), `host.hide` và `host.commandEnv`, cùng `host.sessions.start` của pi-pocket 0.28 (một phiên thường
+  tới được tiện ích), `host.hide` và `host.commandEnv`, `host.roleOf` của pi-pocket 0.27 (vai trò của một người theo id), cùng
+  `host.sessions.start` của pi-pocket 0.28 (một phiên thường
   mới cho người mà Pi đang làm việc cho, với các bước kiểm tra của họ, mỗi khóa một lần), chưa dùng được `host.browser`; một tiện ích có công cụ trùng
   tên công cụ có sẵn sẽ bị từ chối, kèm lý do. Schema công cụ được dựng bằng `@earendil-works/pi-schema` (`obj`, `str`,
   `opt`, …); một tiện ích dựng bằng `Type` của TypeBox (từ `@earendil-works/pi-ai` trước Pi 1.5, hoặc `typebox`) sẽ bị

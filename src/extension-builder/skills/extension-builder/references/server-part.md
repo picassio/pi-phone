@@ -95,6 +95,9 @@ without a tool description saying it. A section about one of its tools looks for
 - `host.commandEnv((run) => ({ NAME: "value" }) | undefined)`: adds variables to the commands sessions run (`run`:
   `{ conversationId, command, cwd }`). Returns how to stop: pass it to `web.onDispose`.
 - `host.notice(level, message, conversationId?)`: a notice to the log and the open tabs.
+- `host.requesterOf(conversationId)`: the id of the person Pi works for there now; `host.roleOf(personId)`: their role
+  (`owner`, `guest` or `viewer`), or undefined for an id that is no person here. A route gets its caller as
+  `request.user`.
 - `host.sessions.start(source, { title?, cwd?, model?, thinking?, message? }, key)`: a new ordinary session, like New
   session, for the person Pi works for in session `source` (usually `api.conversationId`); answers `{ session }`, its
   id. `model` is `provider/modelId`; `thinking` a level, lowered to one the model has; `message` its first message, as

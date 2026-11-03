@@ -443,6 +443,8 @@ export interface PocketHost {
     modelProblem(ref: ModelRef, fresh?: boolean): Promise<string | undefined>;
     /** Who Pi works for in a conversation now: whose message led to its current work. */
     requesterOf(conversationId: ConversationId): string | undefined;
+    /** The role of a person by id (owner, guest or viewer), as the app decides it; undefined for an id that is no person here (PP-343). */
+    roleOf(personId: string): Role | undefined;
     /**
      * Start a session in `cwd` (here, or `machine:<id>:<path>`) as a person, with a first message sent for them
      * (`via` says by what): the Projects extension's main and task sessions. Answers its id.
