@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { PlanDoc } from "../src/server/docs.ts";
 import { createHandler } from "../src/server/http.ts";
 
 const repo = join(root, "team-repo");
@@ -25,7 +26,28 @@ const route: FauxResponseStep = (request) => {
         return fauxAssistantMessage([fauxToolCall("task_run", { task: "RT-4" })], { stopReason: "toolUse" });
     }
 
-    const work = /Work on (RT-[24]) /.exec(text);
+    // A reviewer (PP-359): round 1 finds a P1, round 2 finds only a P3.
+    const round = /review round (\d) of 2/.exec(text);
+
+    if (role === "user" && text.includes("Please perform a code review") && round) {
+        const findings =
+            round[1] === "1"
+                ? [{ priority: "P1", title: "Hello is not escaped", file: "hello.txt", line: 1, body: "A quote breaks it." }]
+                : [{ priority: "P3", title: "Wording", body: "Say hi instead." }];
+
+        return fauxAssistantMessage([
+            fauxText(`Findings.\n\n\`\`\`review-result\n${JSON.stringify({ verdict: round[1] === "1" ? "needs attention" : "correct", findings, callouts: [] })}\n\`\`\``),
+        ]);
+    }
+
+    // The task session fixes what the review sent back.
+    const fix = /Review round 1 of 2 \(session #\d+\) of (RT-\d+) found what must be fixed/.exec(text);
+
+    if (role === "user" && fix) {
+        return fauxAssistantMessage([fauxToolCall("task_comment", { task: fix[1]!, text: "Escaped it." })], { stopReason: "toolUse" });
+    }
+
+    const work = /Work on (RT-[245]) /.exec(text);
 
     if (role === "user" && work) {
         return fauxAssistantMessage([fauxToolCall("task_update", { task: work[1]!, state: "review" })], { stopReason: "toolUse" });
@@ -206,5 +228,41 @@ test("a task run from a session that is not the main one reports its end to that
     // The session that ran it hears it, as the main session does.
     await until(async () => /Done: RT-4 \(Run from here\) is in Review/.test(await said(here)), `the report in session ${here}: ${await said(here)}`);
     await until(async () => /Done: RT-4 \(Run from here\) is in Review/.test(await said(lead)), "the report in the main session");
+    await app.harness.waitForIdle(context);
+});
+
+test("with Review in Review on, a reviewer in plan mode reads the branch; a P1 goes back to the task session, and the main session hears after the second round (PP-359)", async () => {
+    await call("PATCH", "projects/RT", { autoRuns: true, reviews: true });
+    assert.equal(((await call("GET", "projects/RT")) as { project: { reviews: boolean } }).project.reviews, true);
+    await call("POST", "projects/RT/tasks", { title: "Review me", assignee: "pi" });
+    await until(async () => (await taskOf("RT-5")).run?.state === "done", "the run and its reviews to finish", 40_000);
+
+    const detail = (await call("GET", "tasks/RT-5")) as { comments: { text: string; session: string | null }[]; runs: { reviews: number; reviewSession: string | null; conversationId: string }[] };
+    const reviews = detail.comments.filter((each) => each.text.startsWith("**Review round"));
+
+    assert.equal(reviews.length, 2, JSON.stringify(detail.comments.map((each) => each.text)));
+    assert.match(reviews[0]!.text, /^\*\*Review round 1 of 2 \(session #(\d+)\)\*\*: needs attention, 1 P1\.\n- \*\*P1\*\* Hello is not escaped \(`hello\.txt:1`\): A quote breaks it\.\n\nSent to task session #\d+ to fix\.$/);
+    assert.match(reviews[1]!.text, /^\*\*Review round 2 of 2 \(session #\d+\)\*\*: correct, 1 P3\./);
+    assert.deepEqual(detail.runs[0]!.reviews, 2);
+    assert.equal(detail.runs[0]!.reviewSession, null);
+
+    // The reviewer worked in plan mode, in the task's worktree; the task session got the P1 and commented.
+    const reviewer = Number(reviews[0]!.session);
+    const worker = Number(detail.runs[0]!.conversationId);
+
+    assert.notEqual(reviewer, worker);
+    assert.equal((await app.harness.snapshot(PlanDoc, reviewer as never, context))?.on, true);
+    assert.equal(app.cwdOf(reviewer as never), join(repo, ".worktrees", "RT-5"));
+    assert.match(await said(worker), /Review round 1 of 2 \(session #\d+\) of RT-5 found what must be fixed[^]*Hello is not escaped/);
+    assert.ok(detail.comments.some((each) => each.text === "Escaped it." && each.session === String(worker)));
+
+    // The main session hears once, after the second round.
+    await until(async () => /Done: RT-5 \(Review me\) is in Review\. Reviewed 2 times: the last round found no P0 or P1 \(1 P3\)/.test(await said(lead)), "the report");
+    assert.equal((await said(lead)).match(/Done: RT-5/g)?.length, 1);
+    // The phone did not hear the reviewers finish.
+    const { events } = await app.phoneEvents.after(0, new AbortController().signal);
+
+    assert.ok(!events.some((event) => event.kind === "done" && event.session === reviewer));
+    await call("PATCH", "projects/RT", { reviews: false });
     await app.harness.waitForIdle(context);
 });

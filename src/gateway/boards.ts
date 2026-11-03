@@ -20,7 +20,7 @@ import { ProjectWiki } from "./project-wiki.ts";
 export type BoardCall = { method: string; args: unknown[]; pi?: { conversationId: string; closer: Closer } };
 
 /** The fields of a board that are each pi-phone's own. */
-const PERSONAL = ["folder", "places", "mainSession", "autoRuns"];
+const PERSONAL = ["folder", "places", "mainSession", "autoRuns", "reviews"];
 
 export class BoardService {
     readonly #store: GatewayStore;

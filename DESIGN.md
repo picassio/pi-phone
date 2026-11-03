@@ -1863,6 +1863,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
     ends from the phone. `GET tasks/:ref/diff` (3-dot) and `POST tasks/:ref/merge` (`--no-ff` into the base, only when
     the repository is on it and clean; then the worktree and branch go, and the task is done where its rules allow).
     A restart fails runs cut off while starting; a running run's end that came while the server was down is not seen.
+  - **Review in Review** (PP-359, owner's decisions of 2026-11-02/03 after research PP-309, mockup approved): a
+    project's `reviews` (personal on team boards, like `autoRuns`; off by default). A task session that ends with its
+    task in Review, while the run has had fewer than `REVIEW_ROUNDS` (2) rounds, starts a reviewer instead of the Done
+    report: `prepareReview` (branch against the run's base as it is here, `exact`, not its upstream) and `reviewPrompt`
+    in a session in the worktree, started in plan mode (`host.startSession` `plan`), grouped with the task sessions,
+    its end quiet on the phone. The run keeps `reviews` (rounds) and `review_session` (the reviewer now; the minute
+    check watches it instead of the task session). Its end: `parseReviewResult` of its whole last answer
+    (`lastAnswer(…, true)`) becomes a comment on the task as Pi in the reviewer's session (verdict, counts, findings);
+    P0 or P1 with rounds left go to the task session (`sendToSession`: fix, commit, comment, end in Review; the next
+    round follows its end); after the last round with P0 or P1 left, the main session hears "Needs the person"; clean,
+    "Done … Reviewed N times". No result (a failed reviewer, no block) is said in a comment and the run ends as Done
+    with that said; a review that cannot start (no merge base) is a comment, and the run ends as it would without.
   - **A tool for every action** (AGENTS.md): `project_update` (folder, places, runs by itself), `project_share`,
     `project_team` (start the main session), `project_delete` and `task_delete` (a card first), `task_cancel_run`,
     `task_diff`, `task_merge` (a card first: merging is the person's call), `task_link_session`; `task_get` shows the run.

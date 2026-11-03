@@ -20,7 +20,7 @@ const ACTORLESS = new Set<SharedMethod>(["sessionsOf", "taskById", "projectById"
 /** Methods that change a board: its mirror follows. */
 const WRITES = new Set<SharedMethod>(["recordRun", "create", "update", "setMembers", "leave", "moveToTeam", "setOpen", "remove", "createTask", "updateTask", "comment", "link", "unlink", "removeTask", "linkSession", "startWork"]);
 /** What is personal on a board, kept here only. */
-const PERSONAL = ["folder", "places", "autoRuns", "mainSession"] as const;
+const PERSONAL = ["folder", "places", "autoRuns", "reviews", "mainSession"] as const;
 
 export type RemoteBoards = Boards & {
     /** The gateway says a board changed: its mirror follows; with `assigned`, a task was given to this person's Pi. */
@@ -99,7 +99,7 @@ export function remoteBoards(options: RemoteBoardsOptions): RemoteBoards {
             }
 
             if (typeof object.id === "string" && typeof object.key === "string" && Array.isArray(object.members)) {
-                return { ...laid, ...(projects.personalOf(object.id) ?? { folder: null, places: [], autoRuns: false, mainSession: null }) };
+                return { ...laid, ...(projects.personalOf(object.id) ?? { folder: null, places: [], autoRuns: false, reviews: false, mainSession: null }) };
             }
 
             return laid;

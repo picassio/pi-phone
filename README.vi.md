@@ -172,7 +172,12 @@ dự án thật.</sub>
   nhất bao nhiêu cùng lúc tùy mỗi nơi cho phép. Khi xong, nó báo về phiên chính, và về phiên đã chạy nó nếu đó là phiên khác; bạn xem diff của nhánh và gộp nó từ tác
   vụ. Phiên tác vụ và phiên chính không gửi thông báo lên điện thoại khi xong; yêu cầu duyệt và thất bại thì có. Nhóm
   kiểm tra các phiên tác vụ mỗi phút: một lần kết thúc bị lỡ (do khởi động lại) vẫn được báo, tác vụ có phiên bị xóa sẽ
-  thất bại, và tác vụ làm quá 30 phút được báo cho phiên chính. Pi có công cụ cho mọi thao tác (`project_create`,
+  thất bại, và tác vụ làm quá 30 phút được báo cho phiên chính. **Review khi sang Review** (một công tắc trong cài đặt
+  project, mặc định tắt; Pi dùng `reviews` của `project_update`): khi phiên tác vụ chuyển tác vụ sang Review, một phiên
+  reviewer đọc nhánh so với chỗ bắt đầu, ở chế độ plan (chỉ đọc và báo cáo, không thay đổi gì), theo tiêu chí của
+  `/review`, rồi bình luận kết luận và các lỗi trên tác vụ. Lỗi P0 hoặc P1 được gửi lại phiên tác vụ để sửa, rồi review
+  lại, tối đa 2 vòng; phiên chính chỉ được báo khi review sạch, hoặc khi sau vòng thứ hai vẫn còn P0/P1 để bạn quyết.
+  Pi có công cụ cho mọi thao tác (`project_create`,
   `project_update`, `project_share`, `project_team`, `task_create`, `task_update`, `task_comment`, `task_run`,
   `task_diff`, `task_link_session`, …); tạo bảng (từ bất kỳ phiên nào), xóa và gộp đều hỏi bạn qua một thẻ.
 

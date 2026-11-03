@@ -418,7 +418,8 @@ export interface PocketHost {
      * Start a session in `cwd` (here, or `machine:<id>:<path>`) as a person, with a first message sent for them
      * (`via` says by what): the Projects extension's main and task sessions. Answers its id.
      */
-    startSession(request: { userId: string; cwd: string; title: string; message: string; via: string }): Promise<number>;
+    /** `plan`: in plan mode from its first message (it reads and reports, and nothing it does changes a file: PP-359's reviewer). */
+    startSession(request: { userId: string; cwd: string; title: string; message: string; via: string; plan?: boolean }): Promise<number>;
     /** Send a session a message for a person, after its current work (`via` says by what): a task session's report. */
     sendToSession(request: { userId: string; session: number; message: string; via: string }): Promise<void>;
     /** Hear sessions' runs end, fail, or wait for approval, as the phone does; returns how to stop. */
@@ -462,7 +463,7 @@ export interface PocketHost {
      */
     sessionState(session: number): { busy: boolean; busySince?: number; waiting: boolean; failed: boolean; endedAt?: number } | undefined;
     /** A session's last answer, as one line (empty when it has none): what a run that ended unheard said. */
-    lastAnswer(session: number): Promise<string>;
+    lastAnswer(session: number, whole?: boolean): Promise<string>;
     /**
      * Resolves once the app has opened: its sessions read back and the harness up. Extensions load before that, so what
      * they do with sessions as they start waits for it.

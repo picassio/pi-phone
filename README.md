@@ -163,6 +163,11 @@ No Termux, no laptop, no cloud VM.
   branch's diff and merge it from the task. Task and main sessions do not notify the phone when they finish; approvals
   and failures do. The team checks on its task sessions each minute: an end it missed (a restart) is still reported,
   a task whose session was deleted fails, and one working over 30 minutes is flagged to the main session.
+  **Review in Review** (a switch in the project's settings, off by default; `project_update` reviews for Pi): when a
+  task session sets its task to Review, a reviewer session reads the branch against where it started, in plan mode
+  (it reads and reports, and changes nothing), with `/review`'s rubric, and comments its verdict and findings on the
+  task. P0 or P1 findings go back to the task session to fix, then it reviews again, 2 rounds at most; the main
+  session hears once the review is clean, or, with P0 or P1 still left after the second round, that you decide.
   Pi has a tool for every action (`project_create`, `project_update`, `project_share`, `project_team`, `task_create`,
   `task_update`, `task_comment`, `task_run`, `task_diff`, `task_link_session`, …); making a board (from any session),
   deleting, and merging ask you on a card.

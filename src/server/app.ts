@@ -1258,7 +1258,7 @@ export class PocketApp {
             person: (userId) => this.#person(userId),
             // From Pi no device is "this one": the owner's phone app signs in again by itself.
             signOutEverywhere: (userId) => this.signOutEverywhere(this.#person(userId)),
-            startSession: async ({ userId, cwd, title, message, via }) => {
+            startSession: async ({ userId, cwd, title, message, via, plan }) => {
                 const user = this.config.userById(userId);
 
                 if (user === undefined) {
@@ -1266,6 +1266,10 @@ export class PocketApp {
                 }
 
                 const { id } = await this.commands.createSession(user, { cwd, title });
+
+                if (plan === true) {
+                    await this.commands.setPlan(id, user, true);
+                }
 
                 await this.commands.submit(id, user, { text: message, requestId: randomUUID() }, via);
 
@@ -1313,7 +1317,7 @@ export class PocketApp {
                 exists: (id) => this.config.userById(id) !== undefined,
             },
             sessionState: (session) => this.sessionState(session as unknown as ConversationId),
-            lastAnswer: (session) => this.lastAnswer(session as unknown as ConversationId),
+            lastAnswer: (session, whole) => this.lastAnswer(session as unknown as ConversationId, whole),
             settleSession: async (session, reason, ifUnset = false) => {
                 if (this.sessionMeta(session as unknown as ConversationId) === undefined) {
                     return;
@@ -2017,18 +2021,18 @@ export class PocketApp {
         };
     }
 
-    /** A session's last answer as one line, or empty. */
-    async lastAnswer(id: ConversationId): Promise<string> {
+    /** A session's last answer as one line, or empty; `whole`: as it was written, lines and all (a reviewer's block). */
+    async lastAnswer(id: ConversationId, whole = false): Promise<string> {
         const view = await (await this.harness.conversation(id, context))?.context(context);
         const answer = view?.messages.findLast((message) => message.role === "assistant");
 
-        return answer?.role === "assistant"
-            ? answer.content
-                  .flatMap((part) => (part.type === "text" ? [part.text] : []))
-                  .join(" ")
-                  .replace(/\s+/g, " ")
-                  .trim()
-            : "";
+        if (answer?.role !== "assistant") {
+            return "";
+        }
+
+        const text = answer.content.flatMap((part) => (part.type === "text" ? [part.text] : []));
+
+        return whole ? text.join("\n").trim() : text.join(" ").replace(/\s+/g, " ").trim();
     }
 
     /** Session `id`'s view builds again: something it shows changed outside its documents. */

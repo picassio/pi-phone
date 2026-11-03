@@ -130,7 +130,14 @@ export interface Run {
     merged: RunMerge | null;
     /** The session that ran it (task_run), which hears its reports besides the project's main session (PP-326). */
     reportTo: string | null;
+    /** How many review rounds started on it (PP-359; the project's `reviews`), at most `REVIEW_ROUNDS`. */
+    reviews: number;
+    /** The review session reading its branch now, if one is (its task session waits meanwhile). */
+    reviewSession: string | null;
 }
+
+/** Review rounds a task's run gets at most when its project reviews tasks in Review (PP-359, the owner's choice). */
+export const REVIEW_ROUNDS = 2;
 
 export interface RunMerge {
     at: number;
@@ -173,6 +180,8 @@ export interface Project {
     labels: string[];
     /** Whether a task assigned to Pi starts by itself; off, the main session asks first. */
     autoRuns: boolean;
+    /** Whether a task run's branch is reviewed when its session sets it to Review (PP-359); off by default. */
+    reviews: boolean;
     /** How much of the board's rules Pi gets in its prompt: all of them, or only to track work and keep it current. */
     rules: BoardRules;
     mainSession: string | null;
@@ -375,6 +384,15 @@ export class Projects {
             this.#db.exec("ALTER TABLE pocket_task_runs ADD COLUMN report_to TEXT");
         }
 
+        if (!runColumns.includes("reviews")) {
+            this.#db.exec("ALTER TABLE pocket_task_runs ADD COLUMN reviews INTEGER NOT NULL DEFAULT 0");
+            this.#db.exec("ALTER TABLE pocket_task_runs ADD COLUMN review_session TEXT");
+        }
+
+        if (!columns.includes("reviews")) {
+            this.#db.exec("ALTER TABLE pocket_projects ADD COLUMN reviews INTEGER NOT NULL DEFAULT 0");
+        }
+
         if (!columns.includes("open")) {
             this.#db.exec("ALTER TABLE pocket_projects ADD COLUMN open INTEGER NOT NULL DEFAULT 0");
         }
@@ -485,6 +503,7 @@ export class Projects {
             folder?: string | null;
             labels?: string[];
             autoRuns?: boolean;
+            reviews?: boolean;
             mainSession?: string | null;
             places?: ProjectPlace[];
             rules?: BoardRules;
@@ -503,13 +522,14 @@ export class Projects {
 
         this.#db
             .prepare(
-                "UPDATE pocket_projects SET name = ?, folder = ?, labels = ?, auto_runs = ?, main_session = ?, places = ?, rules = ?, updated_at = ? WHERE id = ?",
+                "UPDATE pocket_projects SET name = ?, folder = ?, labels = ?, auto_runs = ?, reviews = ?, main_session = ?, places = ?, rules = ?, updated_at = ? WHERE id = ?",
             )
             .run(
                 name,
                 patch.folder === undefined ? project.folder : folderOf(patch.folder),
                 JSON.stringify(patch.labels === undefined ? project.labels : labelsOf(patch.labels)),
                 (patch.autoRuns ?? project.autoRuns) ? 1 : 0,
+                (patch.reviews ?? project.reviews) ? 1 : 0,
                 patch.mainSession === undefined ? project.mainSession : patch.mainSession,
                 JSON.stringify(patch.places === undefined ? project.places : placesOf(patch.places)),
                 patch.rules ?? project.rules,
@@ -741,15 +761,15 @@ export class Projects {
         return this.#allProjects().map((project) => project.id);
     }
 
-    /** What is personal on a board here (the team server keeps none of it): its folder, places, running Pi's tasks by itself, main session. */
-    personalOf(projectId: string): Pick<Project, "folder" | "places" | "autoRuns" | "mainSession"> | undefined {
+    /** What is personal on a board here (the team server keeps none of it): its folder, places, running Pi's tasks by itself, reviewing them in Review, main session. */
+    personalOf(projectId: string): Pick<Project, "folder" | "places" | "autoRuns" | "reviews" | "mainSession"> | undefined {
         const project = this.#projectById(projectId);
 
-        return project === undefined ? undefined : { folder: project.folder, places: project.places, autoRuns: project.autoRuns, mainSession: project.mainSession };
+        return project === undefined ? undefined : { folder: project.folder, places: project.places, autoRuns: project.autoRuns, reviews: project.reviews, mainSession: project.mainSession };
     }
 
     /** Set what is personal on a board mirrored here. */
-    setPersonal(projectId: string, patch: { folder?: string | null; places?: ProjectPlace[]; autoRuns?: boolean; mainSession?: string | null }): void {
+    setPersonal(projectId: string, patch: { folder?: string | null; places?: ProjectPlace[]; autoRuns?: boolean; reviews?: boolean; mainSession?: string | null }): void {
         const project = this.#projectById(projectId);
 
         if (project === undefined) {
@@ -757,11 +777,12 @@ export class Projects {
         }
 
         this.#db
-            .prepare("UPDATE pocket_projects SET folder = ?, places = ?, auto_runs = ?, main_session = ? WHERE id = ?")
+            .prepare("UPDATE pocket_projects SET folder = ?, places = ?, auto_runs = ?, reviews = ?, main_session = ? WHERE id = ?")
             .run(
                 patch.folder === undefined ? project.folder : folderOf(patch.folder),
                 JSON.stringify(patch.places === undefined ? project.places : placesOf(patch.places)),
                 (patch.autoRuns ?? project.autoRuns) ? 1 : 0,
+                (patch.reviews ?? project.reviews) ? 1 : 0,
                 patch.mainSession === undefined ? project.mainSession : patch.mainSession,
                 projectId,
             );
@@ -1278,7 +1299,7 @@ export class Projects {
     }
 
     /** A run's progress, as the scheduler and the sessions' ends move it: no person's rights involved. */
-    setRun(id: string, patch: Partial<Pick<Run, "state" | "place" | "worktree" | "branch" | "base" | "conversationId" | "note" | "startedAt" | "endedAt">>): Run {
+    setRun(id: string, patch: Partial<Pick<Run, "state" | "place" | "worktree" | "branch" | "base" | "conversationId" | "note" | "startedAt" | "endedAt" | "reviews" | "reviewSession">>): Run {
         const run = this.#runById(id);
 
         if (run === undefined) {
@@ -1289,9 +1310,9 @@ export class Projects {
 
         this.#db
             .prepare(
-                "UPDATE pocket_task_runs SET state = ?, place = ?, worktree = ?, branch = ?, base = ?, conversation_id = ?, note = ?, started_at = ?, ended_at = ? WHERE id = ?",
+                "UPDATE pocket_task_runs SET state = ?, place = ?, worktree = ?, branch = ?, base = ?, conversation_id = ?, note = ?, started_at = ?, ended_at = ?, reviews = ?, review_session = ? WHERE id = ?",
             )
-            .run(next.state, next.place, next.worktree, next.branch, next.base, next.conversationId, next.note, next.startedAt, next.endedAt, id);
+            .run(next.state, next.place, next.worktree, next.branch, next.base, next.conversationId, next.note, next.startedAt, next.endedAt, next.reviews, next.reviewSession, id);
 
         if (patch.state !== undefined && patch.state !== run.state) {
             this.#db
@@ -1328,6 +1349,11 @@ export class Projects {
     /** The run a task session works in. */
     runOfSession(conversationId: string): Run | undefined {
         return this.#runs("SELECT * FROM pocket_task_runs WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1", conversationId)[0];
+    }
+
+    /** The run a review session reads the branch of (PP-359). */
+    runOfReviewSession(conversationId: string): Run | undefined {
+        return this.#runs("SELECT * FROM pocket_task_runs WHERE review_session = ? ORDER BY created_at DESC LIMIT 1", conversationId)[0];
     }
 
     /** A task and its project, by id, for the scheduler (no person's rights). */
@@ -1729,6 +1755,7 @@ export class Projects {
             labels: JSON.parse(String(row.labels)) as string[],
             places: JSON.parse(String(row.places ?? "[]")) as ProjectPlace[],
             autoRuns: Number(row.auto_runs) === 1,
+            reviews: Number(row.reviews ?? 0) === 1,
             rules: row.rules === "light" ? "light" : "full",
             mainSession: row.main_session === null ? null : String(row.main_session),
             createdAt: Number(row.created_at),
@@ -1796,6 +1823,8 @@ export class Projects {
             endedAt: row.ended_at === null ? null : Number(row.ended_at),
             merged: typeof row.merged === "string" ? (JSON.parse(row.merged) as RunMerge) : null,
             reportTo: typeof row.report_to === "string" ? row.report_to : null,
+            reviews: Number(row.reviews ?? 0),
+            reviewSession: typeof row.review_session === "string" ? row.review_session : null,
         }));
     }
 

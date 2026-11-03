@@ -14,7 +14,8 @@ import { APP_ROOT } from "./config.ts";
 
 export type ReviewTarget =
     | { kind: "changes" }
-    | { kind: "branch"; base: string }
+    /** `exact`: against this branch as it is here, not its upstream (a task's run against where it started, PP-359). */
+    | { kind: "branch"; base: string; exact?: boolean }
     | { kind: "commit"; sha: string }
     | { kind: "pr"; pr: string }
     | { kind: "folders"; paths: string[] };
@@ -178,8 +179,8 @@ export async function prepareReview(run: Run, target: ReviewTarget): Promise<{ m
 
     if (target.kind === "branch") {
         const base = target.base;
-        const upstream = await run(`git rev-parse --abbrev-ref ${quote(`${base}@{upstream}`)}`);
-        const against = upstream.code === 0 && upstream.stdout.trim() !== "" ? upstream.stdout.trim() : base;
+        const upstream = target.exact === true ? undefined : await run(`git rev-parse --abbrev-ref ${quote(`${base}@{upstream}`)}`);
+        const against = upstream !== undefined && upstream.code === 0 && upstream.stdout.trim() !== "" ? upstream.stdout.trim() : base;
         const mergeBase = await must(run, `git merge-base HEAD ${quote(against)}`, `No merge base with ${against}`);
         const files = await countFiles(run, `git diff --name-only ${quote(mergeBase)}`, "git diff failed");
 

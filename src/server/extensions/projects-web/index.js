@@ -2176,6 +2176,13 @@ export default function projects(pocket) {
                 </div>
                 <div class="pj-team-row">
                     <div class="pj-grow">
+                        <div>${t("Review in Review")}</div>
+                        <div class="muted small">${project.reviews ? t("When a task session sets its task to Review, a reviewer reads its branch against where it started, in plan mode, and comments on the task. P0 or P1 findings go back to the task session to fix, at most 2 rounds.") : t("Off: a task in Review goes to the main session as it is.")}</div>
+                    </div>
+                    <${Switch} on=${project.reviews === true} label=${t("Review a task's branch when it reaches Review")} onChange=${() => save({ reviews: !project.reviews })} />
+                </div>
+                <div class="pj-team-row">
+                    <div class="pj-grow">
                         <div>${t("Board rules")}</div>
                         <div class="muted small">${project.rules === "light" ? t("Light: Pi tracks its work as tasks and keeps them current.") : t("Full: also blocked tasks, review for risky work, and how to comment.")}</div>
                     </div>

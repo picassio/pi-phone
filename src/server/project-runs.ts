@@ -11,8 +11,24 @@
 import type { PocketHost } from "./host.ts";
 import { HttpError } from "./errors.ts";
 import { parsePlace, formatPlace } from "./places.ts";
-import { type Actor, type Person, type Project, type ProjectPlace, type Run, STATE_NAMES, type Task, type Projects } from "./projects.ts";
+import { type Actor, type Person, type Project, type ProjectPlace, REVIEW_ROUNDS, type Run, STATE_NAMES, type Task, type Projects } from "./projects.ts";
+import { parseReviewResult, prepareReview, type ReviewResult, reviewGuidelines, reviewPrompt } from "./review.ts";
 import type { Boards } from "./boards.ts";
+
+/** How many findings of each priority: "1 P1, 2 P3". */
+export const countLine = (findings: ReviewResult["findings"]): string =>
+    (["P0", "P1", "P2", "P3"] as const)
+        .map((priority) => [priority, findings.filter((each) => each.priority === priority).length] as const)
+        .filter(([, n]) => n > 0)
+        .map(([priority, n]) => `${n} ${priority}`)
+        .join(", ");
+
+/** A review's verdict in a line: "needs attention, 1 P1, 1 P3". */
+export const verdictLine = (result: ReviewResult): string => (result.findings.length === 0 ? result.verdict : `${result.verdict}, ${countLine(result.findings)}`);
+
+/** A finding as a comment's line: its priority, title, place, and what is wrong. */
+export const findingLine = (finding: ReviewResult["findings"][number]): string =>
+    `- **${finding.priority}** ${finding.title}${finding.file === undefined ? "" : ` (\`${finding.file}${finding.line === undefined ? "" : `:${finding.line}`}\`)`}: ${finding.body}`;
 
 /** A string as one argument to a POSIX shell (Git Bash on Windows too). */
 const quote = (text: string) => `'${text.replace(/'/g, `'\\''`)}'`;
@@ -83,7 +99,12 @@ export class Team {
 
         this.#stops.push(
             this.#host.onSessionEvent((event) => void this.#ended(event).catch((error: unknown) => this.#warn(error))),
-            this.#host.quietSessions((session) => this.#projects.runOfSession(String(session)) !== undefined || this.#projects.projectLedBy(String(session)) !== undefined),
+            this.#host.quietSessions(
+                (session) =>
+                    this.#projects.runOfSession(String(session)) !== undefined ||
+                    this.#projects.runOfReviewSession(String(session)) !== undefined ||
+                    this.#projects.projectLedBy(String(session)) !== undefined,
+            ),
             this.#boards.onAssignedToPi((task) => void this.#assigned(task).catch((error: unknown) => this.#warn(error))),
         );
         this.pump();
@@ -131,11 +152,12 @@ export class Team {
                 continue;
             }
 
-            const session = Number(run.conversationId);
+            // While a reviewer reads its branch (PP-359), the task session waits: the reviewer's end is the one to hear.
+            const session = Number(run.reviewSession ?? run.conversationId);
             const state = this.#host.sessionState(session);
 
             if (state === undefined) {
-                await this.#gone(run, session);
+                await (run.reviewSession === null ? this.#gone(run, session) : this.#reviewed(run, { kind: "failed", session }));
                 continue;
             }
 
@@ -440,6 +462,18 @@ export class Team {
     // ---- Ends and reports -------------------------------------------------------------------------------------------
 
     async #ended(event: { kind: string; session: number; text: string }): Promise<void> {
+        const reviewing = this.#projects.runOfReviewSession(String(event.session));
+
+        if (reviewing !== undefined && reviewing.state === "running") {
+            this.#handled.set(reviewing.id, Date.now());
+
+            if (event.kind === "done" || event.kind === "failed") {
+                await this.#reviewed(reviewing, { kind: event.kind, session: event.session });
+            }
+
+            return;
+        }
+
         const run = this.#projects.runOfSession(String(event.session));
 
         if (run === undefined || run.state !== "running") {
@@ -468,15 +502,13 @@ export class Team {
 
             return;
         } else if (event.kind === "done") {
+            // The project reviews tasks in Review (PP-359): a reviewer reads the branch first, at most REVIEW_ROUNDS times.
+            if (task.state === "review" && project.reviews && run.reviews < REVIEW_ROUNDS && (await this.#review(run, project, task))) {
+                return;
+            }
+
             if (task.state === "review" || task.state === "done") {
-                this.#projects.setRun(run.id, { state: "done", endedAt: Date.now() });
-                await this.#host.settleSession(event.session, "its run finished");
-                await this.#report(
-                    project,
-                    `Done: ${task.ref} (${task.title}) is in ${STATE_NAMES[task.state]}. ${await this.#summary(task, run, event.text)}\nIts work is on ${where}. Review it, then move it on.`,
-                    from,
-                    run,
-                );
+                await this.#finish(run, project, task, `Done: ${task.ref} (${task.title}) is in ${STATE_NAMES[task.state]}. ${await this.#summary(task, run, event.text)}`);
             } else if (task.state === "blocked") {
                 await this.#report(
                     project,
@@ -499,6 +531,135 @@ export class Team {
         }
 
         this.pump();
+    }
+
+    /** A run that ended well: its session settles, and the main session hears `said`, with where its work is. */
+    async #finish(run: Run, project: Project, task: Task, said: string): Promise<void> {
+        this.#projects.setRun(run.id, { state: "done", endedAt: Date.now() });
+
+        if (run.conversationId !== null) {
+            await this.#host.settleSession(Number(run.conversationId), "its run finished");
+        }
+
+        await this.#report(project, `${said}\nIts work is on branch ${run.branch} (from ${run.base}) at ${run.place}. Review it, then move it on.`, `${task.ref} · task session #${run.conversationId}`, run);
+        this.pump();
+    }
+
+    // ---- Review in Review (PP-359) -----------------------------------------------------------------------------------
+
+    /** A comment on the task as Pi in `session` (the reviewer's, or the task session's). */
+    async #comment(project: Project, task: Task, session: string, text: string): Promise<void> {
+        await this.#boards.comment({ kind: "pi", person: this.#person(project.owner), conversationId: session, closer: "person" }, task.ref, text);
+    }
+
+    /**
+     * Start a review round of a run's branch against where it started: a session in its worktree, in plan mode (it reads
+     * and reports; nothing it does changes a file), with /review's prompt. False, with a comment on the task saying why,
+     * when it cannot start; the run then ends as it would without a review.
+     */
+    async #review(run: Run, project: Project, task: Task): Promise<boolean> {
+        const round = run.reviews + 1;
+        const at = (command: string) => this.#host.run(run.worktree!, command);
+        let session: number;
+
+        try {
+            const { instructions } = await prepareReview(at, { kind: "branch", base: run.base!, exact: true });
+
+            session = await this.#host.startSession({
+                userId: this.#person(project.owner).id,
+                cwd: run.worktree!,
+                title: `${task.ref} · review ${round}`.slice(0, 80),
+                via: `project ${project.key}`,
+                message: reviewPrompt(instructions, await reviewGuidelines(at), `what ${task.ref} asks for (${task.title}): this is review round ${round} of ${REVIEW_ROUNDS} of its branch ${run.branch}.`),
+                plan: true,
+            });
+        } catch (error) {
+            await this.#comment(project, task, run.conversationId!, `Review round ${round} could not start: ${error instanceof Error ? error.message : String(error)}`);
+
+            return false;
+        }
+
+        this.#projects.setRun(run.id, { reviews: round, reviewSession: String(session) });
+        await this.#host.groupSession(session, this.#group(project, "task"));
+
+        return true;
+    }
+
+    /**
+     * A review round ended: its findings go on the task as a comment. P0 or P1 findings go back to the task session to
+     * fix while rounds are left; after the last round the person decides; with none, the run is done.
+     */
+    async #reviewed(run: Run, event: { kind: string; session: number }): Promise<void> {
+        const found = await this.#boards.taskById(run.taskId);
+
+        this.#projects.setRun(run.id, { reviewSession: null });
+
+        if (found === undefined) {
+            return;
+        }
+
+        const { project, task } = found;
+        const round = run.reviews;
+        const result = event.kind === "failed" ? undefined : parseReviewResult(await this.#host.lastAnswer(event.session, true));
+        const head = `Review round ${round} of ${REVIEW_ROUNDS} (session #${event.session})`;
+
+        await this.#host.settleSession(event.session, "its review finished");
+
+        if (result === undefined) {
+            const why = event.kind === "failed" ? "its session failed" : "its answer had no review-result block";
+
+            await this.#comment(project, task, String(event.session), `${head}: no result, ${why}. Open that session to see what it said.`);
+            await this.#finish(run, project, task, `Done: ${task.ref} (${task.title}) is in Review, but its review round ${round} gave no result (${why}; session #${event.session}).`);
+
+            return;
+        }
+
+        const serious = result.findings.filter((finding) => finding.priority === "P0" || finding.priority === "P1");
+        const again = serious.length > 0 && round < REVIEW_ROUNDS;
+        const worker = run.conversationId!;
+
+        await this.#comment(
+            project,
+            task,
+            String(event.session),
+            [`**${head}**: ${verdictLine(result)}.`, ...result.findings.map(findingLine), ...(again ? [`\nSent to task session #${worker} to fix.`] : [])].join("\n"),
+        );
+
+        if (again) {
+            await this.#host.sendToSession({
+                userId: project.owner,
+                session: Number(worker),
+                message: [
+                  `${head} of ${task.ref} found what must be fixed before it is done:`,
+                  ...serious.map(findingLine),
+                  `\nFix these on this branch, commit, comment on ${task.ref} what you changed (or, for a finding that is wrong, why), and end with ${task.ref} in review. Its other findings are in the comment, yours to judge. Review round ${round + 1} reads the branch after you.`,
+                ].join("\n"),
+                via: `${task.ref} · review session #${event.session}`,
+            });
+
+            return;
+        }
+
+        if (serious.length > 0) {
+            this.#projects.setRun(run.id, { state: "done", endedAt: Date.now() });
+            await this.#host.settleSession(Number(worker), "its run finished");
+            await this.#report(
+                project,
+                `Needs the person: ${task.ref} (${task.title}) is in Review, but after ${round} review rounds ${countLine(serious)} ${serious.length === 1 ? "is" : "are"} left: ${serious.map((each) => each.title + (each.file === undefined ? "" : ` (${each.file}${each.line === undefined ? "" : `:${each.line}`})`)).join("; ")}. See its comments; decide whether to fix them or take it as it is. Its work is on branch ${run.branch} (from ${run.base}) at ${run.place}.`,
+                `${task.ref} · task session #${worker}`,
+                run,
+            );
+            this.pump();
+
+            return;
+        }
+
+        await this.#finish(
+            run,
+            project,
+            task,
+            `Done: ${task.ref} (${task.title}) is in Review. ${round === 1 ? "Reviewed once" : `Reviewed ${round} times`}: the last round ${result.findings.length === 0 ? "found nothing" : `found no P0 or P1 (${countLine(result.findings)})`}. ${await this.#summary(task, run, "")}`,
+        );
     }
 
     /** What a finished task's session said: its last comment on the task, else its last answer. */

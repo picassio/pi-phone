@@ -383,7 +383,7 @@ test("Pi sets a project up with its tools: its folder and places, its main sessi
     const id = await newSession(app);
 
     await call(app.config.ownerToken, "PUT", `board-mode/${String(id)}`, { on: true, project: "PP" });
-    assert.match(await turn(id, "give it a folder"), /PP · pi-phone: full board rules; folder .*; tasks given to Pi run after the person says yes; places: .* \(3 at once\)/);
+    assert.match(await turn(id, "give it a folder"), /PP · pi-phone: full board rules; folder .*; tasks given to Pi run after the person says yes; no review in Review; places: .* \(3 at once\)/);
     assert.match(await turn(id, "start the team"), /Started PP's main session, #\d+/);
     assert.match(await turn(id, "link this session"), new RegExp(`Linked session #${String(id)} to PP-2`));
     assert.match(await turn(id, "link a stranger"), /no session #99999/);

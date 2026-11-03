@@ -875,12 +875,17 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         ),
         tool(
             "project_update",
-            "Change a project: its name, folder, its board rules (full or light), whether tasks given to Pi run by themselves, and where its tasks run (places: each the repository's folder there, here or machine:<id>:<path>, with how many run at once).",
+            "Change a project: its name, folder, its board rules (full or light), whether tasks given to Pi run by themselves, whether a task run's branch is reviewed when it reaches Review (reviews), and where its tasks run (places: each the repository's folder there, here or machine:<id>:<path>, with how many run at once).",
             Type.Object({
                 project: PROJECT,
                 name: Type.Optional(Type.String()),
                 folder: Type.Optional(Type.String()),
                 auto_runs: Type.Optional(Type.Boolean({ description: "Tasks given to Pi start by themselves; off, the main session asks the person first" })),
+                reviews: Type.Optional(
+                    Type.Boolean({
+                        description: "When a task session sets its task to Review, a reviewer reads its branch (in plan mode) and comments; P0 or P1 findings go back to the task session, at most 2 rounds. Off by default: each round costs a session's run",
+                    }),
+                ),
                 places: Type.Optional(Type.Array(Type.Object({ folder: Type.String(), cap: Type.Number({ description: "1 to 8 at once" }) }))),
                 rules: Type.Optional(Type.Union(BOARD_RULE_LEVELS.map((level) => Type.Literal(level)), { description: "The board rules in Pi's prompt: full, or light (track work, keep it current)" })),
             }),
@@ -892,12 +897,13 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                     ...(args.name === undefined ? {} : { name: args.name }),
                     ...(args.folder === undefined ? {} : { folder: args.folder || null }),
                     ...(args.auto_runs === undefined ? {} : { autoRuns: args.auto_runs }),
+                    ...(args.reviews === undefined ? {} : { reviews: args.reviews }),
                     ...(args.places === undefined ? {} : { places: args.places }),
                 });
 
                 team.regroup(saved).catch((error: unknown) => host.notice("warning", `Projects: ${String(error)}`));
 
-                return `${saved.key} · ${saved.name}: ${saved.rules} board rules; folder ${saved.folder ?? "none"}; tasks given to Pi ${saved.autoRuns ? "run by themselves" : "run after the person says yes"}; places: ${projects.placesOf(saved).map((place) => `${place.folder} (${place.cap} at once)`).join(", ") || "none"}.`;
+                return `${saved.key} · ${saved.name}: ${saved.rules} board rules; folder ${saved.folder ?? "none"}; tasks given to Pi ${saved.autoRuns ? "run by themselves" : "run after the person says yes"}; ${saved.reviews ? "a run's branch is reviewed in Review" : "no review in Review"}; places: ${projects.placesOf(saved).map((place) => `${place.folder} (${place.cap} at once)`).join(", ") || "none"}.`;
             },
         ),
         tool(
@@ -1290,7 +1296,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 const led = projects.projectLedBy(id);
 
                 if (led !== undefined) {
-                    return `You are the main session of project ${led.key} · ${led.name}${led.autoRuns ? " (it runs tasks given to Pi by itself)" : ""}.\n${LEAD_RULES}\n${boardRules(led.rules, "person")}`;
+                    return `You are the main session of project ${led.key} · ${led.name}${led.autoRuns ? " (it runs tasks given to Pi by itself)" : ""}${led.reviews ? " (a reviewer reads each task run's branch when it reaches Review, and its reports come after the review)" : ""}.\n${LEAD_RULES}\n${boardRules(led.rules, "person")}`;
                 }
 
                 const run = projects.runOfSession(id);
