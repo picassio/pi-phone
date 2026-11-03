@@ -167,7 +167,18 @@ export type BrowserReport = { url: string; by: string; at: number } & (
 );
 
 /** What a browser part can add, as `KINDS` in `web/extension-ui.js`. */
-export const BROWSER_KINDS = ["rail", "menu", "launcher", "page", "sheet"] as const;
+export const BROWSER_KINDS = ["rail", "menu", "launcher", "page", "sheet", "dock", "overlay", "panelTab", "sessionMenu"] as const;
+
+/**
+ * What a tab said of the places browser parts share (PP-371): which modules' docks show in the session it has open (at
+ * most two, the newest loaded) and which are left out, and for each colour token set with `pocket.theme`, the modules
+ * that set it, the one whose value shows first.
+ */
+export type PlacesReport = { docks: string[]; hiddenDocks: string[]; theme: Record<string, string[]>; by: string; at: number };
+
+const THEME_TOKEN = /^--[a-z0-9-]{1,40}$/;
+/** The most colour tokens a places report keeps. */
+const MAX_REPORT_TOKENS = 200;
 const REPORT_HOWS: ReadonlySet<string> = new Set(["failed to load", "was stopped", "failed to draw"]);
 const REPORT_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
 /** The longest error a report keeps, and the most ids of each kind. */
@@ -265,6 +276,8 @@ export class ExtensionWebs {
     readonly #settling = new Set<Promise<void>>();
     /** The newest report of each state on each module's browser part, by module name. */
     readonly #reports = new Map<string, { ready?: BrowserReport; failed?: BrowserReport }>();
+    /** The newest report on the shared places (docks, colours), from any tab. */
+    #places: PlacesReport | undefined;
 
     constructor(options: Options = {}) {
         this.#options = options;
@@ -653,6 +666,13 @@ export class ExtensionWebs {
      */
     report(user: Pick<User, "name" | "role" | "sessions">, given: unknown): boolean {
         const body = (typeof given === "object" && given !== null ? given : {}) as Record<string, unknown>;
+
+        if (body.state === "places") {
+            this.#places = this.#placesOf(user, body);
+
+            return true;
+        }
+
         const part = typeof body.module === "string" ? this.#parts.get(body.module) : undefined;
 
         if (part?.client === undefined || !mayUse(user, part.client.access)) {
@@ -686,6 +706,49 @@ export class ExtensionWebs {
         this.#reports.set(part.module, kept);
 
         return true;
+    }
+
+    /** A places report as kept: only modules that have a browser part this person loads, and colour tokens' names. */
+    #placesOf(user: Pick<User, "name" | "role" | "sessions">, body: Record<string, unknown>): PlacesReport {
+        const known = (module: unknown): module is string => {
+            const part = typeof module === "string" ? this.#parts.get(module) : undefined;
+
+            return part?.client !== undefined && mayUse(user, part.client.access);
+        };
+        const modules = (given: unknown) => (Array.isArray(given) ? given.filter(known).slice(0, MAX_REPORT_IDS) : []);
+        const theme = typeof body.theme === "object" && body.theme !== null ? (body.theme as Record<string, unknown>) : {};
+
+        return {
+            docks: modules(body.docks),
+            hiddenDocks: modules(body.hiddenDocks),
+            theme: Object.fromEntries(
+                Object.entries(theme)
+                    .filter(([token]) => THEME_TOKEN.test(token))
+                    .slice(0, MAX_REPORT_TOKENS)
+                    .map(([token, setters]) => [token, modules(setters)] as const)
+                    .filter(([, setters]) => setters.length > 0),
+            ),
+            by: user.name,
+            at: Date.now(),
+        };
+    }
+
+    /** The newest report on the shared places, its modules those still served now. */
+    places(): PlacesReport | undefined {
+        if (this.#places === undefined) {
+            return undefined;
+        }
+
+        const served = (module: string) => this.#parts.get(module)?.client !== undefined;
+        const { docks, hiddenDocks, theme, by, at } = this.#places;
+
+        return {
+            docks: docks.filter(served),
+            hiddenDocks: hiddenDocks.filter(served),
+            theme: Object.fromEntries(Object.entries(theme).map(([token, setters]) => [token, setters.filter(served)] as const).filter(([, setters]) => setters.length > 0)),
+            by,
+            at,
+        };
     }
 
     /** The newest reports on a module's browser part about the version that loads now. */

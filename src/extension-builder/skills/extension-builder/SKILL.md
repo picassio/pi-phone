@@ -62,7 +62,7 @@ Each is a real drop-in that loads as it is. Read its files, then copy them.
 | Template | What it shows | Files in `templates/` |
 |---|---|---|
 | A tool | `zone_time`: one read-only tool, no browser part | `zone-time/zone-time.ts` |
-| A rail page | a rail button with a badge, and a page (a timer kept in the browser part) | `focus-timer/focus-timer.ts`, `focus-timer/focus-timer.js` |
+| A rail page | a rail button with a badge, a page (a timer kept in the browser part), and a dock above the message box while it runs | `focus-timer/focus-timer.ts`, `focus-timer/focus-timer.js` |
 | A sheet | a menu row and a launcher action that open a sheet; this browser's own storage; `pocket.compose` | `snippets/snippets.ts`, `snippets/snippets.js` |
 | A tool and a page | routes, two tools on the same functions, an event to the page, its own stylesheet, how its calls show | `checklist/checklist.ts`, `checklist/checklist/index.js`, `checklist/checklist/checklist.css` |
 
@@ -71,7 +71,7 @@ Each is a real drop-in that loads as it is. Read its files, then copy them.
 | For | File |
 |---|---|
 | The server part: files, `defineExtension`, tools, prompt sections, routes, events, `host` | `references/server-part.md` |
-| The browser part: `pocket` (rail, menu, launcher, page, sheet, compose, notify, on, toolCall, pickFolder), the app's pieces, icons, theme variables, words | `references/browser-part.md` |
+| The browser part: `pocket` (rail, menu, launcher, page, sheet, dock, overlay, panelTab, sessionMenu, theme, compose, notify, on, toolCall, pickFolder), the app's pieces, icons, theme variables, words | `references/browser-part.md` |
 | Choosing tools, data, events and cards; what not to do | `references/practices.md` |
 | Checking it in the live app, and what to report | `references/verify.md` |
 

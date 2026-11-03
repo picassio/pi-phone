@@ -173,8 +173,10 @@ test("a tab tells the server what a drop-in's browser part added, and a failure,
     await page.setViewport(VIEWPORTS.desktop);
     await page.navigate(`${base}/`);
     await until(() => app.webs.reports("checklist.ts").ready !== undefined, "the checklist's report", 30_000);
-    assert.deepEqual((app.webs.reports("checklist.ts").ready as { adds: unknown }).adds, { rail: ["checklist"], menu: [], launcher: [], page: ["checklist"], sheet: [] });
-    assert.deepEqual((app.webs.reports("snippets.ts").ready as { adds: unknown }).adds, { rail: [], menu: ["snippets"], launcher: ["insert"], page: [], sheet: ["snippets"] });
+    const none = { dock: [], overlay: [], panelTab: [], sessionMenu: [] };
+
+    assert.deepEqual((app.webs.reports("checklist.ts").ready as { adds: unknown }).adds, { rail: ["checklist"], menu: [], launcher: [], page: ["checklist"], sheet: [], ...none });
+    assert.deepEqual((app.webs.reports("snippets.ts").ready as { adds: unknown }).adds, { rail: [], menu: ["snippets"], launcher: ["insert"], page: [], sheet: ["snippets"], ...none });
     await until(() => app.webs.reports("broken-ui.ts").failed !== undefined, "the broken one's failure", 30_000);
 
     const failed = app.webs.reports("broken-ui.ts").failed as { how: string; error: string };

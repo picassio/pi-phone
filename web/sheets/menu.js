@@ -4,7 +4,7 @@ import { dictationLanguage } from "../android-speech.js";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { chatUnread } from "../chat.js";
 import { schedulesAvailable, webAvailable } from "../commands.js";
-import { extensionMenuItems, safeMode } from "../extension-ui.js";
+import { extensionMenuItems, extensionSessionMenuItems, safeMode } from "../extension-ui.js";
 import { openGatewayPage } from "../gateway-panel.js";
 import { useChanges } from "../diff.js";
 import { filesAvailable, setFilesOpen } from "../files-panel.js";
@@ -502,6 +502,13 @@ export function MenuSheet({ places = true }) {
                     <span>${t("Export as Markdown")}</span>
                     <span class="muted small">${t("the whole history")}</span>
                 </a>`
+            }
+            ${
+                // What extensions add to a session's menu (`pocket.sessionMenu`, PP-371): each gets this session's id.
+                conversation && extensionSessionMenuItems(conversation.id).map((each) => html`<button key=${each.key} class="list-item" data-part="extension-session-item" onClick=${each.run}>
+                    <span>${each.label}</span>
+                    ${each.hint && html`<span class="muted small">${each.hint}</span>`}
+                </button>`)
             }
             ${
                 session &&

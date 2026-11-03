@@ -33,16 +33,21 @@ test("extension_inspect only reads: plan mode lets it run, and it is a built-in 
 });
 
 test("the drop-in API's names come from the app's own files", () => {
-    const { kinds, members, icons, variables } = dropInApi();
+    const { kinds, members, icons, variables, themeTokens } = dropInApi();
 
-    assert.deepEqual(kinds, ["rail", "menu", "launcher", "page", "sheet"]);
-    // Every member pocketFor gives, in its order, MultiChoice among them (PP-367).
+    // The five places of PP-371 among them.
+    assert.deepEqual(kinds, ["rail", "menu", "launcher", "page", "sheet", "dock", "overlay", "panelTab", "sessionMenu"]);
+    // Every member pocketFor gives, in its order, MultiChoice (PP-367) and the places' (PP-371) among them.
     assert.deepEqual(members, [
         "version", "module", "title", "h", "html", "Fragment", "useState", "useEffect", "useLayoutEffect", "useRef", "useMemo", "useCallback", "useReducer",
         "Icon", "Spinner", "Loader", "Markdown", "Switch", "Choice", "MultiChoice", "StateTag", "t", "tn", "tx", "language", "me", "conversationId",
-        "api", "on", "notify", "compose", "rail", "menu", "launcher", "page", "sheet", "pickFolder", "toolCall", "openPage", "openPageOf", "closePage",
-        "openSheet", "closeSheet", "style", "onDispose",
+        "api", "on", "notify", "compose", "rail", "menu", "launcher", "page", "sheet", "dock", "overlay", "panelTab", "sessionMenu", "theme",
+        "pickFolder", "toolCall", "openPage", "openPageOf", "closePage", "openSheet", "closeSheet", "style", "onDispose",
     ]);
+    // pocket.theme's tokens are colours of the app's :root, the palette's among them; sizes and fonts are not.
+    assert.ok(themeTokens.length > 50 && themeTokens.includes("--o-bg") && themeTokens.includes("--accent"), themeTokens.join(", "));
+    assert.deepEqual(themeTokens.filter((name) => !variables.includes(name)), []);
+    assert.ok(!["--r-card", "--sans", "--mono", "--space-y", "--shadow"].some((name) => themeTokens.includes(name)));
     assert.ok(icons.length > 50 && icons.includes("check") && icons.includes("clock") && icons.includes("wheel"), icons.join(", "));
 
     const style = readFileSync(join(APP_ROOT, "web", "style.css"), "utf8");
@@ -135,7 +140,7 @@ const report = (body: unknown) =>
 test("without a name: the API's names, the names a drop-in may not take, and each drop-in's state", async () => {
     const text = await told(await newSession(app), "please inspect all");
 
-    assert.match(text, /- A browser part adds, each with pocket\.<kind>\(spec\): rail, menu, launcher, page, sheet\./);
+    assert.match(text, /- A browser part adds, each with pocket\.<kind>\(spec\): rail, menu, launcher, page, sheet, dock, overlay, panelTab, sessionMenu\./);
     assert.match(text, /- pocket's members: version, module, title, h, html, [^\n]*MultiChoice, StateTag[^\n]*onDispose\./);
     assert.match(text, /- Icons \(pocket\.Icon's name, a spec's icon\): menu, pip, [^\n]*check/);
     assert.match(text, /- The theme's CSS variables [^\n]*--text[^\n]*--accent/);
@@ -201,6 +206,26 @@ test("what tabs report of a browser part: what it added once loaded, and its new
     await app.reloadExtension("checklist.ts");
     assert.notEqual(app.webs.clients(owner(app)).find((each) => each.module === "checklist")!.url, url);
     assert.match(await told(id, "please inspect checklist"), /- no tab has loaded this version yet[^]*- no failure reported/);
+});
+
+test("what a tab says of the shared places (PP-371): whose dock waits, whose colours show; only browser parts served now", async () => {
+    const id = await newSession(app);
+
+    assert.deepEqual(
+        await report({ state: "places", docks: ["nobody"], hiddenDocks: ["checklist", "clash"], theme: { "--accent": ["checklist"], "--bg": ["clash"], "bad token": ["checklist"] } }),
+        { status: 200, body: { kept: true } },
+    );
+    assert.deepEqual({ ...app.webs.places(), at: 0 }, { docks: [], hiddenDocks: ["checklist"], theme: { "--accent": ["checklist"] }, by: owner(app).name, at: 0 });
+
+    const all = await told(id, "please inspect all");
+
+    assert.match(all, /- docks above the message box \(at most two show, the newest loaded\): none; checklist wait/);
+    assert.match(all, /- colours \(pocket\.theme; the newest loaded wins\): --accent checklist/);
+    assert.match(all, /- The colour tokens pocket\.theme may set \(while the module is on; the newest loaded wins\): --o-bg, [^\n]*--accent/);
+
+    const one = await told(id, "please inspect checklist");
+
+    assert.match(one, /In the shared places \([^\n]+'s tab at [^\n]+Z\):\n- its dock waits: only two modules' docks show at once, the newest loaded \(\)\n- its colours show: --accent/);
 });
 
 test("in plan mode, it still runs", async () => {

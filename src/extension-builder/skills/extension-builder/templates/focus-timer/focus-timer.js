@@ -1,6 +1,7 @@
 // Focus timer's browser part (a template of pi-phone's extension-builder skill): a rail button with the minutes left as
-// its badge, and a page with the timer. The timer lives in this module, not in the page, so it keeps going while the
-// page is closed; it stops when the module goes (an edit, or the module turned off).
+// its badge, a page with the timer, and while a round is on, a dock above the message box with the time and Pause. The
+// timer lives in this module, not in the page, so it keeps going while the page is closed; it stops when the module
+// goes (an edit, or the module turned off).
 export const pocketApi = 2;
 
 /** Its own words in the app's other languages, by the English sentence. Every word it shows goes through `say`. */
@@ -41,6 +42,7 @@ const PAGE = "display:flex;flex-direction:column;gap:16px;padding:16px;max-width
 const HEAD = "display:flex;align-items:center;justify-content:space-between;gap:12px";
 const CLOCK = "font:600 48px/56px var(--mono);color:var(--text)";
 const ROW = "display:flex;gap:8px;flex-wrap:wrap";
+const DOCK_CLOCK = "font:600 13px/16px var(--mono);color:var(--text)";
 
 export default function focusTimer(pocket) {
     const { html, useEffect, useReducer, Choice, Icon, StateTag, t, language } = pocket;
@@ -59,9 +61,20 @@ export default function focusTimer(pocket) {
     };
 
     const rail = pocket.rail({ id: "focus", title: say("Focus timer"), icon: "clock", page: "focus" });
+    /** The dock, while a round is on (running or paused part way). */
+    let dock = null;
 
     const changed = () => {
         rail.update({ badge: running() ? Math.ceil(remaining() / MINUTE) : 0 });
+
+        const on = running() || (timer.left > 0 && timer.left < timer.minutes * MINUTE);
+
+        if (on && dock === null) {
+            dock = pocket.dock({ id: "focus", component: FocusDock });
+        } else if (!on && dock !== null) {
+            dock.remove();
+            dock = null;
+        }
 
         for (const listener of listeners) {
             listener();
@@ -109,7 +122,8 @@ export default function focusTimer(pocket) {
         reset();
     };
 
-    function FocusPage() {
+    /** Draw again on every change of the timer. */
+    function useTimer() {
         const [, redraw] = useReducer((n) => n + 1, 0);
 
         useEffect(() => {
@@ -117,6 +131,21 @@ export default function focusTimer(pocket) {
 
             return () => listeners.delete(redraw);
         }, []);
+    }
+
+    /** One line above the message box: the time left, its state, and Pause or Start. */
+    function FocusDock() {
+        useTimer();
+
+        return html`<${Icon} name="clock" size=${14} />
+            <span style=${DOCK_CLOCK}>${clock(remaining())}</span>
+            <${StateTag} tone=${running() ? "ok" : "warn"} label=${running() ? say("Running") : say("Paused")} />
+            <span style="flex:1"></span>
+            <button class="button small ghost" onClick=${running() ? pause : start}>${running() ? say("Pause") : say("Start")}</button>`;
+    }
+
+    function FocusPage() {
+        useTimer();
 
         // A state is a word and a dot (StateTag), never a mark of its own.
         const [tone, label] = running()

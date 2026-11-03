@@ -16367,6 +16367,126 @@ textarea.notes {
 }
 
 /*
+ * Extensions' places (PP-371). Docks: a strip one line high right above the message box, at most two (the newest
+ * modules'); what does not fit on the line is cut, never wrapped.
+ */
+.ext-docks {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.ext-dock {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 12px;
+    overflow: hidden;
+    white-space: nowrap;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+    background: var(--card);
+    font-size: 13px;
+    color: var(--text);
+}
+
+.ext-dock > * {
+    min-width: 0;
+}
+
+/* An overlay: a small panel over the app, under its sheets; dragged by its title. */
+.ext-overlay {
+    position: fixed;
+    top: 64px;
+    right: 16px;
+    z-index: 15;
+    max-width: calc(100vw - 16px);
+    max-height: 60dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--hair-2);
+    border-radius: var(--r-window);
+    box-shadow: var(--pop);
+    animation: fade var(--t-fade) var(--ease-almost);
+}
+
+.ext-overlay[style*="left"] {
+    right: auto;
+}
+
+.ext-overlay-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+    padding: 4px 4px 4px 12px;
+    border-bottom: 1px solid var(--hair);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.ext-overlay-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.ext-overlay-body {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px;
+    font-size: 13px;
+}
+
+/* A tab in the side panel: the tabs in its bar, as Pi's browser's are, and the tab's own content under them. */
+.ext-panel-tabs {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.ext-panel-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 0;
+    border-radius: var(--r-seg);
+    padding: 4px 10px;
+    font-size: 13px;
+    color: var(--muted);
+    background: none;
+}
+
+.ext-panel-tab.on {
+    background: var(--raised);
+    color: var(--text);
+}
+
+.ext-panel-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 16px calc(env(safe-area-inset-bottom) + 16px);
+}
+
+/*
  * Extensions' rail buttons, together: four buttons' height at most, past which they scroll rather than push the app's
  * own buttons away. Beside the session list it keeps that height, and a short window scrolls the whole rail, as it does
  * the app's own buttons; in the folded rail it gives way first (to one button), so the sessions' tiles keep their room.

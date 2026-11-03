@@ -315,6 +315,12 @@ No Termux, no laptop, no cloud VM.
   file, or a `.zip` holding one) or by Pi with `extension_install` once you approve its card (files and first lines
   shown), each off until you turn it on. They can use pi-pocket 0.22's `host.ask` (a card whose values reach only the extension), `host.hide`
   and `host.commandEnv`, not `host.browser` yet; one whose tool has a built-in tool's name is refused, with why.
+  Besides rail buttons, menu rows, launcher actions, pages and sheets, a drop-in can show a one-line strip right above
+  the message box (in every session or the ones it picks; two drop-ins' at most, the newest), a small floating panel you
+  drag anywhere and close with × (kept where you put it; on a phone, clear of the message box and the keyboard), a tab
+  in the side panel beside Pi's browser and computer (full screen on a phone), a row in a session's menu, and its own
+  colours over the app's while it is on (the newest drop-in's win where two set one). Safe mode (`?noext=1`) and
+  turning it off take all of them away.
 - **Extension builder.** Ask Pi for a new page, panel, tracker or tool in pi-phone itself and it makes a drop-in for
   you: a small first version from one of four templates (a tool; a rail button with a page; a menu row with a sheet; a
   tool and a page that share data, so what you do on the page Pi can do too), checked by the skill's own script,

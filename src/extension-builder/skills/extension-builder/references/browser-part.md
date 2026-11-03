@@ -23,14 +23,25 @@ Adding the same id again replaces it. All of it goes when the module reloads or 
 
 | Call | Fields | Where it shows |
 |---|---|---|
-| `pocket.rail(spec)` | `title`, `icon` or `iconPath`, `badge` (a number: 0 shows none, over 99 shows 99+; or short text), and one of `page`, `sheet`, `run` | a button in the rail, after the app's own |
-| `pocket.menu(spec)` | `label`, `hint`, and one of `page`, `sheet`, `run` | a row in the menu |
-| `pocket.launcher(spec)` | `label`, `detail`, `icon`, `keywords` (words), and one of `page`, `sheet`, `run` | an action in the launcher (Ctrl+K) |
+| `pocket.rail(spec)` | `title`, `icon` or `iconPath`, `badge` (a number: 0 shows none, over 99 shows 99+; or short text), and one of `page`, `sheet`, `panelTab`, `overlay`, `run` | a button in the rail, after the app's own |
+| `pocket.menu(spec)` | `label`, `hint`, and one of `page`, `sheet`, `panelTab`, `overlay`, `run` | a row in the menu |
+| `pocket.launcher(spec)` | `label`, `detail`, `icon`, `keywords` (words), and one of `page`, `sheet`, `panelTab`, `overlay`, `run` | an action in the launcher (Ctrl+K) |
 | `pocket.page(spec)` | `title`, `component`, `escape: false` (keeps Esc), `swipe: false` (keeps sideways swipes) | the conversation's place, with a title and a close button |
 | `pocket.sheet(spec)` | `title`, `component`, `wide`, `bare` (draws its own header) | a sheet (a bottom sheet on a phone) |
+| `pocket.dock(spec)` | `component` (gets `{ pocket, sessionId }`), `sessions(sessionId)` (true where it shows; every session without it) | a strip one line (32 px) high right above the message box; at most two modules' docks show, the newest loaded |
+| `pocket.overlay(spec)` | `title`, `component`, `width` (whole px, 160 to 480; 240) | a small panel floating over the app, dragged by its title, closed with ×; where it was put is kept in that browser; on a phone it stays above the message box and the keyboard |
+| `pocket.panelTab(spec)` | `title`, `icon`, `component` (gets `{ pocket, sessionId, close }`) | a tab in the side panel beside Pi's browser and computer, opened from the top bar's panel button; on a phone the panel covers the screen, as Pi's browser does |
+| `pocket.sessionMenu(spec)` | `label`, `hint`, `run(sessionId)` | a row in a session's menu (the top bar's title or ⋯) |
 
-`page` and `sheet` in a rail, menu or launcher spec are the ids of its own pages and sheets; `run` is a function. A
-component gets `{ pocket, close }` (and a sheet the props it was opened with).
+`page`, `sheet`, `panelTab` and `overlay` in a rail, menu or launcher spec are the ids of its own; `overlay` shows one
+closed with × again (adding it again does too); `run` is a function. A component gets `{ pocket, close }` (and a sheet
+the props it was opened with). A dock is one line: what does not fit is cut, so keep it to a few words and a button.
+
+`pocket.theme({ "--accent": "#ff9e64", "--bg": "#101014" })` sets the app's colours while the module is on, over
+Appearance's colours and the theme: only colour tokens (the palette's `--o-*` and the app's colours made from them;
+`extension_inspect` lists them), each a CSS colour. Called again it replaces them; its answer's `remove()` takes them
+away; they go when the module is turned off, and none apply in safe mode. When two modules set the same token, the
+newest loaded wins, and `extension_inspect` says whose shows. Setting `--o-*` recolours everything made from them.
 
 ## Doing things
 

@@ -539,6 +539,39 @@ so Pi changes them through the settings tools; "the last session" is the one the
   yes (the upload's confirm, the card), and it is switched off (and uninstalled) before its files change. It lands off.
   A `.js` alone is refused: the loader's modules are `.ts`, and a `.js` beside one is its browser part.
   `/?sheet=extensions` opens the sheet.
+- **More places for browser parts** (PP-371; the owner's OK of 2026-11-03 on the mockup pp371-mockup;
+  `web/extension-ui.js`): five additions to `pocket` (the API stays 2), each kept per module version like the rest, so
+  turning a module off, a reload, or a failure takes them away, and safe mode loads none. `KINDS` gains `dock`,
+  `overlay`, `panelTab`, `sessionMenu`; rail, menu and launcher specs may open a `panelTab` or (again) an `overlay`.
+  - **`pocket.dock({ id, component, sessions? })`**: `ExtensionDocks` is the last child of `composer.js`'s dock (so
+    `dock.js` counts it as a bar), a strip 32 px high per module, cut not wrapped; `sessions(id)` filters (a throw is
+    no). At most `DOCKS` (2) modules' docks show, the newest by load order (`record.seq`, numbered as tabs start
+    loading modules, which is the server's list order), the older above.
+  - **`pocket.overlay({ id, title, component, width? })`**: `ExtensionOverlays` in `App`, before the sheets
+    (`z-index` 15, under the sheets' 20). Dragged by its title (pointer capture); where it is let go is kept in
+    `localStorage` (`pocket.overlay:<module>:<id>`). `fitOverlay` keeps it on screen and, on phones (`BOTTOM_SHEETS`),
+    above the message box and the keyboard (`visualViewport`), again on resize, the keyboard, and the message box's own
+    resizes. × hides it in that version (`record.closed`) until it is added again or a rail button's `overlay` opens it.
+  - **`pocket.panelTab({ id, title, icon, component })`**: the side panel's place is Files', Pi's browser's and
+    computer's (one at a time), so a tab is a panel of the same kind: `store.extensionPanel` (`{ module, id }`, kept in
+    session storage as they are), drawn by `PanelHost` after Pi's computer in priority, beside the conversation on wide
+    screens and over it on phones (`files-tile`, back button, `useBack`). Its bar has the tabs: Pi's browser's and
+    computer's when they are there (switching to them), then every module's. The top bar's panel button (`sidebar`)
+    opens the last tab or the first; Files, Pi's browser or computer opening, or the People panel docking, close it.
+  - **`pocket.sessionMenu({ id, label, hint?, run })`**: rows in the menu's session part (`sheets/menu.js`) after Export,
+    `run(sessionId)`; a failure is the module's notice.
+  - **`pocket.theme(tokens)`**: only `THEME_TOKENS` (the palette's `--o-*` and the colours `style.css`'s `:root` makes
+    from them; never sizes, fonts or corners), each value `CSS.supports("color")` and without `; { } < > \`. One
+    unlayered `<style id="pocket-extension-theme">` holds `:root{…}` for every module that set colours, the newest
+    loaded module's value per token, so it wins over `@layer pocket, palette, theme`; inline sizes stay. Gone with the
+    last module that set one.
+  - **What `extension_inspect` sees**: ready reports list the new kinds' ids; a tab also posts `{ state: "places" }`
+    (whose docks show and wait in the session it has open, and per colour token its setters, winner first) when that
+    changes, kept as the newest (`ExtensionWebs.places()`, only modules still served); the tool lists the tokens
+    `pocket.theme` takes (parsed from `THEME_TOKENS`), the places in its overview, and a module's dock waiting or
+    colours lost (`placesOf`).
+  - Tests: `test/pocket-places-ui.test.ts` (Chrome, 390 and 1280 px, screenshots with `PHONE_SHOTS`), places reports
+    in `test/extension-inspect.test.ts`. The focus-timer template shows a dock while a round is on.
 - **Diagrams** (`web/rich.js`, pele 1.6.0 pinned): a ```mermaid block in any Markdown (replies, wiki pages, later
   interview questions) is a rich block of kind `mermaid` (`richKind` in `ui.js`), shown as **Diagram** with its code a
   tab away. pele is one 0.7 MB module, served as `/vendor/pele.mjs` and imported the first time a diagram shows.

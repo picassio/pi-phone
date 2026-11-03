@@ -329,6 +329,12 @@ dự án thật.</sub>
   dòng đầu), mỗi cái tắt cho đến khi bạn bật. Chúng dùng được `host.ask` của pi-pocket 0.22 (một thẻ mà giá trị chỉ
   tới được tiện ích), `host.hide` và `host.commandEnv`, chưa dùng được `host.browser`; một tiện ích có công cụ trùng
   tên công cụ có sẵn sẽ bị từ chối, kèm lý do.
+  Ngoài nút ở thanh bên, dòng trong menu, hành động trong trình khởi chạy, trang và bảng, một drop-in còn có thể hiện
+  một dải cao một dòng ngay trên ô nhập tin nhắn (ở mọi phiên hoặc những phiên nó chọn; tối đa hai drop-in, cái mới
+  nhất), một bảng nhỏ nổi mà bạn kéo đi đâu cũng được và đóng bằng × (giữ chỗ bạn đặt; trên điện thoại thì tránh ô
+  nhập tin nhắn và bàn phím), một thẻ trong bảng bên cạnh trình duyệt và máy tính của Pi (toàn màn hình trên điện
+  thoại), một dòng trong menu của phiên, và màu riêng đè lên màu của ứng dụng khi nó bật (nếu hai drop-in cùng đặt một
+  màu thì cái mới nhất thắng). Chế độ an toàn (`?noext=1`) và việc tắt nó đi đều gỡ bỏ tất cả.
 - **Trình tạo tiện ích.** Nhờ Pi làm một trang, bảng, công cụ theo dõi hay công cụ mới ngay trong pi-phone, và Pi
   làm cho bạn một drop-in: một bản đầu nhỏ từ một trong bốn mẫu (một công cụ; một nút ở thanh bên kèm một trang; một
   dòng trong menu kèm một bảng; một công cụ và một trang dùng chung dữ liệu, để việc bạn làm trên trang thì Pi cũng

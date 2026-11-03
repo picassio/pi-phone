@@ -19,7 +19,15 @@ import { BrowserButton, BrowserPanel, BrowserPreview, BrowserWatcher, browserSho
 import { ComputerButton, ComputerPanel, ComputerPreview, ComputerWatcher, computerShown } from "./computer-panel.js";
 import { voiceFromShell, voiceShown } from "./voice-call.js";
 import { VoicePanel } from "./voice-view.js";
-import { ExtensionPage, openPageWhenReady, openSheetWhenReady } from "./extension-ui.js";
+import {
+    ExtensionOverlays,
+    ExtensionPage,
+    ExtensionPanel,
+    ExtensionPanelButton,
+    extensionPanelShown,
+    openPageWhenReady,
+    openSheetWhenReady,
+} from "./extension-ui.js";
 import { GATEWAY_PAGE, GatewayPage } from "./gateway-panel.js";
 import { KEPT_PAGE, KeptPage } from "./pages.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
@@ -237,6 +245,7 @@ function Topbar() {
         <${PeeksButton} />
         <${BrowserButton} />
         <${ComputerButton} />
+        <${ExtensionPanelButton} />
         <${FilesButton} />
         <button
             class=${`icon-button badge-host ${artifacts > 0 ? "quiet-phone" : "quiet"}`}
@@ -492,7 +501,9 @@ function App() {
     const browsing = !placed && !filing && !voicing && inConversation && browserShown(state);
     // Pi's computer (PP-178) takes the same place, after the browser's.
     const computing = !placed && !filing && !voicing && !browsing && inConversation && computerShown(state);
-    const people = !placed && !filing && !voicing && !browsing && !computing && peopleDocked(state);
+    // An extension's tab in the side panel (PP-371) takes the same place, after Pi's computer's.
+    const extending = !placed && !filing && !voicing && !browsing && !computing && inConversation && extensionPanelShown(state);
+    const people = !placed && !filing && !voicing && !browsing && !computing && !extending && peopleDocked(state);
     const peeking = !placed && peeksWanted(state);
     const tiles = peeking ? peekTiles(state) : [];
     // The column takes the place beside the conversation when Browser and People leave it free; otherwise a strip,
@@ -500,7 +511,7 @@ function App() {
     const peekColumn = peeking && PEEK_WIDE.matches && !filing && !people && !voicing;
 
     return html`<div
-        class=${`layout ${inConversation || placed ? "" : "home"} ${filing || browsing || computing || voicing ? "filing" : ""}`}
+        class=${`layout ${inConversation || placed ? "" : "home"} ${filing || browsing || computing || voicing || extending ? "filing" : ""}`}
         data-part="app"
     >
         <aside class="sidebar window" data-part="sidebar">
@@ -557,6 +568,7 @@ function App() {
         <${PanelHost} key="pi-browser" shown=${browsing} panel=${BrowserPanel} />
         <${PanelHost} key="pi-computer" shown=${computing} panel=${ComputerPanel} />
         <${PanelHost} key="pi-voice" shown=${voicing} panel=${VoicePanel} />
+        <${PanelHost} key="extension-panel" shown=${extending} panel=${ExtensionPanel} />
         <${BrowserWatcher} />
         <${ComputerWatcher} />
         ${inConversation && html`<${PeopleHost} shown=${people} replaced=${filing} />`}
@@ -565,6 +577,7 @@ function App() {
             // The first-run welcome (PP-234): over the app, under its sheets (a sign-in's dialog, Providers).
             state.me.welcome === "show" && html`<${Welcome} />`
         }
+        <${ExtensionOverlays} />
         <${Sheets} />
         <${LauncherHost} />
         <${Notices} />
@@ -586,9 +599,9 @@ function focusWindow(event) {
     }
 
     // By the window's part name, as themes know it: `sidebar`, `peeks`, `people-panel`, `browser-panel`, `computer-panel`,
-    // `files-panel`.
+    // `extension-panel`, `files-panel`.
     const name =
-        ["sidebar", "peeks", "people-panel", "browser-panel", "computer-panel", "files-panel"].find((each) =>
+        ["sidebar", "peeks", "people-panel", "browser-panel", "computer-panel", "extension-panel", "files-panel"].find((each) =>
             win.matches(`[data-part~="${each}"]`),
         ) ?? "pane";
 

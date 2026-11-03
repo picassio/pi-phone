@@ -173,6 +173,16 @@ export const store = {
         page: null,
         /** Counts changes to what extensions' browser modules add (`extension-ui.js`), so what shows them draws again. */
         extensionsRev: 0,
+        /**
+         * An extension's tab in the side panel (`pocket.panelTab`, PP-371): `{ module, id }`, or null; kept per tab, as
+         * the Files tile and Pi's browser are, unless one of those was open.
+         */
+        extensionPanel: (() => {
+            const kept = /^([A-Za-z0-9_-]+):([A-Za-z0-9][A-Za-z0-9_.:-]{0,63})$/.exec(sessionStorage.getItem("pocket.extensionPanel") ?? "");
+            const other = ["pocket.files", "pocket.piBrowser", "pocket.piComputer"].some((key) => sessionStorage.getItem(key) === "1");
+
+            return kept === null || other ? null : { module: kept[1], id: kept[2] };
+        })(),
         /** Counts the lists of files for @ mentions that arrived; the lists themselves are kept in `files.js`. */
         filesLoaded: 0,
         /** `!` commands this tab started that have no entry yet: `{ taskId, command, conversationId, at }`. */
@@ -1519,6 +1529,7 @@ function sheetChange(sheet, state) {
     sessionStorage.removeItem("pocket.files");
     sessionStorage.removeItem("pocket.piBrowser");
     sessionStorage.removeItem("pocket.piComputer");
+    sessionStorage.removeItem("pocket.extensionPanel");
 
     return {
         sheet: null,
@@ -1526,6 +1537,7 @@ function sheetChange(sheet, state) {
         filesOpen: false,
         browserOpen: false,
         computerOpen: false,
+        extensionPanel: null,
         peopleAsk: {
             tab: sheet.tab ?? null,
             highlight: sheet.highlight ?? null,

@@ -1373,6 +1373,7 @@ export class PocketApp {
                 builtInToolNames: () => this.loader.builtInToolNames(),
                 dropInFolder: () => this.loader.dropInFolder,
                 browserReports: (file) => this.webs.reports(file),
+                browserPlaces: () => this.webs.places(),
             },
             hide: (value) => this.hidden.add(value),
             commandEnv: (provider) => this.commandEnvs.add(provider),

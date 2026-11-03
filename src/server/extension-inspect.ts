@@ -7,16 +7,19 @@
  * `:root`), the names it may not take (tools, module files, extension names), and how each drop-in stands. With a
  * module's name: its files (names and sizes), on or off, loaded, failed or refused and why, what it added (tools,
  * sections, hooks, routes, its browser part, commands), and what tabs reported of its browser part: what it added
- * there once it loaded (its rail, menu, launcher, page and sheet ids), and its newest failure.
+ * there once it loaded (its rail, menu, launcher, page, sheet, dock, overlay, panel tab and session menu ids), and its
+ * newest failure. PP-371: the colour tokens `pocket.theme` may set (`THEME_TOKENS` in `web/extension-ui.js`), and what
+ * the newest tab said of the shared places: whose docks show (at most two, the newest loaded) and which wait, and whose
+ * colour each token takes (the newest loaded module's).
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { APP_ROOT } from "./config.ts";
-import type { BrowserReport } from "./extension-web.ts";
+import type { BrowserReport, PlacesReport } from "./extension-web.ts";
 import { BUILT_IN_MODULES, type ExtensionInfo } from "./reload.ts";
 
 /** The names of the drop-in API, as the app's own files have them. */
-export type DropInApi = { kinds: string[]; members: string[]; icons: string[]; variables: string[] };
+export type DropInApi = { kinds: string[]; members: string[]; icons: string[]; variables: string[]; themeTokens: string[] };
 
 /** The part of `file` (under `web/`) from `start` to the first `end` after it. */
 function part(file: string, start: string, end: string): string {
@@ -38,10 +41,11 @@ let api: DropInApi | undefined;
 /** Read once: the app's files change only with an update, which restarts the server. */
 export function dropInApi(): DropInApi {
     api ??= {
-        kinds: names(part("extension-ui.js", "const KINDS = [", "];"), /"([a-z]+)"/g),
+        kinds: names(part("extension-ui.js", "const KINDS = [", "];"), /"([A-Za-z]+)"/g),
         members: names(part("extension-ui.js", "\n    return Object.freeze({\n        version: POCKET_API,", "\n    });\n}"), /^ {8}([A-Za-z]\w*)\s*[,:(]/gm),
         icons: names(part("ui.js", "const ICONS = {", "\n};"), /^ {4}([a-z0-9]+):/gm),
         variables: names(part("style.css", ":root {", "\n}"), /^ {4}(--[a-z0-9-]+):/gm),
+        themeTokens: names(part("extension-ui.js", "const THEME_TOKENS = [", "];"), /"(--[a-z0-9-]+)"/g),
     };
 
     return api;
@@ -54,7 +58,53 @@ export type Modules = {
     builtInToolNames(): Set<string>;
     dropInFolder(): string | undefined;
     browserReports(file: string): { ready?: BrowserReport; failed?: BrowserReport };
+    browserPlaces(): PlacesReport | undefined;
 };
+
+const when = (at: number) => new Date(at).toISOString().replace(/\.\d+Z$/, "Z");
+
+/** What the newest tab said of the shared places, in a few lines; nothing when no tab said. */
+function placesLines(places: PlacesReport | undefined): string[] {
+    if (places === undefined) {
+        return [];
+    }
+
+    const tokens = Object.entries(places.theme);
+
+    return [
+        `Shared places, as ${places.by}'s tab said at ${when(places.at)}:`,
+        `- docks above the message box (at most two show, the newest loaded): ${places.docks.length === 0 ? "none" : `${places.docks.join(", ")} show`}${places.hiddenDocks.length === 0 ? "" : `; ${places.hiddenDocks.join(", ")} wait`}`,
+        `- colours (pocket.theme; the newest loaded wins): ${tokens.length === 0 ? "none" : tokens.map(([token, [winner, ...over]]) => `${token} ${winner}${over.length === 0 ? "" : ` (over ${over.join(", ")})`}`).join(", ")}`,
+    ];
+}
+
+/** One module's part of the shared places: its dock shown or waiting, and the colours it sets, won or lost. */
+function placesOf(places: PlacesReport | undefined, name: string): string[] {
+    if (places === undefined) {
+        return [];
+    }
+
+    const lines: string[] = [];
+
+    if (places.docks.includes(name)) {
+        lines.push("- its dock shows above the message box");
+    } else if (places.hiddenDocks.includes(name)) {
+        lines.push(`- its dock waits: only two modules' docks show at once, the newest loaded (${places.docks.join(", ")})`);
+    }
+
+    const won = Object.entries(places.theme).filter(([, setters]) => setters[0] === name).map(([token]) => token);
+    const lost = Object.entries(places.theme).filter(([, setters]) => setters.indexOf(name) > 0);
+
+    if (won.length > 0) {
+        lines.push(`- its colours show: ${won.join(", ")}`);
+    }
+
+    if (lost.length > 0) {
+        lines.push(`- its colours lost to newer modules (the newest loaded wins): ${lost.map(([token, setters]) => `${token} to ${setters[0]}`).join(", ")}`);
+    }
+
+    return lines.length === 0 ? [] : [`In the shared places (${places.by}'s tab at ${when(places.at)}):`, ...lines];
+}
 
 /** A module's state in a few words, and why when it is not loaded. */
 function state(module: ExtensionInfo, why: boolean): string {
@@ -73,7 +123,7 @@ function state(module: ExtensionInfo, why: boolean): string {
 
 /** Without a name: the API's names, the names a drop-in may not take, and the drop-ins (with their state, for the owner). */
 export function overview(modules: Modules, owner: boolean): string {
-    const { kinds, members, icons, variables } = dropInApi();
+    const { kinds, members, icons, variables, themeTokens } = dropInApi();
     const list = modules.list();
     const builtIn = modules.builtInToolNames();
     const dropIns = list.filter((module) => module.source === "drop-in");
@@ -85,6 +135,7 @@ export function overview(modules: Modules, owner: boolean): string {
         `- pocket's members: ${members.join(", ")}.`,
         `- Icons (pocket.Icon's name, a spec's icon): ${icons.join(", ")}.`,
         `- The theme's CSS variables (web/style.css :root; use these, never colours of its own): ${variables.join(", ")}.`,
+        `- The colour tokens pocket.theme may set (while the module is on; the newest loaded wins): ${themeTokens.join(", ")}.`,
         "",
         "Names a drop-in may not take:",
         `- Tools (built-in; a drop-in with one is refused whole): ${[...builtIn].sort().join(", ")}.`,
@@ -97,6 +148,7 @@ export function overview(modules: Modules, owner: boolean): string {
                   `Drop-ins (${modules.dropInFolder() ?? "no drop-in folder"}):`,
                   ...(dropIns.length === 0 ? ["- none yet"] : dropIns.map((module) => `- ${module.file}: ${state(module, false)}`)),
                   ...modules.nameClashes().map((clash) => `- ${clash.file}: never loaded: a built-in module has its file name; rename it`),
+                  ...(modules.browserPlaces() === undefined ? [] : ["", ...placesLines(modules.browserPlaces())]),
                   "",
                   "For one, with why it failed and what it added: extension_inspect with its name.",
               ]
@@ -140,8 +192,6 @@ function files(folder: string, name: string): string[] {
 
     return found;
 }
-
-const when = (at: number) => new Date(at).toISOString().replace(/\.\d+Z$/, "Z");
 
 /** One module, by its name or file: everything but its files' contents. Throws for a module there is not. */
 export function inspect(modules: Modules, given: string): string {
@@ -212,6 +262,7 @@ export function inspect(modules: Modules, given: string): string {
                       : [`- loaded in ${ready.by}'s tab at ${when(ready.at)}: ${shown.length === 0 ? "it added nothing" : `added ${shown.join("; ")}`}`]),
                   ...(failed === undefined ? ["- no failure reported"] : [`- ${failed.how} in ${failed.by}'s tab at ${when(failed.at)}: ${failed.error}`]),
                   ...(pages.length + sheets.length === 0 ? [] : [`- to look at: ${[...pages, ...sheets].join(", ")}`]),
+                  ...placesOf(modules.browserPlaces(), name),
               ]),
     ].join("\n");
 }

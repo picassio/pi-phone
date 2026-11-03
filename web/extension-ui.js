@@ -17,10 +17,24 @@ import { useBack } from "./back.js";
 import { describersChanged, setCallDescriber } from "./calls.js";
 import { currentLanguage, t, tn, tx } from "./i18n.js";
 import { leaveSafeMode, onSafeModeEnd, safeMode } from "./safe-mode.js";
-import { api, closeSheet, insertIntoComposer, notify, onExtensionEvent, openSheet, store } from "./store.js";
+import {
+    api,
+    closePeople,
+    closeSheet,
+    computerState,
+    insertIntoComposer,
+    notify,
+    onExtensionEvent,
+    openSheet,
+    panelsBeside,
+    piBrowserState,
+    store,
+} from "./store.js";
 import { setCallSummary } from "./turns.js";
 import { pickFolder } from "./sheets/folder.js";
-import { Choice, html, Icon, iconPath, Loader, Markdown, MultiChoice, railState, Sheet, Spinner, StateTag, Switch } from "./ui.js";
+import { browserAvailable, setBrowserOpen } from "./browser-panel.js";
+import { computerAvailable, setComputerOpen } from "./computer-panel.js";
+import { BOTTOM_SHEETS, Choice, html, Icon, iconPath, Loader, Markdown, MultiChoice, railState, Sheet, Spinner, StateTag, Switch } from "./ui.js";
 
 /**
  * The version of `pocket`. It goes up only when something extensions use changes in a way that breaks them; additions
@@ -74,8 +88,35 @@ export function moduleTitle(title) {
     return Object.hasOwn(titles, title) ? titles[title] : title;
 }
 
-/** What a browser module can add, each kept by its id. */
-const KINDS = ["rail", "menu", "launcher", "page", "sheet"];
+/**
+ * What a browser module can add, each kept by its id. PP-371 added five places: a dock strip above the message box, a
+ * floating overlay, a tab in the side panel, a row in a session's menu, and (`pocket.theme`, not by id) colours.
+ */
+const KINDS = ["rail", "menu", "launcher", "page", "sheet", "dock", "overlay", "panelTab", "sessionMenu"];
+/** What a kind's spec must name: a title, or a label (a dock names neither). */
+const TITLED = new Set(["rail", "page", "sheet", "overlay", "panelTab"]);
+/** The kinds that draw a component of the module's. */
+const DRAWN = new Set(["page", "sheet", "dock", "overlay", "panelTab"]);
+/** What a rail button, menu row, or launcher action can open: one of the module's own, or a function to run. */
+const TARGETS = ["page", "sheet", "panelTab", "overlay"];
+/** At most this many modules' docks show at once: the newest loaded. */
+const DOCKS = 2;
+/**
+ * The colour tokens `pocket.theme` may set: the palette's (`--o-*`, what Appearance's colours set) and the app's colours
+ * made from it (`web/style.css`'s `:root`). Sizes, fonts and corners stay the app's.
+ */
+const THEME_TOKENS = [
+    "--o-bg", "--o-bg-dark", "--o-bg-darker", "--o-bg-light", "--o-fg", "--o-fg-dim", "--o-fg-light", "--o-fg-bright",
+    "--o-accent", "--o-selection", "--o-red", "--o-yellow", "--o-orange", "--o-green", "--o-cyan", "--o-blue", "--o-magenta",
+    "--desk", "--bg", "--panel", "--card", "--card-2", "--raised", "--hover", "--pressed", "--line", "--line-strong", "--edge",
+    "--hair", "--hair-2", "--text", "--body", "--muted", "--faint", "--accent", "--accent-ink", "--accent-fill", "--accent-soft",
+    "--accent-line", "--focus-ring", "--spark", "--accent-2", "--brand", "--ok", "--ok-soft", "--warn", "--warn-soft",
+    "--warn-line", "--err", "--err-soft", "--err-line", "--code-bg", "--hl-kw", "--hl-str", "--hl-num", "--hl-fn", "--hl-type",
+    "--hl-op", "--hl-tag", "--scrim", "--sh",
+];
+const THEME_TOKEN_SET = new Set(THEME_TOKENS);
+/** Each module's load, numbered: the newest docks show, and the newest colours win. */
+let loads = 0;
 const ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
 const isId = (value) => typeof value === "string" && ID.test(value);
 const LEVELS = new Set(["info", "warning", "error"]);
@@ -253,6 +294,7 @@ function flush() {
 
     due = false;
     store.set((state) => ({ extensionsRev: state.extensionsRev + 1 }));
+    placesChanged();
 }
 
 /** Each module's recent notices, by name, so that a new version does not start afresh: `{ times, droppedAt }`. */
@@ -439,6 +481,10 @@ function sync(list) {
         closeSheet();
     }
 
+    if (store.state.extensionPanel && gone(store.state.extensionPanel.module)) {
+        closeExtensionPanel();
+    }
+
     for (const listener of goneListeners) {
         listener(gone);
     }
@@ -486,6 +532,12 @@ async function load(entry) {
         spent: spending(),
         // A drop-in's: it tells the server what it added once it loads (`reportTo`).
         dropIn: entry.dropIn === true,
+        // Its load's number: newer ones' docks show first, and their colours win (PP-371).
+        seq: ++loads,
+        // Its colours (`pocket.theme`): token to value, or null.
+        theme: null,
+        // Its overlays closed with ×, by id, until it shows one again.
+        closed: new Set(),
     };
 
     record.pocket = pocketFor(record);
@@ -611,9 +663,139 @@ function teardown(record) {
 
     record.listeners.clear();
 
+    if (record.theme !== null) {
+        record.theme = null;
+        applyThemes();
+    }
+
     for (const dispose of record.disposers.splice(0).reverse()) {
         cleanUp(record, dispose);
     }
+}
+
+// ─── Colours (`pocket.theme`, PP-371) ─────────────────────────────────────────────────
+
+/** The style element that holds the modules' colours. */
+const THEME_STYLE = "pocket-extension-theme";
+
+/** A frozen copy of the colours a module gives, checked: the app's colour tokens, each a colour and nothing more. */
+function themeOf(tokens) {
+    if (typeof tokens !== "object" || tokens === null || Array.isArray(tokens)) {
+        throw new Error('pocket.theme: give it the colour tokens to set, like { "--accent": "#ff9e64" }');
+    }
+
+    const copy = {};
+
+    for (const [name, value] of Object.entries(tokens)) {
+        if (!THEME_TOKEN_SET.has(name)) {
+            throw new Error(`pocket.theme: ${name} is not one of the app's colour tokens`);
+        }
+
+        // A colour, and so nothing that could end the rule it goes in.
+        if (typeof value !== "string" || value.length > 200 || /[;{}<>\\]/.test(value) || !CSS.supports("color", value)) {
+            throw new Error(`pocket.theme: ${name}'s value is not a colour`);
+        }
+
+        copy[name] = value;
+    }
+
+    return Object.freeze(copy);
+}
+
+/** Each token a module sets now: the newest loaded module's value wins; `over` are the older modules that set it too. */
+function themeWinners() {
+    const won = new Map();
+    const setters = [...modules.values()]
+        .filter((record) => liveRecord(record) && record.theme !== null)
+        .sort((a, b) => b.seq - a.seq);
+
+    for (const record of setters) {
+        for (const [name, value] of Object.entries(record.theme)) {
+            const held = won.get(name);
+
+            if (held === undefined) {
+                won.set(name, { record, value, over: [] });
+            } else {
+                held.over.push(record.module);
+            }
+        }
+    }
+
+    return won;
+}
+
+/**
+ * Put the modules' colours on the page, or take them off. Unlayered, so they win over the app's own layer, Appearance's
+ * colours and the theme's (index.html's `@layer pocket, palette, theme`); sizes people choose stay inline, and stay.
+ */
+function applyThemes() {
+    const won = themeWinners();
+    let style = document.getElementById(THEME_STYLE);
+
+    if (won.size === 0) {
+        style?.remove();
+    } else {
+        if (style === null) {
+            style = document.createElement("style");
+            style.id = THEME_STYLE;
+            document.head.append(style);
+        }
+
+        style.textContent = `:root{${[...won].map(([name, { value }]) => `${name}:${value}`).join(";")}}`;
+    }
+
+    placesChanged();
+}
+
+// ─── What the tab tells the server of the shared places (PP-371) ───────────────────────────
+
+/** The places report sent last, as JSON: the same again is not sent. */
+let placesSent = JSON.stringify({ docks: [], hiddenDocks: [], theme: {} });
+let placesDue = false;
+
+/**
+ * Tell the server which modules' docks show in this session and which are left out (at most two show), and whose colour
+ * each token takes, for `extension_inspect`; soon after a change, once.
+ */
+function placesChanged() {
+    if (placesDue) {
+        return;
+    }
+
+    placesDue = true;
+    setTimeout(() => {
+        placesDue = false;
+
+        const sessionId = store.state.conversationId;
+        const { shown, hidden } = sessionId === null ? { shown: [], hidden: [] } : docksFor(sessionId);
+        const places = {
+            docks: shown.map(({ record }) => record.module),
+            hiddenDocks: hidden.map(({ record }) => record.module),
+            theme: Object.fromEntries([...themeWinners()].map(([name, { record, over }]) => [name, [record.module, ...over]])),
+        };
+        const text = JSON.stringify(places);
+
+        if (text === placesSent || !store.state.me) {
+            return;
+        }
+
+        placesSent = text;
+        api("extensions/browser-reports", { state: "places", ...places }).catch((error) =>
+            console.warn("Could not tell the server where extensions show", error),
+        );
+    }, 50);
+}
+
+// The docks follow the session open.
+{
+    let session = store.state.conversationId;
+
+    store.subscribe((state) => {
+        if (state.conversationId !== session) {
+            session = state.conversationId;
+            placesChanged();
+        }
+    });
 }
 
 // Events from the server: to the listeners of the module that sent them.
@@ -662,9 +844,9 @@ function check(kind, spec) {
         }
     };
 
-    if (kind === "rail" || kind === "page" || kind === "sheet") {
+    if (TITLED.has(kind)) {
         text("title");
-    } else {
+    } else if (kind !== "dock") {
         text("label");
     }
 
@@ -701,7 +883,17 @@ function check(kind, spec) {
         }
     }
 
-    if (kind === "page" || kind === "sheet") {
+    // A dock shows in the sessions its filter takes (all, without one).
+    if (kind === "dock" && spec.sessions !== undefined && typeof spec.sessions !== "function") {
+        throw new Error(`${name} ${spec.id}: sessions is a function of a session's id`);
+    }
+
+    // An overlay's width, in whole pixels.
+    if (kind === "overlay" && spec.width !== undefined && !(Number.isInteger(spec.width) && spec.width >= 160 && spec.width <= 480)) {
+        throw new Error(`${name} ${spec.id}: width is a whole number of pixels from 160 to 480`);
+    }
+
+    if (DRAWN.has(kind)) {
         if (typeof spec.component !== "function") {
             throw new Error(`${name} ${spec.id}: give it a component to show`);
         }
@@ -709,13 +901,22 @@ function check(kind, spec) {
         return;
     }
 
-    const does = ["page", "sheet", "run"].filter((field) => spec[field] !== undefined);
+    // A row in a session's menu runs a function with the session's id.
+    if (kind === "sessionMenu") {
+        if (typeof spec.run !== "function") {
+            throw new Error(`${name} ${spec.id}: give it a run function, which gets the session's id`);
+        }
 
-    if (does.length !== 1 || (spec.run !== undefined && typeof spec.run !== "function")) {
-        throw new Error(`${name} ${spec.id}: say what it does: page, sheet, or a run function`);
+        return;
     }
 
-    for (const field of ["page", "sheet"]) {
+    const does = [...TARGETS, "run"].filter((field) => spec[field] !== undefined);
+
+    if (does.length !== 1 || (spec.run !== undefined && typeof spec.run !== "function")) {
+        throw new Error(`${name} ${spec.id}: say what it does: page, sheet, panelTab, overlay, or a run function`);
+    }
+
+    for (const field of TARGETS) {
         if (spec[field] !== undefined && !isId(spec[field])) {
             throw new Error(`${name} ${spec.id}: ${field} is the id of one of its ${field}s`);
         }
@@ -783,8 +984,11 @@ function pocketFor(record) {
 
             record.adds[kind].set(current.id, current);
 
+            // An overlay closed with × shows again when it is added again.
+            const reopened = kind === "overlay" && record.closed.delete(current.id);
+
             // The same again (a component that adds as it draws) draws nothing again.
-            if (!sameSpec(before, current)) {
+            if (reopened || !sameSpec(before, current)) {
                 redraw();
             }
         }
@@ -938,6 +1142,51 @@ function pocketFor(record) {
         launcher: (spec) => add("launcher", spec),
         page: (spec) => add("page", spec),
         sheet: (spec) => add("sheet", spec),
+        /**
+         * A strip one line high right above the message box (PP-371): `{ id, component, sessions? }`, the component
+         * getting `{ pocket, sessionId }`; `sessions(id)` says in which sessions it shows (all, without it). At most two
+         * modules' docks show at once: the newest loaded.
+         */
+        dock: (spec) => add("dock", spec),
+        /**
+         * A small panel floating over the app (PP-371): `{ id, title, component, width? }`, dragged by its title, closed
+         * with × (adding it again shows it again; a rail button's `overlay: id` too). Where it was dragged is kept in
+         * this browser; on a phone it stays clear of the message box and the keyboard.
+         */
+        overlay: (spec) => add("overlay", spec),
+        /**
+         * A tab in the side panel, beside Pi's browser and computer (PP-371): `{ id, title, icon, component }`, opened
+         * from the top bar's panel button, or a rail button's `panelTab: id`. On a phone the panel covers the screen.
+         */
+        panelTab: (spec) => add("panelTab", spec),
+        /** A row in a session's menu (PP-371): `{ id, label, hint?, run(sessionId) }`. */
+        sessionMenu: (spec) => add("sessionMenu", spec),
+        /**
+         * The app's colours while the module is on (PP-371): `{ "--accent": "#ff9e64", … }`, colour tokens only (a
+         * palette's `--o-*` and the app's colours). Called again, it replaces them; `remove()` takes them away. Two
+         * modules that set one: the newest loaded wins. None in safe mode.
+         */
+        theme(tokens) {
+            tick(record);
+
+            const current = themeOf(tokens);
+
+            if (live()) {
+                record.theme = current;
+                applyThemes();
+            }
+
+            return Object.freeze({
+                remove() {
+                    tick(record);
+
+                    if (live() && record.theme === current) {
+                        record.theme = null;
+                        applyThemes();
+                    }
+                },
+            });
+        },
         /**
          * The app's folder picker (browse, make folders, here or on a machine), taking the sheet's place: answers the
          * folder chosen (a path, or `machine:<id>:<path>`), or null. `start` is where it opens; `title`, its title.
@@ -1345,6 +1594,12 @@ function activate(record, spec) {
             openPage(record.module, spec.page);
         } else if (spec.sheet !== undefined) {
             openExtensionSheet(record.module, spec.sheet);
+        } else if (spec.panelTab !== undefined) {
+            openExtensionPanel(record.module, spec.panelTab);
+        } else if (spec.overlay !== undefined) {
+            if (record.closed.delete(spec.overlay)) {
+                redraw();
+            }
         } else {
             Promise.resolve(spec.run()).catch(failed);
         }
@@ -1886,4 +2141,373 @@ export function ExtensionSheet({ sheet }) {
             close=${close}
         />
     <//>`;
+}
+
+// ─── The dock above the message box (`pocket.dock`, PP-371) ────────────────────────────────
+
+/** Whether a dock shows in a session: its filter says so (one that throws says no, and why in the console). */
+function docksIn(record, spec, sessionId) {
+    if (spec.sessions === undefined) {
+        return true;
+    }
+
+    try {
+        return spec.sessions(sessionId) === true;
+    } catch (error) {
+        console.error(`${record.title}: the dock ${spec.id}'s sessions filter failed`, error);
+
+        return false;
+    }
+}
+
+/** The modules with a dock in a session, newest loaded first: the first `DOCKS` show, the rest wait. */
+function docksFor(sessionId) {
+    const all = [...modules.values()]
+        .filter(liveRecord)
+        .map((record) => ({ record, docks: [...record.adds.dock.values()].filter((spec) => docksIn(record, spec, sessionId)) }))
+        .filter((each) => each.docks.length > 0)
+        .sort((a, b) => b.record.seq - a.record.seq);
+
+    return { shown: all.slice(0, DOCKS), hidden: all.slice(DOCKS) };
+}
+
+/**
+ * The strips extensions add right above the message box (`composer.js` puts it last in the dock): one line each, at
+ * most two modules', the older one first.
+ */
+export function ExtensionDocks() {
+    const sessionId = store.state.conversationId;
+
+    if (sessionId === null) {
+        return null;
+    }
+
+    const { shown } = docksFor(sessionId);
+
+    if (shown.length === 0) {
+        return null;
+    }
+
+    return html`<div class="ext-docks" data-part="extension-docks">
+        ${[...shown].reverse().map(
+            ({ record, docks }) => html`<div class="ext-dock" key=${record.module} data-module=${record.module} aria-label=${record.title}>
+                ${docks.map((spec) => html`<${Body} key=${spec.id} record=${record} spec=${spec} title=${record.title} props=${{ sessionId }} />`)}
+            </div>`,
+        )}
+    </div>`;
+}
+
+// ─── Floating overlays (`pocket.overlay`, PP-371) ─────────────────────────────────────────
+
+/** Room kept between an overlay and the screen's edges, the top bar, and the message box. */
+const EDGE = 8;
+const OVERLAY_WIDTH = 240;
+
+/** Where an overlay was dragged, in this browser: `{ x, y }`, or null. */
+function placeOf(key) {
+    try {
+        const place = JSON.parse(localStorage.getItem(key) ?? "null");
+
+        return Number.isFinite(place?.x) && Number.isFinite(place?.y) ? place : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * An overlay's place on screen: where it was put, kept inside the screen, and on a phone above the message box and the
+ * keyboard (what `visualViewport` leaves).
+ */
+function fitOverlay(box, wanted) {
+    if (!box) {
+        return;
+    }
+
+    const view = visualViewport;
+    const width = box.offsetWidth;
+    const height = box.offsetHeight;
+    const top = (view?.offsetTop ?? 0) + EDGE;
+    let bottom = (view ? view.offsetTop + view.height : innerHeight) - EDGE;
+
+    if (BOTTOM_SHEETS.matches) {
+        const composer = document.querySelector(".composer-wrap")?.getBoundingClientRect();
+
+        if (composer && composer.height > 0) {
+            bottom = Math.min(bottom, composer.top - EDGE);
+        }
+    }
+
+    const x = wanted?.x ?? innerWidth - width - 2 * EDGE;
+    const y = wanted?.y ?? 64;
+
+    box.style.left = `${Math.round(Math.max(EDGE, Math.min(x, innerWidth - width - EDGE)))}px`;
+    box.style.top = `${Math.round(Math.max(top, Math.min(y, bottom - height)))}px`;
+}
+
+function Overlay({ record, spec }) {
+    const box = useRef(null);
+    const key = `pocket.overlay:${record.module}:${spec.id}`;
+    const wanted = useRef(placeOf(key));
+    const close = useCallback(() => {
+        if (liveRecord(record) && record.adds.overlay.has(spec.id)) {
+            record.closed.add(spec.id);
+            redraw();
+        }
+    }, [record, spec.id]);
+
+    useLayoutEffect(() => fitOverlay(box.current, wanted.current));
+
+    // The screen, the keyboard, or the message box changed: it moves to stay in view and clear of them.
+    useEffect(() => {
+        const fit = () => fitOverlay(box.current, wanted.current);
+        const composer = document.querySelector(".composer-wrap");
+        const sizes = new ResizeObserver(fit);
+
+        if (composer) {
+            sizes.observe(composer);
+        }
+
+        sizes.observe(box.current);
+        addEventListener("resize", fit);
+        visualViewport?.addEventListener("resize", fit);
+        visualViewport?.addEventListener("scroll", fit);
+
+        return () => {
+            sizes.disconnect();
+            removeEventListener("resize", fit);
+            visualViewport?.removeEventListener("resize", fit);
+            visualViewport?.removeEventListener("scroll", fit);
+        };
+    }, []);
+
+    /** Drag by the title: it follows the pointer, and where it is let go is kept. */
+    const drag = (event) => {
+        if (event.button !== 0 || event.target.closest("button")) {
+            return;
+        }
+
+        const element = box.current;
+        const start = element.getBoundingClientRect();
+        const dx = event.clientX - start.left;
+        const dy = event.clientY - start.top;
+        const head = event.currentTarget;
+
+        event.preventDefault();
+        head.setPointerCapture(event.pointerId);
+
+        const move = (moved) => {
+            wanted.current = { x: Math.round(moved.clientX - dx), y: Math.round(moved.clientY - dy) };
+            fitOverlay(element, wanted.current);
+        };
+        const end = () => {
+            head.removeEventListener("pointermove", move);
+            head.removeEventListener("pointerup", end);
+            head.removeEventListener("pointercancel", end);
+
+            // What it was let go at, inside the screen.
+            const at = element.getBoundingClientRect();
+
+            wanted.current = { x: Math.round(at.left), y: Math.round(at.top) };
+
+            try {
+                localStorage.setItem(key, JSON.stringify(wanted.current));
+            } catch {
+                // No storage: it stays where it is for this page only.
+            }
+        };
+
+        head.addEventListener("pointermove", move);
+        head.addEventListener("pointerup", end);
+        head.addEventListener("pointercancel", end);
+    };
+
+    return html`<section
+        class="ext-overlay"
+        data-part="extension-overlay"
+        data-module=${record.module}
+        role="dialog"
+        aria-label=${spec.title}
+        ref=${box}
+        style=${`width:${spec.width ?? OVERLAY_WIDTH}px`}
+    >
+        <header class="ext-overlay-head" onPointerDown=${drag}>
+            <span class="ext-overlay-title">${spec.title}</span>
+            <button class="icon-button small" type="button" aria-label=${t("Close {title}", { title: spec.title })} title=${t("Close")} onClick=${close}>
+                <${Icon} name="close" size=${14} />
+            </button>
+        </header>
+        <div class="ext-overlay-body">
+            <${Body} record=${record} spec=${spec} title=${spec.title} props=${{}} close=${close} />
+        </div>
+    </section>`;
+}
+
+/** The overlays extensions show now, over the app and under its sheets. */
+export function ExtensionOverlays() {
+    const shown = added("overlay").filter(({ record, spec }) => !record.closed.has(spec.id));
+
+    return html`${shown.map(({ record, spec }) => html`<${Overlay} key=${`${record.url}:${spec.id}`} record=${record} spec=${spec} />`)}`;
+}
+
+// ─── Tabs in the side panel (`pocket.panelTab`, PP-371) ────────────────────────────────────
+
+const PANEL_KEY = "pocket.extensionPanel";
+
+/**
+ * Show an extension's tab in the side panel, where Files, Pi's browser and Pi's computer show (one panel at a time):
+ * beside the conversation on a wide screen, over it on a phone.
+ */
+export function openExtensionPanel(module, id) {
+    if (!isId(module) || !isId(id)) {
+        return;
+    }
+
+    sessionStorage.setItem(PANEL_KEY, `${module}:${id}`);
+    sessionStorage.removeItem("pocket.files");
+    sessionStorage.removeItem("pocket.piBrowser");
+    sessionStorage.removeItem("pocket.piComputer");
+    closePeople();
+    store.set({ extensionPanel: { module, id }, filesOpen: false, browserOpen: false, computerOpen: false, drawer: false, page: null });
+}
+
+export function closeExtensionPanel() {
+    sessionStorage.removeItem(PANEL_KEY);
+
+    if (document.documentElement.dataset.focus === "extension-panel") {
+        document.documentElement.dataset.focus = "pane";
+    }
+
+    store.set({ extensionPanel: null });
+}
+
+/** The panel this tab had open, kept across reloads (its module loads after). */
+export function keptExtensionPanel() {
+    const kept = /^([A-Za-z0-9_-]+):([A-Za-z0-9][A-Za-z0-9_.:-]{0,63})$/.exec(sessionStorage.getItem(PANEL_KEY) ?? "");
+
+    return kept === null ? null : { module: kept[1], id: kept[2] };
+}
+
+// Files, Pi's browser or Pi's computer taking the panel's place closes it.
+store.subscribe((state) => {
+    if (state.extensionPanel !== null && (state.filesOpen || state.browserOpen || state.computerOpen)) {
+        queueMicrotask(() => {
+            if (store.state.extensionPanel !== null && (store.state.filesOpen || store.state.browserOpen || store.state.computerOpen)) {
+                closeExtensionPanel();
+            }
+        });
+    }
+});
+
+/** The panel shows now: one asked for, in a conversation, outside safe mode. */
+export function extensionPanelShown(state = store.state) {
+    return state.extensionPanel !== null && state.conversationId !== null && !safeMode();
+}
+
+/** The top bar's way to the panel, while extensions have tabs in it: the last one opened, or the first. */
+export function ExtensionPanelButton() {
+    const tabs = added("panelTab");
+
+    if (tabs.length === 0) {
+        return null;
+    }
+
+    const shown = extensionPanelShown();
+    const last = keptExtensionPanel();
+    const open = () => {
+        const again = last && tabs.find(({ record, spec }) => record.module === last.module && spec.id === last.id);
+        const { record, spec } = again ?? tabs[0];
+
+        openExtensionPanel(record.module, spec.id);
+    };
+
+    return html`<button
+        class=${`icon-button ${shown ? "on" : ""}`}
+        data-part="extension-panel-button"
+        aria-label=${shown ? t("Hide the extensions' panel") : t("Extensions' panel")}
+        title=${t("Extensions' panel")}
+        aria-pressed=${shown}
+        onClick=${() => (shown ? closeExtensionPanel() : open())}
+    >
+        <${Icon} name="sidebar" />
+    </button>`;
+}
+
+export function ExtensionPanel({ leaving = false }) {
+    const target = store.state.extensionPanel ?? keptExtensionPanel();
+    const record = modules.get(target?.module);
+    const spec = record?.adds.panelTab.get(target?.id);
+    const beside = panelsBeside();
+    const tabs = added("panelTab");
+    const browser = browserAvailable() && piBrowserState()?.open === true;
+    const computer = computerAvailable() && computerState() !== null;
+    const title = spec?.title ?? record?.title ?? t("Extension");
+
+    useBack(!beside && !leaving, closeExtensionPanel);
+
+    return html`<section
+        class=${`files-tile window ext-panel ${leaving ? "leaving" : ""}`}
+        data-part="extension-panel"
+        data-module=${target?.module}
+        data-state=${leaving ? "closing" : undefined}
+        role=${beside ? undefined : "dialog"}
+        aria-modal=${beside ? undefined : "true"}
+        aria-label=${title}
+        tabindex="-1"
+        inert=${leaving}
+    >
+        <header class="files-bar ext-panel-bar">
+            ${
+                !beside &&
+                html`<button class="icon-button files-back" type="button" aria-label=${t("Back to the conversation")} onClick=${closeExtensionPanel}>
+                    <${Icon} name="back" size=${22} />
+                </button>`
+            }
+            <div class="ext-panel-tabs" role="tablist" aria-label=${t("Side panel")}>
+                ${browser && html`<button class="ext-panel-tab" role="tab" aria-selected="false" onClick=${() => setBrowserOpen(true)}><${Icon} name="globe" size=${14} />${t("Browser")}</button>`}
+                ${computer && html`<button class="ext-panel-tab" role="tab" aria-selected="false" onClick=${() => setComputerOpen(true)}><${Icon} name="monitor" size=${14} />${t("Computer")}</button>`}
+                ${tabs.map(({ record: each, spec: tab }) => {
+                    const on = each.module === target?.module && tab.id === target?.id;
+
+                    return html`<button
+                        key=${`${each.module}:${tab.id}`}
+                        class=${`ext-panel-tab ${on ? "on" : ""}`}
+                        role="tab"
+                        aria-selected=${on}
+                        onClick=${() => !on && openExtensionPanel(each.module, tab.id)}
+                    >
+                        <${Icon} path=${pathOf(tab)} size=${14} />${tab.title}
+                    </button>`;
+                })}
+            </div>
+            ${
+                beside &&
+                html`<button class="icon-button" type="button" aria-label=${t("Close the panel")} title=${t("Close")} onClick=${closeExtensionPanel}>
+                    <${Icon} name="close" size=${16} />
+                </button>`
+            }
+        </header>
+        <div class="ext-panel-body">
+            <${Body} record=${record} spec=${spec} title=${title} props=${{ sessionId: store.state.conversationId }} close=${closeExtensionPanel} />
+        </div>
+    </section>`;
+}
+
+// ─── A session's menu (`pocket.sessionMenu`, PP-371) ───────────────────────────────────────
+
+/** The rows extensions add to a session's menu: `{ key, label, hint, run }`, `run` given the session's id. */
+export function extensionSessionMenuItems(sessionId) {
+    return added("sessionMenu").map(({ record, spec }) => ({
+        key: `${record.module}:${spec.id}`,
+        label: spec.label,
+        hint: spec.hint ?? "",
+        run: () => {
+            closeSheet();
+
+            try {
+                Promise.resolve(spec.run(sessionId)).catch((error) => noticeFrom(record, "error", `${record.title}: ${reason(error)}`));
+            } catch (error) {
+                noticeFrom(record, "error", `${record.title}: ${reason(error)}`);
+            }
+        },
+    }));
 }

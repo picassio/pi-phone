@@ -28,6 +28,7 @@ import {
     uid,
 } from "./store.js";
 import { useDock } from "./dock.js";
+import { ExtensionDocks } from "./extension-ui.js";
 import { SubagentsBar } from "./subagents.js";
 import { isRemotePlace } from "./place.js";
 import { TrustBar } from "./trust.js";
@@ -1241,6 +1242,7 @@ export function Composer() {
             <${CiWatchBar} />
             <${SubagentsBar} />
             <${TrustBar} />
+            <${ExtensionDocks} />
         </div>
         <${ParentSessionButton} />
         ${
