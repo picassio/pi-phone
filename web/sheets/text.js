@@ -13,6 +13,7 @@ export function TextSheet({
     submit,
     multiline = false,
     button = t("Save"),
+    header = null,
     footer = null,
 }) {
     const [value, setValue] = useState(initial);
@@ -23,6 +24,7 @@ export function TextSheet({
         });
 
     return html`<${Sheet} title=${title} onClose=${closeSheet}>
+        ${header}
         ${hint && html`<p class="muted small">${hint}</p>`}
         <div class="field">
             <div class="label">${label}</div>

@@ -2,7 +2,7 @@
 // into one line that opens into a timeline), then Pi's reply, any approval, and the live line while Pi works.
 import { Component } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { initials, personColor } from "./avatar.js";
+import { avatarSrc, initials, personColor } from "./avatar.js";
 import { DownloadButton, MadeAudio, MadeTranscript } from "./audio-results.js";
 import { routeSliding } from "./back.js";
 import { describeCall, describersRevision } from "./calls.js";
@@ -408,6 +408,8 @@ function UserEntry({ entry, view, users }) {
               ? "var(--muted)"
               : personColor(authorId);
 
+    // The author's picture, when they set one (PP-353); a message sent for them (a schedule, a linked session) shows none.
+    const picture = authorId !== undefined && !team && peerText === undefined ? avatarSrc({ id: authorId }) : undefined;
     // Who it is from, for themes: you, someone else, a linked session, or no one the app knows (Pi's schedule, the main
     // agent, a watch or a webhook).
     const from =
@@ -450,7 +452,7 @@ function UserEntry({ entry, view, users }) {
                     style=${`--who:${mark}`}
                     aria-hidden="true"
                 >
-                    ${team ? html`<${Icon} name="board" size=${12} />` : name ? initials(name) : "›"}
+                    ${team ? html`<${Icon} name="board" size=${12} />` : picture ? html`<img src=${picture} alt="" />` : name ? initials(name) : "›"}
                 </span>
                 ${name && html`<b class="prompt-author" data-part="prompt-author">${name}</b>`}
                 ${entry.at && html`<span class="prompt-time">${clock(entry.at)}</span>`}

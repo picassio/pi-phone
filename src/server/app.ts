@@ -76,6 +76,7 @@ import { Attribution, type Missing } from "./attribution.ts";
 import { inBatchOrder } from "./batch-order.ts";
 import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
+import { readAvatar, removeAvatar, saveAvatar } from "./avatars.ts";
 import { APP_ROOT, APPEARANCE_DEFAULTS, type AppearanceOptions, ConfigStore, type User, type WelcomeState } from "./config.ts";
 import { CODEMODE_MODES, type CodemodeMode, CONTEXT_PARTS, type ContextPart, type ContextPolicy, contextMode, resolveContextPolicy } from "./context-policy.ts";
 import { DEFERRED_EXTENSION, deferredToolsExtension } from "./deferred-tools.ts";
@@ -3157,6 +3158,31 @@ export class PocketApp {
         return id;
     }
 
+    /** Set (bytes) or clear (undefined) someone's picture (PP-353); everyone's lists show it at once. */
+    setAvatar(user: User, bytes: Buffer | undefined): void {
+        if (bytes === undefined) {
+            removeAvatar(this.dataDir, user.id);
+            this.config.updateUser(user.id, { avatar: undefined });
+        } else {
+            saveAvatar(this.dataDir, user.id, bytes);
+            this.config.updateUser(user.id, { avatar: Date.now() });
+        }
+
+        this.#peopleChanged();
+
+        for (const pending of this.#rooms.values()) {
+            void pending.then(
+                (room) => room.has(user.id) && room.pushPresence(),
+                () => {},
+            );
+        }
+    }
+
+    /** A picture of someone `viewer` may see in the people list (PP-353), or undefined. */
+    avatarFor(viewer: User, userId: string): { bytes: Buffer; type: string } | undefined {
+        return this.people(viewer).some((each) => each.id === userId) ? readAvatar(this.dataDir, userId) : undefined;
+    }
+
     rename(user: User, name: string): void {
         this.config.updateUser(user.id, { name });
         this.#peopleChanged();
@@ -3198,6 +3224,7 @@ export class PocketApp {
                 id: each.id,
                 name: each.name,
                 role: each.role,
+                ...(each.avatar === undefined ? {} : { avatar: each.avatar }),
                 online: this.#online(each.id),
                 ...(each.lastSeen === undefined ? {} : { lastSeen: each.lastSeen }),
                 ...(each.sessions === undefined || scope !== undefined
@@ -5279,6 +5306,7 @@ export class PocketApp {
 
     #forget(userId: string): void {
         this.config.removeUser(userId);
+        removeAvatar(this.dataDir, userId);
 
         // Their open tabs end now; reconnecting fails, so they land on the sign-in screen.
         for (const client of [...this.#clients]) {

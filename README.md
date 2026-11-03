@@ -540,6 +540,10 @@ No Termux, no laptop, no cloud VM.
 ### People and devices
 - **Other devices and people** over your Tailscale network (Settings › Access): your laptop's browser signs in as you
   (People › Sign in as me), and invited people steer or watch sessions, all of them or one.
+- **Profile pictures.** Tap your avatar (the rail, or Menu › your name) › **Add photo**: the picture is cropped to a
+  square and shrunk on your device, then shows instead of your initials on your messages, in People, the chat and the
+  rail, for everyone who can see you; **Remove photo** brings the initials back. Each person has their own (on the team
+  server too: each account). Pi sets or removes one from a file on the phone on a card (`people.photo`). From pi-pocket.
 - **Settings by tool.** Pi lists the app's settings with their values (`settings`), changes one (`setting_change`), or takes a
   one-off action (`app_action`), each after you approve the usual card showing the value now and the new one, through the
   same code as the app's screens: models, approvals, Pi's browser, web search, the wiki, spend limits, themes, extensions,

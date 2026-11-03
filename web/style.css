@@ -1561,6 +1561,7 @@ kbd {
 
 /* Yours takes the accent, someone else's their color (`--who`), anyone else a quiet one. */
 .prompt-avatar {
+    overflow: hidden;
     flex: none;
     display: grid;
     place-items: center;
@@ -10156,10 +10157,24 @@ body.plain-page {
     color: var(--who, var(--accent));
     border: 0;
     border-radius: 50%;
+    overflow: hidden;
     font-size: 0.62rem;
     font-weight: 600;
     line-height: 1;
     letter-spacing: 0;
+}
+
+/* A person's picture (PP-353), in the avatar's circle. */
+.avatar-img,
+.prompt-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    /* A pale picture keeps its edge on a pale theme. */
+    outline: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    outline-offset: -1px;
+    border-radius: 50%;
 }
 
 .avatar.typing {
@@ -10169,7 +10184,16 @@ body.plain-page {
 @keyframes avatar-typing {
     50% {
         background: var(--accent-soft);
+        box-shadow: 0 0 0 2px var(--accent-soft);
     }
+}
+
+/* Your picture in the name sheet: a preview and its buttons. */
+.my-photo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 0 16px;
 }
 
 .typing-line {

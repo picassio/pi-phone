@@ -555,6 +555,10 @@ dự án thật.</sub>
 ### Người dùng và thiết bị
 - **Thiết bị và người khác** qua mạng Tailscale của bạn (Cài đặt › Truy cập): trình duyệt trên laptop của bạn đăng nhập
   là bạn (Mọi người › Đăng nhập là tôi), và người được mời có thể điều khiển hoặc xem các phiên, tất cả hoặc một phiên.
+- **Ảnh đại diện.** Chạm vào avatar của bạn (thanh bên, hoặc Menu › tên của bạn) › **Thêm ảnh**: ảnh được cắt vuông và
+  thu nhỏ ngay trên thiết bị, rồi hiện thay cho chữ cái đầu trên tin nhắn của bạn, trong Mọi người, khung chat và thanh bên, với
+  mọi người thấy được bạn; **Bỏ ảnh** đưa chữ cái đầu trở lại. Mỗi người có ảnh riêng (cả trên máy chủ nhóm: mỗi tài
+  khoản). Pi đặt hoặc bỏ ảnh từ một tệp trên điện thoại qua một thẻ (`people.photo`). Từ pi-pocket.
 - **Cài đặt bằng công cụ.** Pi liệt kê cài đặt của ứng dụng kèm giá trị (`settings`), đổi một cài đặt (`setting_change`),
   hoặc thực hiện một thao tác một lần (`app_action`), mỗi lần sau khi bạn duyệt thẻ quen thuộc hiện giá trị hiện tại và giá
   trị mới, qua cùng mã với các màn hình của ứng dụng: mô hình, phê duyệt, trình duyệt của Pi, tìm kiếm web, wiki, giới

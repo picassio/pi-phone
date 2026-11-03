@@ -128,3 +128,7 @@ is skipped on purpose.
   (pi-phone has neither).
 - Archiving with repeating schedules (PP-338): merge 07e8a77d (46d4c91, #215), its tests. Differs: the sheet's mark is
   a StateTag; `session_archive` (pi-phone's own tool) says it too.
+- Profile pictures (PP-353): #205 (merge 7ab0c4bf: a44168e, fc5cdb2) and cf0bd65 (the app's data folder), with
+  `avatars.test.ts` and a UI test at 390 and 1280 px. Differs: the picture's address is relative (`api/avatar/…`, for a
+  shared space's <base>); the server checks the size itself too; Pi gets `people.photo`; the words through `t()`;
+  spacing on the 4 px grid. Not taken: `docs/map.md` (pi-phone has none).

@@ -25,9 +25,11 @@ import { PERMISSION_MODES, POPUP_MODES } from "./browser/pi-browser.ts";
 import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
 import { CODEMODE_MODES, CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
 import { THINKING_LEVELS } from "./models.ts";
-import { copyFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
+import { MAX_AVATAR } from "./avatars.ts";
+import { expandHome } from "./paths.ts";
 
 const CONTEXT_TITLES: Record<ContextPart, string> = {
     wiki: "What of the wiki goes into the prompt",
@@ -923,6 +925,39 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
               ]
             : []),
         // ─── People and access ───
+        // A person's profile picture (PP-353): what the name sheet's Add photo does, for Pi.
+        {
+            id: "people.photo",
+            area: "people",
+            title: "A person's profile picture",
+            help: "The path of a PNG, JPEG, WebP, or GIF file on this phone (absolute or ~/…), 512 KB at most (shrink a bigger one with the media tool first; a square of about 192 px is best), or none to take it away. Target: the person's name. Everyone's lists show it at once.",
+            owner: true,
+            target: "person",
+            read: (target) => {
+                const found = person(target);
+
+                return found.avatar === undefined ? "none" : `set ${new Date(found.avatar).toISOString()}`;
+            },
+            apply: (_user, value, target) => {
+                const found = person(target);
+
+                if (NONE.test(value.trim())) {
+                    return app.setAvatar(found, undefined);
+                }
+
+                const path = expandHome(value.trim());
+
+                if (!isAbsolute(path) || !existsSync(path) || !statSync(path).isFile()) {
+                    throw new HttpError(400, `There is no file ${value.trim()}: give the absolute path of a picture on this phone.`);
+                }
+
+                if (statSync(path).size > MAX_AVATAR) {
+                    throw new HttpError(413, "A picture is 512 KB at most: make it smaller first");
+                }
+
+                return app.setAvatar(found, readFileSync(path));
+            },
+        },
         {
             id: "people.role",
             area: "people",

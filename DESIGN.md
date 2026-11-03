@@ -1638,6 +1638,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   default filled in, `POST /api/me {appearance: {option, on}}` (Appearance's switch) and the settings
   `appearance.<option>` (target: the person) call `app.setAppearance`, and the person's tabs hear `appearance`. So far:
   `quoteReply` (on).
+- **Profile pictures** (PP-353, pi-pocket #205 and its follow-up cf0bd65): `avatars.ts` keeps one file per person in
+  the app's data folder (`avatars/<id>`, PNG, JPEG, WebP or GIF by its bytes, 512 KB at most); `User.avatar` is the
+  time it was set, a version in the picture's address (`api/avatar/<id>?v=`, cached for good, only for someone who may
+  see that person in `people()`). `POST`/`DELETE /api/me/avatar` (the name sheet's `MyPhoto`, which crops the middle
+  to a 192 px PNG in the browser) and the setting `people.photo` (Pi: a file on the phone, or none) call
+  `app.setAvatar`, which tells everyone's lists and the rooms' presence. `Avatar` and a message's author mark show the
+  picture when the people list has a version. Removing a person removes their picture. On the team server each
+  account is a person of its own here, with its own picture; nothing is copied between pi-phones.
 - **Reply to a passage** (PP-345, pi-pocket #204 and #209): `web/quote-reply.js` watches `selectionchange` and shows a
   Reply button for a selection inside one `.reply` while the message box is there; `store.replyQuote` holds the
   passage (per session), the composer shows it as a strip and sends `withQuote(passage, text)` (`quote-text.js`: `> `

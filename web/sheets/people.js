@@ -1,6 +1,6 @@
 // People with access to this server, and invites for more.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { Avatar } from "../avatar.js";
+import { Avatar, avatarBlob } from "../avatar.js";
 import { t, tx } from "../i18n.js";
 import {
     actions,
@@ -301,6 +301,37 @@ export function InviteSheet({ session = null }) {
         <button class="button wide" onClick=${create}>${t("New invite")}</button>
         ${!collab() && html`<${PeopleList} />`}
     <//>`;
+}
+
+/** Your own picture (PP-353): choose one (cropped and shrunk here before it is sent), or take it away. */
+export function MyPhoto() {
+    const { me, users } = store.state;
+    const person = users.find((each) => each.id === me?.id) ?? me;
+    const input = useRef(null);
+
+    const choose = (event) => {
+        const file = event.currentTarget.files?.[0];
+
+        event.currentTarget.value = "";
+
+        if (file) {
+            attempt(async () => api("me/avatar", await avatarBlob(file)));
+        }
+    };
+
+    return html`<div class="my-photo" data-part="my-photo">
+        <${Avatar} person=${person} size=${48} />
+        <input ref=${input} type="file" accept="image/*" hidden onChange=${choose} />
+        <button class="button" onClick=${() => input.current.click()}>
+            ${person.avatar ? t("Change photo") : t("Add photo")}
+        </button>
+        ${
+            person.avatar &&
+            html`<button class="button ghost" onClick=${() => attempt(() => api("me/avatar", undefined, { method: "DELETE" }))}>
+                ${t("Remove photo")}
+            </button>`
+        }
+    </div>`;
 }
 
 function lastSeen(person) {

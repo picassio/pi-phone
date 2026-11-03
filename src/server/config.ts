@@ -68,6 +68,8 @@ export interface User {
      * option absent has its default (`APPEARANCE_DEFAULTS`).
      */
     appearance?: Partial<AppearanceOptions>;
+    /** When their profile picture was set (`avatars.ts`, PP-353); absent means they have none. */
+    avatar?: number;
 }
 
 /** A person's appearance options that follow them on every device. */
@@ -924,7 +926,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen" | "appearance">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen" | "appearance" | "avatar">>,
     ): void {
         const user = this.userById(id);
 
@@ -969,6 +971,10 @@ export class ConfigStore {
 
         if (user.whatsNewSeen === undefined) {
             delete user.whatsNewSeen;
+        }
+
+        if (user.avatar === undefined) {
+            delete user.avatar;
         }
 
         this.save();
