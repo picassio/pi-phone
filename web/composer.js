@@ -1670,7 +1670,7 @@ function fitBox(element) {
 }
 
 /** A model's short name for the message box: "opus 4.5" for "Claude Opus 4.5". */
-const shortModel = (agent) =>
+export const shortModel = (agent) =>
     modelLabel(agent)
         // A provider's own prefix ("Anthropic: Claude Opus 4.5"), then the family's name.
         .replace(/^[^:]{1,24}:\s*/, "")

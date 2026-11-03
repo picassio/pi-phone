@@ -681,6 +681,7 @@
     "{title}: session menu": "{title}：会话菜单",
     "Model: {model}, thinking {level}": "模型：{model}，思考级别 {level}",
     "Model: {model}": "模型：{model}",
+    "Model: {model}: change it": "模型：{model}：更换",
     "Files and changes (Alt+E)": "文件与更改（Alt+E）",
     "Running": "运行中",
     "Pi": "Pi",

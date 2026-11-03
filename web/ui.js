@@ -700,6 +700,8 @@ function fromBase(path) {
     return parts.join("/");
 }
 
+let fileRequests = 0;
+
 /**
  * Open a file (or folder) of the session in the viewer: in the Files tile while it is open, otherwise in a sheet.
  * `path:42` opens it at line 42.
@@ -719,7 +721,8 @@ export function openFile(path) {
         return;
     }
 
-    openSheet({ type: "file", id: target.path, line: target.line });
+    // `n` differs for each request, so asking again for the open file reads it again (`FileView`'s `refresh`, PP-340).
+    openSheet({ type: "file", id: target.path, line: target.line, n: ++fileRequests });
 }
 
 /** File paths in rendered markdown open in the viewer. */

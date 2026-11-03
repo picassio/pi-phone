@@ -120,3 +120,5 @@ is skipped on purpose.
   Differs: pi-phone's queue row has only Withdraw (no move to Steer, Queue or Interrupt), so Edit is a word before it;
   the sender comes from the submission's request id, not `attribution.submitter`; files map to the session's uploads
   by name (on a machine too); and Pi gets `session_unsend` for what `session_send` queued.
+- A shown file read again, a subagent's model in the top bar (PP-340): merge 61af2c78 (bbb9dfe, #187 and #185), its
+  tests with screenshots; padding on the 4 px grid.

@@ -1191,6 +1191,39 @@ kbd {
     color: var(--faint);
 }
 
+/* A subagent's line also names its model (PP-340), as the composer hides it on a phone while Pi works. It keeps its room
+   (up to a share of the line); the parent's title gives way first. A tap opens the model sheet. */
+.title-sub > button.title-model {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    max-width: 50%;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: calc(var(--r-tag) + 1px);
+    background: var(--card);
+    font: 11px / 1 var(--mono);
+    color: var(--muted);
+    transition:
+        color var(--t-hover) var(--ease-out),
+        background-color var(--t-hover) var(--ease-out);
+}
+
+.title-model-name {
+    min-width: 2ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (hover: hover) {
+    .title-sub > button.title-model:hover {
+        color: var(--accent);
+        background: var(--card-2);
+    }
+}
+
 /* A phone shows the branch as plain mono text, as the design's phone board does. */
 @media (max-width: 699px) {
     .title-sub > .title-branch {
@@ -1220,7 +1253,8 @@ kbd {
     .title-sub {
         min-height: 24px;
     }
-    .title-sub > button.title-branch::after {
+    .title-sub > button.title-branch::after,
+    .title-sub > button.title-model::after {
         content: "";
         position: absolute;
         inset: -10px -8px -9px;

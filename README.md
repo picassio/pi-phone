@@ -28,7 +28,8 @@ No Termux, no laptop, no cloud VM.
   app or update it mid-run and the work continues where it stopped.
 - **Subagents at a glance.** A peek tile lists the subagents at work in its session (3 at most, 1 in the phone's
   strip; **N more** opens the board there), and the subagents board shows a sub-tile for each (6 a session, 3 on a
-  phone). An approval on a tile names the subagent that asks.
+  phone). An approval on a tile names the subagent that asks. A subagent's own session names its model in the top bar,
+  beside "subagent of …" (on a phone the message box hides it while Pi works); a tap opens the model sheet.
 - **What Pi does, from any app.** The always-on pi notification is a progress board: its title counts the sessions at
   work, waiting for you, and done in the last hour; expanded, a row per session with what it does now ("editing …",
   "running npm test"), each opening its session, and Approve for a simple card. Turn on the floating board (This phone ›
@@ -595,7 +596,8 @@ No Termux, no laptop, no cloud VM.
 ### The app
 - **A terminal.** A real shell inside the app, on the phone or on a machine, with Esc, Tab, Ctrl, and arrow keys
   above the keyboard.
-- **Changes** of the session's folder (only its own, even inside a bigger repository), with diffs and undo.
+- **Changes** of the session's folder (only its own, even inside a bigger repository), with diffs and undo. Opening a
+  file that the viewer already shows (a path in a reply, Open on a call) reads it again, so you see what it says now.
 - **Notifications** when a session finishes, fails, or asks for approval: from the app on the phone, and as push
   notifications in a browser at an HTTPS address (the team server, a desktop, an iPhone with pi-phone on its Home Screen),
   even with no tab open. Menu › **Notifications** turns them on for that browser, lists the others, and sends a test;

@@ -32,7 +32,8 @@ dự án thật.</sub>
   (SQLite). Tắt ứng dụng hoặc cập nhật giữa chừng, công việc vẫn tiếp tục từ chỗ dừng.
 - **Subagent trong nháy mắt.** Một ô xem nhanh liệt kê các subagent đang làm việc trong phiên của nó (tối đa 3, trên
   dải của điện thoại là 1; **N nữa** mở bảng ở đó), và bảng subagent có một ô con cho mỗi subagent (6 mỗi phiên, 3 trên
-  điện thoại). Một yêu cầu duyệt trên ô sẽ nêu tên subagent đang hỏi.
+  điện thoại). Một yêu cầu duyệt trên ô sẽ nêu tên subagent đang hỏi. Phiên riêng của một subagent ghi mô hình của nó trên
+  thanh trên cùng, cạnh “subagent của …” (trên điện thoại ô nhập ẩn nó khi Pi đang làm); chạm vào để mở bảng mô hình.
 - **Pi đang làm gì, xem từ bất kỳ ứng dụng nào.** Thông báo pi luôn hiện giờ là bảng tiến độ: tiêu đề đếm số phiên đang
   chạy, đang chờ bạn và đã xong trong giờ qua; mở rộng ra, mỗi phiên một dòng với việc đang làm ("đang sửa …", "đang chạy
   npm test"), chạm để mở phiên đó, và nút Duyệt cho thẻ đơn giản. Bật bảng nổi (Điện thoại này › Bảng nổi trên ứng dụng
@@ -615,6 +616,8 @@ dự án thật.</sub>
 - **Một terminal.** Một shell thật trong ứng dụng, trên điện thoại hoặc trên một máy, có Esc, Tab, Ctrl và các phím
   mũi tên phía trên bàn phím.
 - **Thay đổi** của thư mục phiên (chỉ của riêng nó, kể cả khi nằm trong một kho lớn hơn), kèm diff và hoàn tác.
+  Mở lại một tệp trình xem đang hiện (một đường dẫn trong câu trả lời, nút Mở trên một lệnh gọi) sẽ đọc lại nó, nên bạn thấy nội dung
+  hiện tại.
 - **Thông báo** khi một phiên xong, thất bại, hoặc xin duyệt: từ ứng dụng trên điện thoại, và dưới dạng thông báo
   đẩy trong trình duyệt ở địa chỉ HTTPS (máy chủ nhóm, máy tính, iPhone có pi-phone trên Màn hình chính), kể cả khi
   không mở tab nào. Menu › **Thông báo** bật thông báo cho trình duyệt đó, liệt kê các trình duyệt khác, và gửi thử;

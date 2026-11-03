@@ -2,7 +2,7 @@
 // one, and a person's message that looks like a report stays theirs.
 import { type App, cleanUp, cleanUpAll, context, lastText, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -247,5 +247,46 @@ test(
             ),
             false,
         );
+    },
+);
+
+// PP-340, from pi-pocket #185.
+test(
+    "a working subagent shows its model in the top bar on a phone, where the composer hides it; a tap opens the model sheet",
+    real,
+    async () => {
+        const id = await started(0);
+
+        await until(async () => (await app.harness.snapshot(SubagentsDoc, id, context))?.agents.slow !== undefined, "the slow subagent");
+
+        const slow = (await app.harness.snapshot(SubagentsDoc, id, context))!.agents.slow!;
+
+        // The parent's top bar has no model tag: only a subagent's does.
+        assert.equal(await textOf(".topbar .title-model"), null);
+        await page.navigate(`${base}/s/${slow.conversationId}`);
+        await see(`return JSON.stringify(document.querySelector(".composer.busy textarea") !== null)`, "the working subagent", 20_000);
+        // The composer's chip is hidden while it works (a phone), so the top bar has to say the model.
+        assert.equal(await inPage<string>(`return JSON.stringify(getComputedStyle(document.querySelector(".composer .model-chip")).display)`), "none");
+        await see(
+            `const tag = document.querySelector(".topbar .title-model"); return JSON.stringify(tag !== null && tag.getBoundingClientRect().width > 0 && tag.textContent.trim() !== "")`,
+            "the model tag in the top bar",
+        );
+        // It fits in the line under the title, whatever the parent's title is.
+        assert.equal(
+            await inPage<boolean>(
+                `const sub = document.querySelector(".topbar .title-sub"); const tag = document.querySelector(".topbar .title-model"); return JSON.stringify(sub.scrollWidth <= sub.clientWidth + 1 && tag.getBoundingClientRect().right <= sub.getBoundingClientRect().right + 1)`,
+            ),
+            true,
+        );
+
+        if (process.env.PHONE_SHOTS !== undefined) {
+            mkdirSync(process.env.PHONE_SHOTS, { recursive: true });
+            await settled();
+            writeFileSync(join(process.env.PHONE_SHOTS, "subagent-model-390.jpg"), Buffer.from((await page.screenshot()).data, "base64"));
+        }
+
+        await settled();
+        await page.click({ selector: ".topbar .title-model" });
+        await see(`return JSON.stringify((await import("/store.js")).store.state.sheet?.type === "model")`, "the model sheet");
     },
 );

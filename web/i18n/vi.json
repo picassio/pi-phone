@@ -372,6 +372,7 @@
     "Attach files": "Đính kèm tệp",
     "Model: {model}, thinking {level}": "Mô hình: {model}, suy nghĩ {level}",
     "Model: {model}": "Mô hình: {model}",
+    "Model: {model}: change it": "Mô hình: {model}: đổi",
     "Model and thinking: {model}, {level}": "Mô hình và suy nghĩ: {model}, {level}",
     "Model and thinking: {model}": "Mô hình và suy nghĩ: {model}",
     "Plan mode: Pi reads and proposes, and changes nothing until you approve": "Chế độ kế hoạch: Pi đọc và đề xuất, không thay đổi gì cho đến khi bạn duyệt",

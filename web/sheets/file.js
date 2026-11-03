@@ -50,7 +50,7 @@ function useLines(file, path) {
  * folder to browse, under a bar with its path and the viewer's buttons (copy, mention, preview). `line` scrolls to and
  * marks that line. `onOpen` opens an entry of a folder.
  */
-export function FileView({ path, line, onOpen = openFile, onLoad }) {
+export function FileView({ path, line, refresh, onOpen = openFile, onLoad }) {
     const [file, setFile] = useState(null);
     const [error, setError] = useState(null);
     const markdown = isMarkdown(path);
@@ -61,6 +61,7 @@ export function FileView({ path, line, onOpen = openFile, onLoad }) {
     const [running, setRunning] = useState(false);
     const [all, setAll] = useState(line !== undefined && line > FILE_LINES);
     const body = useRef(null);
+    const shownPath = useRef(path);
     const { lines, colored } = useLines(file, file?.path ?? path);
     // The same element while the file and the marked line stay the same: Preact then skips its rows on every update of
     // the app, instead of comparing thousands of them.
@@ -72,7 +73,13 @@ export function FileView({ path, line, onOpen = openFile, onLoad }) {
     useEffect(() => {
         let live = true;
 
-        setFile(null);
+        // `refresh` changes each time the same file is asked for again (PP-340): it is read again, and its text stays on
+        // screen until the new text arrives; another file shows the loader.
+        if (shownPath.current !== path) {
+            shownPath.current = path;
+            setFile(null);
+        }
+
         setError(null);
         actions.view(path).then(
             (each) => {
@@ -81,13 +88,18 @@ export function FileView({ path, line, onOpen = openFile, onLoad }) {
                     onLoad?.(each);
                 }
             },
-            (failure) => live && setError(failure.message),
+            (failure) => {
+                if (live) {
+                    setFile(null);
+                    setError(failure.message);
+                }
+            },
         );
 
         return () => {
             live = false;
         };
-    }, [path]);
+    }, [path, refresh]);
     useEffect(() => {
         setPreview(markdown && line === undefined);
         setRunning(false);
@@ -291,7 +303,7 @@ export const downloadSessionFile = (path, name) =>
     attempt(() => downloadFile(`api/c/${store.state.conversationId}/download?path=${encodeURIComponent(path)}`, name));
 
 /** The viewer as a sheet: opened from a path in a reply, a tool card, a mention, or Changes. */
-export function FileSheet({ path, line }) {
+export function FileSheet({ path, line, refresh }) {
     const [name, setName] = useState(path.replace(/\/$/, "").split("/").pop() || path);
     const [file, setFile] = useState(null);
     // Any file Pi made or named can be saved: in the app to Downloads, in a browser elsewhere as its download.
@@ -312,6 +324,7 @@ export function FileSheet({ path, line }) {
         <${FileView}
             path=${path}
             line=${line}
+            refresh=${refresh}
             onLoad=${(loaded) => {
                 setFile(loaded);
                 setName((loaded.display ?? path).replace(/\/$/, "").split("/").pop() || path);

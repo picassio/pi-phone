@@ -1664,6 +1664,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   ` → as Markdown` part dropped. Only its sender: the request id says who (`requestPerson`), a person's own (`u:`)
   for the composer's Edit; for Pi, `session_unsend` (`SessionControl.unsend`, deferred) takes back one its session
   sent with `session_send` (`p:` and `[via session #<root> …]`, stripped), whose answer now gives the message's number.
+- **A shown file read again; a subagent's model** (PP-340, pi-pocket #187 and #185): each `openFile` request and each
+  pick in the Files tile carries a new `n`, which `FileView` gets as `refresh` and reads the file again on, keeping the
+  text on screen until the new text arrives (another path shows the loader). A subagent's top bar line has a model tag
+  (`.title-model`, `shortModel`) that opens the model sheet: on a phone the composer hides its model chip while Pi works.
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

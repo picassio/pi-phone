@@ -6,7 +6,7 @@ import { folderColor } from "./avatar.js";
 import { machineNameOf, splitPlace } from "./place.js";
 import { canGoBack, goBack, replaceAddress, startHistory, useBack } from "./back.js";
 import { PeopleButton, PeoplePanel } from "./chat.js";
-import { Composer, openingByAlt } from "./composer.js";
+import { Composer, openingByAlt, shortModel } from "./composer.js";
 import { useChanges } from "./diff.js";
 import {
     FilesButton,
@@ -87,6 +87,7 @@ import {
     html,
     Icon,
     iconPath,
+    modelLabel,
     shortPath,
     useEdge,
     usePresence,
@@ -202,8 +203,17 @@ function Topbar() {
                 ${
                     conversation?.kind === "subagent"
                         ? html`<span class="title-folder title-parent">
-                              ${t("subagent of {title}", { title: conversation.parent?.title ?? "?" })}
-                          </span>`
+                                  ${t("subagent of {title}", { title: conversation.parent?.title ?? "?" })}
+                              </span>
+                              <button
+                                  class="title-model"
+                                  data-part="topbar-model"
+                                  aria-label=${t("Model: {model}: change it", { model: modelLabel(view.agent) })}
+                                  title=${t("Model: {model}", { model: modelLabel(view.agent) })}
+                                  onClick=${() => openSheet({ type: "model" })}
+                              >
+                                  <span class="title-model-name">${shortModel(view.agent)}</span>
+                              </button>`
                         : html`${
                               folder &&
                               html`<span class="title-folder" aria-hidden="true">${folder}</span>`
