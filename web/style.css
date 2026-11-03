@@ -16607,7 +16607,8 @@ textarea.notes {
     align-items: center;
     gap: 8px;
     flex: none;
-    padding: 4px 4px 4px 12px;
+    /* 8 px on the right: a phone's wider tap area around × (`.icon-button.small::before`) stays inside the panel. */
+    padding: 4px 8px 4px 12px;
     border-bottom: 1px solid var(--hair);
     cursor: grab;
     touch-action: none;
