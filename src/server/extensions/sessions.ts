@@ -53,6 +53,18 @@ export default function createSessions(host: PocketHost) {
             );
         },
     });
+    // All artifacts (PP-349): what the person sees in the sheet of that name.
+    const artifacts = defineTool({
+        name: "artifacts_list",
+        description:
+            "Every artifact in every session the person can see (archived ones left out), newest first: its session, id, title, type, current version and how many versions, and whether they keep it as a page on their rail (app_action pages.keep keeps one). Open one with its session and id.",
+        parameters: obj({
+            query: opt(str({ description: "Words to find in titles, ids or session titles" })),
+            limit: opt(num({ description: "At most this many, newest first (default 50)" })),
+        }, { open: true }),
+        replay: "safe",
+        execute: async (args, api) => reply(await host.sessions.artifacts(api.conversationId, args.query ?? "", args.limit ?? 50)),
+    });
     const read = defineTool({
         name: "session_read",
         description: "Read the end of a session's conversation as its model has it, with its state and waiting approvals.",
@@ -425,7 +437,7 @@ export default function createSessions(host: PocketHost) {
 
     return defineExtension({
         name: "pocket-sessions",
-        tools: [list, read, start, send, unsend, wait, stop, settle, archive, fork, newContext, compact, approvals, groupsList, groupCreate, groupRename, groupPin, groupFold, groupOrder, groupMove, groupDelete],
+        tools: [list, artifacts, read, start, send, unsend, wait, stop, settle, archive, fork, newContext, compact, approvals, groupsList, groupCreate, groupRename, groupPin, groupFold, groupOrder, groupMove, groupDelete],
         sections: [section("sessions", () => GUIDE)],
     });
 }

@@ -85,6 +85,7 @@ import {
     ArtifactBodyDoc,
     type ArtifactMeta,
     ArtifactsDoc,
+    type ArtifactType,
     AuthorsDoc,
     ChatDoc,
     type ChatMessage,
@@ -296,6 +297,24 @@ function forBoard(entries: readonly SubagentEntry[]): SubagentEntry[] {
 
     return entries.filter((entry) => !finished(entry) || kept.has(entry));
 }
+
+/** How many sessions All artifacts reads at once (PP-349). */
+const OVERVIEW_BATCH = 8;
+
+/** One artifact in All artifacts (PP-349): where it is, and which of its versions is the current one. */
+export type ArtifactOverviewEntry = {
+    session: number;
+    sessionTitle: string;
+    id: string;
+    title: string;
+    type: ArtifactType;
+    /** The number of the latest version: the one a person sees first, and a kept page shows. */
+    current: number;
+    /** How many versions there are. */
+    versions: number;
+    size: number;
+    updatedAt: number;
+};
 
 /** How much of a failed run's reason the session list carries: it goes to every tab on each change. */
 const FAILURE_TEXT = 120;
@@ -5451,6 +5470,60 @@ export class PocketApp {
                 this.#sendBoard(client, this.subagents(user));
             }
         }
+    }
+
+    /**
+     * Every artifact in the sessions this person can see, for All artifacts and `artifacts_list` (PP-349): one entry for
+     * each, with its current (latest) version and how many versions it has. Archived sessions are left out. Newest first.
+     */
+    async artifactOverview(user: User): Promise<ArtifactOverviewEntry[]> {
+        const one = async (session: string, meta: SessionMeta): Promise<ArtifactOverviewEntry[]> => {
+            const id = Number(session) as unknown as ConversationId;
+
+            if (meta.archived === true || meta.pip !== undefined || !this.canSee(user, id)) {
+                return [];
+            }
+
+            const index = await this.harness.snapshot(ArtifactsDoc, id, context);
+            const entries: ArtifactOverviewEntry[] = [];
+
+            for (const [artifact, item] of Object.entries(index?.items ?? {})) {
+                const current = item.versions.at(-1);
+
+                if (current !== undefined) {
+                    entries.push({
+                        session: Number(session),
+                        sessionTitle: meta.title ?? "",
+                        id: artifact,
+                        title: item.title,
+                        type: item.type,
+                        current: current.version,
+                        versions: item.versions.length,
+                        size: current.size,
+                        updatedAt: current.createdAt,
+                    });
+                }
+            }
+
+            return entries;
+        };
+
+        const sessions = Object.entries(this.#sessions);
+        const found: ArtifactOverviewEntry[] = [];
+
+        // A few sessions at a time: a person with many sessions does not make the server read all of them at once.
+        for (let from = 0; from < sessions.length; from += OVERVIEW_BATCH) {
+            const batch = sessions.slice(from, from + OVERVIEW_BATCH);
+
+            found.push(...(await Promise.all(batch.map(([id, meta]) => one(id, meta)))).flat());
+        }
+
+        // The person as they are now: a share removed while this ran takes its entries out.
+        const now = this.config.userById(user.id);
+
+        return found
+            .filter((entry) => now !== undefined && this.canSee(now, entry.session as unknown as ConversationId))
+            .sort((a, b) => b.updatedAt - a.updatedAt);
     }
 
     async artifactBody(id: ConversationId, artifact: string, version: number | undefined) {

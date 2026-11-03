@@ -37,7 +37,8 @@ export const DEFERRED_TOOLS: readonly string[] = [
     "browser_permission",
     "browser_forward",
     "browser_back",
-    // The session list's upkeep.
+    // The session list's upkeep, and every session's artifacts (PP-349).
+    "artifacts_list",
     "session_fork",
     "session_compact",
     "session_new_context",

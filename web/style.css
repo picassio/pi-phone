@@ -2467,6 +2467,86 @@ pre.diff .del {
     margin-left: 0;
 }
 
+/* All artifacts (PP-349): a row for each in its session's frame (Running now's `.running`), its current version in a
+ * pill, and Keep as a page at its end; on a phone that goes under it. */
+.overview-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.overview-session {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.overview-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 8px 12px 8px 0;
+    border-top: 1px solid var(--hair);
+}
+
+.overview-open {
+    display: flex;
+    flex: 1 1 240px;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 4px 0 4px 12px;
+    color: var(--faint);
+    text-align: left;
+}
+
+@media (hover: hover) {
+    .overview-open:hover .overview-title {
+        color: var(--accent);
+    }
+}
+
+.overview-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.overview-title {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 14px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.overview-version {
+    flex: none;
+    padding: 0 8px;
+    border-radius: var(--r-pill);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12px;
+    line-height: 20px;
+}
+
+.overview-keep {
+    display: flex;
+    flex: none;
+    margin-left: auto;
+}
+
+.overview-keep:empty {
+    display: none;
+}
+
 /* A subagent's report: a card. */
 .report {
     padding: 12px 14px;

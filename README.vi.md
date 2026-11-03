@@ -767,7 +767,9 @@ mới** trên danh sách phiên (và màn hình chính khi màn hình rộng) m�
   nhất của artifact. Điều duy nhất trang làm được trong ứng dụng là đưa chữ vào ô nhập của phiên bạn đang ở, để bạn
   gửi (`parent.postMessage({ type: "pi-compose", text }, "*")`; artifact trong trình xem cũng vậy). **Cài đặt › Trang**
   liệt kê các trang của bạn, đổi thứ tự và gỡ chúng khỏi thanh bên. Trang của mỗi người là của riêng họ, và trang
-  thuộc phiên bạn không xem được thì không hiện với bạn.
+  thuộc phiên bạn không xem được thì không hiện với bạn. **Tất cả artifact** (ô lưới trên thanh bên, hoặc trình khởi động)
+  liệt kê mọi artifact trong mọi phiên bạn xem được, theo phiên, kèm phiên bản hiện tại: chạm vào để mở phiên bản đó
+  trong phiên của nó, và Giữ thành trang ngay từ dòng của nó; Pi liệt kê chúng bằng `artifacts_list`.
 
 ### Cài đặt, và nhờ Pi làm thay
 Mọi cài đặt dưới đây nằm trong menu phiên (⋯) mục **Ứng dụng**. Bạn cũng có thể chỉ cần nói với Pi, ví dụ “dùng Jev

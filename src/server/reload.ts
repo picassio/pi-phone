@@ -247,6 +247,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "session_group_order",
     "session_group_move",
     "session_group_delete",
+    "artifacts_list",
     "team_providers",
     "team_provider_add",
     "team_provider_access",

@@ -633,6 +633,7 @@ export interface PocketHost {
         Pick<
         SessionControl,
         | "list"
+        | "artifacts"
         | "status"
         | "read"
         | "start"

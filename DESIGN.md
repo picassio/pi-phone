@@ -2273,6 +2273,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
     rule (no path).
   - `pocket.openPageOf(module, page)` opens another module's page (never its sheets), once that module is ready. A
     board's Docs button uses it to open Documents on the board's place (PP-47).
+- **All artifacts** (PP-349, pi-pocket 0.28's #237 and its fix 537580d). `PocketApp.artifactOverview` reads the
+  artifacts index of every unarchived session the person can see, 8 sessions at a time, one entry per artifact with
+  its current version, and checks the person again at the end (a share removed meanwhile takes its entries out);
+  `GET /api/artifacts`, the sheet `all-artifacts` (the rail's grid button, the launcher), and Pi's `artifacts_list`
+  (deferred; `SessionControl.artifacts`, as the person the session works for, with which they keep as pages). A row
+  opens the current version in its session; its Keep as a page is the artifact card's (`KeepButton`, PP-370). Differs:
+  a session whose artifacts cannot be read fails the list with its error, instead of being left out quietly.
 - **Priority in the session list** (PP-346, pi-pocket 0.27's Priority tab, adapted). pi-phone's list has a scope
   picker instead of tabs, folder groups and a Settled shelf: Priority is a scope there (`sessions.js`,
   `priorityGroups`), which groups by what a session asks of you and nothing else (pins, folder groups, links and

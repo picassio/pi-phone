@@ -143,3 +143,7 @@ is skipped on purpose.
   `sessions.listOpens` picks what the list opens on. Not taken: the Show N more cut, opening a call in place with focus
   and keyboard order, the theme-surface parts and docs, pocket's tabs and their sliding marker (pi-phone has none), and
   the ask extension of 910f8ae (pi-phone's `host.ask` came with PP-167).
+- All artifacts from 0.28 (PP-349): 4a8dbaa (merge b16699b, #237 by @Haichiu) and 537580d (from 8370618's fixes; the
+  b4 web fixes of 5510f8c hold nothing for it). Differs: no `kind` or `group` (pi-phone's artifacts have neither), Keep
+  as a page in each row, a grid icon on the rail (kept pages use the artifact icon), `artifacts_list` for Pi, and an
+  unreadable session fails the list rather than being skipped (no fallbacks).

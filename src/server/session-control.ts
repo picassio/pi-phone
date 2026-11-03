@@ -188,6 +188,33 @@ export class SessionControl implements SessionsApi {
             .map((item) => this.#line(item));
     }
 
+    /**
+     * Every artifact in the sessions the person can see (All artifacts, PP-349), newest first, one line each: its session,
+     * id, title, type, current version and how many, and whether the person keeps it as a page on their rail.
+     */
+    async artifacts(caller: ConversationId, query = "", limit = 50): Promise<string> {
+        const { user } = this.#caller(caller);
+        const needle = query.trim().toLowerCase();
+        const kept = new Set((await this.#app.keptPages.list(user)).pages.map((page) => `${page.conversation}/${page.artifact}`));
+        const found = (await this.#app.artifactOverview(user)).filter(
+            (entry) => needle === "" || `${entry.title}\n${entry.id}\n${entry.sessionTitle}`.toLowerCase().includes(needle),
+        );
+        const shown = found.slice(0, Math.max(1, Math.min(200, limit)));
+
+        if (shown.length === 0) {
+            return "No artifacts match.";
+        }
+
+        return (
+            shown
+                .map(
+                    (entry) =>
+                        `#${entry.session} ${quoted(entry.sessionTitle, 60)} · ${entry.id} ${quoted(entry.title, 80)} · ${entry.type} · v${entry.current} of ${entry.versions}${kept.has(`${entry.session}/${entry.id}`) ? " · kept as a page" : ""}`,
+                )
+                .join("\n") + (found.length > shown.length ? `\n(${found.length - shown.length} more)` : "")
+        );
+    }
+
     /** A session's state now, in a line. */
     status(caller: ConversationId, id: number): string {
         const { user } = this.#target(caller, id, false);

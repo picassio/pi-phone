@@ -738,7 +738,9 @@ card on the session list (and the home screen on a wide screen) offers a tour of
   can do in the app is put text into the message box of the session you are in, for you to send
   (`parent.postMessage({ type: "pi-compose", text }, "*")`; an artifact in the viewer can too). **Settings › Pages**
   lists your pages, orders them, and removes them from the rail. Each person's pages are their own, and a page whose
-  session you cannot see is not shown to you. The **Browser panel** opens when Pi browses: beside the chat on a wide screen, or
+  session you cannot see is not shown to you. **All artifacts** (the rail's grid, or the launcher) lists every artifact
+  in every session you can see, by session, with its current version: a tap opens that version in its session, and
+  Keep as a page works from its row; Pi lists them with `artifacts_list`. The **Browser panel** opens when Pi browses: beside the chat on a wide screen, or
   from the small preview above the message box on a phone.
 
 ### Settings, and asking Pi instead

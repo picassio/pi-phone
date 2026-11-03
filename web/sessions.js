@@ -2443,6 +2443,17 @@ function Rail({ foldable = false, folded = false }) {
                 html`<span class="rail-trouble" aria-hidden="true"></span>`
             }
         </button>
+        <button
+            class="rail-button"
+            data-part="rail-button"
+            data-rail="all-artifacts"
+            data-state=${railState(false, false)}
+            title=${t("Artifacts in every session")}
+            aria-label=${t("All artifacts")}
+            onClick=${() => openSheet({ type: "all-artifacts" })}
+        >
+            <${Icon} name="grid" size=${19} />
+        </button>
         <${ExtensionRailButtons} />
         <${KeptPageRailButtons} />
         ${

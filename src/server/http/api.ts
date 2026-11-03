@@ -575,6 +575,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, app.sessions(user));
         }
 
+        // Every artifact in the sessions this person can see (All artifacts, PP-349).
+        if (first === "artifacts" && second === undefined && method === "GET") {
+            return json(response, 200, await app.artifactOverview(user));
+        }
+
         // Pi's sessions, which the owner can continue here: listed, previewed, imported from a file, continued.
         if (first === "pi-sessions" && second === undefined && method === "GET") {
             return json(
