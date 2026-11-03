@@ -1676,6 +1676,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   scripts (`appPolicy`). The Android shell's own stages (unpacking, starting, a failed runtime) stay on its status
   screen (`assets/status.html`), which hands over to the page only once the server answers. Not taken: the
   `fingerprint.js` rename (pi-phone has no such file).
+- **Archiving with repeating schedules** (PP-338, pi-pocket #215): archiving cancels no schedule. `updateSession`
+  answers `{ repeating }` (the session's schedules with `every`, when it archived it), `POST /api/sessions/<id>` passes
+  it on, `setArchived` adds a notice per session that opens its Schedules, and `SessionControl.update` gives it to
+  `session_archive`, whose answer tells Pi to tell the person. The Schedules sheet marks each schedule of an archived
+  session with a StateTag.
 - **Image guard** (`image-guard.ts`, outermost on `models.streamSimple`): no image over 2000 px a side reaches a
   model (Anthropic refuses them in a request of more than 20 images). Sizes come from the headers; only bigger ones are
   scaled by Photon, one at a time. The whole history goes with every request, so each scaled image is kept by a

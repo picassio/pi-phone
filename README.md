@@ -142,7 +142,8 @@ No Termux, no laptop, no cloud VM.
 - **Interview.** Pi asks several questions at once in a form (choices with its recommendation, text, photos), and waits
   for the answers, or carries on and gets them later.
 - **Schedules and goals.** Pi messages itself later or on repeat (`schedule`), and a session can keep working toward a
-  goal it checks.
+  goal it checks. Archiving a session cancels none of its schedules: a notice says how many repeating ones keep
+  running there and opens them (Pi's `session_archive` says so too), and its Schedules mark each "Session archived".
 - **Other sessions.** Pi can list, read, start, message, wait for, and stop the app's other sessions, as the person it
   works for. It can also get a stuck session going again, each time after you say yes on a card: fork it before the
   message that stopped it (`session_fork`), start a new context there (`session_new_context`), or compact it

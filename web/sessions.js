@@ -142,6 +142,24 @@ export async function setArchived(ids, archived, { undo = true } = {}) {
             }
         },
     );
+
+    // Archiving leaves repeating schedules running, with their reports in a session nobody looks at: say so (PP-338).
+    for (const id of done) {
+        const repeating = archived ? (results[ids.indexOf(id)].value?.repeating ?? 0) : 0;
+
+        if (repeating > 0) {
+            const name = titles.get(id) ?? "";
+            const session = name.length > 48 ? `${name.slice(0, 47)}…` : name;
+
+            notify(
+                "info",
+                matchMedia("(pointer: coarse)").matches
+                    ? tn(repeating, "“{session}” keeps {n} repeating schedule running. Tap to see it.", "“{session}” keeps {n} repeating schedules running. Tap to see them.", { session })
+                    : tn(repeating, "“{session}” keeps {n} repeating schedule running. Click to see it.", "“{session}” keeps {n} repeating schedules running. Click to see them.", { session }),
+                () => navigate(id, { sheet: { type: "schedules" } }),
+            );
+        }
+    }
 }
 
 /**

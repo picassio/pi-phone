@@ -380,11 +380,14 @@ export class SessionControl implements SessionsApi {
         return { ...answer, titles };
     }
 
-    /** Archive or bring back, settle or un-settle a session, as the person the calling session works for. */
-    async update(caller: ConversationId, id: number, patch: { archived?: boolean; settled?: boolean }): Promise<void> {
+    /**
+     * Archive or bring back, settle or un-settle a session, as the person the calling session works for. Answers how many
+     * repeating schedules keep running in a session it archived (PP-338).
+     */
+    async update(caller: ConversationId, id: number, patch: { archived?: boolean; settled?: boolean }): Promise<{ repeating: number }> {
         const { user, target } = this.#target(caller, id, false);
 
-        await this.#app.commands.updateSession(target, user, patch);
+        return await this.#app.commands.updateSession(target, user, patch);
     }
 
     async stop(caller: ConversationId, id: number): Promise<void> {

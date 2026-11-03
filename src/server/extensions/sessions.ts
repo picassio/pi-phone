@@ -156,9 +156,14 @@ export default function createSessions(host: PocketHost) {
         description: "Archive a session (out of the list, kept), or bring it back from the archive.",
         parameters: obj({ session, archived: bool({ description: "true archives it; false brings it back" }) }, { open: true }),
         execute: async (args, api) => {
-            await host.sessions.update(api.conversationId, args.session, { archived: args.archived });
+            const { repeating } = await host.sessions.update(api.conversationId, args.session, { archived: args.archived });
+            // Archiving cancels no schedule (PP-338): its repeating ones go on, and their reports land in an archived session.
+            const still =
+                repeating === 0
+                    ? ""
+                    : ` It keeps ${repeating} repeating schedule${repeating === 1 ? "" : "s"} running: tell your person, who can see ${repeating === 1 ? "it" : "them"} in that session's Schedules (/s/${args.session}), and cancel ${repeating === 1 ? "it" : "them"} there if they want.`;
 
-            return reply(`${args.archived ? "Archived" : "Brought back"} #${args.session}.`);
+            return reply(`${args.archived ? "Archived" : "Brought back"} #${args.session}.${still}`);
         },
     });
     // ─── Getting a session past what stops it (PP-99): another session's menu actions, each asked on a card ───

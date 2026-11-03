@@ -126,3 +126,5 @@ is skipped on purpose.
   as pi-phone's page names it), the `.boot.failed` CSS, and its UI test (a blocked and a throwing module, at 390 and
   1280 px). Differs: the words in the person's language. Not taken: the `fingerprint.js` to `text-hash.js` rename
   (pi-phone has neither).
+- Archiving with repeating schedules (PP-338): merge 07e8a77d (46d4c91, #215), its tests. Differs: the sheet's mark is
+  a StateTag; `session_archive` (pi-phone's own tool) says it too.

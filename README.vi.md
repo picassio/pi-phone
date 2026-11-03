@@ -150,7 +150,9 @@ dự án thật.</sub>
 - **Biểu mẫu.** Pi hỏi nhiều câu cùng lúc trong một biểu mẫu (lựa chọn kèm đề xuất của nó, văn bản, ảnh), và chờ câu
   trả lời, hoặc tiếp tục và nhận chúng sau.
 - **Lịch hẹn và mục tiêu.** Pi tự nhắn cho mình sau đó hoặc lặp lại (`schedule`), và một phiên có thể tiếp tục làm việc
-  hướng tới một mục tiêu mà nó tự kiểm tra.
+  hướng tới một mục tiêu mà nó tự kiểm tra. Lưu trữ một phiên không hủy lịch hẹn nào của nó: một thông báo cho biết bao nhiêu
+  lịch lặp lại vẫn chạy ở đó và mở chúng ra (`session_archive` của Pi cũng nói vậy), và Lịch hẹn của phiên đánh dấu từng cái
+  “Phiên đã lưu trữ”.
 - **Phiên khác.** Pi có thể liệt kê, đọc, mở, nhắn tin, chờ và dừng các phiên khác của ứng dụng, với tư cách người mà
   nó làm việc cho. Nó cũng có thể gỡ kẹt một phiên, mỗi lần sau khi bạn đồng ý trên một thẻ: rẽ nhánh phiên đó ngay
   trước tin nhắn làm nó dừng (`session_fork`), mở ngữ cảnh mới ở đó (`session_new_context`), hoặc nén nó

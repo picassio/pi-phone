@@ -342,3 +342,19 @@ test("a schedule is cancelled once its person may not steer anymore or a limit i
         "neither went out",
     );
 });
+
+// PP-338, from pi-pocket #215.
+test("archiving a session says how many repeating schedules keep running there, to a person and to Pi", async () => {
+    const id = await newSession(app);
+    const caller = await newSession(app);
+
+    await app.commands.schedule(id, owner(app), { when: "in 10m once", zone: "UTC" });
+    await app.commands.schedule(id, owner(app), { when: "every 20m ping", zone: "UTC" });
+    assert.deepEqual(await app.commands.updateSession(id, owner(app), { archived: true }), { repeating: 1 });
+    assert.equal((await items(id)).length, 2, "archiving cancels nothing");
+    assert.deepEqual(await app.commands.updateSession(id, owner(app), { archived: false }), { repeating: 0 }, "only archiving says it");
+
+    // Pi's session_archive, for the person its session works for.
+    await say(caller, "look after the others");
+    assert.deepEqual(await app.sessionControl.update(caller, Number(id), { archived: true }), { repeating: 1 });
+});

@@ -1,7 +1,7 @@
 // Scheduled messages of this session.
 import { useState } from "preact/hooks";
 import { actions, attempt, canSteer, closeSheet, store } from "../store.js";
-import { formatWhen, html, Icon, Sheet } from "../ui.js";
+import { formatWhen, html, Icon, Sheet, StateTag } from "../ui.js";
 import { t } from "../i18n.js";
 
 /** Messages that go to Pi later or on repeat: set one up, see what is coming, cancel one. */
@@ -9,6 +9,8 @@ export function SchedulesSheet() {
     const { view, users, me } = store.state;
     const [when, setWhen] = useState("");
     const steer = canSteer();
+    // Archiving cancels no schedule (PP-338): each one says the session is archived, as its reports land there.
+    const archived = store.state.sessions.some((session) => session.id === store.state.conversationId && session.archived);
     const setBy = (id) =>
         id === undefined
             ? t("set by Pi")
@@ -52,7 +54,17 @@ export function SchedulesSheet() {
                     (schedule) => html`<div class="schedule" key=${schedule.id}>
                         <${Icon} name="clock" size=${16} />
                         <div class="grow">
-                            <div>${schedule.text}</div>
+                            <div>
+                                <span>${schedule.text}</span>
+                                ${
+                                    archived &&
+                                    html`<${StateTag}
+                                        tone="warn"
+                                        label=${t("Session archived")}
+                                        title=${t("Archiving cancels no schedule: it still goes out here.")}
+                                    />`
+                                }
+                            </div>
                             <div class="muted small">
                                 ${schedule.repeat ? t("{repeat} · next {when}", { repeat: schedule.repeat, when: formatWhen(schedule.next) }) : formatWhen(schedule.next)} · ${setBy(schedule.by)}
                             </div>
