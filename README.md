@@ -657,6 +657,7 @@ No Termux, no laptop, no cloud VM.
   "starting". Before that, the phone app's own screen says when the server is unpacking, starting, or failed.
 - **Quick on a phone.** A streaming answer redraws only its last block, and only what changed in it crosses the wire;
   text and the event stream go compressed, and web files are cached (ETag, 304) and fetched at once (modulepreload).
+  A picture you attach is made ready for the model as it uploads, one at a time, so the message goes at once.
 - **Updates from GitHub.** Every passing build on `master` is a release, with release notes. The app checks it (at
   start, or Settings › Check for app updates): server and UI changes swap in within seconds; a new Android shell is a
   one-tap install.

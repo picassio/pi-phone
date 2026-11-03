@@ -2273,6 +2273,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
     rule (no path).
   - `pocket.openPageOf(module, page)` opens another module's page (never its sheets), once that module is ready. A
     board's Docs button uses it to open Documents on the board's place (PP-47).
+- **Images ready before the message** (PP-347, pi-pocket 0.28's #236). An image uploaded for a message starts being made
+  small enough for the model at once (`prepareModelImage` in `model-images.ts`, from the upload route); the message
+  that sends it takes the one made (`modelImage`), or makes it then (after a restart, or past the 24 kept). Made one at
+  a time, as the image guard scales (`image-guard.ts`): a phone given five photos at once decodes one at a time; what
+  comes out is within 2000 px, so the guard passes it by its header. Not taken: #236's composer parts (attached files
+  kept across reloads, the box dimmed while sending), left to the composer's own port (PP-377's ui1).
 - **Running now as a board** (PP-355, after pi-pocket 0.28's #232 and its b4 fixes). pi-phone keeps Running now as a
   sheet (the rail's pulse) rather than pocket's board in the conversation's place: `GET /api/running/board`
   (`runningBoard` in `running.ts`) gives the sessions at work (a scheduled message's sleeping task is not work: it is

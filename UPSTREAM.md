@@ -159,3 +159,7 @@ is skipped on purpose.
   timeline of the schedules and their list. Not taken: `running-board.js` as a board in the conversation's place, its
   session matrix, phone filters, zone names, run bars with their message on hover (the message is a row here), Stop
   pills, and the theme-surface parts.
+- Faster image sends from 0.28 (PP-347): the server part of merge 6698f16 (#236 by @vitalNohj: a02496d's
+  `model-images.ts` and the upload route, 5309a1c's test), with images made one at a time (as pocket's HEIC fix 84c1b8b
+  does for its photos, and pi-phone's image guard for requests). Not taken here: a02496d's composer (attachments kept
+  across reloads, the box dimmed while sending), to stay out of the composer work done beside this port.

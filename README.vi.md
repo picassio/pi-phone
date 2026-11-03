@@ -679,7 +679,8 @@ dự án thật.</sub>
   đứng mãi ở “đang khởi động”. Trước đó, màn hình riêng của ứng dụng trên điện thoại cho biết máy chủ đang giải nén, đang khởi
   động hay đã lỗi.
 - **Nhanh trên điện thoại.** Câu trả lời đang truyền chỉ vẽ lại khối cuối, và chỉ phần thay đổi được gửi đi; văn bản và
-  luồng sự kiện được nén, còn tệp web được cache (ETag, 304) và tải cùng lúc (modulepreload).
+  luồng sự kiện được nén, còn tệp web được cache (ETag, 304) và tải cùng lúc (modulepreload). Ảnh bạn đính kèm
+  được chuẩn bị cho mô hình ngay khi tải lên, từng ảnh một, nên tin nhắn đi ngay.
 - **Cập nhật từ GitHub.** Mỗi bản dựng đạt trên `master` là một bản phát hành, kèm ghi chú phát hành. Ứng dụng kiểm tra
   (khi khởi động, hoặc Cài đặt › Kiểm tra cập nhật ứng dụng): thay đổi về máy chủ và giao diện được thay trong vài giây;
   vỏ Android mới là một lần chạm để cài.
