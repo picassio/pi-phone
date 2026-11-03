@@ -71,7 +71,9 @@
   **分组** 标题可以在本设备上把它们全部折叠；任意分组的菜单里都有“折叠所有分组”和“展开所有分组”。空分组默认隐藏，点分组下方的 **显示 {n} 个空分组** 才会出现。
   这些 Pi 都能做（`session_groups`、`session_group_create`、`_rename`、`_pin`、`_fold`、`_order`、`_move`；删除时会通过卡片征求你的同意）。
 - **真正的工具。** `bash`、`read`（文本和图片）、`write`、`edit` 和 `codemode`（调用工具的脚本），内置用户空间中还有 git、gh、ssh、
-  Node、npm、ripgrep 和 fd。
+  Node、npm、ripgrep 和 fd。菜单 › 压缩上下文 › **Pi 如何调用工具**（所有会话；设置 `codemode.mode`）：直接调用或在脚本中调用（默认），
+  或只在脚本中调用：此时 Pi 只看到 codemode 和少数卡片要读取调用内容的工具（artifact、subagent、图片、视频、音频、browser run、屏幕、
+  Creator），其余工具在脚本中调用。有一个测试把新会话提示词中 pi-phone 自己的部分控制在 85,000 个字符以内。
 - **一次登录。** 在提供方面板中登录 Claude Pro/Max、其他提供方的 OAuth，或填入 API 密钥。GitHub 通过设备码登录（设置 › GitHub），
   供智能体的 `git` 和 `gh` 使用。
 - **你自己的 OpenAI 兼容服务器。** 提供方 › **添加 OpenAI 兼容提供方**：名称、基础 URL（LM Studio、Ollama、vLLM、OpenRouter 或代理）、

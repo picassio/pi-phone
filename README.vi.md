@@ -101,7 +101,11 @@ dự án thật.</sub>
   làm được tất cả (`session_groups`, `session_group_create`, `_rename`, `_pin`, `_fold`, `_order`, `_move`; xóa thì hỏi
   qua một thẻ).
 - **Công cụ thật.** `bash`, `read` (văn bản và hình ảnh), `write`, `edit` và `codemode` (script gọi các công cụ), cùng
-  git, gh, ssh, Node, npm, ripgrep và fd trong userland đi kèm.
+  git, gh, ssh, Node, npm, ripgrep và fd trong userland đi kèm. Menu › Nén ngữ cảnh › **Pi gọi công cụ thế nào** (mọi
+  phiên; cài đặt `codemode.mode`): trực tiếp hoặc từ script (mặc định), hoặc chỉ từ script, khi đó Pi chỉ được đưa
+  codemode và vài công cụ có thẻ đọc lệnh gọi của mình (artifact, subagent, ảnh, video, âm thanh, browser run, màn
+  hình, Creator) và gọi phần còn lại từ script. Một bài kiểm tra giữ phần prompt của chính pi-phone trong phiên mới
+  dưới 85.000 ký tự.
 - **Đăng nhập một lần.** Claude Pro/Max, OAuth của các nhà cung cấp khác, hoặc khóa API, từ bảng Nhà cung cấp. GitHub
   qua mã thiết bị (Cài đặt › GitHub), được `git` và `gh` của agent dùng.
 - **Máy chủ tương thích OpenAI của riêng bạn.** Nhà cung cấp › **Thêm nhà cung cấp tương thích OpenAI**: tên, URL gốc

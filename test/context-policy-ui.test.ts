@@ -135,7 +135,7 @@ test("a message the wiki's pages came with shows only the person's words, its me
 
     // Menu › Compact context: this session's choices (as every session's) and every session's.
     await page.evaluate(`(await import("/store.js")).openSheet({ type: "compact" }); return "true";`);
-    await see(`return JSON.stringify(document.querySelectorAll(".pp-row .choice").length === 8)`, "four parts, twice");
+    await see(`return JSON.stringify(document.querySelectorAll(".pp-row .choice").length === 9)`, "four parts, twice, and how Pi calls its tools");
 
     // The app's own dropdowns, not the system's.
     assert.equal(await inPage<number>(`return JSON.stringify(document.querySelectorAll(".sheet select").length)`), 0);
@@ -151,6 +151,7 @@ test("a message the wiki's pages came with shows only the person's words, its me
         "Found with a tool",
         "Kept as they were",
         "The rarer ones when needed",
+        "Directly or from scripts",
     ]);
     assert.deepEqual(await outside(), []);
     await shot("context-sheet-390");
@@ -166,4 +167,28 @@ test("a message the wiki's pages came with shows only the person's words, its me
 
     await page.setViewport(VIEWPORTS.desktop);
     await shot("context-sheet-1280");
+});
+
+test("Compact context sets how Pi calls its tools for every session: only from codemode scripts (PP-379)", real, async () => {
+    app.config.lastModel ??= { provider: "faux", modelId: "faux-1", thinkingLevel: "off" };
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await open(Number(id), "mobile");
+    await page.evaluate(`(await import("/store.js")).openSheet({ type: "compact" }); return "true";`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="prompt-part-codemode"] .choice') !== null)`, "the row");
+    await page.evaluate(`document.querySelector('[data-part="prompt-part-codemode"]').scrollIntoView({ block: "center" }); document.querySelector('[data-part="prompt-part-codemode"] .choice').click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelectorAll('.choice-menu [role="option"]').length === 2)`, "on and only");
+    assert.deepEqual(await outside(), []);
+    await shot("codemode-choice-390");
+    await page.evaluate(`[...document.querySelectorAll('.choice-menu [role="option"]')].find((each) => each.textContent.includes("Only from scripts")).click(); return "true";`);
+    await until(() => app.config.codemodeMode === "only", "only, for every session");
+    await see(
+        `return JSON.stringify(document.querySelector('[data-part="prompt-part-codemode"] .choice-text > span:first-child')?.textContent.trim() === "Only from scripts")`,
+        "the row says so",
+    );
+    assert.deepEqual(await outside(), []);
+    await shot("codemode-only-390");
+    await page.setViewport(VIEWPORTS.desktop);
+    await shot("codemode-only-1280");
+    await app.setCodemodeMode(owner(app), "on");
 });

@@ -85,8 +85,8 @@ const PARTS = () => [
     },
 ];
 
-/** For this session (or every session): a choice per part, with what each costs in words. */
-function PromptParts({ label, own, all, onPick }) {
+/** For this session (or every session): a choice per part, with what each costs in words; `children` after them. */
+function PromptParts({ label, own, all, onPick, children }) {
     return html`<div class="field">
         <div class="label">${label}</div>
         ${PARTS().map(
@@ -107,6 +107,27 @@ function PromptParts({ label, own, all, onPick }) {
                 </div>
             </div>`,
         )}
+        ${children}
+    </div>`;
+}
+
+/** How Pi calls its tools, for every session (PP-379, setting codemode.mode): directly, or only from codemode scripts. */
+function CodemodeMode({ mode }) {
+    const name = t("How Pi calls its tools");
+
+    return html`<div class="pp-row" data-part="prompt-part-codemode">
+        <span>${name}</span>
+        <div class="pp-choice">
+            <${Choice}
+                label=${name}
+                value=${mode}
+                options=${[
+                    { value: "on", label: t("Directly or from scripts"), detail: t("codemode batches calls when it helps") },
+                    { value: "only", label: t("Only from scripts"), detail: t("Pi sees codemode and a few tools; it calls the rest from scripts") },
+                ]}
+                onChange=${(next) => attempt(() => api("settings", { codemodeMode: next }))}
+            />
+        </div>
     </div>`;
 }
 
@@ -136,7 +157,9 @@ export function CompactSheet() {
             me?.role === "owner" &&
             html`<p class="muted small">${t("What goes into Pi's prompt fills the context too. Text that changes is sent again, and each copy stays until the session compacts; a change here shows from the next message.")}</p>
                 <${PromptParts} label=${t("What this session's prompt holds")} own=${view.conversation?.contextPolicy ?? {}} all=${policy} onPick=${setOwnPart} />
-                <${PromptParts} label=${t("Every session, unless it has its own")} all=${policy} onPick=${setAllPart} />`
+                <${PromptParts} label=${t("Every session, unless it has its own")} all=${policy} onPick=${setAllPart}>
+                    <${CodemodeMode} mode=${server?.codemodeMode ?? "on"} />
+                <//>`
         }
         <div class="field">
             <div class="label">${t("Compact now: what should the summary keep? (optional)")}</div>

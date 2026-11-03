@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type AssistantSettings, readAssistant, storedAssistant } from "./assistant.ts";
 import type { PermissionMode, PopupMode } from "./browser/pi-browser.ts";
-import { type ContextPart, type ContextPolicy, DEFAULT_CONTEXT_POLICY } from "./context-policy.ts";
+import { type CodemodeMode, type ContextPart, type ContextPolicy, DEFAULT_CONTEXT_POLICY } from "./context-policy.ts";
 import { type SubagentDefaults, type SubagentPart, withPart } from "./subagent-defaults.ts";
 
 /**
@@ -210,6 +210,8 @@ interface PocketConfig {
     browserPermissions?: PermissionMode;
     /** Whether browser_eval runs scripts that read the page in Pi's browser (PP-244). Absent: on. */
     browserEval?: boolean;
+    /** How Pi calls its tools in every session (PP-379, `context-policy.ts`): "only" from codemode scripts. Absent: on. */
+    codemodeMode?: CodemodeMode;
     /** Whether people may keep artifacts as pages on their rail (PP-370, `kept-pages.ts`). Absent: on. */
     artifactPages?: boolean;
     /** The design system Pi designs with unless asked otherwise (`design-systems.ts`), by its id. Absent: none. */
@@ -736,6 +738,20 @@ export class ConfigStore {
 
     get browserPopups(): PopupMode {
         return this.#config.browserPopups ?? "allow";
+    }
+
+    get codemodeMode(): CodemodeMode {
+        return this.#config.codemodeMode ?? "on";
+    }
+
+    set codemodeMode(mode: CodemodeMode) {
+        if (mode === "on") {
+            delete this.#config.codemodeMode;
+        } else {
+            this.#config.codemodeMode = mode;
+        }
+
+        this.save();
     }
 
     get browserPermissions(): PermissionMode {

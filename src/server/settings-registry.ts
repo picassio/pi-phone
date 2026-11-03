@@ -23,7 +23,7 @@ import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "./video-gen.ts";
 import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES } from "./audio.ts";
 import { PERMISSION_MODES, POPUP_MODES } from "./browser/pi-browser.ts";
 import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
-import { CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
+import { CODEMODE_MODES, CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
 import { THINKING_LEVELS } from "./models.ts";
 import { copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -440,6 +440,16 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 apply: (user, value, target) => app.setContextPart(user, part, value.trim().toLowerCase(), session(target)),
             },
         ]),
+        {
+            id: "codemode.mode",
+            area: "sessions",
+            title: "How Pi calls its tools",
+            help: "on (the default: directly, or several at once from a codemode script) or only (from codemode scripts alone: the model is offered codemode, tool_search and the few tools whose cards read their call, such as artifact and subagent; the prompt lists the others for scripts). For every session; each session's next request follows it.",
+            owner: true,
+            read: () => app.config.codemodeMode,
+            choices: () => [...CODEMODE_MODES],
+            apply: (user, value) => app.setCodemodeMode(user, value.trim().toLowerCase()),
+        },
         // ─── Pi's browser ───
         {
             id: "browser.runModel",

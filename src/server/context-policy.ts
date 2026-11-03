@@ -18,11 +18,17 @@ export const WIKI_MODES = ["tool", "relevant", "frozen", "live"] as const;
 export const SECRETS_MODES = ["tool", "list"] as const;
 export const SKILLS_MODES = ["frozen", "live"] as const;
 export const TOOLS_MODES = ["load", "all"] as const;
+/**
+ * How Pi calls its tools (PP-379, pi-pocket 0.28.0's codemode Only mode), for every session: `on` (directly, or from a
+ * codemode script) or `only` (only from scripts: every tool but a few is not declared to the model, `extensions/codemode.ts`).
+ */
+export const CODEMODE_MODES = ["on", "only"] as const;
 
 export type WikiMode = (typeof WIKI_MODES)[number];
 export type SecretsMode = (typeof SECRETS_MODES)[number];
 export type SkillsMode = (typeof SKILLS_MODES)[number];
 export type ToolsMode = (typeof TOOLS_MODES)[number];
+export type CodemodeMode = (typeof CODEMODE_MODES)[number];
 
 export type ContextPolicy = { wiki: WikiMode; secrets: SecretsMode; skills: SkillsMode; tools: ToolsMode };
 export type ContextPart = keyof ContextPolicy;

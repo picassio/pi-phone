@@ -339,6 +339,10 @@ export interface PocketHost {
     designSystem(): string | undefined;
     /** What of the wiki, secrets, and skills goes into a session's prompt (`context-policy.ts`, PP-276). */
     contextPolicy(id: ConversationId): ContextPolicy;
+    /** Whether Pi calls its tools only from codemode scripts, in every session (PP-379, setting `codemode.mode`). */
+    codemodeOnly(): boolean;
+    /** The names of the tools the modules that are on install now, built-in and drop-in (PP-379). */
+    toolNames(): string[];
     /**
      * The connected machines, each with the short alias Pi names it by (machine_run, machine_copy), and whether Pi asks
      * before each machine_run command there (`askRun`, PP-230).

@@ -62,7 +62,8 @@ const readOnly = Object.assign(tool, { annotations: { readOnlyHint: true } }); /
 
 `section("<key>", (input) => "text" | undefined)` in `sections: [...]` adds text to every session's system prompt
 while the drop-in is on. Each costs every request: keep it to a sentence or two, and only when Pi must know it
-without a tool description saying it.
+without a tool description saying it. A section about one of its tools looks for it in `input.agent.tools` and
+`input.agent.callable` both: in codemode's Only mode a tool is for scripts alone.
 
 ## Routes, the browser part, events, commands (`web`)
 

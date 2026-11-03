@@ -358,6 +358,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
   84.3k (109). Tests run with tools `all` (`openApp`), but `deferred-tools.test.ts`. Every session's choice is
   `config.contextPolicy`, a session's own
   `SessionMeta.contextPolicy`; Menu › Compact context shows both, Pi's `context.*` settings change them.
+  **Codemode's mode** (PP-379, from pi-pocket 0.28.0; `config.codemodeMode`, setting `codemode.mode`, the owner's, for
+  every session: a session's selection cannot hold it, as subagents would then start in Only mode by default). pi-phone
+  builds the codemode extension itself from Pi Durable's `createCodemodeTool` with a section of its own: in `on` one
+  line (Pi Durable's section listed every tool the model already had again, 11,700 characters a session). In `only`
+  its `wraps` getter (read at each resolve, so tools of modules turned on later count; `host.toolNames()`) takes `model`
+  out of every tool's `callers` but `DECLARED` (codemode, and the tools whose transcript card reads their call's
+  details: artifact, subagent, image_generate, video_generate, audio_speak, audio_transcribe, browser_run, show_screen,
+  extension_create, never deferred then), tool_search with them, and blanks tool_search's section; the codemode section
+  lists the tools for scripts, smallest first within Pi's default inline budget (12,000 characters), then their names;
+  the rarer ones scripts find with `searchTools()`. A subagent given such a tool gets codemode with it; plan mode reads
+  a tool's read-only hint from `agent.callable` too. `test/prompt-budget.test.ts` holds pi-phone's own part of a new
+  session's first request (its sections and tool schemas, tools `load`; not Pi's four tools, AGENTS.md or skills) to
+  85,000 characters: 95,269 before the codemode section shrank, 83,695 after.
   The Wiki page is the module's browser part (`extensions/para-web/`, owner only): the PARA tree, qmd search, pages
   rendered with `[[links]]`, backlinks, freshness, an editor that saves through pi-para's `wiki_write`, and Ask Pi
   (`pocket.compose`). The app's markdown turns `[[page]]` into `#wiki:page` links anywhere; the Wiki page opens them.

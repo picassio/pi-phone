@@ -1713,6 +1713,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 wikiCaptureMinutes?: unknown;
                 compactAt?: unknown;
                 contextPolicy?: unknown;
+                codemodeMode?: unknown;
                 subagentDefault?: unknown;
                 progressBoard?: unknown;
                 limitWaitHours?: unknown;
@@ -1732,6 +1733,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.wikiCaptureMinutes,
                     body.compactAt,
                     body.contextPolicy,
+                    body.codemodeMode,
                     body.subagentDefault,
                     body.progressBoard,
                     body.limitWaitHours,
@@ -1771,6 +1773,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 const { part, mode } = (body.contextPolicy ?? {}) as { part?: unknown; mode?: unknown };
 
                 await app.setContextPart(user, part as ContextPart, mode);
+            }
+
+            // How Pi calls its tools in every session: on, or only from codemode scripts (PP-379).
+            if (body.codemodeMode !== undefined) {
+                await app.setCodemodeMode(user, body.codemodeMode);
             }
 
             // The model and thinking level subagents start on in every session (PP-281): { part, value }.

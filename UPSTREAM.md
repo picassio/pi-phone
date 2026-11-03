@@ -69,3 +69,16 @@ is skipped on purpose.
   (drop-ins get TypeBox's `Type` and `StringEnum` on pi-ai through a compat module): the owner's decision of
   2026-11-03 keeps one way, so pi-phone refuses a TypeBox drop-in instead (`typeBoxUse` in `reload.ts`); 977a1e7
   (PiP's artifact schema): pi-phone has no PiP.
+- Codemode's Only mode and the prompt budget from 0.27/0.28 (PP-379): f6fd8e8 (the mode, the `wraps` getter,
+  `host.toolNames`, a subagent given a script-only tool gets codemode), da646ed (Only hides every tool but the declared
+  few, the waiting ones too), c9eb90c (the tools whose cards read their call stay declared: pi-phone's list, as it has
+  no ask or memory), 9181570 (the guide: a tool the prompt names is called from a script), eec05c5 (its test), 47a9e57
+  (plan mode reads `agent.callable` too), 838f43a and de6d0c1 (what Only covers: pi-phone has no tool search of its own,
+  so in Only mode tool_search is hidden with its note and scripts use `searchTools()`), ca33f6b (a section looks in
+  `callable` too: pi-phone has no section that checks for a tool, so only the Extension builder's reference says it);
+  c3ad1d7 and d623bff (the budget test: pi-phone's measured part, 95,269 characters, became 83,695 once its codemode
+  section stopped repeating every tool, and the limit is 85,000). Differs: the mode is a pi-phone setting
+  (`codemode.mode`, Menu › Compact context), not an extension setting, and the codemode extension is Pi Durable's tool
+  with pi-phone's section. Not taken: adeb991 (a guard for a live reload before the host has `toolNames`: pi-phone's
+  built-in modules do not reload live), 35ac7c8 and the texts of d623bff (pocket's own sections and tools; pi-phone's
+  differ).

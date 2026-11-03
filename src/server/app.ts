@@ -77,7 +77,7 @@ import { inBatchOrder } from "./batch-order.ts";
 import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
 import { APP_ROOT, ConfigStore, type User, type WelcomeState } from "./config.ts";
-import { CONTEXT_PARTS, type ContextPart, type ContextPolicy, contextMode, resolveContextPolicy } from "./context-policy.ts";
+import { CODEMODE_MODES, type CodemodeMode, CONTEXT_PARTS, type ContextPart, type ContextPolicy, contextMode, resolveContextPolicy } from "./context-policy.ts";
 import { DEFERRED_EXTENSION, deferredToolsExtension } from "./deferred-tools.ts";
 import { type ResolvedSubagentDefaults, resolveSubagentDefaults, SESSION, SUBAGENT_PARTS, type SubagentPart, untilText, withPart } from "./subagent-defaults.ts";
 import {
@@ -1188,6 +1188,12 @@ export class PocketApp {
             builtInSkills: () => this.builtInSkills(),
             designSystem: () => this.designSystemPrompt(),
             contextPolicy: (id) => this.contextPolicy(id),
+            codemodeOnly: () => this.config.codemodeMode === "only",
+            toolNames: () =>
+                registry
+                    .snapshot()
+                    .tools()
+                    .map(({ tool }) => tool.name),
             machineOf: (cwd) => {
                 const machine = this.places.machineOf(cwd);
 
@@ -4169,6 +4175,8 @@ export class PocketApp {
                 compactAt: this.config.compactAt,
                 // What of the wiki, secrets, and skills goes into every session's prompt (`context-policy.ts`).
                 contextPolicy: resolveContextPolicy(this.config.contextPolicy, undefined),
+                // How Pi calls its tools in every session: on, or only from codemode scripts (PP-379).
+                codemodeMode: this.config.codemodeMode,
                 // The progress board on the phone (PP-283): the notification's rows, the floating bubble, hidden when idle.
                 progressBoard: this.config.progressBoard,
                 // The model and thinking level subagents start on in every session (PP-281); a part absent: the session's own.
@@ -6138,6 +6146,23 @@ export class PocketApp {
         }
 
         this.config.browserPermissions = mode as PermissionMode;
+    }
+
+    /**
+     * How Pi calls its tools in every session (PP-379): on (directly, or from codemode scripts) or only (from scripts
+     * alone). The owner's; tabs hear of it, and each session's next request follows it.
+     */
+    async setCodemodeMode(user: User, mode: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (!CODEMODE_MODES.includes(mode as CodemodeMode)) {
+            throw new HttpError(400, `How Pi calls its tools is ${CODEMODE_MODES.join(" or ")}.`);
+        }
+
+        this.config.codemodeMode = mode as CodemodeMode;
+        await this.#refreshClients();
     }
 
     /** Whether browser_eval runs scripts that read the page (Settings › Pi's browser, PP-244). The owner's. */

@@ -924,7 +924,11 @@ export default function createSubagents(host: PocketHost) {
             const chosen =
                 action === "spawn" ? await chosenModel(host, named, parent.model, defaults.model, approve) : {};
             const model = chosen.ref;
-            const parentTools = action === "spawn" && args.tools !== undefined ? parent.tools : [];
+            // Tools that only scripts call (codemode's Only mode, PP-379) can be given too: the subagent gets codemode with them.
+            const parentTools =
+                action === "spawn" && args.tools !== undefined
+                    ? [...new Map([...parent.tools, ...parent.callable].map((tool) => [tool.name, tool])).values()]
+                    : [];
             const tools =
                 args.tools === undefined
                     ? undefined
@@ -939,6 +943,13 @@ export default function createSubagents(host: PocketHost) {
 
                           return found;
                       });
+            const codemode = parentTools.find((tool) => tool.name === "codemode");
+
+            // Without codemode, a subagent given only tools that scripts call could call none of them.
+            if (codemode !== undefined && tools?.some((tool) => tool.callers?.includes("model") === false) === true && !tools.includes(codemode)) {
+                tools.push(codemode);
+            }
+
             // TypeBox infers no type from a union built from a list; the schema itself checks the value.
             const asked = args.thinking as ModelThinkingLevel | undefined;
             // The level asked for, else the subagents' setting, else the session's own; never above the cap.
@@ -1171,7 +1182,8 @@ export default function createSubagents(host: PocketHost) {
 
             // Read only: it looks with git and reads files; it has no edit or write.
             const parent = await api.agent(context);
-            const tools = ["read", "bash", "grep", "find", "ls"].filter((tool) => parent.tools.some((each) => each.name === tool));
+            // In codemode's Only mode (PP-379) they are the session's for scripts only: callable, not offered.
+            const tools = ["read", "bash", "grep", "find", "ls"].filter((tool) => [...parent.tools, ...parent.callable].some((each) => each.name === tool));
             const started = await subagent.execute({ action: "spawn", name, message: prompt, tools }, api, context);
 
             await api.commit(async (tx) => {
