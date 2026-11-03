@@ -14,6 +14,7 @@ import { Cdp } from "./cdp.ts";
 import {
     BrowserPage,
     cardHideTargets,
+    chordOf,
     type Element,
     type Observed,
     type PictureClip,
@@ -1512,6 +1513,13 @@ export class PiBrowser {
 
     press(session: number, key: string, acceptDialog = false): Promise<string> {
         return this.#run(session, `Pressing ${key}`, async ({ page }) => {
+            // A key that types a character never goes into a password field, as Pi's typing never does (PP-376).
+            const typing = chordOf(key)?.text;
+
+            if (typing !== undefined && typing !== "\r" && (await page.focusedPassword())) {
+                throw new Error(`The focus is in a password field, and ${key} would type into it: Pi never types there. Type a saved secret (browser_type with secret: NAME), or ask the person with browser_sign_in.`);
+            }
+
             await page.setAcceptDialogs(acceptDialog);
 
             try {

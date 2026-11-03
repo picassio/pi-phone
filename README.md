@@ -187,7 +187,8 @@ No Termux, no laptop, no cloud VM.
   in the page's; sign-in cards and saved secrets work there, and what you type on a card stays hidden there too.
   `browser_drag` drags a control onto another or by an offset (a slider, a kanban card, a sortable list, a map), with
   the pointer moving in steps and a page's own drag and drop getting its drag events and data; the read marks what can
-  be dragged, and `browser_run` drags too. Lists a page draws itself
+  be dragged, and `browser_run` drags too. `browser_press` presses chords as well (Ctrl+A, Ctrl+Enter, Shift+Tab,
+  Ctrl+K, Meta+K for a macOS page), and never a character into a password field. Lists a page draws itself
   (a select with its own scroll area) work too: every option is listed, a click scrolls it into view, `browser_select`
   opens the list and picks by name, `browser_scroll` scrolls the list, and a letter jumps by type-ahead.
   `browser_screenshot` can save its picture as a PNG or JPEG in the session's folder (for `doc_image` or a report),

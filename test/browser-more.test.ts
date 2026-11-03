@@ -9,6 +9,7 @@ import { after, before, test } from "node:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { chordOf } from "../src/server/browser/page.ts";
 import { ChromeEngine, PiBrowser, type PiBrowserOptions } from "../src/server/browser/pi-browser.ts";
 
 const chrome = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].find((name) => {
@@ -63,6 +64,19 @@ const PAGES: Record<string, string> = {
         <p><a href="/prices.csv" download>Price list</a></p>
         <p><button onclick="const a = document.createElement('a'); a.href = window.URL.createObjectURL(new Blob(['hello notes'])); a.download = 'notes.txt'; a.click()">Export notes</button></p>
         <p><a href="/archive.bin">Whole archive</a></p>`,
+    // Keys: each chord the page hears (not plain characters), where the focus is, and what is selected after it.
+    "/keys": `<!doctype html><title>Keys</title><meta name="viewport" content="width=device-width">
+        <label>Notes <textarea id="notes"></textarea></label><br><label>Name <input id="name"></label><br>
+        <label>Password <input id="pw" type="password"></label>
+        <p id="out">No keys</p><p id="after">Nothing</p>
+        <script>
+            addEventListener('keydown', (e) => {
+                if (['Control', 'Shift', 'Meta', 'Alt'].includes(e.key) || (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey)) return;
+                out.textContent = 'Heard ' + (e.ctrlKey ? 'Ctrl+' : '') + (e.metaKey ? 'Meta+' : '') + (e.altKey ? 'Alt+' : '') + (e.shiftKey ? 'Shift+' : '') + e.key + ' in ' + document.activeElement.id;
+                if (e.key === 'Enter' && e.ctrlKey) e.preventDefault();
+            }, true);
+            addEventListener('keyup', () => { const f = document.activeElement; after.textContent = 'Focus ' + f.id + ', selected ' + ((f.selectionEnd ?? 0) - (f.selectionStart ?? 0)) + ', notes ' + JSON.stringify(notes.value); });
+        </script>`,
     "/card": `<!doctype html><title>Card</title><meta name="viewport" content="width=device-width">
         <label>Card number <input id="card"></label><br><label>PIN <input id="pin" type="password"></label><br>
         <button onclick="out.textContent = 'Paid with ' + card.value + (pin.value === '4321' ? ' and the PIN' : ' without the PIN')">Pay</button>
@@ -212,6 +226,49 @@ test("with Chrome: browser_drag drops a card on a column (the page's own drag an
         // The pointer moved there in steps, as a person's does.
         assert.match(panned, /m{5,}/);
         await assert.rejects(browser.drag(1, number(panned, /\[(\d+)\] clickable "Map"/), { dx: 5000, dy: 0 }), /would end outside the view/);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("a key or a chord: modifiers by name (Ctrl, Shift, Meta or Cmd, Alt), a letter as the key's own, and no text with a shortcut (PP-376)", () => {
+    assert.deepEqual(chordOf("Ctrl+A"), { key: "a", code: "KeyA", keyCode: 65, modifiers: 2 });
+    assert.deepEqual(chordOf("Shift+Tab"), { key: "Tab", code: "Tab", keyCode: 9, modifiers: 8 });
+    assert.deepEqual(chordOf("cmd+k"), { key: "k", code: "KeyK", keyCode: 75, modifiers: 4 });
+    assert.deepEqual(chordOf("Ctrl+Shift+P"), { key: "P", code: "KeyP", keyCode: 80, modifiers: 10 });
+    assert.deepEqual(chordOf("Shift+a"), { key: "A", code: "KeyA", keyCode: 65, modifiers: 8, text: "A" });
+    assert.deepEqual(chordOf("Ctrl+Enter"), { key: "Enter", code: "Enter", keyCode: 13, modifiers: 2 });
+    assert.deepEqual(chordOf("Ctrl++"), { key: "+", code: "", keyCode: 0, modifiers: 2 });
+    // Keys as before: a named key, a character, and "+" itself.
+    assert.deepEqual(chordOf("Enter"), { key: "Enter", code: "Enter", keyCode: 13, modifiers: 0, text: "\r" });
+    assert.deepEqual(chordOf("G"), { key: "G", code: "KeyG", keyCode: 71, modifiers: 0, text: "G" });
+    assert.deepEqual(chordOf("+"), { key: "+", code: "", keyCode: 0, modifiers: 0, text: "+" });
+    assert.equal(chordOf("Hyper+A"), undefined);
+    assert.equal(chordOf("Ctrl+Bogus"), undefined);
+});
+
+test("with Chrome: browser_press presses chords the page hears (Ctrl+A selects all, Ctrl+Enter, Shift+Tab goes back, Meta+K), and no character into a password field (PP-376)", { skip }, async () => {
+    const browser = browserHere();
+
+    try {
+        const page = await browser.open(1, "http://pi.test/keys");
+
+        await browser.type(1, number(page, /\[(\d+)\] textbox "Notes"/), "one two three", {});
+        assert.match(await browser.press(1, "Ctrl+A"), /Heard Ctrl\+a in notes\nFocus notes, selected 13/);
+        assert.match(await browser.press(1, "Ctrl+Enter"), /Heard Ctrl\+Enter in notes\nFocus notes, selected 13, notes "one two three"/);
+        assert.match(await browser.press(1, "Meta+K"), /Heard Meta\+k in notes/);
+
+        const named = await browser.type(1, number(page, /\[(\d+)\] textbox "Name"/), "Tuan", {});
+
+        assert.match(await browser.press(1, "Shift+Tab"), /Heard Shift\+Tab in name\nFocus notes/);
+
+        // In the password field: a character is refused, a shortcut and Enter are not.
+        await browser.click(1, number(named, /\[(\d+)\] password "Password"/));
+        await assert.rejects(browser.press(1, "x"), /focus is in a password field, and x would type into it/);
+        await assert.rejects(browser.press(1, "Shift+X"), /password field/);
+        assert.match(await browser.press(1, "Ctrl+A"), /Heard Ctrl\+a in pw/);
+        assert.match(await browser.press(1, "Enter"), /Heard Enter in pw/);
+        await assert.rejects(browser.press(1, "Hyper+A"), /each with modifiers if needed/);
     } finally {
         await browser.close();
     }

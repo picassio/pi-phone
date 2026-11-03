@@ -377,9 +377,16 @@ const KEYS: Record<string, { code: string; keyCode: number; text?: string }> = {
     ArrowRight: { code: "ArrowRight", keyCode: 39 },
     PageDown: { code: "PageDown", keyCode: 34 },
     PageUp: { code: "PageUp", keyCode: 33 },
+    Home: { code: "Home", keyCode: 36 },
+    End: { code: "End", keyCode: 35 },
+    Delete: { code: "Delete", keyCode: 46 },
+    Space: { code: "Space", keyCode: 32, text: " " },
 };
 
 export const PRESSABLE = Object.keys(KEYS);
+
+/** Modifiers a key may be pressed with (PP-376), by name, as DevTools' bits: Alt 1, Ctrl 2, Meta (Cmd) 4, Shift 8. */
+const MODIFIERS: Record<string, number> = { alt: 1, option: 1, ctrl: 2, control: 2, meta: 4, cmd: 4, command: 4, super: 4, win: 4, shift: 8 };
 
 /** A part of the view, in CSS pixels. */
 export type PictureClip = { x: number; y: number; width: number; height: number };
@@ -395,11 +402,52 @@ export type PictureOptions = { png?: boolean; clip?: PictureClip & { scale?: num
  * A key to press: a named one, or one printable character (a list's type-ahead: "G" goes to Global Payments). Keys
  * without text go down raw, as a keyboard's do, so a page's own key handlers see them (PP-116).
  */
+/**
+ * A key as `keyOf` reads it: what DevTools gets (`modifiers`: `MODIFIERS`' bits) and its text, which it types (none
+ * with Ctrl, Alt or Meta held: a shortcut types nothing).
+ */
+export type Key = { key: string; code: string; keyCode: number; text?: string; modifiers: number };
+
+/**
+ * A key or a chord to press (PP-376): a key (`keyOf`'s), after modifiers joined by "+" ("Ctrl+A", "Ctrl+Enter",
+ * "Shift+Tab", "Meta+K" or "Cmd+K", "Ctrl+Shift+P"; "Ctrl++" for the plus key). Undefined for what is neither.
+ */
+export function chordOf(chord: string): Key | undefined {
+    const plus = chord.endsWith("++");
+    const parts = (plus ? chord.slice(0, -2) : chord).split("+");
+    const base = plus ? "+" : chord.length > 1 && parts.length > 1 ? parts.pop()! : chord;
+    const names = plus || (chord.length > 1 && chord.includes("+")) ? parts : [];
+    let modifiers = 0;
+
+    for (const name of names) {
+        const bit = MODIFIERS[name.trim().toLowerCase()];
+
+        if (bit === undefined) {
+            return undefined;
+        }
+
+        modifiers |= bit;
+    }
+
+    const key = keyOf(base);
+
+    if (key === undefined) {
+        return undefined;
+    }
+
+    // A letter in a chord is the key's own ("a"), capital with Shift; Ctrl, Alt or Meta make a shortcut, which types nothing.
+    const letter = names.length > 0 && /^[a-z]$/i.test(key.key) ? (modifiers & 8 ? key.key.toUpperCase() : key.key.toLowerCase()) : undefined;
+    const shifted = letter === undefined ? {} : { key: letter, text: letter };
+    const { text, ...rest } = { ...key, ...shifted };
+
+    return { ...rest, modifiers, ...(text === undefined || modifiers & 7 ? {} : { text }) };
+}
+
 export function keyOf(key: string): { key: string; code: string; keyCode: number; text?: string } | undefined {
     const known = KEYS[key];
 
     if (known !== undefined) {
-        return { key, ...known };
+        return { key: key === "Space" ? " " : key, ...known };
     }
 
     if ([...key].length !== 1 || /[\p{C}]/u.test(key)) {
@@ -1783,15 +1831,19 @@ export class BrowserPage {
      * (they see the page; each key otherwise held the next 300 ms, PP-200), and both events go at once, in order.
      */
     async press(key: string, { follow = true }: { follow?: boolean } = {}): Promise<void> {
-        const known = keyOf(key);
+        const known = chordOf(key);
 
         if (known === undefined) {
-            throw new Error(`Pi's browser presses ${PRESSABLE.join(", ")}, or one character (a list's type-ahead); for text, type it.`);
+            throw new Error(
+                `Pi's browser presses ${PRESSABLE.join(", ")}, or one character (a list's type-ahead), each with modifiers if needed (Ctrl+A, Ctrl+Enter, Shift+Tab, Meta+K, Alt+ArrowDown); for text, type it.`,
+            );
         }
 
         const before = this.#loads;
-        const keys = { key: known.key, code: known.code, windowsVirtualKeyCode: known.keyCode };
-        const down = this.cdp.send("Input.dispatchKeyEvent", known.text === undefined ? { type: "rawKeyDown", ...keys } : { type: "keyDown", ...keys, text: known.text });
+        const keys = { key: known.key, code: known.code, windowsVirtualKeyCode: known.keyCode, modifiers: known.modifiers };
+        // Select All as a field's own command too, as typing's clearing does: a page's editor takes it so on every system.
+        const commands = known.modifiers & 6 && known.code === "KeyA" ? { commands: ["selectAll"] } : {};
+        const down = this.cdp.send("Input.dispatchKeyEvent", known.text === undefined ? { type: "rawKeyDown", ...keys, ...commands } : { type: "keyDown", ...keys, text: known.text });
 
         if (follow) {
             await down;
@@ -1802,6 +1854,25 @@ export class BrowserPage {
         }
 
         await Promise.all([down, this.cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...keys })]);
+    }
+
+    /**
+     * Whether the focus is in a password field (PP-376: Pi never presses a character into one): in the main frame, inside
+     * its open shadow roots, or, when a frame has it, in any of the page's frames (one read as focused when unsure).
+     */
+    async focusedPassword(): Promise<boolean> {
+        const deep = `(() => { let e=document.activeElement; while (e && e.shadowRoot && e.shadowRoot.activeElement) e=e.shadowRoot.activeElement;
+            return {password: !!e && e.tagName==='INPUT' && e.type==='password', frame: !!e && (e.tagName==='IFRAME' || e.tagName==='FRAME')}; })()`;
+        const main = await this.evaluate<{ password: boolean; frame: boolean }>(deep);
+
+        if (main.password || !main.frame) {
+            return main.password;
+        }
+
+        const frames = await this.#childFrames();
+        const each = await Promise.all(frames.map((frame) => this.#evaluateIn<{ password: boolean }>(frame, deep).catch(() => ({ password: false }))));
+
+        return each.some((focus) => focus.password);
     }
 
     /** Back or forward in this tab's history; false when there is nothing that way. */

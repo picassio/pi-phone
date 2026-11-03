@@ -1422,6 +1422,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   clickable too). `browser_run` offers DRAG when the page has something draggable: `drag_target` (what) and
   `drop_target` (any clickable control), `RunPage.drag`. HTML5 drags that start inside a frame of another site are not
   caught by the page's interception (pointer moves still go there).
+- **Key chords in Pi's browser** (`chordOf`, PP-376): `browser_press` takes a key (the named ones, now with Home,
+  End, Delete and Space, or one character) after modifiers joined by `+` (Ctrl/Control, Alt/Option, Shift,
+  Meta/Cmd/Command/Super/Win; `Ctrl++` is the plus key), sent as DevTools' `modifiers` bits on both events. A letter in
+  a chord is the key's own (`a`, `A` with Shift); with Ctrl, Alt or Meta held the key has no text (`rawKeyDown`: a
+  shortcut types nothing), and Ctrl/Meta+A also carries the `selectAll` command, as typing's clearing does. Pi's own
+  press of a key that types a character (not Enter) is refused while the focus is in a password field
+  (`focusedPassword`: the deep active element in the main frame, or, when a frame has the focus, in any frame); the
+  panel's keys (the person's own) are not checked.
 - **Downloads in Pi's browser** (PP-376; `PiBrowser.#takeDownloads`, `BrowserEngine.downloads`): each tab's page has
   `Browser.setDownloadBehavior` `allowAndName` into its engine's folder, events on (for the browser's profile, which is
   pi-phone's own): a `ChromeEngine`'s temporary folder (removed with it), a machine's `~/.pi/mobile/browser/downloads`
