@@ -670,6 +670,7 @@
     "Sign in to a model first: Pi needs one to show you around.": "请先登录一个模型：Pi 需要它来带你熟悉应用。",
     "The dictation language is a language tag such as vi-VN or en-US, or auto.": "听写语言是一个语言标签（如 vi-VN 或 en-US），或 auto。",
     "The session list opens on last, all, or priority.": "会话列表打开时为 last、all 或 priority。",
+    "pi-phone cannot read {1}.": "pi-phone 无法读取 {1}。",
     "A model is provider/modelId, such as anthropic/claude-opus-4-5.": "模型写作 provider/modelId，例如 anthropic/claude-opus-4-5。",
     "Say whether the model is a favorite: favorite is true or false.": "请说明该模型是否收藏：favorite 为 true 或 false。",
     "At most {1} favorite models.": "最多收藏 {1} 个模型。",

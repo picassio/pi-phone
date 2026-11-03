@@ -2,7 +2,7 @@
 // never finishes, and who hears about it all.
 import { cleanUp, root, until } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, test } from "node:test";
@@ -213,4 +213,25 @@ test("a module for API 2, 1, or none loads; a newer, older or broken version is 
     }
 
     assert.equal(installed().length, 3, "the refused ones installed nothing");
+});
+
+test("an event that leaves a module's file as it was loads nothing again (PP-381)", async () => {
+    const { dropIn, loader, notices, installed } = setUp();
+    const file = join(dropIn, "still.ts");
+
+    writeFileSync(file, gated("still", 1));
+    await loader.reload("still.ts");
+    loader.watch();
+
+    try {
+        // New permissions: Linux reports them, as Windows reports a read.
+        chmodSync(file, 0o600);
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        assert.ok(!notices.some((each) => /Reloaded still\.ts/.test(each.message)));
+
+        writeFileSync(file, gated("still", 2));
+        await until(() => installed().includes("t-still@2"), "the edit loads");
+    } finally {
+        await loader.close();
+    }
 });

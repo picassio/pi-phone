@@ -168,3 +168,10 @@ is skipped on purpose.
   the chip's fallback and the transcript's attachment pattern. heic-convert pinned to 2.1.0 (libheif-js 1.23.5).
   Differs: 50 million pixels at most (pocket 64), images made one at a time (pocket two), no file stamps (an upload's
   path is unique); pocket's `pip.js` part (no PiP here).
+- 0.28's small fixes (PP-381): 27b3456 and c837893 (a watch reloads tabs and modules only for a real change: a
+  file's inode, size and time), cd013d5 (a folder the server cannot read is a 403). Not taken: pocket's
+  OpenAI-compatible endpoints (703df0d, 6c01dcb, 4c0a3e7, 13249dc..b00536d, 57460c1, 96fd426): pi-phone's own custom
+  providers (PP-248, `custom-providers.ts`) already do it, and better here (the key in Secrets, never in a file;
+  headers, per-model context, output, images and reasoning; a tool for Pi): one way, pi-phone's. ef24777 (Home's menu
+  button): pi-phone's rail has the menu on every screen, a session open or not. ca9fe5a, 0b85e98, 27ab7ce: ported
+  with Pi 1.5 (PP-378). 0457d2f (Tailscale Serve's launcher): pi-phone has no launcher or serve mode.

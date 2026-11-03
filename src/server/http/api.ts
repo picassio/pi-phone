@@ -1722,8 +1722,22 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
             const path = app.workspace.checkDirectory(requested);
             const dirs: { name: string; path: string }[] = [];
+            let entries;
 
-            for (const entry of readdirSync(path, { withFileTypes: true })) {
+            // A folder the server may not read (/ on Android, /proc, another app's data) is a 403, not a 500 (PP-381).
+            try {
+                entries = readdirSync(path, { withFileTypes: true });
+            } catch (error) {
+                const code = (error as NodeJS.ErrnoException).code;
+
+                if (code === "EACCES" || code === "EPERM") {
+                    throw new HttpError(403, `pi-phone cannot read ${path}.`);
+                }
+
+                throw error;
+            }
+
+            for (const entry of entries) {
                 if (!showHidden && entry.name.startsWith(".")) {
                     continue;
                 }

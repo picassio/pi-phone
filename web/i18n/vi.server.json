@@ -664,6 +664,7 @@
     "The team server signs only a sign-in to the machine with its key.": "Máy chủ nhóm chỉ ký bằng khóa của máy cho việc đăng nhập vào máy đó.",
     "The dictation language is a language tag such as vi-VN or en-US, or auto.": "Ngôn ngữ nhập giọng nói là một mã ngôn ngữ như vi-VN hay en-US, hoặc auto.",
     "The session list opens on last, all, or priority.": "Danh sách phiên mở ở `last`, `all` hoặc `priority`.",
+    "pi-phone cannot read {1}.": "pi-phone không đọc được {1}.",
     "A model is provider/modelId, such as anthropic/claude-opus-4-5.": "Một mô hình có dạng provider/modelId, ví dụ anthropic/claude-opus-4-5.",
     "Say whether the model is a favorite: favorite is true or false.": "Hãy cho biết mô hình có được yêu thích không: `favorite` là `true` hoặc `false`.",
     "At most {1} favorite models.": "Tối đa {1} mô hình yêu thích.",

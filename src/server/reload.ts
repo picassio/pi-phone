@@ -25,7 +25,7 @@ import {
     watch,
     writeFileSync,
 } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Extension, Registry } from "@earendil-works/pi-durable";
 import { describe } from "./errors.ts";
@@ -588,6 +588,8 @@ export class ExtensionLoader {
     readonly #loadLimitMs: number;
     /** The folder of each file's latest load: its removal from that folder takes that version away. */
     readonly #sources = new Map<string, string>();
+    /** Each module file's stamp at its latest load (`stampOf`): an event that leaves the file so loads nothing (PP-381). */
+    readonly #stamps = new Map<string, string | undefined>();
     /** How to end each load still waiting for its module: the server stopping ends them. */
     readonly #waiting = new Set<() => void>();
     #closed = false;
@@ -786,6 +788,7 @@ export class ExtensionLoader {
         this.#installed.delete(file);
         this.#errors.delete(file);
         this.#refusals.delete(file);
+        this.#stamps.delete(file);
     }
 
     /** Keep why a load failed, and whether it was a refusal. */
@@ -888,6 +891,7 @@ export class ExtensionLoader {
         const deadline = Math.min(Date.now() + this.#loadLimitMs, until ?? Infinity);
 
         this.#sources.set(file, module.directory);
+        this.#stamps.set(file, stampOf(join(module.directory, file)));
 
         try {
             return await this.#build(module, generation, cacheBust, deadline);
@@ -895,6 +899,11 @@ export class ExtensionLoader {
             // A load that no longer counts fails quietly too: the newer load, or the module turned off, says what holds.
             if (!(error instanceof Overtaken) && !this.#isLatest(file, generation)) {
                 throw new Overtaken(file);
+            }
+
+            // A failed load is tried again at the next event about its file, even one that leaves the file as it was.
+            if (!(error instanceof Overtaken)) {
+                this.#stamps.delete(file);
             }
 
             throw error;
@@ -1290,6 +1299,11 @@ export class ExtensionLoader {
             return;
         }
 
+        // The file as it was loaded: a watch reports a read or a new attribute too (the Extensions sheet reads each file).
+        if (this.#stamps.has(file) && this.#stamps.get(file) === stampOf(join(directory, file))) {
+            return;
+        }
+
         const loaded = this.#installed.has(file);
 
         this.#reload(file).then(
@@ -1389,14 +1403,63 @@ function summary(path: string): string {
     }
 }
 
-/** Calls `onChange` shortly after anything under `directory` changes. */
+/**
+ * A file's inode, size, and time of last change, "folder" for a folder, or undefined when it is gone (PP-381, from
+ * pi-pocket 0.28). Reading a file, or changing its attributes, leaves it as it was: a watch reports those too. The inode
+ * tells a file saved by a rename from the one before, also when a coarse clock gives both the same time.
+ */
+function stampOf(path: string): string | undefined {
+    try {
+        const stats = statSync(path);
+
+        return stats.isDirectory() ? "folder" : `${stats.ino}:${stats.size}:${stats.mtimeMs}`;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Calls `onChange` shortly after a file or folder under `directory` is added, removed, or written: not after an event
+ * that leaves it as it was (`stampOf`), such as a read. Tabs reload, and modules load again, only for a real change.
+ */
 export function watchTree(directory: string, onChange: (file: string) => void): () => void {
+    const stamps = new Map<string, string>();
+
+    const keep = (name: string, stamp: string | undefined) => (stamp === undefined ? stamps.delete(name) : stamps.set(name, stamp));
+
+    for (const name of readdirSync(directory, { recursive: true }) as string[]) {
+        keep(normalize(name), stampOf(join(directory, name)));
+    }
+
+    const pending = new Set<string>();
     let timer: NodeJS.Timeout | undefined;
-    let last = "";
+
+    const settle = () => {
+        const changed = [...pending].filter((name) => {
+            // An event with no name: something changed, and it does not say what.
+            if (name === "") {
+                return true;
+            }
+
+            const was = stamps.get(name);
+            const now = stampOf(join(directory, name));
+
+            keep(name, now);
+
+            return now !== was;
+        });
+
+        pending.clear();
+
+        if (changed.length > 0) {
+            onChange(changed[0]!);
+        }
+    };
+
     const watcher = watch(directory, { recursive: true }, (_event, name) => {
-        last = name?.toString() ?? "";
+        pending.add(name === null ? "" : normalize(name.toString()));
         clearTimeout(timer);
-        timer = setTimeout(() => onChange(last), 200);
+        timer = setTimeout(settle, 200);
     });
 
     return () => {
