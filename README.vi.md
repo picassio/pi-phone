@@ -205,7 +205,10 @@ dự án thật.</sub>
   một ô điều khiển hoặc một đoạn chữ, phần còn lại làm tối, và che bí mật (khung đặc cho khóa và mật khẩu, làm mờ
   mạnh cho tên); `image_markup` làm tương tự trên bất kỳ tệp hình nào, và `screenshot` lưu hình của nó bằng `save`.
   Nó tải tệp lên từ nơi phiên làm việc (`browser_upload`, vào một ô tệp hoặc nút Upload của nó), lưu trang dạng PDF
-  ở đó (`browser_save_pdf`), và giữ tối đa sáu tab (`browser_new_tab`, `browser_tabs`; khung hiện chúng thành một dải).
+  ở đó (`browser_save_pdf`). Tệp mà trang tải về trong trình duyệt trên máy (hoặc bản máy chủ) được lưu vào thư mục
+  `downloads/` của phiên (trên máy đó, với phiên làm việc ở đó; tối đa 25 MB, tệp lớn hơn bị hủy) và câu trả lời nêu tên
+  tệp; trình duyệt trên điện thoại không giữ tệp tải về (Pi sẽ nói vậy: hãy duyệt trên một máy), còn trình duyệt mà Pi gắn vào
+  thì tự lưu như cách của nó. Nó giữ tối đa sáu tab (`browser_new_tab`, `browser_tabs`; khung hiện chúng thành một dải).
   Cửa sổ mà trang mở ra (cửa sổ đăng nhập như của Microsoft trên Teams, một liên kết mở cửa sổ mới) thành một tab ở
   trước, vẫn trao đổi được với trang đã mở nó, và Pi được báo; khi nó tự đóng, trang đó trở lại phía trước. **Cài đặt ›
   Trình duyệt của Pi › Cửa sổ trang mở ra** (`browser.popups`): *Cho phép*, *Hỏi* (một thẻ trước) hoặc *Tắt* (trang

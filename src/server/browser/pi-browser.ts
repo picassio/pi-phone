@@ -69,6 +69,25 @@ export type WindowAsk = {
     refuse(): Promise<void>;
 };
 
+/** Where an engine's browser saves downloads, on its computer, and how a saved one is taken (`BrowserEngine.downloads`). */
+export type EngineDownloads = { dir(): Promise<string>; take(path: string): Promise<Uint8Array>; drop(path: string): Promise<void> };
+
+/** The biggest download Pi's browser keeps (PP-376): a bigger one is cancelled, and Pi is told. */
+export const DOWNLOAD_MAX = 25 * 1024 * 1024;
+/** How long an answer waits for a download the page began to finish; one still going is named by a later answer. */
+const DOWNLOAD_WAIT_MS = 60_000;
+
+/** A download's name as a file name: the page's, without folders or odd characters; "download" when it gave none. */
+export function downloadName(suggested: string): string {
+    const name = (suggested.split(/[/\\]/).pop() ?? "")
+        .replace(/[\p{C}<>:"|?*]/gu, "_")
+        .replace(/^\.+/, "")
+        .trim()
+        .slice(-120);
+
+    return name === "" ? "download" : name;
+}
+
 /** Where Pi's tabs come from. */
 export interface BrowserEngine {
     /** What it is, for messages ("the phone's browser"). */
@@ -94,6 +113,12 @@ export interface BrowserEngine {
      * the phone's WebView keeps every frame in the page's process, where the page's frame tree has them.
      */
     readonly oopif?: boolean;
+    /**
+     * Where its browser saves what pages download (PP-376), each file named by its download's id, and how a file is taken
+     * from there (read, then removed). None where downloads are not kept: the phone's WebView hands them to no one, and a
+     * browser Pi attached to saves them as it does itself.
+     */
+    readonly downloads?: EngineDownloads | undefined;
     /**
      * Whether a tab's view keeps the size it was opened at (the phone's WebView, on a display of that size, which draws its
      * pictures at it): a new size then reopens each tab at its address. Chrome lays a tab out at any size.
@@ -463,6 +488,19 @@ export class ChromeEngine implements BrowserEngine {
     #child: ChildProcess | undefined;
     #profile: string | undefined;
     #port: number | undefined;
+    /** Where its downloads go, made on first use, removed with the browser. */
+    #downloadDir: string | undefined;
+    readonly downloads: EngineDownloads = {
+        dir: async () => (this.#downloadDir ??= mkdtempSync(join(tmpdir(), "pi-browser-downloads-"))),
+        take: async (path) => {
+            const bytes = readFileSync(path);
+
+            rmSync(path, { force: true });
+
+            return bytes;
+        },
+        drop: async (path) => rmSync(path, { force: true }),
+    };
 
     /** `flags`: more of Chrome's command line (a test maps a name to its local server: `--host-resolver-rules`). */
     constructor(binary: string, flags: string[] = [], { profile }: { profile?: string } = {}) {
@@ -589,6 +627,11 @@ export class ChromeEngine implements BrowserEngine {
             rmSync(this.#profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
             this.#profile = undefined;
         }
+
+        if (this.#downloadDir !== undefined) {
+            rmSync(this.#downloadDir, { recursive: true, force: true });
+            this.#downloadDir = undefined;
+        }
     }
 
     async pdf(_id: string, page: BrowserPage): Promise<Buffer> {
@@ -703,6 +746,11 @@ export type PiBrowserOptions = {
     popups?(): PopupMode;
     /** A browser Pi attached to (`browser_attach`, PP-274): its label, shown in the panel. */
     attached?: string;
+    /**
+     * Keep a file a page downloaded where the session works (PP-376: its `downloads/` folder, on its machine for a session
+     * there), by a name not taken there yet: the path it was saved as.
+     */
+    saveDownload?(name: string, bytes: Uint8Array): Promise<string>;
 };
 
 /**
@@ -807,6 +855,11 @@ export class PiBrowser {
         const tab: Tab = { id, page, observed: undefined, elements: [], url: "", title: "" };
 
         await page.init(SIZES[this.#state.size], { local: this.#options.engine.local, phone: this.#options.engine.actAsPhone, oopif: this.#options.engine.oopif === true });
+
+        // Downloads go where the engine's browser keeps them, to be taken into the session's folder (PP-376).
+        if (this.#options.engine.downloads !== undefined && this.#options.saveDownload !== undefined) {
+            await page.keepDownloads(await this.#options.engine.downloads.dir());
+        }
 
         // A window on a machine's screen: input there that Pi did not send is someone's at the machine (PP-274).
         if (this.#options.engine.visibleOn !== undefined) {
@@ -1178,6 +1231,9 @@ export class PiBrowser {
         await this.#settleWindows();
         const tab = this.#tab ?? (await this.#ensure());
         const page = tab.page;
+
+        await this.#takeDownloads(page);
+
         const observed = await page.observe();
 
         tab.observed = observed;
@@ -1202,6 +1258,82 @@ export class PiBrowser {
         const notes = this.#notes.splice(0).join("");
 
         return `${notes}${this.#tabs.length > 1 ? `Tab ${this.#tabs.indexOf(tab) + 1} of ${this.#tabs.length}. ` : ""}${dialogs.join("")}${describe(observed, tab.elements)}`;
+    }
+
+    /**
+     * The files the page began to download (PP-376): waited for (a minute at most), then saved where the session works
+     * and named in the next answer; one bigger than `DOWNLOAD_MAX` is cancelled, one still going is named when it ends.
+     */
+    async #takeDownloads(page: BrowserPage): Promise<void> {
+        if (page.downloads().length === 0) {
+            return;
+        }
+
+        const until = Date.now() + DOWNLOAD_WAIT_MS;
+        const big = (download: { received: number; total: number }) => download.received > DOWNLOAD_MAX || download.total > DOWNLOAD_MAX;
+
+        while (Date.now() < until && page.downloadDir !== undefined && page.downloads().some((download) => download.state === "inProgress" && !big(download))) {
+            await sleep(100);
+        }
+
+        const kb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024)).toLocaleString("en")} KB`;
+
+        for (const download of page.downloads()) {
+            const name = downloadName(download.name);
+            const saver = this.#options.saveDownload;
+            const dir = page.downloadDir;
+            const kept = this.#options.engine.downloads;
+
+            if (dir === undefined || saver === undefined || kept === undefined) {
+                page.forgetDownload(download.guid);
+                this.#notes.push(
+                    this.#options.attached !== undefined
+                        ? `The page began downloading ${name} (${download.url}): a browser Pi attached to saves it as it saves downloads itself, not in this session's folder.\n`
+                        : `The page began downloading ${name} (${download.url}), but ${this.#options.engine.label} does not keep downloads: browse on a machine (browser_open with machine) to download it.\n`,
+                );
+                continue;
+            }
+
+            if (big(download)) {
+                page.forgetDownload(download.guid);
+
+                // Still going: cancelled (Chrome removes its part); finished meanwhile: its file removed, never read.
+                if (download.state === "inProgress") {
+                    await page.cancelDownload(download.guid).catch(() => {});
+                } else if (download.state === "completed") {
+                    await kept.drop(`${dir}/${download.guid}`).catch(() => {});
+                }
+
+                this.#notes.push(`The page began downloading ${name}, larger than ${DOWNLOAD_MAX / 1024 / 1024} MB, the most Pi's browser keeps: it was cancelled.\n`);
+                continue;
+            }
+
+            if (download.state === "inProgress") {
+                // Named once now; the answer after it ends names the file.
+                if (download.told !== true) {
+                    this.#notes.push(`The page is downloading ${name} (${kb(download.received)}${download.total > 0 ? ` of ${kb(download.total)}` : ""} so far): a later answer says where it is saved.\n`);
+                    download.told = true;
+                }
+
+                continue;
+            }
+
+            page.forgetDownload(download.guid);
+
+            if (download.state === "canceled") {
+                this.#notes.push(`The download of ${name} failed or was cancelled.\n`);
+                continue;
+            }
+
+            try {
+                const bytes = await kept.take(`${dir}/${download.guid}`);
+                const saved = await saver(name, bytes);
+
+                this.#notes.push(`The page downloaded ${name} (${kb(bytes.length)}): saved as ${saved}.\n`);
+            } catch (error) {
+                this.#notes.push(`The page downloaded ${name}, but it could not be saved: ${error instanceof Error ? error.message : String(error)}\n`);
+            }
+        }
     }
 
     #element(index: number): { observed: Observed; element: Element } {

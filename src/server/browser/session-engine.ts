@@ -9,7 +9,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import type { Cdp } from "./cdp.ts";
 import type { BrowserPage, PictureOptions } from "./page.ts";
-import type { BrowserEngine, BrowserSize, WindowAsk } from "./pi-browser.ts";
+import type { BrowserEngine, BrowserSize, EngineDownloads, WindowAsk } from "./pi-browser.ts";
 
 /** Which session owns each tab, by place and tab id, kept in a JSON file. */
 export class TabOwners {
@@ -224,6 +224,10 @@ export class SessionEngine implements BrowserEngine {
 
     get oopif(): boolean {
         return this.#engine.oopif === true;
+    }
+
+    get downloads(): EngineDownloads | undefined {
+        return this.#engine.downloads;
     }
 
     get reopensToResize(): boolean {

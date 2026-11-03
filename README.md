@@ -196,7 +196,10 @@ No Termux, no laptop, no cloud VM.
   passwords, a heavy blur for names); `image_markup` does the same on any picture file, and `screenshot` saves its
   pictures with `save`. It uploads files from where
   the session works (`browser_upload`, to a file field or its Upload button), saves a page as a PDF there
-  (`browser_save_pdf`), and keeps up to six tabs (`browser_new_tab`, `browser_tabs`; the panel shows them as a strip).
+  (`browser_save_pdf`). A file a page downloads on a machine's browser (or the server edition's) is saved in the
+  session's `downloads/` folder (on its machine, for a session working there; 25 MB at most, a bigger one is cancelled)
+  and the answer names it; the phone's browser keeps no downloads (Pi says so: browse on a machine for them), and a
+  browser Pi attached to saves them as it does itself. It keeps up to six tabs (`browser_new_tab`, `browser_tabs`; the panel shows them as a strip).
   A window a page opens (a sign-in popup such as Microsoft's on Teams, a link to a new window) becomes a tab in front
   that still talks to its page, and Pi is told; when it closes itself, the page comes back to the front. **Settings ›
   Pi's browser › Windows pages open** (`browser.popups`): *Allow*, *Ask* (a card first) or *Off* (pages get none).

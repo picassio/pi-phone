@@ -207,6 +207,9 @@ export type Element = {
     draggable?: boolean;
 };
 
+/** A file a page downloads (PP-376), as DevTools tells it: its id, the name the page gives it, where from, and how far it is. */
+export type Download = { guid: string; name: string; url: string; state: "inProgress" | "completed" | "canceled"; received: number; total: number; told?: boolean };
+
 /** The shortest value text hiding (`Page.hideTyped`) covers: a shorter one would hide every "42" on the page. */
 export const MIN_TYPED_HIDDEN = 3;
 
@@ -460,9 +463,59 @@ export class BrowserPage {
     #known = new Map<string, ChildFrame>();
     readonly #slots = new Map<string, number>();
     readonly #slotFrames = new Map<number, string>();
+    /** The files this page began to download and Pi has not been told the end of, by id (PP-376). */
+    readonly #downloads = new Map<string, Download>();
+    /** Where the browser saves them (each named by its id), when this page has them kept (`keepDownloads`). */
+    downloadDir: string | undefined;
 
     constructor(cdp: Cdp) {
         this.cdp = cdp;
+    }
+
+    /** Hear of the downloads a connection's page (or frame) begins, and how they go. */
+    #watchDownloads(cdp: Cdp): void {
+        cdp.on("Page.downloadWillBegin", (params) => {
+            const guid = String(params.guid);
+
+            this.#downloads.set(guid, { guid, name: String(params.suggestedFilename ?? ""), url: String(params.url ?? ""), state: "inProgress", received: 0, total: 0 });
+        });
+
+        // Both: the browser's (its downloads, with their events on) and the page's own, whichever comes.
+        for (const event of ["Browser.downloadProgress", "Page.downloadProgress"]) {
+            cdp.on(event, (params) => {
+                const download = this.#downloads.get(String(params.guid));
+
+                if (download !== undefined && download.state === "inProgress") {
+                    download.state = params.state === "completed" || params.state === "canceled" ? params.state : "inProgress";
+                    download.received = Number(params.receivedBytes ?? download.received);
+                    download.total = Number(params.totalBytes ?? download.total);
+                }
+            });
+        }
+    }
+
+    /**
+     * Have the browser save what this page downloads in `dir` (on the browser's computer), each file named by its id,
+     * with its progress told (`Browser.setDownloadBehavior`; for the browser's whole profile, which is pi-phone's own).
+     */
+    async keepDownloads(dir: string): Promise<void> {
+        await this.cdp.send("Browser.setDownloadBehavior", { behavior: "allowAndName", downloadPath: dir, eventsEnabled: true });
+        this.downloadDir = dir;
+    }
+
+    /** The downloads begun and not yet forgotten, oldest first. */
+    downloads(): Download[] {
+        return [...this.#downloads.values()];
+    }
+
+    /** Done with a download: Pi was told how it ended. */
+    forgetDownload(guid: string): void {
+        this.#downloads.delete(guid);
+    }
+
+    /** Stop a download (one too big to keep). */
+    async cancelDownload(guid: string): Promise<void> {
+        await this.cdp.send("Browser.cancelDownload", { guid });
     }
 
     /** A frame's slot: given the first time it is seen, the same after. */
@@ -977,6 +1030,7 @@ export class BrowserPage {
     ): Promise<void> {
         await this.cdp.send("Page.enable");
         this.#blockLocal = !local;
+        this.#watchDownloads(this.cdp);
 
         if (phone) {
             await this.#actAsPhone();
@@ -1064,6 +1118,7 @@ export class BrowserPage {
                     await child.send("Fetch.enable", { patterns: BLOCKED_URLS.map((urlPattern) => ({ urlPattern })) });
                 }
 
+                this.#watchDownloads(child);
                 child.on("Page.javascriptDialogOpening", (dialog) => {
                     this.dialog = `${String(dialog.type)}: ${String(dialog.message ?? "").slice(0, 300)}`;
                     void child.send("Page.handleJavaScriptDialog", { accept: this.acceptDialogs }).catch(() => {});

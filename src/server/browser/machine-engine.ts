@@ -16,7 +16,7 @@ import http from "node:http";
 import { encodePowerShell } from "../computer-windows.ts";
 import { Cdp } from "./cdp.ts";
 import type { BrowserPage, PictureOptions } from "./page.ts";
-import type { BrowserEngine } from "./pi-browser.ts";
+import type { BrowserEngine, EngineDownloads } from "./pi-browser.ts";
 
 /** What the engine needs of the machine: run a script there, write a file there, and open one of its ports here. */
 export type MachineAccess = {
@@ -27,6 +27,8 @@ export type MachineAccess = {
     /** Run a script there with sh (Git Bash on Windows): its exit code and output. */
     run(script: string, timeoutSeconds: number): Promise<{ code: number; out: string }>;
     writeFile(path: string, bytes: Uint8Array): Promise<void>;
+    /** Read a file there (a download, PP-376): the app's access has it; without it, downloads are not kept. */
+    readFile?(path: string): Promise<Uint8Array>;
     /** Port `port` of the machine, open here: the port here, and how to close it. */
     forward(port: number): Promise<{ port: number; close(): void }>;
 };
@@ -115,7 +117,7 @@ export function launchScript({ mode = "headless", windows = false, prepare = "" 
     return [
         `P="$HOME/${BROWSER_DIR}"`,
         `MODE=${mode}`,
-        'mkdir -p "$P/profile" "$P/uploads"',
+        'mkdir -p "$P/profile" "$P/uploads" "$P/downloads"',
         // Running already when its DevTools answer on the port it wrote. Not by its pid: on Windows, Git Bash cannot see
         // a pid an earlier shell started, and a second Chrome on the profile then aborts ("Lock file can not be
         // created", tualh-laptop, 2026-10-20 and 2026-10-26). Without curl, by the pid, as before.
@@ -247,11 +249,36 @@ export class MachineEngine implements BrowserEngine {
     #forward: { port: number; remote: number; mode: MachineBrowserMode; close(): void } | undefined;
     #starting: Promise<number> | undefined;
 
+    /**
+     * Downloads (PP-376): saved by Chrome in `~/.pi/mobile/browser/downloads` there (the launch script makes it), shared
+     * by the sessions browsing there, each file named by its id; taken (read, then removed) for the session's folder.
+     */
+    readonly downloads: EngineDownloads | undefined;
+
     /** `window`: the machine's setting `browser.machineMode` now, its system, and its desktop setup line (PP-274). */
     constructor(machine: MachineAccess, window: WindowOptions = {}) {
         this.#machine = machine;
         this.#window = window;
         this.label = `Chrome on ${machine.name}`;
+
+        const read = machine.readFile;
+
+        this.downloads =
+            read === undefined
+                ? undefined
+                : {
+                      dir: async () => `${machine.home}/${BROWSER_DIR}/downloads`,
+                      take: async (path) => {
+                          const bytes = await read.call(machine, path);
+
+                          await machine.run(`rm -f '${path.replace(/'/g, "'\\''")}'`, 30);
+
+                          return bytes;
+                      },
+                      drop: async (path) => {
+                          await machine.run(`rm -f '${path.replace(/'/g, "'\\''")}'`, 30);
+                      },
+                  };
     }
 
     #mode(): MachineBrowserMode {

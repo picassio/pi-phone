@@ -1422,6 +1422,20 @@ so Pi changes them through the settings tools; "the last session" is the one the
   clickable too). `browser_run` offers DRAG when the page has something draggable: `drag_target` (what) and
   `drop_target` (any clickable control), `RunPage.drag`. HTML5 drags that start inside a frame of another site are not
   caught by the page's interception (pointer moves still go there).
+- **Downloads in Pi's browser** (PP-376; `PiBrowser.#takeDownloads`, `BrowserEngine.downloads`): each tab's page has
+  `Browser.setDownloadBehavior` `allowAndName` into its engine's folder, events on (for the browser's profile, which is
+  pi-phone's own): a `ChromeEngine`'s temporary folder (removed with it), a machine's `~/.pi/mobile/browser/downloads`
+  (the launch script makes it; shared by the sessions there). A page's `Page.downloadWillBegin` (its frames' too) says
+  which downloads are its; `Browser.downloadProgress` and `Page.downloadProgress` how they go. Before each read, the
+  answer waits for the page's downloads (60 s at most): one over `DOWNLOAD_MAX` (25 MB, by its size or what came) is
+  cancelled (`Browser.cancelDownload`; one already done is removed unread); a done one is taken from the folder (read,
+  then removed: the machine's through `MachineAccess.readFile`, the daemon's `readBinaryFile`) and saved by the app
+  (`#saveDownload`) in `downloads/` where the session works (its env: a session on a machine writes there), by the
+  page's name made safe (`downloadName`), " (2)" and on when taken; the answer starts "The page downloaded <name>
+  (<size>): saved as <path>." One still going is named once, and saved by a later answer. The phone's WebView hands a
+  download to its DownloadListener (it has none), not to DevTools, so its engine has no `downloads`; a browser Pi
+  attached to (the owner's own) is not redirected either: there the answer says the page began downloading and where
+  it goes (the browser's own place, or browse on a machine).
 - **The Browser panel's pictures** (`PiBrowser.#startFrames`, PP-199): while a tab watches, a capture first (`surface:
   false`, 5 s), then the screencast. A capture is held as long as the page's main thread is busy (headless Chrome, a
   big dialog rendering), and a still page's screencast sends nothing: when no picture came 4 s after the cast started,

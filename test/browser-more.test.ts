@@ -6,7 +6,10 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
-import { ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ChromeEngine, PiBrowser, type PiBrowserOptions } from "../src/server/browser/pi-browser.ts";
 
 const chrome = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].find((name) => {
     try {
@@ -55,6 +58,11 @@ const PAGES: Record<string, string> = {
             map.addEventListener('pointermove', (e) => { if (from) log.textContent += 'm'; });
             map.addEventListener('pointerup', (e) => { out.textContent = 'Panned ' + Math.round(e.clientX - from[0]) + ',' + Math.round(e.clientY - from[1]); from = null; });
         </script>`,
+    // Downloads: a link to a file, a file the page's script makes, and one too big to keep (archive.bin, 30 MB).
+    "/files": `<!doctype html><title>Files</title><meta name="viewport" content="width=device-width">
+        <p><a href="/prices.csv" download>Price list</a></p>
+        <p><button onclick="const a = document.createElement('a'); a.href = window.URL.createObjectURL(new Blob(['hello notes'])); a.download = 'notes.txt'; a.click()">Export notes</button></p>
+        <p><a href="/archive.bin">Whole archive</a></p>`,
     "/card": `<!doctype html><title>Card</title><meta name="viewport" content="width=device-width">
         <label>Card number <input id="card"></label><br><label>PIN <input id="pin" type="password"></label><br>
         <button onclick="out.textContent = 'Paid with ' + card.value + (pin.value === '4321' ? ' and the PIN' : ' without the PIN')">Pay</button>
@@ -66,7 +74,31 @@ let port = 0;
 
 before(async () => {
     server = createServer((request, response) => {
-        const page = PAGES[(request.url ?? "/").split("?")[0]!];
+        const path = (request.url ?? "/").split("?")[0]!;
+
+        if (path === "/prices.csv") {
+            response.writeHead(200, { "content-type": "text/csv" });
+            response.end("lamp,12\nchair,40\n");
+
+            return;
+        }
+
+        if (path === "/archive.bin") {
+            const size = 30 * 1024 * 1024;
+            const chunk = Buffer.alloc(1024 * 1024);
+
+            response.writeHead(200, { "content-type": "application/octet-stream", "content-disposition": "attachment; filename=archive.bin", "content-length": String(size) });
+
+            for (let sent = 0; sent < size; sent += chunk.length) {
+                response.write(chunk);
+            }
+
+            response.end();
+
+            return;
+        }
+
+        const page = PAGES[path];
 
         response.writeHead(page === undefined ? 404 : 200, { "content-type": "text/html; charset=utf-8" });
         response.end((page ?? "not here").replaceAll("PORT", String(port)));
@@ -78,12 +110,13 @@ before(async () => {
 after(() => cleanUpAll(() => server?.close()));
 
 /** A browser on a headless Chrome, where pi.test and pay.test (another site) are the test server. */
-function browserHere(): PiBrowser {
+function browserHere(options: Partial<PiBrowserOptions> = {}): PiBrowser {
     return new PiBrowser({
         engine: new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port},MAP pay.test 127.0.0.1:${port}`, "--no-sandbox"]),
         changed: () => {},
         frame: () => {},
         log: () => {},
+        ...options,
     });
 }
 
@@ -181,5 +214,53 @@ test("with Chrome: browser_drag drops a card on a column (the page's own drag an
         await assert.rejects(browser.drag(1, number(panned, /\[(\d+)\] clickable "Map"/), { dx: 5000, dy: 0 }), /would end outside the view/);
     } finally {
         await browser.close();
+    }
+});
+
+test("with Chrome: a file the page downloads is saved where the session works and named in the answer; one over 25 MB is cancelled; a browser that keeps none says so (PP-376)", { skip }, async () => {
+    const folder = mkdtempSync(join(tmpdir(), "pi-downloads-"));
+    const saved: string[] = [];
+    const browser = browserHere({
+        saveDownload: async (name, bytes) => {
+            const path = join(folder, saved.includes(name) ? `${name} (2)` : name);
+
+            writeFileSync(path, bytes);
+            saved.push(name);
+
+            return path;
+        },
+    });
+
+    try {
+        const page = await browser.open(1, "http://pi.test/files");
+        const got = await browser.click(1, number(page, /\[(\d+)\] link "Price list"/));
+
+        assert.match(got, new RegExp(`^The page downloaded prices\\.csv \\(1 KB\\): saved as ${join(folder, "prices.csv").replace(/[.\\/]/g, "\\$&")}\\.\\n`));
+        assert.equal(readFileSync(join(folder, "prices.csv"), "utf8"), "lamp,12\nchair,40\n");
+
+        // Made by the page's script (a blob), with the name it gives.
+        const made = await browser.click(1, number(got, /\[(\d+)\] button "Export notes"/));
+
+        assert.match(made, /^The page downloaded notes\.txt \(1 KB\): saved as /);
+        assert.equal(readFileSync(join(folder, "notes.txt"), "utf8"), "hello notes");
+
+        const big = await browser.click(1, number(made, /\[(\d+)\] link "Whole archive"/));
+
+        assert.match(big, /^The page began downloading archive\.bin, larger than 25 MB, the most Pi's browser keeps: it was cancelled\.\n/);
+        assert.deepEqual(saved, ["prices.csv", "notes.txt"]);
+    } finally {
+        await browser.close();
+        rmSync(folder, { recursive: true, force: true });
+    }
+
+    // Without a place to keep them (as the phone's WebView, which hands them to no one), the answer says so.
+    const none = browserHere();
+
+    try {
+        const page = await none.open(1, "http://pi.test/files");
+
+        assert.match(await none.click(1, number(page, /\[(\d+)\] link "Price list"/)), /^The page began downloading prices\.csv \(http:\/\/pi\.test\/prices\.csv\), but Chrome does not keep downloads: browse on a machine/);
+    } finally {
+        await none.close();
     }
 });

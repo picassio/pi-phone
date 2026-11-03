@@ -3486,6 +3486,7 @@ export class PocketApp {
             size: this.#browserSizes.of(`${place}#${session}`),
             sized: (size) => this.#browserSizes.set(`${place}#${session}`, size),
             popups: () => this.config.browserPopups,
+            saveDownload: (name, bytes) => this.#saveDownload(session, name, bytes),
             // Only the owner sees Pi's browser: it may be signed in to the owner's accounts.
             changed: (state) => {
                 for (const client of this.#clients) {
@@ -3505,6 +3506,56 @@ export class PocketApp {
             },
             log: (line) => this.#log(line),
         });
+    }
+
+    /**
+     * A file a page downloaded in a session's browser (PP-376), kept in the `downloads/` folder where the session works
+     * (on its machine, for a session there), by its name, or with " (2)" and on when that is taken: the path.
+     */
+    async #saveDownload(session: number, name: string, bytes: Uint8Array): Promise<string> {
+        const env = this.places.env(this.cwdOf(session as unknown as ConversationId));
+        const folder = await env.joinPath([env.cwd, "downloads"], context);
+
+        if (!folder.ok) {
+            throw new Error(folder.error.message);
+        }
+
+        const made = await env.createDir(folder.value, { recursive: true }, context);
+
+        if (!made.ok) {
+            throw new Error(`Could not make ${folder.value}: ${made.error.message}`);
+        }
+
+        const dot = name.lastIndexOf(".");
+        const [stem, extension] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+
+        for (let copy = 1; copy <= 100; copy++) {
+            const path = await env.joinPath([folder.value, copy === 1 ? name : `${stem} (${copy})${extension}`], context);
+
+            if (!path.ok) {
+                throw new Error(path.error.message);
+            }
+
+            const taken = await env.exists(path.value, context);
+
+            if (!taken.ok) {
+                throw new Error(`Could not look at ${path.value}: ${taken.error.message}`);
+            }
+
+            if (taken.value) {
+                continue;
+            }
+
+            const written = await env.writeFile(path.value, bytes, context);
+
+            if (!written.ok) {
+                throw new Error(`Could not save ${path.value}: ${written.error.message}`);
+            }
+
+            return path.value;
+        }
+
+        throw new Error(`${folder.value} has 100 files named ${name} already.`);
     }
 
     /**
@@ -3710,6 +3761,15 @@ export class PocketApp {
                     }
 
                     return { code: result.value.exitCode, out };
+                },
+                readFile: async (path) => {
+                    const read = await env().readBinaryFile(path, context);
+
+                    if (!read.ok) {
+                        throw new Error(`Could not read ${path} on ${machine.name}: ${read.error.message}`);
+                    }
+
+                    return read.value;
                 },
                 writeFile: async (path, bytes) => {
                     const folder = path.slice(0, path.lastIndexOf("/"));
