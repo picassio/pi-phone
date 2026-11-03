@@ -311,6 +311,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "setting_change",
     "app_action",
     "extension_install",
+    "extension_inspect",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */
@@ -1066,15 +1067,16 @@ export class ExtensionLoader {
      * Refuse a drop-in that would take a name Pi Pocket keeps, or one another module installed: installing it would
      * replace that one. Throws before anything is installed, so a version that loaded before keeps running.
      */
-    #checkNames(file: string, extensions: readonly Extension[]): void {
-        const owners = new Map<string, string>();
-        const tools = new Map<string, string>();
+    /**
+     * The tool names a drop-in may not take: the list (for modules that are off), and every tool installed now but by a
+     * drop-in: the built-in modules' and the app's own (its coding tools). `extension_inspect` lists them.
+     */
+    builtInToolNames(): Set<string> {
         const fromDropIns = new Set(
             [...this.#installed].filter(([other]) => this.#sources.get(other) !== this.#builtIn).flatMap(([, installed]) => installed),
         );
-        // The built-in tools: the list (for modules that are off), and every tool installed now but by a drop-in: the
-        // built-in modules' and the app's own (its coding tools).
-        const builtIn = new Set([
+
+        return new Set([
             ...BUILT_IN_TOOLS,
             ...this.#registry
                 .snapshot()
@@ -1082,6 +1084,12 @@ export class ExtensionLoader {
                 .filter((extension) => !fromDropIns.has(extension))
                 .flatMap((extension) => (extension.tools ?? []).map((tool) => tool.name)),
         ]);
+    }
+
+    #checkNames(file: string, extensions: readonly Extension[]): void {
+        const owners = new Map<string, string>();
+        const tools = new Map<string, string>();
+        const builtIn = this.builtInToolNames();
         const clashing = extensions.flatMap((extension) => (extension.tools ?? []).map((tool) => tool.name)).filter((name) => builtIn.has(name));
 
         // The built-in tool wins, and the whole module is refused (the owner's choice, 2026-10-26): its other tools may

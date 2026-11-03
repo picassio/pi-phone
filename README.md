@@ -321,8 +321,12 @@ No Termux, no laptop, no cloud VM.
   installed once you approve its card, switched on by you, then looked at in the live app at phone and desktop widths
   and fixed in place. It keeps your UI rules: the app's line icons and dropdowns, states as a word and a dot, no emoji,
   whole pixels, every word in your language. Drop-ins' pages can use the app's multi-select list too
-  (`pocket.MultiChoice`). Adapted in part from DeepSeek Harness's plugin skill (MIT). Its own extension, on by
-  default: turn it off in **Extensions** (or ask Pi), and no session lists the skill.
+  (`pocket.MultiChoice`). Pi checks its work with `extension_inspect`, which only reads (plan mode too): the names
+  the drop-in API has (what a page can add, `pocket`'s members, icons, the theme's colours) and those a drop-in may not
+  take, and for one drop-in whether it loaded, why it was refused or failed, what it added, the pages and sheets your
+  tab saw it add, and its newest error in a tab (each tab tells the server when an extension's page fails), never a
+  file's contents. Adapted in part from DeepSeek Harness's plugin skill (MIT). Its own extension, on by default: turn
+  it off in **Extensions** (or ask Pi), and no session lists the skill or the tool.
 - **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
   search, tracks its open questions until they are answered, and captures idle sessions into it. With OpenRouter signed
   in, **Jev ranks the search** (Menu › Wiki › Rank with Jev): it reads each page the search found (by keyword, by

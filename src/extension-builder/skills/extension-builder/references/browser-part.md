@@ -63,7 +63,7 @@ failed to load: what it added goes, and a notice says why.
   artifact, folder, file, diff, back, clock, chevron, minus, down, up, eye, search, shield, board, external, key, users,
   sparkle, chat, fork, command, sidebar, tiles, grid, pin, star, palette, pulse, keyboard, swatch, home, archive,
   unarchive, unread, check, logout, globe, reload, copy, undo, phone, tablet, monitor, upload, download, terminal, fit,
-  compact, wheel. An unknown name draws a square of four.
+  compact, wheel. An unknown name draws a square of four. `extension_inspect` lists the names this app has now.
 - `Choice` `{ value, options: [{ value, label, detail? }], onChange(value), label, disabled?, placeholder? }`: the
   app's dropdown. `MultiChoice` `{ options: [{ value, label, detail?, group?, disabled?, chosen? }], onAdd(values),
   label, placeholder? }`: tick several. Never a system `<select>`.
@@ -75,7 +75,7 @@ failed to load: what it added goes, and a notice says why.
 ## The theme's variables
 
 Colours and corners come from the theme, so the drop-in follows every theme and light or dark: never colours of its
-own. The ones to use:
+own. `extension_inspect` lists every one; the ones to use:
 
 - Text: `--text`, `--body`, `--muted`, `--faint`. Grounds: `--bg`, `--panel`, `--card`, `--card-2`, `--raised`,
   `--hover`, `--pressed`. Lines: `--line`, `--line-strong`, `--hair`, `--hair-2`.
@@ -102,4 +102,6 @@ brings its own Vietnamese and Chinese: a `WORDS` table by language (`language()`
 - `?noext=1` opens the app with no browser parts (safe mode), for as long as the tab stays open: Menu › Extensions
   turns them back on.
 - A browser part that fails to load says so in a notice and in Settings › Extensions; a component that throws shows
-  "<title> failed: why" in its own place, and the rest of the app goes on.
+  "<title> failed: why" in its own place, and the rest of the app goes on. Either way the tab tells the server, and
+  `extension_inspect` with the drop-in's name shows the newest such error, with what the browser part added once it
+  loaded (its rail, menu, launcher, page and sheet ids).

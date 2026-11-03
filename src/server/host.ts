@@ -35,6 +35,8 @@ import type { Videos } from "./video-gen.ts";
 import type { Audio } from "./audio.ts";
 import type { CommandEnvProvider, HiddenValue } from "./hidden.ts";
 import type { DropInPackage } from "./drop-in-install.ts";
+import type { BrowserReport } from "./extension-web.ts";
+import type { ExtensionInfo } from "./reload.ts";
 
 export type { CommandEnvProvider, CommandRun, HiddenValue } from "./hidden.ts";
 
@@ -499,6 +501,18 @@ export interface PocketHost {
     readonly dropIns: {
         replaces(pkg: DropInPackage): string[];
         install(userId: string, pkg: DropInPackage, replace: boolean): Promise<{ file: string; installed: boolean; replaces: string[] }>;
+    };
+    /**
+     * The extension modules, for `extension_inspect` (PP-368): each as the Extensions sheet has it (on or off, loaded,
+     * failed or refused and why, what it added), the drop-ins never loaded for a built-in module's file name, the tool
+     * names a drop-in may not take, the drop-in folder, and the newest reports tabs made on a module's browser part.
+     */
+    readonly extensionModules: {
+        list(): ExtensionInfo[];
+        nameClashes(): { file: string; path: string }[];
+        builtInToolNames(): Set<string>;
+        dropInFolder(): string | undefined;
+        browserReports(file: string): { ready?: BrowserReport; failed?: BrowserReport };
     };
     /**
      * Hide a value from what Pi and people read: command output as it streams, every tool's result, and people's

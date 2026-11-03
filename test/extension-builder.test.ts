@@ -18,6 +18,7 @@ import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi
 import { APP_ROOT } from "../src/server/config.ts";
 import { packageFromPath } from "../src/server/drop-in-install.ts";
 import { BUILDER_MODULE, BUILDER_SKILL, BUILDER_TEMPLATES } from "../src/server/extension-builder.ts";
+import { dropInApi } from "../src/server/extension-inspect.ts";
 import { createHandler } from "../src/server/http.ts";
 
 /** Each template: its files, and what it adds once on. */
@@ -115,22 +116,12 @@ test("the check refuses what pi-phone cannot run or the owner's rules forbid, ea
 
 // ---- The browser parts, with `pocket` as the app gives it -----------------------------------------------------------
 
-/** `pocket`'s members, as web/extension-ui.js gives them to a browser part. */
-const MEMBERS = [
-    "version", "module", "title", "h", "html", "Fragment", "useState", "useEffect", "useLayoutEffect", "useRef", "useMemo", "useCallback", "useReducer",
-    "Icon", "Spinner", "Loader", "Markdown", "Switch", "Choice", "MultiChoice", "StateTag", "t", "tn", "tx", "language", "me", "conversationId",
-    "api", "on", "notify", "compose", "rail", "menu", "launcher", "page", "sheet", "pickFolder", "toolCall", "openPage", "openPageOf", "closePage",
-    "openSheet", "closeSheet", "style", "onDispose",
-];
-
 test("each template's browser part adds what it says with pocket's own members, and every button leads to its own page or sheet", async () => {
-    const ui = readFileSync(join(APP_ROOT, "web", "extension-ui.js"), "utf8");
+    // As web/extension-ui.js gives them (extension_inspect lists the same, PP-368; extension-builder-ui.test.ts checks them in a tab).
+    const { members: MEMBERS, icons: iconNames } = dropInApi();
+    const icons = new Set(iconNames);
 
-    for (const member of MEMBERS) {
-        assert.match(ui, new RegExp(`\\n {8}${member}[,:(]`), `pocket.${member} is the app's`);
-    }
-
-    const icons = new Set([...readFileSync(join(APP_ROOT, "web", "ui.js"), "utf8").matchAll(/^ {4}([a-z0-9]+):/gm)].map((match) => match[1]));
+    assert.ok(MEMBERS.includes("MultiChoice") && MEMBERS.includes("StateTag") && MEMBERS.includes("pickFolder"));
 
     /** What a browser part adds, and the members it used, in a language. */
     async function load(name: keyof typeof TEMPLATES, entry: string, language: string) {

@@ -582,6 +582,8 @@
     "This pi-phone has no drop-in folder.": "这台 pi-phone 没有自备扩展文件夹。",
     "{1} is not a path inside the extension: no absolute paths and no ..": "{1} 不是扩展内的路径：不能用绝对路径，也不能用 ..",
     "The extension is larger than 5 MB.": "扩展大于 5 MB。",
+    "There is no such browser part of an extension.": "没有这样的扩展浏览器部分。",
+    "A report says it loaded, with what it added, or it failed, with how and why.": "报告要么说明已加载及添加了什么，要么说明失败及如何失败、为何失败。",
     "This is not a zip file.": "这不是 zip 文件。",
     "Zip64 archives are not read: make a plain zip.": "不读取 Zip64 压缩包：请做一个普通的 zip。",
     "The extension has more than 1000 files.": "扩展的文件超过 1000 个。",

@@ -484,6 +484,8 @@ async function load(entry) {
         how: null,
         // Its calls in this task, and the pages and sheets it opened and closed lately (`tick`, `chargeOpen`).
         spent: spending(),
+        // A drop-in's: it tells the server what it added once it loads (`reportTo`).
+        dropIn: entry.dropIn === true,
     };
 
     record.pocket = pocketFor(record);
@@ -530,6 +532,13 @@ async function load(entry) {
 
         record.status = "ready";
 
+        if (record.dropIn) {
+            reportTo(record, {
+                state: "ready",
+                adds: Object.fromEntries(KINDS.map((kind) => [kind, [...record.adds[kind].keys()]])),
+            });
+        }
+
         if (linked?.module === record.module) {
             const { id, kind } = linked;
 
@@ -559,7 +568,19 @@ function fail(record, error, how) {
     record.how = how;
     console.error(`${record.title}'s browser module ${how}`, error);
     notify("error", failedText(record));
+    reportTo(record, { state: "failed", how, error: record.error });
     redraw();
+}
+
+/**
+ * Tell the server how a module's browser part stands in this tab (PP-368), for `extension_inspect`: what a drop-in's
+ * added once it loaded, and any module's failure (to load, stopped, or a page or sheet that failed to draw). The server
+ * keeps it only about the version it serves now. One that does not reach the server says so in the console.
+ */
+function reportTo(record, report) {
+    api("extensions/browser-reports", { module: record.module, url: record.url, ...report }).catch((error) =>
+        console.warn(`${record.title}: could not tell the server how its browser part stands`, error),
+    );
 }
 
 /** "Board failed to load in this browser: why": a failed module's notice, and its page's or sheet's error. */
@@ -1517,6 +1538,10 @@ class Guard extends Component {
     componentDidCatch(error) {
         console.error(`${this.props.name} failed`, error);
         this.setState({ failed: true, message: reason(error) });
+
+        if (this.props.record !== undefined) {
+            reportTo(this.props.record, { state: "failed", how: "failed to draw", error: `${this.props.name}: ${reason(error)}` });
+        }
     }
 
     render({ children, name }, { failed, message }) {
@@ -1762,7 +1787,7 @@ function Body({ record, spec, title, props, close }) {
     }
 
     // A Guard that caught a failure stays with it until its component changes (the page added again, or updated).
-    return html`<${Guard} key=${`${record.url}#${componentId(spec.component)}`} name=${title}>
+    return html`<${Guard} key=${`${record.url}#${componentId(spec.component)}`} name=${title} record=${record}>
         <${Drawn}
             component=${spec.component}
             props=${{ ...props, pocket: record.pocket, close }}

@@ -1367,6 +1367,13 @@ export class PocketApp {
                 replaces: (pkg) => this.dropInReplaces(pkg),
                 install: (userId, pkg, replace) => this.installDropIn(this.#person(userId), pkg, replace),
             },
+            extensionModules: {
+                list: () => this.loader.list(),
+                nameClashes: () => this.loader.nameClashes(),
+                builtInToolNames: () => this.loader.builtInToolNames(),
+                dropInFolder: () => this.loader.dropInFolder,
+                browserReports: (file) => this.webs.reports(file),
+            },
             hide: (value) => this.hidden.add(value),
             commandEnv: (provider) => this.commandEnvs.add(provider),
             notice: (level, message, conversationId) => this.notice(level, message, conversationId),
@@ -4137,18 +4144,20 @@ export class PocketApp {
     }
 
     #browserModules(user: User) {
+        const modules = this.loader.list();
         const tools = new Map(
-            this.loader
-                .list()
-                .map((each) => [
-                    each.file.replace(/\.ts$/, ""),
-                    each.extensions.flatMap((extension) => extension.tools),
-                ]),
+            modules.map((each) => [
+                each.file.replace(/\.ts$/, ""),
+                each.extensions.flatMap((extension) => extension.tools),
+            ]),
         );
+        // A drop-in's browser part reports what it added once it loads (PP-368, `extension_inspect`); every one reports
+        // a failure.
+        const dropIns = new Set(modules.filter((each) => each.source === "drop-in").map((each) => each.file.replace(/\.ts$/, "")));
 
         return this.webs
             .clients(user)
-            .map((each) => ({ ...each, tools: tools.get(each.module) ?? [] }));
+            .map((each) => ({ ...each, tools: tools.get(each.module) ?? [], ...(dropIns.has(each.module) ? { dropIn: true } : {}) }));
     }
 
     /** A tab's hello: what everyone gets, and the id of its own connection, which its peek lists name. */

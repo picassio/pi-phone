@@ -15,6 +15,7 @@ import { findBrowser } from "./support/browser/discovery.ts";
 import type { BrowserPage } from "./support/browser/page.ts";
 import { VIEWPORTS } from "./support/browser/viewport.ts";
 import { BUILDER_TEMPLATES } from "../src/server/extension-builder.ts";
+import { dropInApi } from "../src/server/extension-inspect.ts";
 import { createHandler } from "../src/server/http.ts";
 
 const { PocketApp } = await import("../src/server/app.ts");
@@ -61,6 +62,16 @@ before(async () => {
         cpSync(join(BUILDER_TEMPLATES, name), join(dataDir, "extensions"), { recursive: true });
     }
 
+    // A browser part that throws as it loads (PP-368: the tab tells the server), and one that tells its own route
+    // which members `pocket` has in a real tab.
+    writeFileSync(join(dataDir, "extensions", "broken-ui.ts"), `/** Broken: its browser part throws. */\nexport default (_host: unknown, web: { client(entry: string): void }) => {\n    web.client("broken-ui.js");\n};\n`);
+    writeFileSync(join(dataDir, "extensions", "broken-ui.js"), `export default () => {\n    throw new Error("broken on purpose");\n};\n`);
+    writeFileSync(
+        join(dataDir, "extensions", "probe.ts"),
+        `/** Probe: what pocket has, as a tab gives it. */\ntype Web = { route(method: string, path: string, handle: (request: { body: Record<string, unknown> }) => unknown): void; client(entry: string): void };\nexport default (_host: unknown, web: Web) => {\n    let keys: unknown = null;\n    web.route("POST", "keys", (request) => { keys = request.body.keys; return {}; });\n    web.route("GET", "keys", () => ({ keys }));\n    web.client("probe.js");\n};\n`,
+    );
+    writeFileSync(join(dataDir, "extensions", "probe.js"), `export default (pocket) => {\n    void pocket.api("keys", { keys: Object.keys(pocket) });\n};\n`);
+
     const faux = scriptedModel(() => fauxAssistantMessage([fauxText("ok")]));
 
     app = await PocketApp.open({
@@ -76,7 +87,7 @@ before(async () => {
 
     const owner = app.config.users.find((user) => user.role === "owner")!;
 
-    for (const file of ["focus-timer.ts", "snippets.ts", "checklist.ts"]) {
+    for (const file of ["focus-timer.ts", "snippets.ts", "checklist.ts", "broken-ui.ts", "probe.ts"]) {
         await app.setExtensionEnabled(owner, file, true);
     }
 
@@ -157,3 +168,25 @@ for (const [size, viewport] of [["390", VIEWPORTS.mobile], ["1280", VIEWPORTS.de
         await shot(`builder-checklist-${size}.jpg`);
     });
 }
+
+test("a tab tells the server what a drop-in's browser part added, and a failure, for extension_inspect; pocket has the members it lists (PP-368)", real, async () => {
+    await page.setViewport(VIEWPORTS.desktop);
+    await page.navigate(`${base}/`);
+    await until(() => app.webs.reports("checklist.ts").ready !== undefined, "the checklist's report", 30_000);
+    assert.deepEqual((app.webs.reports("checklist.ts").ready as { adds: unknown }).adds, { rail: ["checklist"], menu: [], launcher: [], page: ["checklist"], sheet: [] });
+    assert.deepEqual((app.webs.reports("snippets.ts").ready as { adds: unknown }).adds, { rail: [], menu: ["snippets"], launcher: ["insert"], page: [], sheet: ["snippets"] });
+    await until(() => app.webs.reports("broken-ui.ts").failed !== undefined, "the broken one's failure", 30_000);
+
+    const failed = app.webs.reports("broken-ui.ts").failed as { how: string; error: string };
+
+    assert.equal(failed.how, "failed to load");
+    assert.equal(failed.error, "broken on purpose");
+
+    const keys = () =>
+        fetch(`${base}/api/x/probe/keys`, { headers: { authorization: `Bearer ${app.config.ownerToken}`, "x-pocket": "1" } }).then(
+            async (response) => ((await response.json()) as { keys: string[] | null }).keys,
+        );
+
+    await until(async () => (await keys()) !== null, "the probe's keys", 30_000);
+    assert.deepEqual(await keys(), dropInApi().members, "extension_inspect lists the members a tab gives");
+});

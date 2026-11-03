@@ -984,7 +984,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   2026-11-03 after research PP-365, wiki `resources/deepseek-harness-creator-mode-research`): Pi makes a drop-in from
   a chat request. A built-in extension like Formal checks, **on by default** (the owner's choice), a switch like any
   (Settings › Extensions, `extensions.extension-builder.ts` with `setting_change`); while on, `builtInSkills()` adds
-  `BUILDER_SKILLS` (`src/extension-builder/skills/`), off no session lists it. It adds no tool and no prompt section.
+  `BUILDER_SKILLS` (`src/extension-builder/skills/`), off no session lists it, nor its tool. No prompt section.
   - **The skill** `extension-builder` (SKILL.md under 8 KB; `references/` server-part, browser-part, practices,
     verify): when a drop-in is the answer (not a setting, a theme, an artifact or an OpenUI answer); deliver a small
     working version first from a template in the session folder (`<cwd>/<name>/`), check it, `extension_install` the
@@ -1007,6 +1007,22 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `BUILT_IN_TOOLS` and icons against `ICONS` (read from the app's own `reload.ts` and `ui.js`, so they stay in step),
     `web.client` entries present, no emoji or dingbats, no `<select>`, no part pixels; own colours are a note.
   - `pocket.MultiChoice` (`web/ui.js`'s) is given to browser parts beside `Choice`, an addition: API version stays 2.
+  - **`extension_inspect`** (PP-368, `extension-inspect.ts`, the module's one tool): read-only, in plan mode's
+    `ALWAYS_ALLOWED` and `BUILT_IN_TOOLS`, deferred (loaded with `tool_search`, as `extension_install` is). Without a
+    name: the kinds a browser part adds and `pocket`'s members (parsed from `web/extension-ui.js`: `KINDS` and the
+    object `pocketFor` freezes), the icons (`ICONS` in `web/ui.js`), the theme's variables (`web/style.css` `:root`),
+    read once (the files change only with an update); the names a drop-in may not take (`loader.builtInToolNames()`,
+    the same set `#checkNames` refuses by, the built-in module files, `pocket-*`); tools other drop-ins have; for the
+    owner, each drop-in's state in a word. With a module's name, the owner's (errors can name the server's folders):
+    its files by name and size (`<name>.*` and `<name>/`, never contents), on or off, loaded or refused or failed with
+    the loader's words, what it installed (tools marked read-only, sections, hooks, wraps, routes, its browser part's
+    access, commands), and what tabs reported. Reported through `PocketHost.extensionModules`.
+  - **Browser reports**: `web/extension-ui.js` posts `POST /api/extensions/browser-reports` (`{ module, url, state,
+    … }`, anyone the part loads for): a drop-in's browser part (hello's `ui` entry has `dropIn: true`) its `adds` (ids
+    per kind) once ready; every module its failure (`failed to load`, `was stopped`, or `failed to draw` from the
+    `Guard` around its page or sheet, with the title). `ExtensionWebs.report` keeps the newest of each state per module
+    in memory, only when `url` is the version served now (a tab not yet reloaded is dropped, `kept: false`); ids
+    checked, errors cut to 1000 characters, gone with the module. A report that cannot be sent goes to the console.
   - **Attribution**: DeepSeek Harness's `cordis-plugin-development` (MIT, at `ce7073d`): its MIT `LICENSE` and a
     README of what was adapted in `third_party/deepseek-harness/` (SKILL.md's loop, `practices.md` from its practices
     and user-actions, `verify.md` from its verification); the rest is pi-phone's own.

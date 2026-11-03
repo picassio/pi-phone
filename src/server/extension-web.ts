@@ -17,7 +17,7 @@ import {
 } from "node:fs";
 import { extname, join } from "node:path";
 import type { User } from "./config.ts";
-import { describe } from "./errors.ts";
+import { describe, HttpError } from "./errors.ts";
 import type {
     CommandInfo,
     ExtensionCommand,
@@ -156,6 +156,27 @@ function moduleName(file: string): string {
     return file.replace(/\.ts$/, "");
 }
 
+/**
+ * What a tab said about a module's browser part (PP-368, for `extension_inspect`): it loaded, with the ids of what it
+ * added then, or it failed (to load, was stopped, or a page or sheet of it failed to draw), with why. `url` is the
+ * version it was about; `by` whose tab it was.
+ */
+export type BrowserReport = { url: string; by: string; at: number } & (
+    | { state: "ready"; adds: Record<string, string[]> }
+    | { state: "failed"; how: string; error: string }
+);
+
+/** What a browser part can add, as `KINDS` in `web/extension-ui.js`. */
+export const BROWSER_KINDS = ["rail", "menu", "launcher", "page", "sheet"] as const;
+const REPORT_HOWS: ReadonlySet<string> = new Set(["failed to load", "was stopped", "failed to draw"]);
+const REPORT_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
+/** The longest error a report keeps, and the most ids of each kind. */
+const MAX_REPORT_ERROR = 1000;
+const MAX_REPORT_IDS = 50;
+
+/** A browser module's address, as tabs load it: it changes with each version. */
+const clientUrl = (part: WebPart): string => `/x/${part.module}/${part.client!.rev}/${part.client!.entry}`;
+
 interface Route {
     method: WebMethod;
     /** The path as registered, for the Extensions sheet. */
@@ -242,6 +263,8 @@ export class ExtensionWebs {
     readonly #staged = new Set<WebPart>();
     /** Cleanups that wait, still running (of a version replaced or turned off): the server stopping waits for them. */
     readonly #settling = new Set<Promise<void>>();
+    /** The newest report of each state on each module's browser part, by module name. */
+    readonly #reports = new Map<string, { ready?: BrowserReport; failed?: BrowserReport }>();
 
     constructor(options: Options = {}) {
         this.#options = options;
@@ -562,6 +585,7 @@ export class ExtensionWebs {
         }
 
         this.#parts.delete(part.module);
+        this.#reports.delete(part.module);
         void this.#dispose(part);
 
         if (part.client !== undefined) {
@@ -618,8 +642,67 @@ export class ExtensionWebs {
             .map((part) => ({
                 module: part.module,
                 title: part.title,
-                url: `/x/${part.module}/${part.client!.rev}/${part.client!.entry}`,
+                url: clientUrl(part),
             }));
+    }
+
+    /**
+     * A tab's report on a module's browser part (`POST /api/extensions/browser-reports`, from `web/extension-ui.js`): kept
+     * as the newest of its state when it is about the version that loads now, by someone it loads for. One about another
+     * version (a tab that has not loaded the new one yet) is dropped: answers whether it was kept.
+     */
+    report(user: Pick<User, "name" | "role" | "sessions">, given: unknown): boolean {
+        const body = (typeof given === "object" && given !== null ? given : {}) as Record<string, unknown>;
+        const part = typeof body.module === "string" ? this.#parts.get(body.module) : undefined;
+
+        if (part?.client === undefined || !mayUse(user, part.client.access)) {
+            throw new HttpError(404, "There is no such browser part of an extension.");
+        }
+
+        if (body.url !== clientUrl(part)) {
+            return false;
+        }
+
+        const kept = this.#reports.get(part.module) ?? {};
+        const base = { url: clientUrl(part), by: user.name, at: Date.now() };
+
+        if (body.state === "ready") {
+            const listed = (typeof body.adds === "object" && body.adds !== null ? body.adds : {}) as Record<string, unknown>;
+            const adds = Object.fromEntries(
+                BROWSER_KINDS.map((kind) => {
+                    const ids = listed[kind];
+
+                    return [kind, Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string" && REPORT_ID.test(id)).slice(0, MAX_REPORT_IDS) : []];
+                }),
+            );
+
+            kept.ready = { ...base, state: "ready", adds };
+        } else if (body.state === "failed" && typeof body.how === "string" && REPORT_HOWS.has(body.how) && typeof body.error === "string") {
+            kept.failed = { ...base, state: "failed", how: body.how, error: body.error.slice(0, MAX_REPORT_ERROR) };
+        } else {
+            throw new HttpError(400, "A report says it loaded, with what it added, or it failed, with how and why.");
+        }
+
+        this.#reports.set(part.module, kept);
+
+        return true;
+    }
+
+    /** The newest reports on a module's browser part about the version that loads now. */
+    reports(file: string): { ready?: BrowserReport; failed?: BrowserReport } {
+        const part = this.#parts.get(moduleName(file));
+
+        if (part?.client === undefined || part.file !== file) {
+            return {};
+        }
+
+        const { ready, failed } = this.#reports.get(part.module) ?? {};
+        const now = clientUrl(part);
+
+        return {
+            ...(ready?.url === now ? { ready } : {}),
+            ...(failed?.url === now ? { failed } : {}),
+        };
     }
 
     /**

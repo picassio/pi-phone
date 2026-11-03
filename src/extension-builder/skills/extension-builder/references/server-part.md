@@ -40,7 +40,7 @@ export default function create(host: Host, web: Web) {
 
 ```ts
 const tool = defineTool({
-    name: "<name>_<verb>",                 // never a built-in tool's name, or the whole drop-in is refused
+    name: "<name>_<verb>",                 // never a built-in tool's name (extension_inspect lists them)
     description: "What it does, for Pi.",
     parameters: Type.Object({ text: Type.String({ description: "…" }), count: Type.Optional(Type.Number()) }),
     replay: "safe",                        // only when running it twice is harmless (it only reads)

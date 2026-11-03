@@ -11,9 +11,11 @@ Copyright (c) 2026 DeepSeek).
 
 ## After the owner turns it on
 
-1. **Did it load?** `setting_change` answers with the error when it failed or was refused; `settings` area
-   `extensions` shows each drop-in's state and error. A refused drop-in says why (a tool's name, nothing added): fix it
-   and install again.
+1. **Did it load?** `extension_inspect` with its name: on or off, loaded, failed or refused and why (a tool's name,
+   nothing added), and what it added on the server. `setting_change` also answers with the error. Fix it and install
+   again.
+   After a tab loaded it (a screenshot of the app is one), ask again: its browser part's page and sheet ids (with
+   their links), and its newest error in a tab, which a picture may not show.
 2. **Its tools:** call each once with real arguments, then a wrong one: the answers are what Pi should read.
 3. **Its page or sheet:** `screenshot` with url `http://127.0.0.1:8787/?page=<name>:<page id>` (or
    `?sheet=<name>:<sheet id>`), widths 390 and 1280. Go by the layout check's numbers (what spills out of its box,

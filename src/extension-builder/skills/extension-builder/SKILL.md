@@ -23,12 +23,15 @@ everything the app has, secrets included, so it lands switched off and only the 
    not a built-in module's; tools are `<name>_<verb>`, never a built-in tool's name.
 2. Change it to do what was asked, and keep it small: one screen, one or two tools. Read `references/server-part.md`
    and `references/browser-part.md` for the APIs, and `references/practices.md` before tools, data or events.
+   `extension_inspect` without a name lists what this app has now: `pocket`'s members, the icons, the theme's
+   variables, and the tool and module names a drop-in may not take (load it with `tool_search` when it is not offered).
 3. Check it: `node <this skill's folder>/scripts/check.mjs <cwd>/<name>` until it says `ok`. It parses the `.ts` as
    pi-phone runs it (erasable TypeScript only) and the `.js` as a module, and checks tool names and the UI rules.
 4. Install it: `extension_install` with the folder `<cwd>/<name>` (a lone `.ts` would leave its browser part out). The
    owner reads it on a card. It lands switched off.
 5. Have it turned on: ask the owner (Settings › Extensions), or `setting_change` `extensions.<name>.ts` `on` (the owner
-   approves a card). A refusal or a load error comes back in the answer, and `settings` area `extensions` shows it.
+   approves a card). Then `extension_inspect` with its name: loaded, failed or refused and why, what it added, and,
+   once a tab loaded it, its page and sheet ids and any error of its browser part.
 6. Look at it in the live app: `screenshot` with url `http://127.0.0.1:8787/?page=<name>:<page id>` (or
    `?sheet=<name>:<sheet id>`) at widths 390 and 1280, and trust the layout check's numbers. For a tool, call it. The
    installed drop-in is the preview: never a mock page, an HTML copy, or pictures of something else.

@@ -52,6 +52,8 @@ const ALWAYS_ALLOWED = new Set([
     "devices",
     // Only reads: the app's settings and their values.
     "settings",
+    // Only reads (PP-368): the drop-in API's names, and how each extension module stands; no file contents.
+    "extension_inspect",
     // Only looks: a picture of a page.
     "screenshot",
     // Only read (PP-36; the owner, 2026-10-21: "plan mode should be able to use all readonly tools"): boards, sessions,

@@ -1908,6 +1908,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ...done, leftOut: pkg.leftOut, ...(await app.extensions(user)) });
         }
 
+        // A tab's report on a module's browser part (PP-368): it loaded and what it added, or it failed and why, for
+        // extension_inspect. Anyone it loads for; kept only about the version that loads now. Before the next route: a
+        // module's file ends in .ts, so it never takes this name.
+        if (first === "extensions" && second === "browser-reports" && third === undefined && method === "POST") {
+            return json(response, 200, { kept: app.webs.report(user, await readJson(request)) });
+        }
+
         if (
             first === "extensions" &&
             second !== undefined &&

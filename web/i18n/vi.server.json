@@ -193,6 +193,8 @@
     "Team documents are the team server's.": "Tài liệu nhóm thuộc máy chủ nhóm.",
     "{1} is not a path inside the extension: no absolute paths and no ..": "{1} không phải đường dẫn bên trong tiện ích: không dùng đường dẫn tuyệt đối và không dùng ..",
     "The extension is larger than 5 MB.": "Tiện ích lớn hơn 5 MB.",
+    "There is no such browser part of an extension.": "Không có phần trình duyệt nào như vậy của một tiện ích.",
+    "A report says it loaded, with what it added, or it failed, with how and why.": "Một báo cáo cho biết nó đã tải, kèm những gì nó thêm vào, hoặc nó đã lỗi, kèm lỗi thế nào và vì sao.",
     "This is not a zip file.": "Đây không phải tệp zip.",
     "Zip64 archives are not read: make a plain zip.": "Không đọc tệp Zip64: hãy tạo tệp zip thường.",
     "The extension has more than 1000 files.": "Tiện ích có hơn 1000 tệp.",

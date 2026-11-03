@@ -169,7 +169,7 @@ function checkBrowser(path) {
 
         for (const match of source.matchAll(/(?:\bname=|\bicon:\s*)["'`]([a-z0-9]+)["'`]/g)) {
             if (!icons.has(match[1])) {
-                problems.push(`${file}: the icon ${match[1]} is not one of the app's (references/browser-part.md lists them)`);
+                problems.push(`${file}: the icon ${match[1]} is not one of the app's (extension_inspect lists them)`);
             }
         }
     }

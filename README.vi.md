@@ -336,8 +336,13 @@ dự án thật.</sub>
   dụng đang chạy ở độ rộng điện thoại và máy tính và sửa ngay tại chỗ. Nó giữ các quy tắc giao diện của bạn: biểu
   tượng nét và danh sách chọn của ứng dụng, trạng thái là một chữ và một chấm, không emoji, pixel nguyên, mọi chữ đều
   theo ngôn ngữ của bạn. Trang của drop-in cũng dùng được danh sách chọn nhiều của ứng dụng (`pocket.MultiChoice`).
-  Một phần chuyển thể từ skill plugin của DeepSeek Harness (MIT). Là một tiện ích riêng, bật sẵn: tắt nó trong
-  **Tiện ích** (hoặc nhờ Pi), và không phiên nào liệt kê skill này nữa.
+  Pi kiểm tra việc mình làm bằng `extension_inspect`, công cụ chỉ đọc (dùng được cả ở chế độ lập kế hoạch): các tên mà
+  API drop-in có (những gì một trang có thể thêm, các thành phần của `pocket`, biểu tượng, màu của giao diện) và những
+  tên drop-in không được dùng, còn với một drop-in: nó đã tải chưa, vì sao bị từ chối hay lỗi, nó đã thêm gì, những
+  trang và bảng tab của bạn thấy nó thêm, và lỗi mới nhất của nó trong một tab (mỗi tab báo cho máy chủ khi trang của
+  một tiện ích bị lỗi), không bao giờ là nội dung tệp. Một phần chuyển thể từ skill plugin của DeepSeek Harness
+  (MIT). Là một tiện ích riêng, bật sẵn: tắt nó trong **Tiện ích** (hoặc nhờ Pi), và không phiên nào còn liệt kê
+  skill hay công cụ này.
 - **Một wiki PARA** ([pi-para](https://github.com/picassio/pi-para)): Pi tra cứu và viết vào đó khi làm việc, với tìm
   kiếm của qmd, theo dõi các câu hỏi mở cho đến khi được trả lời, và ghi nhận các phiên rảnh vào đó. Khi đã
   đăng nhập OpenRouter, **Jev xếp hạng kết quả tìm** (Menu › Wiki › Xếp hạng bằng Jev): nó đọc từng trang tìm được
