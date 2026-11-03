@@ -129,6 +129,8 @@ class CallBridge {
     #link: Link | undefined;
     #unwatch: (() => void) | undefined;
     #closed = false;
+    /** The close under way: a second close (the call ended, then the app closing) waits for the same one. */
+    #closing: Promise<void> | undefined;
     /** Pi's entries seen already (the history as the call began is not spoken). */
     readonly #seen = new Set<number>();
     #seeded = false;
@@ -571,22 +573,27 @@ class CallBridge {
         this.#link?.send({ type: "session.update", session: { ...session, tools: plan.tools } });
     }
 
-    /** End the bridge: the connection, the watch; what was said and not yet kept goes to the transcript. */
-    async close(): Promise<void> {
-        if (this.#closed) {
-            return;
-        }
+    /**
+     * End the bridge: the connection, the watch; what was said and not yet kept goes to the transcript. Every caller
+     * waits for that write, not only the first: the app's close must not close the storage under it.
+     */
+    close(): Promise<void> {
+        this.#closing ??= (async () => {
+            this.#closed = true;
+            this.#unwatch?.();
+            this.#link?.close();
+            await this.#flush();
+        })();
 
-        this.#closed = true;
-        this.#unwatch?.();
-        this.#link?.close();
-        await this.#flush();
+        return this.#closing;
     }
 }
 
 export class VoiceBridge {
     readonly #host: BridgeHost;
     readonly #calls = new Map<string, CallBridge>();
+    /** Bridges of calls that ended and still write what was said: the app's close waits for them too. */
+    readonly #leaving = new Set<CallBridge>();
 
     constructor(host: BridgeHost) {
         this.#host = host;
@@ -640,15 +647,27 @@ export class VoiceBridge {
         const bridge = this.#calls.get(id);
 
         this.#calls.delete(id);
-        await bridge?.close();
+
+        if (bridge === undefined) {
+            return;
+        }
+
+        this.#leaving.add(bridge);
+
+        try {
+            await bridge.close();
+        } finally {
+            this.#leaving.delete(bridge);
+        }
     }
 
     /**
      * End every call's bridge (the app closing): each connection closed, at most CLOSE_GRACE_MS each, and what was said
-     * written to the transcript, before the storage closes.
+     * written to the transcript, before the storage closes. That includes calls that ended just before (the app ends
+     * every call first, and each ended call leaves without being waited for): their writes are waited for too.
      */
     async closeAll(): Promise<void> {
-        const bridges = [...this.#calls.values()];
+        const bridges = [...this.#calls.values(), ...this.#leaving];
 
         this.#calls.clear();
         await Promise.all(bridges.map((bridge) => bridge.close().catch((error: unknown) => this.#host.log(`voice: a call did not close: ${error instanceof Error ? error.message : String(error)}`))));

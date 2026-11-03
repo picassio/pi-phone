@@ -1,7 +1,9 @@
 // A stopping server ends its voice calls at once (PP-198; src/server/voice-bridge.ts `closeAll`, app.ts `close`): a
 // call's sideband whose other end no longer answers (a network that died, not even OpenAI's answer to the close) is
 // ended within moments instead of ws's 30 s, which held the old server alive while the phone started the next one; and
-// what was said in the call is in the transcript before the storage closes.
+// what was said in the call is in the transcript before the storage closes. The app ends every call first, and each
+// ended call's bridge writes on its own: the close must wait for those writes too (under Pi Durable 1.5 it lost the
+// race every time, and the words were dropped with "Session is closed").
 import { type App, cleanUp, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import { projectEntry, type ClientEntry } from "../src/server/projection.ts";
 import { CLOSE_GRACE_MS } from "../src/server/voice-bridge.ts";
