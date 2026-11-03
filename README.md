@@ -115,6 +115,10 @@ No Termux, no laptop, no cloud VM.
   models** asks the server's `/models` and you tick the ones you want, or type ids; each takes a context window, the
   most output, image input and reasoning. Its models join every model picker. The key is kept in Secrets: Pi's model
   configuration only names it. Edit or remove it there later; Pi can too, on a card, but the key is always yours to type.
+- **Favorite models.** Providers › **Favorite models** lists every model you can pick, each with a star: a starred
+  model comes right after the current one in your model picker, which gets a **Favorites** filter. Stars are yours, on
+  every device; they allow nothing (subagents' models are in Menu › Subagents). Pi sees them in its `models` tool
+  (`favorites: true` lists only them) and changes them on a card (`models.favorites`).
 - **More than one account.** Add a second (or third) Claude, Codex, or Copilot account in Providers; each has its
   own sign-in, and its models are listed per account ("Claude Opus · Work"). A session uses the account of the
   model you pick for it, so you can start a session on any account or move one to another.

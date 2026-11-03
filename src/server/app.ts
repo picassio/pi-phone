@@ -298,6 +298,18 @@ function forBoard(entries: readonly SubagentEntry[]): SubagentEntry[] {
     return entries.filter((entry) => !finished(entry) || kept.has(entry));
 }
 
+/** The most models a person stars (PP-350). */
+const MAX_FAVORITE_MODELS = 100;
+
+/** A model as a favorite names it: `provider/modelId`, checked for its form only (a model signed out keeps its star). */
+function modelSpec(model: unknown): string {
+    if (typeof model !== "string" || !/^[^/\s]{1,100}\/\S{1,200}$/.test(model)) {
+        throw new HttpError(400, "A model is provider/modelId, such as anthropic/claude-opus-4-5.");
+    }
+
+    return model;
+}
+
 /** How many sessions All artifacts reads at once (PP-349). */
 const OVERVIEW_BATCH = 8;
 
@@ -1315,7 +1327,7 @@ export class PocketApp {
             resolveModel: (spec) => resolveModel(this.models, spec, this.signInNeeded),
             subagentModels: () => this.config.subagentModels,
             subagentDefaults: (id) => this.subagentDefaults(id),
-            modelsReport: (query, available) => this.modelsReport(query, available),
+            modelsReport: (query, available, options) => this.modelsReport(query, available, options),
             docsImages: {
                 model: () => this.config.docsImageModel,
                 models: () => this.imageModels(),
@@ -3127,6 +3139,40 @@ export class PocketApp {
     }
 
     /**
+     * Star a model for `user`, or take its star away (Providers, the model picker's Favorites, PP-350): `provider/modelId`.
+     * A star allows nothing; it puts the model first in their picker. Their tabs hear it (`model-favorites`).
+     */
+    setModelFavorite(user: User, model: unknown, favorite: unknown): string[] {
+        if (typeof favorite !== "boolean") {
+            throw new HttpError(400, "Say whether the model is a favorite: favorite is true or false.");
+        }
+
+        const spec = modelSpec(model);
+        const now = (this.config.userById(user.id)?.favoriteModels ?? []).filter((each) => each !== spec);
+
+        return this.setModelFavorites(user, favorite ? [...now, spec] : now);
+    }
+
+    /** The models `user` starred, all at once (`models.favorites`): `provider/modelId` each, in order; none clears them. */
+    setModelFavorites(user: User, models: readonly unknown[]): string[] {
+        const specs = [...new Set(models.map(modelSpec))];
+
+        if (specs.length > MAX_FAVORITE_MODELS) {
+            throw new HttpError(400, `At most ${MAX_FAVORITE_MODELS} favorite models.`);
+        }
+
+        this.config.updateUser(user.id, { favoriteModels: specs });
+
+        for (const client of this.#clients) {
+            if (client.user.id === user.id) {
+                client.send("model-favorites", { favoriteModels: specs });
+            }
+        }
+
+        return specs;
+    }
+
+    /**
      * The newest release marked big whose What's new card `user` has not seen (PP-235): for the owner, once past the
      * welcome (a new person starts with the welcome, not with what changed).
      */
@@ -4254,6 +4300,8 @@ export class PocketApp {
                 appearance: this.appearanceOf(user),
                 // What the session list shows when the app opens (PP-346): last (each device's last view), all, or priority.
                 listOpens: user.listOpens ?? "last",
+                // The models they starred (PP-350): first in their model picker, and its Favorites filter.
+                favoriteModels: user.favoriteModels ?? [],
                 // A big release's card they have not seen yet (PP-235), or null.
                 whatsNew: this.whatsNewFor(user) ?? null,
             },
@@ -6700,11 +6748,24 @@ export class PocketApp {
      * Settings › Providers shows them, asked afresh), then each model: whether it can be used now, its context, highest
      * thinking, price, and whether subagents may use it. At most 40 models: a query narrows them.
      */
-    async modelsReport(query: string | undefined, available: boolean): Promise<string> {
+    async modelsReport(query: string | undefined, available: boolean, options: { caller?: ConversationId; favorites?: boolean } = {}): Promise<string> {
         const words = (query ?? "").toLowerCase().split(/\s+/).filter((word) => word !== "");
         const allowed = this.config.subagentModels;
         const defaults = this.config.subagentDefaults;
-        const listed = (await this.modelList()).filter((model) => words.every((word) => `${model.provider}/${model.id} ${model.name}`.toLowerCase().includes(word)));
+        // The person the calling session works for: their starred models (PP-350).
+        const requester = options.caller === undefined ? undefined : this.attribution.requesterOf(options.caller);
+        const person = requester === undefined ? undefined : this.config.userById(requester);
+        const starred = new Set(person?.favoriteModels ?? []);
+
+        if (options.favorites === true && person === undefined) {
+            throw new Error("Nobody asked for this work, so there are no favorites to list.");
+        }
+
+        const listed = (await this.modelList()).filter(
+            (model) =>
+                (options.favorites !== true || starred.has(`${model.provider}/${model.id}`)) &&
+                words.every((word) => `${model.provider}/${model.id} ${model.name}`.toLowerCase().includes(word)),
+        );
         const rows: { provider: string; line: string }[] = [];
 
         for (const model of listed) {
@@ -6719,6 +6780,7 @@ export class PocketApp {
             const price =
                 full === undefined || (full.cost.input === 0 && full.cost.output === 0) ? "" : `, $${String(full.cost.input)} in / $${String(full.cost.output)} out per M tokens`;
             const marks = [
+                ...(starred.has(spec) ? [`a favorite of ${person!.name}`] : []),
                 ...(defaults.model === spec ? ["the subagents' model"] : []),
                 ...(allowed.includes(spec) ? ["allowed for subagents"] : []),
             ];
@@ -6730,6 +6792,10 @@ export class PocketApp {
         }
 
         if (rows.length === 0) {
+            if (options.favorites === true) {
+                return `${person!.name} has starred no model${words.length === 0 ? "" : ` that matches ${query ?? ""}`}${available ? " that is ready now" : ""}: Settings › Providers › Favorite models, or the setting models.favorites.`;
+            }
+
             return words.length === 0 ? "No models: sign in to a provider in Settings › Providers." : `No models match ${query ?? ""}.`;
         }
 

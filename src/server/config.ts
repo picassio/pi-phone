@@ -66,6 +66,11 @@ export interface User {
      * absent: the view each device last used.
      */
     listOpens?: "all" | "priority";
+    /**
+     * The models they starred (PP-350), `provider/modelId`, in the order starred: first in their model picker, and its
+     * Favorites filter. A shortcut only: it allows nothing. Absent: none.
+     */
+    favoriteModels?: string[];
     /** The release (`whatsnew/<version>.md`) whose What's new card they dismissed or saw (PP-235). */
     whatsNewSeen?: string;
     /**
@@ -931,7 +936,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen" | "appearance" | "avatar" | "listOpens">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen" | "appearance" | "avatar" | "listOpens" | "favoriteModels">>,
     ): void {
         const user = this.userById(id);
 
@@ -984,6 +989,10 @@ export class ConfigStore {
 
         if (user.listOpens === undefined) {
             delete user.listOpens;
+        }
+
+        if (user.favoriteModels === undefined || user.favoriteModels.length === 0) {
+            delete user.favoriteModels;
         }
 
         this.save();

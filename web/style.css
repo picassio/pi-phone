@@ -7976,6 +7976,69 @@ pre.diff .del {
     overscroll-behavior: contain;
 }
 
+/* Favorite models (PP-350): the picker's filter under its search, the star on a favorite's row, and Providers' list of
+ * every model with its star. A star on is the warning colour, as a pinned group's pin is. */
+.model-filters {
+    align-self: flex-start;
+    margin: 4px 12px;
+}
+
+.model-filters .icon {
+    margin-right: 4px;
+}
+
+.model-star,
+.pop-menu-row .model-star .icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--warn);
+}
+
+.favorite-models {
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+}
+
+.favorite-models .list-item .icon {
+    color: var(--warn);
+    vertical-align: -2px;
+}
+
+.favorite-models-list {
+    max-height: min(352px, 45dvh);
+    margin-bottom: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.favorite-model {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0 4px 4px;
+}
+
+.favorite-model-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.favorite-model-text > span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.model-favorite {
+    color: var(--faint);
+}
+
+.model-favorite.on {
+    color: var(--warn);
+}
+
 .pop-menu-row {
     display: flex;
     align-items: center;

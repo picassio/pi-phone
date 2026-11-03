@@ -1,11 +1,12 @@
 // Model providers: signing in and out, the models subagents may use besides their session's own, and the dialog a
 // sign-in uses to ask for a code or a key.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
-import { t, tx } from "../i18n.js";
-import { api, attempt, closeSheet, closeSignIn, loadUsage, openSheet, roleAllows, signInAnswered, store } from "../store.js";
+import { t, tn, tx } from "../i18n.js";
+import { api, attempt, canSteer, closeSheet, closeSignIn, loadUsage, openSheet, roleAllows, signInAnswered, store } from "../store.js";
 import { UsageBars } from "../usage.js";
 import { html, Icon, item, Loader, Sheet, StateTag, Switch } from "../ui.js";
 import { RefreshModels } from "../model-refresh.js";
+import { favoriteModels, setModelFavorite } from "../model-favorites.js";
 import { CustomProviders } from "./custom-providers.js";
 
 /** How long a run waits for a provider's limit to clear, at most (`limit-gate.ts`, PP-135): hours, 0 is off. */
@@ -54,6 +55,79 @@ function SubagentModels() {
 
     return html`<div class="subagent-models">
         ${item("Models for subagents", () => openSheet({ type: "subagent-settings" }), allowed.length === 0 ? t("Menu › Subagents") : t("{n} allowed · Menu › Subagents", { n: allowed.length }))}
+    </div>`;
+}
+
+/** Models past this many get a box to find them by. */
+const FAVORITES_SEARCH_AT = 8;
+
+/**
+ * The person's favorite models (PP-350): every model they can pick, by provider, each with a star. A star puts the model
+ * first in their model picker, and in its Favorites filter; it allows nothing for subagents (Menu › Subagents does).
+ * Folded until opened.
+ */
+function FavoriteModels() {
+    const { models } = store.state;
+    const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState("");
+    const starred = new Set(favoriteModels());
+    const needle = query.trim().toLowerCase();
+    const byProvider = new Map();
+
+    for (const model of models) {
+        const spec = `${model.provider}/${model.id}`;
+
+        if (needle === "" || `${spec} ${model.name} ${model.account ?? ""}`.toLowerCase().includes(needle)) {
+            byProvider.set(model.provider, [...(byProvider.get(model.provider) ?? []), model]);
+        }
+    }
+
+    return html`<div class="favorite-models" data-part="favorite-models">
+        <button class="list-item" aria-expanded=${open} onClick=${() => setOpen(!open)}>
+            <span><${Icon} name="star" size=${14} /> ${t("Favorite models")}</span>
+            <span class="muted small">${starred.size === 0 ? t("none yet") : tn(starred.size, "{n} starred", "{n} starred")}</span>
+        </button>
+        ${
+            open &&
+            html`<p class="muted small">${t("A star puts a model first in your model picker, and in its Favorites filter. It changes no permission: the models subagents may use are in Menu › Subagents.")}</p>
+                ${
+                    models.length > FAVORITES_SEARCH_AT &&
+                    html`<label class="search">
+                        <${Icon} name="search" size=${16} />
+                        <input placeholder=${t("Search models")} aria-label=${t("Search models")} value=${query} onInput=${(event) => setQuery(event.currentTarget.value)} />
+                    </label>`
+                }
+                ${models.length === 0 && html`<p class="muted small">${t("No models are available. Add a provider first.")}</p>`}
+                ${models.length > 0 && byProvider.size === 0 && html`<p class="muted small">${t("No model matches “{query}”.", { query: query.trim() })}</p>`}
+                <div class="favorite-models-list">
+                    ${[...byProvider].map(
+                        ([provider, list]) => html`<div key=${provider}>
+                            <div class="label">${provider}</div>
+                            ${list.map((model) => {
+                                const spec = `${model.provider}/${model.id}`;
+                                const on = starred.has(spec);
+
+                                return html`<div class="favorite-model" key=${spec} data-model=${spec}>
+                                    <span class="favorite-model-text">
+                                        <span>${model.name}</span>
+                                        <span class="muted small mono">${spec}</span>
+                                    </span>
+                                    <button
+                                        class=${`icon-button model-favorite ${on ? "on" : ""}`}
+                                        data-part="model-favorite"
+                                        aria-pressed=${on}
+                                        aria-label=${on ? t("Unstar {name}", { name: model.name }) : t("Star {name}", { name: model.name })}
+                                        title=${on ? t("Take it out of your favorites") : t("Add it to your favorites: first in your model picker")}
+                                        onClick=${() => setModelFavorite(spec, !on)}
+                                    >
+                                        <${Icon} name="star" size=${18} />
+                                    </button>
+                                </div>`;
+                            })}
+                        </div>`,
+                    )}
+                </div>`
+        }
     </div>`;
 }
 
@@ -204,6 +278,7 @@ export function ProvidersSheet() {
             owner &&
             html`<${SubagentModels} />`
         }
+        ${canSteer() && html`<${FavoriteModels} />`}
         ${store.state.auth && html`<${AuthDialog} inline=${true} />`}
         ${owner && roleAllows("providers.custom") && html`<${CustomProviders} changed=${store.state.models} onLoaded=${() => setCustomIn(true)} />`}
         <label class="search">

@@ -147,3 +147,8 @@ is skipped on purpose.
   b4 web fixes of 5510f8c hold nothing for it). Differs: no `kind` or `group` (pi-phone's artifacts have neither), Keep
   as a page in each row, a grid icon on the rail (kept pages use the artifact icon), `artifacts_list` for Pi, and an
   unreadable session fails the list rather than being skipped (no fallbacks).
+- Favorite models from 0.28 (PP-350): merge be25a47 (#169 by @piromagnus: 67b1618, 293b293, cbf06e8), the picker's
+  Favorites filter and the star's sort. Differs: stars are kept per person on the server (not per browser), with a
+  setting and the models tool; Providers lists every model with a star (pi-phone's subagent models live in Menu ›
+  Subagents, PP-281). Not taken: the full-height model library pane, its Allowed filter and legend (the subagent
+  models list is not in Providers here), and sign-in-ui.test.ts's library parts.

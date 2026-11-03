@@ -883,6 +883,8 @@ const handlers = {
             ...(data.connection === undefined ? {} : { streamId: data.connection }),
         });
     },
+    // The models this person starred (PP-350), on any of their devices or by Pi.
+    "model-favorites": (data) => store.state.me && store.set({ me: { ...store.state.me, favoriteModels: data.favoriteModels } }),
     // What the session list shows when the app opens (PP-346), chosen on any of their devices or by Pi.
     "list-opens": (data) => store.state.me && store.set({ me: { ...store.state.me, listOpens: data.listOpens } }),
     // The person chose another language, on this device or another (PP-81).

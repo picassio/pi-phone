@@ -6,6 +6,7 @@ import { actions, attempt, closeSheet, loadUsage, openSheet, store } from "../st
 import { usageLine } from "../usage.js";
 import { VoiceModeRow } from "../voice-view.js";
 import { useDragToClose } from "../gestures.js";
+import { favoriteModels, isFavoriteModel } from "../model-favorites.js";
 import {
     anchorStyle,
     BOTTOM_SHEETS,
@@ -81,6 +82,9 @@ export function ModelPicker() {
         () => query.trim() !== "" && !scopedModels.some((model) => matches(model, query)),
     );
     const choices = showAll || scopedModels.length === 0 ? models : scopedModels;
+    // The person's starred models (PP-350): first after the current one, and a filter of their own, within the scope.
+    const starred = favoriteModels().length > 0;
+    const [favoritesOnly, setFavoritesOnly] = useState(false);
     // Decided once: a search box that went away when emptied would take the caret with it.
     const [searchable] = useState(() => models.length > MODEL_SEARCH_AT || query !== "");
     const [picked, setPicked] = useState(0);
@@ -116,8 +120,8 @@ export function ModelPicker() {
         : agent?.thinkingLevel;
     const reasoning = forDefault ? defaultModel?.reasoning : agent?.reasoning;
     const shown = choices
-        .filter((model) => matches(model, query))
-        .sort((a, b) => Number(isCurrent(b)) - Number(isCurrent(a)));
+        .filter((model) => (!favoritesOnly || isFavoriteModel(model)) && matches(model, query))
+        .sort((a, b) => Number(isCurrent(b)) - Number(isCurrent(a)) || Number(isFavoriteModel(b)) - Number(isFavoriteModel(a)));
     // The list can change while the picker is open.
     const active = Math.max(0, Math.min(picked, shown.length - 1));
     // The session's model and level are the default already.
@@ -297,6 +301,26 @@ export function ModelPicker() {
                     />
                 </label>`
             }
+            ${
+                starred &&
+                html`<div class="segmented model-filters" role="group" aria-label=${t("Filter models")} data-part="model-filters">
+                    ${[
+                        [false, t("All models")],
+                        [true, t("Favorites")],
+                    ].map(
+                        ([only, label]) => html`<button
+                            class=${favoritesOnly === only ? "on" : ""}
+                            aria-pressed=${favoritesOnly === only}
+                            onClick=${() => {
+                                setFavoritesOnly(only);
+                                setPicked(0);
+                            }}
+                        >
+                            ${only && html`<${Icon} name="star" size=${14} />`}${label}
+                        </button>`,
+                    )}
+                </div>`
+            }
             <div class="pop-menu-list" ref=${list} role="listbox" aria-label=${t("Models")}>
                 ${
                     models.length === 0 &&
@@ -305,7 +329,7 @@ export function ModelPicker() {
                 ${
                     models.length > 0 &&
                     shown.length === 0 &&
-                    html`<p class="muted pop-menu-note">${t("No model matches “{query}”.", { query: query.trim() })}</p>`
+                    html`<p class="muted pop-menu-note">${favoritesOnly && query.trim() === "" ? t("No favorites among these models: star some in Providers.") : t("No model matches “{query}”.", { query: query.trim() })}</p>`
                 }
                 ${shown.map(
                     (model, index) => html`<button
@@ -323,6 +347,7 @@ export function ModelPicker() {
                                 ${model.account ? `${model.provider.split("~")[0]} · ${model.account} account` : model.provider}${!forDefault && isDefault(model) ? " · default" : ""}${model.signIn ? " · needs sign-in" : ""}${usageLine(model.provider) ? ` · ${usageLine(model.provider)}` : ""}
                             </span>
                         </span>
+                        ${isFavoriteModel(model) && html`<span class="model-star" title=${t("Favorite")} aria-label=${t("Favorite")}><${Icon} name="star" size=${14} /></span>`}
                         ${isCurrent(model) && html`<${Icon} name="check" size=${14} />`}
                     </button>`,
                 )}

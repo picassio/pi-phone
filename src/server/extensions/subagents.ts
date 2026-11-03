@@ -1209,19 +1209,20 @@ export default function createSubagents(host: PocketHost) {
     const models = defineTool({
         name: "models",
         description:
-            "The models Pi may use, by provider with its plan windows (5-hour, weekly, premium requests: how much is used and when it resets): each model's whether it is ready now, its context, highest thinking level, price, and whether subagents run on it or may. query: words of its provider, id or name (opus, codex); available: only those ready now. Read only.",
+            "The models Pi may use, by provider with its plan windows (5-hour, weekly, premium requests: how much is used and when it resets): each model's whether it is ready now, its context, highest thinking level, price, whether subagents run on it or may, and whether your person starred it as a favorite. query: words of its provider, id or name (opus, codex); available: only those ready now; favorites: only your person's favorites. Read only.",
         parameters: obj({
             query: opt(str({ description: "Words to match, such as opus or openai-codex" })),
             available: opt(bool({ description: "Only the models ready now" })),
+            favorites: opt(bool({ description: "Only the models your person starred as favorites" })),
         }, { open: true }),
         replay: "safe",
-        execute: async (args) => ({
+        execute: async (args, api) => ({
             output: [
                 {
                     type: "text" as const,
                     text:
                         typeof host.modelsReport === "function"
-                            ? await host.modelsReport(args.query, args.available === true)
+                            ? await host.modelsReport(args.query, args.available === true, { caller: api.conversationId, favorites: args.favorites === true })
                             : "This server cannot list its models.",
                 },
             ],

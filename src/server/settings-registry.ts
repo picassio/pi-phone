@@ -526,6 +526,19 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["on", "off"],
             apply: (user, value) => app.keptPages.setOn(user, onOff(value)),
         },
+        // ─── Favorite models (PP-350) ───
+        {
+            id: "models.favorites",
+            area: "models",
+            title: "The models one person starred as favorites",
+            help: "provider/modelId of each, separated by commas, in order (anthropic/claude-opus-4-5, openai-codex/gpt-5.5), or none. A favorite comes first in their model picker and in its Favorites filter; it allows nothing (models.subagents does). Target: the person's name. Settings › Providers › Favorite models.",
+            owner: true,
+            target: "person",
+            read: (target) => (person(target).favoriteModels ?? []).join(", ") || "none",
+            apply: (_user, value, target) => {
+                app.setModelFavorites(person(target), NONE.test(value.trim()) ? [] : value.split(/[,\s]+/).filter((each) => each !== ""));
+            },
+        },
         // ─── The session list (PP-346) ───
         {
             id: "sessions.listOpens",

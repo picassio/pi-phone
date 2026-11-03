@@ -122,6 +122,10 @@ dự án thật.</sub>
   cảnh, đầu ra tối đa, nhận hình ảnh và suy luận. Các mô hình của nó xuất hiện trong mọi bộ chọn mô hình. Khóa được lưu
   trong Bí mật: cấu hình mô hình của Pi chỉ ghi tên của nó. Sau này có thể sửa hoặc xóa ở đó; Pi cũng làm được, qua một
   thẻ duyệt, nhưng khóa luôn do bạn gõ.
+- **Mô hình yêu thích.** Nhà cung cấp › **Mô hình yêu thích** liệt kê mọi mô hình bạn chọn được, mỗi cái có một ngôi sao:
+  mô hình gắn sao đứng ngay sau mô hình hiện tại trong bộ chọn mô hình, và bộ chọn có bộ lọc **Yêu thích**. Sao là của bạn,
+  trên mọi thiết bị; chúng không cho phép gì (mô hình của subagent nằm ở Menu › Subagent). Pi thấy chúng trong công cụ
+  `models` (`favorites: true` chỉ liệt kê chúng) và đổi chúng qua một thẻ (`models.favorites`).
 - **Nhiều hơn một tài khoản.** Thêm tài khoản Claude, Codex hoặc Copilot thứ hai (hay thứ ba) trong Nhà cung cấp; mỗi
   tài khoản có đăng nhập riêng, và mô hình của nó được liệt kê theo tài khoản ("Claude Opus · Work"). Một phiên dùng
   tài khoản của mô hình bạn chọn cho nó, nên bạn có thể mở phiên trên bất kỳ tài khoản nào hoặc chuyển phiên sang tài

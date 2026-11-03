@@ -426,9 +426,10 @@ export interface PocketHost {
     /**
      * The models Pi may use, for its `models` tool (PP-281): each with its provider, whether it can be used now, its
      * context, highest thinking, price, and its account's plan windows; `query` words to match, `available` only those
-     * that can be used now.
+     * that can be used now. With `caller`, the models the person it works for starred are marked (PP-350), and with
+     * `favorites` only those are listed.
      */
-    modelsReport(query: string | undefined, available: boolean): Promise<string>;
+    modelsReport(query: string | undefined, available: boolean, options?: { caller?: ConversationId; favorites?: boolean }): Promise<string>;
     /** Images in documents (PP-49): the model the person chose to describe them (provider/modelId) or null, the ones they may choose, and a description. */
     readonly docsImages: {
         model(): string | null;

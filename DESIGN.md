@@ -2273,6 +2273,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
     rule (no path).
   - `pocket.openPageOf(module, page)` opens another module's page (never its sheets), once that module is ready. A
     board's Docs button uses it to open Documents on the board's place (PP-47).
+- **Favorite models** (PP-350, after pi-pocket 0.28's #169). pi-pocket keeps stars in each browser's localStorage;
+  pi-phone keeps them with the person (`User.favoriteModels`, `provider/modelId` in the order starred, at most 100),
+  so every device and Pi see the same: `hello`'s `user.favoriteModels`, `POST /api/model-favorites` (one star),
+  `model-favorites` events to the person's tabs, the setting `models.favorites` (a person's, all at once), and the
+  `models` tool marks the favorites of the person the calling session works for (`favorites: true` lists only them).
+  Providers has Favorite models (folded; every model, by provider, with a star) instead of pocket's stars beside the
+  subagent models, which pi-phone moved to Menu › Subagents (PP-281); the picker sorts favorites right after the
+  current model and has an All models / Favorites filter within its scope. A star allows nothing.
 - **All artifacts** (PP-349, pi-pocket 0.28's #237 and its fix 537580d). `PocketApp.artifactOverview` reads the
   artifacts index of every unarchived session the person can see, 8 sessions at a time, one entry per artifact with
   its current version, and checks the person again at the end (a share removed meanwhile takes its entries out);

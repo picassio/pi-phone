@@ -575,6 +575,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, app.sessions(user));
         }
 
+        // A model starred, or its star taken away (Providers, the model picker's Favorites, PP-350).
+        if (first === "model-favorites" && second === undefined && method === "POST") {
+            const body = await readJson<{ model?: unknown; favorite?: unknown }>(request);
+
+            return json(response, 200, { favoriteModels: app.setModelFavorite(user, body.model, body.favorite) });
+        }
+
         // Every artifact in the sessions this person can see (All artifacts, PP-349).
         if (first === "artifacts" && second === undefined && method === "GET") {
             return json(response, 200, await app.artifactOverview(user));
