@@ -611,7 +611,9 @@ No Termux, no laptop, no cloud VM.
   they finish, so it pushes, ends its turn, and is woken by the result.
 - **In English, Chinese or Vietnamese.** Appearance › Language: *Auto* follows the phone or browser, or pick English,
   简体中文 (Simplified Chinese) or Tiếng Việt (Vietnamese). The choice is kept with you, so every device of yours follows
-  it, and Pi, told your app's language, answers in it until you write in another language. The whole app is translated: the session list,
+  it, and Pi, told your app's language, answers in it until you write in another language. Pi also writes to the
+  sessions it starts or messages and to its subagents in your language, and asks them to answer in it, so a session Pi
+  worked in reads in your language when you open it. The whole app is translated: the session list,
   conversation, menus, launcher, every sheet, the Projects, Wiki, Documents and Sharing pages (extensions get
   `pocket.t` for theirs), the team server's sign-in and admin pages, the server's errors and notices, and the phone's
   notifications (with Auto, in the phone's language). This README is in Chinese and Vietnamese too: [README.zh-CN.md](README.zh-CN.md),

@@ -724,6 +724,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
 - **Languages** (PP-81, PP-236): English, Simplified Chinese (`zh-CN`) and Vietnamese (`vi`). The list is in
   `web/i18n.js` (`LANGUAGES`, Auto by the browser's tags), `src/server/i18n.ts` (phone notifications, Auto by Android's
   locale), `PocketApp.LANGUAGES` and `appearance.language`; Pi's prompt says the person's language (`section("language")`).
+  Agents write to each other in it (PP-354, from pi-pocket 0.28.0): the subagents and sessions guides say to write a
+  subagent's brief and what goes to another session in the language of the person Pi works for and to ask for answers
+  in it; the guidelines say to answer a `[via session …]` message in that message's language. No setting: pi-phone
+  has no pi-pocket ASD-STE100 rule to replace, nor PiP.
   Each language has `web/i18n/<id>.json` (sentences), `<id>.server.json` (server messages) and Android's
   `res/values-<qualifier>` (zh-rCN, vi). `scripts/i18n-check.ts` reports each catalog and fails on a placeholder that
   differs; `--missing <id>` and `--missing <id>.server` list what one lacks. Vietnamese wording: `web/i18n/vi.glossary.md`.

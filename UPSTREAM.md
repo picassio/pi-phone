@@ -90,3 +90,7 @@ is skipped on purpose.
   `thinkingLevel` and `init`; `host.sessions` was pi-phone's session tools, so their `start` (Pi's session_start) is
   now `startLinked`; the docs are the Extension builder's `server-part.md`. Not taken: 7fb3337 (PiP's test: pi-phone
   has no PiP), 0cef8d4 (pocket's version marks and docs site), the `types/pocket.d.ts` and docs-site parts.
+- Agents in their person's language from 0.28.0 (PP-354): merge 6709a10 (d01a97b) as three lines of pi-phone's prompt
+  (the subagents and sessions guides, and the guidelines for a `[via session …]` message): pi-phone never had pocket's
+  ASD-STE100 rules for agent messages, so nothing is replaced; agent-teams and linked sessions are pocket's, not here.
+  Not taken: merge 36d33c7 (2628427d, `pip.md`'s language: PiP), and the PiP parts of d01a97b.

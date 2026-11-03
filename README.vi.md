@@ -632,6 +632,8 @@ dự án thật.</sub>
 - **Tiếng Anh, tiếng Trung hoặc tiếng Việt.** Giao diện › Ngôn ngữ: *Tự động* theo điện thoại hoặc trình duyệt, hoặc
   chọn English, 简体中文 (tiếng Trung giản thể) hay Tiếng Việt. Lựa chọn được giữ theo bạn, nên mọi thiết bị của bạn đều
   theo, và Pi, khi biết ngôn ngữ ứng dụng của bạn, sẽ trả lời bằng ngôn ngữ đó cho đến khi bạn viết bằng ngôn ngữ khác.
+  Pi cũng viết cho các phiên nó mở hoặc nhắn tin và cho các subagent bằng ngôn ngữ của bạn, và nhờ chúng trả lời bằng
+  ngôn ngữ đó, nên một phiên Pi đã làm việc sẽ bằng ngôn ngữ của bạn khi bạn mở nó.
   Toàn bộ ứng dụng đã được dịch: danh sách phiên, cuộc trò chuyện, menu, trình khởi chạy, mọi bảng, các trang Dự án,
   Wiki, Tài liệu và Chia sẻ (tiện ích có `pocket.t` cho phần của mình), các trang đăng nhập và quản trị của máy chủ
   nhóm, lỗi và thông báo của máy chủ, và thông báo trên điện thoại (với Tự động, theo ngôn ngữ của điện thoại). README

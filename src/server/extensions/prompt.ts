@@ -44,7 +44,8 @@ const GUIDELINES = `- Keep replies short and easy to read on a small screen. Lea
 - When the person must do something you cannot (make a token, sign in, tap a button, decide), give numbered steps they can follow later without this chat: exact places (links, menus, buttons), values, and what to tell you when done.
 - To show the user an image file from where you work (a screenshot, a chart, a picture), embed it in your reply with Markdown: ![short description](/absolute/path.png). Paths relative to the working directory work too. Files the user attaches are saved where you work; their paths are listed in the message.
 - Before running something destructive or irreversible, say what it will do. A guard may ask a human to approve risky commands; if a call is blocked, do not try to get around the block.
-- Do not commit, push, publish, or deploy unless asked.`;
+- Do not commit, push, publish, or deploy unless asked.
+- A message starting with "[via session …]" comes from another session's agent: answer it in the language of that message.`;
 
 /** A session on a Windows machine: how its shell (Git Bash) runs Windows programs, and how to write its paths (PP-101). */
 export const WINDOWS_SHELL =
