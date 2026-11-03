@@ -1911,6 +1911,81 @@ export const anchorStyle = (anchor) =>
         ? `left:${anchor.left}px;${anchor.down ? `top:${anchor.top}px` : `bottom:${anchor.bottom}px`};width:${anchor.width}px;max-height:${anchor.height}px`
         : "";
 
+/**
+ * Where a fixed element's coordinates start, for one placed beside `node`: the screen, or the nearest ancestor that
+ * holds fixed elements itself (a transform, filter, backdrop filter, perspective, contain or will-change: a sheet
+ * sliding in, a card rising in). There a list placed in the screen's coordinates draws off by the ancestor's offset
+ * (PP-374).
+ */
+export function fixedOrigin(node) {
+    for (let at = node?.parentElement; at && at !== document.documentElement; at = at.parentElement) {
+        const style = getComputedStyle(at);
+
+        if (
+            style.transform !== "none" ||
+            style.filter !== "none" ||
+            (style.backdropFilter ?? "none") !== "none" ||
+            style.perspective !== "none" ||
+            /paint|layout|strict|content/.test(style.contain) ||
+            /transform|filter|perspective/.test(style.willChange)
+        ) {
+            const rect = at.getBoundingClientRect();
+
+            return { left: rect.left, top: rect.top, bottom: rect.bottom };
+        }
+    }
+
+    return { left: 0, top: 0, bottom: innerHeight };
+}
+
+/** A dropdown's place in the screen's coordinates, as the element beside `node` places it (`fixedOrigin`). */
+const placedFrom = (node, place) => {
+    const origin = fixedOrigin(node);
+
+    return {
+        ...place,
+        left: place.left - origin.left,
+        ...(place.down ? { top: place.top - origin.top } : { bottom: place.bottom - (innerHeight - origin.bottom) }),
+    };
+};
+
+/** Whether `node` or one of its ancestors is animating (moving it). */
+const moving = (node) => {
+    for (let at = node; at; at = at.parentElement) {
+        if (at.getAnimations?.().some((each) => each.playState === "running")) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+/**
+ * While a dropdown is open, follow its button each frame as long as something around it animates (a sheet sliding in),
+ * and once more when that ends: `place()` measures it again.
+ */
+function useFollow(open, button, place) {
+    useEffect(() => {
+        if (!open) {
+            return undefined;
+        }
+
+        let frame = 0;
+        const step = () => {
+            const still = !moving(button.current);
+
+            place();
+            frame = still ? 0 : requestAnimationFrame(step);
+        };
+
+        if (moving(button.current)) {
+            frame = requestAnimationFrame(step);
+        }
+
+        return () => cancelAnimationFrame(frame);
+    }, [Boolean(open)]);
+}
+
 /** The short name of a model for chips: "Claude Opus 5.5" stays, long ids lose their date suffix. */
 export function modelLabel(agent) {
     if (!agent?.model) {
@@ -1934,7 +2009,12 @@ export function Choice({ value, options, onChange, label, disabled, placeholder 
     const button = useRef(null);
     const menu = useRef(null);
     const chosen = options.find((option) => option.value === value);
-    const show = () => {
+    // Under its button, or over it with too little room below; placed as its sheet places fixed elements (PP-374).
+    const place = () => {
+        if (!button.current) {
+            return;
+        }
+
         const rect = button.current.getBoundingClientRect();
         const top = visualViewport?.offsetTop ?? 0;
         const bottom = top + (visualViewport?.height ?? innerHeight);
@@ -1942,12 +2022,17 @@ export function Choice({ value, options, onChange, label, disabled, placeholder 
         const above = rect.top - top - 8;
         const down = below >= 200 || below >= above;
 
-        setOpen({
-            left: rect.left,
-            width: rect.width,
-            height: Math.min(320, down ? below : above),
-            ...(down ? { top: rect.bottom + 4, down: true } : { bottom: innerHeight - rect.top + 4 }),
-        });
+        setOpen(
+            placedFrom(button.current, {
+                left: rect.left,
+                width: rect.width,
+                height: Math.min(320, down ? below : above),
+                ...(down ? { top: rect.bottom + 4, down: true } : { bottom: innerHeight - rect.top + 4 }),
+            }),
+        );
+    };
+    const show = () => {
+        place();
         setActive(Math.max(0, options.findIndex((option) => option.value === value)));
     };
     const close = () => setOpen(null);
@@ -2001,9 +2086,10 @@ export function Choice({ value, options, onChange, label, disabled, placeholder 
             document.removeEventListener("scroll", scrolled, true);
             removeEventListener("resize", close);
         };
-    }, [open]);
+    }, [Boolean(open)]);
 
     useEffect(reveal, [active]);
+    useFollow(open, button, place);
 
     const onKeyDown = (event) => {
         if (!open) {
@@ -2105,6 +2191,10 @@ export function MultiChoice({ options, onAdd, label, placeholder = t("Add…"), 
         setQuery("");
     };
     const show = () => {
+        if (!button.current) {
+            return;
+        }
+
         const rect = button.current.getBoundingClientRect();
         const top = visualViewport?.offsetTop ?? 0;
         const bottom = top + (visualViewport?.height ?? innerHeight);
@@ -2112,12 +2202,14 @@ export function MultiChoice({ options, onAdd, label, placeholder = t("Add…"), 
         const above = rect.top - top - 8;
         const down = below >= 280 || below >= above;
 
-        setOpen({
-            left: rect.left,
-            width: rect.width,
-            height: Math.min(420, down ? below : above),
-            ...(down ? { top: rect.bottom + 4, down: true } : { bottom: innerHeight - rect.top + 4 }),
-        });
+        setOpen(
+            placedFrom(button.current, {
+                left: rect.left,
+                width: rect.width,
+                height: Math.min(420, down ? below : above),
+                ...(down ? { top: rect.bottom + 4, down: true } : { bottom: innerHeight - rect.top + 4 }),
+            }),
+        );
     };
     const toggle = (value) => setTicked((was) => (was.includes(value) ? was.filter((each) => each !== value) : [...was, value]));
     const add = () => {
@@ -2163,7 +2255,9 @@ export function MultiChoice({ options, onAdd, label, placeholder = t("Add…"), 
             window.removeEventListener("keydown", escape, true);
             removeEventListener("resize", close);
         };
-    }, [open]);
+    }, [Boolean(open)]);
+
+    useFollow(open, button, show);
 
     const needle = query.trim().toLowerCase();
     const shown = options.filter((option) => needle === "" || `${option.label} ${option.value} ${option.group ?? ""}`.toLowerCase().includes(needle));
