@@ -2384,6 +2384,24 @@ pre.diff .del {
     }
 }
 
+/* An artifact's card in the chat: Open, and Keep as a page or that it is kept (PP-370). */
+.artifact-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+}
+
+.kept-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.kept-state .state-tag {
+    margin-left: 0;
+}
+
 /* A subagent's report: a card. */
 .report {
     padding: 12px 14px;
@@ -9237,8 +9255,9 @@ pre.diff .del {
     .viewer-head {
         flex-wrap: wrap;
     }
-    .viewer-title {
-        flex-basis: calc(100% - 50px);
+    /* The title on a line of its own, its buttons (Keep as a page among them) on the next. */
+    .viewer-head .viewer-title {
+        flex: 1 1 calc(100% - 52px);
     }
     .artifact-grid {
         grid-template-columns: 1fr;
@@ -16386,6 +16405,89 @@ textarea.notes {
     white-space: nowrap;
     text-align: center;
     line-height: 15px;
+}
+
+/* A kept page (PP-370): its artifact in the sandbox, filling the conversation's place below the header. */
+.kept-page-frame {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    background: #fff;
+}
+
+.kept-page .openui-frame.fill {
+    flex: 1;
+    min-height: 0;
+    border-radius: 0;
+}
+
+.kept-page .board-head .button {
+    flex: none;
+}
+
+.kept-page .board-title h2,
+.kept-page .board-sub {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.kept-page .board-head {
+    gap: 8px;
+}
+
+/* Settings › Pages: a kept page's row, its title opening it, then up, down, and Remove from the rail. */
+.kept-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 12px;
+    background: var(--o-bg);
+}
+
+.kept-name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 40px;
+    text-align: left;
+    color: var(--faint);
+}
+
+.kept-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.kept-title,
+.kept-from {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.kept-title {
+    color: var(--text);
+    font-size: 14px;
+}
+
+/* A phone: the title on a line of its own, up, down and Remove under it at the right. */
+@media (max-width: 480px) {
+    .kept-row {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .kept-name {
+        flex-basis: 100%;
+    }
+}
+
+.pages-sheet .group-title {
+    margin-top: 16px;
 }
 
 /* Safe mode, in the Extensions sheet: this tab loads no extension's browser part. */

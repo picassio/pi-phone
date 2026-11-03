@@ -1092,6 +1092,8 @@ const ICONS = {
     minus: "M6 12h12",
     down: "M6 9l6 6 6-6",
     up: "M12 19V5M5 12l7-7 7 7",
+    // The arrow that goes with `up`, to move a row down a list (`down` is a fold's chevron).
+    "arrow-down": "M12 5v14M19 12l-7 7-7-7",
     eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 100-6 3 3 0 000 6z",
     search: "M11 18a7 7 0 100-14 7 7 0 000 14zM21 21l-4.3-4.3",
     shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",

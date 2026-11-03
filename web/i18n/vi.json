@@ -3462,5 +3462,22 @@
     "{n} file changed from HEAD": "{n} tệp đổi so với HEAD",
     "{n} files changed from HEAD": "{n} tệp đổi so với HEAD",
     "{n} comment": "{n} bình luận",
-    "{n} comments": "{n} bình luận"
+    "{n} comments": "{n} bình luận",
+    "Open a session first: a page puts its text into the message box of the session you are in.": "Hãy mở một phiên trước: trang đưa chữ của nó vào ô nhập của phiên bạn đang ở.",
+    "The page sent more text than the message box takes ({n} characters at most).": "Trang gửi nhiều chữ hơn ô nhập nhận được (tối đa {n} ký tự).",
+    "Keep as a page": "Giữ thành trang",
+    "Kept as a page": "Đã giữ thành trang",
+    "Open the page": "Mở trang",
+    "Page": "Trang",
+    "{session} · version {version}": "{session} · phiên bản {version}",
+    "Remove from the rail": "Gỡ khỏi thanh bên",
+    "This page is no longer on your rail.": "Trang này không còn trên thanh bên của bạn.",
+    "Keep artifacts as pages": "Giữ artifact thành trang",
+    "Anyone can keep an artifact they see as a page of their own, opened from the rail. A page runs in the artifacts' sandbox and can only put text into the message box.": "Ai cũng có thể giữ một artifact họ xem được thành trang riêng, mở từ thanh bên. Trang chạy trong sandbox của artifact và chỉ có thể đưa chữ vào ô nhập.",
+    "No artifact can be kept, and kept pages leave every rail until this is on again.": "Không artifact nào giữ được, và các trang đã giữ rời khỏi mọi thanh bên cho đến khi bật lại.",
+    "Your pages": "Trang của bạn",
+    "None yet. Keep an artifact as a page from its card in the chat, or from the artifact viewer.": "Chưa có. Giữ một artifact thành trang từ thẻ của nó trong cuộc trò chuyện, hoặc từ trình xem artifact.",
+    "artifacts kept on the rail": "artifact giữ trên thanh bên",
+    "{n} page on the rail": "{n} trang trên thanh bên",
+    "{n} pages on the rail": "{n} trang trên thanh bên"
 }

@@ -289,6 +289,25 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ok: true });
         }
 
+        // Artifacts kept as pages on the rail (PP-370): this person's, keep or remove one, their order; on or off (the owner's).
+        if (first === "kept-pages" && second === undefined && method === "GET") {
+            return json(response, 200, await app.keptPages.list(user));
+        }
+
+        if (first === "kept-pages" && second === undefined && method === "POST") {
+            return json(response, 200, await app.keptPages.set(user, await readJson(request)));
+        }
+
+        if (first === "kept-pages" && second === "order" && method === "POST") {
+            return json(response, 200, await app.keptPages.order(user, await readJson(request)));
+        }
+
+        if (first === "kept-pages" && second === "on" && method === "PUT") {
+            app.keptPages.setOn(user, (await readJson<{ on?: unknown }>(request)).on);
+
+            return json(response, 200, await app.keptPages.list(user));
+        }
+
         // Folder groups in the session list (PP-76): one change at a time.
         if (first === "session-groups" && second === undefined && method === "GET") {
             return json(response, 200, await app.sessionGroups.list(user));

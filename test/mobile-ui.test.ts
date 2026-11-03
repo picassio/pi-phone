@@ -589,7 +589,7 @@ test("replayed data keeps equal items but applies changed facts and a fresh cloc
             user: before.me, users: before.users, models: before.models, guard: before.guard,
             server: { ...before.server, now: Date.now() + 120_000 },
             themes: before.themeList, folderFavorites: before.folderFavorites,
-            former: before.former, sessionGroups: before.sessionGroups,
+            former: before.former, sessionGroups: before.sessionGroups, keptPages: before.keptPages,
         };
         let result;
 

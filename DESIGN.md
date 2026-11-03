@@ -1133,6 +1133,34 @@ so Pi changes them through the settings tools; "the last session" is the one the
     (`system-prompt.txt`, about 8,500 tokens), on request. The `interactive_answers` section says when to use it.
   - **Tests:** `test/openui.test.ts` renders the guide's three examples and a map, chart and math program with the
     library in Node (`renderToString`, stylesheets emptied by a plugin), with no errors.
+- **Pages kept from artifacts** (PP-370; the owner's mockup pp366-mockup, frames 4 and 5): **Keep as a page** on an
+  artifact's card in the chat and in the viewer puts the artifact on the person's rail as a page of their own.
+  - **Data:** `KeptPagesDoc` (`pocket.kept-pages`, session scope), `{ users: { <userId>: [{ conversation, artifact }] } }`
+    in rail order, at most 24 each (`src/server/kept-pages.ts`). The list a person gets is worked out each time: a page
+    shows only while its session exists, they can see it (`canSee`, so a person invited to one session, or the server
+    edition's shared accounts, never get another's), and the artifact is there; with its newest version, title and type.
+    It reaches their tabs in `hello` (`keptPages`) and a `kept-pages` event, sent when their list commits and when an
+    `ArtifactsDoc` they keep a page of changes, so a page loads its new version (its frame's address names the version).
+  - **On or off:** `artifacts.pages` (config `artifactPages`, on when absent), the owner's, in Settings › Pages and with
+    `setting_change`. Off, every list is empty and keeping is refused (409); the lists stay, and come back when it is on.
+  - **Routes:** `GET/POST /api/kept-pages` (keep or remove, `{ conversation, artifact, kept }`, explicit, never a toggle),
+    `POST /api/kept-pages/order` (every kept page, each once), `PUT /api/kept-pages/on` (the owner's).
+  - **Pi:** `app_action pages.keep` (session, artifact, kept on/off) and `pages.order`, each after the person's card,
+    for the person it works for (`owner: false`); their answers list that person's pages. No tool of its own.
+  - **The page** (`web/pages.js`): the page slot's module `kept` (as the gateway's `gateway`), drawn in the conversation's
+    place with the board's header (title, session and version, *Remove from the rail*, Close; Esc and Back close). The
+    frame is the viewer's: `/a/<conversation>/<id>/<version>` with the artifacts' CSP and the same `sandbox` (no
+    `allow-same-origin`), so it has no cookies and no way into the app. An `openui` artifact draws in `OpenUiFrame`, its
+    `@ToAssistant` going into the message box (`ask`) and its state kept in the artifact's conversation.
+  - **Bridge:** the frame's only message is `{ type: "pi-compose", text }` (from its own window, text up to 20,000
+    characters): the page closes and the text goes into the message box of the session the person is in
+    (`insertIntoComposer`, as `pocket.compose`); with no session open it says so and nothing happens. The artifact viewer
+    takes the same message. The artifact tool's prompt section says how.
+  - **Rail:** `KeptPageRailButtons` after the extensions' buttons, the `artifact` line icon and the title; on a phone, the
+    drawer's rail. **Settings › Pages** (Menu › App › Pages): on or off for the owner, then the person's pages with up,
+    down and *Remove from the rail*.
+  - **Tests:** `test/kept-pages.test.ts` (per person, order, newest version, visibility, removal, off, Pi's actions) and
+    `test/kept-pages-ui.test.ts` (Chrome, 390 and 1280 px: keep from the card, the rail, the page, the bridge, removal).
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;

@@ -742,5 +742,13 @@
     "{1} is not one of the Jev models OpenRouter offers ({2}).": "{1} không phải một mô hình Jev mà OpenRouter cung cấp ({2}).",
     "That is not a target /review takes: changes, branch <base>, commit <sha>, pr <number or link>, or folder <paths>, then --extra and a focus.": "/review không nhận mục tiêu này: changes, branch <nhánh gốc>, commit <sha>, pr <số hoặc link>, hoặc folder <đường dẫn>, rồi --extra và điều cần tập trung.",
     "A comment needs a file, a side (new, old, or file), a line for a line's comment, and words.": "Bình luận cần tệp, phía (new, old hoặc file), dòng nếu là bình luận cho dòng, và nội dung.",
-    "There is no such comment.": "Không có bình luận này."
+    "There is no such comment.": "Không có bình luận này.",
+    "Say whether the page is kept: kept is true or false.": "Hãy nói trang có được giữ không: `kept` là `true` hoặc `false`.",
+    "Pages are off: the owner turns them on in Settings › Pages.": "Trang đang tắt: chủ sở hữu bật lại trong Cài đặt › Trang.",
+    "There is no artifact {1} in session {2} that you can see.": "Không có artifact {1} nào trong phiên {2} mà bạn xem được.",
+    "You can keep up to {1} pages: remove one in Settings › Pages first.": "Bạn giữ được tối đa {1} trang: hãy gỡ một trang trong Cài đặt › Trang trước.",
+    "Give the pages in their new order: a list of each one's session and artifact.": "Hãy đưa các trang theo thứ tự mới: danh sách phiên và artifact của từng trang.",
+    "Name each page you keep once, and only those: the list changed, so open it again.": "Hãy nêu mỗi trang bạn giữ đúng một lần, và chỉ những trang đó: danh sách đã thay đổi, hãy mở lại.",
+    "Pages are on (true) or off (false).": "Trang bật (`true`) hoặc tắt (`false`).",
+    "A page is an artifact: its session's number (conversation) and its id (artifact).": "Một trang là một artifact: số của phiên chứa nó (`conversation`) và id của nó (`artifact`)."
 }

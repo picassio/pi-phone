@@ -21,6 +21,7 @@ import { voiceFromShell, voiceShown } from "./voice-call.js";
 import { VoicePanel } from "./voice-view.js";
 import { ExtensionPage, openPageWhenReady, openSheetWhenReady } from "./extension-ui.js";
 import { GATEWAY_PAGE, GatewayPage } from "./gateway-panel.js";
+import { KEPT_PAGE, KeptPage } from "./pages.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
 import { Splash } from "./home.js";
 import { UsageMeter } from "./usage.js";
@@ -519,6 +520,8 @@ function App() {
                     : page
                       ? state.page.module === GATEWAY_PAGE
                           ? html`<${GatewayPage} key=${state.page.id} tab=${state.page.id} />`
+                          : state.page.module === KEPT_PAGE
+                          ? html`<${KeptPage} key=${state.page.id} id=${state.page.id} />`
                           : html`<${ExtensionPage} key=${`${state.page.module}:${state.page.id}`} />`
                       : inConversation
                         ? html`<${Topbar} />

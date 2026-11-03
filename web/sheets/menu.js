@@ -524,6 +524,19 @@ export function MenuSheet({ places = true }) {
             <div class="group-title">${t("App")}</div>
             ${me?.role === "owner" && item("Getting started", () => openGettingStarted(), "Pi shows you around")}
             ${item("Appearance", () => openSheet({ type: "appearance" }), lookLabel())}
+            ${
+                // Artifacts kept as pages on the rail (PP-370): each person's own; on or off is the owner's.
+                (store.state.keptPages.on || me?.role === "owner") &&
+                item(
+                    "Pages",
+                    () => openSheet({ type: "pages" }),
+                    !store.state.keptPages.on
+                        ? "off"
+                        : store.state.keptPages.pages.length === 0
+                          ? "artifacts kept on the rail"
+                          : tn(store.state.keptPages.pages.length, "{n} page on the rail", "{n} pages on the rail"),
+                )
+            }
             ${me?.role === "owner" && item("Subagents", () => openSheet({ type: "subagent-settings" }), subagentSummary(undefined))}
             ${me?.role === "owner" && !["app", "space"].includes(pushSupport()) && item("Notifications", () => openSheet({ type: "notifications" }), pushId() === null ? "off on this device" : "on on this device")}
             ${voiceAvailable() && item("Dictation", () => openSheet({ type: "dictation" }), dictationLanguage())}

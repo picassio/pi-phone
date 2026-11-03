@@ -49,14 +49,16 @@ function askText(data) {
 /**
  * An interactive answer in a frame: `program` (a block in a reply, sent once the frame is ready), or `src` (an `openui`
  * artifact's page, which holds its own). `fill`: the frame takes its container's height (the artifact viewer) instead of
- * fitting the answer's.
+ * fitting the answer's. `ask`: what a button's words for Pi do, instead of sending them (a kept page puts them into the
+ * message box, PP-370). `conversation`: where what was typed and picked is kept, when not the session open now (a kept
+ * page's artifact's).
  */
-export function OpenUiFrame({ program = null, src = null, title = "Answer", fill = false }) {
+export function OpenUiFrame({ program = null, src = null, title = "Answer", fill = false, ask = null, conversation = null }) {
     const ref = useRef(null);
     const [height, setHeight] = useState(240);
     const theme = modeOf(paletteOf()) === "dark" ? "dark" : "light";
     const address = src ?? `a/openui?theme=${theme}`;
-    const conversationId = store.state.conversationId;
+    const conversationId = conversation ?? store.state.conversationId;
     // Blocks by their program; artifacts by their address (its version is in it).
     const key = program !== null ? answerKey("p", program) : answerKey("a", String(src).split("?")[0]);
 
@@ -118,7 +120,11 @@ export function OpenUiFrame({ program = null, src = null, title = "Answer", fill
                 const text = askText(data);
 
                 if (text !== "") {
-                    attempt(() => actions.submit(text, [], "followUp"));
+                    if (ask === null) {
+                        attempt(() => actions.submit(text, [], "followUp"));
+                    } else {
+                        ask(text);
+                    }
                 }
             }
         };
@@ -134,7 +140,7 @@ export function OpenUiFrame({ program = null, src = null, title = "Answer", fill
                 save();
             }
         };
-    }, [program, theme, key, conversationId]);
+    }, [program, theme, key, conversationId, ask]);
 
     return html`<iframe
         ref=${ref}

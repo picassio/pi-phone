@@ -4,28 +4,10 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { attempt, closeSheet, openSheet, store } from "../store.js";
 import { downloadImage } from "../download.js";
 import { OpenUiFrame } from "../openui.js";
-import { modeOf, paletteOf, themeVars } from "../theme.js";
+import { ARTIFACT_SANDBOX, KeepButton, themeQuery, useComposeBridge } from "../pages.js";
+import { modeOf, paletteOf } from "../theme.js";
 import { formatBytes, html, Icon, Sheet, timeAgo } from "../ui.js";
 import { t } from "../i18n.js";
-
-/**
- * The app's theme for a Markdown artifact's page, in its address: in its sandbox, the page cannot see the app's look,
- * and would otherwise take the browser's light or dark (`src/server/http/artifacts.ts`).
- */
-function themeQuery() {
-    const palette = paletteOf();
-    const vars = themeVars(palette);
-    const hex = (name) => vars[name].replace(/^#/, "");
-
-    return `?${new URLSearchParams({
-        mode: modeOf(palette),
-        bg: hex("--o-bg"),
-        fg: hex("--o-fg"),
-        text: hex("--o-fg-bright"),
-        accent: hex("--o-accent"),
-        code: hex("--o-bg-dark"),
-    })}`;
-}
 
 export function ArtifactsSheet() {
     const { artifacts } = store.state.view;
@@ -70,7 +52,11 @@ export function ArtifactViewer({ id, version }) {
     const artifact = view.artifacts.find((each) => each.id === id);
     const [shown, setShown] = useState(version ?? artifact?.versions.at(-1)?.version);
     const [nonce, setNonce] = useState(0);
+    const frame = useRef(null);
     const latest = artifact?.versions.at(-1)?.version;
+
+    // Its one way into the app: text into the message box (PP-370), as on a kept page.
+    useComposeBridge(frame);
     const theme = artifact?.type === "markdown" ? themeQuery() : "";
     const src = `a/${view.conversation.id}/${encodeURIComponent(id)}/${shown ?? "latest"}${theme}`;
 
@@ -98,6 +84,7 @@ export function ArtifactViewer({ id, version }) {
                         )}
                 </select>`
             }
+            ${artifact && html`<${KeepButton} conversation=${view.conversation.id} artifact=${id} />`}
             <button class="icon-button" title=${t("Reload")} onClick=${() => setNonce(nonce + 1)}>
                 ↻
             </button>
@@ -111,8 +98,9 @@ export function ArtifactViewer({ id, version }) {
                 ? html`<${OpenUiFrame} key=${`${src}#${nonce}`} src=${`${src}?theme=${modeOf(paletteOf()) === "dark" ? "dark" : "light"}`} title=${artifact.title} fill />`
                 : html`<iframe
             key=${`${src}#${nonce}`}
+            ref=${frame}
             src=${src}
-            sandbox="allow-scripts allow-forms allow-modals allow-popups allow-pointer-lock allow-downloads"
+            sandbox=${ARTIFACT_SANDBOX}
             allow="fullscreen; clipboard-write; accelerometer; gyroscope"
             title=${artifact?.title ?? id}
         ></iframe>`

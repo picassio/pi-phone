@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import { Avatar, folderColor, initials } from "./avatar.js";
 import { goHome, useBack } from "./back.js";
 import { ExtensionRailButtons } from "./extension-ui.js";
+import { KeptPageRailButtons } from "./pages.js";
 import { GATEWAY_PAGE, openGatewayPage } from "./gateway-panel.js";
 import { useDragToClose } from "./gestures.js";
 import { PeeksRailButton } from "./peeks.js";
@@ -2084,6 +2085,7 @@ function Rail({ foldable = false, folded = false }) {
             }
         </button>
         <${ExtensionRailButtons} />
+        <${KeptPageRailButtons} />
         ${
             // Behind the server edition's gateway, people and devices are its (PP-21): the rail opens its pages in the
             // People & account panel (PP-80), on People (Account for a role that may not see people).

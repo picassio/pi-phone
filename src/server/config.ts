@@ -205,6 +205,8 @@ interface PocketConfig {
     browserPopups?: PopupMode;
     /** Whether browser_eval runs scripts that read the page in Pi's browser (PP-244). Absent: on. */
     browserEval?: boolean;
+    /** Whether people may keep artifacts as pages on their rail (PP-370, `kept-pages.ts`). Absent: on. */
+    artifactPages?: boolean;
     /** The design system Pi designs with unless asked otherwise (`design-systems.ts`), by its id. Absent: none. */
     designSystem?: string;
     /** The model that describes images in documents (PP-49), provider/modelId; none when unset. */
@@ -736,6 +738,20 @@ export class ConfigStore {
             delete this.#config.browserPopups;
         } else {
             this.#config.browserPopups = mode;
+        }
+
+        this.save();
+    }
+
+    get artifactPages(): boolean {
+        return this.#config.artifactPages ?? true;
+    }
+
+    set artifactPages(on: boolean) {
+        if (on) {
+            delete this.#config.artifactPages;
+        } else {
+            this.#config.artifactPages = false;
         }
 
         this.save();

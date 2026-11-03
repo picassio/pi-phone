@@ -631,7 +631,14 @@ card on the session list (and the home screen on a wide screen) offers a tour of
 - **The session menu** (⋯ in the session's top bar) has the session's own things: rename, folder, terminal, context,
   instructions, schedules, board. Below them, under **App**, are the app's settings, listed in the next part.
 - **The rail** (left edge on a wide screen) opens Sessions, Projects, and the Wiki. A session's **Places** open its Files,
-  Changes, Artifacts, Find, and Branch. The **Browser panel** opens when Pi browses: beside the chat on a wide screen, or
+  Changes, Artifacts, Find, and Branch.
+- **Keep an artifact as a page.** **Keep as a page** on an artifact's card in the chat (or in the artifact viewer) puts
+  it on your rail (in the drawer on a phone) as a page of your own: it opens in the conversation's place, in the same
+  sandbox artifacts run in (no app data, no cookies), and follows the artifact's newest version. The one thing a page
+  can do in the app is put text into the message box of the session you are in, for you to send
+  (`parent.postMessage({ type: "pi-compose", text }, "*")`; an artifact in the viewer can too). **Settings › Pages**
+  lists your pages, orders them, and removes them from the rail. Each person's pages are their own, and a page whose
+  session you cannot see is not shown to you. The **Browser panel** opens when Pi browses: beside the chat on a wide screen, or
   from the small preview above the message box on a phone.
 
 ### Settings, and asking Pi instead
@@ -649,6 +656,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | **OpenRouter** (needed for Jev, the wiki's search by meaning, and OpenRouter web search) | **Providers › OpenRouter**: sign in, or **API key** | No, signing in is yours |
 | **Jev** as the model for `browser_run` | **Pi's browser › Run model**: pick a Jev model OpenRouter offers (such as *TypeSafe: Jev 1.14*) from the list, for every session or only this one (*The session's own model* uses each session's own model); *Test* asks it one decision | "Use Jev for browser runs" (or "…in this session only") |
 | Scripts that read the page in Pi's browser (`browser_eval`) | **Pi's browser › Scripts**: *On* (the default) or *Off* | "Turn off browser scripts" |
+| Artifacts kept as pages on the rail | **Pages**: your pages (order, *Remove from the rail*); the owner turns pages *On* (the default) or *Off* for everyone | "Keep the paper reader as a page", "Put the budget page first", "Turn off pages" |
 | Windows pages open in Pi's browser on the phone (sign-in popups) | **Pi's browser › Windows pages open**: *Allow* (a tab in front, the default), *Ask* (a card first), *Off* | "Ask me before a page opens a window" |
 | **Wiki** search by meaning | **Wiki** (or *Wiki settings* from the search launcher) **› Search by meaning**: pick an OpenRouter embedding model, such as `openai/text-embedding-3-small`. Off means keyword search only | "Set the wiki embedding model to openai/text-embedding-3-small" |
 | **Wiki** search ranked by Jev | **Wiki › Rank with Jev**: a Jev model OpenRouter offers (`typesafe/jev-1.14` by default when OpenRouter is signed in), or *Off* for the search's own order | "Rank the wiki search with jev-1.13", "turn off Jev ranking for the wiki" |

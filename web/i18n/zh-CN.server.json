@@ -743,5 +743,13 @@
     "{1} is not one of the Jev models OpenRouter offers ({2}).": "{1} 不是 OpenRouter 提供的 Jev 模型（{2}）。",
     "That is not a target /review takes: changes, branch <base>, commit <sha>, pr <number or link>, or folder <paths>, then --extra and a focus.": "/review 不接受这个目标：changes、branch <基础分支>、commit <sha>、pr <编号或链接> 或 folder <路径>，之后可加 --extra 和关注点。",
     "A comment needs a file, a side (new, old, or file), a line for a line's comment, and words.": "评论需要文件、所在侧（new、old 或 file）、行评论的行号，以及内容。",
-    "There is no such comment.": "没有这条评论。"
+    "There is no such comment.": "没有这条评论。",
+    "Say whether the page is kept: kept is true or false.": "请说明是否保留页面：kept 为 true 或 false。",
+    "Pages are off: the owner turns them on in Settings › Pages.": "页面已关闭：所有者可在 设置 › 页面 中开启。",
+    "There is no artifact {1} in session {2} that you can see.": "会话 {2} 中没有你能看到的产物 {1}。",
+    "You can keep up to {1} pages: remove one in Settings › Pages first.": "最多可保留 {1} 个页面：请先在 设置 › 页面 中移除一个。",
+    "Give the pages in their new order: a list of each one's session and artifact.": "请按新顺序给出页面：每个页面的会话和产物列表。",
+    "Name each page you keep once, and only those: the list changed, so open it again.": "请把保留的每个页面各列一次，且只列这些：列表已变化，请重新打开。",
+    "Pages are on (true) or off (false).": "页面为开启（true）或关闭（false）。",
+    "A page is an artifact: its session's number (conversation) and its id (artifact).": "页面即产物：它所在会话的编号（conversation）和它的 id（artifact）。"
 }

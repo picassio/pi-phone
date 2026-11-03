@@ -52,7 +52,8 @@ const GUIDE = `Use the artifact tool for results the user should see rendered ra
 - HTML artifacts open in a sandboxed frame on the user's device (often a phone). They cannot reach this app, its cookies, or the parent page. Make them self-contained, responsive (include a viewport meta tag), and touch-friendly.
 - Load libraries from a CDN with full URLs, such as https://esm.sh or https://cdn.jsdelivr.net. For ES modules that import bare specifiers (three.js addons import "three"), add an import map, for example: <script type="importmap">{"imports":{"three":"https://esm.sh/three@0.170.0","three/addons/":"https://esm.sh/three@0.170.0/examples/jsm/"}}</script>
 - Show loading and error states inside the page (window.onerror, a visible message), so a broken artifact explains itself.
-- Reuse the id to publish a new version. For small fixes, send edits against the latest version instead of the whole content.`;
+- Reuse the id to publish a new version. For small fixes, send edits against the latest version instead of the whole content.
+- The person can keep an artifact as a page on their rail (app_action pages.keep does it for them, after a card); the page follows its newest version. An artifact's one way into the app, in the viewer and on a page: parent.postMessage({ type: "pi-compose", text }, "*") puts text into the message box of the session they are in, for them to send (in an openui artifact, @ToAssistant does that on a page).`;
 
 export default function createArtifacts(_host: PocketHost) {
     const artifact = defineTool({

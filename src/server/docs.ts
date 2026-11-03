@@ -104,6 +104,20 @@ export const FolderFavoritesDoc = defineDoc<{ users: Record<string, string[]> }>
     initial: () => ({ users: {} }),
 });
 
+/**
+ * Artifacts each person keeps as pages (PP-370), in their rail's order: the conversation the artifact is in (a session or
+ * one of its subagents), and the artifact's id. Private to each person and shared by their devices (`kept-pages.ts`).
+ */
+export type KeptPage = { conversation: number; artifact: string };
+
+export const KeptPagesDoc = defineDoc<{ users: Record<string, KeptPage[]> }>({
+    kind: "pocket.kept-pages",
+    version: 1,
+    ...rebased,
+    scope: "session",
+    initial: () => ({ users: {} }),
+});
+
 /** One person's folder groups in the session list (PP-76): the groups in their order, and each session's group. */
 export type SessionGroupsOf = { groups: { id: string; name: string; pinned: boolean; folded: boolean; usedAt?: number }[]; members: Record<string, string> };
 

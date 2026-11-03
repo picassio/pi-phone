@@ -49,6 +49,7 @@ import { ShortcutsSheet } from "./sheets/shortcuts.js";
 import { SpendSheet } from "./sheets/spend.js";
 import { TextSheet } from "./sheets/text.js";
 import { ArtifactsSheet, ArtifactViewer, ImageViewer } from "./sheets/viewers.js";
+import { PagesSheet } from "./sheets/pages.js";
 import { WorktreeSheet } from "./sheets/worktree.js";
 import { TrustSheet } from "./trust.js";
 import { addLayer, goBack, removeLayer } from "./back.js";
@@ -210,6 +211,10 @@ function sheetBody(sheet) {
             break;
         case "artifacts":
             body = html`<${ArtifactsSheet} />`;
+            break;
+        // Settings › Pages: artifacts kept as pages on the rail (PP-370).
+        case "pages":
+            body = html`<${PagesSheet} />`;
             break;
         case "viewer":
             body = view.conversation

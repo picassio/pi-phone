@@ -133,6 +133,8 @@ export const store = {
         browserPlaces: {},
         /** This person's folder groups in the session list (PP-76), from the server: the same on every device. */
         sessionGroups: { groups: [], members: {} },
+        /** The artifacts this person keeps as pages on the rail (PP-370, `pages.js`), and whether pages are on. */
+        keptPages: { on: false, pages: [] },
         /** False until the server's first session list arrives: an empty list until then means "not here yet". */
         sessionsLoaded: false,
         /** Sessions on their way into the archive (true) or out of it (false), by id, until the list catches up (`sessions.js`). */
@@ -828,6 +830,7 @@ const handlers = {
             former: kept(state.former, data.former ?? {}),
             folderFavorites: kept(state.folderFavorites, data.folderFavorites ?? []),
             sessionGroups: kept(state.sessionGroups, data.sessionGroups),
+            keptPages: kept(state.keptPages, data.keptPages),
             models: kept(state.models, data.models),
             ...(Array.isArray(data.usage) ? { usage: kept(state.usage, usageMap(data.usage)) } : {}),
             guard: kept(state.guard, data.guard),
@@ -884,6 +887,7 @@ const handlers = {
         setChanged({ folderFavorites: kept(store.state.folderFavorites, folderFavorites) }),
     "session-groups": (sessionGroups) =>
         setChanged({ sessionGroups: kept(store.state.sessionGroups, sessionGroups) }),
+    "kept-pages": (keptPages) => setChanged({ keptPages: kept(store.state.keptPages, keptPages) }),
     models: (models) => setChanged({ models: kept(store.state.models, models) }),
     usage: (usage) => store.set((state) => ({ usage: { ...state.usage, [usage.provider]: usage } })),
     // A theme folder came, went, or changed (`theme.js` loads its new version).

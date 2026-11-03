@@ -32,6 +32,7 @@ import { CrdConnectForm } from "./crd-connect.js";
 import { BrowserRunCard } from "./browser-run-card.js";
 import { parseReviewResult, ReviewCard } from "./review-card.js";
 import { ScreenCard } from "./guide.js";
+import { KeepButton } from "./pages.js";
 import { levelName, openSubagent, stateOf } from "./subagents.js";
 import { prefs } from "./theme.js";
 import {
@@ -1167,12 +1168,15 @@ function ToolStep({
                 }
                 ${
                     artifact &&
-                    html`<button
-                        class="artifact-link"
-                        onClick=${() => openSheet({ type: "viewer", id: artifact.id, version: artifact.version })}
-                    >
-                        ${t("Open {title} · version {version} →", { title: artifact.title, version: artifact.version })}
-                    </button>`
+                    html`<div class="artifact-actions" data-part="artifact-actions">
+                        <button
+                            class="artifact-link"
+                            onClick=${() => openSheet({ type: "viewer", id: artifact.id, version: artifact.version })}
+                        >
+                            ${t("Open {title} · version {version} →", { title: artifact.title, version: artifact.version })}
+                        </button>
+                        <${KeepButton} conversation=${view.conversation.id} artifact=${artifact.id} />
+                    </div>`
                 }
             </div>`
         }
@@ -2853,6 +2857,8 @@ function callDeps(block, results, slots, approvals) {
 
     if (block.name === "artifact") {
         deps.push((view.artifacts ?? []).map((each) => `${each.id}:${each.type}`).join());
+        // Its Keep as a page, or that it is kept (PP-370).
+        deps.push(store.state.keptPages);
     }
 
     if (block.name === "subagent") {

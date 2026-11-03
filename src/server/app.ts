@@ -88,6 +88,7 @@ import {
     type ChatMessage,
     DecisionsDoc,
     FolderFavoritesDoc,
+    KeptPagesDoc,
     SessionGroupsDoc,
     type SessionGroupsOf,
     type SessionMeta,
@@ -103,6 +104,7 @@ import { ExtensionWebs, mayUse } from "./extension-web.ts";
 import { defang, quoted } from "./fence.ts";
 import { cardFills, savedSignIn } from "./extensions/browser.ts";
 import { FolderFavorites } from "./folder-favorites.ts";
+import { KeptPages } from "./kept-pages.ts";
 import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
 import { withAssistant } from "./assistant.ts";
@@ -511,6 +513,8 @@ export class PocketApp {
     readonly piHandoff = new PiHandoff(this);
     /** Each person's favorite working folders, shared by their devices. */
     readonly folderFavorites = new FolderFavorites(this);
+    /** Artifacts each person keeps as pages on their rail (PP-370). */
+    readonly keptPages = new KeptPages(this);
     readonly sessionGroups = new SessionGroups(this);
     readonly autoCompact = new AutoCompact(this);
     /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */
@@ -1817,7 +1821,14 @@ export class PocketApp {
             );
         } else if (kind === SessionGroupsDoc.definition.kind) {
             this.sessionGroups.committed(change.value as { users: Record<string, SessionGroupsOf> } | null);
+        } else if (kind === KeptPagesDoc.definition.kind) {
+            this.keptPages.committed();
         } else if (ROOM_DOCS.has(kind) && id !== undefined) {
+            // A kept page follows its artifact's newest version and title (PP-370).
+            if (kind === ArtifactsDoc.definition.kind) {
+                void this.keptPages.artifactsChanged(id).catch((error: unknown) => this.log(`kept pages not updated: ${describe(error)}`));
+            }
+
             if (kind === ChatDoc.definition.kind) {
                 if (
                     this.#noteChat(
@@ -4117,6 +4128,8 @@ export class PocketApp {
             folderFavorites: await this.folderFavorites.list(user),
             // Their folder groups in the session list (PP-76), on every device.
             sessionGroups: await this.sessionGroups.list(user),
+            // The artifacts they keep as pages on their rail (PP-370), and whether pages are on.
+            keptPages: await this.keptPages.list(user),
             // Every theme folder, for Appearance and for the look this tab uses (`theme.js`).
             themes: this.themes.list(user.role === "owner"),
         };

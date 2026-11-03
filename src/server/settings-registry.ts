@@ -15,6 +15,7 @@ import { HttpError } from "./errors.ts";
 import { MAX_COMPACT_AT, MIN_COMPACT_AT } from "./auto-compact.ts";
 import { makeBackup } from "./backup.ts";
 import { DESIGN_MODULE } from "./design-systems.ts";
+import type { KeptPagesView } from "./kept-pages.ts";
 import { type CustomProviderView, idFromName, type KeyChoice } from "./custom-providers.ts";
 import { type VoiceCheck, VOICES } from "./voice.ts";
 import { ImageGen } from "./image-gen.ts";
@@ -122,6 +123,14 @@ const onOff = (value: string): boolean => {
 
     throw new HttpError(400, "Say on or off.");
 };
+
+/** A person's kept pages, in words, for Pi (PP-370). */
+const keptLine = (view: KeptPagesView) =>
+    !view.on
+        ? "Pages are off (artifacts.pages)."
+        : view.pages.length === 0
+          ? "Their rail has no pages now."
+          : `Their pages, in order: ${view.pages.map((page) => `${page.conversation}/${page.artifact} ("${page.title}", v${page.version})`).join(", ")}.`;
 
 const money = (amount: number | undefined) => (amount === undefined ? "none" : `$${amount.toFixed(2)}`);
 
@@ -481,6 +490,17 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             read: (target) => machine(target).browserMode ?? "headless",
             choices: () => [...MACHINE_BROWSER_MODES],
             apply: (user, value, target) => app.setMachineBrowserMode(user, machine(target).id, value.trim().toLowerCase()),
+        },
+        // ─── Pages kept from artifacts (PP-370) ───
+        {
+            id: "artifacts.pages",
+            area: "artifacts",
+            title: "Keep artifacts as pages on the rail",
+            help: "on (the default: anyone can keep an artifact they see as a page of their own, opened from the rail, in the artifacts' sandbox; it can only put text into the message box) or off (no artifact can be kept, and kept pages leave every rail until it is on again). Each person's pages: app_action pages.keep and pages.order.",
+            owner: true,
+            read: () => (app.config.artifactPages ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (user, value) => app.keptPages.setOn(user, onOff(value)),
         },
         // ─── Web access ───
         {
@@ -1552,6 +1572,46 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 await app.folderFavorites.set(user, { path: args.path, starred: onOff(args.starred ?? "") });
 
                 return `${onOff(args.starred ?? "") ? "Starred" : "Unstarred"} ${args.path}.`;
+            },
+        },
+        {
+            id: "pages.keep",
+            area: "artifacts",
+            title: "Keep an artifact as a page on the rail of the person you work for, or remove one",
+            help: "Their own pages, opened from their rail, following the artifact's newest version. The answer lists their pages in order.",
+            owner: false,
+            args: {
+                session: "The number of the session (or of its subagent's conversation) the artifact is in",
+                artifact: "The artifact's id",
+                kept: "on to keep it, off to remove it from the rail",
+            },
+            describe: (args) =>
+                onOff(args.kept ?? "")
+                    ? `Keep the artifact ${args.artifact ?? ""} of session ${args.session ?? ""} as a page on your rail`
+                    : `Remove the page ${args.artifact ?? ""} of session ${args.session ?? ""} from your rail`,
+            run: async (user, args) => {
+                const kept = onOff(args.kept ?? "");
+                const view = await app.keptPages.set(user, { conversation: args.session, artifact: args.artifact, kept });
+
+                return `${kept ? "Kept" : "Removed"} ${args.artifact}. ${keptLine(view)}`;
+            },
+        },
+        {
+            id: "pages.order",
+            area: "artifacts",
+            title: "Put the pages on the rail of the person you work for in a new order",
+            help: "Every page they keep, each once, as pages.keep lists them.",
+            owner: false,
+            args: { pages: "The pages in their new order: session/artifact, comma-separated (12/paper-reader, 9/budget)" },
+            describe: (args) => `Put your pages in this order: ${args.pages ?? ""}`,
+            run: async (user, args) => {
+                const pages = (args.pages ?? "").split(",").map((each) => each.trim()).filter(Boolean).map((each) => {
+                    const [conversation, artifact] = each.split("/");
+
+                    return { conversation, artifact };
+                });
+
+                return `Done. ${keptLine(await app.keptPages.order(user, { pages }))}`;
             },
         },
         {

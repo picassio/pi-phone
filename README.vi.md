@@ -658,6 +658,13 @@ mới** trên danh sách phiên (và màn hình chính khi màn hình rộng) m�
 - **Thanh bên** (cạnh trái trên màn hình rộng) mở Phiên, Dự án và Wiki. **Nơi làm việc** của một phiên mở Tệp, Thay
   đổi, Artifact, Tìm và Nhánh. **Khung Trình duyệt** mở khi Pi duyệt web: cạnh cuộc trò chuyện trên màn hình rộng, hoặc từ
   bản xem trước nhỏ phía trên ô nhập trên điện thoại.
+- **Giữ artifact thành trang.** **Giữ thành trang** trên thẻ artifact trong cuộc trò chuyện (hoặc trong trình xem
+  artifact) đưa nó lên thanh bên của bạn (trong ngăn kéo trên điện thoại) thành một trang riêng: trang mở ở chỗ của
+  cuộc trò chuyện, trong cùng sandbox mà artifact chạy (không có dữ liệu ứng dụng, không cookie), và theo phiên bản mới
+  nhất của artifact. Điều duy nhất trang làm được trong ứng dụng là đưa chữ vào ô nhập của phiên bạn đang ở, để bạn
+  gửi (`parent.postMessage({ type: "pi-compose", text }, "*")`; artifact trong trình xem cũng vậy). **Cài đặt › Trang**
+  liệt kê các trang của bạn, đổi thứ tự và gỡ chúng khỏi thanh bên. Trang của mỗi người là của riêng họ, và trang
+  thuộc phiên bạn không xem được thì không hiện với bạn.
 
 ### Cài đặt, và nhờ Pi làm thay
 Mọi cài đặt dưới đây nằm trong menu phiên (⋯) mục **Ứng dụng**. Bạn cũng có thể chỉ cần nói với Pi, ví dụ “dùng Jev
@@ -674,6 +681,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | **OpenRouter** (cần cho Jev, tìm kiếm theo ngữ nghĩa của wiki, và tìm kiếm web qua OpenRouter) | **Nhà cung cấp › OpenRouter**: đăng nhập, hoặc **Khóa API** | Không, đăng nhập là việc của bạn |
 | **Jev** làm mô hình cho `browser_run` | **Trình duyệt của Pi › Mô hình chạy**: *Jev*, id `typesafe/jev-1.13`, cho mọi phiên hoặc chỉ phiên này (*Mô hình của phiên* dùng mô hình riêng của từng phiên) | “Dùng Jev cho browser run” (hoặc “…chỉ trong phiên này”) |
 | Đoạn mã đọc trang trong trình duyệt của Pi (`browser_eval`) | **Trình duyệt của Pi › Đoạn mã**: *Bật* (mặc định) hoặc *Tắt* | “Tắt đoạn mã trong trình duyệt” |
+| Artifact giữ thành trang trên thanh bên | **Trang**: các trang của bạn (thứ tự, *Gỡ khỏi thanh bên*); chủ sở hữu *Bật* (mặc định) hoặc *Tắt* trang cho mọi người | “Giữ paper reader thành trang”, “Đưa trang budget lên đầu”, “Tắt trang” |
 | Cửa sổ trang mở ra trong trình duyệt của Pi trên điện thoại (cửa sổ đăng nhập) | **Trình duyệt của Pi › Cửa sổ trang mở ra**: *Cho phép* (một tab ở trước, mặc định), *Hỏi* (một thẻ trước), *Tắt* | “Hỏi tôi trước khi trang mở cửa sổ” |
 | Tìm kiếm theo ngữ nghĩa của **Wiki** | **Wiki** (hoặc *Cài đặt wiki* từ trình khởi chạy tìm kiếm) **› Tìm theo ngữ nghĩa**: chọn một mô hình embedding của OpenRouter, ví dụ `openai/text-embedding-3-small`. Tắt nghĩa là chỉ tìm theo từ khóa | “Đặt mô hình embedding của wiki là openai/text-embedding-3-small” |
 | Ghi nhận wiki và ngữ cảnh prompt | **Wiki**: số phút rảnh trước khi ghi nhận một phiên, mô hình viết phần ghi nhận, số token wiki trong mỗi prompt, tùy chọn lint | “Ghi nhận phiên rảnh sau 30 phút”, “dùng claude-haiku để ghi nhận wiki” |
