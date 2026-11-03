@@ -360,9 +360,51 @@ export interface ExtensionInfo {
  * Why the app refused a drop-in rather than load it:
  * - `tool-names`: its tools have built-in tools' names (the built-in ones win, so the whole module is refused);
  * - `nothing`: it returned no extensions and added nothing, and `missing` are the host members it looked for that
- *   pi-phone does not have (pi-pocket's `host.browser`, say); empty when it is not known why.
+ *   pi-phone does not have (pi-pocket's `host.browser`, say); empty when it is not known why;
+ * - `typebox`: it builds its tool schemas with TypeBox, which drop-ins no longer get since Pi 1.5 (`typeBoxUse`), and
+ *   `uses` says how.
  */
-export type Refusal = { kind: "tool-names"; names: string[] } | { kind: "nothing"; missing: string[] };
+export type Refusal =
+    | { kind: "tool-names"; names: string[] }
+    | { kind: "nothing"; missing: string[] }
+    | { kind: "typebox"; uses: string };
+
+/** The start of a `typebox` refusal's reason; the extension-builder skill's `check.mjs` says the same. */
+export const TYPEBOX_REFUSAL = "build its tool schemas with @earendil-works/pi-schema (obj, str, opt, arr, union, …)";
+
+/**
+ * How a drop-in's source uses TypeBox, or undefined. Pi 1.5's pi-ai no longer exports TypeBox's `Type`, and pi-phone
+ * keeps one way to build tool schemas, pi-schema, for drop-ins too (the owner's decision, 2026-11-03): no TypeBox shim.
+ * The extension-builder skill's `check.mjs` looks for the same.
+ */
+export function typeBoxUse(source: string): string | undefined {
+    for (const match of source.matchAll(/\bimport\s+(?:type\s+)?\{([^}]*)\}\s*from\s*["']@earendil-works\/pi-ai["']/g)) {
+        const names = (match[1] ?? "").split(",").map((name) => name.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0]);
+
+        if (names.includes("Type")) {
+            return "it imports Type from @earendil-works/pi-ai, TypeBox's, which Pi 1.5 no longer has";
+        }
+    }
+
+    if (/(?:\bfrom\s*|\bimport\s*\(?\s*)["'](?:typebox|@sinclair\/typebox)(?:\/[^"']*)?["']/.test(source)) {
+        return "it imports TypeBox (typebox), which drop-ins do not use since Pi 1.5";
+    }
+
+    return undefined;
+}
+
+/** Whether a tool's schema, or a part of it, was built with TypeBox: TypeBox 1 marks each with `~kind`. */
+function builtWithTypeBox(schema: unknown): boolean {
+    if (Array.isArray(schema)) {
+        return schema.some(builtWithTypeBox);
+    }
+
+    if (typeof schema !== "object" || schema === null) {
+        return false;
+    }
+
+    return "~kind" in schema || Object.values(schema).some(builtWithTypeBox);
+}
 
 /** A drop-in the app refuses to load, with why (`ExtensionInfo.refused`). */
 export class Refused extends Error {
@@ -372,9 +414,11 @@ export class Refused extends Error {
         super(
             refusal.kind === "tool-names"
                 ? `its tools ${refusal.names.join(", ")} have built-in tools' names, and the built-in ones win: rename them in the module`
-                : refusal.missing.length > 0
-                  ? `it added nothing: it needs ${refusal.missing.map((name) => `host.${name}`).join(", ")}, which pi-phone does not have yet`
-                  : "it added nothing (it may need host.browser, which pi-phone does not have yet)",
+                : refusal.kind === "typebox"
+                  ? `${TYPEBOX_REFUSAL}: ${refusal.uses}`
+                  : refusal.missing.length > 0
+                    ? `it added nothing: it needs ${refusal.missing.map((name) => `host.${name}`).join(", ")}, which pi-phone does not have yet`
+                    : "it added nothing (it may need host.browser, which pi-phone does not have yet)",
         );
         this.refusal = refusal;
     }
@@ -868,6 +912,16 @@ export class ExtensionLoader {
             pathToFileURL(join(module.directory, file)).href +
             // Each load its own address, or a second load in the same millisecond would get the first one's module.
             (cacheBust ? `?v=${Date.now()}-${++imports}` : "");
+
+        // Before it runs: a drop-in that imports TypeBox's Type from pi-ai would only fail to link, saying less.
+        if (module.source === "drop-in") {
+            const uses = typeBoxUse(readFileSync(join(module.directory, file), "utf8"));
+
+            if (uses !== undefined) {
+                throw new Refused({ kind: "typebox", uses });
+            }
+        }
+
         const loaded = (await this.#within(import(url), deadline, file)) as ExtensionModule;
 
         // The import can take a while (a module may wait at its top level): the module may be off by now, or edited.
@@ -943,6 +997,15 @@ export class ExtensionLoader {
             }
 
             if (module.source === "drop-in") {
+                // TypeBox from a file of its own, or a package: its schemas carry TypeBox's marks.
+                const typed = extensions
+                    .flatMap((extension) => extension.tools ?? [])
+                    .find((tool) => builtWithTypeBox(tool.parameters));
+
+                if (typed !== undefined) {
+                    throw new Refused({ kind: "typebox", uses: `the tool ${typed.name} has a TypeBox schema` });
+                }
+
                 this.#checkNames(file, extensions);
             }
 

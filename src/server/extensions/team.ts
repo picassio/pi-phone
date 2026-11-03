@@ -5,7 +5,8 @@
  * Never here: passwords, people's data and the server's backups (only people, on the gateway's pages). Only on the team
  * server (`host.teamServer`); and only for this pi-phone's own person, never for a guest Pi works for here.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, nul, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 
@@ -172,13 +173,13 @@ export default function createTeam(host: PocketHost) {
         });
 
     const tools = [
-        tool("team_people", "The team server's people: name, email, role, and whether they are disabled, have two-factor, or are always on. Needs people.invite or people.manage.", Type.Object({}), async () =>
+        tool("team_people", "The team server's people: name, email, role, and whether they are disabled, have two-factor, or are always on. Needs people.invite or people.manage.", obj({}, { open: true }), async () =>
             (await people()).map((person) => `- ${person.name} <${person.email}> · ${person.roleName}${person.banned ? " · disabled" : ""}${person.twoFactor ? " · 2FA" : ""}${person.alwaysOn ? " · always on" : ""}`).join("\n"),
         ),
         tool(
             "team_invite",
             "Make an invite link to the team server for a role (asks the person first). Give the link to whoever it is for; it works once. Needs people.invite.",
-            Type.Object({ role: Type.String({ description: "The role's id or name" }), lasts: Type.Union(Object.keys(LASTS).map((each) => Type.Literal(each))), reason: Type.String() }),
+            obj({ role: str({ description: "The role's id or name" }), lasts: union(Object.keys(LASTS).map((each) => literal(each))), reason: str() }, { open: true }),
             async (args: { role: string; lasts: string; reason: string }, api, context) => {
                 const all = (await roles()).roles;
                 const role = all.find((each) => each.id === args.role || each.name.toLowerCase() === args.role.trim().toLowerCase());
@@ -197,12 +198,12 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_person",
             "Change someone on the team (asks the person first): give them a role, reset their two-factor, disable or enable them, remove their account (their data is kept), or keep their pi-phone always on. Never passwords: those are reset on the gateway's People page. Needs people.manage (always on: server.manage).",
-            Type.Object({
-                person: Type.String({ description: "Their name or email" }),
-                action: Type.Union(ACTIONS.map((each) => Type.Literal(each))),
-                role: Type.Optional(Type.String({ description: "With action role: the role's id or name" })),
-                reason: Type.String(),
-            }),
+            obj({
+                person: str({ description: "Their name or email" }),
+                action: union(ACTIONS.map((each) => literal(each))),
+                role: opt(str({ description: "With action role: the role's id or name" })),
+                reason: str(),
+            }, { open: true }),
             async (args: { person: string; action: (typeof ACTIONS)[number]; role?: string; reason: string }, api, context) => {
                 const person = await find(args.person);
                 let body: unknown = {};
@@ -231,7 +232,7 @@ export default function createTeam(host: PocketHost) {
                 return `Done: ${words}.`;
             },
         ),
-        tool("team_roles", "The team server's roles: each one's permissions, memory and CPUs, models, monthly spend limit and how many have it, and every permission there is.", Type.Object({}), async () => {
+        tool("team_roles", "The team server's roles: each one's permissions, memory and CPUs, models, monthly spend limit and how many have it, and every permission there is.", obj({}, { open: true }), async () => {
             const { roles: all, counts, catalogue } = await roles();
 
             return [
@@ -246,18 +247,18 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_role_save",
             "Add a role, or change one (give its id), on the team server (asks the person first): its permissions (team_roles lists them), memory and CPUs of its people's pi-phones, the models they may use (none: any), a monthly spend limit (none: no limit), the team accounts its people may use (team_providers lists them; left out when changing a role: kept) and a team spend limit, dollars a month each on those accounts (none: no limit; left out when changing: kept). Needs roles.manage.",
-            Type.Object({
-                id: Type.Optional(Type.String({ description: "An existing role's id to change; leave out to add one" })),
-                name: Type.String(),
-                permissions: Type.Array(Type.String()),
-                memoryMb: Type.Number(),
-                cpus: Type.Number(),
-                models: Type.Optional(Type.Array(Type.String())),
-                spendLimit: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
-                teamAccounts: Type.Optional(Type.Array(Type.String({ description: "A team account's id, like anthropic~team-max" }))),
-                teamSpendLimit: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
-                reason: Type.String(),
-            }),
+            obj({
+                id: opt(str({ description: "An existing role's id to change; leave out to add one" })),
+                name: str(),
+                permissions: arr(str()),
+                memoryMb: num(),
+                cpus: num(),
+                models: opt(arr(str())),
+                spendLimit: opt(union([num(), nul()])),
+                teamAccounts: opt(arr(str({ description: "A team account's id, like anthropic~team-max" }))),
+                teamSpendLimit: opt(union([num(), nul()])),
+                reason: str(),
+            }, { open: true }),
             async (args: { id?: string; name: string; permissions: string[]; memoryMb: number; cpus: number; models?: string[]; spendLimit?: number | null; teamAccounts?: string[]; teamSpendLimit?: number | null; reason: string }, api, context) => {
                 // Changing a role keeps its team accounts and team spend limit unless given: the role's form sends them all.
                 const was = args.id === undefined ? undefined : (await roles()).roles.find((each) => each.id === args.id);
@@ -292,13 +293,13 @@ export default function createTeam(host: PocketHost) {
                 return `Saved the role ${saved.name} (${saved.id}).`;
             },
         ),
-        tool("team_role_delete", "Delete a role on the team server (asks the person first). Its people move to Member. Needs roles.manage.", Type.Object({ role: Type.String({ description: "Its id" }), reason: Type.String() }), async (args: { role: string; reason: string }, api, context) => {
+        tool("team_role_delete", "Delete a role on the team server (asks the person first). Its people move to Member. Needs roles.manage.", obj({ role: str({ description: "Its id" }), reason: str() }, { open: true }), async (args: { role: string; reason: string }, api, context) => {
             await ask(api, context, "team_role_delete", `Delete the role ${args.role}`, args.reason);
             await call(`roles/${args.role}/delete`, "POST", {});
 
             return `Deleted the role ${args.role}.`;
         }),
-        tool("team_audit", "The team server's audit log, newest first: invites, joins, roles, resets, disabling and removing people, shares, settings. Pi's changes show as \"Pi for\" the person. Needs audit.view.", Type.Object({ limit: Type.Optional(Type.Number({ description: "How many, newest first (default 40)" })) }), async (args: { limit?: number }) => {
+        tool("team_audit", "The team server's audit log, newest first: invites, joins, roles, resets, disabling and removing people, shares, settings. Pi's changes show as \"Pi for\" the person. Needs audit.view.", obj({ limit: opt(num({ description: "How many, newest first (default 40)" })) }, { open: true }), async (args: { limit?: number }) => {
             const { entries } = (await call("audit", "GET")) as { entries: { at: number; actor: string; action: string; target: string | null; details: Record<string, unknown> | null }[] };
             let names: Map<string, string> = new Map();
 
@@ -318,7 +319,7 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_server",
             "The team server's settings: how many idle minutes before a pi-phone stops (0: never); how many pi-phones there are, running, and on an older image; and search in team documents (its OpenRouter embedding model, whether the owner set its key, how much is indexed, this month's spend). With idleMinutes, docsModel (an OpenRouter embedding model's id; empty for keyword only) or docsVision (an OpenRouter model that reads images, to describe pictures in team documents; empty for none), changes it (asks the person first). The key itself is only typed by a person on the Server page. Needs server.manage.",
-            Type.Object({ idleMinutes: Type.Optional(Type.Number()), docsModel: Type.Optional(Type.String()), docsVision: Type.Optional(Type.String()), reason: Type.Optional(Type.String()) }),
+            obj({ idleMinutes: opt(num()), docsModel: opt(str()), docsVision: opt(str()), reason: opt(str()) }, { open: true }),
             async (args: { idleMinutes?: number; docsModel?: string; docsVision?: string; reason?: string }, api, context) => {
                 type Server = { idleMinutes: number; containers: { all: number; running: number; outdated: number }; docs: { model: string | null; vision: string | null; keySet: boolean; month: { tokens: number; cost: number }; indexed: { passages: number; embedded: number } } };
                 const show = (answer: Server) =>
@@ -349,7 +350,7 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_providers",
             "The team server's provider accounts (API keys or subscriptions, set up once for the team) you can see: each one's id, whether it is signed in, which roles may use it, and its plan's usage where it has one (a Claude, Codex or Copilot subscription). Their keys and sign-ins stay on the team server: never here.",
-            Type.Object({}),
+            obj({}, { open: true }),
             async () => {
                 const { manage, accounts: all } = await teamAccounts();
 
@@ -379,7 +380,7 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_provider_add",
             `Add a team account on the team server (asks the person first): ${PROVIDER_HINT}, and a name ("Work"). It starts signed out: tell the person to sign it in on its row in Providers (a key, or a subscription; a subscription is licensed to one person, so check its terms). Then team_provider_access says which roles may use it. Needs providers.manage.`,
-            Type.Object({ provider: Type.String(), name: Type.String(), reason: Type.String() }),
+            obj({ provider: str(), name: str(), reason: str() }, { open: true }),
             async (args: { provider: string; name: string; reason: string }, api, context) => {
                 await ask(api, context, "team_provider_add", `Add a team account of ${args.provider} called ${args.name}`, args.reason);
                 const { account } = (await accounts({ action: "add", provider: args.provider, name: args.name })) as { account: { id: string } };
@@ -390,7 +391,7 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_provider_access",
             "Say which roles may use a team account (asks the person first): the whole list of role ids (team_roles lists them; the owner's role always may). Their people see its models in their model menu at once. Needs roles.manage.",
-            Type.Object({ account: Type.String({ description: "Its id, or its name" }), roles: Type.Array(Type.String({ description: "A role's id" })), reason: Type.String() }),
+            obj({ account: str({ description: "Its id, or its name" }), roles: arr(str({ description: "A role's id" })), reason: str() }, { open: true }),
             async (args: { account: string; roles: string[]; reason: string }, api, context) => {
                 const account = await findAccount(args.account);
                 const all = (await roles()).roles.filter((role) => !role.builtin);
@@ -430,7 +431,7 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_provider_remove",
             "Remove a team account from the team server, with its sign-in (asks the person first). Every role that used it stops at once. Needs providers.manage.",
-            Type.Object({ account: Type.String({ description: "Its id, or its name" }), reason: Type.String() }),
+            obj({ account: str({ description: "Its id, or its name" }), reason: str() }, { open: true }),
             async (args: { account: string; reason: string }, api, context) => {
                 const account = await findAccount(args.account);
 
@@ -445,7 +446,7 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_machines",
             "The team server's machines (computers added once for the team, their key kept on the team server) you can see: each one's address, whether its host key is accepted and it is set up, which roles may use it, and your own folder there. A session or machine_run reaches one by the name host.machines gives it once set up.",
-            Type.Object({}),
+            obj({}, { open: true }),
             async () => {
                 const { manage, machines } = await teamMachines();
 
@@ -476,7 +477,7 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_machine_add",
             "Add a team machine on the team server (asks the person first): a name and its address, user@host or user@host:port, reached from the team server's network. The team server makes its key and keeps it; the answer has the public half for the machine's authorized_keys. The person then accepts its host key and sets it up on its row in Machines (yours never). Then team_machine_access says which roles may use it. Needs machines.manage.",
-            Type.Object({ name: Type.String(), address: Type.String({ description: "user@host or user@host:port" }), reason: Type.String() }),
+            obj({ name: str(), address: str({ description: "user@host or user@host:port" }), reason: str() }, { open: true }),
             async (args: { name: string; address: string; reason: string }, api, context) => {
                 await ask(api, context, "team_machine_add", `Add a team machine called ${args.name} at ${args.address}`, args.reason);
                 const made = (await machinesCall({ action: "add", name: args.name, address: args.address })) as { machine: TeamMachine; publicKey: string };
@@ -495,7 +496,7 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_machine_access",
             "Say which roles may use a team machine (asks the person first): the whole list of role ids (team_roles lists them; the owner's role always may). Their people see it in Machines and the folder picker; a role taken off loses its open connections at once. Needs roles.manage.",
-            Type.Object({ machine: Type.String({ description: "Its id, or its name" }), roles: Type.Array(Type.String({ description: "A role's id" })), reason: Type.String() }),
+            obj({ machine: str({ description: "Its id, or its name" }), roles: arr(str({ description: "A role's id" })), reason: str() }, { open: true }),
             async (args: { machine: string; roles: string[]; reason: string }, api, context) => {
                 const machine = await findMachine(args.machine);
                 const all = (await roles()).roles.filter((role) => !role.builtin);
@@ -535,7 +536,7 @@ export default function createTeam(host: PocketHost) {
         tool(
             "team_machine_remove",
             "Remove a team machine from the team server (asks the person first): everyone's sessions there stop and the team server deletes its key. The machine's files stay, and so does the key's public half in its authorized_keys (a person takes it out there). Needs machines.manage.",
-            Type.Object({ machine: Type.String({ description: "Its id, or its name" }), reason: Type.String() }),
+            obj({ machine: str({ description: "Its id, or its name" }), reason: str() }, { open: true }),
             async (args: { machine: string; reason: string }, api, context) => {
                 const machine = await findMachine(args.machine);
 

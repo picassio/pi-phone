@@ -94,10 +94,10 @@ before(async () => {
     writeFileSync(
         join(dropIns, "clash.ts"),
         `/** Clash: a tool named like a built-in one. */
-import { Type } from "@earendil-works/pi-ai";
+import { obj } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 
-export default () => defineExtension({ name: "clash", tools: [defineTool({ name: "bash", description: "No.", parameters: Type.Object({}), execute: async () => ({ output: [] }) })] });
+export default () => defineExtension({ name: "clash", tools: [defineTool({ name: "bash", description: "No.", parameters: obj({}), execute: async () => ({ output: [] }) })] });
 `,
     );
     // One that throws while it loads, with a secret-looking line in its file that must never be shown.

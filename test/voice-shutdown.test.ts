@@ -25,13 +25,9 @@ after(async () => {
 const open = (fake: FakeOpenAI) => openApp(scriptedModel(), dataDir, undefined, { voice: { endpoints: fake.endpoints, auth: async () => ({ token: TOKEN }) } });
 
 async function entries(on: App, id: ConversationId): Promise<ClientEntry[]> {
-    const view = await (await on.conversation(id)).viewState(BACKGROUND_CONTEXT);
+    const { entries } = await (await on.conversation(id)).context(BACKGROUND_CONTEXT);
 
-    try {
-        return view.value.entries.map((entry) => projectEntry(entry)).filter((entry): entry is ClientEntry => entry !== undefined);
-    } finally {
-        view.dispose();
-    }
+    return entries.map((entry) => projectEntry(entry)).filter((entry): entry is ClientEntry => entry !== undefined);
 }
 
 test("closing the app ends a call whose connection no longer answers within moments, and keeps what was said", async () => {

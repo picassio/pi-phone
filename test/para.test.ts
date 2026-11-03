@@ -509,17 +509,12 @@ test("the wiki relevant (PP-276, the owner's pick): the pages that match a messa
     assert.ok(!userParts.some((part) => part.startsWith("<wiki-pages")), userParts.join("\n---\n"));
 
     // People see their words, and the pages by name.
-    const view = await (await app.conversation(id)).viewState(context);
+    const { entries } = await (await app.conversation(id)).context(context);
+    const shown = entries.map((entry) => projectEntry(entry)).filter((entry) => entry?.kind === "user");
+    const asked = shown.find((entry) => entry?.kind === "user" && entry.text === "why does the shell outlive its socket");
 
-    try {
-        const shown = view.value.entries.map((entry) => projectEntry(entry)).filter((entry) => entry?.kind === "user");
-        const asked = shown.find((entry) => entry?.kind === "user" && entry.text === "why does the shell outlive its socket");
-
-        assert.ok(asked !== undefined, JSON.stringify(shown));
-        assert.deepEqual(asked.kind === "user" ? asked.wiki : undefined, ["resources/terminal-reattach"]);
-    } finally {
-        view.dispose();
-    }
+    assert.ok(asked !== undefined, JSON.stringify(shown));
+    assert.deepEqual(asked.kind === "user" ? asked.wiki : undefined, ["resources/terminal-reattach"]);
 });
 
 test("the wiki frozen and tool (PP-276): the index the session first had, or the rules only, and nothing with messages", async () => {

@@ -81,13 +81,9 @@ const pageErrors: string[] = [];
 
 /** A session's entries as tabs get them. */
 async function entries(id: ConversationId): Promise<unknown[]> {
-    const view = await (await app.conversation(id)).viewState(BACKGROUND_CONTEXT);
+    const { entries } = await (await app.conversation(id)).context(BACKGROUND_CONTEXT);
 
-    try {
-        return view.value.entries.map((entry) => projectEntry(entry)).filter((entry) => entry !== undefined);
-    } finally {
-        view.dispose();
-    }
+    return entries.map((entry) => projectEntry(entry)).filter((entry) => entry !== undefined);
 }
 
 /** `until`, and on a timeout what the page said (its notices) and threw. */

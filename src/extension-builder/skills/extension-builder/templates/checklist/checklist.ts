@@ -9,7 +9,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Type } from "@earendil-works/pi-ai";
+import { obj, oneOf, opt, str } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 
 /** The version of pi-phone's extension API this module is written for. */
@@ -129,7 +129,7 @@ export default function createChecklist(host: Host, web: Web) {
         defineTool({
             name: "checklist_list",
             description: "The shared checklist: each item's id, whether it is done, and its text.",
-            parameters: Type.Object({}),
+            parameters: obj({}),
             replay: "safe",
             execute: async () => {
                 try {
@@ -145,10 +145,10 @@ export default function createChecklist(host: Host, web: Web) {
     const checklistChange = defineTool({
         name: "checklist_change",
         description: "Change the shared checklist the person sees on its page: add an item, mark one done or not done, or remove one (ids from checklist_list).",
-        parameters: Type.Object({
-            action: Type.Union([Type.Literal("add"), Type.Literal("done"), Type.Literal("undone"), Type.Literal("remove")]),
-            text: Type.Optional(Type.String({ description: "add: the item's text" })),
-            id: Type.Optional(Type.String({ description: "done, undone, remove: the item's id" })),
+        parameters: obj({
+            action: oneOf(["add", "done", "undone", "remove"]),
+            text: opt(str({ description: "add: the item's text" })),
+            id: opt(str({ description: "done, undone, remove: the item's id" })),
         }),
         execute: async (args) => {
             try {

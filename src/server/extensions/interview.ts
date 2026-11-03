@@ -10,7 +10,7 @@
  * a message starting "Interview <id> finished." (`deliver.ts`), which starts Pi's next turn when it is idle.
  */
 import type { Context } from "@earendil-works/chord";
-import { Type } from "@earendil-works/pi-ai";
+import { bool, num, obj, opt, str } from "@earendil-works/pi-schema";
 import { type ConversationId, defineExtension, defineTask, defineTool, section, type TaskId } from "@earendil-works/pi-durable";
 import { sendFollowUp } from "../deliver.ts";
 import type { PocketHost } from "../host.ts";
@@ -183,15 +183,11 @@ export default function createInterview(host: PocketHost) {
     const interview = defineTool({
         name: "interview",
         description: DESCRIPTION,
-        parameters: Type.Object({
-            questions: Type.String({ description: "Inline JSON with the questions, or a path to a JSON file" }),
-            timeout: Type.Optional(
-                Type.Number({ description: "Seconds before the form ends without the person; default: no limit" }),
-            ),
-            async: Type.Optional(
-                Type.Boolean({ description: "Return at once; the answers come later as a message starting \"Interview <id> finished.\"" }),
-            ),
-        }),
+        parameters: obj({
+            questions: str({ description: "Inline JSON with the questions, or a path to a JSON file" }),
+            timeout: opt(num({ description: "Seconds before the form ends without the person; default: no limit" })),
+            async: opt(bool({ description: "Return at once; the answers come later as a message starting \"Interview <id> finished.\"" })),
+        }, { open: true }),
         // Waiting for a person: after a restart, it asks again, or takes the answer given meanwhile.
         replay: "safe",
         execute: async (args, api, context) => {

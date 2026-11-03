@@ -5,7 +5,7 @@
  * Pi works for (`session-control.ts`): the owner's only, as those are. Owner's decisions of 2026-10-19 (wiki:
  * pi-session-agent-tools): a file changed in the last two minutes is listed as busy and imported as usual.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { bool, num, obj, opt, str } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 
@@ -37,17 +37,17 @@ export default function createPiSessions(host: PocketHost) {
 
         return found;
     };
-    const session = Type.Number({ description: "The pi-phone session's id, from the sessions tool" });
+    const session = num({ description: "The pi-phone session's id, from the sessions tool" });
 
     const list = defineTool({
         name: "pi_sessions",
         description:
             "Pi's own sessions from the terminal (pi CLI, ~/.pi/agent/sessions), on this phone or on one of the owner's machines: each one's file path, title (its first message), folder, last activity, size, whether a pi-phone session already continues it, and busy when it changed in the last 2 minutes (pi may still be running there). Continue one here with pi_session_import. The owner's only.",
-        parameters: Type.Object({
-            machine: Type.Optional(Type.String({ description: "A machine's name or alias; leave out for this phone's" })),
-            query: Type.Optional(Type.String({ description: "Words in the title or folder" })),
-            limit: Type.Optional(Type.Number({ description: "At most this many, newest first (default 20)" })),
-        }),
+        parameters: obj({
+            machine: opt(str({ description: "A machine's name or alias; leave out for this phone's" })),
+            query: opt(str({ description: "Words in the title or folder" })),
+            limit: opt(num({ description: "At most this many, newest first (default 20)" })),
+        }, { open: true }),
         replay: "safe",
         execute: async (args, api) => {
             try {
@@ -81,11 +81,11 @@ export default function createPiSessions(host: PocketHost) {
         name: "pi_session_import",
         description:
             "Continue one of Pi's terminal sessions as a new pi-phone session, as the Pi sessions sheet does: a machine's file is copied here (Pi's file there is never changed), then the new session continues where Pi left it, in its folder (on that machine), with every message to read and Pi's context. Answers the new session's id and link. The owner's only.",
-        parameters: Type.Object({
-            path: Type.String({ description: "The session file's path, from pi_sessions" }),
-            machine: Type.Optional(Type.String({ description: "The machine it is on (name or alias); leave out for this phone's" })),
-            folder: Type.Optional(Type.String({ description: "Continue in this folder instead of the one Pi worked in (on the same machine)" })),
-        }),
+        parameters: obj({
+            path: str({ description: "The session file's path, from pi_sessions" }),
+            machine: opt(str({ description: "The machine it is on (name or alias); leave out for this phone's" })),
+            folder: opt(str({ description: "Continue in this folder instead of the one Pi worked in (on the same machine)" })),
+        }, { open: true }),
         execute: async (args, api) => {
             try {
                 const machine = args.machine === undefined ? undefined : machineOf(args.machine);
@@ -106,11 +106,11 @@ export default function createPiSessions(host: PocketHost) {
         name: "continue_in_pi",
         description:
             "Hand a pi-phone session to Pi in a machine's terminal (the session menu's Continue in Pi): its conversation becomes a new Pi session file in a folder there, for `pi -c` (or `pi --resume`) in that folder; pi_bring_back brings Pi's work back later. Not this session. The owner's only.",
-        parameters: Type.Object({
+        parameters: obj({
             session,
-            machine: Type.String({ description: "The machine's name or alias" }),
-            folder: Type.String({ description: "The folder on the machine Pi continues in" }),
-        }),
+            machine: str({ description: "The machine's name or alias" }),
+            folder: str({ description: "The folder on the machine Pi continues in" }),
+        }, { open: true }),
         execute: async (args, api) => {
             try {
                 const machine = machineOf(args.machine);
@@ -127,10 +127,10 @@ export default function createPiSessions(host: PocketHost) {
         name: "pi_bring_back",
         description:
             "Bring what Pi did in a machine's terminal since a session went there (continue_in_pi, or the session menu) back into that pi-phone session (Bring back). When either went another way since, as_new brings it back as a new session instead. Not this session. The owner's only.",
-        parameters: Type.Object({
+        parameters: obj({
             session,
-            as_new: Type.Optional(Type.Boolean({ description: "Bring it back as a new session (when the two went different ways)" })),
-        }),
+            as_new: opt(bool({ description: "Bring it back as a new session (when the two went different ways)" })),
+        }, { open: true }),
         execute: async (args, api) => {
             try {
                 const done = await host.sessions.bringBack(api.conversationId, args.session, args.as_new === true);

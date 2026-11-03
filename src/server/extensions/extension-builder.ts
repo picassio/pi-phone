@@ -16,7 +16,7 @@
  * and Keep, Undo and Restore. Its routes (`/api/x/extension-builder/made/…`, the owner's) are the progress card's and
  * Settings › Extensions' buttons, and its browser part (`extension-builder-web/`) names its tools' calls.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { obj, opt, str } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { createCreator } from "../creator.ts";
 import { BUILDER_EXTENSION } from "../extension-builder.ts";
@@ -47,9 +47,9 @@ export default function createExtensionBuilder(host: PocketHost, web: ExtensionW
         name: "extension_inspect",
         description:
             "Read how drop-in extensions stand, without changing anything. Without a name: the drop-in API's names (what a browser part adds, pocket's members, the icons, the theme's CSS variables), the tool and module names a drop-in may not take, and each drop-in's state. With a module's name (the owner's): its files (names only), on or off, loaded, failed or refused and why, what it added (tools, sections, routes, its browser part), and what tabs reported of its browser part (its rail, page and sheet ids, its newest error).",
-        parameters: Type.Object({
-            name: Type.Optional(Type.String({ description: "An extension module's name, like checklist or checklist.ts" })),
-        }),
+        parameters: obj({
+            name: opt(str({ description: "An extension module's name, like checklist or checklist.ts" })),
+        }, { open: true }),
         replay: "safe",
         execute: async (args, api) => {
             try {

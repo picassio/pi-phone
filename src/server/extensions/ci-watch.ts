@@ -12,7 +12,8 @@ import { execFile } from "node:child_process";
 import { isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Context } from "@earendil-works/chord";
-import { Type } from "@earendil-works/pi-ai";
+import { obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import {
     defineExtension,
     defineTask,
@@ -312,24 +313,18 @@ export default function createCiWatch(host: PocketHost) {
             "Watch GitHub Actions runs in the background and get one message starting [ci-watch] when each finishes: its conclusion, its jobs', and for a failure the failed steps and the end of their log. " +
             "Use it after a git push instead of waiting or polling: start it, then end your turn; the message starts your next one. " +
             "Actions: start (default: every run of HEAD's commit in the repository at path, or the working folder; or run: an id, its address, or owner/name#id; or branch, for the newest run of each workflow there; workflow narrows to one workflow by name or file), list, stop (run: one of the watched; default all).",
-        parameters: Type.Object({
-            action: Type.Union([Type.Literal("start"), Type.Literal("list"), Type.Literal("stop")]),
-            repo: Type.Optional(
-                Type.String({ description: "owner/name; default the repository of path" }),
-            ),
-            path: Type.Optional(
-                Type.String({
+        parameters: obj({
+            action: union([literal("start"), literal("list"), literal("stop")]),
+            repo: opt(str({ description: "owner/name; default the repository of path" })),
+            path: opt(str({
                     description:
                         "start: a folder in the repository (its GitHub repo and HEAD are used), absolute or relative to the working folder; default the working folder",
-                }),
-            ),
-            run: Type.Optional(Type.String({ description: "a run's id, address, or owner/name#id" })),
-            commit: Type.Optional(Type.String({ description: "start: a commit's sha; default HEAD" })),
-            branch: Type.Optional(
-                Type.String({ description: "start: the newest run of each workflow on this branch" }),
-            ),
-            workflow: Type.Optional(Type.String({ description: "start: only this workflow (name or file)" })),
-        }),
+                })),
+            run: opt(str({ description: "a run's id, address, or owner/name#id" })),
+            commit: opt(str({ description: "start: a commit's sha; default HEAD" })),
+            branch: opt(str({ description: "start: the newest run of each workflow on this branch" })),
+            workflow: opt(str({ description: "start: only this workflow (name or file)" })),
+        }, { open: true }),
         // Safe to run again: a start finds the watches this call made (by run), list reads, and stopping twice stops once.
         replay: "safe",
         execute: async (args, api, context) => {

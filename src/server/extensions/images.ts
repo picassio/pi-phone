@@ -11,7 +11,9 @@
  * says why the tool is still how to make one: Pi's model layer keeps only text, thinking and tool calls from an answer,
  * so an image a chat model writes never reaches the chat.
  */
-import { Type, type Usage } from "@earendil-works/pi-ai";
+import { type Usage } from "@earendil-works/pi-ai";
+import { arr, int, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { imageType } from "../image-meta.ts";
@@ -71,14 +73,14 @@ export default function createImages(host: PocketHost) {
     const generate = defineTool({
         name: "image_generate",
         description: DESCRIPTION,
-        parameters: Type.Object({
-            prompt: Type.String({ description: "What to make, or what to change in the images" }),
-            images: Type.Optional(Type.Array(Type.String(), { maxItems: MAX_INPUT_IMAGES, description: `Images to edit: paths, absolute or relative to this session's folder (at most ${MAX_INPUT_IMAGES})` })),
-            aspect: Type.Optional(Type.Union(ASPECTS.map((aspect) => Type.Literal(aspect)), { description: "Shape: 1:1, 16:9, 9:16, 4:3 or 3:4" })),
-            n: Type.Optional(Type.Integer({ minimum: 1, maximum: MAX_COUNT, description: `How many to make, 1 to ${MAX_COUNT} (default 1)` })),
-            model: Type.Optional(Type.String({ description: "provider/model for this call only, instead of the setting image.model" })),
-            person: Type.Optional(Type.String({ description: "The real person it shows or edits (a name, or 'the person in the photo'): the owner approves first" })),
-        }),
+        parameters: obj({
+            prompt: str({ description: "What to make, or what to change in the images" }),
+            images: opt(arr(str(), { maxItems: MAX_INPUT_IMAGES, description: `Images to edit: paths, absolute or relative to this session's folder (at most ${MAX_INPUT_IMAGES})` })),
+            aspect: opt(union(ASPECTS.map((aspect) => literal(aspect)), { description: "Shape: 1:1, 16:9, 9:16, 4:3 or 3:4" })),
+            n: opt(int({ minimum: 1, maximum: MAX_COUNT, description: `How many to make, 1 to ${MAX_COUNT} (default 1)` })),
+            model: opt(str({ description: "provider/model for this call only, instead of the setting image.model" })),
+            person: opt(str({ description: "The real person it shows or edits (a name, or 'the person in the photo'): the owner approves first" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             const cwd = (await api.agent(context)).cwd ?? "";
             const env = host.envOf(cwd);

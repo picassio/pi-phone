@@ -4,7 +4,7 @@
  * Template (pi-phone's extension-builder skill): a drop-in with one tool and no browser part. The tool only reads, so it
  * says so (`readOnlyHint`) and plan mode lets it run.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { obj, str } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 
 /** The version of pi-phone's extension API this module is written for. */
@@ -17,8 +17,8 @@ const zoneTime = Object.assign(
         // A tool's name is the drop-in's own: never one of pi-phone's (extension_inspect lists them), or the drop-in is refused.
         name: "zone_time",
         description: "The date and time now in a time zone, such as Asia/Saigon or Europe/Berlin.",
-        parameters: Type.Object({
-            zone: Type.String({ description: "An IANA time zone, like Asia/Saigon" }),
+        parameters: obj({
+            zone: str({ description: "An IANA time zone, like Asia/Saigon" }),
         }),
         // Running it again after a restart is harmless.
         replay: "safe",

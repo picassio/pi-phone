@@ -3,7 +3,7 @@
  * wiki_lint, wiki_summarize, wiki_migrate) and its context, scoped to the session's project, in every session's prompt.
  * The wiki is pi-para's, at ~/.pi/wiki, shared with pi-para in pi on other computers (`para.ts`).
  */
-import type { Static, TSchema } from "@earendil-works/pi-ai";
+import type { Static } from "@earendil-works/pi-schema";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -165,7 +165,7 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
     // Open the wiki as the module loads: the first tool call or prompt need not wait for its index.
     para.ready().catch((error: unknown) => host.notice("warning", `The wiki could not open: ${String(error)}`));
 
-    const tool = <P extends TSchema>(
+    const tool = <P extends object>(
         name: WikiToolName,
         parameters: P,
         run: (wiki: Wiki, args: Static<P>) => Promise<ParaResult>,

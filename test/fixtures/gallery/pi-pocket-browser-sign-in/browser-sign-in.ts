@@ -8,7 +8,7 @@
  * Pi's own browser tool may not type into a password field. This keeps sign-ins out of the chat by accident and by
  * default; it is not a boundary against a model that sets out to read a field.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { obj, opt, str } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool, hook, section, ToolTask } from "@earendil-works/pi-durable";
 // Types only: Node removes this import when the module runs. In the drop-in folder, Pi Pocket writes `_pocket.d.ts`.
 import type { BrowserControl, BrowserPageHandle, BrowserTarget, Host, Web } from "./_pocket.d.ts";
@@ -104,13 +104,9 @@ export default function createBrowserSignIn(host: Host, web: Web) {
         name: "browser_sign_in",
         description:
             "At a sign-in page in the browser, ask the person for the username and password on a card: they go straight into the page, and you never see them. Give the refs of the fields from your last snapshot, or none to let the tool find them. Then submit the form yourself.",
-        parameters: Type.Object({
-            username: Type.Optional(
-                Type.String({ description: "The ref of the username or email field, such as e3." }),
-            ),
-            password: Type.Optional(
-                Type.String({ description: "The ref of the password field, such as e4." }),
-            ),
+        parameters: obj({
+            username: opt(str({ description: "The ref of the username or email field, such as e3." })),
+            password: opt(str({ description: "The ref of the password field, such as e4." })),
         }),
         execute: async (args, api, context) => {
             const page = await pageOf(api.conversationId);
@@ -249,13 +245,11 @@ export default function createBrowserSignIn(host: Host, web: Web) {
         name: "browser_ask_code",
         description:
             "Ask the person for a one-time code (from a text message, an email, or an authenticator app) on a card: it goes straight into the field, and you never see it. Then submit the form yourself.",
-        parameters: Type.Object({
-            field: Type.String({ description: "The ref of the code field, such as e5." }),
-            text: Type.Optional(
-                Type.String({
+        parameters: obj({
+            field: str({ description: "The ref of the code field, such as e5." }),
+            text: opt(str({
                     description: "What to tell the person, such as: the 6-digit code texted to you",
-                }),
-            ),
+                })),
         }),
         execute: async (args, api, context) => {
             const page = await pageOf(api.conversationId);
@@ -320,8 +314,8 @@ export default function createBrowserSignIn(host: Host, web: Web) {
         name: "browser_ask_person",
         description:
             "Ask the person to do something in the browser page that only they can do (a CAPTCHA, approving a sign-in on their phone), then tap Done. You get the page as it is afterwards.",
-        parameters: Type.Object({
-            text: Type.String({ description: "What they should do, in a sentence" }),
+        parameters: obj({
+            text: str({ description: "What they should do, in a sentence" }),
         }),
         execute: async (args, api, context) => {
             const page = await pageOf(api.conversationId);

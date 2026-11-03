@@ -3,7 +3,8 @@
  * pick, with the `getting-started` skill. The `guide` tool keeps the checklist the person sees under the session's
  * header: the topics picked, each ticked as Pi finishes it, and at the end the session is settled (owner's decision F).
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { GuideDoc, type GuideItem } from "../docs.ts";
 import type { PocketHost } from "../host.ts";
@@ -59,11 +60,11 @@ export default function createOnboarding(host: PocketHost) {
             "The checklist of a Getting started session, shown to the person under the session's header (the getting-started skill says when). " +
             "set: the parts to go through, in order (items); tick or untick: one part, by its number from 1 or its text (item); " +
             "finish: the guide is over, and the session is settled (out of the active list; Menu › Getting started opens it again).",
-        parameters: Type.Object({
-            action: Type.Union([Type.Literal("set"), Type.Literal("tick"), Type.Literal("untick"), Type.Literal("finish")]),
-            items: Type.Optional(Type.Array(Type.String(), { description: "set: the parts, a few words each, in the person's language" })),
-            item: Type.Optional(Type.String({ description: "tick, untick: the part's number (from 1) or its text" })),
-        }),
+        parameters: obj({
+            action: union([literal("set"), literal("tick"), literal("untick"), literal("finish")]),
+            items: opt(arr(str(), { description: "set: the parts, a few words each, in the person's language" })),
+            item: opt(str({ description: "tick, untick: the part's number (from 1) or its text" })),
+        }, { open: true }),
         // Each action sets the list to a state: doing it again changes nothing more.
         replay: "safe",
         execute: async (args, api, context) => {
@@ -134,10 +135,10 @@ export default function createOnboarding(host: PocketHost) {
             "turn on Accessibility for phone control, allow the microphone, sign in to a provider. Nothing opens until they tap it. " +
             "screen: providers, default-model, appearance, notifications, dictation, voice, assistant, this-phone, phone-control, computer-control, machines, ssh-keys, secrets, pi-browser, web-access, spend, github; " +
             "Android's: android-notifications, android-battery (run with the screen off), android-accessibility, android-app-info (Allow restricted settings), android-default-apps (the digital assistant app), microphone.",
-        parameters: Type.Object({
-            screen: Type.Union(SCREENS.map((each) => Type.Literal(each))),
-            why: Type.Optional(Type.String({ description: "What they do there, in a sentence, in their language" })),
-        }),
+        parameters: obj({
+            screen: union(SCREENS.map((each) => literal(each))),
+            why: opt(str({ description: "What they do there, in a sentence, in their language" })),
+        }, { open: true }),
         replay: "safe",
         execute: async (args) =>
             reply(`A card with a button to open ${args.screen} is in the chat. Nothing opens until they tap it: ask them to say when they are done there.`),

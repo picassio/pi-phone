@@ -75,6 +75,7 @@ What the subagent does (and you, making one by hand with `extension_install`):
   function on the server. What only a person may decide (spending, deleting much, granting access) asks on a card.
 - **Server code.** TypeScript with erasable syntax only (no `enum`, `namespace`, parameter properties), no `any`,
   imports at the top, `export const pocketApi = 2`. It loads fast: no long waits while it loads.
+- **Tool schemas.** `@earendil-works/pi-schema`, as the templates; a TypeBox `Type` is refused (Pi 1.5).
 
 ## Templates
 

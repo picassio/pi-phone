@@ -9,7 +9,8 @@
  * - `phone_screenshot`: a picture of the screen, with marks.
  * The owner's alone; never on the team server, never in plan mode (`plan.ts` blocks tools that change things).
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, bool, int, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { ASSISTANT_PROMPT } from "../assistant.ts";
 import { PHONE_TOOLS } from "../deferred-tools.ts";
@@ -32,7 +33,7 @@ export const PHONE = `Phone control: you can see and operate Android apps on the
 
 export default function createPhone(host: PocketHost) {
     const control = host.phone;
-    const device = Type.Optional(Type.String({ description: 'The device: "phone" (this phone, the default)' }));
+    const device = opt(str({ description: 'The device: "phone" (this phone, the default)' }));
 
     /** The owner's Pi only: refused for guests, and on a server without a phone. */
     const refusedFor = (conversationId: unknown): string | undefined => {
@@ -98,14 +99,14 @@ export default function createPhone(host: PocketHost) {
             "start shows the owner one card with the apps (names or packages) and the minutes (default 15, 5 to 60); on Approve, a banner and a notification on the phone say Pi is using it, with Stop. " +
             "Only those apps and the home screen may be read or touched; another app needs a new card, unless you ask with follow: true, which lets an app the named ones open while you act in them (Settings' Battery opening Device care) join the session (one step: not apps those open, nor apps opened from the home screen). pi-phone itself, banking and payment apps, password managers and the owner's Never list are refused either way. " +
             "It ends at its time, on Stop (the phone's banner or notification, the app's live line), or with stop. Owner only.",
-        parameters: Type.Object({
-            action: Type.Union([Type.Literal("start"), Type.Literal("stop"), Type.Literal("status")]),
-            apps: Type.Optional(Type.Array(Type.String(), { description: "start: the apps, by name as the launcher shows it or by package (com.grab.food)" })),
-            minutes: Type.Optional(Type.Integer({ minimum: MINUTES.min, maximum: MINUTES.max, description: "start: how long (default 15)" })),
-            follow: Type.Optional(Type.Boolean({ description: "start: also the apps the named ones open while you act in them (default false: only the named apps)" })),
-            reason: Type.Optional(Type.String({ description: "start: what you will do, in a sentence: shown on the card" })),
+        parameters: obj({
+            action: union([literal("start"), literal("stop"), literal("status")]),
+            apps: opt(arr(str(), { description: "start: the apps, by name as the launcher shows it or by package (com.grab.food)" })),
+            minutes: opt(int({ minimum: MINUTES.min, maximum: MINUTES.max, description: "start: how long (default 15)" })),
+            follow: opt(bool({ description: "start: also the apps the named ones open while you act in them (default false: only the named apps)" })),
+            reason: opt(str({ description: "start: what you will do, in a sentence: shown on the card" })),
             device,
-        }),
+        }, { open: true }),
         execute: async (args, api, context) => {
             const refused = refusedFor(api.conversationId);
 
@@ -247,7 +248,7 @@ export default function createPhone(host: PocketHost) {
         name: "phone_screen",
         description:
             "Read the phone's screen in a control session: the app in front, its elements numbered top to bottom ([3] Button \"Send\" (x,y wxh) and states), in regions (Top, Content, Bottom, toolbars, lists with their rows), the keyboard, and the session's time left. Apps outside the session are not read.",
-        parameters: Type.Object({ device }),
+        parameters: obj({ device }, { open: true }),
         replay: "safe",
         execute: async (args, api) => {
             try {
@@ -269,29 +270,29 @@ export default function createPhone(host: PocketHost) {
             "swipe: the finger moves direction (up, down, left, right) from index, x, y, or the screen's middle. scroll: shows more of index (a scrollable element) or the screen in direction (down: what is below). " +
             "button: back, home, recents, notifications, quick_settings. open_app: an app of the session (app: name or package). wait: seconds (default 2, at most 10). " +
             "Only in the session's apps and the home screen.",
-        parameters: Type.Object({
-            action: Type.Union([
-                Type.Literal("tap"),
-                Type.Literal("long_press"),
-                Type.Literal("type"),
-                Type.Literal("swipe"),
-                Type.Literal("scroll"),
-                Type.Literal("button"),
-                Type.Literal("open_app"),
-                Type.Literal("wait"),
+        parameters: obj({
+            action: union([
+                literal("tap"),
+                literal("long_press"),
+                literal("type"),
+                literal("swipe"),
+                literal("scroll"),
+                literal("button"),
+                literal("open_app"),
+                literal("wait"),
             ]),
-            index: Type.Optional(Type.Integer({ minimum: 1, description: "An element's number from the newest phone_screen" })),
-            x: Type.Optional(Type.Number({ description: "A point on the screen, in pixels from the left" })),
-            y: Type.Optional(Type.Number({ description: "A point on the screen, in pixels from the top" })),
-            text: Type.Optional(Type.String({ description: "type: the text" })),
-            clear: Type.Optional(Type.Boolean({ description: "type: replace what is in the field (default true)" })),
-            submit: Type.Optional(Type.Boolean({ description: "type: press Enter afterwards" })),
-            direction: Type.Optional(Type.Union([Type.Literal("up"), Type.Literal("down"), Type.Literal("left"), Type.Literal("right")])),
-            button: Type.Optional(Type.Union([Type.Literal("back"), Type.Literal("home"), Type.Literal("recents"), Type.Literal("notifications"), Type.Literal("quick_settings")])),
-            app: Type.Optional(Type.String({ description: "open_app: the app's name or package" })),
-            seconds: Type.Optional(Type.Number({ minimum: 0, maximum: 10, description: "wait: how long" })),
+            index: opt(int({ minimum: 1, description: "An element's number from the newest phone_screen" })),
+            x: opt(num({ description: "A point on the screen, in pixels from the left" })),
+            y: opt(num({ description: "A point on the screen, in pixels from the top" })),
+            text: opt(str({ description: "type: the text" })),
+            clear: opt(bool({ description: "type: replace what is in the field (default true)" })),
+            submit: opt(bool({ description: "type: press Enter afterwards" })),
+            direction: opt(union([literal("up"), literal("down"), literal("left"), literal("right")])),
+            button: opt(union([literal("back"), literal("home"), literal("recents"), literal("notifications"), literal("quick_settings")])),
+            app: opt(str({ description: "open_app: the app's name or package" })),
+            seconds: opt(num({ minimum: 0, maximum: 10, description: "wait: how long" })),
             device,
-        }),
+        }, { open: true }),
         execute: async (args, api) => {
             let session: ControlSession;
 
@@ -433,16 +434,14 @@ export default function createPhone(host: PocketHost) {
     const shotTool = defineTool({
         name: "phone_screenshot",
         description: `See the phone's screen as a picture in a control session (Android 11 or later; screens an app protects come out black). With path, also save it (.jpg) where this session works. ${MARKS_NOTE} Each mark is on an element (index, from the newest phone_screen) or an area in screen pixels.`,
-        parameters: Type.Object({
-            path: Type.Optional(Type.String({ description: "Save it here too, ending in .jpg: absolute or relative to this session's folder" })),
-            marks: Type.Optional(
-                Type.Array(Type.Object({ index: Type.Optional(Type.Integer({ minimum: 1, description: "An element, by its number" })), area: Type.Optional(AREA), ...MARK_STYLE }), {
+        parameters: obj({
+            path: opt(str({ description: "Save it here too, ending in .jpg: absolute or relative to this session's folder" })),
+            marks: opt(arr(obj({ index: opt(int({ minimum: 1, description: "An element, by its number" })), area: opt(AREA), ...MARK_STYLE }, { open: true }), {
                     maxItems: 40,
                     description: "Marks drawn on the picture",
-                }),
-            ),
+                })),
             device,
-        }),
+        }, { open: true }),
         replay: "safe",
         execute: async (args, api, context) => {
             try {

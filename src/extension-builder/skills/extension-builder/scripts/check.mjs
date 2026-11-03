@@ -4,7 +4,7 @@
 //
 // The folder holds one module <name>.ts at its top, and what belongs to it (<name>.js, a folder <name>/). It reads the
 // files and never runs them: the .ts parses with Node's type stripping (erasable syntax only, as pi-phone runs it), every
-// .js parses as a module, no tool takes a built-in tool's name, and the browser part keeps the app's UI rules (no
+// .js parses as a module, tool schemas are built with pi-schema (not TypeBox), no tool takes a built-in tool's name, and the browser part keeps the app's UI rules (no
 // emoji or dingbats, no system <select>, icons by the app's names, whole pixels, the theme's colours). Exit 1 with each
 // problem on its own line; notes do not fail it.
 import { spawnSync } from "node:child_process";
@@ -113,6 +113,13 @@ function checkServer(path) {
         problems.push(`${relative(folder, path)}: uses the type any: name the type`);
     }
 
+    // As the app's loader refuses it (typeBoxUse in src/server/reload.ts): pi-phone keeps one way, pi-schema, since Pi 1.5.
+    const typeBox = typeBoxUse(source);
+
+    if (typeBox !== undefined) {
+        problems.push(`${relative(folder, path)}: build its tool schemas with @earendil-works/pi-schema (obj, str, opt, arr, union, …): ${typeBox}; pi-phone refuses the drop-in`);
+    }
+
     if (!/export\s+const\s+pocketApi\s*=\s*2\b/.test(source)) {
         notes.push(`${relative(folder, path)}: no "export const pocketApi = 2": say which extension API it is written for`);
     }
@@ -131,6 +138,23 @@ function checkServer(path) {
             problems.push(`${relative(folder, path)}: web.client("${match[1]}"), but there is no ${match[1]} beside it`);
         }
     }
+}
+
+/** How a source uses TypeBox, in the words of the app's loader (`typeBoxUse` in src/server/reload.ts), or undefined. */
+function typeBoxUse(source) {
+    for (const match of source.matchAll(/\bimport\s+(?:type\s+)?\{([^}]*)\}\s*from\s*["']@earendil-works\/pi-ai["']/g)) {
+        const names = match[1].split(",").map((name) => name.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0]);
+
+        if (names.includes("Type")) {
+            return "it imports Type from @earendil-works/pi-ai, TypeBox's, which Pi 1.5 no longer has";
+        }
+    }
+
+    if (/(?:\bfrom\s*|\bimport\s*\(?\s*)["'](?:typebox|@sinclair\/typebox)(?:\/[^"']*)?["']/.test(source)) {
+        return "it imports TypeBox (typebox), which drop-ins do not use since Pi 1.5";
+    }
+
+    return undefined;
 }
 
 /** The browser part's files: <name>.js or .mjs, and every .js, .mjs and .css under <name>/. */

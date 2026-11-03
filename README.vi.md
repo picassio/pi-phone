@@ -351,7 +351,9 @@ dự án thật.</sub>
   `.ts`, hoặc tệp `.zip` chứa nó) hoặc do Pi thêm bằng `extension_install` khi bạn duyệt thẻ (hiện các tệp và những
   dòng đầu), mỗi cái tắt cho đến khi bạn bật. Chúng dùng được `host.ask` của pi-pocket 0.22 (một thẻ mà giá trị chỉ
   tới được tiện ích), `host.hide` và `host.commandEnv`, chưa dùng được `host.browser`; một tiện ích có công cụ trùng
-  tên công cụ có sẵn sẽ bị từ chối, kèm lý do. **Gỡ** để bỏ một drop-in (Cài đặt › Tiện ích, sau khi xác nhận ngay
+  tên công cụ có sẵn sẽ bị từ chối, kèm lý do. Schema công cụ được dựng bằng `@earendil-works/pi-schema` (`obj`, `str`,
+  `opt`, …); một tiện ích dựng bằng `Type` của TypeBox (từ `@earendil-works/pi-ai` trước Pi 1.5, hoặc `typebox`) sẽ bị
+  từ chối, kèm lý do. **Gỡ** để bỏ một drop-in (Cài đặt › Tiện ích, sau khi xác nhận ngay
   trong dòng của nó, hoặc nhờ Pi: `app_action extensions.remove` qua thẻ của bạn): nó bị tắt và các tệp của nó bị xóa
   (`<name>.ts`, `<name>.js`, `<name>/`); dữ liệu của nó trong `extension-data/<name>/` được giữ, trừ khi bạn muốn xóa cả.
   Ngoài nút ở thanh bên, dòng trong menu, hành động trong trình khởi chạy, trang và bảng, một drop-in còn có thể hiện
@@ -615,7 +617,11 @@ dự án thật.</sub>
   dựng cũ không mở được. Ở lần khởi động đầu tiên của bản dựng có thay đổi này, pi-phone trước hết chép nguyên cơ sở
   dữ liệu sang `pocket.sqlite.before-pi-1.4` trong thư mục dữ liệu và kiểm tra bản sao; nếu không có bản sao tốt (thiếu
   dung lượng, ghi thất bại), nó không khởi động và nói lý do, dữ liệu của bạn giữ nguyên. Bản sao được xóa sau 14 ngày
-  và không nằm trong bản sao lưu.
+  và không nằm trong bản sao lưu. Pi 1.5 cũng là nâng cấp một chiều, nhưng không có bản sao đó: khi một phiên đã chạy
+  trên nó, bản pi-phone cũ hơn không mở được dữ liệu nữa (nó dừng khi khởi động với "has newer version 3 than 1").
+  Trước khi cài bản dựng đầu tiên có Pi 1.5, hãy sao lưu (Menu › Điện thoại này › Sao lưu), và đừng quay lại bản dựng
+  cũ với cùng dữ liệu. Từ đó, một drop-in có schema công cụ dùng `Type` của TypeBox sẽ bị từ chối: nhờ Pi viết lại
+  bằng pi-schema (Extension builder làm việc này).
 - **CI trong vòng lặp.** Công cụ `watch_ci` của agent theo dõi các lượt chạy GitHub Actions chạy nền và báo khi chúng
   xong, nên nó push, kết thúc lượt của mình, và được đánh thức bởi kết quả.
 - **Tiếng Anh, tiếng Trung hoặc tiếng Việt.** Giao diện › Ngôn ngữ: *Tự động* theo điện thoại hoặc trình duyệt, hoặc

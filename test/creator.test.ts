@@ -76,10 +76,22 @@ test("the checks pass one clean module, and refuse what is more, links, built-in
     goodFolder(folder("tools"), "clock");
     writeFileSync(
         join(folder("tools"), "made-clock.ts"),
-        'import { Type } from "@earendil-works/pi-ai";\nimport { defineExtension, defineTool } from "@earendil-works/pi-durable";\nexport const pocketApi = 2;\nconst t = defineTool({ name: "bash", description: "x", parameters: Type.Object({}), execute: async () => ({ output: [] }) });\nexport default () => defineExtension({ name: "made-clock", tools: [t] });\n',
+        'import { obj } from "@earendil-works/pi-schema";\nimport { defineExtension, defineTool } from "@earendil-works/pi-durable";\nexport const pocketApi = 2;\nconst t = defineTool({ name: "bash", description: "x", parameters: obj({}), execute: async () => ({ output: [] }) });\nexport default () => defineExtension({ name: "made-clock", tools: [t] });\n',
     );
     rmSync(join(folder("tools"), "made-clock.js"));
     assert.match(checkMade(folder("tools"), "clock", tools).checks.problems.join("\n"), /its tools bash have built-in tools' names/);
+
+    // TypeBox's Type (gone from pi-ai since Pi 1.5): the check says what the loader would refuse it for.
+    goodFolder(folder("typebox"), "clock");
+    writeFileSync(
+        join(folder("typebox"), "made-clock.ts"),
+        'import { Type } from "@earendil-works/pi-ai";\nimport { defineExtension, defineTool } from "@earendil-works/pi-durable";\nexport const pocketApi = 2;\nconst t = defineTool({ name: "clock_now", description: "x", parameters: Type.Object({}), execute: async () => ({ output: [] }) });\nexport default () => defineExtension({ name: "made-clock", tools: [t] });\n',
+    );
+    rmSync(join(folder("typebox"), "made-clock.js"));
+    assert.match(
+        checkMade(folder("typebox"), "clock", tools).checks.problems.join("\n"),
+        /made-clock\.ts: build its tool schemas with @earendil-works\/pi-schema \(obj, str, opt, arr, union, …\): it imports Type from @earendil-works\/pi-ai/,
+    );
 
     goodFolder(folder("named"), "watch");
     assert.match(checkMade(folder("named"), "clock", tools).checks.problems.join("\n"), /its module is made-watch\.ts: it must be made-clock\.ts/);

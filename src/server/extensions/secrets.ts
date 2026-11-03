@@ -6,7 +6,7 @@
  * the values extensions hide in its session (`host.hide`, `hidden.ts`) by their `[label]`.
  * The values themselves reach commands as environment variables, set by the app's `bash` (`app.ts`).
  */
-import { Type } from "@earendil-works/pi-ai";
+import { obj, opt, str } from "@earendil-works/pi-schema";
 import {
     defineExtension,
     defineTool,
@@ -193,9 +193,9 @@ export default function createSecrets(host: PocketHost) {
         name: "secrets_list",
         description:
             "The secrets you may use in this session's folder: name, what it is for, and whether a call using it waits for a person. Never their values. query: only those whose name or description has all these words.",
-        parameters: Type.Object({
-            query: Type.Optional(Type.String({ description: "Words to find in a secret's name or description, such as azure devops" })),
-        }),
+        parameters: obj({
+            query: opt(str({ description: "Words to find in a secret's name or description, such as azure devops" })),
+        }, { open: true }),
         replay: "safe",
         execute: async (args, api, context) => {
             const all = secrets.usableIn(await cwdOf(api, context));
@@ -221,10 +221,10 @@ export default function createSecrets(host: PocketHost) {
         name: "secret_request",
         description:
             "Ask the person for a secret (an API key, token, or password). They type it into a hidden field on this call's card; it is stored in Settings > Secrets and never enters the chat. Then use it in bash as $NAME.",
-        parameters: Type.Object({
-            name: Type.String({ description: "An environment variable's name: capitals, digits, _ (DEEPSEEK_API_KEY)" }),
-            description: Type.String({ description: "What it is for and where to get it, shown to the person" }),
-        }),
+        parameters: obj({
+            name: str({ description: "An environment variable's name: capitals, digits, _ (DEEPSEEK_API_KEY)" }),
+            description: str({ description: "What it is for and where to get it, shown to the person" }),
+        }, { open: true }),
         // Waiting for a person: after a restart it asks again.
         replay: "safe",
         execute: async (args, api, context) => {
@@ -272,11 +272,11 @@ export default function createSecrets(host: PocketHost) {
         name: "secret_save",
         description:
             "Run a command and store its output as a secret, without showing the output to anyone: for a key a command makes or prints (gh auth token, openssl rand -hex 32).",
-        parameters: Type.Object({
-            name: Type.String({ description: "An environment variable's name: capitals, digits, _" }),
-            command: Type.String({ description: "The command whose standard output is the value" }),
-            description: Type.String({ description: "What it is for" }),
-        }),
+        parameters: obj({
+            name: str({ description: "An environment variable's name: capitals, digits, _" }),
+            command: str({ description: "The command whose standard output is the value" }),
+            description: str({ description: "What it is for" }),
+        }, { open: true }),
         execute: async (args, api, context) => {
             if (!SECRET_NAME.test(args.name)) {
                 return reply(`${args.name} is not a secret's name: use capitals, digits, and _.`, true);

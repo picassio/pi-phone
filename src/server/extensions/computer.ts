@@ -16,7 +16,8 @@
  *   takes Google's command and a PIN, which go to the machine through the server (`answerCrdConnect`), never to Pi.
  * The owner's alone; never on the team server, never in plan mode.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, bool, int, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal, record } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { ComputerApp, ComputerSession } from "../computer-control.ts";
 import { MINUTES } from "../computer-control.ts";
@@ -47,8 +48,8 @@ export const COMPUTER = `Computer control: you can see and operate desktop apps 
 
 export default function createComputer(host: PocketHost) {
     const control = host.computer;
-    const machine = Type.Optional(Type.String({ description: "The machine (name or id); default: the one this session controls" }));
-    const appParam = Type.Optional(Type.String({ description: "The app, by its label on the card or its name; default: the one the panel shows" }));
+    const machine = opt(str({ description: "The machine (name or id); default: the one this session controls" }));
+    const appParam = opt(str({ description: "The app, by its label on the card or its name; default: the one the panel shows" }));
 
     /** The owner's Pi only: refused for guests, and on the team server. */
     const refusedFor = (conversationId: unknown): string | undefined => {
@@ -199,19 +200,17 @@ export default function createComputer(host: PocketHost) {
             "On Windows, ocu runs in the owner's signed-in desktop through pi-phone's task (a per-user scheduled task and a bridge on 127.0.0.1): setup with task: install makes it, task: remove removes it, each after the owner approves a card that shows what changes. " +
             "ocu cannot pass Windows' lock screen; Chrome Remote Desktop (Google's host, a service) can, from the owner's phone: setup with crd: install installs it, crd: connect shows the owner a card where they paste Google's code and choose a PIN (you never see either), crd: remove removes it, each on a card. " +
             "It ends at its time, on Stop (on the machine, in the panel or the menu), with stop, or shortly after your turn ends. Owner only.",
-        parameters: Type.Object({
-            action: Type.Union([Type.Literal("start"), Type.Literal("stop"), Type.Literal("status"), Type.Literal("setup")]),
+        parameters: obj({
+            action: union([literal("start"), literal("stop"), literal("status"), literal("setup")]),
             machine,
-            apps: Type.Optional(Type.Array(Type.String(), { description: "start: the apps, by window title or name as status lists them" })),
-            minutes: Type.Optional(Type.Integer({ minimum: MINUTES.min, maximum: MINUTES.max, description: `start: how long you need, ${MINUTES.min} to ${MINUTES.max}` })),
-            follow: Type.Optional(Type.Boolean({ description: "start: also the apps the named ones open while you act in them (default false)" })),
-            reason: Type.Optional(Type.String({ description: "start and setup: what you will do, in a sentence: shown on the card" })),
-            prepare: Type.Optional(Type.String({ description: "setup: one shell line run before ocu starts (empty: none)" })),
-            task: Type.Optional(Type.Union([Type.Literal("install"), Type.Literal("remove")], { description: "setup on Windows: make or remove pi-phone's task there" })),
-            crd: Type.Optional(
-                Type.Union([Type.Literal("install"), Type.Literal("connect"), Type.Literal("remove")], { description: "setup on Windows: install, connect (to the owner's Google account) or remove Chrome Remote Desktop there" }),
-            ),
-        }),
+            apps: opt(arr(str(), { description: "start: the apps, by window title or name as status lists them" })),
+            minutes: opt(int({ minimum: MINUTES.min, maximum: MINUTES.max, description: `start: how long you need, ${MINUTES.min} to ${MINUTES.max}` })),
+            follow: opt(bool({ description: "start: also the apps the named ones open while you act in them (default false)" })),
+            reason: opt(str({ description: "start and setup: what you will do, in a sentence: shown on the card" })),
+            prepare: opt(str({ description: "setup: one shell line run before ocu starts (empty: none)" })),
+            task: opt(union([literal("install"), literal("remove")], { description: "setup on Windows: make or remove pi-phone's task there" })),
+            crd: opt(union([literal("install"), literal("connect"), literal("remove")], { description: "setup on Windows: install, connect (to the owner's Google account) or remove Chrome Remote Desktop there" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             const refused = refusedFor(api.conversationId);
 
@@ -437,7 +436,7 @@ export default function createComputer(host: PocketHost) {
         description:
             "Read an app's window in a computer control session: its elements numbered ([5] push button Greet Frame: {x, y, width, height} in the window), values, password fields marked [password], their states (States: checked, selected, expanded, collapsed, focused, disabled, readonly, secure), the element in focus, and the session's time left. " +
             "Covered: [{x, y, width, height}] lists the parts other windows cover (black in its picture); Screenshot omitted says why it has none. Apps outside the session are not read. full: the whole text of long fields.",
-        parameters: Type.Object({ machine, app: appParam, full: Type.Optional(Type.Boolean({ description: "The whole text of long fields (default: 500 characters each)" })) }),
+        parameters: obj({ machine, app: appParam, full: opt(bool({ description: "The whole text of long fields (default: 500 characters each)" })) }, { open: true }),
         execute: async (args, api) => {
             try {
                 const session = sessionOf(api.conversationId, args.machine);
@@ -462,32 +461,32 @@ export default function createComputer(host: PocketHost) {
             "press_key: key, like Return, Tab, Escape, ctrl+a, Down. " +
             "scroll: the element index, direction up, down, left or right, pages. secondary_action: the element's action name (from its Secondary Actions). wait: seconds (default 2, at most 10). " +
             "Never type a password as text: a saved secret by name, or the owner types it on a card (computer_sign_in). Only in the session's apps.",
-        parameters: Type.Object({
-            action: Type.Union([
-                Type.Literal("click"),
-                Type.Literal("double_click"),
-                Type.Literal("right_click"),
-                Type.Literal("set_value"),
-                Type.Literal("type_text"),
-                Type.Literal("press_key"),
-                Type.Literal("scroll"),
-                Type.Literal("secondary_action"),
-                Type.Literal("wait"),
+        parameters: obj({
+            action: union([
+                literal("click"),
+                literal("double_click"),
+                literal("right_click"),
+                literal("set_value"),
+                literal("type_text"),
+                literal("press_key"),
+                literal("scroll"),
+                literal("secondary_action"),
+                literal("wait"),
             ]),
             machine,
             app: appParam,
-            index: Type.Optional(Type.Integer({ minimum: 0, description: "An element's number from the newest computer_screen" })),
-            x: Type.Optional(Type.Number({ description: "A point in the window's picture, in pixels from the left (needs the real-mouse mode, not on yet)" })),
-            y: Type.Optional(Type.Number({ description: "A point in the window's picture, in pixels from the top (needs the real-mouse mode, not on yet)" })),
-            value: Type.Optional(Type.String({ description: "set_value: the value" })),
-            text: Type.Optional(Type.String({ description: "type_text: the text" })),
-            secret: Type.Optional(Type.String({ description: "set_value / type_text: a saved secret's name (secrets_list), filled in instead of value or text" })),
-            key: Type.Optional(Type.String({ description: "press_key: the key or chord" })),
-            direction: Type.Optional(Type.Union([Type.Literal("up"), Type.Literal("down"), Type.Literal("left"), Type.Literal("right")])),
-            pages: Type.Optional(Type.Number({ minimum: 0.1, maximum: 10, description: "scroll: how many pages (default 1)" })),
-            name: Type.Optional(Type.String({ description: "secondary_action: the action's name" })),
-            seconds: Type.Optional(Type.Number({ minimum: 0, maximum: 10, description: "wait: how long" })),
-        }),
+            index: opt(int({ minimum: 0, description: "An element's number from the newest computer_screen" })),
+            x: opt(num({ description: "A point in the window's picture, in pixels from the left (needs the real-mouse mode, not on yet)" })),
+            y: opt(num({ description: "A point in the window's picture, in pixels from the top (needs the real-mouse mode, not on yet)" })),
+            value: opt(str({ description: "set_value: the value" })),
+            text: opt(str({ description: "type_text: the text" })),
+            secret: opt(str({ description: "set_value / type_text: a saved secret's name (secrets_list), filled in instead of value or text" })),
+            key: opt(str({ description: "press_key: the key or chord" })),
+            direction: opt(union([literal("up"), literal("down"), literal("left"), literal("right")])),
+            pages: opt(num({ minimum: 0.1, maximum: 10, description: "scroll: how many pages (default 1)" })),
+            name: opt(str({ description: "secondary_action: the action's name" })),
+            seconds: opt(num({ minimum: 0, maximum: 10, description: "wait: how long" })),
+        }, { open: true }),
         execute: async (args, api) => {
             try {
                 const session = sessionOf(api.conversationId, args.machine);
@@ -625,17 +624,15 @@ export default function createComputer(host: PocketHost) {
             "Answers how it ended (done, or why it stopped: needs_value, blocked, stuck_loop, unverified_done, budget, stale, decision_error), its steps, time and cost, and the window as it is. " +
             "What each step sends: with Jev, OpenRouter (openrouter.ai) gets, with the owner's OpenRouter key, the goal, the values (a secret by its name only), the window's title and text (its elements and values), and the recent steps; with this session's model, its provider gets the same. " +
             "A run clicks and types without asking anyone, so a window's text can steer it: never give it a goal that pays, sends, books or deletes.",
-        parameters: Type.Object({
-            goal: Type.String({ description: "One concrete goal in this app, with everything it requires (\"In Settings, turn on Dark mode and close the dialog\")" }),
+        parameters: obj({
+            goal: str({ description: "One concrete goal in this app, with everything it requires (\"In Settings, turn on Dark mode and close the dialog\")" }),
             machine,
             app: appParam,
-            values: Type.Optional(
-                Type.Record(Type.String(), Type.Union([Type.String(), Type.Object({ secret: Type.String({ description: "A saved secret's name: put into the field (a password field too), never shown to you or the run model" }) })]), {
+            values: opt(record(union([str(), obj({ secret: str({ description: "A saved secret's name: put into the field (a password field too), never shown to you or the run model" }) }, { open: true })]), {
                     description: "Texts it may put into fields, by name: a text, or { secret: NAME } for one of the owner's saved secrets",
-                }),
-            ),
-            max_steps: Type.Optional(Type.Integer({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
-        }),
+                })),
+            max_steps: opt(int({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
+        }, { open: true }),
         execute: async (args, api) => {
             let session: ComputerSession;
 
@@ -724,17 +721,15 @@ export default function createComputer(host: PocketHost) {
     const shotTool = defineTool({
         name: "computer_screenshot",
         description: `See an app's window as a picture in a computer control session; parts other windows cover are black (and listed), and a minimised or wholly covered window has no picture (ocu says why). With path, also save it (.png) where this session works. ${MARKS_NOTE} Each mark is on an element (index, from the newest computer_screen) or an area in the picture's pixels.`,
-        parameters: Type.Object({
+        parameters: obj({
             machine,
             app: appParam,
-            path: Type.Optional(Type.String({ description: "Save it here too, ending in .png: absolute or relative to this session's folder" })),
-            marks: Type.Optional(
-                Type.Array(Type.Object({ index: Type.Optional(Type.Integer({ minimum: 0, description: "An element, by its number" })), area: Type.Optional(AREA), ...MARK_STYLE }), {
+            path: opt(str({ description: "Save it here too, ending in .png: absolute or relative to this session's folder" })),
+            marks: opt(arr(obj({ index: opt(int({ minimum: 0, description: "An element, by its number" })), area: opt(AREA), ...MARK_STYLE }, { open: true }), {
                     maxItems: 40,
                     description: "Marks drawn on the picture",
-                }),
-            ),
-        }),
+                })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             try {
                 const session = sessionOf(api.conversationId, args.machine);
@@ -813,13 +808,13 @@ export default function createComputer(host: PocketHost) {
             "Ask the owner to sign in in an app's window of a computer control session: they type the username, the password or a one-time code on a card (or use a sign-in kept in Secrets), and each goes straight into the element you name, by its number from the newest computer_screen. " +
             "You never see them: what you read of the window shows [username for <app>], [password for <app>] or [code for <app>] instead. " +
             "Use it whenever a window asks for a password or a code and no saved secret of yours fits; never ask for one in the chat. The owner can say Not now. Then submit the form yourself (its sign-in button, or computer_act press_key Return).",
-        parameters: Type.Object({
+        parameters: obj({
             machine,
             app: appParam,
-            username: Type.Optional(Type.Integer({ minimum: 0, description: "The username or email field's number, if the window has one" })),
-            password: Type.Optional(Type.Integer({ minimum: 0, description: "The password field's number, if the window has one" })),
-            code: Type.Optional(Type.Integer({ minimum: 0, description: "The one-time code field's number, if the window has one" })),
-        }),
+            username: opt(int({ minimum: 0, description: "The username or email field's number, if the window has one" })),
+            password: opt(int({ minimum: 0, description: "The password field's number, if the window has one" })),
+            code: opt(int({ minimum: 0, description: "The one-time code field's number, if the window has one" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             try {
                 const session = sessionOf(api.conversationId, args.machine);

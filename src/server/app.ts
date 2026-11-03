@@ -52,6 +52,7 @@ import {
     createRegistry,
     defineExtension,
     type DocumentCommitChange,
+    type EntryRecord,
     Harness,
     type HarnessSettings,
     LiveDoc,
@@ -229,9 +230,10 @@ const LIMIT_WAIT_CHOICES = [0, 1, 6, 12, 24];
 export const MAX_PEEKS = 20;
 /**
  * How a run that failed leaves its messages: the model or its provider answered with an error, no model was there to
- * ask, or the run broke. Stopped (`aborted`), cleared (`reset`), and replaced (`stale`) runs did not fail.
+ * ask, the run broke, or the server stopped while the model answered and no retry was left (`interrupted`, since Pi
+ * Durable 1.5). Stopped (`aborted`), cleared (`reset`), and replaced (`stale`) runs did not fail.
  */
-const FAILED_RUN = new Set(["model_error", "no_model", "faulted"]);
+const FAILED_RUN = new Set(["model_error", "no_model", "faulted", "interrupted"]);
 
 /** A conversation's subagents document, as far as the app reads it. */
 type SubagentsValue = {
@@ -1459,7 +1461,7 @@ export class PocketApp {
                     await tx.doc(ArtifactsDoc, conversation.id);
                     await tx.doc(SubagentsDoc, conversation.id);
                 },
-                onReport: (error) => this.notice("warning", describe(error)),
+                onReport: (report) => this.notice("warning", describe(report.error)),
             },
             context,
         );
@@ -1469,9 +1471,19 @@ export class PocketApp {
         await this.spend.load(conversations);
         await this.spend.loadVoice();
 
-        this.#unsubscribeCommits = this.harness.subscribeCommits((publication) =>
-            this.#committed(publication),
-        );
+        // An observer that throws is detached for good: one commit's error must not stop the app hearing of the rest.
+        const commits = this.harness.observeCommits({
+            advance: (publication) => {
+                try {
+                    this.#committed(publication);
+                } catch (error) {
+                    this.notice("warning", describe(error));
+                }
+            },
+            end: () => {},
+        });
+
+        this.#unsubscribeCommits = () => commits.detach();
         this.#unsubscribeApprovals = this.approvals.subscribe((id) => {
             // A call that waits for a person: the phone hears of it once, under its session.
             const pending = this.approvals.all();
@@ -1651,7 +1663,10 @@ export class PocketApp {
                 change.record.kind === UsageDoc.definition.kind &&
                 change.conversationId !== undefined
             ) {
-                this.spend.usageChanged(change.conversationId, change.value as UsageState | null);
+                this.spend.usageChanged(
+                    change.conversationId,
+                    change.kind === "change" ? (change.value as UsageState) : null,
+                );
 
                 // A team's top session with a limit shows the team's spend: it follows a linked session's too.
                 const root = this.rootOf(change.conversationId);
@@ -1754,13 +1769,15 @@ export class PocketApp {
     #documentCommitted(change: Extract<DocumentCommitChange, { type: "document" }>): boolean {
         const kind = change.record.kind;
         const id = change.conversationId;
+        // A retired document reads as none (Pi Durable 1.5 tags a change; before, a retirement's value was null).
+        const value = change.kind === "change" ? change.value : null;
         let sessionsChanged = false;
 
         if (kind === "pi.live" && id !== undefined) {
-            const busy = (change.value as LiveState | null)?.run !== undefined;
+            const busy = (value as LiveState | null)?.run !== undefined;
 
             // A compaction asks the model too (an idle session's manual one has no run): it may wait for a limit.
-            if (((change.value as LiveState | null)?.compactions?.length ?? 0) > 0) {
+            if (((value as LiveState | null)?.compactions?.length ?? 0) > 0) {
                 this.#compacting.add(id);
             } else {
                 this.#compacting.delete(id);
@@ -1811,14 +1828,14 @@ export class PocketApp {
                 }
             }
         } else if (kind === "pi.agent" && id !== undefined) {
-            if (change.value !== null) {
-                this.#agents.set(id, change.value as AgentState);
+            if (value !== null) {
+                this.#agents.set(id, value as AgentState);
             }
 
             sessionsChanged = true;
         } else if (kind === SessionsDoc.definition.kind) {
             this.#sessions = {
-                ...((change.value as { items?: Record<string, SessionMeta> } | null)?.items ?? {}),
+                ...((value as { items?: Record<string, SessionMeta> } | null)?.items ?? {}),
             };
             sessionsChanged = true;
 
@@ -1830,11 +1847,9 @@ export class PocketApp {
                 );
             }
         } else if (kind === FolderFavoritesDoc.definition.kind) {
-            this.folderFavorites.committed(
-                change.value as { users: Record<string, string[]> } | null,
-            );
+            this.folderFavorites.committed(value as { users: Record<string, string[]> } | null);
         } else if (kind === SessionGroupsDoc.definition.kind) {
-            this.sessionGroups.committed(change.value as { users: Record<string, SessionGroupsOf> } | null);
+            this.sessionGroups.committed(value as { users: Record<string, SessionGroupsOf> } | null);
         } else if (kind === KeptPagesDoc.definition.kind) {
             this.keptPages.committed();
         } else if (ROOM_DOCS.has(kind) && id !== undefined) {
@@ -1847,19 +1862,19 @@ export class PocketApp {
                 if (
                     this.#noteChat(
                         id,
-                        (change.value as { messages?: ChatMessage[] } | null)?.messages,
+                        (value as { messages?: ChatMessage[] } | null)?.messages,
                     )
                 ) {
                     sessionsChanged = true;
                 }
             } else if (kind === SubagentsDoc.definition.kind) {
-                this.#noteSubagents(id, change.value as SubagentsValue | null);
+                this.#noteSubagents(id, value as SubagentsValue | null);
                 // The list counts each session's subagents, and the board lists them.
                 sessionsChanged = true;
             }
 
             void this.#rooms.get(id)?.then(
-                (room) => room.setDoc(kind, change.value as Record<string, unknown> | null),
+                (room) => room.setDoc(kind, value as Record<string, unknown> | null),
                 () => {},
             );
 
@@ -1868,7 +1883,7 @@ export class PocketApp {
                     void pending.then(
                         (room) => {
                             if (room.id !== id && this.rootOf(room.id) === id) {
-                                room.setDoc(kind, change.value as Record<string, unknown> | null);
+                                room.setDoc(kind, value as Record<string, unknown> | null);
                             }
                         },
                         () => {},
@@ -2591,62 +2606,62 @@ export class PocketApp {
      * newest last, about 6000 characters.
      */
     async #voiceContext(id: ConversationId): Promise<string> {
-        const view = await (await this.conversation(id)).viewState(context);
+        // The active transcript: since Pi Durable 1.5, a conversation's view holds only a window of the newest entries.
+        const { entries } = await (await this.conversation(id)).context(context);
+        const lines: string[] = [];
 
-        try {
-            const lines: string[] = [];
+        for (const entry of entries) {
+            const shown = projectEntry(entry);
 
-            for (const entry of view.value.entries) {
-                const shown = projectEntry(entry);
+            if (shown?.kind === "user" && shown.text.trim() !== "") {
+                lines.push(`Owner: ${shown.text.trim().slice(0, 800)}`);
+            } else if (shown?.kind === "assistant") {
+                const text = shown.blocks
+                    .filter((block) => block.type === "text")
+                    .map((block) => (block as { text: string }).text)
+                    .join("\n")
+                    .trim();
 
-                if (shown?.kind === "user" && shown.text.trim() !== "") {
-                    lines.push(`Owner: ${shown.text.trim().slice(0, 800)}`);
-                } else if (shown?.kind === "assistant") {
-                    const text = shown.blocks
-                        .filter((block) => block.type === "text")
-                        .map((block) => (block as { text: string }).text)
-                        .join("\n")
-                        .trim();
-
-                    if (text !== "") {
-                        lines.push(`Pi: ${text.slice(0, 800)}`);
-                    }
+                if (text !== "") {
+                    lines.push(`Pi: ${text.slice(0, 800)}`);
                 }
             }
-
-            const kept: string[] = [];
-            let size = 0;
-
-            for (const line of lines.reverse()) {
-                if (size + line.length > 6000) {
-                    break;
-                }
-
-                kept.unshift(line);
-                size += line.length;
-            }
-
-            return kept.join("\n");
-        } finally {
-            view.dispose();
         }
+
+        const kept: string[] = [];
+        let size = 0;
+
+        for (const line of lines.reverse()) {
+            if (size + line.length > 6000) {
+                break;
+            }
+
+            kept.unshift(line);
+            size += line.length;
+        }
+
+        return kept.join("\n");
     }
 
     /** Follow a session for a call: its entries as tabs get them, and whether Pi works there. */
     async #watchVoice(id: ConversationId, listener: (entries: readonly ClientEntry[], busy: boolean) => void): Promise<() => void> {
-        const view = await (await this.conversation(id)).viewState(context);
-        const emit = () =>
+        // The view's window of the newest entries, then what it adds: a call speaks only what comes after it began.
+        const watch = await (await this.conversation(id)).watch(context);
+        const emit = (entries: readonly EntryRecord[]) =>
             listener(
-                view.value.entries.map((entry) => projectEntry(entry)).filter((entry): entry is ClientEntry => entry !== undefined),
+                entries.map((entry) => projectEntry(entry)).filter((entry): entry is ClientEntry => entry !== undefined),
                 this.isBusy(id),
             );
-        const unsubscribe = view.subscribe(emit);
 
-        emit();
+        watch.start(async (call) => {
+            if (call.kind === "value") {
+                emit(call.value.entries);
+            }
+        });
+        emit(watch.value.entries);
 
         return () => {
-            unsubscribe();
-            view.dispose();
+            void watch.stop();
         };
     }
 

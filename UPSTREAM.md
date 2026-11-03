@@ -58,4 +58,14 @@ is skipped on purpose.
   which host members it looked for that pi-phone lacks, and lists refusals and file-name clashes in the Extensions
   sheet; its built-in tool list is pi-phone's own. The gallery stays out. Test fixtures: picassio's
   pi-pocket-secrets (f69dce8), pi-pocket-browser-sign-in (82b838b) and pi-pocket-browser-runs (ee9fcdf), unchanged,
-  with their licenses (`test/fixtures/gallery/`).
+  with their licenses (`test/fixtures/gallery/`); since Pi 1.5 (PP-378) their tool schemas use pi-schema.
+- Pi 1.5 from 0.28.0 (PP-378, pi-pocket's release/0.28.0 of 2026-11-02): 8d9193a (packages to 1.5.0, pi-schema
+  added; pi-phone pins `ws` to 8.21.0, chord 1.5's peer), 714b247 (tool schemas with pi-schema, `tool-schema.ts`'s
+  `literal` and `record`; ported by a codemod over pi-phone's own tools, with `literal` for numbers too), 25bd905
+  (`onReport` gets a report, `interrupted` runs fail, a compaction's `trigger`; pi-phone's codemode needed no hook
+  change), 27ab7ce (one-call watch listeners, `observeCommits`, `watchTaskGraph`), 0b85e98 and ca9fe5a (a room keeps
+  the active transcript from `Conversation.context()`; the voice call follows the view's window), 297d024 (a big image
+  may go as JPEG), f0c9222 and 0aeb95b (the data is one way: README and DESIGN.md). Not taken: bd03d97 and 21a0bc2
+  (drop-ins get TypeBox's `Type` and `StringEnum` on pi-ai through a compat module): the owner's decision of
+  2026-11-03 keeps one way, so pi-phone refuses a TypeBox drop-in instead (`typeBoxUse` in `reload.ts`); 977a1e7
+  (PiP's artifact schema): pi-phone has no PiP.

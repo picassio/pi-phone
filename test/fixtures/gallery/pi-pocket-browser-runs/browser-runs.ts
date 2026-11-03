@@ -21,7 +21,8 @@
  */
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Api, type Model, Type, type Usage } from "@earendil-works/pi-ai";
+import { type Api, type Model, type Usage } from "@earendil-works/pi-ai";
+import { int, map, obj, opt, str } from "@earendil-works/pi-schema";
 import {
     defineExtension,
     defineTool,
@@ -1051,29 +1052,23 @@ export default function createBrowserRuns(host: Host, web: Web) {
         name: "browser_run",
         description:
             "Carry out one concrete goal in the browser on its own, a step at a time, each step decided by the run model the owner chose. It clicks and types without asking anyone, on the session's page, which may be signed in: a hostile page can steer it, so give it goals on sites you trust, and never one that pays, sends, or deletes. Give every text it may type in values; it types nothing else, and never a password. Answers how it ended (done, or why it stopped: needs_value, blocked, stuck_loop, unverified_done, budget, decision_error), its steps, time and cost, and the page as it is.",
-        parameters: Type.Object({
-            goal: Type.String({
+        parameters: obj({
+            goal: str({
                 description:
                     'One concrete goal, with everything it requires ("Search the shop for lamps and sort the results by newest").',
             }),
-            values: Type.Optional(
-                Type.Record(Type.String(), Type.String(), {
+            values: opt(map(str(), {
                     description: 'Texts it may type, by name: { "query": "lamp" }.',
-                }),
-            ),
-            url: Type.Optional(
-                Type.String({
+                })),
+            url: opt(str({
                     description:
                         "An address to open first; without it, the run starts on the page open now.",
-                }),
-            ),
-            max_steps: Type.Optional(
-                Type.Integer({
+                })),
+            max_steps: opt(int({
                     minimum: 1,
                     maximum: 60,
                     description: "Steps at most (default 25).",
-                }),
-            ),
+                })),
         }),
         // The page is shared and stateful: one call at a time, and never again after a restart.
         executionMode: "sequential",

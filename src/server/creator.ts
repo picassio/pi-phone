@@ -21,7 +21,8 @@
  * The progress card is the web's (`web/made-card.js`), under the `extension_create` call: it reads `GET
  * /api/x/extension-builder/made/<name>`, and hears `made` events as the state changes.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "./tool-schema.ts";
 import { defineTool, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import { mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -181,14 +182,14 @@ export function createCreator(host: PocketHost, web: ExtensionWeb, made: () => M
         name: "extension_create",
         description:
             "Make a drop-in extension for this app with a subagent (the Creator flow). The owner first sees a card (Make it / Not now) with its name made-<name>, what it will be and where it shows. On Make it, a subagent of this session writes it in .made/made-<name>/ under this session's folder with the extension-builder skill, and its report ends READY made-<name>. Then call extension_made install. The same name again makes its next version (the subagent changes it). It gets the same rights as any drop-in and stays off until the owner switches it on.",
-        parameters: Type.Object({
-            name: Type.String({ description: "Its name after made-: lowercase letters, digits and hyphens, like pomodoro" }),
-            title: Type.String({ description: "Its title in a few words, like Pomodoro" }),
-            brief: Type.String({ description: "One paragraph: what it will be and do, and where it shows; for a next version, what changes" }),
-            places: Type.Array(Type.Union(MADE_PLACES.map((place) => Type.Literal(place))), {
+        parameters: obj({
+            name: str({ description: "Its name after made-: lowercase letters, digits and hyphens, like pomodoro" }),
+            title: str({ description: "Its title in a few words, like Pomodoro" }),
+            brief: str({ description: "One paragraph: what it will be and do, and where it shows; for a next version, what changes" }),
+            places: arr(union(MADE_PLACES.map((place) => literal(place))), {
                 description: "Where it shows: tool (a tool for Pi), rail, page, sheet, menu, launcher, dock, overlay, panelTab, sessionMenu, theme",
             }),
-        }),
+        }, { open: true }),
         execute: async (args, api, context) => {
             try {
                 ownerOf(api.conversationId, "extension_create");
@@ -307,12 +308,12 @@ export function createCreator(host: PocketHost, web: ExtensionWeb, made: () => M
         name: "extension_made",
         description:
             "The next steps of a drop-in made with extension_create (made-<name>). install: once its subagent's report ends READY, check it (without running its code) and install it on the owner's card, switched off, keeping the version; checked: you looked at it switched on in the live app with screenshot at 390 and 1280 px, with a one-line note; keep: the owner keeps it (ends the flow); undo: back to the previous version, or remove it if it is the first (owner's card); restore: install a kept version (owner's card); list: the drop-ins made, with their versions.",
-        parameters: Type.Object({
-            action: Type.Union([Type.Literal("install"), Type.Literal("checked"), Type.Literal("keep"), Type.Literal("undo"), Type.Literal("restore"), Type.Literal("list")]),
-            name: Type.Optional(Type.String({ description: "Its name, like pomodoro or made-pomodoro" })),
-            note: Type.Optional(Type.String({ description: "checked: what you saw, in one line" })),
-            version: Type.Optional(Type.Number({ description: "restore: the version's number" })),
-        }),
+        parameters: obj({
+            action: union([literal("install"), literal("checked"), literal("keep"), literal("undo"), literal("restore"), literal("list")]),
+            name: opt(str({ description: "Its name, like pomodoro or made-pomodoro" })),
+            note: opt(str({ description: "checked: what you saw, in one line" })),
+            version: opt(num({ description: "restore: the version's number" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             try {
                 const store = made();

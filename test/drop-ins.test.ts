@@ -2,7 +2,7 @@
 // `extensions`, each off until turned on. A drop-in whose tool has a built-in tool's name is refused whole, and one that
 // adds nothing (pi-pocket's browser modules, which look for `host.browser`) is refused saying why. pi-pocket's gallery
 // modules (fixtures at fixed commits, test/fixtures/gallery) show both; a drop-in of our own uses host.ask, host.hide
-// and host.commandEnv.
+// and host.commandEnv. One that builds its tool schemas with TypeBox is refused too (Pi 1.5: pi-schema only, PP-378).
 import { type App, cleanUp, context, lastText, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { cpSync, existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
@@ -68,7 +68,7 @@ before(async () => {
     writeFileSync(
         join(dropIns, "points.ts"),
         `/** Points: a drop-in that uses host.ask, host.hide and host.commandEnv, for tests. */
-import { Type } from "@earendil-works/pi-ai";
+import { obj } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 
 export const pocketApi = 2;
@@ -84,7 +84,7 @@ export default (host, web) => {
     const signIn = defineTool({
         name: "drop_sign_in",
         description: "Sign in, with the person's values.",
-        parameters: Type.Object({}),
+        parameters: obj({}),
         execute: async (_args, api, context) => {
             const answer = await host.ask(
                 {
@@ -108,6 +108,27 @@ export default (host, web) => {
 
     return defineExtension({ name: "drop-points", tools: [signIn] });
 };
+`,
+    );
+    // TypeBox, which pi-ai no longer exports since Pi 1.5: pi-phone keeps one way to build tool schemas, pi-schema.
+    writeFileSync(
+        join(dropIns, "typebox-type.ts"),
+        `/** TypeBox's Type from pi-ai, as drop-ins built tool schemas before Pi 1.5. */
+import { Type } from "@earendil-works/pi-ai";
+import { defineExtension, defineTool } from "@earendil-works/pi-durable";
+
+export default () => defineExtension({ name: "typebox-type", tools: [defineTool({ name: "tb_one", description: "x", parameters: Type.Object({}), execute: async () => ({ output: [] }) })] });
+`,
+    );
+    mkdirSync(join(dropIns, "typebox-helper"));
+    writeFileSync(join(dropIns, "typebox-helper", "schema.ts"), `import { Type } from "typebox";\n\nexport const Params = Type.Object({ text: Type.String() });\n`);
+    writeFileSync(
+        join(dropIns, "typebox-helper.ts"),
+        `/** TypeBox from a file of its own: only its schemas show it. */
+import { defineExtension, defineTool } from "@earendil-works/pi-durable";
+import { Params } from "./typebox-helper/schema.ts";
+
+export default () => defineExtension({ name: "typebox-helper", tools: [defineTool({ name: "tb_two", description: "x", parameters: Params, execute: async () => ({ output: [] }) })] });
 `,
     );
     app = await openApp(scriptedModel(route), dataDir);
@@ -145,6 +166,24 @@ test("the gallery's secrets is refused whole: its tools have built-in tools' nam
     assert.deepEqual(module("gallery-secrets.ts")?.refused, { kind: "tool-names", names: ["secrets_list", "secret_request", "secret_save"] });
     assert.ok(!app.loader.extensionNames().includes("secrets"), "nothing of it is installed");
     assert.deepEqual(module("secrets.ts")?.extensions.flatMap((each) => each.tools), ["secrets_list", "secret_request", "secret_save"]);
+});
+
+test("a drop-in that builds its tool schemas with TypeBox is refused, saying to use pi-schema (Pi 1.5)", async () => {
+    for (const [file, uses] of [
+        ["typebox-type.ts", "it imports Type from @earendil-works/pi-ai, TypeBox's, which Pi 1.5 no longer has"],
+        ["typebox-helper.ts", "the tool tb_two has a TypeBox schema"],
+    ] as const) {
+        await assert.rejects(
+            app.setExtensionEnabled(owner(app), file, true),
+            (error) =>
+                error instanceof HttpError &&
+                error.status === 409 &&
+                error.message.includes(`refused: build its tool schemas with @earendil-works/pi-schema (obj, str, opt, arr, union, …): ${uses}`),
+            file,
+        );
+        assert.deepEqual(module(file)?.refused, { kind: "typebox", uses }, file);
+        assert.deepEqual(module(file)?.extensions, [], `${file}: nothing of it is installed`);
+    }
 });
 
 test("the gallery's browser modules are refused: they look for host.browser, which pi-phone does not have", async () => {

@@ -1110,6 +1110,7 @@
     "Refused: its tools {names} have built-in tools' names, and the built-in ones win. Rename them in the module.": "Bị từ chối: công cụ {names} trùng tên công cụ có sẵn, và công cụ có sẵn được ưu tiên. Hãy đổi tên trong module.",
     "Refused: it added nothing. It needs {members}, which pi-phone does not have yet.": "Bị từ chối: nó không thêm gì. Nó cần {members}, thứ pi-phone chưa có.",
     "Refused: it added nothing (it may need host.browser, which pi-phone does not have yet).": "Bị từ chối: nó không thêm gì (có thể nó cần host.browser, thứ pi-phone chưa có).",
+    "Refused: it builds its tool schemas with TypeBox, which pi-phone no longer has since Pi 1.5. Rewrite them with @earendil-works/pi-schema: ask Pi, the Extension builder does it.": "Bị từ chối: nó dựng schema công cụ bằng TypeBox, thứ pi-phone không còn từ Pi 1.5. Hãy viết lại bằng @earendil-works/pi-schema: nhờ Pi, Extension builder sẽ làm.",
     "{file} is installed already ({what}). Replace it? It is switched off first.": "{file} đã được cài ({what}). Thay thế? Nó sẽ được tắt trước.",
     "Installed {file}, switched off: turn it on below. Left out: {left}.": "Đã cài {file}, đang tắt: bật ở bên dưới. Bỏ qua: {left}.",
     "Installed {file}, switched off: turn it on below.": "Đã cài {file}, đang tắt: bật ở bên dưới.",

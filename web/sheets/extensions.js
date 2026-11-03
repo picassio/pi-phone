@@ -28,6 +28,10 @@ function refusalText(refused) {
         });
     }
 
+    if (refused.kind === "typebox") {
+        return t("Refused: it builds its tool schemas with TypeBox, which pi-phone no longer has since Pi 1.5. Rewrite them with @earendil-works/pi-schema: ask Pi, the Extension builder does it.");
+    }
+
     return refused.missing.length > 0
         ? t("Refused: it added nothing. It needs {members}, which pi-phone does not have yet.", {
               members: refused.missing.map((name) => `host.${name}`).join(", "),

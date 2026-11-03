@@ -14,7 +14,8 @@
  * For longer work there, a session in a folder on the machine runs all of Pi's tools there.
  */
 import type { JsonValue } from "@earendil-works/chord";
-import { Type } from "@earendil-works/pi-ai";
+import { arr, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import type { MachineToolChange, PocketHost } from "../host.ts";
 import { machinePaths } from "../machine-paths.ts";
@@ -83,12 +84,12 @@ export default function createMachines(host: PocketHost) {
             "Run one shell command on one of the owner's machines, over the app's connection (no ssh needed): to check a log, a disk, a service, or a quick build step there. Secrets work as in bash ($NAME). For longer work on a machine, start a session in a folder there instead. " +
             "The tools pi-phone installed there (Settings › Machines › Install tools) are in ~/.pi/mobile/tools/bin, not on this command's PATH: run them by that path, e.g. ~/.pi/mobile/tools/bin/hyperframes render <project folder> -o <file>.mp4 (HTML and GSAP to MP4) and ~/.pi/mobile/tools/bin/ffprobe <file>.mp4. " +
             "A machine the owner set to ask before each command (Settings › Machines) shows the command on a card first, and runs it only when they allow it.",
-        parameters: Type.Object({
-            machine: Type.String({ description: "The machine's name (or alias) from your environment section" }),
-            command: Type.String({ description: "A shell command, run with sh -c (Git Bash's bash on Windows)" }),
-            cwd: Type.Optional(Type.String({ description: "Folder on the machine; default its home" })),
-            timeout: Type.Optional(Type.Number({ description: "Seconds before it is stopped (default 120, at most 1800)" })),
-        }),
+        parameters: obj({
+            machine: str({ description: "The machine's name (or alias) from your environment section" }),
+            command: str({ description: "A shell command, run with sh -c (Git Bash's bash on Windows)" }),
+            cwd: opt(str({ description: "Folder on the machine; default its home" })),
+            timeout: opt(num({ description: "Seconds before it is stopped (default 120, at most 1800)" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             let machine: ReturnType<typeof find>;
 
@@ -177,10 +178,10 @@ export default function createMachines(host: PocketHost) {
         name: "machine_copy",
         description:
             "Copy one file between the phone and a machine, or between two machines, over the app's connections (no scp needed). Write a place on a machine as <machine>:<path> (from / or ~), and one on the phone as a plain path. Copying into a folder keeps the file's name. Files up to 100 MB; for a folder, pack it first with machine_run (tar).",
-        parameters: Type.Object({
-            from: Type.String({ description: "The file: /phone/path, ~/path, or <machine>:<path>" }),
-            to: Type.String({ description: "Where to: a file path, or a folder ending in /" }),
-        }),
+        parameters: obj({
+            from: str({ description: "The file: /phone/path, ~/path, or <machine>:<path>" }),
+            to: str({ description: "Where to: a file path, or a folder ending in /" }),
+        }, { open: true }),
         execute: async (args, _api, context) => {
             try {
                 const from = locate(args.from);
@@ -231,13 +232,13 @@ export default function createMachines(host: PocketHost) {
         name: "machine_add",
         description:
             "Add a computer to pi-phone's machines, after the owner approves one card: it scans the machine's host key, shows it with the address and the SSH key, and on Approve trusts that key, installs pi-env (~2 MB, in ~/.pi/mobile/tools there) and connects. Give expectedFingerprint when you read the host key on the machine itself (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub, from its console or guest agent): a different key is refused. The machine must have the key's public half in ~/.ssh/authorized_keys; with key \"new\", a new key is made on Approve and, if the machine refuses it, its public half comes back for you to install, then call again with that key. Owner only.",
-        parameters: Type.Object({
-            name: Type.String({ description: "The machine's name in pi-phone, like build-box" }),
-            address: Type.String({ description: "user@host or user@host:port" }),
-            key: Type.String({ description: 'The SSH key to sign in with: a key\'s name or id from Settings › SSH keys, or "new" to make one named after the machine' }),
-            expectedFingerprint: Type.Optional(Type.String({ description: "The host key's SHA256 fingerprint as read on the machine itself, like SHA256:a1Va..." })),
-            reason: Type.String({ description: "Why, in a sentence: shown on the card" }),
-        }),
+        parameters: obj({
+            name: str({ description: "The machine's name in pi-phone, like build-box" }),
+            address: str({ description: "user@host or user@host:port" }),
+            key: str({ description: 'The SSH key to sign in with: a key\'s name or id from Settings › SSH keys, or "new" to make one named after the machine' }),
+            expectedFingerprint: opt(str({ description: "The host key's SHA256 fingerprint as read on the machine itself, like SHA256:a1Va..." })),
+            reason: str({ description: "Why, in a sentence: shown on the card" }),
+        }, { open: true }),
         execute: async (args, api, context) => {
             try {
                 const asker = host.requesterOf(Number(api.conversationId) as never);
@@ -394,12 +395,12 @@ export default function createMachines(host: PocketHost) {
             "status: each tool on a machine (or on every connected machine): installed and at which version, the current version, its size, or the machine's own. " +
             "install, update, remove: the owner approves one card first (the machine, the tools, versions from and to, sizes); Approve runs what Settings › Machines runs (pinned versions, each download checked by its sha256), and the result says each tool's version line, or the step that failed. " +
             "update without tools updates every tool there with a newer version. When status shows an update, offer it to the owner. Owner only.",
-        parameters: Type.Object({
-            action: Type.Union([Type.Literal("status"), Type.Literal("install"), Type.Literal("update"), Type.Literal("remove")], { description: "status, install, update, or remove" }),
-            machine: Type.Optional(Type.String({ description: "The machine's name, alias or id; status without it: every connected machine" })),
-            tools: Type.Optional(Type.Array(Type.String(), { description: "Tool ids (officecli, rg, fd, chrome, ocu, ffmpeg, hyperframes, tlc, crd); update without them: every tool with an update" })),
-            reason: Type.Optional(Type.String({ description: "Why, in a sentence: shown on the card" })),
-        }),
+        parameters: obj({
+            action: union([literal("status"), literal("install"), literal("update"), literal("remove")], { description: "status, install, update, or remove" }),
+            machine: opt(str({ description: "The machine's name, alias or id; status without it: every connected machine" })),
+            tools: opt(arr(str(), { description: "Tool ids (officecli, rg, fd, chrome, ocu, ffmpeg, hyperframes, tlc, crd); update without them: every tool with an update" })),
+            reason: opt(str({ description: "Why, in a sentence: shown on the card" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             try {
                 const asker = host.requesterOf(Number(api.conversationId) as never);

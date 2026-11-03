@@ -8,8 +8,18 @@ Built from two upstreams, cut down to what this app needs:
 - https://github.com/badlogic/pi-termux-mobile: the Android shell (plain Gradle, Java, no NDK), the embedded
   Termux runtime, and the APK workflow.
 - https://github.com/TannerMidd/pi-pocket (MIT): the server and the web UI, written against pi-durable 1.1.0; we run
-  it on the pi packages 1.3.0 (pi-durable, pi-ai, pi-coding-agent, pi-codemode, chord), which `@earendil-works/pi-env`
-  needs for remote machines. 1.2.0 renamed tool results' `content` to `output` (the old field is silently ignored:
+  it on the pi packages 1.5.0 (pi-durable, pi-ai, pi-coding-agent, pi-codemode, chord, pi-schema), which
+  `@earendil-works/pi-env` needs for remote machines. 1.5.0 (PP-378, as pi-pocket 0.28.0 did): pi-ai no longer exports
+  TypeBox, so every tool schema is built with pi-schema's builders (`obj(..., { open: true })` keeps each tool's JSON
+  Schema as TypeBox wrote it; `tool-schema.ts` has `literal` and `record`, the two kinds pi-schema writes otherwise),
+  and drop-ins too, with no TypeBox shim (the owner's decision of 2026-11-03: one way; see Drop-in extensions);
+  a watch listener takes one call (`{ kind, value }`), the app hears stored commits through `observeCommits`, a
+  conversation's view holds only a window of the newest entries, so a room keeps the active transcript from
+  `Conversation.context()` (read again after a new head marker); a run the server stopped with no retry left ends
+  `interrupted`, counted as failed; a compaction names its `trigger`. Its data is one way: Pi Durable 1.5 stores
+  `pi.live` at version 3 as soon as a session runs, and a pi-phone on 1.4 then stops at start with "Document …
+  (pi.live) has newer version 3 than 1". The database schema stays 2, so the safety copy before Pi 1.4's upgrade
+  (`storage-upgrade.ts`) is not made again: back up first (Menu › This phone › Back up). 1.2.0 renamed tool results' `content` to `output` (the old field is silently ignored:
   a tool answering with it gives the model nothing), made `bash`'s nonzero exits error results, and brought its own
   codemode and image reads, which replace pi-pocket's codemode extension here.
   Imported at commit `e5456a832d47e7154faf04320dd7602ae5051bf7` (see `UPSTREAM.md`); we own the fork from there.
@@ -528,7 +538,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   extension's hook keeps Pi's write, edit and bash out of the folder (an enabled drop-in reloads when its file changes,
   and has the host, secrets included). Each is off until the owner turns it on. **Refused** (`Refused`, kept as
   `ExtensionInfo.refused` beside its error): a drop-in with a tool of a built-in tool's name, refused whole (the
-  built-in wins; the owner's choice), and one that returns no extensions and adds nothing. For that one the host it
+  built-in wins; the owner's choice), one that builds its tool schemas with TypeBox (Pi 1.5, PP-378: `typeBoxUse`
+  reads its source for `Type` from pi-ai or a `typebox` import before it runs, and a tool schema with TypeBox's `~kind`
+  after; the reason says to use pi-schema, and the skill's `check.mjs` says the same first), and one that returns no
+  extensions and adds nothing. For that one the host it
   gets is a proxy noting the members it looked for that pi-phone lacks, so pi-pocket's browser modules (which return
   nothing without `host.browser`) are refused saying so. Built-in tool names are `BUILT_IN_TOOLS` (a module that is
   off cannot be asked without running it), with every tool installed now but by a drop-in; `test/drop-ins.test.ts`

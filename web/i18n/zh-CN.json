@@ -2978,6 +2978,7 @@
     "Refused: its tools {names} have built-in tools' names, and the built-in ones win. Rename them in the module.": "已拒绝：它的工具 {names} 与内置工具同名，以内置工具为准。请在模块中给它们改名。",
     "Refused: it added nothing. It needs {members}, which pi-phone does not have yet.": "已拒绝：它什么都没有添加。它需要 {members}，而 pi-phone 还没有。",
     "Refused: it added nothing (it may need host.browser, which pi-phone does not have yet).": "已拒绝：它什么都没有添加（它可能需要 host.browser，而 pi-phone 还没有）。",
+    "Refused: it builds its tool schemas with TypeBox, which pi-phone no longer has since Pi 1.5. Rewrite them with @earendil-works/pi-schema: ask Pi, the Extension builder does it.": "已拒绝：它用 TypeBox 构建工具的 schema，而从 Pi 1.5 起 pi-phone 不再提供 TypeBox。请用 @earendil-works/pi-schema 重写：让 Pi 来做，Extension builder 会处理。",
     "{file} is not loaded: a built-in module has its name. Rename the file.": "{file} 未加载：有一个内置模块与它同名。请给文件改名。",
     "· drop-in": "· 自备扩展",
     "· refused": "· 已拒绝",

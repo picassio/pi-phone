@@ -30,13 +30,9 @@ after(async () => {
 });
 
 async function entries(id: ConversationId): Promise<ClientEntry[]> {
-    const view = await (await app.conversation(id)).viewState(BACKGROUND_CONTEXT);
+    const { entries } = await (await app.conversation(id)).context(BACKGROUND_CONTEXT);
 
-    try {
-        return view.value.entries.map((entry) => projectEntry(entry)).filter((entry): entry is ClientEntry => entry !== undefined);
-    } finally {
-        view.dispose();
-    }
+    return entries.map((entry) => projectEntry(entry)).filter((entry): entry is ClientEntry => entry !== undefined);
 }
 
 async function call(id: ConversationId) {

@@ -1,7 +1,9 @@
 # Gallery extensions, as test fixtures
 
-Unchanged copies of the module files pi-pocket's gallery installs, for `test/drop-ins.test.ts` (PP-171). Each folder
-keeps its LICENSE (MIT, picassio). They are not type-checked here (`tsconfig.json` leaves this folder out): they import
+Copies of the module files pi-pocket's gallery installs, for `test/drop-ins.test.ts` (PP-171). Each folder
+keeps its LICENSE (MIT, picassio). One change since: their tool schemas are built with `@earendil-works/pi-schema`
+instead of TypeBox's `Type` (Pi 1.5, PP-378), as pi-phone refuses a drop-in that uses TypeBox, so the tests still show
+what they are refused for besides. They are not type-checked here (`tsconfig.json` leaves this folder out): they import
 pi-pocket's `_pocket.d.ts`, which pi-phone does not have.
 
 | Folder | Repository | Commit |

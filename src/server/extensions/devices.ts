@@ -3,7 +3,7 @@
  * it works for sees them (the owner everyone's, others their own), and signs one out, or every other one of theirs,
  * only after that person says yes on a card.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { obj, str } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 
@@ -50,7 +50,7 @@ export default function createDevices(host: PocketHost) {
             name: "devices",
             description:
                 "The devices signed in to pi-phone (Settings › People › Devices): the owner's and, for the owner, invited people's. Each with its id, whose it is, what it is, where it was last seen, and whether a tab of it is open now.",
-            parameters: Type.Object({}),
+            parameters: obj({}, { open: true }),
             replay: "safe",
             execute: async (_args, api) => {
                 try {
@@ -75,7 +75,7 @@ export default function createDevices(host: PocketHost) {
             name: "device_sign_out",
             description:
                 "Sign one device out of pi-phone, by its id from devices: its tabs close and it must sign in again (this phone's app signs in again by itself). Asks the person on a card first.",
-            parameters: Type.Object({ id: Type.String({ description: "The device's id, from devices" }) }),
+            parameters: obj({ id: str({ description: "The device's id, from devices" }) }, { open: true }),
             execute: async (args, api, context) => {
                 try {
                     const userId = person(api.conversationId);
@@ -103,7 +103,7 @@ export default function createDevices(host: PocketHost) {
             name: "sign_out_everywhere",
             description:
                 "Sign out every device of the person Pi works for (for the owner, this also replaces the owner token; invited people's devices stay). This phone's app signs in again by itself; every other device must sign in again. Asks the person on a card first.",
-            parameters: Type.Object({}),
+            parameters: obj({}, { open: true }),
             execute: async (_args, api, context) => {
                 try {
                     const userId = person(api.conversationId);

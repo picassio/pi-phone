@@ -71,13 +71,13 @@ function zip(entries: Entry[]): Buffer {
 }
 
 const MODULE = `/** Tiny: a drop-in for tests. */
-import { Type } from "@earendil-works/pi-ai";
+import { obj } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 
 export default () =>
     defineExtension({
         name: "tiny",
-        tools: [defineTool({ name: "tiny_hello", description: "Say hello.", parameters: Type.Object({}), execute: async () => ({ output: [{ type: "text", text: "hello" }] }) })],
+        tools: [defineTool({ name: "tiny_hello", description: "Say hello.", parameters: obj({}), execute: async () => ({ output: [{ type: "text", text: "hello" }] }) })],
     });
 `;
 

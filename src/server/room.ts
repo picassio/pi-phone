@@ -2,13 +2,13 @@
  * One conversation's shared live view: the committed Pi Durable view plus Pi Pocket's own documents, projected into
  * small updates for every browser tab attached to it, and who is here and typing (memory only).
  */
-import type { AttachedReplicatedState } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type {
     AgentState,
     Conversation,
     ConversationId,
     ConversationView,
+    ConversationWatch,
     EntryRecord,
     InboxItem,
     InboxState,
@@ -47,6 +47,7 @@ import {
     TurnsDoc,
 } from "./docs.ts";
 import { COMMAND_ENTRY, SHELL_ENTRY } from "./entry-format.ts";
+import { describe } from "./errors.ts";
 import { agentInfo } from "./models.ts";
 import {
     type ClientBlock,
@@ -320,6 +321,15 @@ export function subagentView(
     };
 }
 
+/**
+ * A conversation's view as a room keeps it: Pi Durable's view, with the active transcript in place of the view's window
+ * of the newest entries.
+ */
+export type ActiveView = Omit<ConversationView, "entries" | "before"> & {
+    /** The active transcript, as `Conversation.context()` reads it: the head marker, then the entries from its head on. */
+    readonly entries: readonly EntryRecord[];
+};
+
 /** The view of one conversation, shared by every client attached to it. */
 export class Room {
     readonly id: ConversationId;
@@ -330,8 +340,8 @@ export class Room {
     readonly #peekSent = new WeakMap<Client, string>();
     #peekTimer: NodeJS.Timeout | undefined;
     readonly #app: PocketApp;
-    #view: AttachedReplicatedState<ConversationView> | undefined;
-    #unsubscribe: (() => void) | undefined;
+    #view: ActiveView | undefined;
+    #watch: ConversationWatch | undefined;
     #timer: NodeJS.Timeout | undefined;
     #closeTimer: NodeJS.Timeout | undefined;
     #headTimer: NodeJS.Timeout | undefined;
@@ -373,8 +383,32 @@ export class Room {
     }
 
     async open(conversation: Conversation): Promise<void> {
-        this.#view = await conversation.viewState(context);
-        this.#unsubscribe = this.#view.subscribe(() => this.schedule());
+        try {
+            await this.#open(conversation);
+        } catch (error) {
+            // A room that failed to open follows nothing: a retry opens its own watch.
+            void this.#watch?.stop();
+            this.#watch = undefined;
+
+            throw error;
+        }
+    }
+
+    async #open(conversation: Conversation): Promise<void> {
+        const watch = await conversation.watch(context);
+
+        this.#watch = watch;
+        // Read after the watch starts: what lands between the two comes again as the window's appends.
+        this.#view = {
+            conversation: watch.value.conversation,
+            docs: watch.value.docs,
+            entries: (await conversation.context(context)).entries,
+        };
+        watch.start(async (call) => {
+            if (call.kind === "value") {
+                await this.#follow(conversation, call.value);
+            }
+        });
         const harness = this.#app.harness;
 
         this.authors = {
@@ -400,7 +434,7 @@ export class Room {
         this.notes = {
             ...((await harness.snapshot(NotesDoc, this.id, context)) ?? { text: "", rev: 0 }),
         };
-        const owner = this.#view.value.conversation.owner;
+        const owner = this.#view.conversation.owner;
         // Take turns belongs to the session: a subagent's view shows (and follows) its session's.
         const root = owner === undefined ? this.id : this.#app.rootOf(owner.conversationId);
 
@@ -514,8 +548,45 @@ export class Room {
         return head;
     }
 
-    get value(): ConversationView | undefined {
-        return this.#view?.value;
+    get value(): ActiveView | undefined {
+        return this.#view;
+    }
+
+    /**
+     * The view's next value: its documents, and the active transcript with the entries the window added. A new head
+     * marker (a compaction, a reset), or a window that starts after the newest entry this room has, reads the active
+     * transcript again. Since Pi Durable 1.5, the view holds only a window of the newest entries of the whole history.
+     */
+    async #follow(conversation: Conversation, view: ConversationView): Promise<void> {
+        try {
+            const held = this.#view;
+
+            if (held === undefined) {
+                return;
+            }
+
+            // The head marker leads the transcript and is newer than the entries it keeps: the newest is first or last.
+            const newest = Math.max(
+                held.entries[0]?.id ?? Number.NEGATIVE_INFINITY,
+                held.entries.at(-1)?.id ?? Number.NEGATIVE_INFINITY,
+            );
+            const added = view.entries.filter((entry) => entry.id > newest);
+            let entries = held.entries;
+
+            if ((view.before !== undefined && view.before > newest) || added.some((entry) => entry.head !== undefined)) {
+                entries = (await conversation.context(context)).entries;
+            } else if (added.length > 0) {
+                entries = [...held.entries, ...added];
+            }
+
+            if (this.#view !== undefined) {
+                this.#view = { conversation: view.conversation, docs: view.docs, entries };
+                this.schedule();
+            }
+        } catch (error) {
+            // A listener that throws would end the watch: the view keeps what it has, and the next value tries again.
+            this.#app.log(`The view of session ${this.id} did not update: ${describe(error)}`);
+        }
     }
 
     /** Coalesce bursts of commits (streaming commits land every 100 ms) into one update per client. */
@@ -549,7 +620,7 @@ export class Room {
 
     /** Send this client what changed since its last update, or everything with `full`. */
     push(client: Client, full: boolean): void {
-        const view = this.#view?.value;
+        const view = this.#view;
 
         if (view === undefined) {
             return;
@@ -838,7 +909,7 @@ export class Room {
 
     /** This session as a peek tile shows it, from the newest few entries: cheap however long the session is. */
     peek(): PeekSummary | undefined {
-        const view = this.#view?.value;
+        const view = this.#view;
 
         if (view === undefined) {
             return undefined;
@@ -1025,8 +1096,8 @@ export class Room {
         }
 
         this.#typing.clear();
-        this.#unsubscribe?.();
-        this.#view?.dispose();
+        void this.#watch?.stop();
+        this.#watch = undefined;
         this.#view = undefined;
         this.#projected.clear();
         this.#queued.clear();

@@ -4,7 +4,8 @@
  * the last two after the person approves the app's usual card. Everything goes through the same app methods as the
  * screens (`settings-registry.ts`), as the person Pi works for: a guest is refused owner settings before anyone is asked.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { obj, opt, str } from "@earendil-works/pi-schema";
+import { record } from "../tool-schema.ts";
 import { defineExtension, defineTool, hook, section, type ToolExecutionApi, ToolTask } from "@earendil-works/pi-durable";
 import { isAbsolute, resolve } from "node:path";
 import { type DropInPackage, moduleHead, packageFromPath } from "../drop-in-install.ts";
@@ -89,11 +90,11 @@ export default function createSettings(host: PocketHost) {
             name: "settings",
             description:
                 "The app's settings Pi may change, with each one's value now and the values it takes, and the one-off actions it may take. Give an area (models, browser, web, wiki, spend, themes, extensions, …) to list only that; give an id and a target for one setting of one session or person.",
-            parameters: Type.Object({
-                area: Type.Optional(Type.String({ description: "Only this area" })),
-                id: Type.Optional(Type.String({ description: "One setting, like spend.sessionLimit" })),
-                target: Type.Optional(Type.String({ description: "For a setting of one session (its number) or person (their name)" })),
-            }),
+            parameters: obj({
+                area: opt(str({ description: "Only this area" })),
+                id: opt(str({ description: "One setting, like spend.sessionLimit" })),
+                target: opt(str({ description: "For a setting of one session (its number) or person (their name)" })),
+            }, { open: true }),
             replay: "safe",
             execute: async (args) => {
                 try {
@@ -150,12 +151,12 @@ export default function createSettings(host: PocketHost) {
             name: "setting_change",
             description:
                 "Change one of the app's settings (ids from settings), after the person approves a card that shows the value now and the new one. Values are text: \"none\" clears one that may be empty. A setting of one session or person needs its target.",
-            parameters: Type.Object({
-                id: Type.String({ description: "The setting, like models.default" }),
-                value: Type.String({ description: "The new value, as settings describes it" }),
-                target: Type.Optional(Type.String({ description: "For a setting of one session (its number) or person (their name)" })),
-                reason: Type.String({ description: "Why, in a sentence: shown on the card" }),
-            }),
+            parameters: obj({
+                id: str({ description: "The setting, like models.default" }),
+                value: str({ description: "The new value, as settings describes it" }),
+                target: opt(str({ description: "For a setting of one session (its number) or person (their name)" })),
+                reason: str({ description: "Why, in a sentence: shown on the card" }),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 try {
                     const person = personOf(api.conversationId);
@@ -195,11 +196,11 @@ export default function createSettings(host: PocketHost) {
         defineTool({
             name: "app_action",
             description: "Take one of the app's one-off actions (ids from settings, under Actions), after the person approves a card.",
-            parameters: Type.Object({
-                id: Type.String({ description: "The action, like extensions.reload" }),
-                args: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Its arguments, by name, as settings lists them" })),
-                reason: Type.String({ description: "Why, in a sentence: shown on the card" }),
-            }),
+            parameters: obj({
+                id: str({ description: "The action, like extensions.reload" }),
+                args: opt(record(str(), { description: "Its arguments, by name, as settings lists them" })),
+                reason: str({ description: "Why, in a sentence: shown on the card" }),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 try {
                     const person = personOf(api.conversationId);
@@ -237,9 +238,9 @@ export default function createSettings(host: PocketHost) {
         name: "extension_install",
         description:
             "Install a drop-in extension you wrote: a module (.ts), a folder holding one, or a .zip, on this phone. The owner sees its files and first lines on a card and installs it; it lands switched off, for the owner to turn on in Settings > Extensions (or setting_change extensions.<file> on). Remove one with app_action extensions.remove (the owner's card); never delete its files yourself.",
-        parameters: Type.Object({
-            path: Type.String({ description: "The module file, its folder, or a .zip: absolute, ~/..., or relative to the session's folder" }),
-        }),
+        parameters: obj({
+            path: str({ description: "The module file, its folder, or a .zip: absolute, ~/..., or relative to the session's folder" }),
+        }, { open: true }),
         execute: async (args, api, context) => {
             try {
                 // The owner's alone: an extension runs in the app with all it has. Asked of whom Pi works for now.

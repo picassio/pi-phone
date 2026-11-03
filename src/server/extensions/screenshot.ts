@@ -4,7 +4,7 @@
  * artifact of this session, a file (HTML, SVG, or a Word, Excel, or PowerPoint file as OfficeCLI renders it), or any
  * web page. It closes the check-and-fix step Effective HTML's skills and OfficeCLI's ask for.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, bool, num, obj, opt, str } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { describeLayout } from "../layout-check.ts";
@@ -33,19 +33,17 @@ export default function createScreenshot(host: PocketHost) {
     const screenshot = defineTool({
         name: "screenshot",
         description: DESCRIPTION,
-        parameters: Type.Object({
-            artifact: Type.Optional(Type.String({ description: "An artifact of this session, by its id" })),
-            path: Type.Optional(Type.String({ description: "A file to show: .html, .htm, .svg, .docx, .xlsx, or .pptx" })),
-            url: Type.Optional(Type.String({ description: "An http or https page" })),
-            widths: Type.Optional(Type.Array(Type.Number(), { description: "CSS pixel widths, one picture each; default [390, 1280]" })),
-            fullPage: Type.Optional(Type.Boolean({ description: "The whole page (default), or only the first screen" })),
-            settle: Type.Optional(Type.Number({ description: "Seconds to wait after loading, for scripts and pictures (default 1.5, at most 10)" })),
-            save: Type.Optional(
-                Type.String({
+        parameters: obj({
+            artifact: opt(str({ description: "An artifact of this session, by its id" })),
+            path: opt(str({ description: "A file to show: .html, .htm, .svg, .docx, .xlsx, or .pptx" })),
+            url: opt(str({ description: "An http or https page" })),
+            widths: opt(arr(num(), { description: "CSS pixel widths, one picture each; default [390, 1280]" })),
+            fullPage: opt(bool({ description: "The whole page (default), or only the first screen" })),
+            settle: opt(num({ description: "Seconds to wait after loading, for scripts and pictures (default 1.5, at most 10)" })),
+            save: opt(str({
                     description: "Save the pictures too, ending in .png or .jpg (absolute or relative to this session's folder): one per width, its width added to the name (page-390.png), and -2, -3 for the parts of a tall one",
-                }),
-            ),
-        }),
+                })),
+        }, { open: true }),
         // Only looks: a render runs again after a restart.
         replay: "safe",
         execute: async (args, api, context) => {
@@ -162,11 +160,11 @@ export default function createScreenshot(host: PocketHost) {
     const imageMarkup = defineTool({
         name: "image_markup",
         description: `Draw marks on a picture file where this session works (a .png or .jpg: a screenshot saved with path, a photo, a picture from a document), and save it: for runbooks, reports and documents (doc_image). ${MARKS_NOTE} Areas are in the picture's pixels, from its top left; the answer gives its size and shows the result, so check it and mark again if a mark is off.`,
-        parameters: Type.Object({
-            path: Type.String({ description: "The picture: absolute or relative to this session's folder" }),
-            marks: Type.Array(Type.Object({ area: AREA, ...MARK_STYLE }), { minItems: 1, maxItems: 40, description: "Marks drawn on the picture, in order" }),
-            out: Type.Optional(Type.String({ description: "Where to save the marked picture, .png or .jpg (default: beside it, -marked added to its name)" })),
-        }),
+        parameters: obj({
+            path: str({ description: "The picture: absolute or relative to this session's folder" }),
+            marks: arr(obj({ area: AREA, ...MARK_STYLE }, { open: true }), { minItems: 1, maxItems: 40, description: "Marks drawn on the picture, in order" }),
+            out: opt(str({ description: "Where to save the marked picture, .png or .jpg (default: beside it, -marked added to its name)" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             const dot = args.path.lastIndexOf(".");
             const out = args.out ?? (dot > args.path.lastIndexOf("/") ? `${args.path.slice(0, dot)}-marked${args.path.slice(dot)}` : `${args.path}-marked.png`);

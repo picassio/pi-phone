@@ -13,7 +13,9 @@
  * or provider failed is reported as such, and Pi is told to stop and tell the user, never to try another model.
  */
 import type { AssistantMessage, ModelThinkingLevel } from "@earendil-works/pi-ai";
-import { clampThinkingLevel, Type } from "@earendil-works/pi-ai";
+import { clampThinkingLevel } from "@earendil-works/pi-ai";
+import { arr, bool, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import type { Context } from "@earendil-works/chord";
 import {
     AgentDoc,
@@ -128,7 +130,11 @@ function reporterFor(Courier: CourierTask, host: Pick<PocketHost, "notice">) {
 
                         // A listener is never called inline, so the value it started on is this one's to check.
                         await strand(watch.value);
-                        watch.start(strand);
+                        watch.start(async (call) => {
+                            if (call.kind === "value") {
+                                await strand(call.value);
+                            }
+                        });
                     }
 
                     settled = await submission.wait(context);
@@ -332,8 +338,8 @@ async function leftQueue(
 
     try {
         await new Promise<void>((resolve, reject) => {
-            watch.start(async (value) => {
-                if (!queued(value)) {
+            watch.start(async (call) => {
+                if (call.kind === "value" && !queued(call.value)) {
                     resolve();
                 }
             });
@@ -748,39 +754,28 @@ const rank = (level: ModelThinkingLevel) => THINKING_LEVELS.indexOf(level);
 export default function createSubagents(host: PocketHost) {
     const Courier = courierFor(host);
     const Reporter = reporterFor(Courier, host);
-    const parameters = Type.Object({
-        action: Type.Union([
-            Type.Literal("spawn"),
-            Type.Literal("send"),
-            Type.Literal("stop"),
-            Type.Literal("status"),
+    const parameters = obj({
+        action: union([
+            literal("spawn"),
+            literal("send"),
+            literal("stop"),
+            literal("status"),
         ]),
-        name: Type.Optional(
-            Type.String({ description: "Short kebab-case name, for example test-runner." }),
-        ),
-        message: Type.Optional(Type.String()),
-        followUp: Type.Optional(Type.Boolean()),
-        thinking: Type.Optional(
-            Type.Union(
-                THINKING_LEVELS.map((level) => Type.Literal(level)),
-                {
+        name: opt(str({ description: "Short kebab-case name, for example test-runner." })),
+        message: opt(str()),
+        followUp: opt(bool()),
+        thinking: opt(union(THINKING_LEVELS.map((level) => literal(level)), {
                     description:
                         "spawn only, and only when the person asks for a level: its thinking level. Leave it out for the subagents' setting. One its model lacks becomes the nearest lower one it has.",
-                },
-            ),
-        ),
-        tools: Type.Optional(
-            Type.Array(Type.String(), {
+                })),
+        tools: opt(arr(str(), {
                 description: "spawn only: the tool names it may use. Default: your tools.",
-            }),
-        ),
-        model: Type.Optional(
-            Type.String({
+            })),
+        model: opt(str({
                 description:
                     "spawn only, and only when the person asks for a model: provider/modelId. Leave it out for the subagents' setting. One the owner does not allow for subagents asks the owner on a card first.",
-            }),
-        ),
-    });
+            })),
+    }, { open: true });
 
     const subagent = defineTool({
         name: "subagent",
@@ -1076,14 +1071,14 @@ export default function createSubagents(host: PocketHost) {
             "pr (ref: a GitHub pull request's number or link; read without checking it out), or folders (paths); extra: a focus. " +
             "action post: name (the reviewer, review-…): post its pull request review to GitHub, after the person approves on a card. " +
             "When the report comes, do not repeat its findings: the person sees them on the card.",
-        parameters: Type.Object({
-            action: Type.Union([Type.Literal("start"), Type.Literal("post")]),
-            target: Type.Optional(Type.Union([Type.Literal("changes"), Type.Literal("branch"), Type.Literal("commit"), Type.Literal("pr"), Type.Literal("folders")])),
-            ref: Type.Optional(Type.String({ description: "branch: the base; commit: the sha; pr: the number or link" })),
-            paths: Type.Optional(Type.Array(Type.String(), { description: "folders: the paths" })),
-            extra: Type.Optional(Type.String({ description: "What to focus on, in the person's words" })),
-            name: Type.Optional(Type.String({ description: "post: the reviewer's name" })),
-        }),
+        parameters: obj({
+            action: union([literal("start"), literal("post")]),
+            target: opt(union([literal("changes"), literal("branch"), literal("commit"), literal("pr"), literal("folders")])),
+            ref: opt(str({ description: "branch: the base; commit: the sha; pr: the number or link" })),
+            paths: opt(arr(str(), { description: "folders: the paths" })),
+            extra: opt(str({ description: "What to focus on, in the person's words" })),
+            name: opt(str({ description: "post: the reviewer's name" })),
+        }, { open: true }),
         // Not rerun after a crash: it may have started a reviewer or posted already.
         replay: "unsafe",
         execute: async (args, api, context) => {
@@ -1203,10 +1198,10 @@ export default function createSubagents(host: PocketHost) {
         name: "models",
         description:
             "The models Pi may use, by provider with its plan windows (5-hour, weekly, premium requests: how much is used and when it resets): each model's whether it is ready now, its context, highest thinking level, price, and whether subagents run on it or may. query: words of its provider, id or name (opus, codex); available: only those ready now. Read only.",
-        parameters: Type.Object({
-            query: Type.Optional(Type.String({ description: "Words to match, such as opus or openai-codex" })),
-            available: Type.Optional(Type.Boolean({ description: "Only the models ready now" })),
-        }),
+        parameters: obj({
+            query: opt(str({ description: "Words to match, such as opus or openai-codex" })),
+            available: opt(bool({ description: "Only the models ready now" })),
+        }, { open: true }),
         replay: "safe",
         execute: async (args) => ({
             output: [

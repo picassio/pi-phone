@@ -12,14 +12,14 @@ there):
 - Anything else under `<name>/` belongs to it too. A package is at most 5 MB and 1000 files. Install the folder you
   wrote it in (`<cwd>/<name>/`, its top holding `<name>.ts`): files there not named `<name>.*` or `<name>/` are left out.
 
-The module imports the packages the server runs (`@earendil-works/pi-ai`, `@earendil-works/pi-durable`, `node:*`);
-nothing is installed with npm. Node runs it with type stripping: erasable TypeScript only, imports at the top.
+The module imports the packages the server runs (`@earendil-works/pi-schema`, `@earendil-works/pi-durable`,
+`@earendil-works/pi-ai`, `node:*`); nothing is installed with npm. Node runs it with type stripping: erasable TypeScript only, imports at the top.
 
 ## The module
 
 ```ts
 /** One sentence: what it does. (The Extensions sheet shows the doc comment's first sentence.) */
-import { Type } from "@earendil-works/pi-ai";
+import { obj, num, opt, str } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 
 export const pocketApi = 2;
@@ -42,7 +42,7 @@ export default function create(host: Host, web: Web) {
 const tool = defineTool({
     name: "<name>_<verb>",                 // never a built-in tool's name (extension_inspect lists them)
     description: "What it does, for Pi.",
-    parameters: Type.Object({ text: Type.String({ description: "…" }), count: Type.Optional(Type.Number()) }),
+    parameters: obj({ text: str({ description: "…" }), count: opt(num()) }),
     replay: "safe",                        // only when running it twice is harmless (it only reads)
     execute: async (args, api, context) => ({ output: [{ type: "text", text: "…" }] }),
 });
@@ -51,7 +51,12 @@ const readOnly = Object.assign(tool, { annotations: { readOnlyHint: true } }); /
 
 - An error is `{ output: [{ type: "text", text: "what is wrong and how to put it right" }], isError: true }`.
 - `api.conversationId`, `api.taskId`, `api.callId` say where it runs (for `host.ask`).
-- `Type.Union([Type.Literal("add"), Type.Literal("remove")])` for an action; related actions may share one tool.
+- Build `parameters` with `@earendil-works/pi-schema`: `obj`, `str`, `num`, `int`, `bool`, `arr`, `union`, `lit`, and
+  `opt(...)` for a property that may be left out. `obj` is closed (no other properties); `obj(props, { open: true })`
+  lets others through. Pi Durable checks the arguments against it before `execute` runs.
+- `oneOf(["add", "remove"])` for an action; related actions may share one tool.
+- Never TypeBox: no `Type` from `@earendil-works/pi-ai` (Pi 1.5 no longer has it) and no `typebox` import. pi-phone
+  refuses such a drop-in on load, and `scripts/check.mjs` says so first.
 
 ## Prompt sections
 

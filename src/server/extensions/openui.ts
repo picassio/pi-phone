@@ -5,7 +5,7 @@
  * as a message. The language's guide (Open Intelligent UI's system prompt, about 8,500 tokens) is not in every prompt:
  * `openui_guide` gives it, once a session, when Pi decides an answer is better used than read.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { obj } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -41,7 +41,7 @@ export default function createOpenUi(_host: PocketHost) {
         name: "openui_guide",
         description:
             "The guide to OpenUI Lang and the Intelligent UI components (layout, text, inputs with state, charts, tables, maps, photos, math, SVG, functions, actions): read it once per session before writing an interactive answer.",
-        parameters: Type.Object({}),
+        parameters: obj({}, { open: true }),
         replay: "safe",
         execute: async () => ({ output: [{ type: "text" as const, text: guide }] }),
     });

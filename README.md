@@ -339,7 +339,9 @@ No Termux, no laptop, no cloud VM.
 - **Drop-in extensions.** Your own extension modules, added with **Add drop-in…** in Settings › Extensions (a `.ts`
   file, or a `.zip` holding one) or by Pi with `extension_install` once you approve its card (files and first lines
   shown), each off until you turn it on. They can use pi-pocket 0.22's `host.ask` (a card whose values reach only the extension), `host.hide`
-  and `host.commandEnv`, not `host.browser` yet; one whose tool has a built-in tool's name is refused, with why.
+  and `host.commandEnv`, not `host.browser` yet; one whose tool has a built-in tool's name is refused, with why. Tool
+  schemas are built with `@earendil-works/pi-schema` (`obj`, `str`, `opt`, …); one built with TypeBox's `Type` (from
+  `@earendil-works/pi-ai` before Pi 1.5, or `typebox`) is refused, saying so.
   **Remove** takes one away (Settings › Extensions, after a confirm in its row, or ask Pi: `app_action
   extensions.remove` on your card): it is switched off and its files go (`<name>.ts`, `<name>.js`, `<name>/`); its
   data in `extension-data/<name>/` stays unless you ask for that to go too.
@@ -595,7 +597,11 @@ No Termux, no laptop, no cloud VM.
   open. On the first start of a build with it, pi-phone first copies the database whole to
   `pocket.sqlite.before-pi-1.4` in its data folder and checks the copy; without a good copy (not enough space, a write
   that fails), it does not start and says why, with your data unchanged. The copy is removed after 14 days and left
-  out of backups.
+  out of backups. Pi 1.5 is one way too, without that copy: once a session runs on it, an older pi-phone no longer
+  opens the data (it stops at start with "has newer version 3 than 1"). Before you install the first build with Pi
+  1.5, make a backup (Menu › This phone › Back up), and do not go back to an older build with the same data. A drop-in
+  whose tool schemas use TypeBox's `Type` is refused from then on: ask Pi to rewrite it with pi-schema (the Extension
+  builder does it).
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
   they finish, so it pushes, ends its turn, and is woken by the result.
 - **In English, Chinese or Vietnamese.** Appearance › Language: *Auto* follows the phone or browser, or pick English,

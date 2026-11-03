@@ -526,7 +526,8 @@ export function projectLive(live: LiveState | undefined): ClientLive {
 
     if (live.compactions !== undefined) {
         out.compactions = live.compactions.map((compaction) => ({
-            reason: compaction.reason,
+            // Pi Durable 1.5 names what started it `trigger`; tabs still get it as `reason`.
+            reason: compaction.trigger,
             blocking: compaction.blocking,
             attempt: compaction.attempt,
             ...(compaction.retry === undefined ? {} : { retry: compaction.retry }),

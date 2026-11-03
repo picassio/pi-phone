@@ -3,7 +3,8 @@
  * deny (never allow) a call waiting for approval. Pi acts as the person it works for, with their rights
  * (`session-control.ts`): to test the app in a session of its own, or to help that person look after the others.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, bool, nul, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { READ_CLOSE, READ_OPEN } from "../session-control.ts";
@@ -23,17 +24,17 @@ const GUIDE = `You can reach this app's other sessions with the sessions tools, 
 - Never choose a model for another session; it keeps its own.`;
 
 export default function createSessions(host: PocketHost) {
-    const session = Type.Number({ description: "The session's id, from the sessions tool" });
+    const session = num({ description: "The session's id, from the sessions tool" });
     const key = (api: { taskId: unknown; callId: string }) => `sessions-${String(api.taskId)}-${api.callId}`;
 
     const list = defineTool({
         name: "sessions",
         description: "The app's sessions: id, title, state (working, waiting for approval, failed, idle), folder, model.",
-        parameters: Type.Object({
-            query: Type.Optional(Type.String({ description: "Words to find in titles or folders" })),
-            archived: Type.Optional(Type.Boolean({ description: "List archived sessions instead" })),
-            limit: Type.Optional(Type.Number({ description: "At most this many, newest first (default 25)" })),
-        }),
+        parameters: obj({
+            query: opt(str({ description: "Words to find in titles or folders" })),
+            archived: opt(bool({ description: "List archived sessions instead" })),
+            limit: opt(num({ description: "At most this many, newest first (default 25)" })),
+        }, { open: true }),
         replay: "safe",
         execute: async (args, api) => {
             const found = host.sessions.list(api.conversationId, args.query ?? "", args.archived === true);
@@ -54,21 +55,21 @@ export default function createSessions(host: PocketHost) {
     const read = defineTool({
         name: "session_read",
         description: "Read the end of a session's conversation as its model has it, with its state and waiting approvals.",
-        parameters: Type.Object({
+        parameters: obj({
             session,
-            count: Type.Optional(Type.Number({ description: "How many of its newest messages (default 30)" })),
-        }),
+            count: opt(num({ description: "How many of its newest messages (default 30)" })),
+        }, { open: true }),
         replay: "safe",
         execute: async (args, api) => reply(await host.sessions.read(api.conversationId, args.session, args.count ?? 30)),
     });
     const start = defineTool({
         name: "session_start",
         description: "Start a new session in a folder (on this phone, or machine:<id>:<path> on a machine) with a first message.",
-        parameters: Type.Object({
-            folder: Type.String({ description: "Its folder: absolute, ~/..., or machine:<id>:<path>" }),
-            message: Type.String({ description: "The task for Pi there, self-contained" }),
-            title: Type.Optional(Type.String({ description: "A short title; without one, the first message names it" })),
-        }),
+        parameters: obj({
+            folder: str({ description: "Its folder: absolute, ~/..., or machine:<id>:<path>" }),
+            message: str({ description: "The task for Pi there, self-contained" }),
+            title: opt(str({ description: "A short title; without one, the first message names it" })),
+        }, { open: true }),
         execute: async (args, api) => {
             const started = await host.sessions.start(api.conversationId, {
                 cwd: args.folder,
@@ -83,11 +84,11 @@ export default function createSessions(host: PocketHost) {
     const send = defineTool({
         name: "session_send",
         description: "Send a session a message; it queues behind running work unless now is true.",
-        parameters: Type.Object({
+        parameters: obj({
             session,
-            message: Type.String({ description: "What Pi there should do or know, self-contained" }),
-            now: Type.Optional(Type.Boolean({ description: "Join the running work now instead of waiting" })),
-        }),
+            message: str({ description: "What Pi there should do or know, self-contained" }),
+            now: opt(bool({ description: "Join the running work now instead of waiting" })),
+        }, { open: true }),
         execute: async (args, api) => {
             await host.sessions.send(api.conversationId, args.session, args.message, args.now === true, key(api));
 
@@ -97,10 +98,10 @@ export default function createSessions(host: PocketHost) {
     const wait = defineTool({
         name: "session_wait",
         description: "Wait until a session's run ends (at most 30 minutes); answers its state and last answer.",
-        parameters: Type.Object({
+        parameters: obj({
             session,
-            seconds: Type.Optional(Type.Number({ description: "The longest to wait (default 600, at most 1800)" })),
-        }),
+            seconds: opt(num({ description: "The longest to wait (default 600, at most 1800)" })),
+        }, { open: true }),
         // Waiting again after a restart is what it did: safe.
         replay: "safe",
         execute: async (args, api, context) =>
@@ -116,7 +117,7 @@ export default function createSessions(host: PocketHost) {
     const stop = defineTool({
         name: "session_stop",
         description: "Stop the run in a session, and withdraw what waits in its queue.",
-        parameters: Type.Object({ session }),
+        parameters: obj({ session }, { open: true }),
         execute: async (args, api) => {
             await host.sessions.stop(api.conversationId, args.session);
 
@@ -127,7 +128,7 @@ export default function createSessions(host: PocketHost) {
         name: "session_settle",
         description:
             "Settle a session (out of the active list until something happens there, as the Settle action does), or un-settle it (back in the active list).",
-        parameters: Type.Object({ session, settled: Type.Boolean({ description: "true settles it; false brings it back" }) }),
+        parameters: obj({ session, settled: bool({ description: "true settles it; false brings it back" }) }, { open: true }),
         execute: async (args, api) => {
             await host.sessions.update(api.conversationId, args.session, { settled: args.settled });
 
@@ -137,7 +138,7 @@ export default function createSessions(host: PocketHost) {
     const archive = defineTool({
         name: "session_archive",
         description: "Archive a session (out of the list, kept), or bring it back from the archive.",
-        parameters: Type.Object({ session, archived: Type.Boolean({ description: "true archives it; false brings it back" }) }),
+        parameters: obj({ session, archived: bool({ description: "true archives it; false brings it back" }) }, { open: true }),
         execute: async (args, api) => {
             await host.sessions.update(api.conversationId, args.session, { archived: args.archived });
 
@@ -145,7 +146,7 @@ export default function createSessions(host: PocketHost) {
         },
     });
     // ─── Getting a session past what stops it (PP-99): another session's menu actions, each asked on a card ───
-    const why = Type.String({ description: "Why, in a sentence: shown on the card" });
+    const why = str({ description: "Why, in a sentence: shown on the card" });
     /** The person's yes on a card, for a change to another session: false when they say no. */
     const asked = async (
         api: { conversationId: Parameters<typeof host.sessions.status>[0]; taskId: unknown; callId: string },
@@ -171,11 +172,11 @@ export default function createSessions(host: PocketHost) {
         name: "session_fork",
         description:
             "Fork a session, this one too: a new session whose history ends just before one of the person's messages there, as editing that message does, sending nothing (asks your person on a card first); the session forked goes on as it is. For a session stuck on a message: the fork goes on without it. For this one: a branch of the work, given its task with session_send.",
-        parameters: Type.Object({
+        parameters: obj({
             session,
-            message: Type.Number({ description: "Which of the person's messages there, counted from the newest: 1 is the latest, 2 the one before" }),
+            message: num({ description: "Which of the person's messages there, counted from the newest: 1 is the latest, 2 the one before" }),
             reason: why,
-        }),
+        }, { open: true }),
         execute: async (args, api, context) => {
             const line = await host.sessions.checkRescue(api.conversationId, args.session, false, true);
             const answer = await asked(api, context, "session_fork", `Fork ${line} before the person's message ${args.message === 1 ? "(the latest)" : `${args.message} from the end`}`, args.reason);
@@ -192,7 +193,7 @@ export default function createSessions(host: PocketHost) {
     const newContext = defineTool({
         name: "session_new_context",
         description: "Start a new context in another session, as its menu's New context does: Pi there no longer sees what came before, though people still do (asks your person on a card first).",
-        parameters: Type.Object({ session, reason: why }),
+        parameters: obj({ session, reason: why }, { open: true }),
         execute: async (args, api, context) => {
             const line = await host.sessions.checkRescue(api.conversationId, args.session, true);
             const answer = await asked(api, context, "session_new_context", `New context in ${line}: Pi there starts fresh; the history stays to read`, args.reason);
@@ -209,11 +210,11 @@ export default function createSessions(host: PocketHost) {
     const compact = defineTool({
         name: "session_compact",
         description: "Compact another session's context, as its menu's Compact does: a summary takes the place of older messages (asks your person on a card first).",
-        parameters: Type.Object({
+        parameters: obj({
             session,
-            focus: Type.Optional(Type.String({ description: "What the summary should keep, if anything in particular" })),
+            focus: opt(str({ description: "What the summary should keep, if anything in particular" })),
             reason: why,
-        }),
+        }, { open: true }),
         execute: async (args, api, context) => {
             const line = await host.sessions.checkRescue(api.conversationId, args.session, true);
             const answer = await asked(api, context, "session_compact", `Compact the context of ${line}${args.focus === undefined ? "" : `, keeping: ${args.focus}`}`, args.reason);
@@ -230,10 +231,10 @@ export default function createSessions(host: PocketHost) {
     const approvals = defineTool({
         name: "approvals",
         description: "The calls waiting for approval in the sessions (list), or deny one (deny, id). Allowing is a person's.",
-        parameters: Type.Object({
-            action: Type.Union([Type.Literal("list"), Type.Literal("deny")]),
-            id: Type.Optional(Type.String({ description: "deny: the call's id, from list" })),
-        }),
+        parameters: obj({
+            action: union([literal("list"), literal("deny")]),
+            id: opt(str({ description: "deny: the call's id, from list" })),
+        }, { open: true }),
         execute: async (args, api) => {
             if (args.action === "list") {
                 const waiting = host.sessions.approvals(api.conversationId);
@@ -253,7 +254,7 @@ export default function createSessions(host: PocketHost) {
 
     // ─── Folder groups in the session list (PP-76), the person's own ───
     type Groups = Awaited<ReturnType<typeof host.sessions.groups>>;
-    const groupRef = Type.String({ description: "A group's id or name, from session_groups" });
+    const groupRef = str({ description: "A group's id or name, from session_groups" });
     const describeGroups = (now: Groups) => {
         const title = (id: string) => `#${id} ${host.text.quoted(now.titles[id] ?? "a session you can't see")}`;
         const lines = now.groups.map((group) => {
@@ -282,14 +283,14 @@ export default function createSessions(host: PocketHost) {
     const groupsList = defineTool({
         name: "session_groups",
         description: "Your person's folder groups in the session list, in their order: each one's id, name, whether pinned or folded, and its sessions.",
-        parameters: Type.Object({}),
+        parameters: obj({}, { open: true }),
         replay: "safe",
         execute: async (_args, api) => reply(describeGroups(await host.sessions.groups(api.conversationId, {}))),
     });
     const groupCreate = defineTool({
         name: "session_group_create",
         description: "Make a folder group in your person's session list, and move sessions into it if you give them (a session is in one group at most).",
-        parameters: Type.Object({ name: Type.String({ description: "1 to 60 characters" }), sessions: Type.Optional(Type.Array(session)) }),
+        parameters: obj({ name: str({ description: "1 to 60 characters" }), sessions: opt(arr(session)) }, { open: true }),
         execute: async (args, api) => {
             const made = await host.sessions.groups(api.conversationId, { action: "create", name: args.name, sessions: args.sessions ?? [] });
 
@@ -299,7 +300,7 @@ export default function createSessions(host: PocketHost) {
     const groupRename = defineTool({
         name: "session_group_rename",
         description: "Rename one of your person's folder groups.",
-        parameters: Type.Object({ group: groupRef, name: Type.String() }),
+        parameters: obj({ group: groupRef, name: str() }, { open: true }),
         execute: async (args, api) => {
             const { group } = await findGroup(api.conversationId, args.group);
             const done = await host.sessions.groups(api.conversationId, { action: "rename", id: group.id, name: args.name });
@@ -310,7 +311,7 @@ export default function createSessions(host: PocketHost) {
     const groupPin = defineTool({
         name: "session_group_pin",
         description: "Pin one of your person's folder groups to the top of their session list (under the pinned chats, on every device), or unpin it.",
-        parameters: Type.Object({ group: groupRef, pinned: Type.Boolean() }),
+        parameters: obj({ group: groupRef, pinned: bool() }, { open: true }),
         execute: async (args, api) => {
             const { group } = await findGroup(api.conversationId, args.group);
 
@@ -322,7 +323,7 @@ export default function createSessions(host: PocketHost) {
     const groupFold = defineTool({
         name: "session_group_fold",
         description: "Fold one of your person's folder groups (only its name and count show) or unfold it, on every device; group \"all\" folds or unfolds every one.",
-        parameters: Type.Object({ group: Type.String({ description: "A group's id or name, from session_groups, or all" }), folded: Type.Boolean() }),
+        parameters: obj({ group: str({ description: "A group's id or name, from session_groups, or all" }), folded: bool() }, { open: true }),
         execute: async (args, api) => {
             if (args.group.trim().toLowerCase() === "all") {
                 await host.sessions.groups(api.conversationId, { action: "fold-all", folded: args.folded });
@@ -340,7 +341,7 @@ export default function createSessions(host: PocketHost) {
     const groupOrder = defineTool({
         name: "session_group_order",
         description: "Put your person's folder groups in a new order: every group, by id or name, first to last.",
-        parameters: Type.Object({ groups: Type.Array(groupRef) }),
+        parameters: obj({ groups: arr(groupRef) }, { open: true }),
         execute: async (args, api) => {
             const now = await host.sessions.groups(api.conversationId, {});
             const order = args.groups.map((which) => {
@@ -361,7 +362,7 @@ export default function createSessions(host: PocketHost) {
     const groupMove = defineTool({
         name: "session_group_move",
         description: "Move one or more sessions into one of your person's folder groups (out of any other: a session is in one group at most), or out of every group with group null (back to Active).",
-        parameters: Type.Object({ sessions: Type.Array(session), group: Type.Union([groupRef, Type.Null()]) }),
+        parameters: obj({ sessions: arr(session), group: union([groupRef, nul()]) }, { open: true }),
         execute: async (args, api) => {
             const into = args.group === null ? null : (await findGroup(api.conversationId, args.group)).group;
 
@@ -373,7 +374,7 @@ export default function createSessions(host: PocketHost) {
     const groupDelete = defineTool({
         name: "session_group_delete",
         description: "Delete one of your person's folder groups (asks them first, on a card). Its sessions go back to Active; nothing is archived.",
-        parameters: Type.Object({ group: groupRef, reason: Type.String() }),
+        parameters: obj({ group: groupRef, reason: str() }, { open: true }),
         execute: async (args, api, context) => {
             const { group, now } = await findGroup(api.conversationId, args.group);
             const count = Object.values(now.members).filter((each) => each === group.id).length;

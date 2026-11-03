@@ -3,7 +3,8 @@
  * Settings › Web access, and `fetch_content` for pages, documents (markit), GitHub, and images. Same names and
  * arguments as pi-web-access, so prompts written for it work here. Both only read, so plan mode allows them.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { DOCUMENT_FORMATS, documentKind, toMarkdown } from "../documents.ts";
@@ -34,20 +35,16 @@ export default function createWeb(host: PocketHost) {
         name: "web_search",
         description:
             "Search the web with the search provider the person picked in Settings › Web access. Returns titles, links, dates, and snippets (and an answer, for providers that write one). Read a result whole with fetch_content.",
-        parameters: Type.Object({
-            query: Type.Optional(Type.String({ description: "What to search for" })),
-            queries: Type.Optional(Type.Array(Type.String(), { description: `Several searches at once (at most ${MAX_QUERIES})` })),
-            numResults: Type.Optional(Type.Number({ description: "Results per query, 1 to 20 (default 5)" })),
-            recencyFilter: Type.Optional(
-                Type.Union([Type.Literal("day"), Type.Literal("week"), Type.Literal("month"), Type.Literal("year")], {
+        parameters: obj({
+            query: opt(str({ description: "What to search for" })),
+            queries: opt(arr(str(), { description: `Several searches at once (at most ${MAX_QUERIES})` })),
+            numResults: opt(num({ description: "Results per query, 1 to 20 (default 5)" })),
+            recencyFilter: opt(union([literal("day"), literal("week"), literal("month"), literal("year")], {
                     description: "Only results from the last day, week, month, or year",
-                }),
-            ),
-            domainFilter: Type.Optional(
-                Type.Array(Type.String(), { description: 'Domains to keep to; prefix with "-" to leave one out ("-reddit.com")' }),
-            ),
-            provider: Type.Optional(Type.String({ description: "Another set-up provider by its id, only when the person asks for it" })),
-        }),
+                })),
+            domainFilter: opt(arr(str(), { description: 'Domains to keep to; prefix with "-" to leave one out ("-reddit.com")' })),
+            provider: opt(str({ description: "Another set-up provider by its id, only when the person asks for it" })),
+        }, { open: true }),
         replay: "safe",
         execute: async (args, _api, context) => {
             const signal = context.abortSignal ?? new AbortController().signal;
@@ -101,10 +98,10 @@ export default function createWeb(host: PocketHost) {
         name: "fetch_content",
         description:
             "Read web addresses: a page as Markdown (its main text), a document (PDF, Word, PowerPoint, Excel, EPUB, notebook, CSV, RSS) as Markdown, a GitHub repository cloned where this session works (its path, README, and files), a GitHub issue or pull request with its comments, a file on GitHub as text, an image as an image. Long text comes as its start and a file holding the rest.",
-        parameters: Type.Object({
-            url: Type.Optional(Type.String({ description: "An http:// or https:// address" })),
-            urls: Type.Optional(Type.Array(Type.String(), { description: `Several at once (at most ${MAX_URLS})` })),
-        }),
+        parameters: obj({
+            url: opt(str({ description: "An http:// or https:// address" })),
+            urls: opt(arr(str(), { description: `Several at once (at most ${MAX_URLS})` })),
+        }, { open: true }),
         replay: "safe",
         execute: async (args, api, context) => {
             const urls = [...(args.url === undefined ? [] : [args.url]), ...(args.urls ?? [])].map((url) => url.trim()).filter((url) => url !== "");
@@ -150,9 +147,9 @@ export default function createWeb(host: PocketHost) {
     const convert = defineTool({
         name: "file_to_markdown",
         description: `Read a file as Markdown with markit: ${DOCUMENT_FORMATS}. The Markdown is saved beside it (report.pdf → report.pdf.md); long text comes as its start and that file's path. Text and code files: use read.`,
-        parameters: Type.Object({
-            path: Type.String({ description: "The file, absolute or relative to this session's folder" }),
-        }),
+        parameters: obj({
+            path: str({ description: "The file, absolute or relative to this session's folder" }),
+        }, { open: true }),
         replay: "safe",
         execute: async (args, api, context) => {
             const env = host.envOf((await api.agent(context)).cwd ?? "");

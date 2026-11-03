@@ -3,7 +3,8 @@
  * Every call with the same id adds a version. The index and the bodies are durable documents committed together with
  * the call, so a replayed call finds the version it already wrote instead of writing another.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { ArtifactBodyDoc, type ArtifactMeta, ArtifactsDoc, type ArtifactType } from "../docs.ts";
 import type { PocketHost } from "../host.ts";
@@ -61,27 +62,21 @@ export default function createArtifacts(_host: PocketHost) {
         description:
             "Publish a viewable artifact (self-contained HTML page, Markdown document, SVG image, or an interactive answer in OpenUI Lang: call openui_guide first) that the user opens in the app's artifact viewer. " +
             "Calling again with the same id publishes a new version. Give either the full content or edits against the latest version.",
-        parameters: Type.Object({
-            id: Type.String({
+        parameters: obj({
+            id: str({
                 description:
                     "Stable kebab-case id, for example solar-system. Reuse it for new versions.",
             }),
-            title: Type.String({ description: "Short human-readable title." }),
-            type: Type.Optional(
-                Type.Union([Type.Literal("html"), Type.Literal("markdown"), Type.Literal("svg"), Type.Literal("openui")], {
+            title: str({ description: "Short human-readable title." }),
+            type: opt(union([literal("html"), literal("markdown"), literal("svg"), literal("openui")], {
                     description: "Default html, or the type of the existing artifact.",
-                }),
-            ),
-            content: Type.Optional(
-                Type.String({ description: "The complete content of the new version." }),
-            ),
-            edits: Type.Optional(
-                Type.Array(Type.Object({ oldText: Type.String(), newText: Type.String() }), {
+                })),
+            content: opt(str({ description: "The complete content of the new version." })),
+            edits: opt(arr(obj({ oldText: str(), newText: str() }, { open: true }), {
                     description:
                         "Exact, unique replacements applied to the latest version instead of sending content.",
-                }),
-            ),
-        }),
+                })),
+        }, { open: true }),
         // The commit below is idempotent per call, so a rerun after a crash is harmless.
         replay: "safe",
         execute: async (args, api, context) => {

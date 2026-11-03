@@ -11,7 +11,8 @@
  * What it makes goes into `media/` where the session works, named by the file and the moment; Pi gets the paths, sizes
  * and dimensions, and reads an image with `read` when it must look.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, bool, int, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import type { Context, JsonValue } from "@earendil-works/chord";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
@@ -95,24 +96,24 @@ export default function createMedia(host: PocketHost) {
     const media = defineTool({
         name: "media",
         description: DESCRIPTION,
-        parameters: Type.Object({
-            action: Type.Union([Type.Literal("info"), Type.Literal("image"), Type.Literal("frames"), Type.Literal("clip")], { description: "info, image, frames, or clip" }),
-            path: Type.String({ description: "The image or video: a path, absolute or relative to this session's folder" }),
-            width: Type.Optional(Type.Integer({ minimum: 8, maximum: 8192, description: "image: fit within this width; frames: each frame this wide (default 480; 320 in a sheet)" })),
-            height: Type.Optional(Type.Integer({ minimum: 8, maximum: 8192, description: "image: fit within this height; clip: shrink to at most this height (default 720)" })),
-            crop: Type.Optional(Type.String({ description: "image: the part to keep, width:height:x:y in pixels of the original" })),
-            rotate: Type.Optional(Type.Union([Type.Literal(90), Type.Literal(180), Type.Literal(270)], { description: "image: turn clockwise" })),
-            flip: Type.Optional(Type.Union([Type.Literal("horizontal"), Type.Literal("vertical")])),
-            format: Type.Optional(Type.Union([Type.Literal("jpg"), Type.Literal("png"), Type.Literal("webp")], { description: "image and frames: jpg, png or webp (image: default its own, else jpg)" })),
-            quality: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, description: "image: 1 to 100 for jpg and webp (smaller files lower)" })),
-            at: Type.Optional(Type.Array(Type.Number({ minimum: 0 }), { maxItems: MAX_FRAMES, description: "frames: seconds to take a frame at" })),
-            every: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "frames: one frame every this many seconds" })),
-            count: Type.Optional(Type.Integer({ minimum: 1, maximum: MAX_FRAMES, description: `frames: how many (default 12; at most ${MAX_FRAMES})` })),
-            sheet: Type.Optional(Type.Boolean({ description: "frames: one contact sheet image instead of separate frames" })),
-            start: Type.Optional(Type.Number({ minimum: 0, description: "clip: from this second" })),
-            end: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "clip: to this second" })),
-            mute: Type.Optional(Type.Boolean({ description: "clip: without sound" })),
-        }),
+        parameters: obj({
+            action: union([literal("info"), literal("image"), literal("frames"), literal("clip")], { description: "info, image, frames, or clip" }),
+            path: str({ description: "The image or video: a path, absolute or relative to this session's folder" }),
+            width: opt(int({ minimum: 8, maximum: 8192, description: "image: fit within this width; frames: each frame this wide (default 480; 320 in a sheet)" })),
+            height: opt(int({ minimum: 8, maximum: 8192, description: "image: fit within this height; clip: shrink to at most this height (default 720)" })),
+            crop: opt(str({ description: "image: the part to keep, width:height:x:y in pixels of the original" })),
+            rotate: opt(union([literal(90), literal(180), literal(270)], { description: "image: turn clockwise" })),
+            flip: opt(union([literal("horizontal"), literal("vertical")])),
+            format: opt(union([literal("jpg"), literal("png"), literal("webp")], { description: "image and frames: jpg, png or webp (image: default its own, else jpg)" })),
+            quality: opt(int({ minimum: 1, maximum: 100, description: "image: 1 to 100 for jpg and webp (smaller files lower)" })),
+            at: opt(arr(num({ minimum: 0 }), { maxItems: MAX_FRAMES, description: "frames: seconds to take a frame at" })),
+            every: opt(num({ exclusiveMinimum: 0, description: "frames: one frame every this many seconds" })),
+            count: opt(int({ minimum: 1, maximum: MAX_FRAMES, description: `frames: how many (default 12; at most ${MAX_FRAMES})` })),
+            sheet: opt(bool({ description: "frames: one contact sheet image instead of separate frames" })),
+            start: opt(num({ minimum: 0, description: "clip: from this second" })),
+            end: opt(num({ exclusiveMinimum: 0, description: "clip: to this second" })),
+            mute: opt(bool({ description: "clip: without sound" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             const cwd = (await api.agent(context)).cwd ?? "";
             const env = host.envOf(cwd);
@@ -321,12 +322,12 @@ export default function createMedia(host: PocketHost) {
             "Ask a model that watches video about a video (PP-297): the model Menu › Videos sets (setting video.askModel, Gemini Flash-Lite by default), through OpenRouter. " +
             `Give path (a video where this session works: mp4, mov, webm, mkv; larger than ${MAX_ASK_MB} MB or taller than 720 lines, it is shrunk to a 720p mp4 first with the media tool's engine) or url (a YouTube address), and the question. ` +
             "It answers in words, with times (0:12) when you ask for them; the cost is in Spend. model overrides the setting for this call, an OpenRouter model that takes video.",
-        parameters: Type.Object({
-            question: Type.String({ description: "What to ask about the video" }),
-            path: Type.Optional(Type.String({ description: "The video: a path, absolute or relative to this session's folder" })),
-            url: Type.Optional(Type.String({ description: "A YouTube address instead of a file" })),
-            model: Type.Optional(Type.String({ description: "An OpenRouter model that takes video, for this call only, instead of the setting video.askModel" })),
-        }),
+        parameters: obj({
+            question: str({ description: "What to ask about the video" }),
+            path: opt(str({ description: "The video: a path, absolute or relative to this session's folder" })),
+            url: opt(str({ description: "A YouTube address instead of a file" })),
+            model: opt(str({ description: "An OpenRouter model that takes video, for this call only, instead of the setting video.askModel" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             if ((args.path === undefined) === (args.url === undefined)) {
                 return reply("Give path (a video file) or url (a YouTube address): one of them.", true);
@@ -454,17 +455,17 @@ export default function createMedia(host: PocketHost) {
             "It takes a minute or more, and money (Kling Standard about $0.08 a second, $0.13 with sound): say what it will cost when you are not asked for a set length. " +
             "duration (seconds), aspect (16:9, 9:16, 1:1, 4:3, 3:4, 21:9), resolution (480p, 720p, 1080p...) and audio are checked against what the model takes. " +
             "The video is saved where this session works, in videos/, and shows in the chat; you get its path, size and cost. model overrides the setting for this call.",
-        parameters: Type.Object({
-            prompt: Type.String({ description: "What the video shows: the scene, the motion, the camera, the light, the sound" }),
-            duration: Type.Optional(Type.Integer({ minimum: 1, maximum: 60, description: "Seconds (the model's own lengths; Kling 3 to 15)" })),
-            aspect: Type.Optional(Type.String({ description: "16:9, 9:16, 1:1, 4:3, 3:4, 3:2, 2:3, 21:9" })),
-            resolution: Type.Optional(Type.String({ description: "480p, 720p, 1080p, 2K or 4K, as the model takes" })),
-            audio: Type.Optional(Type.Boolean({ description: "With sound (when the model makes it; it costs more)" })),
-            first_frame: Type.Optional(Type.String({ description: "An image it starts on: a path where this session works" })),
-            last_frame: Type.Optional(Type.String({ description: "An image it ends on" })),
-            references: Type.Optional(Type.Array(Type.String(), { maxItems: 4, description: "Images for its look (paths)" })),
-            model: Type.Optional(Type.String({ description: "An OpenRouter video model for this call only, instead of the setting video.model" })),
-        }),
+        parameters: obj({
+            prompt: str({ description: "What the video shows: the scene, the motion, the camera, the light, the sound" }),
+            duration: opt(int({ minimum: 1, maximum: 60, description: "Seconds (the model's own lengths; Kling 3 to 15)" })),
+            aspect: opt(str({ description: "16:9, 9:16, 1:1, 4:3, 3:4, 3:2, 2:3, 21:9" })),
+            resolution: opt(str({ description: "480p, 720p, 1080p, 2K or 4K, as the model takes" })),
+            audio: opt(bool({ description: "With sound (when the model makes it; it costs more)" })),
+            first_frame: opt(str({ description: "An image it starts on: a path where this session works" })),
+            last_frame: opt(str({ description: "An image it ends on" })),
+            references: opt(arr(str(), { maxItems: 4, description: "Images for its look (paths)" })),
+            model: opt(str({ description: "An OpenRouter video model for this call only, instead of the setting video.model" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             if (args.prompt.trim() === "") {
                 return reply("Give a prompt: what the video shows.", true);
@@ -600,13 +601,13 @@ export default function createMedia(host: PocketHost) {
             "Transcribe speech in an audio or video file where this session works (m4a, mp3, wav, ogg, opus, flac, aac, mp4, mov, webm, mkv) to text, SRT or VTT subtitles, or JSON (utterances with start and end in ms), " +
             `on the person's ChatGPT (Codex) sign-in (gpt-4o-transcribe by default; setting audio.transcribeModel). Long files go in parts of ${PART_SECONDS / 60} minutes. ` +
             "The transcript is saved in transcripts/ where this session works; you get its path and its start. language (a code like vi or en) and prompt (names and words to expect) default to Settings › Voice's.",
-        parameters: Type.Object({
-            path: Type.String({ description: "The audio or video file: a path, absolute or relative to this session's folder" }),
-            format: Type.Optional(Type.Union([Type.Literal("text"), Type.Literal("srt"), Type.Literal("vtt"), Type.Literal("json")], { description: "text (default), srt, vtt or json" })),
-            language: Type.Optional(Type.String({ description: "The language spoken, as a code (vi, en, ...); default Settings › Voice's, or detected" })),
-            prompt: Type.Optional(Type.String({ description: "Names, terms and words to expect" })),
-            model: Type.Optional(Type.Union(TRANSCRIBE_MODELS.map((each) => Type.Literal(each)), { description: "The transcription model for this call only" })),
-        }),
+        parameters: obj({
+            path: str({ description: "The audio or video file: a path, absolute or relative to this session's folder" }),
+            format: opt(union([literal("text"), literal("srt"), literal("vtt"), literal("json")], { description: "text (default), srt, vtt or json" })),
+            language: opt(str({ description: "The language spoken, as a code (vi, en, ...); default Settings › Voice's, or detected" })),
+            prompt: opt(str({ description: "Names, terms and words to expect" })),
+            model: opt(union(TRANSCRIBE_MODELS.map((each) => literal(each)), { description: "The transcription model for this call only" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             let model;
 
@@ -716,13 +717,13 @@ export default function createMedia(host: PocketHost) {
             "Read a text aloud into an audio file (m4a by default, or wav) on the person's ChatGPT (Codex) sign-in, through a realtime model (gpt-realtime-mini by default; setting audio.speakModel), in any language: voice-overs, read-aloud reports, audio summaries. " +
             `voice: one of ${VOICES.join(", ")} (default setting audio.voice); style: how to read it (calm, cheerful, slow, a news anchor...). Long text is read in parts, each checked against what the voice says it said and read again once when it differs. ` +
             "Saved in audio/ where this session works; it plays in the chat.",
-        parameters: Type.Object({
-            text: Type.String({ description: "What to read, as it should be said" }),
-            voice: Type.Optional(Type.Union(VOICES.map((each) => Type.Literal(each)))),
-            style: Type.Optional(Type.String({ description: "How to read it" })),
-            format: Type.Optional(Type.Union([Type.Literal("m4a"), Type.Literal("wav")], { description: "m4a (default, AAC) or wav" })),
-            model: Type.Optional(Type.Union(SPEAK_MODELS.map((each) => Type.Literal(each)), { description: "The realtime model for this call only" })),
-        }),
+        parameters: obj({
+            text: str({ description: "What to read, as it should be said" }),
+            voice: opt(union(VOICES.map((each) => literal(each)))),
+            style: opt(str({ description: "How to read it" })),
+            format: opt(union([literal("m4a"), literal("wav")], { description: "m4a (default, AAC) or wav" })),
+            model: opt(union(SPEAK_MODELS.map((each) => literal(each)), { description: "The realtime model for this call only" })),
+        }, { open: true }),
         execute: async (args, api, context) => {
             if (args.text.trim() === "") {
                 return reply("Give the text to read.", true);

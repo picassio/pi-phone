@@ -5,7 +5,8 @@
  * project, the task types' hierarchy, a person's approval before Done where a task needs it, and never approving your
  * own work. While this is off there is no board, no tools, and no board mode; projects stay saved.
  */
-import { type Static, type TSchema, Type } from "@earendil-works/pi-ai";
+import { arr, bool, num, obj, opt, type Static, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { ExtensionWeb, PocketHost, WebRequest } from "../host.ts";
 import { localBoards } from "../boards.ts";
@@ -78,12 +79,12 @@ export function boardRules(level: BoardRules, closer: Closer): string {
     ].join("\n");
 }
 
-const PROJECT = Type.Optional(Type.String({ description: "The project's key (PP); default: this session's project" }));
-const REF = Type.String({ description: "The task, like PP-12" });
-const STATE = Type.Union(STATES.map((state) => Type.Literal(state)));
-const KIND = Type.Union(TYPES.map((type) => Type.Literal(type)));
-const LINK = Type.Union(LINK_KINDS.map((kind) => Type.Literal(kind)));
-const CHECKLIST = Type.Array(Type.Object({ text: Type.String(), done: Type.Optional(Type.Boolean()) }));
+const PROJECT = opt(str({ description: "The project's key (PP); default: this session's project" }));
+const REF = str({ description: "The task, like PP-12" });
+const STATE = union(STATES.map((state) => literal(state)));
+const KIND = union(TYPES.map((type) => literal(type)));
+const LINK = union(LINK_KINDS.map((kind) => literal(kind)));
+const CHECKLIST = arr(obj({ text: str(), done: opt(bool()) }, { open: true }));
 
 /** One line for a task, as the tools list it. */
 function line(task: BoardTask): string {
@@ -552,7 +553,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
 
         return key;
     };
-    const tool = <P extends TSchema>(
+    const tool = <P extends object>(
         name: string,
         description: string,
         parameters: P,
@@ -610,7 +611,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                   tool(
                       "project_wiki_search",
                       "Search this project's wiki (what its members' Pis learned about the project) by words: pages, best first, with where they match.",
-                      Type.Object({ query: Type.String(), project: PROJECT }),
+                      obj({ query: str(), project: PROJECT }, { open: true }),
                       async (args, conversationId) => {
                           const { actor, project } = onBoard(conversationId);
                           const key = projectOf(args.project, project);
@@ -622,7 +623,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                   tool(
                       "project_wiki_read",
                       "Read a page of this project's wiki, by its name (slug).",
-                      Type.Object({ page: Type.String({ description: "The page's name, like deploy-notes" }), project: PROJECT }),
+                      obj({ page: str({ description: "The page's name, like deploy-notes" }), project: PROJECT }, { open: true }),
                       async (args, conversationId) => {
                           const { actor, project } = onBoard(conversationId);
                           const page = (await remote.wiki("wikiRead", [projectOf(args.project, project), args.page], actor)) as { slug: string; title: string; body: string; updatedByName: string; updatedAt: number };
@@ -633,7 +634,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                   tool(
                       "project_wiki_write",
                       "Write a page of this project's wiki whole (new, or replacing the page of that name): a decision, how something works, a gotcha, for every member's Pi. Personal notes go in your own wiki instead.",
-                      Type.Object({ title: Type.String(), body: Type.String({ description: "Markdown" }), page: Type.Optional(Type.String({ description: "Its name (slug); default: from the title" })), project: PROJECT }),
+                      obj({ title: str(), body: str({ description: "Markdown" }), page: opt(str({ description: "Its name (slug); default: from the title" })), project: PROJECT }, { open: true }),
                       async (args, conversationId) => {
                           const { actor, project } = onBoard(conversationId);
                           const key = projectOf(args.project, project);
@@ -645,7 +646,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                   tool(
                       "project_wiki_edit",
                       "Change a page of this project's wiki with exact replacements: each oldText must be on the page once.",
-                      Type.Object({ page: Type.String(), edits: Type.Array(Type.Object({ oldText: Type.String(), newText: Type.String() })), project: PROJECT }),
+                      obj({ page: str(), edits: arr(obj({ oldText: str(), newText: str() }, { open: true })), project: PROJECT }, { open: true }),
                       async (args, conversationId) => {
                           const { actor, project } = onBoard(conversationId);
                           const key = projectOf(args.project, project);
@@ -661,12 +662,12 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "board_mode",
             "Turn board mode on in this session (track its work on a project board), or off (off: true), after the person says yes on an inline card. Needed before any other board tool here. Name an existing project's key, or a new key with a name to create it. After a no, ask again only when the person asks for a board.",
-            Type.Object({
-                project: Type.String({ description: "The project's key (PP); a new one is made when the person agrees" }),
-                name: Type.Optional(Type.String({ description: "A new project's name" })),
-                reason: Type.String({ description: "What you would track, in a sentence: shown on the card" }),
-                off: Type.Optional(Type.Boolean({ description: "Turn board mode off here instead" })),
-            }),
+            obj({
+                project: str({ description: "The project's key (PP); a new one is made when the person agrees" }),
+                name: opt(str({ description: "A new project's name" })),
+                reason: str({ description: "What you would track, in a sentence: shown on the card" }),
+                off: opt(bool({ description: "Turn board mode off here instead" })),
+            }, { open: true }),
             async (args, conversationId, api, context) => {
                 const mode = projects.boardMode(conversationId);
 
@@ -746,10 +747,10 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "board_settings",
             "How board mode works in this session, set by the person on a card: who moves tasks you worked on to Done (person: a person on the board; pi: you, once the person approves in this chat; verified: you, once you verified the work yourself), and the board rules here (full, light, or project for the project's).",
-            Type.Object({
-                closer: Type.Optional(Type.Union(CLOSERS.map((closer) => Type.Literal(closer)))),
-                rules: Type.Optional(Type.Union([...BOARD_RULE_LEVELS, "project"].map((level) => Type.Literal(level)))),
-            }),
+            obj({
+                closer: opt(union(CLOSERS.map((closer) => literal(closer)))),
+                rules: opt(union([...BOARD_RULE_LEVELS, "project" as const].map((level) => literal(level)))),
+            }, { open: true }),
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
                 const mode = projects.boardMode(conversationId)!;
@@ -797,7 +798,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "project_list",
             "The project boards the person you work for can see, with how many tasks are in each state, and this session's board mode.",
-            Type.Object({}),
+            obj({}, { open: true }),
             async (_args, conversationId) => {
                 const list = await boards.list(piOf(conversationId));
                 const mode = projects.boardMode(conversationId);
@@ -826,12 +827,12 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "project_create",
             "Make a project board: a key of 2 to 6 letters or digits (PP), a name, and the folder its work happens in. From any session; asks the person on a card first. It does not turn board mode on here (board_mode does).",
-            Type.Object({
-                key: Type.String(),
-                name: Type.String(),
-                folder: Type.Optional(Type.String({ description: "Where its work happens: a folder here, or machine:<id>:<path>" })),
-                reason: Type.Optional(Type.String({ description: "What the board is for, in a sentence: shown on the card" })),
-            }),
+            obj({
+                key: str(),
+                name: str(),
+                folder: opt(str({ description: "Where its work happens: a folder here, or machine:<id>:<path>" })),
+                reason: opt(str({ description: "What the board is for, in a sentence: shown on the card" })),
+            }, { open: true }),
             async (args, conversationId, api, context) => {
                 const actor = piOf(conversationId);
                 const key = args.key.trim().toUpperCase();
@@ -876,19 +877,17 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "project_update",
             "Change a project: its name, folder, its board rules (full or light), whether tasks given to Pi run by themselves, whether a task run's branch is reviewed when it reaches Review (reviews), and where its tasks run (places: each the repository's folder there, here or machine:<id>:<path>, with how many run at once).",
-            Type.Object({
+            obj({
                 project: PROJECT,
-                name: Type.Optional(Type.String()),
-                folder: Type.Optional(Type.String()),
-                auto_runs: Type.Optional(Type.Boolean({ description: "Tasks given to Pi start by themselves; off, the main session asks the person first" })),
-                reviews: Type.Optional(
-                    Type.Boolean({
+                name: opt(str()),
+                folder: opt(str()),
+                auto_runs: opt(bool({ description: "Tasks given to Pi start by themselves; off, the main session asks the person first" })),
+                reviews: opt(bool({
                         description: "When a task session sets its task to Review, a reviewer reads its branch (in plan mode) and comments; P0 or P1 findings go back to the task session, at most 2 rounds. Off by default: each round costs a session's run",
-                    }),
-                ),
-                places: Type.Optional(Type.Array(Type.Object({ folder: Type.String(), cap: Type.Number({ description: "1 to 8 at once" }) }))),
-                rules: Type.Optional(Type.Union(BOARD_RULE_LEVELS.map((level) => Type.Literal(level)), { description: "The board rules in Pi's prompt: full, or light (track work, keep it current)" })),
-            }),
+                    })),
+                places: opt(arr(obj({ folder: str(), cap: num({ description: "1 to 8 at once" }) }, { open: true }))),
+                rules: opt(union(BOARD_RULE_LEVELS.map((level) => literal(level)), { description: "The board rules in Pi's prompt: full, or light (track work, keep it current)" })),
+            }, { open: true }),
             async (args, conversationId) => {
                 const { actor, project } = onBoard(conversationId);
                 const key = projectOf(args.project, project);
@@ -909,7 +908,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "project_team",
             "Start a project's main session: it leads the project's team (plans, asks before runs, gets the task sessions' reports, reviews) in the project's folder. Answers its session id.",
-            Type.Object({ project: PROJECT }),
+            obj({ project: PROJECT }, { open: true }),
             async (args, conversationId) => {
                 const { actor, project } = onBoard(conversationId);
                 const key = projectOf(args.project, project);
@@ -921,7 +920,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_link_session",
             "Link a session to a task, so the task lists it: this session, or another one you can see. The project's main session is linked as leading it.",
-            Type.Object({ task: REF, session: Type.Optional(Type.Number({ description: "Another session's id; default: this one" })) }),
+            obj({ task: REF, session: opt(num({ description: "Another session's id; default: this one" })) }, { open: true }),
             async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
                 const session = args.session === undefined ? conversationId : String(args.session);
@@ -940,7 +939,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "project_share",
             "Share a project with people (by name): they see its board and, unless they are viewers, change it. Replaces who it is shared with; the project's owner or the app's owner only.",
-            Type.Object({ project: PROJECT, people: Type.Array(Type.String({ description: "A person's name" })) }),
+            obj({ project: PROJECT, people: arr(str({ description: "A person's name" })) }, { open: true }),
             async (args, conversationId) => {
                 const { actor, project } = onBoard(conversationId);
                 const key = projectOf(args.project, project);
@@ -962,7 +961,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "project_delete",
             "Delete a project and all its tasks, for good. Asks the person on a card first.",
-            Type.Object({ project: Type.String({ description: "The project's key" }) }),
+            obj({ project: str({ description: "The project's key" }) }, { open: true }),
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
                 const project = await boards.project(actor, args.project);
@@ -993,7 +992,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_delete",
             "Delete a task with nothing under it, for good. Asks the person on a card first.",
-            Type.Object({ task: REF }),
+            obj({ task: REF }, { open: true }),
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
                 const { task } = await boards.task(actor, args.task);
@@ -1023,7 +1022,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_cancel_run",
             "Withdraw a task's run that waits for a place, before it starts.",
-            Type.Object({ task: REF }),
+            obj({ task: REF }, { open: true }),
             async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
 
@@ -1035,7 +1034,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_diff",
             "What a task's branch changed against the branch it started from (a 3-dot diff): the stat, then the patch, cut at 200 KB.",
-            Type.Object({ task: REF }),
+            obj({ task: REF }, { open: true }),
             async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
                 const { task } = await boards.task(actor, args.task);
@@ -1052,7 +1051,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_merge",
             "Merge a task's branch into the branch it started from (the repository there must be on it, with nothing uncommitted), then remove its worktree and branch. Merging is the person's call: asks on a card first.",
-            Type.Object({ task: REF }),
+            obj({ task: REF }, { open: true }),
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
                 const { task } = await boards.task(actor, args.task);
@@ -1094,15 +1093,15 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_list",
             "Tasks on a board, filtered: by state, type, assignee (pi or a name), parent, or words. Newest first.",
-            Type.Object({
+            obj({
                 project: PROJECT,
-                state: Type.Optional(STATE),
-                type: Type.Optional(KIND),
-                assignee: Type.Optional(Type.String()),
-                parent: Type.Optional(Type.String()),
-                text: Type.Optional(Type.String()),
-                limit: Type.Optional(Type.Number()),
-            }),
+                state: opt(STATE),
+                type: opt(KIND),
+                assignee: opt(str()),
+                parent: opt(str()),
+                text: opt(str()),
+                limit: opt(num()),
+            }, { open: true }),
             async (args, conversationId) => {
                 const { actor, project } = onBoard(conversationId);
                 const { project: _project, ...filter } = args;
@@ -1114,7 +1113,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_get",
             "A task in full: its fields, description, checklist, links, comments, activity, and sessions.",
-            Type.Object({ task: REF }),
+            obj({ task: REF }, { open: true }),
             async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
                 const { task, comments, links, sessions } = await boards.task(actor, args.task);
@@ -1145,22 +1144,22 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_create",
             "Add a task to a board. Create tasks before assigning them, and link what blocks what.",
-            Type.Object({
+            obj({
                 project: PROJECT,
-                title: Type.String(),
-                type: Type.Optional(KIND),
-                description: Type.Optional(Type.String({ description: "What to do, with real values and an acceptance checklist" })),
-                state: Type.Optional(STATE),
-                priority: Type.Optional(Type.Number({ description: "0 none, 1 low, 2 medium, 3 high, 4 urgent" })),
-                labels: Type.Optional(Type.Array(Type.String())),
-                assignee: Type.Optional(Type.String({ description: "pi, or a person's name" })),
-                start: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
-                due: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
-                parent: Type.Optional(Type.String({ description: "The task it sits under, like PP-3" })),
-                checklist: Type.Optional(CHECKLIST),
-                operator_review: Type.Optional(Type.Boolean({ description: "Only a person may move it to Done" })),
-                blocks: Type.Optional(Type.Array(Type.String(), { description: "Tasks that wait on this one" })),
-            }),
+                title: str(),
+                type: opt(KIND),
+                description: opt(str({ description: "What to do, with real values and an acceptance checklist" })),
+                state: opt(STATE),
+                priority: opt(num({ description: "0 none, 1 low, 2 medium, 3 high, 4 urgent" })),
+                labels: opt(arr(str())),
+                assignee: opt(str({ description: "pi, or a person's name" })),
+                start: opt(str({ description: "YYYY-MM-DD" })),
+                due: opt(str({ description: "YYYY-MM-DD" })),
+                parent: opt(str({ description: "The task it sits under, like PP-3" })),
+                checklist: opt(CHECKLIST),
+                operator_review: opt(bool({ description: "Only a person may move it to Done" })),
+                blocks: opt(arr(str(), { description: "Tasks that wait on this one" })),
+            }, { open: true }),
             async (args, conversationId) => {
                 const { actor, project } = onBoard(conversationId);
                 const key = projectOf(args.project, project);
@@ -1181,25 +1180,25 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_update",
             "Change a task: its state, fields, checklist, links. Moving it to in_progress marks this session as working on it.",
-            Type.Object({
+            obj({
                 task: REF,
-                title: Type.Optional(Type.String()),
-                type: Type.Optional(KIND),
-                description: Type.Optional(Type.String()),
-                state: Type.Optional(STATE),
-                priority: Type.Optional(Type.Number()),
-                labels: Type.Optional(Type.Array(Type.String())),
-                assignee: Type.Optional(Type.String({ description: "pi, a person's name, or empty for nobody" })),
-                start: Type.Optional(Type.String()),
-                due: Type.Optional(Type.String()),
-                parent: Type.Optional(Type.String({ description: "A task's ref, or empty to move it to the top" })),
-                checklist: Type.Optional(CHECKLIST),
-                operator_review: Type.Optional(Type.Boolean()),
-                fix_verified: Type.Optional(Type.Boolean()),
-                blocked_reason: Type.Optional(Type.String({ description: "With state blocked: what it waits for" })),
-                link: Type.Optional(Type.Object({ to: Type.String(), kind: LINK })),
-                unlink: Type.Optional(Type.Object({ to: Type.String(), kind: LINK })),
-            }),
+                title: opt(str()),
+                type: opt(KIND),
+                description: opt(str()),
+                state: opt(STATE),
+                priority: opt(num()),
+                labels: opt(arr(str())),
+                assignee: opt(str({ description: "pi, a person's name, or empty for nobody" })),
+                start: opt(str()),
+                due: opt(str()),
+                parent: opt(str({ description: "A task's ref, or empty to move it to the top" })),
+                checklist: opt(CHECKLIST),
+                operator_review: opt(bool()),
+                fix_verified: opt(bool()),
+                blocked_reason: opt(str({ description: "With state blocked: what it waits for" })),
+                link: opt(obj({ to: str(), kind: LINK }, { open: true })),
+                unlink: opt(obj({ to: str(), kind: LINK }, { open: true })),
+            }, { open: true }),
             async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
                 const patch = patchOf(args as Record<string, unknown>);
@@ -1219,7 +1218,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_run",
             "Run a task: Pi works on it in a task session of its own, in a git worktree on branch task/<ref>, at one of the project's places. Asks the person first unless the project runs tasks by itself. Its reports (done, stopped, failed, needs the person) come to this session, and to the project's main session.",
-            Type.Object({ task: REF }),
+            obj({ task: REF }, { open: true }),
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
                 const ref = args.task.trim().toUpperCase();
@@ -1260,7 +1259,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tool(
             "task_comment",
             "Comment on a task: a result, a question, a blocker, or a decision.",
-            Type.Object({ task: REF, text: Type.String() }),
+            obj({ task: REF, text: str() }, { open: true }),
             async (args, conversationId) => {
                 const { actor } = onBoard(conversationId);
 

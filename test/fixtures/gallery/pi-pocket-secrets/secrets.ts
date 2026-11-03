@@ -8,7 +8,7 @@
  * up, encrypted) is not found. Values stay in Pi Pocket's data folder, in secrets/secrets.json (mode 0600).
  */
 import { spawn } from "node:child_process";
-import { Type } from "@earendil-works/pi-ai";
+import { obj, str } from "@earendil-works/pi-schema";
 import {
     AgentDoc,
     defineExtension,
@@ -319,7 +319,7 @@ export default function createSecrets(host: Host, web: Web) {
             name: "secrets_list",
             description:
                 "The secrets you may use in this session's folder: name, what it is for, and whether a call that uses it waits for a person. Never their values.",
-            parameters: Type.Object({}),
+            parameters: obj({}),
             replay: "safe",
             execute: async (_args, api, context) => {
                 const cwd = await cwdOf(api, context);
@@ -339,12 +339,12 @@ export default function createSecrets(host: Host, web: Web) {
         name: "secret_request",
         description:
             "Ask the owner for a secret (an API key, token, or password). They type it into a hidden field on this call's card; it is kept in Menu → Secrets and never enters the chat. Then use it in bash as $NAME.",
-        parameters: Type.Object({
-            name: Type.String({
+        parameters: obj({
+            name: str({
                 description:
                     "An environment variable's name: capitals, digits, _ (DEEPSEEK_API_KEY)",
             }),
-            description: Type.String({
+            description: str({
                 description: "What it is for and where to get it, shown to the owner",
             }),
         }),
@@ -410,12 +410,12 @@ export default function createSecrets(host: Host, web: Web) {
         name: "secret_save",
         description:
             "Run a command and keep its output as a secret, without showing the output to anyone: for a key that a command makes or prints (gh auth token, openssl rand -hex 32).",
-        parameters: Type.Object({
-            name: Type.String({
+        parameters: obj({
+            name: str({
                 description: "An environment variable's name: capitals, digits, _",
             }),
-            command: Type.String({ description: "The command whose standard output is the value" }),
-            description: Type.String({ description: "What it is for" }),
+            command: str({ description: "The command whose standard output is the value" }),
+            description: str({ description: "What it is for" }),
         }),
         execute: async (args, api, context) => {
             if (!SECRET_NAME.test(args.name)) {

@@ -4,7 +4,8 @@
  * take it over. Every action answers with the page as it is after it. Ideas from Kuvo Code (design only), browser-use
  * and jev-ultrafast (MIT).
  */
-import { Type } from "@earendil-works/pi-ai";
+import { arr, bool, int, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal, record } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { basename } from "node:path";
 import { addressOf, FULL_PAGE_MAX, LONG_PRESS_MS, LONG_PRESS_RANGE, PERMISSIONS, PRESSABLE, StalePage } from "../browser/page.ts";
@@ -213,7 +214,7 @@ export default function createBrowser(host: PocketHost) {
             return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
         }
     };
-    const index = Type.Integer({ minimum: 1, description: "The control's number, like 3 for [3], from the newest read of the page" });
+    const index = int({ minimum: 1, description: "The control's number, like 3 for [3], from the newest read of the page" });
     /** The site a page is on, by its address (`accounts.example.com`). */
     const siteOf = (url: string) => {
         try {
@@ -263,10 +264,8 @@ export default function createBrowser(host: PocketHost) {
             return reply(`${done} ${fencedPage(`The page could not be read again: ${error instanceof Error ? error.message : String(error)}`)}`);
         }
     };
-    const acceptDialog = Type.Optional(Type.Boolean({ description: "Accept a confirmation or prompt the page shows on the way (they are declined otherwise)" }));
-    const machineArg = Type.Optional(
-        Type.String({ description: 'Browse on one of the owner\'s machines (its name) or "phone": this session\'s browser is there from now on. Leave it out to stay where it is.' }),
-    );
+    const acceptDialog = opt(bool({ description: "Accept a confirmation or prompt the page shows on the way (they are declined otherwise)" }));
+    const machineArg = opt(str({ description: 'Browse on one of the owner\'s machines (its name) or "phone": this session\'s browser is there from now on. Leave it out to stay where it is.' }));
     /**
      * A browser call that names where to browse (PP-274): the session's place changes first (the owner's alone), then the
      * call runs there. An error in words, or undefined.
@@ -297,7 +296,7 @@ export default function createBrowser(host: PocketHost) {
             description:
                 "Open a web address (or search for words) in Pi's browser, which the person can watch. Answers with the page as numbered controls and its visible text. " +
                 "With machine, this session browses on that machine of the owner's from now on (its Chrome, its own addresses such as localhost:3000, its files for uploads), or on the phone again.",
-            parameters: Type.Object({ url: Type.String({ description: "An address like example.com, or words to search for" }), machine: machineArg }),
+            parameters: obj({ url: str({ description: "An address like example.com, or words to search for" }), machine: machineArg }, { open: true }),
             execute: async (args, api, context) => {
                 let url: string;
 
@@ -319,7 +318,7 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_snapshot",
             description: "Read the page in Pi's browser again: its title, address, scroll position, numbered controls, and visible text.",
-            parameters: Type.Object({}),
+            parameters: obj({}, { open: true }),
             replay: "safe",
             execute: async (_args, api, context) => act("browser_snapshot", api, context, (browser, session) => browser.snapshot(session)),
         }),
@@ -327,14 +326,12 @@ export default function createBrowser(host: PocketHost) {
             name: "browser_click",
             description:
                 "Click the control with this number from the newest read of the page. With how: double (a double click), right (the right button: a context menu), or long (a long press, held duration_ms: a finger's while pages are laid out as a phone's, the mouse's at desktop size).",
-            parameters: Type.Object({
+            parameters: obj({
                 index,
                 accept_dialog: acceptDialog,
-                how: Type.Optional(Type.Union([Type.Literal("single"), Type.Literal("double"), Type.Literal("right"), Type.Literal("long")], { description: "single (the default), double, right, or long" })),
-                duration_ms: Type.Optional(
-                    Type.Integer({ minimum: LONG_PRESS_RANGE.min, maximum: LONG_PRESS_RANGE.max, description: `A long press's length (default ${LONG_PRESS_MS} ms)` }),
-                ),
-            }),
+                how: opt(union([literal("single"), literal("double"), literal("right"), literal("long")], { description: "single (the default), double, right, or long" })),
+                duration_ms: opt(int({ minimum: LONG_PRESS_RANGE.min, maximum: LONG_PRESS_RANGE.max, description: `A long press's length (default ${LONG_PRESS_MS} ms)` })),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 if (args.duration_ms !== undefined && args.how !== "long") {
                     return reply("duration_ms is for a long press: give how: long with it.", true);
@@ -350,13 +347,13 @@ export default function createBrowser(host: PocketHost) {
             description:
                 "Type into the field with this number: text, or one of the owner's saved secrets by name (secret: \"NAME\", for a password field too), whose value goes into the page and never to you. Replaces what is there unless clear is false. " +
                 "Never type a password or a one-time code as text: a saved secret, or browser_sign_in / browser_ask_code for the person.",
-            parameters: Type.Object({
+            parameters: obj({
                 index,
-                text: Type.Optional(Type.String()),
-                secret: Type.Optional(Type.String({ description: "A saved secret's name (secrets_list), typed instead of text" })),
-                submit: Type.Optional(Type.Boolean({ description: "Press Enter afterwards (submits search boxes and forms)" })),
-                clear: Type.Optional(Type.Boolean({ description: "Clear the field first (default true)" })),
-            }),
+                text: opt(str()),
+                secret: opt(str({ description: "A saved secret's name (secrets_list), typed instead of text" })),
+                submit: opt(bool({ description: "Press Enter afterwards (submits search boxes and forms)" })),
+                clear: opt(bool({ description: "Clear the field first (default true)" })),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 const options = { clear: args.clear ?? true, submit: args.submit ?? false };
 
@@ -384,13 +381,13 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_select",
             description: "Choose an option, by its text or value, in the drop-down list with this number: a native one, or one the page draws (a button that opens a list of options), which it opens and picks from.",
-            parameters: Type.Object({ index, option: Type.String() }),
+            parameters: obj({ index, option: str() }, { open: true }),
             execute: async (args, api, context) => act("browser_select", api, context, (browser, session) => browser.select(session, args.index, args.option)),
         }),
         defineTool({
             name: "browser_hover",
             description: "Move the pointer over the control with this number without clicking (menus and tooltips that open on hover).",
-            parameters: Type.Object({ index }),
+            parameters: obj({ index }, { open: true }),
             execute: async (args, api, context) => act("browser_hover", api, context, (browser, session) => browser.hover(session, args.index)),
         }),
         defineTool({
@@ -399,13 +396,13 @@ export default function createBrowser(host: PocketHost) {
                 "Select text in Pi's browser (to format it in an editor, to replace it by typing, for a page that acts on a selection): on the page by its text (the first place it shows in view, else the first, frames too), " +
                 "or in the control with this number: its text, everything (all: a field's whole value), or characters start to end (from 0). In a field it is the field's own selection, with the focus there. " +
                 "No clipboard: copying and pasting stay out. Not in a password field, nor a field the person filled from a card.",
-            parameters: Type.Object({
-                index: Type.Optional(Type.Integer({ minimum: 1, description: "A control to select in, by its number; leave it out for the page's text" })),
-                text: Type.Optional(Type.String({ minLength: 1, description: "The text to select (white space between words may differ)" })),
-                all: Type.Optional(Type.Boolean({ description: "Every character of the control (select all in a field)" })),
-                start: Type.Optional(Type.Integer({ minimum: 0, description: "The first character to select, from 0" })),
-                end: Type.Optional(Type.Integer({ minimum: 0, description: "Where the selection ends (the character after the last)" })),
-            }),
+            parameters: obj({
+                index: opt(int({ minimum: 1, description: "A control to select in, by its number; leave it out for the page's text" })),
+                text: opt(str({ minLength: 1, description: "The text to select (white space between words may differ)" })),
+                all: opt(bool({ description: "Every character of the control (select all in a field)" })),
+                start: opt(int({ minimum: 0, description: "The first character to select, from 0" })),
+                end: opt(int({ minimum: 0, description: "Where the selection ends (the character after the last)" })),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 const ways = [args.text !== undefined, args.all === true, args.start !== undefined || args.end !== undefined].filter(Boolean).length;
 
@@ -428,10 +425,10 @@ export default function createBrowser(host: PocketHost) {
                 "Ask the owner on a card to allow a permission for the site in front in Pi's browser (allow false denies it again, without a card): geolocation, camera, microphone, notifications or clipboard (reading it). " +
                 "Pages are denied these by default and the answer says when one asked (setting browser.permissions: deny, or ask: a card as a page asks). Allowed lasts until the browser closes; then do again what asked for it. " +
                 "Not on the phone's browser, which allows none: browse on a machine for such a page. A headless Chrome has no location, camera or microphone of its own.",
-            parameters: Type.Object({
-                permission: Type.Union(PERMISSIONS.map((name) => Type.Literal(name))),
-                allow: Type.Optional(Type.Boolean({ description: "false: deny it again (default true: ask the owner to allow it)" })),
-            }),
+            parameters: obj({
+                permission: union(PERMISSIONS.map((name) => literal(name))),
+                allow: opt(bool({ description: "false: deny it again (default true: ask the owner to allow it)" })),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 const session = Number(api.conversationId);
                 const owner = mayBrowse(api.conversationId);
@@ -481,7 +478,7 @@ export default function createBrowser(host: PocketHost) {
             name: "browser_focus",
             description:
                 "Put the focus on the control with this number without clicking it (a click would open, submit or toggle it): keys from browser_press go to it next. The page read marks the control that has the focus as focused.",
-            parameters: Type.Object({ index }),
+            parameters: obj({ index }, { open: true }),
             execute: async (args, api, context) => act("browser_focus", api, context, (browser, session) => browser.focus(session, args.index)),
         }),
         defineTool({
@@ -489,12 +486,12 @@ export default function createBrowser(host: PocketHost) {
             description:
                 "Drag the control with this number onto another control (to: its number), or by an offset in CSS pixels (dx, dy: right and down are positive): a slider's handle, a card to a kanban column, an item in a sortable list, a map to pan. " +
                 "The read marks what can be dragged as draggable. The pointer goes down, moves there in steps and comes up; a page's own drag and drop (draggable elements) gets its drag events and data, as a person's drag gives them.",
-            parameters: Type.Object({
+            parameters: obj({
                 index,
-                to: Type.Optional(Type.Integer({ minimum: 1, description: "The control to drop it on, by its number" })),
-                dx: Type.Optional(Type.Number({ description: "Or drag by this many CSS pixels to the right (negative: left)" })),
-                dy: Type.Optional(Type.Number({ description: "And this many down (negative: up)" })),
-            }),
+                to: opt(int({ minimum: 1, description: "The control to drop it on, by its number" })),
+                dx: opt(num({ description: "Or drag by this many CSS pixels to the right (negative: left)" })),
+                dy: opt(num({ description: "And this many down (negative: up)" })),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 const offset = args.dx !== undefined || args.dy !== undefined;
 
@@ -511,10 +508,10 @@ export default function createBrowser(host: PocketHost) {
             name: "browser_upload",
             description:
                 "Give files from where this session works to a file field, or to the button that opens one (a styled Upload button): the page gets them as if the person chose them. Then submit the form if it needs it.",
-            parameters: Type.Object({
+            parameters: obj({
                 index,
-                paths: Type.Array(Type.String(), { minItems: 1, maxItems: 10, description: "The files, absolute or relative to this session's folder" }),
-            }),
+                paths: arr(str(), { minItems: 1, maxItems: 10, description: "The files, absolute or relative to this session's folder" }),
+            }, { open: true }),
             execute: async (args, api, context) =>
                 act("browser_upload", api, context, async (browser, session) => {
                     const env = host.envOf((await api.agent(context)).cwd ?? "");
@@ -537,7 +534,7 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_save_pdf",
             description: "Save the page in Pi's browser as a PDF (as printing it would), to a file where this session works.",
-            parameters: Type.Object({ path: Type.String({ description: "Where to save it, ending in .pdf: absolute or relative to this session's folder" }) }),
+            parameters: obj({ path: str({ description: "Where to save it, ending in .pdf: absolute or relative to this session's folder" }) }, { open: true }),
             execute: async (args, api, context) =>
                 act("browser_save_pdf", api, context, async (browser, session) => {
                     if (!args.path.toLowerCase().endsWith(".pdf")) {
@@ -564,7 +561,7 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_new_tab",
             description: `Open a new tab in Pi's browser, in front (at an address, or blank), keeping the others. At most ${MAX_TABS} tabs. With machine, this session browses on that machine (or the phone) from now on, as browser_open's machine.`,
-            parameters: Type.Object({ url: Type.Optional(Type.String({ description: "An address like example.com, or words to search for" })), machine: machineArg }),
+            parameters: obj({ url: opt(str({ description: "An address like example.com, or words to search for" })), machine: machineArg }, { open: true }),
             execute: async (args, api, context) => {
                 let url: string | undefined;
 
@@ -586,10 +583,10 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_tabs",
             description: "List Pi's browser tabs (numbered from 1, the one in front marked), or bring one to the front (switch_to), or close one (close). Switching answers with that tab's page.",
-            parameters: Type.Object({
-                switch_to: Type.Optional(Type.Integer({ minimum: 1, description: "The tab to bring to the front" })),
-                close: Type.Optional(Type.Integer({ minimum: 1, description: "The tab to close" })),
-            }),
+            parameters: obj({
+                switch_to: opt(int({ minimum: 1, description: "The tab to bring to the front" })),
+                close: opt(int({ minimum: 1, description: "The tab to close" })),
+            }, { open: true }),
             execute: async (args, api, context) =>
                 act("browser_tabs", api, context, (browser, session) =>
                     args.close !== undefined ? browser.closeTab(session, args.close) : args.switch_to !== undefined ? browser.switchTab(session, args.switch_to) : browser.tabs(session),
@@ -598,17 +595,17 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_size",
             description: "Lay this session's pages in Pi's browser out as a phone's (412×860, touch: the default) or a desktop's (1280×800, a desktop Chrome): for a site whose phone page lacks what you need, or a desktop layout to check. Open pages load again at the new size; answers the page.",
-            parameters: Type.Object({ size: Type.Union([Type.Literal("phone"), Type.Literal("desktop")]) }),
+            parameters: obj({ size: union([literal("phone"), literal("desktop")]) }, { open: true }),
             execute: async (args, api, context) => act("browser_size", api, context, (browser, session) => browser.resize(session, args.size)),
         }),
         defineTool({
             name: "browser_scroll",
             description: "Scroll the page up or down by screens; with index, what scrolls around that control instead (an open list or panel with its own scroll area), by its height. Clicking a control out of view scrolls it into view by itself.",
-            parameters: Type.Object({
-                direction: Type.Union([Type.Literal("up"), Type.Literal("down")]),
-                screens: Type.Optional(Type.Number({ minimum: 0.25, maximum: 10, description: "How many screens (default 1)" })),
-                index: Type.Optional(Type.Integer({ minimum: 1, description: "A control inside the area to scroll, like an option of an open list" })),
-            }),
+            parameters: obj({
+                direction: union([literal("up"), literal("down")]),
+                screens: opt(num({ minimum: 0.25, maximum: 10, description: "How many screens (default 1)" })),
+                index: opt(int({ minimum: 1, description: "A control inside the area to scroll, like an option of an open list" })),
+            }, { open: true }),
             execute: async (args, api, context) => act("browser_scroll", api, context, (browser, session) => browser.scroll(session, args.direction, args.screens ?? 1, args.index)),
         }),
         defineTool({
@@ -617,25 +614,25 @@ export default function createBrowser(host: PocketHost) {
                 `Press a key on the focused control: ${PRESSABLE.join(", ")}, or one character (a list's type-ahead: "G" jumps to the first option starting with G); ` +
                 `or a chord, modifiers joined by + (Ctrl, Alt, Shift, Meta or Cmd): Ctrl+A, Ctrl+Enter, Shift+Tab, Ctrl+K, Meta+K for a macOS page, Ctrl+Shift+P. ` +
                 "A key that types a character is refused while the focus is in a password field. For text, use browser_type.",
-            parameters: Type.Object({ key: Type.String(), accept_dialog: acceptDialog }),
+            parameters: obj({ key: str(), accept_dialog: acceptDialog }, { open: true }),
             execute: async (args, api, context) => act("browser_press", api, context, (browser, session) => browser.press(session, args.key, args.accept_dialog ?? false)),
         }),
         defineTool({
             name: "browser_back",
             description: "Go back a page in Pi's browser.",
-            parameters: Type.Object({}),
+            parameters: obj({}, { open: true }),
             execute: async (_args, api, context) => act("browser_back", api, context, (browser, session) => browser.history(session, -1)),
         }),
         defineTool({
             name: "browser_forward",
             description: "Go forward a page in Pi's browser.",
-            parameters: Type.Object({}),
+            parameters: obj({}, { open: true }),
             execute: async (_args, api, context) => act("browser_forward", api, context, (browser, session) => browser.history(session, 1)),
         }),
         defineTool({
             name: "browser_text",
             description: "Read all the text on the current page at once (an article, docs, a list, a table), its frames' too, without scrolling through it.",
-            parameters: Type.Object({}),
+            parameters: obj({}, { open: true }),
             replay: "safe",
             execute: async (_args, api, context) =>
                 act("browser_text", api, context, async (browser, session) => {
@@ -654,10 +651,10 @@ export default function createBrowser(host: PocketHost) {
                 "Run a JavaScript expression that reads the page in Pi's browser, such as computed styles (colours, fonts, spacing) or DOM queries, and get its value back as JSON (about 50 KB at most). " +
                 "It runs in a world of its own that shares the page's DOM but not its scripts, and only reads: no cookies, storage, network (fetch, XMLHttpRequest, WebSocket, sendBeacon), timers, listeners, workers or windows, and nothing it sets or calls changes the page (methods that only read, such as querySelectorAll, getComputedStyle, getPropertyValue, getAttribute and getBoundingClientRect, work). " +
                 "Password fields and what the person typed on a card read as empty. With await, a promise it gives is awaited; 10 seconds at most. Return plain data (strings, numbers, booleans, arrays and objects of them): a page's element comes back as {}.",
-            parameters: Type.Object({
-                expression: Type.String({ description: "A JavaScript expression, like [...document.querySelectorAll('h1,h2')].map(e => getComputedStyle(e).fontFamily)" }),
-                await: Type.Optional(Type.Boolean({ description: "Await the promise it gives (an async function called at once)" })),
-            }),
+            parameters: obj({
+                expression: str({ description: "A JavaScript expression, like [...document.querySelectorAll('h1,h2')].map(e => getComputedStyle(e).fontFamily)" }),
+                await: opt(bool({ description: "Await the promise it gives (an async function called at once)" })),
+            }, { open: true }),
             replay: "safe",
             execute: async (args, api, context) => {
                 if (!host.browserEval()) {
@@ -685,22 +682,17 @@ export default function createBrowser(host: PocketHost) {
             name: "browser_screenshot",
             description:
                 `See what is in view in Pi's browser as a picture (for models that take images). With path, also save it to a file where this session works (.png or .jpg), for documents (doc_image) or reports. With index, picture only the dialog, menu or list that control is in, or else the control. The picture is what is in view; with full_page, the whole page from its top, past the view (its first ${FULL_PAGE_MAX.toLocaleString("en")} CSS pixels at most; not on the phone's browser, whose pictures come from its display: scroll there), where marks and areas are in the page's coordinates. Pi's browser takes calls in the order they come: one made in the same batch as other browser calls (or a codemode script that uses the browser) may land between their steps, so take the picture after them. ${MARKS_NOTE} Each mark is on a control (index), on every place a text shows (text: for a secret that is not a control), or on an area of the view in CSS pixels; a control out of view or a text not shown is an error, never a picture with it left showing.`,
-            parameters: Type.Object({
-                path: Type.Optional(Type.String({ description: "Save it here too, ending in .png or .jpg: absolute or relative to this session's folder" })),
-                index: Type.Optional(Type.Integer({ minimum: 1, description: "A control: the picture is of the dialog, menu or list it is in, or of the control" })),
-                full_page: Type.Optional(Type.Boolean({ description: `The whole page from its top, past the view (${FULL_PAGE_MAX.toLocaleString("en")} CSS pixels at most)` })),
-                marks: Type.Optional(
-                    Type.Array(
-                        Type.Object({
-                            index: Type.Optional(Type.Integer({ minimum: 1, description: "A control, by its number" })),
-                            text: Type.Optional(Type.String({ minLength: 1, description: "A text on the page: every place it shows" })),
-                            area: Type.Optional(AREA),
+            parameters: obj({
+                path: opt(str({ description: "Save it here too, ending in .png or .jpg: absolute or relative to this session's folder" })),
+                index: opt(int({ minimum: 1, description: "A control: the picture is of the dialog, menu or list it is in, or of the control" })),
+                full_page: opt(bool({ description: `The whole page from its top, past the view (${FULL_PAGE_MAX.toLocaleString("en")} CSS pixels at most)` })),
+                marks: opt(arr(obj({
+                            index: opt(int({ minimum: 1, description: "A control, by its number" })),
+                            text: opt(str({ minLength: 1, description: "A text on the page: every place it shows" })),
+                            area: opt(AREA),
                             ...MARK_STYLE,
-                        }),
-                        { maxItems: 40, description: "Marks drawn on the picture" },
-                    ),
-                ),
-            }),
+                        }, { open: true }), { maxItems: 40, description: "Marks drawn on the picture" })),
+            }, { open: true }),
             replay: "safe",
             execute: async (args, api, context) => {
                 const owner = mayBrowse(api.conversationId);
@@ -772,10 +764,10 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_wait",
             description: "Wait for the page, then read it again: until a text shows on it (up to 30 seconds), or for some seconds (up to 10).",
-            parameters: Type.Object({
-                text: Type.Optional(Type.String({ description: "Text to wait for, like a result's title or \"Saved\"" })),
-                seconds: Type.Optional(Type.Number({ minimum: 0, maximum: 10 })),
-            }),
+            parameters: obj({
+                text: opt(str({ description: "Text to wait for, like a result's title or \"Saved\"" })),
+                seconds: opt(num({ minimum: 0, maximum: 10 })),
+            }, { open: true }),
             execute: async (args, api, context) =>
                 act("browser_wait", api, context, (browser, session) => browser.wait(session, { ...(args.text === undefined ? {} : { text: args.text }), ...(args.seconds === undefined ? {} : { seconds: args.seconds }) })),
         }),
@@ -787,16 +779,14 @@ export default function createBrowser(host: PocketHost) {
                 "Answers how it ended (done, or why it stopped: needs_value, blocked, stuck_loop, unverified_done, budget, decision_error), its steps, time and cost, and the page as it is. " +
                 "What each step sends: with Jev, OpenRouter (openrouter.ai) gets, with the owner's OpenRouter key, the goal, the values (a secret by its name only), the page's address, title and visible text, the controls in view with their values, and the recent steps; with this session's model, its provider gets the same. " +
                 "A run clicks and types without asking anyone, on a page that may be signed in, so a hostile page can steer it: never give it a goal that pays, sends, books or deletes.",
-            parameters: Type.Object({
-                goal: Type.String({ description: "One concrete goal, with everything it requires (\"Search one-way flights Zurich to London on 3 November, and stop when results show\")" }),
-                values: Type.Optional(
-                    Type.Record(Type.String(), Type.Union([Type.String(), Type.Object({ secret: Type.String({ description: "A saved secret's name: typed into the page (a password field too), never shown to you or the run model" }) })]), {
+            parameters: obj({
+                goal: str({ description: "One concrete goal, with everything it requires (\"Search one-way flights Zurich to London on 3 November, and stop when results show\")" }),
+                values: opt(record(union([str(), obj({ secret: str({ description: "A saved secret's name: typed into the page (a password field too), never shown to you or the run model" }) }, { open: true })]), {
                         description: "Texts it may type, by name: a text, or { secret: NAME } for one of the owner's saved secrets",
-                    }),
-                ),
-                url: Type.Optional(Type.String({ description: "An address to open first; without it, the run starts on the page open now" })),
-                max_steps: Type.Optional(Type.Integer({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
-            }),
+                    })),
+                url: opt(str({ description: "An address to open first; without it, the run starts on the page open now" })),
+                max_steps: opt(int({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 const session = Number(api.conversationId);
                 const owner = mayBrowse(api.conversationId);
@@ -872,10 +862,10 @@ export default function createBrowser(host: PocketHost) {
                 "Sign in on the page with the person's own username and password: they type them on a card (or use a sign-in kept in Secrets), and they go straight into the fields you name. You never see them. " +
                 "Use this for every sign-in and never ask for a password in the chat; whenever a page asks to sign in, call it right away (the card is how you ask; they can say Not now). " +
                 "Name the fields the page has now (a sign-in that asks for the username and the password on pages of their own: call it on each). Then submit the form yourself.",
-            parameters: Type.Object({
-                username: Type.Optional(Type.Integer({ minimum: 1, description: "The number of the username or email field, if the page has one" })),
-                password: Type.Optional(Type.Integer({ minimum: 1, description: "The number of the password field, if the page has one" })),
-            }),
+            parameters: obj({
+                username: opt(int({ minimum: 1, description: "The number of the username or email field, if the page has one" })),
+                password: opt(int({ minimum: 1, description: "The number of the password field, if the page has one" })),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 const session = Number(api.conversationId);
                 const owner = mayBrowse(api.conversationId);
@@ -915,10 +905,10 @@ export default function createBrowser(host: PocketHost) {
             name: "browser_ask_code",
             description:
                 "Ask the person for a one-time code (from a text message, an email, or an authenticator app), which goes straight into the field with this number. You never see it. Then submit it if the page does not on its own.",
-            parameters: Type.Object({
+            parameters: obj({
                 index,
-                prompt: Type.Optional(Type.String({ description: "What to tell the person, like \"Enter the 6-digit code texted to your phone\"" })),
-            }),
+                prompt: opt(str({ description: "What to tell the person, like \"Enter the 6-digit code texted to your phone\"" })),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 const session = Number(api.conversationId);
                 const owner = mayBrowse(api.conversationId);
@@ -957,7 +947,7 @@ export default function createBrowser(host: PocketHost) {
             name: "browser_ask_user",
             description:
                 "Ask the person to do something on the page themselves: a CAPTCHA, approving the sign-in on their phone, or anything else you cannot do. They take over Pi's browser, and you wait until they say it is done; then you get the page as it is.",
-            parameters: Type.Object({ instruction: Type.String({ description: "What they should do, in a sentence" }) }),
+            parameters: obj({ instruction: str({ description: "What they should do, in a sentence" }) }, { open: true }),
             execute: async (args, api, context) => {
                 const session = Number(api.conversationId);
                 const owner = mayBrowse(api.conversationId);
@@ -987,15 +977,13 @@ export default function createBrowser(host: PocketHost) {
                 "Unless it is pi-phone's own Chrome there, the owner approves on a card that shows the machine, the port, the browser's version and its profile (it carries that profile's sign-ins). " +
                 'This session owns the tabs it opens there (in the background) and the windows their pages open; the tabs already open stay the owner\'s, unless tabs is "all" (for a browser you started, such as Playwright\'s). ' +
                 "Then every browser_* tool, the panel, take over and the sign-in cards work on its tabs; browser_detach lets go and leaves it running.",
-            parameters: Type.Object({
-                machine: Type.String({ description: "The machine's name" }),
-                port: Type.Optional(Type.Integer({ minimum: 1, maximum: 65535, description: "Its DevTools port on the machine's 127.0.0.1" })),
-                devtools_active_port: Type.Optional(
-                    Type.String({ description: "Or the path of its DevToolsActivePort file on the machine (~/ is its home), in its profile folder: Chrome writes it when started with --remote-debugging-port=0" }),
-                ),
-                label: Type.Optional(Type.String({ maxLength: 60, description: 'What to call it in the panel ("Playwright")' })),
-                tabs: Type.Optional(Type.Union([Type.Literal("own"), Type.Literal("all")], { description: 'own (the default): only the tabs this session opens there; all: its open tabs too' })),
-            }),
+            parameters: obj({
+                machine: str({ description: "The machine's name" }),
+                port: opt(int({ minimum: 1, maximum: 65535, description: "Its DevTools port on the machine's 127.0.0.1" })),
+                devtools_active_port: opt(str({ description: "Or the path of its DevToolsActivePort file on the machine (~/ is its home), in its profile folder: Chrome writes it when started with --remote-debugging-port=0" })),
+                label: opt(str({ maxLength: 60, description: 'What to call it in the panel ("Playwright")' })),
+                tabs: opt(union([literal("own"), literal("all")], { description: 'own (the default): only the tabs this session opens there; all: its open tabs too' })),
+            }, { open: true }),
             execute: async (args, api, context) => {
                 const owner = mayBrowse(api.conversationId);
 
@@ -1040,7 +1028,7 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_detach",
             description: "Let go of the browser this session attached to (browser_attach): it runs on, with every tab; this session browses where it did before.",
-            parameters: Type.Object({}),
+            parameters: obj({}, { open: true }),
             execute: async (_args, api) => {
                 const owner = mayBrowse(api.conversationId);
 
@@ -1058,7 +1046,7 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_close",
             description: "Close this session's tabs in Pi's browser; its sign-ins stay for next time. The next browser_open starts it again.",
-            parameters: Type.Object({}),
+            parameters: obj({}, { open: true }),
             execute: async (_args, api, context) => {
                 const owner = mayBrowse(api.conversationId);
 

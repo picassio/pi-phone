@@ -10,7 +10,6 @@
  */
 import type { Context, JsonValue } from "@earendil-works/chord";
 import { LiveDoc, type ToolExecutionApi, type ToolRegistration } from "@earendil-works/pi-durable";
-import type { TSchema } from "@earendil-works/pi-ai";
 
 /** The tools that run in the batch's order with each other. */
 export const ORDERED_TOOLS: ReadonlySet<string> = new Set(["edit", "write", "bash"]);
@@ -28,7 +27,7 @@ export async function earlierInBatch(api: Pick<ToolExecutionApi, "snapshot" | "c
 }
 
 /** The tool, run after the earlier `edit`, `write` and `bash` calls of its batch. */
-export function inBatchOrder<P extends TSchema, D extends JsonValue>(tool: ToolRegistration<P, D>): ToolRegistration<P, D> {
+export function inBatchOrder<P extends object, D extends JsonValue>(tool: ToolRegistration<P, D>): ToolRegistration<P, D> {
     return {
         ...tool,
         execute: async (args, api, context) => {

@@ -8,7 +8,8 @@
  * A session on a machine runs every command there, so it is shared only with "Pi may use my machines and secrets for
  * their messages" on for that share. Only on the team server, and only for this pi-phone's own person.
  */
-import { Type } from "@earendil-works/pi-ai";
+import { bool, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -331,7 +332,7 @@ export default function createSharing(host: PocketHost, web: ExtensionWeb) {
     return defineExtension({
         name: "pocket-sharing",
         tools: [
-            tool("sessions_shared", "Sessions shared through the team server: which of yours are shared with whom (Can write or Can watch, and whether Pi may use your machines and secrets for their messages), and which teammates share with you.", Type.Object({}), async () => {
+            tool("sessions_shared", "Sessions shared through the team server: which of yours are shared with whom (Can write or Can watch, and whether Pi may use your machines and secrets for their messages), and which teammates share with you.", obj({}, { open: true }), async () => {
                 const state = sharingState(host).load();
                 const names = new Map(state.accounts.map((each) => [each.teammate, each.name]));
                 const yours = Object.entries(state.sessions).map(([id, shares]) => `- ${titled(Number(id))}: ${Object.entries(shares).map(([who, share]) => `${names.get(who) ?? who} ${share.level === "write" ? "can write" : "can watch"}${share.machines ? ", may use your machines and secrets" : ""}`).join("; ")}`);
@@ -342,14 +343,14 @@ export default function createSharing(host: PocketHost, web: ExtensionWeb) {
             tool(
                 "session_share",
                 "Share one of your sessions with a teammate on the team server (asks the person first): they open it in their browser, and either write (send messages and steer Pi, on your providers and money; they read files and changes, never the terminal, and only you allow calls) or watch. A session on a machine needs machines on.",
-                Type.Object({
-                    session: Type.Number({ description: "The session's number" }),
-                    teammate: Type.String({ description: "The teammate's name (or id)" }),
-                    level: Type.Union([Type.Literal("write"), Type.Literal("watch")]),
-                    machines: Type.Optional(Type.Boolean({ description: "Pi may use your machines and secrets for their messages (default off)" })),
-                    budget: Type.Optional(Type.Number({ description: "Their spend limit, dollars a month, for what they write" })),
-                    reason: Type.String(),
-                }),
+                obj({
+                    session: num({ description: "The session's number" }),
+                    teammate: str({ description: "The teammate's name (or id)" }),
+                    level: union([literal("write"), literal("watch")]),
+                    machines: opt(bool({ description: "Pi may use your machines and secrets for their messages (default off)" })),
+                    budget: opt(num({ description: "Their spend limit, dollars a month, for what they write" })),
+                    reason: str(),
+                }, { open: true }),
                 async (args: { session: number; teammate: string; level: Level; machines?: boolean; budget?: number; reason: string }, api, context) => {
                     const person = await teammate(args.teammate);
                     const answer = await host.approvals.request(
@@ -375,7 +376,7 @@ export default function createSharing(host: PocketHost, web: ExtensionWeb) {
                     return `Shared ${titled(args.session)} with ${person.name} (${args.level === "write" ? "can write" : "can watch"}). They find it under Shared with me.`;
                 },
             ),
-            tool("session_unshare", "Stop sharing one of your sessions with a teammate: their pages of it end at once.", Type.Object({ session: Type.Number(), teammate: Type.String({ description: "The teammate's name (or id)" }) }), async (args: { session: number; teammate: string }) => {
+            tool("session_unshare", "Stop sharing one of your sessions with a teammate: their pages of it end at once.", obj({ session: num(), teammate: str({ description: "The teammate's name (or id)" }) }, { open: true }), async (args: { session: number; teammate: string }) => {
                 const state = sharingState(host).load();
                 const given = args.teammate.trim().toLowerCase();
                 const who = Object.keys(state.sessions[String(args.session)] ?? {}).find((id) => id === args.teammate || state.accounts.find((each) => each.teammate === id)?.name.toLowerCase() === given);
