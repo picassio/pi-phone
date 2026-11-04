@@ -7743,14 +7743,17 @@ pre.diff .del {
     flex-direction: column;
 }
 
+/* Whole-pixel lines (PP-410): one line 40 px tall, a choice with its detail 56. */
 .choice-text > span:first-child {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    line-height: 20px;
 }
 
 .choice-detail {
     font-size: 12px;
+    line-height: 18px;
     color: var(--muted);
 }
 
@@ -8299,9 +8302,10 @@ pre.diff .del {
     font-weight: 500;
 }
 
+/* Muted, not faint: the account and its plan figures are what the rows are picked by (PP-410), words at 4.5:1. */
 .model-menu .pop-menu-row-sub {
     font: 12px / 16px var(--mono);
-    color: var(--faint);
+    color: var(--muted);
 }
 
 .model-menu .pop-menu-foot {

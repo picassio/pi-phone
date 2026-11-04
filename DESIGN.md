@@ -505,7 +505,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   work may go to it. The session's level caps a subagent's only while no thinking is set. The spawn's details carry
   model, thinking and why (asked, approved, own, all, session), which its line shows. `models` (read only) is
   `modelsReport`: by provider with its plan windows (`usage-limits.ts`, asked afresh), each model ready or why not,
-  context, highest thinking, price, and subagent marks. Menu › Subagents holds every session's two dropdowns and the
+  context, highest thinking, price, and subagent marks. Menu › Subagents holds every session's model (the session's
+  model picker, `pickModel`, PP-410: "As every session" for a session's own and "The session's own" first, their saved
+  values `inherit` and `session` as before; the sheet comes back after) and thinking (a dropdown), and the
   allowed list (rows with state and plan bar, `MultiChoice` to add several, X to take one off); Settings › Providers
   keeps a row to it. A subagent's view (`conversationInfo`) carries its own spend, `Spend.conversationSpent`, with no
   limit (PP-339, from pi-pocket 0.28.0): its session's spend and limit stay on the session's.
@@ -2386,7 +2388,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     plan figures (`usageLine`, and `usageReset` once a window is 90% used), search, favorites, scoped and all, and
     `entries` (`{ value, label, detail? }`) first; no thinking level, voice row, default footer or Providers link (the
     caller's sheet comes back when the picker goes, which would close Providers at once). It answers
-    `provider/id`, an entry's value, or null; it takes the sheet's place, so the caller opens its sheet again.
+    `provider/id`, an entry's value, or null; it takes the sheet's place, so the caller opens its sheet again. Callers:
+    Wiki settings' capture model (PP-409), Menu › Subagents' model, every session's and a session's own (PP-410).
   - Links: `/?page=<module>:<page>` opens an extension's page once its module is ready (`openPageWhenReady` in
     `extension-ui.js`: opened earlier, the module list would close it); `#task:PP-3` opens a task, from a link anywhere
     or the address (asked again until the sheet shows, as the linked page's opening closes sheets). For Pi's

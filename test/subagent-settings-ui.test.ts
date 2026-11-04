@@ -1,6 +1,7 @@
-// The subagents' model and thinking in a real browser (PP-281): Menu › Subagents sets every session's with the app's own
-// dropdowns, and the models Pi may also use are added several at once from a dropdown that ticks, and taken off one by
-// one; a session's own sheet sets its own over them. Nothing runs past a phone's screen or a desktop's.
+// The subagents' model and thinking in a real browser (PP-281): Menu › Subagents sets every session's model with the
+// session's model picker (PP-410: its own choices first, no thinking level there, the sheet back after) and its thinking
+// with the app's dropdown, and the models Pi may also use are added several at once from a dropdown that ticks, and
+// taken off one by one; a session's own sheet sets its own over them. Nothing runs past a phone's screen or a desktop's.
 import { type App, cleanUp, cleanUpAll, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
@@ -48,6 +49,36 @@ const outside = () =>
 
         return JSON.stringify(document.documentElement.scrollWidth > innerWidth + 1 ? [...out, "page scrolls sideways"] : out);
     `);
+
+/** The open model picker: its title, its rows (name, then its line), the row checked, and whether it has a thinking level. */
+const picker = () =>
+    inPage<{ title: string; rows: string[]; current: string; thinking: boolean }>(`
+        const menu = document.querySelector(".model-menu");
+        return JSON.stringify({
+            title: menu.getAttribute("aria-label"),
+            rows: [...menu.querySelectorAll(".pop-menu-row")].map((row) => row.querySelector(".pop-menu-row-name").textContent.trim()),
+            current: menu.querySelector('.pop-menu-row[aria-selected="true"] .pop-menu-row-name')?.textContent.trim() ?? "",
+            thinking: menu.querySelector(".model-levels") !== null,
+        });
+    `);
+
+/** Open the subagents' model in the model picker (PP-410), check what it offers first, pick `option`, and see the sheet back. */
+async function chooseModel(option: string, first: string[], current: string): Promise<void> {
+    await click('[data-part="subagent-model"] .choice');
+    await see(`return JSON.stringify(document.querySelector(".model-menu .pop-menu-row") !== null)`, "the model picker");
+
+    const open = await picker();
+
+    assert.equal(open.title, "Subagents' model");
+    assert.deepEqual(open.rows.slice(0, first.length), first, "the sheet's own choices first");
+    assert.equal(open.current, current, "the one chosen now is checked");
+    assert.ok(open.rows.includes(option), JSON.stringify(open.rows));
+    assert.equal(open.thinking, false, "the thinking level stays the sheet's");
+    assert.deepEqual(await outside(), []);
+    await shot(`subagents-picker-${first.length > 1 ? "own" : "every"}-${await inPage<number>("return JSON.stringify(innerWidth)")}`);
+    await page.evaluate(`[...document.querySelectorAll(".model-menu .pop-menu-row")].find((each) => each.querySelector(".pop-menu-row-name").textContent.trim() === ${JSON.stringify(option)}).click(); return "true";`);
+    await see(`return JSON.stringify(document.querySelector(".model-menu") === null && document.querySelector('[data-part="subagent-model"] .choice') !== null)`, "the sheet back");
+}
 
 /** Pick `option` (its text) in the Choice of the row `part`. */
 async function choose(part: string, option: string): Promise<void> {
@@ -97,8 +128,9 @@ test("Menu › Subagents: every session's model and thinking, and models added s
         ["The session's own", "The session's own"],
     );
 
-    await choose("subagent-model", "faux-2");
+    await chooseModel("faux-2", ["The session's own"], "The session's own");
     await until(() => app.config.subagentDefaults.model === "faux/faux-2", "every session's model");
+    await see(`return JSON.stringify(document.querySelector('[data-part="subagent-model"] .choice-text > span').textContent.trim() === "faux-2")`, "the sheet shows faux-2");
     await choose("subagent-thinking", "Low");
     await until(() => app.config.subagentDefaults.thinking === "low", "every session's thinking");
     assert.deepEqual(await outside(), []);
@@ -129,6 +161,9 @@ test("Menu › Subagents: every session's model and thinking, and models added s
     await page.setViewport(VIEWPORTS.desktop);
     assert.deepEqual(await outside(), []);
     await shot("subagents-sheet-1280");
+    // At a desktop's width too, and back to the session's own: the value it keeps is "session", as before.
+    await chooseModel("The session's own", ["The session's own"], "faux-2");
+    await until(() => app.config.subagentDefaults.model === undefined || app.config.subagentDefaults.model === "session", "every session's model: the session's own");
 });
 
 test("a session's own: As every session first, then its own model over every session's", real, async () => {
@@ -145,7 +180,7 @@ test("a session's own: As every session first, then its own model over every ses
     );
     assert.equal(await inPage<number>(`return JSON.stringify(document.querySelectorAll('[data-part="subagent-allowed"]').length)`), 0, "the list is every session's");
 
-    await choose("subagent-model", "faux-1");
+    await chooseModel("faux-1", ["As every session", "The session's own"], "As every session");
     await until(() => app.sessionMeta(id)?.subagentDefaults?.model === "faux/faux-1", "its own model");
     assert.equal(app.subagentDefaults(id).model, "faux/faux-1");
     assert.equal(app.subagentDefaults(id).thinking, app.config.subagentDefaults.thinking, "its thinking: every session's");

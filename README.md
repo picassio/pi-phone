@@ -50,7 +50,9 @@ No Termux, no laptop, no cloud VM.
   in that session. The session list marks a question "Pi asks you", and its scope Waits for you lists the sessions
   that wait for you. The phone notifies you as for any approval.
 - **Subagents on the model you pick.** Menu › Subagents sets the model and thinking level Pi starts subagents on, for
-  every session; a session's menu (Subagents' model) sets its own over that. Pi uses another only when you ask in the
+  every session; a session's menu (Subagents' model) sets its own over that. The model is picked as a session's is:
+  every account with its plan figures (an account near its limit with when it resets), search and favorites, with
+  *As every session* and *The session's own* first. Pi uses another only when you ask in the
   chat: from the models you allow there (added several at once, each shown with its context and plan limit), or after
   you allow it on a card. Pi's `models` tool lists the models that are ready, their limits and what is left. The spawn
   line says what each subagent runs on and why. Pi changes these on a card (`subagents.model`, `subagents.thinking`,

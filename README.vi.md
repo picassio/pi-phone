@@ -53,7 +53,9 @@ dự án thật.</sub>
   Danh sách phiên ghi "Pi hỏi bạn" cho một câu hỏi, và phạm vi Đang chờ bạn liệt kê các phiên đang chờ bạn. Điện
   thoại báo cho bạn như mọi yêu cầu duyệt.
 - **Subagent chạy trên mô hình bạn chọn.** Menu › Subagent đặt mô hình và mức suy nghĩ Pi dùng khi tạo subagent, cho mọi
-  phiên; menu của một phiên (Mô hình của subagent) đặt riêng cho phiên đó. Pi chỉ dùng mô hình khác khi bạn yêu cầu trong
+  phiên; menu của một phiên (Mô hình của subagent) đặt riêng cho phiên đó. Mô hình được chọn như chọn mô hình của phiên:
+  mọi tài khoản kèm mức dùng gói (tài khoản sắp chạm giới hạn kèm giờ reset), tìm kiếm và yêu thích, với *Như mọi phiên*
+  và *Của chính phiên* ở đầu. Pi chỉ dùng mô hình khác khi bạn yêu cầu trong
   chat: trong các mô hình bạn cho phép ở đó (thêm nhiều cái cùng lúc, mỗi cái hiện ngữ cảnh và hạn mức gói), hoặc sau khi
   bạn cho phép qua một thẻ. Công cụ `models` của Pi liệt kê các mô hình sẵn sàng, hạn mức và phần còn lại. Dòng tạo
   subagent ghi nó chạy trên gì và vì sao. Pi đổi được qua thẻ (`subagents.model`, `subagents.thinking`,

@@ -1,9 +1,11 @@
 // The model and thinking level Pi starts subagents on (PP-281): every session's (Menu › Subagents), with the models Pi
 // may also use when the person asks, each with its state and plan limit; and one session's own (from its menu), over
-// every session's. Pi changes the same choices on a card (subagents.model, subagents.sessionModel, …).
+// every session's. Pi changes the same choices on a card (subagents.model, subagents.sessionModel, …). The model is
+// picked with the session's model picker (PP-410, `pickModel`): every account with its plan figures.
 import { useEffect } from "preact/hooks";
 import { t } from "../i18n.js";
-import { api, attempt, closeSheet, loadUsage, store } from "../store.js";
+import { api, attempt, closeSheet, loadUsage, openSheet, store } from "../store.js";
+import { pickModel } from "./model.js";
 import { levelName } from "../subagents.js";
 import { usageLine, usagePeak } from "../usage.js";
 import { Choice, html, Icon, MultiChoice, Sheet } from "../ui.js";
@@ -45,9 +47,13 @@ export function subagentSummary(own) {
     return `${model === undefined ? t("the session's model") : nameOf(model)} · ${thinking === undefined ? t("its level") : levelName(thinking)}`;
 }
 
-/** The two dropdowns: model and thinking, with "As every session" first for one session's own. */
+/**
+ * Model and thinking, with "As every session" first for one session's own. The model opens the session's model picker
+ * (PP-410) with the same choices first ("As every session", "The session's own") and the same saved values; this sheet
+ * comes back after. Thinking stays this sheet's dropdown.
+ */
 function Parts({ own, set }) {
-    const { models, view } = store.state;
+    const { view } = store.state;
     const all = store.state.server?.subagentDefaults ?? {};
     const session = view.agent?.model;
     const sessionModel = session === undefined ? undefined : `${session.provider}/${session.modelId}`;
@@ -56,25 +62,45 @@ function Parts({ own, set }) {
     const inherit = (part, words) => (forOne ? [{ value: "inherit", label: t("As every session"), detail: words }] : []);
     const allModel = all.model === undefined ? t("The session's own") : nameOf(all.model);
     const allLevel = all.thinking === undefined ? t("The session's own") : levelName(all.thinking);
+    const modelValue = forOne ? (own.model ?? "inherit") : (all.model ?? "session");
+    // The choices before the models, as the dropdown had them: their values are what the settings keep.
+    const modelEntries = [
+        ...inherit("model", allModel),
+        {
+            value: "session",
+            label: t("The session's own"),
+            detail: forOne && sessionModel !== undefined ? nameOf(sessionModel) : t("whatever the session runs on"),
+        },
+    ];
+    const modelChoice = modelEntries.find((entry) => entry.value === modelValue);
+    const pickSubagentModel = async () => {
+        // This sheet as it is, to come back to: the picker takes its place.
+        const sheet = store.state.sheet;
+        const chosen = await pickModel({
+            title: t("Subagents' model"),
+            sub: forOne ? t("Subagents of this session") : t("Every session"),
+            value: modelValue,
+            entries: modelEntries,
+        });
+
+        if (chosen !== null && chosen !== modelValue) {
+            await set("model", chosen);
+        }
+
+        openSheet(sheet);
+    };
 
     return html`<div class="sam-parts">
         <div class="pp-row" data-part="subagent-model">
             <span>${t("Model")}</span>
             <div class="pp-choice">
-                <${Choice}
-                    label=${t("Subagents' model")}
-                    value=${forOne ? (own.model ?? "inherit") : (all.model ?? "session")}
-                    options=${[
-                        ...inherit("model", allModel),
-                        {
-                            value: "session",
-                            label: t("The session's own"),
-                            detail: forOne && sessionModel !== undefined ? nameOf(sessionModel) : t("whatever the session runs on"),
-                        },
-                        ...models.map((model) => ({ value: specOf(model), label: model.name, detail: factsOf(model) })),
-                    ]}
-                    onChange=${(value) => set("model", value)}
-                />
+                <button type="button" class="choice" aria-haspopup="dialog" aria-label=${t("Subagents' model")} onClick=${pickSubagentModel}>
+                    <span class="choice-text">
+                        <span>${modelChoice?.label ?? nameOf(modelValue)}</span>
+                        ${(modelChoice?.detail ?? (modelOf(modelValue) && factsOf(modelOf(modelValue)))) && html`<span class="choice-detail">${modelChoice?.detail ?? factsOf(modelOf(modelValue))}</span>`}
+                    </span>
+                    <${Icon} name="down" size=${16} />
+                </button>
             </div>
         </div>
         <div class="pp-row" data-part="subagent-thinking">
