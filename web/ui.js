@@ -1084,6 +1084,8 @@ const ICONS = {
     voice: "M4 10v4M8 6v12M12 3v18M16 6v12M20 10v4",
     speaker: "M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 010 6M19 6a8 8 0 010 12",
     micoff: "M3 3l18 18M9 9v3a3 3 0 005 2.2M15 10V6a3 3 0 00-5.6-1.5M19 11a7 7 0 01-11.6 5.2M12 18v3",
+    // The message box's / button (PP-383): a slash, as typed before a command.
+    slash: "M15 4L9 20",
     clip: "M21 11.5l-8.6 8.6a5 5 0 01-7.1-7.1l8.6-8.6a3.3 3.3 0 014.7 4.7l-8.6 8.6a1.7 1.7 0 01-2.4-2.4l7.9-7.9",
     plus: "M12 5v14M5 12h14",
     artifact: "M4 5h16v14H4zM4 9h16M8 5v4",

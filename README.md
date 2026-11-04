@@ -735,7 +735,9 @@ card on the session list (and the home screen on a wide screen) offers a tour of
 - **Talk to Pi** by typing or with the microphone (dictation). Enter sends and Shift+Enter makes a new line on a computer,
   and on a phone or tablet with a physical keyboard (Bluetooth), where Ctrl+Enter or Alt+Enter make a new line too (for
   input methods such as Sogou, which keep Shift); the on-screen keyboard's Enter makes a new line, and the send button
-  sends. Attach files and photos with the paperclip. **Plan**
+  sends. Attach files and photos with the paperclip. The **/** button beside it opens the command list without typing
+  `/`: type to filter it, and a pick goes into the box with the caret after it, ready for its arguments or Send (a draft
+  already there stays after it). **Plan**
   makes Pi read and plan first, changing nothing until you approve. While Pi works, a message can **Steer** (read between steps),
   **Queue** (after the run), or **Interrupt** (stop the run now, its tool call too, then send). A message of yours that
   waits in the queue has **Edit**: it takes it back into the message box with its files, to change and send again.

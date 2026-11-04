@@ -113,6 +113,7 @@
     "· prompt template · Pi gets it filled in": "· 提示模板 · Pi 会收到填好的内容",
     "Remove {name}": "移除 {name}",
     "Attach files": "添加附件",
+    "Commands (/)": "命令（/）",
     "Model and thinking: {model}, {level}": "模型与思考：{model}，{level}",
     "Model and thinking: {model}": "模型与思考：{model}",
     "Plan mode: Pi reads and proposes, and changes nothing until you approve": "计划模式：Pi 只阅读并提出方案，在你批准前不做任何更改",

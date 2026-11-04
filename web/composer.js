@@ -497,6 +497,9 @@ export function Composer() {
     // Slash command suggestions: the highlighted one, and whether Escape hid the list.
     const [pick, setPick] = useState(0);
     const [hideCommands, setHideCommands] = useState(false);
+    // The list the / button opened (PP-383): a pick goes into the box, never runs, and the name typed is read up to the
+    // caret, so a draft after it stays.
+    const [byButton, setByButton] = useState(false);
     // File mentions: where the caret is, and the mention Escape hid (by where it starts).
     const [caret, setCaret] = useState(() => drafts.get(conversationId).length);
     const [hiddenMention, setHiddenMention] = useState(null);
@@ -562,6 +565,7 @@ export function Composer() {
         setPastes(loadPastes(conversationId));
         setBrowsing(null);
         setSearching(false);
+        setByButton(false);
     }, [conversationId]);
     // A session opens with the caret in its message box, ready to type: not on a touch screen, where the keyboard would
     // come up over the conversation, nor after an Alt shortcut on an Apple keyboard (`openingByAlt`), nor while another
@@ -637,6 +641,10 @@ export function Composer() {
             setHideCommands(false);
         }
 
+        if (!value.startsWith("/")) {
+            setByButton(false);
+        }
+
         if (value.startsWith("/")) {
             loadTemplates();
         }
@@ -648,7 +656,9 @@ export function Composer() {
     // Ctrl+R: what was sent before that has the words in the box.
     const recalled = searching ? searchHistory(text, historyScope) : [];
     const chosenRecall = recalled[Math.min(pick, recalled.length - 1)];
-    const suggestions = hideCommands || searching ? [] : suggestCommands(text);
+    // The command name typed: the whole box, or, in the / button's list, the box's start up to the caret.
+    const commandText = byButton ? commandAt(text, caret) : text;
+    const suggestions = hideCommands || searching ? [] : suggestCommands(commandText);
     const chosen = suggestions[Math.min(pick, suggestions.length - 1)];
     const parsed = parseCommand(text);
     const template = parsed ? null : parseTemplate(text);
@@ -760,9 +770,22 @@ export function Composer() {
         });
     };
 
-    /** A tapped suggestion: commands that take text, and prompt templates, fill the box; the others run at once. */
+    /**
+     * A tapped suggestion: commands that take text, and prompt templates, fill the box; the others run at once. From the
+     * / button's list every one fills the box, before the draft that was there, with the caret after its name.
+     */
     const choose = (command) => {
-        if (command.args || command.template) {
+        if (byButton) {
+            const written = `/${command.name} `;
+            const rest = text.slice(commandText.length).replace(/^\s+/, "");
+
+            setByButton(false);
+            update(`${written}${rest}`, written.length);
+            requestAnimationFrame(() => {
+                box.current?.focus();
+                box.current?.setSelectionRange(written.length, written.length);
+            });
+        } else if (command.args || command.template) {
             update(`/${command.name} `);
             focusEnd();
         } else if (store.state.replyQuote) {
@@ -770,6 +793,34 @@ export function Composer() {
         } else {
             runCommand({ command, arg: "" }, `/${command.name}`);
         }
+    };
+
+    /**
+     * The / button (PP-383, GitHub #6): the command list without typing "/". An empty box gets a "/"; a draft gets one in
+     * front of it; a command name already at the start keeps it, with the caret after it. Typing filters the list. A tap
+     * while the list shows closes it.
+     */
+    const openCommands = () => {
+        const element = box.current;
+
+        element?.focus();
+
+        if (suggestions.length > 0) {
+            setHideCommands(true);
+            setByButton(false);
+
+            return;
+        }
+
+        const head = /^\/[\w:-]*(?=\s|$)/.exec(text)?.[0];
+        const value = head !== undefined ? text : text.trim() === "" ? "/" : `/ ${text}`;
+        const at = head?.length ?? 1;
+
+        setSearching(false);
+        update(value, at);
+        setByButton(true);
+        setHideCommands(false);
+        requestAnimationFrame(() => box.current?.setSelectionRange(at, at));
     };
 
     const forget = (list) => {
@@ -1083,6 +1134,7 @@ export function Composer() {
             if (event.key === "Escape") {
                 event.preventDefault();
                 setHideCommands(true);
+                setByButton(false);
 
                 return;
             }
@@ -1570,6 +1622,17 @@ export function Composer() {
                             }}
                         />
                         <button
+                            class=${`icon-button slash-button ${suggestions.length > 0 ? "on" : ""}`}
+                            data-part="composer-button"
+                            aria-label=${t("Commands")}
+                            aria-expanded=${suggestions.length > 0 ? "true" : "false"}
+                            title=${t("Commands (/)")}
+                            onMouseDown=${(event) => event.preventDefault()}
+                            onClick=${openCommands}
+                        >
+                            <${Icon} name="slash" size=${16} />
+                        </button>
+                        <button
                             class=${`model-chip ${agent?.available === false ? "warn" : ""}`}
                             data-part="model-chip"
                             aria-label=${level ? t("Model: {model}, thinking {level}", { model: modelLabel(agent), level }) : t("Model: {model}", { model: modelLabel(agent) })}
@@ -1663,6 +1726,20 @@ export function Composer() {
         }
         <${StatusLine} />
     </footer>`;
+}
+
+/**
+ * The command name typed in the / button's list (PP-383): the whole box ("/co"), or its start up to the caret when a
+ * draft follows ("/co| fix the bug"); "" when the caret is past the name.
+ */
+export function commandAt(text, caret) {
+    if (/^\/[\w:-]*$/.test(text)) {
+        return text;
+    }
+
+    const head = text.slice(0, caret);
+
+    return /^\/[\w:-]*$/.test(head) && /^\s/.test(text.slice(caret)) ? head : "";
 }
 
 /**

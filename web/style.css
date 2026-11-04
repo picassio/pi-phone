@@ -5083,11 +5083,16 @@ pre.diff .del {
     }
 }
 
-.composer-row .attach-button {
+.composer-row :is(.attach-button, .slash-button) {
     width: 32px;
     height: 32px;
     border-radius: var(--r-control);
     color: var(--muted);
+}
+
+/* The / button (PP-383): in the accent while its command list shows. */
+.composer-row .slash-button.on {
+    color: var(--accent);
 }
 
 /* The model and its thinking level: opens the model menu. */
@@ -5172,7 +5177,7 @@ pre.diff .del {
 /* At 320 px (an iPhone SE), Steer, Queue, and Interrupt would push Stop out of the box: while Pi works, Attach goes and
  * the three get closer. Attach comes back when Pi stops. */
 @container composer (max-width: 320px) {
-    .composer.busy .composer-row .attach-button {
+    .composer.busy .composer-row :is(.attach-button, .slash-button) {
         display: none;
     }
 
@@ -16245,7 +16250,7 @@ textarea.notes {
     .search .icon-button.small::before {
         content: none;
     }
-    .composer-row .attach-button {
+    .composer-row :is(.attach-button, .slash-button) {
         width: 32px;
         height: 36px;
     }
@@ -16263,6 +16268,7 @@ textarea.notes {
         :is(
             .places-button,
             .attach-button,
+            .slash-button,
             .model-chip,
             .plan-chip,
             .composer-mic,
@@ -16276,6 +16282,7 @@ textarea.notes {
         :is(
             .places-button,
             .attach-button,
+            .slash-button,
             .model-chip,
             .plan-chip,
             .composer-mic,
@@ -16293,7 +16300,7 @@ textarea.notes {
     }
     /* Where the row has room, the icon buttons are as wide as a thumb's tap (their look is the icon alone). */
     @container composer (min-width: 360px) {
-        .composer-row :is(.places-button, .attach-button, .composer-mic) {
+        .composer-row :is(.places-button, .attach-button, .slash-button, .composer-mic) {
             width: 36px;
         }
     }

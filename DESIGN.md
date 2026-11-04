@@ -2338,6 +2338,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   while it is read. The rail's Sessions button counts what needs you. `sessions.listOpens` (a person's: last, all,
   priority; Appearance; tabs hear `list-opens`) picks the scope the list opens on, once per page load. Not taken:
   pocket's "Show N more" cut of Needs you, the call opening in place with keyboard focus, and the theme-surface parts.
+- **The / button** (PP-383, GitHub #6): `.slash-button` (icon `slash`) right of Attach opens the composer's own command
+  list, the one typing `/` opens (`suggestCommands`), so it scrolls and filters the same way. An empty box gets a `/`, a
+  draft gets `/ ` in front of it, a command name already at the start keeps it; the caret goes after the name. While
+  `byButton` holds, the name is read up to the caret (`commandAt`), so the draft after it does not stop the list, and a
+  pick (tap, Tab or Enter) always fills the box with `/<name> ` before the draft, caret after it, never running a
+  command that takes nothing (typed `/`, such a pick runs at once, as before). A tap while the list shows closes it; on
+  a 320 px box it hides with Attach while Pi works. Test: `test/composer-focus-ui.test.ts`.
 
 ## 5. Build
 

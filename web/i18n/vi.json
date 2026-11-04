@@ -370,6 +370,7 @@
     "· prompt template · Pi gets it filled in": "· mẫu prompt · Pi nhận bản đã điền",
     "Remove {name}": "Gỡ {name}",
     "Attach files": "Đính kèm tệp",
+    "Commands (/)": "Lệnh (/)",
     "Model: {model}, thinking {level}": "Mô hình: {model}, suy nghĩ {level}",
     "Model: {model}": "Mô hình: {model}",
     "Model: {model}: change it": "Mô hình: {model}: đổi",

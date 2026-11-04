@@ -1,6 +1,6 @@
 import { type App, cleanUp, cleanUpAll, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -16,6 +16,8 @@ const real = {
     skip: chromium === undefined ? "no Chromium-based browser on this machine" : false,
 } as const;
 const BOX = ".composer textarea";
+// With PHONE_SHOTS set to a folder, screenshots at 390 and 1280 px go there.
+const SHOTS = process.env.PHONE_SHOTS;
 let app: App;
 let server: Server;
 let browsers: Browsers;
@@ -26,6 +28,16 @@ let two: ConversationId;
 
 async function inPage<T>(script: string): Promise<T> {
     return JSON.parse(await page.evaluate(script)) as T;
+}
+
+async function shot(name: string): Promise<void> {
+    if (SHOTS === undefined) {
+        return;
+    }
+
+    mkdirSync(SHOTS, { recursive: true });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    writeFileSync(join(SHOTS, `${name}.jpg`), Buffer.from((await page.screenshot()).data, "base64"));
 }
 
 const boxFocused = () =>
@@ -250,4 +262,87 @@ test("at 320 px wide, Stop stays inside the message box while Pi works", real, a
     }
 
     await page.type({ selector: BOX }, "");
+});
+
+const SLASH = ".composer .slash-button";
+/** The message box's text, where its caret is, and whether it has the focus. */
+const boxState = () =>
+    inPage<{ value: string; caret: number; focused: boolean }>(`
+        const box = document.querySelector(${JSON.stringify(BOX)});
+        return JSON.stringify({ value: box.value, caret: box.selectionStart, focused: document.activeElement === box });
+    `);
+/** The command list's names, as shown. */
+const commandNames = () =>
+    inPage<string[]>(
+        `return JSON.stringify([...document.querySelectorAll('.commands:not(.file-options):not(.history-options) [role="option"] .command-name')].map((each) => each.textContent.trim()))`,
+    );
+
+async function boxIs(want: { value: string; caret: number; focused: boolean }, what: string): Promise<void> {
+    await until(async () => JSON.stringify(await boxState()) === JSON.stringify(want), what);
+}
+
+// GitHub #6 (PP-383): the command list without typing "/".
+test("the / button beside Attach opens the command list, and a pick waits in the box for its arguments", real, async () => {
+    for (const [size, viewport] of [
+        ["390", VIEWPORTS.mobile],
+        ["1280", VIEWPORTS.desktop],
+    ] as const) {
+        await home(viewport);
+        await page.navigate(`${base}/s/${Number(one)}`);
+        await opened(one);
+        await page.type({ selector: BOX }, "");
+
+        // Right of Attach, as an icon button of the row.
+        const placed = await inPage<{ gap: number; top: number; label: string; icon: boolean }>(`
+            const attach = document.querySelector(".composer .attach-button").getBoundingClientRect();
+            const slash = document.querySelector(${JSON.stringify(SLASH)});
+            const at = slash.getBoundingClientRect();
+            return JSON.stringify({
+                gap: Math.round(at.left - attach.right),
+                top: Math.round(at.top - attach.top),
+                label: slash.getAttribute("aria-label"),
+                icon: slash.querySelector("svg") !== null,
+            });
+        `);
+
+        assert.ok(placed.gap >= 0 && placed.gap <= 8, `right after Attach: ${JSON.stringify(placed)}`);
+        assert.equal(placed.top, 0);
+        assert.equal(placed.label, "Commands");
+        assert.ok(placed.icon);
+
+        // An empty box: the whole list, scrolling, and the caret after the "/" to filter it.
+        await page.click({ selector: SLASH });
+        await until(async () => (await commandNames()).length > 10, "the whole list");
+        await boxIs({ value: "/", caret: 1, focused: true }, "a / in the box");
+        assert.equal(
+            await inPage<string>(`return JSON.stringify(getComputedStyle(document.querySelector(".commands")).overflowY)`),
+            "auto",
+        );
+        await shot(`composer-commands-${size}`);
+
+        // Typing filters it; a command that takes nothing goes into the box too, not run.
+        await page.type(undefined, "expo", { append: true });
+        await until(async () => (await commandNames()).join() === "/export", "only /export");
+        await page.click({ selector: '.commands [role="option"]' });
+        await boxIs({ value: "/export ", caret: 8, focused: true }, "/export in the box");
+        assert.deepEqual(await commandNames(), [], "the list closes");
+
+        // A draft stays, after the command picked with Tab.
+        await page.type({ selector: BOX }, "keep the tests");
+        await page.click({ selector: SLASH });
+        await boxIs({ value: "/ keep the tests", caret: 1, focused: true }, "a / before the draft");
+        await until(async () => (await commandNames()).length > 10, "the list before a draft");
+        await page.type(undefined, "compa", { append: true });
+        await until(async () => (await commandNames())[0] === "/compact", "/compact first");
+        await page.press("Tab");
+        await boxIs({ value: "/compact keep the tests", caret: 9, focused: true }, "/compact before the draft");
+
+        // A tap while it shows closes it.
+        await page.type({ selector: BOX }, "");
+        await page.click({ selector: SLASH });
+        await until(async () => (await commandNames()).length > 0, "the list");
+        await page.click({ selector: SLASH });
+        await until(async () => (await commandNames()).length === 0, "closed");
+        await page.type({ selector: BOX }, "");
+    }
 });
