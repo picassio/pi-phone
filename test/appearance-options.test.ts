@@ -52,3 +52,38 @@ test("Reply to a passage: on until turned off, by Appearance or by Pi's setting,
         app.detach(theirs.client);
     }
 });
+
+// GitHub #7 (PP-384): the message box's mic, hidden until the person turns it on in Menu › Dictation or Pi does.
+test("The mic button: hidden until turned on, by Menu › Dictation or by Pi's dictation.micButton, for that person only", async () => {
+    const me = owner(app);
+    const guest = app.config.addUser("Guest two", "guest").user;
+    const mine = fakeTab(undefined, me);
+    const setting = appSettings(app).settings.find((each) => each.id === "dictation.micButton")!;
+    const micOf = (data: unknown) => (data as { appearance: { micButton: boolean } }).appearance.micButton;
+
+    await app.attach(mine.client);
+
+    try {
+        assert.equal((await app.hello(me)).user.appearance.micButton, false, "hidden until turned on");
+        assert.equal(setting.area, "dictation");
+        assert.equal(setting.target, "person");
+        assert.deepEqual(setting.choices?.(), ["on", "off"]);
+        assert.equal(await setting.read(me.name), "off");
+
+        // Pi's setting, after the owner's card.
+        await setting.apply(me, "on", me.name);
+        assert.equal(await setting.read(me.name), "on");
+        assert.equal(app.config.userById(me.id)?.appearance?.micButton, true);
+        assert.equal(micOf(mine.last("appearance")), true, "their tabs show it");
+        assert.equal((await app.hello(me)).user.appearance.micButton, true);
+        assert.equal((await app.hello(guest)).user.appearance.micButton, false, "another person keeps theirs");
+
+        // Menu › Dictation's switch.
+        app.setAppearance(me, "micButton", false);
+        assert.equal(await setting.read(me.name), "off");
+        assert.equal(micOf(mine.last("appearance")), false);
+        assert.throws(() => setting.apply(me, "hidden", me.name), { status: 400 });
+    } finally {
+        app.detach(mine.client);
+    }
+});

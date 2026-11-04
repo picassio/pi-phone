@@ -219,6 +219,8 @@ test("Codex dictation: Settings › Dictation picks it; the mic opens a transcri
 
     const id = await newSession(app);
 
+    // The message box's mic is hidden until turned on in Menu › Dictation (PP-384).
+    app.setAppearance(owner(app), "micButton", true);
     await cdp.send("Page.navigate", { url: `${base}/s/${id}` });
     await until(async () => (await inPage<boolean>(`document.querySelector(".composer-mic") !== null`).catch(() => false)), "the mic", 20_000);
     await inPage(`document.querySelector(".composer-mic").click()`);

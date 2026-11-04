@@ -571,8 +571,11 @@ No Termux, no laptop, no cloud VM.
   all your others at once. A **recovery code** (break glass), made in People in the phone's app only and kept off the phone, signs a
   browser in as you once if no device can; the phone notifies you when it is used. Pi lists devices too (`devices`), and signs one or
   all out (`device_sign_out`, `sign_out_everywhere`) after you say yes on a card.
-- **Dictation** with Android's speech recognizer, in the language you choose.
-- **Voice calls with Pi** on your ChatGPT (Codex) sign-in: the waveform button beside the mic starts a call in the
+- **Dictation** with Android's speech recognizer, in the language you choose. The mic beside Send is off by default
+  (your keyboard's own voice input works too, and the box's buttons keep the room): turn on **Mic button in the message
+  box** in Menu › Dictation, for you on every device. Alt+V dictates either way. Pi can turn it on or off
+  (`dictation.micButton`).
+- **Voice calls with Pi** on your ChatGPT (Codex) sign-in: the waveform button beside Send starts a call in the
   session, full screen on a phone and a panel at the right on a wide screen. In "Pi works" (the default) the voice
   talks and hands real work to the session's Pi, then tells you Pi's answer; "Chat only" just chats; "Pi thinks" sends
   what you say to Pi as it is and reads Pi's words out as written, with the live model's voice or your device's own
@@ -732,7 +735,8 @@ card on the session list (and the home screen on a wide screen) offers a tour of
 - **Start a session:** **+ New** in the session list, then pick a folder on the phone or on a machine; inside a
   session the picker opens in that session's folder, and the launcher's **New session here** starts one there at once.
   The model menu under the message box picks the model and how hard it thinks.
-- **Talk to Pi** by typing or with the microphone (dictation). Enter sends and Shift+Enter makes a new line on a computer,
+- **Talk to Pi** by typing or with the microphone (dictation: its button is off until you turn it on in Menu ›
+  Dictation). Enter sends and Shift+Enter makes a new line on a computer,
   and on a phone or tablet with a physical keyboard (Bluetooth), where Ctrl+Enter or Alt+Enter make a new line too (for
   input methods such as Sogou, which keep Shift); the on-screen keyboard's Enter makes a new line, and the send button
   sends. Attach files and photos with the paperclip. The **/** button beside it opens the command list without typing
@@ -793,6 +797,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Notifications, screen off, backup | **This phone** | Yes for making a backup. Restoring one is yours |
 | The app's language (Auto, English, 简体中文, Tiếng Việt) | **Appearance › Language**, kept with you on every device | "Switch my app to Chinese", "Switch my app to Vietnamese" |
 | Appearance, dictation language | **Appearance** and **Dictation**, per browser tab | Only the theme new browsers start with ("make lantern the default theme") |
+| The mic button in the message box (off by default) | **Dictation**, kept with you on every device | "Show the mic button in my message box" |
 | The side key's assistant | **Assistant**: where your words go, whether they wait for Send, whether the app you were in is noted | "Make the assistant send by itself". Picking pi as the phone's assistant is yours, in Android's settings |
 | Voice calls and Codex dictation | **Voice** (and **Dictation**'s engine): live and dictation model, voice, language, noise reduction, how soon hands-free answers, who thinks, turn-taking, progress, reader, daily minutes; a session's voice mode in its model menu | "Use gpt-realtime-mini for voice", "Let Codex listen to the mic", "Check the voice models", "I'm on speakerphone in a noisy room", "Let me tap to talk", "Mute the mic after 10 quiet seconds", "Only hear me when I talk loud and close". Models, voice and language are checked with OpenAI first |
 | App updates | **Check for app updates**. New builds also offer themselves in an update sheet. Tap **Install** | No |

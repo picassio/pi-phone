@@ -891,6 +891,18 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 return app.setDictationLanguage(person(target), value.trim());
             },
         },
+        // Kept with the person's appearance options (`User.appearance`): their tabs follow, on every device (PP-384).
+        {
+            id: "dictation.micButton",
+            area: "dictation",
+            title: "The mic button in the message box, for one person",
+            help: "off (the default) or on. On shows the dictation mic beside Send on all their devices; off leaves its room to the message box's buttons, and Alt+V still dictates. Target: the person's name. Menu › Dictation sets it too.",
+            owner: true,
+            target: "person",
+            read: (target) => (app.appearanceOf(person(target)).micButton ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (_user, value, target) => app.setAppearance(person(target), "micButton", onOff(value)),
+        },
         // ─── Onboarding (PP-234) ───
         {
             id: "onboarding.welcome",

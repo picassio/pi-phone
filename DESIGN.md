@@ -119,7 +119,8 @@ phone's Tailscale address (100.64.0.0/10, from the Tailscale app's VPN), with th
 listens, `app.access` is that URL, so invite links point there.
 
 Dictation came back on 2026-10-18 (the owner's decision): pi-pocket's `web/voice.js` (mic beside Send, words as they are
-heard, Alt+V) as it was. WebView has no Web Speech API, so inside the app `web/android-speech.js` stands in
+heard, Alt+V) as it was. Since PP-384 the mic beside Send is off until a person turns it on in Menu › Dictation (see
+Appearance options per person); Alt+V dictates either way. WebView has no Web Speech API, so inside the app `web/android-speech.js` stands in
 `SpeechRecognition` on Android's own `SpeechRecognizer` (`Dictation.java`, bridge methods `dictationAvailable`,
 `startDictation(lang)`, `stopDictation`, `abortDictation`; events back to `window.__piPhoneSpeech`). Android hears one
 utterance per start; the stand-in starts the next one itself while dictating continuously, keeps every result, and ends
@@ -1637,7 +1638,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   (`User.appearance`, `APPEARANCE_DEFAULTS` in `config.ts`): `hello`'s `user.appearance` has every option with its
   default filled in, `POST /api/me {appearance: {option, on}}` (Appearance's switch) and the settings
   `appearance.<option>` (target: the person) call `app.setAppearance`, and the person's tabs hear `appearance`. So far:
-  `quoteReply` (on).
+  `quoteReply` (on), and `micButton` (off; PP-384, GitHub #7): the message box's dictation mic, a switch in Menu ›
+  Dictation and Pi's `dictation.micButton` (area dictation, where people look for it; same store). Off by default (the
+  owner, 2026-11-04: keyboards have voice input of their own), and the web treats a missing value as off (`=== true`).
+  Off, the composer leaves `MicButton` out (the row's model chip gets the room; on a phone while Pi works Send stays, as with no
+  recognizer); it still shows while dictation listens (Alt+V), so it can be stopped.
 - **Profile pictures** (PP-353, pi-pocket #205 and its follow-up cf0bd65): `avatars.ts` keeps one file per person in
   the app's data folder (`avatars/<id>`, PNG, JPEG, WebP or GIF by its bytes, 512 KB at most); `User.avatar` is the
   time it was set, a version in the picture's address (`api/avatar/<id>?v=`, cached for good, only for someone who may

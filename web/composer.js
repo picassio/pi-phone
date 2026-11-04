@@ -1699,11 +1699,15 @@ export function Composer() {
                                 )}
                             </div>`
                         }
-                        <${MicButton}
-                            dictation=${dictation}
-                            class="composer-mic"
-                            part="composer-button"
-                        />
+                        ${
+                            // Hidden until turned on in Menu › Dictation (PP-384); shown while it listens (Alt+V), to stop it.
+                            (me?.appearance?.micButton === true || dictation.listening) &&
+                            html`<${MicButton}
+                                dictation=${dictation}
+                                class="composer-mic"
+                                part="composer-button"
+                            />`
+                        }
                         <${VoiceButton} session=${store.state.conversationId} />
                         <button
                             class=${`send-button ${canSend ? "ready" : ""}`}

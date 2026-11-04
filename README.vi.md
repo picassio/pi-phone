@@ -589,8 +589,11 @@ dự án thật.</sub>
   cấp), chỉ tạo được trong Mọi người của ứng dụng trên điện thoại và cất ngoài điện thoại, đăng nhập một trình duyệt là bạn
   một lần khi không thiết bị nào làm được; điện thoại sẽ báo khi mã được dùng. Pi cũng liệt kê thiết bị (`devices`), và
   đăng xuất một hoặc tất cả (`device_sign_out`, `sign_out_everywhere`) sau khi bạn đồng ý trên một thẻ.
-- **Nhập bằng giọng nói** với trình nhận dạng giọng nói của Android, bằng ngôn ngữ bạn chọn.
-- **Gọi thoại với Pi** bằng đăng nhập ChatGPT (Codex) của bạn: nút sóng âm cạnh micro bắt đầu cuộc gọi trong phiên,
+- **Nhập bằng giọng nói** với trình nhận dạng giọng nói của Android, bằng ngôn ngữ bạn chọn. Micrô cạnh nút Gửi
+  mặc định tắt (nhập giọng nói của bàn phím cũng dùng được, và các nút của ô nhập giữ chỗ): bật **Nút micrô trong ô nhập**
+  ở Menu › Nhập giọng nói, cho bạn trên mọi thiết bị. Alt+V luôn nhập giọng nói được. Pi có thể bật hoặc tắt nó
+  (`dictation.micButton`).
+- **Gọi thoại với Pi** bằng đăng nhập ChatGPT (Codex) của bạn: nút sóng âm cạnh nút Gửi bắt đầu cuộc gọi trong phiên,
   toàn màn hình trên điện thoại và là một khung bên phải trên màn hình rộng. Ở “Pi làm việc” (mặc định), giọng nói
   trò chuyện và giao việc thật cho Pi của phiên, rồi nói cho bạn câu trả lời của Pi; “Chỉ trò chuyện” chỉ trò chuyện; “Pi
   suy nghĩ” gửi nguyên văn điều bạn nói cho Pi và đọc nguyên văn lời của Pi, bằng giọng của mô hình trực tiếp hoặc giọng
@@ -760,7 +763,8 @@ mới** trên danh sách phiên (và màn hình chính khi màn hình rộng) m�
 - **Bắt đầu một phiên:** **+ Mới** trong danh sách phiên, rồi chọn một thư mục trên điện thoại hoặc trên một máy; trong
   một phiên, bộ chọn mở ngay thư mục của phiên đó, và **Phiên mới tại đây** của trình khởi chạy mở một phiên ở đó ngay
   lập tức. Menu mô hình dưới ô nhập chọn mô hình và mức suy nghĩ.
-- **Nói với Pi** bằng cách gõ hoặc bằng micro (nhập giọng nói). Trên máy tính, Enter để gửi và Shift+Enter để xuống
+- **Nói với Pi** bằng cách gõ hoặc bằng micro (nhập giọng nói: nút micrô tắt cho đến khi bạn bật nó ở Menu ›
+  Nhập giọng nói). Trên máy tính, Enter để gửi và Shift+Enter để xuống
   dòng, trên điện thoại hoặc máy tính bảng có bàn phím vật lý (Bluetooth) cũng vậy, ở đó Ctrl+Enter hoặc Alt+Enter cũng
   xuống dòng (cho các bộ gõ như Sogou vốn giữ phím Shift); Enter của bàn phím ảo để xuống dòng, và nút gửi để gửi. Đính
   kèm tệp và ảnh bằng nút kẹp giấy. Nút **/** cạnh nó mở danh sách lệnh mà không cần gõ `/`: gõ tiếp để lọc, và lệnh
@@ -820,6 +824,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Thông báo, tắt màn hình, sao lưu | **Điện thoại này** | Có với việc tạo bản sao lưu. Khôi phục là việc của bạn |
 | Ngôn ngữ ứng dụng (Tự động, English, 简体中文, Tiếng Việt) | **Giao diện › Ngôn ngữ**, giữ theo bạn trên mọi thiết bị | “Đổi ứng dụng sang tiếng Việt”, “Đổi ứng dụng sang tiếng Trung” |
 | Giao diện, ngôn ngữ nhập giọng nói | **Giao diện** và **Nhập giọng nói**, theo từng tab trình duyệt | Chỉ chủ đề mà trình duyệt mới bắt đầu với (“đặt lantern làm chủ đề mặc định”) |
+| Nút micrô trong ô nhập (mặc định tắt) | **Nhập giọng nói**, theo bạn trên mọi thiết bị | “Hiện nút micrô trong ô nhập của tôi” |
 | Trợ lý phím bên | **Trợ lý**: lời bạn nói đi đâu, có chờ bấm Gửi không, có ghi chú ứng dụng bạn đang ở không | “Để trợ lý tự gửi”. Chọn pi làm trợ lý của điện thoại là việc của bạn, trong cài đặt Android |
 | Cuộc gọi thoại và nhập giọng nói Codex | **Giọng nói** (và công cụ của **Nhập giọng nói**): mô hình trực tiếp và mô hình nhập giọng nói, giọng, ngôn ngữ, giảm ồn, rảnh tay trả lời sớm hay muộn, ai suy nghĩ, luân phiên nói, tiến độ, người đọc, số phút mỗi ngày; chế độ giọng nói của một phiên trong menu mô hình | “Dùng gpt-realtime-mini cho giọng nói”, “Để Codex nghe micro”, “Kiểm tra các mô hình giọng nói”, “Tôi đang bật loa ngoài trong phòng ồn”, “Cho tôi chạm để nói”, “Tắt mic sau 10 giây im lặng”, “Chỉ nghe khi tôi nói to và gần”. Mô hình, giọng và ngôn ngữ được kiểm tra với OpenAI trước |
 | Cập nhật ứng dụng | **Kiểm tra cập nhật ứng dụng**. Bản dựng mới cũng tự hiện trong bảng cập nhật. Chạm **Cài** | Không |

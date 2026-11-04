@@ -86,9 +86,14 @@ export interface User {
 export type AppearanceOptions = {
     /** A Reply button by words selected in one of Pi's replies, which quotes them in the next message (PP-345). */
     quoteReply: boolean;
+    /**
+     * The mic (dictation) in the message box (PP-384, GitHub #7): hidden until turned on in Menu › Dictation, or by Pi's
+     * `dictation.micButton` (the owner: keyboards have voice input of their own).
+     */
+    micButton: boolean;
 };
 
-export const APPEARANCE_DEFAULTS: AppearanceOptions = { quoteReply: true };
+export const APPEARANCE_DEFAULTS: AppearanceOptions = { quoteReply: true, micButton: false };
 
 /** Where a person is with the first-run welcome: finished, or skipped (absent: it shows). */
 export type WelcomeState = "done" | "skipped";

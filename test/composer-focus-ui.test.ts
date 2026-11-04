@@ -1,4 +1,4 @@
-import { type App, cleanUp, cleanUpAll, newSession, openApp, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -239,8 +239,19 @@ test("at 320 px wide, Stop stays inside the message box while Pi works", real, a
     await page.navigate(`${base}/s/${Number(one)}`);
     await opened(one);
 
-    // With an empty box (the mic) and with words in it (Send in the mic's place).
-    for (const words of ["", "a few words"]) {
+    // With the mic turned on (Menu › Dictation) and off, each with an empty box (the mic) and with words in it (Send in
+    // the mic's place).
+    for (const [mic, words] of [
+        [true, ""],
+        [true, "a few words"],
+        [false, ""],
+        [false, "a few words"],
+    ] as const) {
+        app.setAppearance(owner(app), "micButton", mic);
+        await until(
+            async () => (await inPage<boolean>(`return JSON.stringify(document.querySelector(".composer-mic") !== null)`)) === mic,
+            mic ? "the mic on" : "the mic off",
+        );
         await page.type({ selector: BOX }, words);
         await setBusy(true);
         const fit = await inPage<{ scroll: number; client: number; stop: number; right: number; parts: string[] }>(`
@@ -344,5 +355,65 @@ test("the / button beside Attach opens the command list, and a pick waits in the
         await page.click({ selector: SLASH });
         await until(async () => (await commandNames()).length === 0, "closed");
         await page.type({ selector: BOX }, "");
+    }
+});
+
+const MIC_SWITCH = '[data-part="dictation-mic"] [role="switch"]';
+/** The mic in the message box, the model chip's width, and whether the row overflows. */
+const toolRow = () =>
+    inPage<{ mic: boolean; chip: number; overflows: boolean }>(`
+        const row = document.querySelector(".composer-row");
+        return JSON.stringify({
+            mic: row.querySelector(".composer-mic") !== null,
+            chip: Math.round(row.querySelector(".model-chip").getBoundingClientRect().width),
+            overflows: row.scrollWidth > row.clientWidth,
+        });
+    `);
+const switchOn = () =>
+    inPage<string | null>(`return JSON.stringify(document.querySelector(${JSON.stringify(MIC_SWITCH)})?.getAttribute("aria-checked") ?? null)`);
+
+// GitHub #7 (PP-384): keyboards have voice input of their own, so the mic is hidden until a person turns it on.
+test("the message box's mic is hidden until Menu › Dictation's switch turns it on", real, async () => {
+    for (const [size, viewport] of [
+        ["390", VIEWPORTS.mobile],
+        ["1280", VIEWPORTS.desktop],
+    ] as const) {
+        // A person who never chose: nothing kept with them.
+        const kept = { ...app.config.userById(owner(app).id)?.appearance };
+
+        delete kept.micButton;
+        app.config.updateUser(owner(app).id, { appearance: kept });
+        await home(viewport);
+        await page.navigate(`${base}/s/${Number(one)}`);
+        await opened(one);
+        const hidden = await toolRow();
+
+        assert.equal(hidden.mic, false, "no mic by default");
+        assert.equal(hidden.overflows, false);
+        await shot(`composer-no-mic-${size}`);
+        await page.evaluate(`(await import("/store.js")).openSheet({ type: "dictation" })`);
+        await until(async () => (await switchOn()) === "false", "the switch, off");
+        // The sheet comes in moving: a click before it stands still can land beside the switch.
+        await until(
+            () =>
+                inPage<boolean>(
+                    `return JSON.stringify(document.getAnimations().every((each) => each.playState !== "running" || !(each.effect?.target instanceof Element) || !each.effect.target.contains(document.querySelector(${JSON.stringify(MIC_SWITCH)}))))`,
+                ),
+            "the sheet standing still",
+        );
+        await shot(`dictation-sheet-${size}`);
+        await page.click({ selector: MIC_SWITCH });
+        await until(async () => (await switchOn()) === "true", "the switch, on");
+        await until(() => app.config.userById(owner(app).id)?.appearance?.micButton === true, "kept with the person");
+        await page.evaluate(`(await import("/store.js")).closeSheet()`);
+        await until(async () => (await toolRow()).mic === true, "the mic shown");
+        const shown = await toolRow();
+
+        assert.equal(shown.overflows, false);
+        assert.ok(hidden.chip >= shown.chip, `the hidden mic's room goes to the row: ${JSON.stringify({ shown, hidden })}`);
+
+        // Pi's dictation.micButton (the same option) hides it again in the open tab.
+        app.setAppearance(owner(app), "micButton", false);
+        await until(async () => (await toolRow()).mic === false, "the mic gone");
     }
 });
