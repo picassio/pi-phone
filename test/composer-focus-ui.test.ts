@@ -275,7 +275,43 @@ test("at 320 px wide, Stop stays inside the message box while Pi works", real, a
     await page.type({ selector: BOX }, "");
 });
 
-const SLASH = ".composer .slash-button";
+const MENU_BUTTON = ".composer .composer-menu-button";
+/** The rows of the message box's menu, by what each is, in order; [] when it is closed. */
+const menuItems = () =>
+    inPage<string[]>(
+        `return JSON.stringify([...document.querySelectorAll('.composer-menu [role="menuitem"]')].map((each) => each.dataset.item))`,
+    );
+/** What has the focus: a menu row's item, "button" for the menu's button, "box", or the tag. */
+const focusedOn = () =>
+    inPage<string>(`
+        const at = document.activeElement;
+        return JSON.stringify(at?.dataset.item ?? (at?.matches(${JSON.stringify(MENU_BUTTON)}) ? "button" : at?.matches(${JSON.stringify(BOX)}) ? "box" : at?.tagName));
+    `);
+
+/** Wait until nothing in `selector` moves: a click on a row still rising in can land beside it. */
+async function still(selector: string): Promise<void> {
+    await until(
+        () =>
+            inPage<boolean>(
+                `const box = document.querySelector(${JSON.stringify(selector)}); return JSON.stringify(box !== null && document.getAnimations().every((each) => each.playState !== "running" || !(each.effect?.target instanceof Element) || !(box.contains(each.effect.target) || each.effect.target.contains(box))))`,
+            ),
+        `${selector} standing still`,
+    );
+}
+
+async function openMenu(): Promise<void> {
+    // At phone size Chrome emulates touch: a tap soon after the one before (here the box's) makes a double tap, whose
+    // second tap gives no click. A finger takes longer between two taps.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await page.click({ selector: MENU_BUTTON });
+    await until(async () => (await menuItems()).length > 0, "the menu");
+    await still(".composer-menu");
+}
+
+async function pickItem(item: string): Promise<void> {
+    await page.click({ selector: `.composer-menu [data-item="${item}"]` });
+    await until(async () => (await menuItems()).length === 0, "the menu closed");
+}
 /** The message box's text, where its caret is, and whether it has the focus. */
 const boxState = () =>
     inPage<{ value: string; caret: number; focused: boolean }>(`
@@ -292,8 +328,9 @@ async function boxIs(want: { value: string; caret: number; focused: boolean }, w
     await until(async () => JSON.stringify(await boxState()) === JSON.stringify(want), what);
 }
 
-// GitHub #6 (PP-383): the command list without typing "/".
-test("the / button beside Attach opens the command list, and a pick waits in the box for its arguments", real, async () => {
+// The owner (PP-383): Places and the command list in one button left of Attach, a menu of rows: one tap less than the
+// Places sheet.
+test("one menu left of Attach holds Commands and the session's places", real, async () => {
     for (const [size, viewport] of [
         ["390", VIEWPORTS.mobile],
         ["1280", VIEWPORTS.desktop],
@@ -303,26 +340,93 @@ test("the / button beside Attach opens the command list, and a pick waits in the
         await opened(one);
         await page.type({ selector: BOX }, "");
 
-        // Right of Attach, as an icon button of the row.
-        const placed = await inPage<{ gap: number; top: number; label: string; icon: boolean }>(`
+        // Left of Attach, an icon button of the row; the grid and the / button are gone into it.
+        const placed = await inPage<{ gap: number; top: number; label: string; icon: boolean; old: number }>(`
             const attach = document.querySelector(".composer .attach-button").getBoundingClientRect();
-            const slash = document.querySelector(${JSON.stringify(SLASH)});
-            const at = slash.getBoundingClientRect();
+            const button = document.querySelector(${JSON.stringify(MENU_BUTTON)});
+            const at = button.getBoundingClientRect();
             return JSON.stringify({
-                gap: Math.round(at.left - attach.right),
+                gap: Math.round(attach.left - at.right),
                 top: Math.round(at.top - attach.top),
-                label: slash.getAttribute("aria-label"),
-                icon: slash.querySelector("svg") !== null,
+                label: button.getAttribute("aria-label"),
+                icon: button.querySelector("svg") !== null,
+                old: document.querySelectorAll(".composer :is(.places-button, .slash-button)").length,
             });
         `);
 
-        assert.ok(placed.gap >= 0 && placed.gap <= 8, `right after Attach: ${JSON.stringify(placed)}`);
+        assert.ok(placed.gap >= 0 && placed.gap <= 8, `right before Attach: ${JSON.stringify(placed)}`);
         assert.equal(placed.top, 0);
-        assert.equal(placed.label, "Commands");
+        assert.equal(placed.label, "Commands and places");
         assert.ok(placed.icon);
+        assert.equal(placed.old, 0);
+        await shot(`menu-closed-${size}`);
+
+        // The rows: Commands, the places the Places sheet has, then the session menu.
+        await page.evaluate(`(await import("/store.js")).openSheet({ type: "places" })`);
+        await until(
+            async () => (await inPage<number>(`return JSON.stringify(document.querySelectorAll(".places-sheet .place").length)`)) > 0,
+            "the Places sheet",
+        );
+        const places = await inPage<string[]>(
+            `return JSON.stringify([...document.querySelectorAll(".places-sheet .place")].map((each) => each.dataset.place))`,
+        );
+
+        assert.ok(places.includes("files"), `Files among the places: ${places}`);
+        await page.evaluate(`(await import("/store.js")).closeSheet()`);
+        await until(async () => (await inPage<boolean>(`return JSON.stringify(document.querySelector(".places-sheet") === null)`)) === true, "the sheet closed");
+        await openMenu();
+        assert.deepEqual(await menuItems(), ["commands", ...places, "menu"]);
+        assert.equal(
+            await inPage<string>(`return JSON.stringify(document.querySelector('.composer-menu [data-item="files"] svg') !== null ? "icon" : "none")`),
+            "icon",
+        );
+        await shot(`menu-open-${size}`);
+
+        // Keys: the focus in the menu (a mouse; a finger leaves it in the box), arrows move, Escape gives it back.
+        if (viewport.mobile) {
+            await page.press("Escape");
+        } else {
+            await until(async () => (await focusedOn()) === "commands", "the focus on Commands");
+            await page.press("ArrowDown");
+            assert.equal(await focusedOn(), places[0]);
+            await page.press("ArrowUp");
+            await page.press("ArrowUp");
+            assert.equal(await focusedOn(), "menu", "round to the last");
+            await page.press("Escape");
+            await until(async () => (await focusedOn()) === "button", "the focus back on the button");
+        }
+
+        await until(async () => (await menuItems()).length === 0, "closed by Escape");
+
+        // Files in one tap.
+        await openMenu();
+        await pickItem("files");
+        await until(
+            async () => (await inPage<boolean>(`return JSON.stringify((await import("/store.js")).store.state.filesOpen === true)`)) === true,
+            "Files open",
+        );
+        await page.evaluate(`(await import("/files-panel.js")).setFilesOpen(false)`);
+        await until(
+            async () => (await inPage<boolean>(`return JSON.stringify((await import("/store.js")).store.state.filesOpen === false)`)) === true,
+            "Files closed",
+        );
+    }
+});
+
+// GitHub #6 (PP-383): the command list without typing "/".
+test("the menu's Commands opens the command list, and a pick waits in the box for its arguments", real, async () => {
+    for (const [size, viewport] of [
+        ["390", VIEWPORTS.mobile],
+        ["1280", VIEWPORTS.desktop],
+    ] as const) {
+        await home(viewport);
+        await page.navigate(`${base}/s/${Number(one)}`);
+        await opened(one);
+        await page.type({ selector: BOX }, "");
 
         // An empty box: the whole list, scrolling, and the caret after the "/" to filter it.
-        await page.click({ selector: SLASH });
+        await openMenu();
+        await pickItem("commands");
         await until(async () => (await commandNames()).length > 10, "the whole list");
         await boxIs({ value: "/", caret: 1, focused: true }, "a / in the box");
         assert.equal(
@@ -340,7 +444,8 @@ test("the / button beside Attach opens the command list, and a pick waits in the
 
         // A draft stays, after the command picked with Tab.
         await page.type({ selector: BOX }, "keep the tests");
-        await page.click({ selector: SLASH });
+        await openMenu();
+        await pickItem("commands");
         await boxIs({ value: "/ keep the tests", caret: 1, focused: true }, "a / before the draft");
         await until(async () => (await commandNames()).length > 10, "the list before a draft");
         await page.type(undefined, "compa", { append: true });
@@ -348,12 +453,15 @@ test("the / button beside Attach opens the command list, and a pick waits in the
         await page.press("Tab");
         await boxIs({ value: "/compact keep the tests", caret: 9, focused: true }, "/compact before the draft");
 
-        // A tap while it shows closes it.
+        // Commands again while the list shows: it stays, and the box keeps what is typed.
         await page.type({ selector: BOX }, "");
-        await page.click({ selector: SLASH });
-        await until(async () => (await commandNames()).length > 0, "the list");
-        await page.click({ selector: SLASH });
-        await until(async () => (await commandNames()).length === 0, "closed");
+        await openMenu();
+        await pickItem("commands");
+        await until(async () => (await commandNames()).length > 10, "the list");
+        await openMenu();
+        await pickItem("commands");
+        await boxIs({ value: "/", caret: 1, focused: true }, "still one /");
+        assert.ok((await commandNames()).length > 10, "still the list");
         await page.type({ selector: BOX }, "");
     }
 });

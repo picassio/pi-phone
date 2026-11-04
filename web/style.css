@@ -5083,16 +5083,35 @@ pre.diff .del {
     }
 }
 
-.composer-row :is(.attach-button, .slash-button) {
+.composer-row :is(.composer-menu-button, .attach-button) {
     width: 32px;
     height: 32px;
     border-radius: var(--r-control);
     color: var(--muted);
 }
 
-/* The / button (PP-383): in the accent while its command list shows. */
-.composer-row .slash-button.on {
+/* The menu left of Attach (PP-383): Commands and the session's places. In the accent while it is open. */
+.composer-row .composer-menu-button.on {
     color: var(--accent);
+}
+
+.composer-row .composer-menu-button .browser-dot {
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    box-shadow: 0 0 0 2px var(--card);
+}
+
+/* Its menu, above the button and over the conversation; a row's hint ("/") or count at its end. */
+.composer-menu {
+    z-index: 40;
+}
+
+.composer-menu-hint {
+    flex: none;
+    font-size: 12px;
+    color: var(--muted);
 }
 
 /* The model and its thinking level: opens the model menu. */
@@ -5177,7 +5196,7 @@ pre.diff .del {
 /* At 320 px (an iPhone SE), Steer, Queue, and Interrupt would push Stop out of the box: while Pi works, Attach goes and
  * the three get closer. Attach comes back when Pi stops. */
 @container composer (max-width: 320px) {
-    .composer.busy .composer-row :is(.attach-button, .slash-button) {
+    .composer.busy .composer-row .attach-button {
         display: none;
     }
 
@@ -15930,26 +15949,8 @@ textarea.notes {
     display: none !important;
 }
 
-/* Phones: the places, beside the message box where a thumb reaches (composer.js). Elsewhere the menu has them. */
-.composer-row .places-button {
-    display: none;
-}
-
 @media (max-width: 699px) {
-    .composer-row .places-button {
-        display: inline-grid;
-        width: 32px;
-        height: 36px;
-        color: var(--muted);
-    }
-    .composer-row .places-button .browser-dot {
-        top: 6px;
-        right: 5px;
-        width: 7px;
-        height: 7px;
-        box-shadow: 0 0 0 2px var(--card);
-    }
-    /* Room for it: the model's name gives way first. */
+    /* Room for the composer's buttons: the model's name gives way first. */
     .composer-row .model-chip {
         flex: 0 1 auto;
         padding-inline: 6px;
@@ -16250,7 +16251,7 @@ textarea.notes {
     .search .icon-button.small::before {
         content: none;
     }
-    .composer-row :is(.attach-button, .slash-button) {
+    .composer-row :is(.composer-menu-button, .attach-button) {
         width: 32px;
         height: 36px;
     }
@@ -16266,9 +16267,8 @@ textarea.notes {
     /* Kept small to fit one line on a phone; a layer past each takes a tap about 40px wide and tall. */
     .composer-row
         :is(
-            .places-button,
+            .composer-menu-button,
             .attach-button,
-            .slash-button,
             .model-chip,
             .plan-chip,
             .composer-mic,
@@ -16280,9 +16280,8 @@ textarea.notes {
     }
     .composer-row
         :is(
-            .places-button,
+            .composer-menu-button,
             .attach-button,
-            .slash-button,
             .model-chip,
             .plan-chip,
             .composer-mic,
@@ -16300,7 +16299,7 @@ textarea.notes {
     }
     /* Where the row has room, the icon buttons are as wide as a thumb's tap (their look is the icon alone). */
     @container composer (min-width: 360px) {
-        .composer-row :is(.places-button, .attach-button, .slash-button, .composer-mic) {
+        .composer-row :is(.composer-menu-button, .attach-button, .composer-mic) {
             width: 36px;
         }
     }

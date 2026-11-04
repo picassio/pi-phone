@@ -37,12 +37,14 @@ import { prefs } from "./theme.js";
 import { says } from "./turns.js";
 import { MicButton, useDictation } from "./voice.js";
 import { VoiceButton } from "./voice-view.js";
+import { PlacesOf } from "./sheets/menu.js";
 import {
     APPLE,
     contextLevel,
     enterMakesLine,
     enterSends,
     fileUrl,
+    fixedOrigin,
     formatBytes,
     formatTokens,
     html,
@@ -796,9 +798,9 @@ export function Composer() {
     };
 
     /**
-     * The / button (PP-383, GitHub #6): the command list without typing "/". An empty box gets a "/"; a draft gets one in
-     * front of it; a command name already at the start keeps it, with the caret after it. Typing filters the list. A tap
-     * while the list shows closes it.
+     * The menu's Commands (PP-383, GitHub #6): the command list without typing "/". An empty box gets a "/"; a draft gets
+     * one in front of it; a command name already at the start keeps it, with the caret after it. Typing filters the list.
+     * A list that shows already stays, its pick now going into the box.
      */
     const openCommands = () => {
         const element = box.current;
@@ -806,8 +808,7 @@ export function Composer() {
         element?.focus();
 
         if (suggestions.length > 0) {
-            setHideCommands(true);
-            setByButton(false);
+            setByButton(true);
 
             return;
         }
@@ -1601,7 +1602,7 @@ export function Composer() {
                         enterkeyhint=${coarse ? "enter" : "send"}
                     ></textarea>
                     <div class="composer-row" data-part="composer-tools">
-                        <${PlacesButton} />
+                        <${ComposerMenu} onCommands=${openCommands} />
                         <button
                             class="icon-button attach-button"
                             data-part="composer-button"
@@ -1621,17 +1622,6 @@ export function Composer() {
                                 event.currentTarget.value = "";
                             }}
                         />
-                        <button
-                            class=${`icon-button slash-button ${suggestions.length > 0 ? "on" : ""}`}
-                            data-part="composer-button"
-                            aria-label=${t("Commands")}
-                            aria-expanded=${suggestions.length > 0 ? "true" : "false"}
-                            title=${t("Commands (/)")}
-                            onMouseDown=${(event) => event.preventDefault()}
-                            onClick=${openCommands}
-                        >
-                            <${Icon} name="slash" size=${16} />
-                        </button>
                         <button
                             class=${`model-chip ${agent?.available === false ? "warn" : ""}`}
                             data-part="model-chip"
@@ -1781,25 +1771,173 @@ function StopButton() {
 }
 
 /**
- * Phones: the session's places (Files, Changes, the browser…) from beside the message box, where a thumb reaches; the
- * top bar's buttons are a stretch with one hand. A dot when the chat has news or a page is open.
+ * The menu left of Attach (PP-383): Commands (the list "/" opens), then the session's places as rows (Files, Changes,
+ * Artifacts…, as the Places sheet has them) and the session menu, from beside the message box where a thumb reaches.
+ * A small menu above the button, in the app's pop-menu style: arrows move, Enter picks, Escape closes and gives the
+ * focus back to the button; a tap elsewhere closes it. On a touch screen the focus stays in the box, so its keyboard
+ * stays up. A swipe up from the box still opens the Places sheet. A dot when the chat has news or a page is open.
  */
-function PlacesButton() {
+function ComposerMenu({ onCommands }) {
     const { browser } = store.state;
     const news =
         (collab() && chatUnread() > 0) ||
         (browser?.open && browser.url !== "" && browser.url !== "about:blank");
+    const [open, setOpen] = useState(null);
+    const [active, setActive] = useState(0);
+    const button = useRef(null);
+    const menu = useRef(null);
+    // Above the button, in the coordinates its fixed elements use (`fixedOrigin`, PP-374).
+    const place = () => {
+        if (!button.current) {
+            return;
+        }
+
+        const rect = button.current.getBoundingClientRect();
+        const origin = fixedOrigin(button.current);
+        const top = visualViewport?.offsetTop ?? 0;
+        const width = Math.min(256, innerWidth - 16);
+
+        setOpen({
+            left: Math.max(8, Math.min(rect.left, innerWidth - width - 8)) - origin.left,
+            bottom: origin.bottom - rect.top + 8,
+            width,
+            height: Math.max(120, Math.min(440, rect.top - top - 16)),
+        });
+    };
+    const close = (refocus) => {
+        setOpen(null);
+
+        if (refocus) {
+            button.current?.focus();
+        }
+    };
+    const rows = () => [...(menu.current?.querySelectorAll('[role="menuitem"]') ?? [])];
+    const show = (byKeys) => {
+        setActive(0);
+        place();
+        // A mouse or the keys: the focus goes into the menu. A finger: it stays where it is (the box and its keyboard).
+        requestAnimationFrame(() => (byKeys || !coarse) && rows()[0]?.focus({ preventScroll: true }));
+    };
+    const pick = (run) => {
+        close(false);
+        run();
+    };
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        const away = (event) => {
+            if (!menu.current?.contains(event.target) && !button.current?.contains(event.target)) {
+                close(false);
+            }
+        };
+        // Escape wherever the focus is (in the box on a touch screen): only the menu closes.
+        const escape = (event) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                close(true);
+            }
+        };
+
+        document.addEventListener("pointerdown", away, true);
+        document.addEventListener("keydown", escape, true);
+        addEventListener("resize", place);
+        visualViewport?.addEventListener("resize", place);
+
+        return () => {
+            document.removeEventListener("pointerdown", away, true);
+            document.removeEventListener("keydown", escape, true);
+            removeEventListener("resize", place);
+            visualViewport?.removeEventListener("resize", place);
+        };
+    }, [Boolean(open)]);
+
+    const onMenuKey = (event) => {
+        const list = rows();
+        const at = list.indexOf(document.activeElement);
+        const to = {
+            ArrowDown: (at + 1) % list.length,
+            ArrowUp: (at - 1 + list.length) % list.length,
+            Home: 0,
+            End: list.length - 1,
+        }[event.key];
+
+        if (to !== undefined) {
+            event.preventDefault();
+            list[to]?.focus();
+        } else if (event.key === "Tab") {
+            close(false);
+        }
+    };
+    const row = (item, index) => html`<button
+        type="button"
+        key=${item.id}
+        class=${`pop-menu-row ${index === active ? "on" : ""}`}
+        role="menuitem"
+        data-item=${item.id}
+        aria-label=${item.count > 0 ? `${item.label}, ${item.count} ${item.counted ?? ""}`.trim() : undefined}
+        onMouseMove=${() => index !== active && setActive(index)}
+        onFocus=${() => setActive(index)}
+        onClick=${() => pick(item.run)}
+    >
+        <${Icon} name=${item.icon} size=${16} />
+        <span class="pop-menu-row-text">
+            <span class="pop-menu-row-name">${item.label}</span>
+        </span>
+        ${item.hint && html`<span class="composer-menu-hint">${item.hint}</span>`}
+        ${item.count > 0 && html`<span class="composer-menu-hint">${item.count}</span>`}
+    </button>`;
 
     return html`<button
-        class="icon-button places-button badge-host"
-        data-part="composer-button"
-        aria-label=${t("Places: Files, Changes, Browser, and more")}
-        title=${t("Places (or swipe up here)")}
-        onClick=${() => openSheet({ type: "places" })}
-    >
-        <${Icon} name="grid" />
-        ${news && html`<span class="browser-dot" aria-hidden="true"></span>`}
-    </button>`;
+            ref=${button}
+            class=${`icon-button composer-menu-button badge-host ${open ? "on" : ""}`}
+            data-part="composer-button"
+            aria-label=${t("Commands and places")}
+            title=${t("Commands and places")}
+            aria-haspopup="menu"
+            aria-expanded=${open ? "true" : "false"}
+            onMouseDown=${(event) => coarse && event.preventDefault()}
+            onClick=${(event) => (open ? close(false) : show(event.detail === 0))}
+            onKeyDown=${(event) => {
+                if (!open && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+                    event.preventDefault();
+                    show(true);
+                }
+            }}
+        >
+            <${Icon} name="more" />
+            ${news && html`<span class="browser-dot" aria-hidden="true"></span>`}
+        </button>
+        ${
+            open &&
+            html`<div
+                ref=${menu}
+                class="pop-menu composer-menu"
+                style=${`left:${open.left}px;bottom:${open.bottom}px;width:${open.width}px;max-height:${open.height}px`}
+                role="menu"
+                aria-label=${t("Commands and places")}
+                onKeyDown=${onMenuKey}
+            >
+                <div class="pop-menu-list">
+                    <${PlacesOf}
+                        render=${(places) =>
+                            [
+                                { id: "commands", icon: "slash", label: t("Commands"), hint: "/", run: onCommands },
+                                ...places,
+                                {
+                                    id: "menu",
+                                    icon: "menu",
+                                    label: t("Session menu"),
+                                    run: () => openSheet({ type: "menu", fromPlaces: true }),
+                                },
+                            ].map(row)}
+                    />
+                </div>
+            </div>`
+        }`;
 }
 
 /**

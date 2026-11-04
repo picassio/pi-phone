@@ -65,28 +65,38 @@ function extensionsHint() {
  * thumb's width each.
  */
 function Places() {
+    return html`<${PlacesOf} render=${(places) => html`<${PlacesGrid} places=${places} />`} />`;
+}
+
+/**
+ * The open session's places (`placeList`), drawn by `render`: the menu's tiles, and the rows of the message box's menu
+ * (composer.js, PP-383). Nothing without a session.
+ */
+export function PlacesOf({ render }) {
     if (!store.state.view.conversation) {
         return null;
     }
 
-    return filesAvailable() ? html`<${PlacesWithChanges} />` : html`<${PlacesGrid} />`;
+    return filesAvailable() ? html`<${PlacesWithChanges} render=${render} />` : render(placeList());
 }
 
 /** Only people who can open Files request its shared changes data, just as the top bar does. */
-function PlacesWithChanges() {
+function PlacesWithChanges({ render }) {
     const { changes } = useChanges();
 
-    return html`<${PlacesGrid} changes=${changes} />`;
+    return render(placeList(changes));
 }
 
-function PlacesGrid({ changes = null }) {
+/** The session's places: `{ id, icon, label, count?, counted?, on?, run }` each. */
+function placeList(changes = null) {
     const { view, server, filesOpen, filesTab } = store.state;
     // Match the top bar: uncommitted files in a repository, Pi's edits elsewhere, plus any unlisted files.
     const changeCount = changes
         ? changes.files.length + (changes.repo ? 0 : changes.piOnly.length) + (changes.more ?? 0)
         : 0;
     const unread = collab() ? chatUnread() : 0;
-    const places = [
+
+    return [
         filesAvailable() && {
             id: "files",
             icon: "folder",
@@ -136,7 +146,9 @@ function PlacesGrid({ changes = null }) {
             },
         },
     ].filter(Boolean);
+}
 
+function PlacesGrid({ places }) {
     return html`<nav class="places" aria-label=${t("Places")}>
         ${places.map(
             (place) => html`<button
@@ -160,8 +172,8 @@ function PlacesGrid({ changes = null }) {
 }
 
 /**
- * The places alone, in a short sheet that stays near the bottom edge: what the button beside the message box and a
- * swipe up from it open on a phone, a thumb's reach away. The rest of the menu is a row below.
+ * The places alone, in a short sheet that stays near the bottom edge: what a swipe up from the message box opens on a
+ * phone, a thumb's reach away (the message box's menu lists them as rows). The rest of the menu is a row below.
  */
 export function PlacesSheet() {
     const conversation = store.state.view.conversation;

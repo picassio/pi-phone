@@ -767,8 +767,11 @@ mới** trên danh sách phiên (và màn hình chính khi màn hình rộng) m�
   Nhập giọng nói). Trên máy tính, Enter để gửi và Shift+Enter để xuống
   dòng, trên điện thoại hoặc máy tính bảng có bàn phím vật lý (Bluetooth) cũng vậy, ở đó Ctrl+Enter hoặc Alt+Enter cũng
   xuống dòng (cho các bộ gõ như Sogou vốn giữ phím Shift); Enter của bàn phím ảo để xuống dòng, và nút gửi để gửi. Đính
-  kèm tệp và ảnh bằng nút kẹp giấy. Nút **/** cạnh nó mở danh sách lệnh mà không cần gõ `/`: gõ tiếp để lọc, và lệnh
-  được chọn vào ô nhập với con trỏ ngay sau nó, sẵn sàng cho tham số hoặc Gửi (bản nháp đang có vẫn giữ, nằm sau lệnh).
+  kèm tệp và ảnh bằng nút kẹp giấy. Nút **⋯** bên trái nó mở một menu nhỏ: **Lệnh**
+  (danh sách lệnh mà không cần gõ `/`: gõ tiếp để lọc, và lệnh được chọn vào ô nhập với con trỏ ngay sau nó, sẵn sàng
+  cho tham số hoặc Gửi; bản nháp đang có vẫn giữ, nằm sau lệnh), rồi các nơi làm việc của phiên thành từng dòng (Tệp,
+  Thay đổi, Artifact, Tìm và các mục khác của bảng Nơi làm việc) và menu phiên, mỗi mục một lần chạm. Phím mũi tên
+  di chuyển trong menu, Escape đóng nó; vuốt lên từ ô nhập vẫn mở bảng Nơi làm việc.
   **Kế hoạch** khiến Pi đọc và lên kế hoạch trước, không thay đổi gì cho đến khi bạn
   duyệt. Khi Pi đang làm, một tin nhắn có thể **Điều hướng** (đọc giữa các bước), **Xếp hàng** (sau lượt chạy), hoặc
   **Ngắt** (dừng lượt chạy ngay, cả lệnh gọi công cụ, rồi gửi). Tin nhắn của bạn đang chờ trong hàng có nút **Sửa**:

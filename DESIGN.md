@@ -2343,13 +2343,20 @@ so Pi changes them through the settings tools; "the last session" is the one the
   while it is read. The rail's Sessions button counts what needs you. `sessions.listOpens` (a person's: last, all,
   priority; Appearance; tabs hear `list-opens`) picks the scope the list opens on, once per page load. Not taken:
   pocket's "Show N more" cut of Needs you, the call opening in place with keyboard focus, and the theme-surface parts.
-- **The / button** (PP-383, GitHub #6): `.slash-button` (icon `slash`) right of Attach opens the composer's own command
-  list, the one typing `/` opens (`suggestCommands`), so it scrolls and filters the same way. An empty box gets a `/`, a
-  draft gets `/ ` in front of it, a command name already at the start keeps it; the caret goes after the name. While
-  `byButton` holds, the name is read up to the caret (`commandAt`), so the draft after it does not stop the list, and a
-  pick (tap, Tab or Enter) always fills the box with `/<name> ` before the draft, caret after it, never running a
-  command that takes nothing (typed `/`, such a pick runs at once, as before). A tap while the list shows closes it; on
-  a 320 px box it hides with Attach while Pi works. Test: `test/composer-focus-ui.test.ts`.
+- **The composer's menu** (PP-383, GitHub #6; the owner merged Places and the / button into it): `ComposerMenu`
+  (`.composer-menu-button`, icon `more`, left of Attach, on every width) opens a `.pop-menu` above it, fixed in the
+  coordinates `fixedOrigin` gives: **Commands** (icon `slash`), then the open session's places as rows from `PlacesOf`
+  in `sheets/menu.js` (`placeList`, the same entries and counts the Places sheet's tiles draw), then Session menu
+  (`fromPlaces`, so no tiles twice). Icon `more` (⋯), as the app's other "more" menus: the grid read as an app launcher
+  once commands joined it. Opened with a mouse or the keys the focus goes into the rows (arrows, Home, End move; Tab
+  closes); opened with a finger it stays in the box, so the keyboard stays up; Escape anywhere closes it and gives the
+  focus to the button; a tap elsewhere closes it. The swipe up from the box still opens the Places sheet (`app.js`).
+  Commands opens the composer's own command list, the one typing `/` opens (`suggestCommands`), so it scrolls and
+  filters the same way. An empty box gets a `/`, a draft gets `/ ` in front of it, a command name already at the start
+  keeps it; the caret goes after the name. While `byButton` holds, the name is read up to the caret (`commandAt`), so
+  the draft after it does not stop the list, and a pick (tap, Tab or Enter) always fills the box with `/<name> ` before
+  the draft, caret after it, never running a command that takes nothing (typed `/`, such a pick runs at once, as
+  before). On a 320 px box Attach hides while Pi works; the menu stays. Test: `test/composer-focus-ui.test.ts`.
 
 ## 5. Build
 
