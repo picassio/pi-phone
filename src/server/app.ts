@@ -5676,7 +5676,7 @@ export class PocketApp {
 
     /**
      * The app's skill folders, after Pi's own places, so a skill of the owner's by the same name comes first: pi-phone's
-     * own (`src/skills/`: getting-started), Effective HTML's (artifacts), the Design & video extension's while it is on
+     * own (`src/skills/`: getting-started, ui-verify), Effective HTML's (artifacts), the Design & video extension's while it is on
      * (PP-247: design-system, OpenDesign's deck templates and GSAP, Motion Video Kit's business-motion-film, heydamir's unslop), Formal
      * checks' while it is on (PP-316: pstack's statechart), Extension builder's while it is on (PP-367:
      * extension-builder), and OfficeCLI's where it runs (`third_party/`).

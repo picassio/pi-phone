@@ -45,7 +45,8 @@ and don'ts; 9 is a prompt guide), then its `tokens.css`.
 3. Keep DESIGN.md's rules: how often the accent appears, which weights the type uses, corner radii, shadows or none.
 4. Proprietary faces (Söhne, Cereal, SF Pro) will not load in the artifact; the stacks fall back to system fonts. When
    DESIGN.md names a Google Font stand-in, load it with a `<link>` to fonts.googleapis.com.
-5. Check the result with `screenshot` at 390 and 1280 px.
+5. Check the result with `screenshot` at 390 and 1280 px, then follow the `ui-verify` skill with this system's
+   `tokens.css` as the redline spec.
 
 **Office files** (officecli, with its `officecli-pptx`, `officecli-docx` or `officecli-xlsx` skill):
 

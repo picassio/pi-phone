@@ -33,6 +33,7 @@ import {
     ProjectTrustStore,
     SettingsManager,
 } from "@earendil-works/pi-coding-agent";
+import { APP_ROOT } from "../src/server/config.ts";
 import { createHandler } from "../src/server/http.ts";
 import {
     loadSessionSkills,
@@ -256,6 +257,7 @@ test("a session lists them as /skill: commands and in its system prompt", async 
             "html-prototype",
             "html-wireframe",
             "statechart",
+            "ui-verify",
             "unslop",
         ],
     );
@@ -272,6 +274,35 @@ test("a session lists them as /skill: commands and in its system prompt", async 
     assert.ok(prompt.includes(join(project, ".agents", "skills", "here", "SKILL.md")));
     await say(app, id, "/skill:here do the thing");
     assert.match((await modelTexts(app, id)).join("\n"), /<skill name=\\"here\\" location=/);
+});
+
+test("ui-verify (PP-405) is pi-phone's own skill, in every session's prompt and loaded by /skill:ui-verify; the design skills' final checks point to it", async () => {
+    const app = await started();
+    const id = await newSession(app);
+
+    assert.ok(app.skillCommands(id).some((each) => each.name === "ui-verify"));
+    await say(app, id, "ui work");
+    assert.match(prompt, /<name>ui-verify<\/name>[^<]*<description>Verify a UI with numbers before calling it done[^]*src\/skills\/ui-verify\/SKILL\.md/);
+    await say(app, id, "/skill:ui-verify check the sheet");
+
+    const loaded = (await modelTexts(app, id)).join("\n");
+
+    assert.match(loaded, /<skill name=\\"ui-verify\\" location=/);
+    // Its steps, as the owner asked: both widths, redlines against a spec with the 4 px rules, pixel compare, the
+    // must-fix kinds, and a report with numbers.
+    for (const words of ["widths: [390, 1280]", "redline", "spacing 0/4/8/12/16/20/24/32, radius 4/8/12/16", "image_compare", "threshold: 0.15", "tap targets under 40 px", "before and after", "browser_layout_check"]) {
+        assert.ok(loaded.includes(words), words);
+    }
+
+    for (const file of [
+        ["third_party", "effective-html", "skills", "html", "SKILL.md"],
+        ["third_party", "effective-html", "skills", "html-prototype", "SKILL.md"],
+        ["third_party", "effective-html", "skills", "design-artifact", "SKILL.md"],
+        ["third_party", "heydamir-unslop", "skills", "unslop", "SKILL.md"],
+        ["src", "design", "skills", "design-system", "SKILL.md"],
+    ]) {
+        assert.match(readFileSync(join(APP_ROOT, ...file), "utf8"), /follow the `ui-verify` skill/, file.join("/"));
+    }
 });
 
 test("with Design & video off, none of its skills load, in commands or the prompt, and they come back with it on", async () => {

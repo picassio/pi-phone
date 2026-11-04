@@ -342,6 +342,11 @@ No Termux, no laptop, no cloud VM.
   tokens.css, or a plain list such as "padding 16, radius 24/12/20, font 22/13/12") it marks what is off it in red with
   the spec's value ("gap 23, spec 24") and lists it. `browser_redline` does the same on the page in front of Pi's
   browser. A picture file has no DOM: compare it with `image_compare`.
+- **UI checked before it is done.** The built-in `ui-verify` skill has Pi verify every artifact, HTML page and app
+  screen with numbers before calling it done: the layout check at 390 and 1280 px, redlines against the design
+  system's tokens, the mockup or the 4 px rules, `image_compare` against a reference, fixing until there is no cut
+  text, overlap, low contrast, text under 12 px, emoji icon or small tap target left, and a report with the counts
+  before and after and the redline or diff picture. The HTML, design-system and unslop skills end with it.
 - **Images.** `image_generate` makes and edits images (up to five to edit at once; 1 to 4 at a time; 1:1, 16:9, 9:16,
   4:3 or 3:4) with the model you pick in **Menu › Images** (`image.model`): GPT Image 2.5 on your ChatGPT sign-in (on
   the plan, counted in Spend as images), an OpenRouter image model such as Nano Banana (`google/gemini-*-image`; its

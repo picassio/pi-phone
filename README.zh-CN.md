@@ -230,6 +230,10 @@
   （打开了面板或对话框时只测量最上层），或选择器选中的元素；给出规范（设计系统的 tokens.css，或类似 "padding 16, radius 24/12/20, font 22/13/12" 的列表）时，
   不符合的数值标红并附规范值（"gap 23, spec 24"），并列出清单。`browser_redline` 对 Pi 浏览器当前页面做同样的事。
   图片文件没有 DOM：请用 `image_compare` 比对。
+- **界面完成前先检查。** 内置的 `ui-verify` 技能让 Pi 在说完成之前用数字检查每个 artifact、HTML 页面和 app 界面：
+  390 和 1280 px 的布局检查、按设计系统 token、设计稿或 4 px 规则的标注、与参考图的 `image_compare`，修改到没有被裁文字、
+  重叠、低对比度、小于 12 px 的文字、emoji 图标或过小的点按区域为止，并附上前后计数和标注图或差异图。HTML、design-system
+  和 unslop 技能最后都会用它。
 - **图片。** `image_generate` 生成和编辑图片（一次最多编辑五张；一次生成 1 到 4 张；1:1、16:9、9:16、4:3 或 3:4），
   使用你在 **菜单 › 图片**（`image.model`）中选择的模型：通过 ChatGPT 登录的 GPT Image 2.5（计入套餐，花费中按张数统计）、
   OpenRouter 的图片模型如 Nano Banana（`google/gemini-*-image`；显示每百万图片 token 的价格，费用计入会话），

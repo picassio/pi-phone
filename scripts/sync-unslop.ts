@@ -27,6 +27,7 @@ export const NOTE = [
     "> - Icons: the project's own set; in pi-phone itself `ICONS` in `web/ui.js`. Never emoji. In pi-phone itself the tokyo-night palette is the brand: polish mode only. A chosen design system (the `design_system` section) is the brand too.",
     "> - Images: `image_generate` instead of fal/Replicate/MCP (aspects 1:1, 16:9, 9:16, 4:3, 3:4; no background removal: ask for the page colour and mask in CSS). Show the prompt and model and ask before it, as the skill says; save into the project's assets.",
     "> - Story video: only on a machine (`scripts/story.mjs` needs Playwright and ffmpeg; the ffmpeg machine tool is in `~/.pi/mobile/tools/bin`, add it to PATH). Never on the phone. Check the mp4 with the `media` tool (frames, sheet: true). Keep the \"unslop by @heydamir\" credit.",
+    "> - Step 6 (Check): follow the `ui-verify` skill (layout check numbers, redlines against a spec, pixel compare, before/after counts in the report).",
 ];
 
 /** `markdown` with `note` after its front matter, which stays as it is. */

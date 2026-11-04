@@ -951,6 +951,17 @@ so Pi changes them through the settings tools; "the last session" is the one the
     lists the misses (one per element and value, alike elements counted), 20 at most. A picture file has no DOM: the
     tool says so and names `image_compare`. Both tools are deferred; `pathsOf` checks the page file, a tokens.css spec
     and `save`. `redline` is not in plan mode (it may write); `browser_redline` is, as all of Pi's browser.
+  - **ui-verify** (`src/skills/ui-verify/SKILL.md`, PP-405): pi-phone's own skill, in every session like
+    getting-started (`builtInSkills()`'s `src/skills/`, not behind Design & video, as the screenshot tools it uses are
+    always there). It puts the checks above in one order: `screenshot` at 390 and 1280 px (the layout check's numbers
+    before the picture; Pi's browser: `browser_layout_check`), `redline` with a spec (a design system's tokens.css,
+    the mockup's numbers, else the owner's 4 px rules), `image_compare` against a reference (threshold 0.15 for JPEG
+    screenshots), fix and rerun until the must-fix kinds are zero (cut text unless intended, overlaps, contrast under
+    AA with muted hints at least 3:1, text under 12 px, emoji or symbol icons, tap targets under 40 px on a phone), and
+    a report with before/after counts and the redline or diff picture. The design skills' final checks point to it: a
+    sentence in the pi-phone notes of Effective HTML's `html`, `html-prototype` and `design-artifact` and of unslop
+    (its `NOTE` in `scripts/sync-unslop.ts`, so a sync keeps it; each vendoring README says so), and design-system's
+    step 5, ours. AGENTS.md asks the same counts of every UI change.
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

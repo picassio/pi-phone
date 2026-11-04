@@ -27,7 +27,8 @@ Modified by pi-phone: one marked note. `SKILL.md` gets one note after its front 
 `snapshot.mjs` on the phone; ask the direction question with `interview` and show mockups as an `artifact`; the
 project's own icons (pi-phone's `ICONS`), never emoji, and pi-phone's tokyo-night palette or a chosen design system as
 the brand (polish mode only); images with `image_generate`, asked first; the story video only on a machine, checked
-with the `media` tool, keeping its "unslop by @heydamir" credit.
+with the `media` tool, keeping its "unslop by @heydamir" credit; and its step 6 (Check) follows pi-phone's `ui-verify`
+skill (`src/skills/ui-verify/`, PP-405).
 
 Nothing else is changed: the credit lines in `SKILL.md` and each reference's footer stay as upstream wrote them. To
 update: change `COMMIT` in `scripts/sync-unslop.ts`, run it, read the new `SKILL.md` against the note, run

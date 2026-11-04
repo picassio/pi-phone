@@ -39,6 +39,6 @@ test("Design & video's skill folders hold it, and design-artifact points to its 
     assert.ok(DESIGN_SKILLS.includes(join(APP_ROOT, "third_party", "heydamir-unslop", "skills")));
     assert.match(
         readFileSync(join(APP_ROOT, "third_party", "effective-html", "skills", "design-artifact", "SKILL.md"), "utf8"),
-        /\n> \*\*In pi-phone:\*\*[^\n]*Before calling a UI or artifact done, go through the `unslop` skill's `references\/signs\.md`[^\n]*and fix what it finds\.\n/,
+        /\n> \*\*In pi-phone:\*\*[^\n]*Before calling a UI or artifact done, go through the `unslop` skill's `references\/signs\.md`[^\n]*and fix what it finds, then follow the `ui-verify` skill[^\n]*\n/,
     );
 });

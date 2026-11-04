@@ -16,6 +16,8 @@ tool so the result opens on the phone (and write a file when asked), keep artifa
 design for phone widths first, and check the result with the `screenshot` tool (pi-phone's browser check).
 `design-artifact`'s note has one more sentence: before calling a UI or artifact done, go through the `unslop` skill's
 `references/signs.md` (`third_party/heydamir-unslop/`, listed while Design & video is on) and fix what it finds.
-Nothing else is changed.
+The notes of `html`, `html-prototype` and `design-artifact` end by pointing to pi-phone's `ui-verify` skill
+(`src/skills/ui-verify/`, PP-405) as their final check: layout check numbers, redlines against a spec, pixel compare,
+and before/after counts in the report. Nothing else is changed.
 
 To update: copy upstream's `skills/` at a new commit here, add the same note, and update the commit above.
