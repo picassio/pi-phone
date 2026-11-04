@@ -3,7 +3,7 @@
 import { t, tn } from "../i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { actions, attempt, closeSheet, loadUsage, openSheet, store } from "../store.js";
-import { usageLine } from "../usage.js";
+import { usageLine, usageReset } from "../usage.js";
 import { VoiceModeRow } from "../voice-view.js";
 import { useDragToClose } from "../gestures.js";
 import { favoriteModels, isFavoriteModel } from "../model-favorites.js";
@@ -51,6 +51,28 @@ export function defaultLabel(chosen, models) {
     return `${model.name}${model.reasoning ? ` · ${chosen.thinkingLevel ?? "off"}` : ""}${model.signIn ? " (needs sign-in)" : ""}`;
 }
 
+/** Who waits for `pickModel`'s answer: the value picked, or null when the picker closed without one. */
+let waiting = null;
+
+/**
+ * The model picker as a question (PP-409), for a setting that names a model (the wiki's capture model; an extension's
+ * `pocket.pickModel`): every model of every signed-in account with its plan figures, search, favorites, scoped and
+ * all, as for a session, and `entries` first (`{ value, label, detail? }`, such as "auto"). It takes the sheet's place
+ * and answers `provider/id` (or an entry's value), or null when closed without a pick. `value` is the one chosen now;
+ * `title` and `sub` name what it picks for. No thinking level: such a setting has none of its own.
+ */
+export function pickModel({ title, sub, value, entries = [] } = {}) {
+    waiting?.(null);
+
+    return new Promise((resolve) => {
+        waiting = resolve;
+        openSheet({ type: "model", pick: { title: title ?? t("Model"), sub, value: value ?? null, entries } });
+    });
+}
+
+/** A model as a setting names it: `provider/id` (an account's provider is `provider~account`). */
+const modelValue = (model) => `${model.provider}/${model.id}`;
+
 /** Whether a model is one the picker's search finds: each word in its id or name, as `/model` finds them. */
 const matches = (model, query) => {
     const haystack = `${model.provider}/${model.id} ${model.name} ${model.account ?? ""}`.toLowerCase();
@@ -67,7 +89,8 @@ const matches = (model, query) => {
  * and how hard Pi thinks below, then, for the owner, Make default. Arrows and Enter pick, and Tab switches between the
  * scoped models (Pi's `enabledModels`) and all of them; a search box shows when there are many models, or when
  * `/model son` opened it already searching. Opened for the default (`forDefault`, from the menu), it picks the model
- * and thinking level new sessions start with instead, and stays open for both.
+ * and thinking level new sessions start with instead, and stays open for both. Opened by `pickModel` (`pick`), it
+ * answers whoever asked, with its entries first, and has no thinking level, voice row or default footer.
  */
 export function ModelPicker() {
     const { models, server, me } = store.state;
@@ -76,6 +99,7 @@ export function ModelPicker() {
     // While the picker animates out, the store has no sheet any more.
     const [query, setQuery] = useState(store.state.sheet?.query ?? "");
     const [forDefault] = useState(() => store.state.sheet?.forDefault === true);
+    const [pickFor] = useState(() => store.state.sheet?.pick ?? null);
     const scopedModels = models.filter((model) => model.scoped);
     // Opened already searching (`/model gem`) for models only outside the scope: it starts with all of them.
     const [showAll, setShowAll] = useState(
@@ -89,7 +113,7 @@ export function ModelPicker() {
     const [searchable] = useState(() => models.length > MODEL_SEARCH_AT || query !== "");
     const [picked, setPicked] = useState(0);
     const [anchor, setAnchor] = useState(() =>
-        forDefault ? null : modelAnchor(),
+        forDefault || pickFor ? null : modelAnchor(),
     );
     const box = useRef(null);
     const search = useRef(null);
@@ -112,16 +136,23 @@ export function ModelPicker() {
     // The model and thinking level this picker sets: the session's, or the default's.
     const current = forDefault ? chosen : agent?.model;
     const isCurrent = (model) =>
-        current?.provider === model.provider && current?.modelId === model.id;
+        pickFor
+            ? pickFor.value === modelValue(model)
+            : current?.provider === model.provider && current?.modelId === model.id;
     const levels = (forDefault ? defaultModel?.levels : agent?.levels) ?? ["off"];
     // Before there is a default, the first one picked thinks as hard as this session does.
     const level = forDefault
         ? (chosen?.thinkingLevel ?? agent?.thinkingLevel ?? "off")
         : agent?.thinkingLevel;
-    const reasoning = forDefault ? defaultModel?.reasoning : agent?.reasoning;
-    const shown = choices
+    const reasoning = pickFor ? false : forDefault ? defaultModel?.reasoning : agent?.reasoning;
+    // A pick's own entries ("The default model for new sessions") first, found by their words too.
+    const entries = (pickFor?.entries ?? []).filter(
+        (entry) => !favoritesOnly && `${entry.label} ${entry.detail ?? ""} ${entry.value}`.toLowerCase().includes(query.trim().toLowerCase()),
+    );
+    const listed = choices
         .filter((model) => (!favoritesOnly || isFavoriteModel(model)) && matches(model, query))
         .sort((a, b) => Number(isCurrent(b)) - Number(isCurrent(a)) || Number(isFavoriteModel(b)) - Number(isFavoriteModel(a)));
+    const shown = [...entries.map((entry) => ({ entry })), ...listed];
     // The list can change while the picker is open.
     const active = Math.max(0, Math.min(picked, shown.length - 1));
     // The session's model and level are the default already.
@@ -142,10 +173,19 @@ export function ModelPicker() {
     useEffect(() => {
         void loadUsage();
     }, []);
+    // A pick closed without a choice: whoever asked hears null.
+    useEffect(() => () => {
+        if (pickFor && waiting !== null) {
+            const answer = waiting;
+
+            waiting = null;
+            answer(null);
+        }
+    }, []);
 
     useEffect(() => {
-        // The default's picker has no chip to open from: it stays in the middle.
-        const place = () => setAnchor(forDefault ? null : modelAnchor());
+        // The default's picker, and a pick's, have no chip to open from: they stay in the middle.
+        const place = () => setAnchor(forDefault || pickFor ? null : modelAnchor());
         const onKey = (event) => event.key === "Escape" && closeSheet();
 
         addEventListener("resize", place);
@@ -172,6 +212,17 @@ export function ModelPicker() {
     }, [active]);
 
     const pick = (model) => {
+        // A pick answers with the model as a setting names it, or the entry's value.
+        if (pickFor) {
+            const answer = waiting;
+
+            waiting = null;
+            closeSheet();
+            answer?.(model.entry ? model.entry.value : modelValue(model));
+
+            return;
+        }
+
         // The default's picker stays open, for its thinking level.
         if (forDefault) {
             return isCurrent(model) ? undefined : setDefault(model, level);
@@ -240,7 +291,7 @@ export function ModelPicker() {
             ref=${box}
             role="dialog"
             aria-modal="true"
-            aria-label=${forDefault ? t("Default model") : t("Model")}
+            aria-label=${pickFor ? pickFor.title : forDefault ? t("Default model") : t("Model")}
             aria-keyshortcuts=${scopedModels.length > 0 ? "Tab" : undefined}
             tabindex="-1"
             onKeyDown=${onKeyDown}
@@ -248,8 +299,9 @@ export function ModelPicker() {
             <div class="grip" aria-hidden="true"></div>
             <header class="pop-menu-head">
                 <span>
-                    ${forDefault ? t("Default model") : t("Model")}
-                    ${forDefault && html`<span class="pop-menu-head-sub">${t("for new sessions")}</span>`}
+                    ${pickFor ? pickFor.title : forDefault ? t("Default model") : t("Model")}
+                    ${forDefault && !pickFor && html`<span class="pop-menu-head-sub">${t("for new sessions")}</span>`}
+                    ${pickFor?.sub && html`<span class="pop-menu-head-sub">${pickFor.sub}</span>`}
                     ${
                         scopedModels.length > 0 &&
                         html`<span
@@ -282,8 +334,12 @@ export function ModelPicker() {
                         </span>`
                     }
                 </span>
-                <button class="pop-menu-link" onClick=${() => openSheet({ type: "providers" })}>
-                    <${Icon} name="key" size=${16} /> ${t("Providers")}</button>
+                ${
+                    // A pick's caller opens its own sheet again when the picker goes: Providers would be gone at once.
+                    !pickFor &&
+                    html`<button class="pop-menu-link" onClick=${() => openSheet({ type: "providers" })}>
+                        <${Icon} name="key" size=${16} /> ${t("Providers")}</button>`
+                }
             </header>
             ${
                 searchable &&
@@ -331,9 +387,26 @@ export function ModelPicker() {
                     shown.length === 0 &&
                     html`<p class="muted pop-menu-note">${favoritesOnly && query.trim() === "" ? t("No favorites among these models: star some in Providers.") : t("No model matches “{query}”.", { query: query.trim() })}</p>`
                 }
-                ${shown.map(
-                    (model, index) => html`<button
+                ${shown.map((model, index) =>
+                    model.entry
+                        ? html`<button
+                              key=${`entry:${model.entry.value}`}
+                              class=${`pop-menu-row ${index === active ? "on" : ""} ${pickFor.value === model.entry.value ? "current" : ""}`}
+                              role="option"
+                              aria-selected=${pickFor.value === model.entry.value}
+                              data-part="model-pick-entry"
+                              onMouseMove=${() => index !== active && setPicked(index)}
+                              onClick=${() => pick(model)}
+                          >
+                              <span class="pop-menu-row-text">
+                                  <span class="pop-menu-row-name">${model.entry.label}</span>
+                                  ${model.entry.detail && html`<span class="pop-menu-row-sub">${model.entry.detail}</span>`}
+                              </span>
+                              ${pickFor.value === model.entry.value && html`<${Icon} name="check" size=${16} />`}
+                          </button>`
+                        : html`<button
                         key=${`${model.provider}/${model.id}`}
+                        data-value=${modelValue(model)}
                         class=${`pop-menu-row ${index === active ? "on" : ""} ${isCurrent(model) ? "current" : ""}`}
                         role="option"
                         aria-selected=${isCurrent(model)}
@@ -344,7 +417,7 @@ export function ModelPicker() {
                         <span class="pop-menu-row-text">
                             <span class="pop-menu-row-name">${model.name}</span>
                             <span class="pop-menu-row-sub">
-                                ${model.account ? `${model.provider.split("~")[0]} · ${model.account} account` : model.provider}${!forDefault && isDefault(model) ? " · default" : ""}${model.signIn ? " · needs sign-in" : ""}${usageLine(model.provider) ? ` · ${usageLine(model.provider)}` : ""}
+                                ${model.account ? `${model.provider.split("~")[0]} · ${model.account} account` : model.provider}${!forDefault && isDefault(model) ? " · default" : ""}${model.signIn ? " · needs sign-in" : ""}${usageLine(model.provider) ? ` · ${usageLine(model.provider)}` : ""}${usageReset(model.provider) ? ` · ${usageReset(model.provider)}` : ""}
                             </span>
                         </span>
                         ${isFavoriteModel(model) && html`<span class="model-star" title=${t("Favorite")} aria-label=${t("Favorite")}><${Icon} name="star" size=${16} /></span>`}
@@ -371,9 +444,9 @@ export function ModelPicker() {
                     </div>
                 </div>`
             }
-            ${!forDefault && html`<${VoiceModeRow} session=${store.state.conversationId} />`}
+            ${!forDefault && !pickFor && html`<${VoiceModeRow} session=${store.state.conversationId} />`}
             ${
-                !defaultsKept()
+                !defaultsKept() || pickFor
                     ? null
                     : forDefault
                       ? html`<div class="pop-menu-foot pop-menu-default">

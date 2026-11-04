@@ -8264,6 +8264,7 @@ pre.diff .del {
 .model-menu .pop-menu-link {
     gap: 4px;
     font-size: 13px;
+    line-height: 20px;
     color: var(--accent);
 }
 
@@ -8271,8 +8272,10 @@ pre.diff .del {
     padding: 0 8px 8px;
 }
 
+/* Whole-pixel rows, a tap tall (PP-409): one line 40 px, a model with its account and figures 52. */
 .model-menu .pop-menu-row {
     gap: 8px;
+    min-height: 40px;
     padding: 8px 8px;
     border-bottom: 0;
     border-radius: var(--r-row);
@@ -8287,12 +8290,9 @@ pre.diff .del {
     box-shadow: none;
 }
 
-.model-menu .pop-menu-row-text {
-    line-height: 1.35;
-}
-
 .model-menu .pop-menu-row-name {
     font-size: 14px;
+    line-height: 20px;
 }
 
 .model-menu .pop-menu-row.current .pop-menu-row-name {
@@ -8300,7 +8300,7 @@ pre.diff .del {
 }
 
 .model-menu .pop-menu-row-sub {
-    font: 12px var(--mono);
+    font: 12px / 16px var(--mono);
     color: var(--faint);
 }
 

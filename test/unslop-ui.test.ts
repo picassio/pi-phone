@@ -216,9 +216,9 @@ test("flat marks: no hue gradients; an idle session already read shows no mark (
     await shot("unslop-sessions-390.jpg");
 });
 
-test("Wiki settings: Capture model, Embedding model and Open questions are the app's dropdowns, no system select (PP-335)", real, async () => {
+test("Wiki settings: Capture model is the app's model picker, Embedding model and Open questions the app's dropdowns, no system select (PP-335, PP-409)", real, async () => {
     await page.navigate(`${base}/?sheet=para:settings`);
-    await see(`return JSON.stringify(document.querySelector('[data-part="wiki-capture-model"] .choice') !== null)`, "the capture model's dropdown");
+    await see(`return JSON.stringify(document.querySelector('[data-part="wiki-capture-model"] .choice') !== null)`, "the capture model's field");
 
     const shown = await inPage<{ selects: number; capture: string }>(
         `return JSON.stringify({ selects: document.querySelectorAll(".wiki-settings select").length, capture: document.querySelector('[data-part="wiki-capture-model"] .choice-text').textContent.trim() })`,
@@ -227,10 +227,12 @@ test("Wiki settings: Capture model, Embedding model and Open questions are the a
     assert.equal(shown.selects, 0);
     assert.match(shown.capture, /The default model for new sessions/);
     await page.evaluate(`document.querySelector('[data-part="wiki-capture-model"] .choice').click(); return "true";`);
-    await see(`return JSON.stringify(document.querySelectorAll('.choice-menu .pop-menu-row').length >= 2)`, "the models");
+    await see(`return JSON.stringify(document.querySelectorAll('.model-menu .pop-menu-row').length >= 2)`, "the models");
     await shot("unslop-wiki-capture-390.jpg");
-    await page.evaluate(`document.querySelectorAll('.choice-menu .pop-menu-row')[1].click(); return "true";`);
+    await page.evaluate(`document.querySelectorAll('.model-menu .pop-menu-row')[1].click(); return "true";`);
     await until(async () => (await app.para.settings()).captureModel !== "auto", "the pick kept");
+    // Wiki settings comes back with it: the flow is over before the next test loads another page.
+    await see(`return JSON.stringify(document.querySelector(".model-menu") === null && !document.querySelector('[data-part="wiki-capture-model"] .choice-text')?.textContent.includes("The default model"))`, "Wiki settings back with the pick");
 });
 
 test("Providers: the list stays where it first shows while the plan limits and the OpenAI-compatible providers come in (PP-336)", real, async () => {

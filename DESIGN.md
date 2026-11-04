@@ -402,7 +402,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   pi-para's `models.capture`, or the app's default model for "auto". The watermark moves when the capture is sent.
   Wiki settings (a sheet from the Wiki page and the launcher) are the only way people change pi-para's config: the app
   writes `config.jsonc` with pi-para's own `saveParaConfig`, keeping what it does not show. They hold the capture model
-  and minutes, the prompt context's budget and schema, the OpenRouter embedding model (from OpenRouter's
+  (picked with the app's model picker, PP-409: `pocket.pickModel`, every account's models with their plan figures, an
+  account near its limit with its reset, "The default model for new sessions" first as `auto`, no thinking level; the
+  sheet comes back after, saved through the same settings API, `captureModel` as `provider/id`, an account's provider
+  `provider~account`) and minutes, the prompt context's budget and schema, the OpenRouter embedding model (from OpenRouter's
   `/embeddings/models`, with `pi-auth:openrouter`; a change reopens the search), and the health checks.
   Open questions (pi-para 0.8.5, `pi-para/questions`): tracked lines `- [ ] (date, #session) question`, resolved under
   "Resolved Questions" as `- [x] (date, #session) question → answer`. pi-para lists them in the wiki context and in
@@ -2378,6 +2381,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - A project's folder is typed or chosen with the app's folder picker: `pocket.pickFolder({ start, title })` (an
     extension API) opens `CwdSheet` in its `pick` mode (browse, make folders, here or on a machine) and answers the
     folder or null; it takes the sheet's place, so the sheet comes back with the choice (`new-project` keeps a draft).
+  - A model is chosen the same way (PP-409): `pocket.pickModel({ title, sub, value, entries })` opens the session's
+    model picker (`web/sheets/model.js`, `pickModel`) in its pick mode: every model of every signed-in account with its
+    plan figures (`usageLine`, and `usageReset` once a window is 90% used), search, favorites, scoped and all, and
+    `entries` (`{ value, label, detail? }`) first; no thinking level, voice row, default footer or Providers link (the
+    caller's sheet comes back when the picker goes, which would close Providers at once). It answers
+    `provider/id`, an entry's value, or null; it takes the sheet's place, so the caller opens its sheet again.
   - Links: `/?page=<module>:<page>` opens an extension's page once its module is ready (`openPageWhenReady` in
     `extension-ui.js`: opened earlier, the module list would close it); `#task:PP-3` opens a task, from a link anywhere
     or the address (asked again until the sheet shows, as the linked page's opening closes sheets). For Pi's

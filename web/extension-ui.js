@@ -32,6 +32,7 @@ import {
 } from "./store.js";
 import { setCallSummary } from "./turns.js";
 import { pickFolder } from "./sheets/folder.js";
+import { pickModel } from "./sheets/model.js";
 import { browserAvailable, setBrowserOpen } from "./browser-panel.js";
 import { computerAvailable, setComputerOpen } from "./computer-panel.js";
 import { BOTTOM_SHEETS, Choice, html, Icon, iconPath, Loader, Markdown, MultiChoice, railState, Sheet, Spinner, StateTag, Switch } from "./ui.js";
@@ -1225,6 +1226,32 @@ function pocketFor(record) {
             return pickFolder({
                 ...(typeof options.start === "string" ? { start: options.start } : {}),
                 ...(typeof options.title === "string" ? { title: options.title } : {}),
+            });
+        },
+        /**
+         * The app's model picker, as a session's model is picked (PP-409): every model of every signed-in account with its
+         * plan figures, search, favorites, scoped and all, taking the sheet's place. Answers `provider/id` (an account's
+         * provider is `provider~account`), an entry's value, or null when closed without a pick. `title` and `sub` say
+         * what it picks for, `value` is the one chosen now, `entries` (`{ value, label, detail? }`) come first.
+         */
+        pickModel(options = {}) {
+            tick(record);
+
+            if (!live()) {
+                return Promise.resolve(null);
+            }
+
+            const entries = Array.isArray(options.entries)
+                ? options.entries
+                      .filter((entry) => typeof entry?.value === "string" && typeof entry.label === "string")
+                      .map((entry) => ({ value: entry.value, label: entry.label, ...(typeof entry.detail === "string" ? { detail: entry.detail } : {}) }))
+                : [];
+
+            return pickModel({
+                ...(typeof options.title === "string" ? { title: options.title } : {}),
+                ...(typeof options.sub === "string" ? { sub: options.sub } : {}),
+                ...(typeof options.value === "string" ? { value: options.value } : {}),
+                entries,
             });
         },
         /** How calls of one of its tools show: in a line in transcripts and peek tiles, and in a group's summary. */

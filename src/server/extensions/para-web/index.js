@@ -467,6 +467,29 @@ export default function wiki(pocket) {
         }
 
         const price = (model) => (model.pricePerMillion === 0 ? t("free") : "$" + model.pricePerMillion.toFixed(3) + "/M");
+        // The capture model: chosen with the app's model picker (PP-409), every account with its plan figures, so one
+        // at its limit shows before it is picked. It takes this sheet's place, and this sheet comes back after.
+        const captured = settings.models.find((model) => `${model.provider}/${model.id}` === settings.captureModel);
+        const captureLabel = settings.captureModel === "auto" ? t("The default model for new sessions") : (captured?.name ?? settings.captureModel);
+        const pickCapture = async () => {
+            const chosen = await pocket.pickModel({
+                title: t("Capture model"),
+                sub: t("writes the wiki"),
+                value: settings.captureModel,
+                entries: [{ value: "auto", label: t("The default model for new sessions") }],
+            });
+
+            if (chosen !== null && chosen !== settings.captureModel) {
+                try {
+                    await pocket.api("settings", { captureModel: chosen });
+                    pocket.notify("info", t("Saved."));
+                } catch (error) {
+                    pocket.notify("error", error.message);
+                }
+            }
+
+            pocket.openSheet("settings");
+        };
         const chosen = embedding?.models?.find((model) => model.id === settings.embeddingModel);
 
         return html`<div class="wiki-settings">
@@ -484,20 +507,13 @@ export default function wiki(pocket) {
                         <div class="field">
                             <div class="label">${t("Capture model")}</div>
                             <div data-part="wiki-capture-model">
-                                <${Choice}
-                                    label=${t("Capture model")}
-                                    value=${settings.captureModel}
-                                    disabled=${busy}
-                                    options=${[
-                                        { value: "auto", label: t("The default model for new sessions") },
-                                        ...settings.models.map((model) => ({ value: `${model.provider}/${model.id}`, label: model.name, detail: `${model.provider}/${model.id}` })),
-                                        // A model no longer listed still shows as chosen.
-                                        ...(settings.captureModel === "auto" || settings.models.some((model) => `${model.provider}/${model.id}` === settings.captureModel)
-                                            ? []
-                                            : [{ value: settings.captureModel, label: settings.captureModel }]),
-                                    ]}
-                                    onChange=${(next) => next !== settings.captureModel && save({ captureModel: next })}
-                                />
+                                <button type="button" class="choice" aria-haspopup="dialog" aria-label=${t("Capture model")} disabled=${busy} onClick=${pickCapture}>
+                                    <span class="choice-text">
+                                        <span>${captureLabel}</span>
+                                        ${settings.captureModel !== "auto" && html`<span class="choice-detail">${settings.captureModel}</span>`}
+                                    </span>
+                                    <${Icon} name="down" size=${16} />
+                                </button>
                             </div>
                         </div>
                     </div>

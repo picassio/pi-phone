@@ -42,7 +42,7 @@ test("the drop-in API's names come from the app's own files", () => {
         "version", "module", "title", "h", "html", "Fragment", "useState", "useEffect", "useLayoutEffect", "useRef", "useMemo", "useCallback", "useReducer",
         "Icon", "Spinner", "Loader", "Markdown", "Switch", "Choice", "MultiChoice", "StateTag", "t", "tn", "tx", "language", "me", "conversationId",
         "api", "on", "notify", "compose", "rail", "menu", "launcher", "page", "sheet", "dock", "overlay", "panelTab", "sessionMenu", "theme",
-        "pickFolder", "toolCall", "openPage", "openPageOf", "closePage", "openSheet", "closeSheet", "style", "onDispose",
+        "pickFolder", "pickModel", "toolCall", "openPage", "openPageOf", "closePage", "openSheet", "closeSheet", "style", "onDispose",
     ]);
     // pocket.theme's tokens are colours of the app's :root, the palette's among them; sizes and fonts are not.
     assert.ok(themeTokens.length > 50 && themeTokens.includes("--o-bg") && themeTokens.includes("--accent"), themeTokens.join(", "));

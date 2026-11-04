@@ -2586,6 +2586,7 @@
     "After a session is idle for (minutes; empty: only when asked)": "Sau khi phiên rảnh (phút; trống: chỉ khi được yêu cầu)",
     "only when asked": "chỉ khi được yêu cầu",
     "Capture model": "Mô hình ghi nhận",
+    "writes the wiki": "viết vào wiki",
     "The default model for new sessions": "Mô hình mặc định cho phiên mới",
     "Wiki in Pi's prompt": "Wiki trong prompt của Pi",
     "The wiki's conventions, its index, and the pages of the session's project, in every session's prompt.": "Quy ước của wiki, mục lục, và các trang của dự án phiên, trong prompt của mọi phiên.",

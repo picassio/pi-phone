@@ -2491,6 +2491,7 @@
     "After a session is idle for (minutes; empty: only when asked)": "会话空闲多久后采集（分钟；留空：仅在要求时）",
     "only when asked": "仅在要求时",
     "Capture model": "采集模型",
+    "writes the wiki": "写入 wiki",
     "The default model for new sessions": "新会话的默认模型",
     "Wiki in Pi's prompt": "Pi 提示词中的知识库",
     "The wiki's conventions, its index, and the pages of the session's project, in every session's prompt.": "知识库的约定、索引以及会话所属项目的页面，会放入每个会话的提示词中。",

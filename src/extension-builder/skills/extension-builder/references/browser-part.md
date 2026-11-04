@@ -50,6 +50,10 @@ newest loaded wins, and `extension_inspect` says whose shows. Setting `--o-*` re
 - `pocket.on(event, fn)`: hears `web.send(event, data)`; answers how to stop (return it from a `useEffect`).
 - `pocket.notify(level, message)`: a notice, `info`, `warning` or `error` (5 in 5 s at most).
 - `pocket.compose(text)`: puts text in the message box after what is there; the person sends it or not.
+- `pocket.pickModel({ title?, sub?, value?, entries? })`: the app's model picker, as a session's model is picked (every
+  signed-in account's models with their plan figures, search, favorites); answers `provider/id` (an account's provider
+  is `provider~account`), the value of one of `entries` (`{ value, label, detail? }`, shown first), or null. It takes
+  the sheet's place: open your sheet again after it answers.
 - `pocket.pickFolder({ start?, title? })`: the app's folder picker; answers a path (`machine:<id>:<path>` on a
   machine) or null.
 - `pocket.toolCall({ tool, label(args), subject?(args), summary?(args), icon? })`: how calls of its own tools show in
@@ -69,8 +73,8 @@ failed to load: what it added goes, and a notice says why.
 `h`, `html` (htm), `Fragment`, and the hooks `useState`, `useEffect`, `useLayoutEffect`, `useRef`, `useMemo`,
 `useCallback`, `useReducer` are the app's own Preact. Its pieces:
 
-- `Icon` `{ name, size, stroke }`: a line icon by name; sizes 12, 14 or 16 (19 and up only in the rail and empty
-  states). The names: menu, pip, more, close, send, stop, play, pause, mic, voice, speaker, micoff, clip, plus,
+- `Icon` `{ name, size }`: a line icon by name; sizes 16 in rows and buttons, 20 in heads and the rail, 24 in empty
+  states, stroke 2 (the app's scale, PP-403). The names: menu, pip, more, close, send, stop, play, pause, mic, voice, speaker, micoff, clip, plus,
   artifact, folder, file, diff, back, clock, chevron, minus, down, up, eye, search, shield, board, external, key, users,
   sparkle, chat, fork, command, sidebar, tiles, grid, pin, star, palette, pulse, keyboard, swatch, home, archive,
   unarchive, unread, check, logout, globe, reload, copy, undo, phone, tablet, monitor, upload, download, terminal, fit,

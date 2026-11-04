@@ -64,6 +64,17 @@ export function usageLine(provider) {
     return usage.windows.map((window) => `${SHORT[window.label] ?? window.label} ${Math.round(window.usedPercent)}%`).join(" · ");
 }
 
+/**
+ * When an account near its limit can be used again: its fullest window's reset ("resets Fri 09:00"), once that window is
+ * 90% used or more (PP-409: a capture failed on an account at its weekly limit); undefined otherwise.
+ */
+export function usageReset(provider) {
+    const windows = store.state.usage[provider]?.windows ?? [];
+    const fullest = windows.reduce((most, window) => (most === undefined || window.usedPercent > most.usedPercent ? window : most), undefined);
+
+    return fullest !== undefined && fullest.usedPercent >= 90 && fullest.resetsAt !== undefined ? resetText(fullest.resetsAt) : undefined;
+}
+
 /** The highest share used of an account's windows, for the meter's color. */
 export function usagePeak(provider) {
     const usage = store.state.usage[provider];
