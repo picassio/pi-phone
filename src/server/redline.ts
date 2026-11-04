@@ -44,7 +44,17 @@ export type RedlineBlock = {
     type?: Omit<TypeStyle, "count" | "what">;
 };
 
-export type RedlineMeasure = { width: number; height: number; mode: "auto" | "selector"; selector?: string; blocks: RedlineBlock[]; types: TypeStyle[]; found: number };
+export type RedlineMeasure = {
+    width: number;
+    height: number;
+    mode: "auto" | "selector";
+    selector?: string;
+    /** The sheet or dialog open over the page that auto mode measured instead of the page under it. */
+    layer?: string;
+    blocks: RedlineBlock[];
+    types: TypeStyle[];
+    found: number;
+};
 
 /**
  * The script that measures a page laid out `width` CSS pixels wide (innerWidth when not given), as one expression that
@@ -99,7 +109,18 @@ ${PAGE_HELPERS}
     if (t) out.type = typeOf(t.node.parentElement, t.rect);
     return out;
   };
-  const all = document.body ? [...document.body.querySelectorAll('*')].slice(0, 4000) : [];
+  // A sheet or dialog open over the page (a modal: dialog:modal, aria-modal): auto mode measures that top layer only, not
+  // the page under its backdrop. The topmost is the one whose middle shows at its middle; else the last open.
+  const modal = (e) => { try { if (e.matches('dialog:modal')) return true; } catch {} return e.getAttribute('aria-modal') === 'true'; };
+  const layers = document.body ? [...document.body.querySelectorAll('dialog, [aria-modal="true"]')].filter((e) => modal(e) && shows(e, e.getBoundingClientRect())) : [];
+  let top = null;
+  for (const e of [...layers].reverse()) {
+    const r = e.getBoundingClientRect(), hit = document.elementFromPoint(Math.min(VW - 1, Math.max(0, r.left + r.width / 2)), Math.min(VH - 1, Math.max(0, r.top + r.height / 2)));
+    if (hit && e.contains(hit)) { top = e; break; }
+  }
+  if (!top && layers.length > 0) top = layers[layers.length - 1];
+  const scope = SELECTOR === null && top ? top : document.body;
+  const all = scope ? [...(scope === document.body ? [] : [scope]), ...scope.querySelectorAll('*')].slice(0, 4000) : [];
   const page = Math.max(W, document.documentElement.scrollWidth) * Math.max(VH, document.documentElement.scrollHeight);
   let blocks = [], found = 0;
   if (SELECTOR !== null) {
@@ -124,7 +145,7 @@ ${PAGE_HELPERS}
   }
   // Type: each style of the words that show, how often, and where it first shows.
   const types = new Map();
-  const walker = document.body ? document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT) : null;
+  const walker = scope ? document.createTreeWalker(scope, NodeFilter.SHOW_TEXT) : null;
   const range = document.createRange();
   let texts = 0;
   for (let node = walker ? walker.nextNode() : null; node && texts < 3000; node = walker.nextNode()) {
@@ -139,7 +160,7 @@ ${PAGE_HELPERS}
     const had = types.get(key);
     if (had) had.count++; else types.set(key, Object.assign(t, { what: name(p), count: 1 }));
   }
-  return JSON.stringify({ width: W, height: Math.max(VH, document.documentElement.scrollHeight), mode: SELECTOR === null ? 'auto' : 'selector', selector: SELECTOR === null ? undefined : SELECTOR, blocks, types: [...types.values()].sort((a, b) => b.count - a.count).slice(0, 30), found });
+  return JSON.stringify({ width: W, height: Math.max(VH, document.documentElement.scrollHeight), mode: SELECTOR === null ? 'auto' : 'selector', selector: SELECTOR === null ? undefined : SELECTOR, layer: scope && scope !== document.body ? name(scope) : undefined, blocks, types: [...types.values()].sort((a, b) => b.count - a.count).slice(0, 30), found });
 })()`;
 
 /** The page's measure, checked: undefined when the text is not one. */
@@ -546,7 +567,7 @@ const specWords = (spec: RedlineSpec) =>
 export function describeRedline(measure: RedlineMeasure, plan: RedlinePlan, spec: RedlineSpec | undefined): string {
     const kinds = measure.mode === "selector"
         ? `${measure.blocks.length} of the ${measure.found} elements ${measure.selector} finds`
-        : `${measure.blocks.filter((block) => block.kind === "surface").length} surfaces and ${measure.blocks.filter((block) => block.kind === "control").length} controls (the main blocks)`;
+        : `${measure.blocks.filter((block) => block.kind === "surface").length} surfaces and ${measure.blocks.filter((block) => block.kind === "control").length} controls (the main blocks${measure.layer === undefined ? "" : ` of the top layer, ${measure.layer}; the page under it is left out`})`;
     const lines = [`Redlines at ${measure.width} px: ${kinds}; ${typesOf(measure).length} type styles.`, ...plan.legend.map((line) => `- ${line.text}`)];
 
     if (spec !== undefined) {

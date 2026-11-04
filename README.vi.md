@@ -348,7 +348,8 @@ dự án thật.</sub>
   như `screenshot`) rồi vẽ số đo lên hình như redline của nhà thiết kế: padding là dải xanh lá, khoảng cách giữa các
   khối là dải hồng tím kèm số pixel, bo góc là nhãn xanh dương, kích thước nút màu cam (vùng chạm dưới 40 px trên điện
   thoại tô đỏ), kiểu chữ (cỡ, chiều cao dòng, độ đậm, màu) màu tím, và một bảng chú giải các giá trị đã dùng dưới hình.
-  Nó đo các khối chính, hoặc các phần tử một selector chọn; khi có spec (tokens.css của một design system, hoặc một danh
+  Nó đo các khối chính (khi đang mở một sheet hoặc hộp thoại thì chỉ đo lớp trên cùng đó), hoặc các phần tử một
+  selector chọn; khi có spec (tokens.css của một design system, hoặc một danh
   sách như "padding 16, radius 24/12/20, font 22/13/12") nó tô đỏ chỗ lệch kèm giá trị của spec ("gap 23, spec 24") và
   liệt kê ra. `browser_redline` làm việc tương tự trên trang đang mở trong trình duyệt của Pi. Một tệp ảnh không có DOM:
   hãy so nó bằng `image_compare`.

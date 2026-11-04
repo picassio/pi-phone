@@ -932,8 +932,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `check` (the request's script, so no APK change) and the shot keeps its raw answer, and Pi's browser runs it in the
     same step as its picture (`screenshot`'s `script`, so the card's typing stays hidden). Auto mode takes the main
     blocks: surfaces (a background that differs from what is under it, a visible border, a shadow or a background
-    picture; the biggest 24, none over 90 % of the page) and controls (the first 24, none inside another); a selector
-    takes up to 40 elements it finds. Each block answers its box, padding, border, corner radii (a pill when one is at
+    picture; the biggest 24, none over 90 % of the page) and controls (the first 24, none inside another), of the top
+    layer only when a sheet or dialog is open (a modal: `dialog:modal` or `aria-modal`, the topmost the one whose middle
+    shows at its middle; the page under its backdrop is left out, and the answer names the layer); a selector takes up
+    to 40 elements it finds, wherever they are. Each block answers its box, padding, border, corner radii (a pill when one is at
     least half its short side), the gap to its next placed sibling below or beside it (not across words, as inline code
     in a sentence; `auto` when a `flex: 1` filler, `justify-content` or an auto margin spreads it, so it is drawn and
     said but never checked or listed as spacing), and the type of its first words; the page answers its type styles by

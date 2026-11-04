@@ -38,6 +38,16 @@ body{margin:0;font:15px/20px sans-serif;background:#fff;color:#111}
 button{width:32px;height:32px;padding:0;border:0;background:#ccd;border-radius:8px;font:13px/16px sans-serif}
 </style><div class="wrap"><div class="card" id="one"><h2>First card</h2><p>Words in it</p></div><div class="card" id="two"><h2>Second card</h2><p>More words</p></div><button id="go">Go</button></div>`;
 const SPEC = "padding 16, gap 24, radius 24/12/20, font 22/13/12";
+/** A list of rows under a sheet open over it, with its backdrop, as pi-phone's ?sheet=dictation. */
+const SHEET = `<!doctype html><meta name="viewport" content="width=device-width"><style>
+body{margin:0;font:15px/20px sans-serif;background:#fff;color:#111}
+.row{background:#eee;padding:6px;margin:0 0 6px;border-radius:9px}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.5)}
+#sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;padding:20px;border-radius:24px 24px 0 0}
+#sheet h2{font-size:20px;line-height:28px;margin:0 0 12px}
+#sheet button{width:120px;height:44px;padding:0;border:0;border-radius:12px;background:#ccd;font:14px/20px sans-serif}
+</style><div class="list"><div class="row">Row one</div><div class="row">Row two</div><button class="row">Row three</button></div>
+<div class="scrim"><section id="sheet" role="dialog" aria-modal="true"><h2>Dictation</h2><button>Turn on</button></section></div>`;
 
 let server: Server;
 let port = 0;
@@ -56,7 +66,7 @@ const route: FauxResponseStep = (request) => {
 before(async () => {
     server = createServer((_request, response) => {
         response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        response.end(PAGE);
+        response.end(_request.url === "/sheet" ? SHEET : PAGE);
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     port = (server.address() as { port: number }).port;
@@ -228,6 +238,39 @@ test("with Chrome: the screenshot tool's renderer measures the page with the red
             writeFileSync(join(process.env.PHONE_SHOTS, "redline-spec-390.png"), pictures[0]!);
             writeFileSync(join(process.env.PHONE_SHOTS, "redline-auto-390.png"), redlinePictures([{ bytes: shot!.parts[0]!, top: 0 }], measure, undefined, { cssWidth: shot!.width, cssHeight: shot!.height, png: true }).pictures[0]!);
         }
+    } finally {
+        await renderer.stop();
+    }
+});
+
+test("with Chrome: with a sheet open over the page, auto mode measures the sheet only, not the list under its backdrop; a selector still finds what it names", { skip }, async () => {
+    const screenshots = new Screenshots();
+    const renderer = new ChromeRenderer(screenshots, { binary: chrome!, flags: ["--no-sandbox"], base: `http://127.0.0.1:${port}`, token: () => "owner-token", log: () => {} });
+
+    void renderer.run();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    try {
+        const [auto] = await screenshots.render(`http://127.0.0.1:${port}/sheet`, { widths: [390], settleMs: 200, check: redlineScript({ width: 390 }) });
+        const measure = parseRedline(auto!.check)!;
+
+        assert.equal(measure.layer, 'section#sheet "DictationTurn on"');
+        assert.deepEqual(measure.blocks.map((block) => [block.kind, block.what]), [
+            ["surface", 'section#sheet "DictationTurn on"'],
+            ["control", 'button "Turn on"'],
+        ]);
+        assert.deepEqual(measure.types.map((type) => type.what).sort(), ['button "Turn on"', 'h2 "Dictation"']);
+
+        const { text } = redlinePictures([{ bytes: auto!.parts[0]!, top: 0 }], measure, parseSpec(SPEC, "the spec given"), { cssWidth: 390, cssHeight: auto!.height, png: false });
+
+        assert.match(text, /^Redlines at 390 px: 1 surfaces and 1 controls \(the main blocks of the top layer, section#sheet "DictationTurn on"; the page under it is left out\)/);
+        assert.doesNotMatch(text, /row/);
+
+        const [chosen] = await screenshots.render(`http://127.0.0.1:${port}/sheet`, { widths: [390], settleMs: 200, check: redlineScript({ width: 390, selector: ".row" }) });
+        const rows = parseRedline(chosen!.check)!;
+
+        assert.equal(rows.layer, undefined);
+        assert.equal(rows.blocks.length, 3);
     } finally {
         await renderer.stop();
     }
