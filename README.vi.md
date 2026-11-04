@@ -332,6 +332,11 @@ dự án thật.</sub>
   ứng dụng sẽ hiện đúng kiểu.
 - **Ảnh chụp có số đo.** Mỗi độ rộng của `screenshot` đi kèm một lượt kiểm tra bố cục mà trang chạy trước khi vẽ: thứ
   gì tràn khỏi khung hoặc khung cha, và trang có rộng hơn màn hình không, kèm kích thước. Pi dựa vào các con số.
+- **So từng điểm ảnh.** Để làm giao diện chuẩn đến từng điểm ảnh, `image_compare` so một ảnh chụp mới với một hình
+  mẫu (bản mockup, hoặc một ảnh chụp Pi giữ lại khi trang đã đúng): tỉ lệ điểm ảnh đổi, các vùng đổi kèm vị trí và kích
+  thước, và một hình khác biệt lưu cạnh ảnh chụp, chỗ đổi tô đỏ, các vùng được đóng khung và đánh số. Viền khử răng cưa
+  được bỏ qua trừ khi được yêu cầu; hai hình khác kích thước chỉ được so khi được yêu cầu, sau khi co về kích thước của
+  hình mẫu.
 - **Hình ảnh.** `image_generate` tạo và sửa hình ảnh (sửa tối đa năm hình một lần; tạo 1 đến 4 hình; 1:1, 16:9,
   9:16, 4:3 hoặc 3:4) bằng mô hình bạn chọn ở **Menu › Hình ảnh** (`image.model`): GPT Image 2.5 qua đăng nhập
   ChatGPT (tính vào gói, Chi phí đếm số hình), một mô hình hình ảnh của OpenRouter như Nano Banana

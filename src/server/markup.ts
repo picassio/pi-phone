@@ -19,6 +19,7 @@ type PhotonImage = {
 type Photon = {
     PhotonImage: { new (raw: Uint8Array, width: number, height: number): PhotonImage; new_from_byteslice(bytes: Uint8Array): PhotonImage };
     draw_text(image: PhotonImage, text: string, x: number, y: number, size: number): void;
+    resize(image: PhotonImage, width: number, height: number, filter: number): PhotonImage;
 };
 
 // Photon's Node build is CommonJS and loads its WebAssembly as it is required.
@@ -257,15 +258,11 @@ const textWidth = (text: string, size: number) => Math.ceil(text.length * size *
 /** Whether a byte string is a PNG. */
 export const isPng = (bytes: Uint8Array) => bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
 
-/**
- * The picture with its marks, as a PNG or a JPEG. Areas are in the picture's pixels. Hidden parts first (and the
- * spotlight), so no box, badge or label is blurred; texts last, over their own backgrounds.
- */
-export function markUp(
-    bytes: Uint8Array,
-    given: Mark[],
-    { png, quality = 88, cssWidth }: { png: boolean; quality?: number; cssWidth?: number },
-): { bytes: Uint8Array; width: number; height: number } {
+/** A picture's RGBA pixels, row by row. */
+export type RawPicture = { data: Uint8Array; width: number; height: number };
+
+/** A PNG's or a JPEG's pixels; anything else fails, saying what it takes. */
+export function decodePicture(bytes: Uint8Array): RawPicture {
     let image: PhotonImage;
 
     try {
@@ -274,11 +271,42 @@ export function markUp(
         throw new Error("That file is not a picture Pi can read: give a PNG or a JPEG.");
     }
 
-    const width = image.get_width();
-    const height = image.get_height();
-    const pixels = new Pixels(image.get_raw_pixels(), width, height);
+    try {
+        return { data: image.get_raw_pixels(), width: image.get_width(), height: image.get_height() };
+    } finally {
+        image.free();
+    }
+}
 
-    image.free();
+/** A picture scaled to `width`×`height` (Lanczos). */
+export function scalePicture(picture: RawPicture, width: number, height: number): RawPicture {
+    const image = new photon.PhotonImage(picture.data, picture.width, picture.height);
+
+    try {
+        const scaled = photon.resize(image, width, height, 5);
+
+        try {
+            return { data: scaled.get_raw_pixels(), width: scaled.get_width(), height: scaled.get_height() };
+        } finally {
+            scaled.free();
+        }
+    } finally {
+        image.free();
+    }
+}
+
+/**
+ * The picture with its marks, as a PNG or a JPEG: its bytes, or its pixels (`RawPicture`, drawn on in place). Areas
+ * are in the picture's pixels. Hidden parts first (and the spotlight), so no box, badge or label is blurred; texts
+ * last, over their own backgrounds.
+ */
+export function markUp(
+    bytes: Uint8Array | RawPicture,
+    given: Mark[],
+    { png, quality = 88, cssWidth }: { png: boolean; quality?: number; cssWidth?: number },
+): { bytes: Uint8Array; width: number; height: number } {
+    const { data, width, height } = bytes instanceof Uint8Array ? decodePicture(bytes) : bytes;
+    const pixels = new Pixels(data, width, height);
 
     // A page's areas are in CSS pixels; its picture may be at twice them.
     const scale = cssWidth === undefined ? 1 : width / cssWidth;

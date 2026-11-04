@@ -7,6 +7,7 @@
 import { arr, bool, num, obj, opt, str } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
+import { compareImages, describeComparison, diffPathOf } from "../image-compare.ts";
 import { describeLayout } from "../layout-check.ts";
 import { isPng, markUp } from "../markup.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
@@ -27,7 +28,7 @@ const DESCRIPTION =
     "With save, the pictures are saved as files too, to mark up with image_markup or put in documents.";
 
 /** In every prompt while the module is on. */
-export const SEEING = `Seeing your work: after you make or change an artifact, an HTML page, or an Office file, look at it with screenshot (a phone's width and a desktop's) and fix what you see before you call it done. Check app changes in the live app (http://127.0.0.1:8787/s/<id>, or a sheet by /?sheet=...), not only a test page. Go by the layout check's numbers more than the picture; when the picture, the numbers, or a test page disagree, find out why before you call it right, never explain it away.`;
+export const SEEING = `Seeing your work: after you make or change an artifact, an HTML page, or an Office file, look at it with screenshot (a phone's width and a desktop's) and fix what you see before you call it done. Check app changes in the live app (http://127.0.0.1:8787/s/<id>, or a sheet by /?sheet=...), not only a test page. Go by the layout check's numbers more than the picture; when the picture, the numbers, or a test page disagree, find out why before you call it right, never explain it away. For pixel-perfect work, keep a reference picture (the mockup, or a screenshot saved with save or path once it is right) and compare each new screenshot with it with image_compare.`;
 
 export default function createScreenshot(host: PocketHost) {
     const screenshot = defineTool({
@@ -212,9 +213,80 @@ export default function createScreenshot(host: PocketHost) {
         },
     });
 
+    const imageCompare = defineTool({
+        name: "image_compare",
+        description:
+            "Compare a picture with a reference picture, pixel by pixel, for pixel-perfect work: the reference is a mockup or design file, or a screenshot you kept once it was right (screenshot's save, browser_screenshot's path); the picture is a new screenshot of the same page at the same width. " +
+            "Both are .png or .jpg files where this session works, of the same size: pictures of different sizes are not compared (the answer gives both sizes) unless resize scales the picture to the reference's size. " +
+            "The answer gives the share of changed pixels and the changed areas (x, y, width, height in the reference's pixels; near changes merged, the largest 12 named), and shows a diff picture, saved beside the picture: the picture faded to gray, changed pixels red, the areas framed in blue with their numbers. " +
+            "Anti-aliased edge pixels (text and curves drawn a little differently) are found and left out unless antialiasing counts them.",
+        parameters: obj({
+            reference: str({ description: "The reference picture, .png or .jpg: absolute or relative to this session's folder" }),
+            picture: str({ description: "The picture to compare with it, .png or .jpg" }),
+            out: opt(str({ description: "Where to save the diff picture, a .png (default: beside the picture, -diff added to its name)" })),
+            threshold: opt(num({ minimum: 0, maximum: 1, description: "How far a pixel's colour may move and still count as the same, 0 (exact) to 1 (default 0.1; JPEG pictures may need 0.15)" })),
+            antialiasing: opt(bool({ description: "Count anti-aliased edge pixels as changes too (default false: they are left out)" })),
+            resize: opt(bool({ description: "Pictures of different sizes: scale the picture to the reference's size and compare (default false: say the sizes and compare nothing)" })),
+        }, { open: true }),
+        execute: async (args, api, context) => {
+            const out = args.out ?? diffPathOf(args.picture);
+
+            if (!/\.png$/i.test(out)) {
+                return reply("Save the diff picture as a .png (out): a JPEG blurs single changed pixels.", true);
+            }
+
+            try {
+                const env = host.envOf((await api.agent(context)).cwd ?? "");
+                const read = async (path: string) => {
+                    const absolute = await env.absolutePath(path, context);
+
+                    if (!absolute.ok) {
+                        throw new Error(`Cannot use ${path}: ${absolute.error.message}`);
+                    }
+
+                    const bytes = await env.readBinaryFile(absolute.value, context);
+
+                    if (!bytes.ok) {
+                        throw new Error(`Could not read ${absolute.value}: ${bytes.error.message}`);
+                    }
+
+                    return { path: absolute.value, bytes: bytes.value };
+                };
+                const reference = await read(args.reference);
+                const picture = await read(args.picture);
+                const target = await env.absolutePath(out, context);
+
+                if (!target.ok) {
+                    throw new Error(`Cannot save to ${out}: ${target.error.message}`);
+                }
+
+                const comparison = compareImages(reference.bytes, picture.bytes, {
+                    ...(args.threshold === undefined ? {} : { threshold: args.threshold }),
+                    ...(args.antialiasing === undefined ? {} : { antialiasing: args.antialiasing }),
+                    ...(args.resize === undefined ? {} : { resize: args.resize }),
+                });
+                const written = await env.writeFile(target.value, comparison.png, context);
+
+                if (!written.ok) {
+                    throw new Error(`Could not save ${target.value}: ${written.error.message}`);
+                }
+
+                return {
+                    output: [
+                        { type: "text" as const, text: describeComparison(comparison, { reference: reference.path, picture: picture.path, out: target.value }) },
+                        // Nothing changed: nothing to look at.
+                        ...(comparison.changed === 0 ? [] : [{ type: "image" as const, data: Buffer.from(comparison.jpeg).toString("base64"), mimeType: "image/jpeg" }]),
+                    ],
+                };
+            } catch (error) {
+                return reply(error instanceof Error ? error.message : String(error), true);
+            }
+        },
+    });
+
     return defineExtension({
         name: "pocket-screenshot",
-        tools: [screenshot, imageMarkup],
+        tools: [screenshot, imageMarkup, imageCompare],
         sections: [section("seeing", () => SEEING)],
     });
 }

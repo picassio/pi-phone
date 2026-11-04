@@ -38,6 +38,7 @@
         "markit-engine": "0.6.2",
         "pele": "1.6.0",
         "pi-para": "0.8.8",
+        "pixelmatch": "8.0.0",
         "preact": "11.0.2",
         "qrcode": "1.5.4",
         "turndown": "7.2.4",

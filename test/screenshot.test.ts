@@ -61,6 +61,14 @@ const route: FauxResponseStep = (request) => {
         );
     }
 
+    if (role === "user" && text.endsWith("compare the pictures")) {
+        return fauxAssistantMessage([fauxToolCall("image_compare", { reference: join(work, "big.png"), picture: join(work, "big-marked.png") })], { stopReason: "toolUse" });
+    }
+
+    if (role === "user" && text.endsWith("compare other sizes")) {
+        return fauxAssistantMessage([fauxToolCall("image_compare", { reference: join(work, "big.png"), picture: join(work, "shots", "page-390.png") })], { stopReason: "toolUse" });
+    }
+
     if (role === "user" && text.endsWith("look badly")) {
         return fauxAssistantMessage([fauxToolCall("screenshot", { path: "notes.txt" })], { stopReason: "toolUse" });
     }
@@ -194,6 +202,18 @@ test("Pi's screenshot: an artifact and a file, at the widths asked, as images it
         assert.equal(lastImages, 1);
         assert.ok(isPng(readFileSync(join(work, "big-marked.png"))));
         assert.notDeepEqual(readFileSync(join(work, "big-marked.png")), WHITE_PNG);
+
+        // The marked picture compared with the plain one (PP-396): what changed, where, and a diff picture beside it.
+        const compared = await ask("compare the pictures");
+
+        assert.match(compared, /Compared .*big-marked\.png with the reference .*big\.png at 400×200 px: [\d,]+ of 80,000 pixels changed/);
+        assert.match(compared, /\\n1\. x \d+, y \d+, \d+×\d+ px/);
+        assert.match(compared, /Diff picture saved as .*big-marked-diff\.png/);
+        assert.equal(lastImages, 1);
+        assert.ok(isPng(readFileSync(join(work, "big-marked-diff.png"))));
+
+        // Pictures of different sizes: nothing compared, both sizes said.
+        assert.match(await ask("compare other sizes"), /The pictures differ in size: the reference is 400×200 px, the picture 8×8 px\. Nothing was compared/);
     } finally {
         await stop();
     }

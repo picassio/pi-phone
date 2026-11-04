@@ -271,6 +271,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "session_unshare",
     "screenshot",
     "image_markup",
+    "image_compare",
     "image_generate",
     "media",
     "video_ask",

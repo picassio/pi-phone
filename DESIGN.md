@@ -319,7 +319,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **The guard:** the secrets module (required) refuses Pi's `read`, `write`, `edit`, and `bash` on the app's key
     stores (`<data>/ssh`, `app.sqlite`, `pocket.sqlite`, `secrets.json`; `ssh-add` and `SSH_AUTH_SOCK` in commands), and every other
     tool that takes a file on the phone too (`pathsOf`: `browser_upload`, `machine_copy`'s phone side, `file_to_markdown`,
-    `doc_image`, `wiki_ingest`, `interview`, `screenshot`, `image_markup`, the screenshot tools' and `browser_save_pdf`'s
+    `doc_image`, `wiki_ingest`, `interview`, `screenshot`, `image_markup`, `image_compare`, the screenshot tools' and `browser_save_pdf`'s
     paths; none of them writes into `<data>/extensions`; PP-204), and treats `machine_run` as bash for secrets.
   - **The launcher:** it offers "Terminal: <machine>" for each connected machine.
   - **`pi-ssh`:** for what needs ssh itself (rsync, tunnels, scp), `<data>/ssh/bin/pi-ssh` is `exec ssh -F
@@ -887,6 +887,21 @@ so Pi changes them through the settings tools; "the last session" is the one the
   at `/a/office/`. Without the service polling (tests, a server not on the phone) a render fails at once, saying so.
   Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
   OfficeCLI's pi-phone notes point to it.
+  - **Pixel compare** (`image_compare`, `image-compare.ts`, PP-396): for pixel-perfect work, a picture against a
+    reference (a mockup or design file, or a screenshot kept once it was right: `screenshot`'s save,
+    `browser_screenshot`'s path). A tool of its own, not a `compare` option on the screenshot tools: one place for any
+    two picture files (also phone and computer screenshots and generated images), and `screenshot` gives several
+    pictures per call (widths, parts of a tall page), which a single reference would not match. pixelmatch 8.0.0 (ISC,
+    pure JavaScript, 37 KB; its pngjs is for its command line only) counts the pixels whose colour moved past
+    `threshold` (0.1 by default) and leaves out anti-aliased edge pixels unless `antialiasing` counts them; Photon,
+    already in for markup, reads PNG and JPEG and writes the diff (no pngjs or jpeg-js in our code). Changed pixels are
+    grouped into areas (8 px cells joined within 16 px, then overlapping boxes merged), the 12 largest named top to
+    bottom in the reference's pixels, the rest counted. The diff picture (`<picture>-diff.png`, or `out`, a PNG only)
+    is the picture faded to gray, changes red, anti-aliasing left out yellow, areas framed in blue with numbers; Pi sees
+    it as a JPEG unless nothing changed. Pictures of different sizes are not compared: the answer names both sizes,
+    and `resize: true` scales the picture to the reference's (Lanczos; it says when that stretches it). Up to 30
+    million pixels each. Deferred (`tool_search`); the `seeing` section names it. Not in plan mode (it writes a file);
+    `pathsOf` checks both pictures and the diff's place, the default one beside the picture too.
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

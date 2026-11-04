@@ -19,6 +19,7 @@ import type { JsonValue } from "@earendil-works/chord";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { PocketHost } from "../host.ts";
+import { diffPathOf } from "../image-compare.ts";
 import { namesIn, SECRET_NAME } from "../secrets.ts";
 import { mayUseMachines, NOT_FOR_TEAMMATES } from "./sharing.ts";
 
@@ -129,6 +130,9 @@ export function pathsOf(tool: string, args: Record<string, unknown>): { read: st
         case "doc_image":
         case "image_markup":
             return { read: one(args.path), write: one(args.out) };
+        // Its diff picture goes beside the picture unless `out` names a place.
+        case "image_compare":
+            return { read: [...one(args.reference), ...one(args.picture)], write: args.out === undefined ? one(args.picture).map(diffPathOf) : one(args.out) };
         case "wiki_ingest":
             return { read: one(args.source).filter((source) => !/^https?:\/\//i.test(source) && args.sourceType !== "text"), write: [] };
         case "interview":

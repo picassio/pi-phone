@@ -321,6 +321,11 @@ No Termux, no laptop, no cloud VM.
   file loads its stylesheets, scripts and pictures from its own folder, so a page linking the app's CSS shows styled.
 - **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
   out of its box or its parent, and whether the page is wider than the screen, with sizes. Pi goes by the numbers.
+- **Pixel compare.** For pixel-perfect work, `image_compare` compares a new screenshot with a reference picture (a
+  mockup, or a screenshot Pi kept once it was right): the share of changed pixels, the changed areas with their
+  positions and sizes, and a diff picture saved beside it with the changes in red and the areas framed and numbered.
+  Anti-aliased edges are left out unless asked; pictures of different sizes are compared only when asked, scaled to the
+  reference's size.
 - **Images.** `image_generate` makes and edits images (up to five to edit at once; 1 to 4 at a time; 1:1, 16:9, 9:16,
   4:3 or 3:4) with the model you pick in **Menu › Images** (`image.model`): GPT Image 2.5 on your ChatGPT sign-in (on
   the plan, counted in Spend as images), an OpenRouter image model such as Nano Banana (`google/gemini-*-image`; its

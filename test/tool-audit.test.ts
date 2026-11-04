@@ -58,6 +58,8 @@ test("the app's key stores are refused to every tool that takes a file on the ph
             ["wiki_ingest", { source: store }],
             ["interview", { questions: store }],
             ["image_markup", { path: store, marks: [] }],
+            ["image_compare", { reference: store, picture: "now.png" }],
+            ["image_compare", { reference: "ref.png", picture: store }],
             ["image_generate", { prompt: "x", images: ["a.png", store] }],
             ["screenshot", { path: store }],
             ["browser_save_pdf", { path: store }],
@@ -133,6 +135,9 @@ test("no tool writes into the drop-in extensions' folder: a copy there would loa
         ["machine_copy", { from: "box:/tmp/evil.ts", to: "~/.pi-pocket/extensions/" }],
         ["browser_save_pdf", { path: "/home/me/.pi-pocket/extensions/x.pdf" }],
         ["image_markup", { path: "a.png", out: "/home/me/.pi-pocket/extensions/a.png" }],
+        ["image_compare", { reference: "a.png", picture: "b.png", out: "/home/me/.pi-pocket/extensions/a.png" }],
+        // Its diff picture goes beside the picture by default.
+        ["image_compare", { reference: "a.png", picture: "/home/me/.pi-pocket/extensions/b.png" }],
     ] as const) {
         assert.match(keyStoreRefusal(tool, args, where) ?? "", /Drop-in extensions/, tool);
     }
