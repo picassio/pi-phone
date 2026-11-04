@@ -230,7 +230,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   toward the ground (92 % light), `--faint` 66 % (75 % light), a light palette's `--accent` and code colors 78 % and 66 %
   toward black (its fills keep the palette's accent), and words in a color on its own tint (initials, a board column's
   count) mix `--tint-ink-share` toward `--tint-ink-toward`; `test/theme-contrast.test.ts` computes them for every
-  palette. Weights 400 to 600, section labels in sentence case without
+  palette. Taps (PP-400): `.button` and a dropdown (`.choice`) are 40 px tall, a small button 40 on touch; a smaller
+  control that keeps its look (a chip, New, the composer's icons, a list's head) takes a 40 px tap through a
+  `::before` layer on `(pointer: coarse)`, kept inside a scrolling row's padding, which would clip it. Weights 400 to 600, section labels in sentence case without
   letter spacing, counts as a plain number after the label ("Settled 50"), paddings, margins and gaps on the 4 px grid
   (2 px steps and 1 to 3 px nudges inside small controls), icons at 12, 14 or 16 px (19 and up only in the rail and
   empty states), no hue gradients. Icons are line icons from `ICONS` (`Icon`, or `iconElement` for Markdown built
@@ -905,7 +907,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
     text or control (`elementFromPoint` at three points of each text's first line and each control's centre, in view
     only; not a cover when it is transparent with no words of its own, a hit area laid over a title; a dialog, menu or
     layer over 40 % of the view; or a fixed, sticky or absolute bar that content scrolls under); tap targets under
-    40 px at widths up to 480 (inline links in sentences, controls inside controls and labelled check boxes left out);
+    40 px at widths up to 480 (inline links in sentences, controls inside controls, labelled check boxes and disabled
+    controls left out; PP-400: a control's hit area counts, its box with an absolutely placed ::before or ::after past
+    its edges and a field's label, so a small control that keeps its look with a hit layer passes);
     padding, gaps, corner radii and control heights off the 4 px grid or not whole pixels (0, 1 and 2 px pass as
     hairlines and nudges, pill corners pass, svg icons need whole pixels only); text under WCAG AA contrast (4.5, 3
     for large text) against its ancestors' background colours composited, with its own and its ancestors' opacity (a

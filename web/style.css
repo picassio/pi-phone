@@ -5075,6 +5075,7 @@ pre.diff .del {
 /* Touch screens keep 16px, below which iOS zooms into the field. */
 @media (pointer: coarse) {
     .composer textarea {
+        min-height: 40px;
         padding: calc(13px * var(--space-y)) calc(15px * var(--space-x)) 2px;
         font-size: 16px;
     }
@@ -7394,7 +7395,7 @@ pre.diff .del {
 }
 
 .splash-actions .button {
-    height: 38px;
+    height: 40px;
     padding: 0 14px;
     gap: 8px;
     border: 1px solid var(--hair-2);
@@ -7712,7 +7713,7 @@ pre.diff .del {
     align-items: center;
     gap: 0.5rem;
     width: 100%;
-    min-height: 2.6rem;
+    min-height: 40px;
     padding: 0.45rem 0.75rem;
     background: var(--card);
     border: 1px solid var(--hair-2);
@@ -8663,7 +8664,7 @@ pre.diff .del {
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    min-height: 38px;
+    min-height: 40px;
     border: 1px solid transparent;
     background: var(--card-2);
     border-radius: var(--r-control);
@@ -16200,7 +16201,7 @@ textarea.notes {
         min-height: 44px;
     }
     .button.small {
-        min-height: 38px;
+        min-height: 40px;
         padding-inline: 0.8rem;
     }
     .segmented button {
@@ -16266,6 +16267,30 @@ textarea.notes {
         position: absolute;
         inset: -4px 0 -2px;
     }
+    /* The list's scope, New group, and a step of what Pi did keep their look and take a 40 px tap (PP-400). */
+    .session-scope-button,
+    .sg-new,
+    .step-head {
+        position: relative;
+    }
+    .session-scope-button::before,
+    .sg-new::before,
+    .step-head::before {
+        content: "";
+        position: absolute;
+        inset: -4px 0;
+    }
+    .step-head::before {
+        inset: -2px 0;
+    }
+    /* Past New group's 1 px border too. */
+    .sg-new::before {
+        inset: -5px 0;
+    }
+    /* The search field: its label, which takes the taps, a thumb tall. */
+    .sessions .search {
+        min-height: 40px;
+    }
     .search .icon-button.small {
         width: 40px;
         height: 40px;
@@ -16316,13 +16341,13 @@ textarea.notes {
         position: absolute;
         inset: -4px -2px;
     }
-    /* The chips are shorter: their layers reach further up and down. */
+    /* The chips are shorter: their layers reach further up and down (past Plan's 1 px border too). */
     .composer-row :is(.model-chip, .plan-chip)::before {
-        inset: -5px -2px;
+        inset: -6px -2px;
     }
     /* Where the row has room, the icon buttons are as wide as a thumb's tap (their look is the icon alone). */
     @container composer (min-width: 360px) {
-        .composer-row :is(.composer-menu-button, .attach-button, .composer-mic) {
+        .composer-row :is(.composer-menu-button, .attach-button, .composer-mic, .composer-voice) {
             width: 36px;
         }
     }
@@ -16344,7 +16369,7 @@ textarea.notes {
     }
     .browser-servers .chip,
     .dr-tools .chip {
-        min-height: 38px;
+        min-height: 40px;
     }
     .dr-filter {
         min-height: 40px;
@@ -16466,11 +16491,11 @@ textarea.notes {
         min-height: 40px;
     }
     .peek-actions .button.small {
-        min-height: 38px;
+        min-height: 40px;
     }
     .peek-seen {
-        width: 38px;
-        height: 38px;
+        width: 40px;
+        height: 40px;
     }
     .pop-menu-link {
         padding-block: 12px;
@@ -19068,7 +19093,7 @@ textarea.notes {
 
 @media (pointer: coarse) {
     .gallery-tag {
-        min-height: 38px;
+        min-height: 40px;
         padding: 6px 14px;
     }
 }

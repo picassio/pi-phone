@@ -2,7 +2,8 @@
 // browser at 390 and 1280 px, in a dark palette (Tokyo Night) and a light one (Catppuccin Latte): the session list, a
 // session with a reply, Dictation, Machines, a project board, and a reply's More sheet. What the polish tickets fixed
 // stays fixed: no emoji or symbol glyphs as icons (PP-402); hints at 3:1 and words at 4.5:1, no text under 12 px
-// (PP-399). With PHONE_SHOTS, screenshots go there.
+// (PP-399); every control a 40 px tap on a phone, its own box or a layer past it (PP-400). With PHONE_SHOTS,
+// screenshots go there.
 import { type App, cleanUp, cleanUpAll, newSession, openApp, owner, root, say, scriptedModel, until, work } from "./helpers.ts";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import assert from "node:assert/strict";
@@ -144,6 +145,10 @@ test("text reads on the main screens: hints at 3:1, words at 4.5:1, in both pale
 
 test("no text under 12 px on the main screens (PP-399)", real, () => {
     assert.deepEqual(found("small-text"), []);
+});
+
+test("every control on the main screens takes a 40 px tap at a phone's width (PP-400)", real, () => {
+    assert.deepEqual(found("small-target"), []);
 });
 
 test("a tool call's icon is a line icon from ICONS, never a symbol (PP-402)", () => {

@@ -334,7 +334,7 @@ dự án thật.</sub>
 - **Ảnh chụp có số đo.** Mỗi độ rộng của `screenshot` đi kèm một lượt kiểm tra bố cục mà trang chạy trước khi vẽ: thứ
   gì tràn khỏi khung hoặc khung cha, và trang có rộng hơn màn hình không, kèm kích thước. Nó còn tìm những thứ khiến
   trang trông chưa hoàn thiện: chữ bị khung cắt (dấu ba chấm, dòng bị xén), phần tử đè lên chữ hoặc nút của phần tử
-  khác, vùng chạm nhỏ hơn 40 px trên điện thoại, padding, khoảng cách, bo góc và chiều cao nút lệch lưới 4 px hoặc
+  khác, vùng chạm nhỏ hơn 40 px trên điện thoại (tính cả lớp chạm phủ rộng ra ngoài nút nhỏ), padding, khoảng cách, bo góc và chiều cao nút lệch lưới 4 px hoặc
   không tròn điểm ảnh, chữ có độ tương phản dưới chuẩn WCAG AA hoặc nhỏ hơn 12 px, emoji và ký hiệu dùng làm biểu
   tượng, chữ gradient, nhãn viết hoa, giãn chữ âm và dòng quá dài, gom nhóm kèm số đo, và báo khi trang dùng quá nhiều
   cỡ chữ, màu chữ hoặc cỡ biểu tượng. Trình duyệt của Pi cho cùng phép kiểm tra đó với `browser_screenshot`, và riêng

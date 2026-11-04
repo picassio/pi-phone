@@ -38,7 +38,7 @@ const PAGES: Record<string, string> = {
     "/lines": `${head}<div class="col"><div id="note" style="width:200px;height:40px;overflow:hidden;line-height:20px">${words.repeat(3)}</div></div>`,
     "/covered": `${head}<div class="col" style="position:relative"><button id="send" style="width:120px;height:48px;padding:0">Send now</button><div id="toast" style="position:absolute;left:0;top:0;width:100px;height:48px;background:#eee"></div></div><div class="col" style="position:relative;margin-top:16px"><span id="name">A title the whole row opens</span><button aria-label="Open" style="position:absolute;left:0;top:0;right:0;bottom:0;background:transparent;border:0"></button></div>`,
     "/sheet": `${head}<div class="col"><p>Under the sheet</p><button style="width:120px;height:48px;padding:0">Behind</button></div><div role="dialog" style="position:fixed;left:0;top:0;right:0;bottom:0;background:#fff"><p class="col">The sheet's words</p></div>`,
-    "/target": `${head}<div class="col"><button id="close" style="width:32px;height:32px;padding:0;border:0">Go</button></div>`,
+    "/target": `${head}<style>#chip,#short{position:relative}#chip::before{content:"";position:absolute;inset:-6px -4px}#short::after{content:"";position:absolute;inset:-2px}</style><div class="col"><button id="close" style="width:32px;height:32px;padding:0;border:0">Go</button><button id="chip" style="width:60px;height:30px;padding:0;border:0">Plan</button><button id="short" style="width:60px;height:30px;padding:0;border:0">Copy</button><button id="off" disabled style="width:30px;height:30px">Off</button><label style="display:block;padding:6px 0"><input id="find" style="height:30px;width:200px"></label></div>`,
     "/grid": `${head}<div class="col"><div id="row" style="padding:6px;border-radius:10px;display:flex;gap:5.5px;background:#eee"><span>One</span><span>Two</span></div></div>`,
     "/faint": `${head}<div class="col" style="background:#1a1b26;padding:8px"><span id="meta" style="color:#3b3f55">Two minutes ago</span> <span id="dim" style="color:rgba(255,255,255,0.3)">Muted</span> <span style="color:#c0caf5">Readable</span></div>`,
     "/small": `${head}<div class="col"><p id="fine" style="font-size:10px">Fine print</p></div>`,
@@ -190,10 +190,12 @@ test("the layout check finds cut text, overlaps, small tap targets, off-grid siz
         assert.match(describeLayout(covered), /Covered: an element on top of another's text or control \(\d\):\n- button#send "Send now": under div#toast/);
         assert.deepEqual(of(await measured(page, "/sheet"), "covered"), []);
 
-        // A tap target under 40 px at a phone's width; at a desktop's it is not one.
+        // A tap target under 40 px at a phone's width; at a desktop's it is not one. A ::before laid past a small
+        // control's edges is its hit area (PP-400): 30 px tall with 6 px above and below is 42; with 2 px, 34. A field's
+        // label takes its taps too (42 px tall around a 30 px field), and a disabled control takes none.
         const target = await measured(page, "/target");
 
-        assert.deepEqual(of(target, "small-target").map((find) => [find.what, find.size]), [['button#close "Go"', [32, 32]]]);
+        assert.deepEqual(of(target, "small-target").map((find) => [find.what, find.size]), [['button#close "Go"', [32, 32]], ['button#short "Copy"', [64, 34]]]);
         assert.deepEqual(of(await measured(page, "/target", 1280), "small-target"), []);
 
         // Padding, radius and gap off the 4 px grid, and a gap that is not a whole pixel.

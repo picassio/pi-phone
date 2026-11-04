@@ -120,6 +120,27 @@ export const PAGE_HELPERS = String.raw`
     }
     return v;
   };
+  // Where a tap lands on a control: its box, and a ::before or ::after laid over it and past its edges (a hit area
+  // that keeps a small control's look), absolutely placed with its insets given; a field's label, which focuses it.
+  const hitBox = (e, r) => {
+    let l = r.left, t = r.top, rr = r.right, b = r.bottom;
+    const label = /^(input|textarea|select)$/i.test(e.tagName) ? e.closest('label') : null;
+    if (label) {
+      const q = label.getBoundingClientRect();
+      l = Math.min(l, q.left); t = Math.min(t, q.top); rr = Math.max(rr, q.right); b = Math.max(b, q.bottom);
+    }
+    if (css(e).position !== 'static' && css(e).pointerEvents !== 'none') {
+      const pb = padBox(e);
+      for (const which of ['::before', '::after']) {
+        const s = getComputedStyle(e, which);
+        if (s.content === 'none' || s.content === 'normal' || s.display === 'none' || s.pointerEvents === 'none' || s.position !== 'absolute') continue;
+        const [L, T, R, B] = [s.left, s.top, s.right, s.bottom].map(parseFloat);
+        if ([L, T, R, B].some(Number.isNaN)) continue;
+        l = Math.min(l, pb.l + L); t = Math.min(t, pb.t + T); rr = Math.max(rr, pb.r - R); b = Math.max(b, pb.b - B);
+      }
+    }
+    return { width: rr - l, height: b - t };
+  };
   const docW = Math.max(W, document.documentElement.scrollWidth);
   const shows = (e, r) => {
     const s = css(e);
@@ -265,7 +286,10 @@ ${PAGE_HELPERS}
       const nested = e.parentElement && e.parentElement.closest(CONTROL);
       const labelled = tag === 'input' && /checkbox|radio/.test(e.type) && e.labels && e.labels.length > 0;
       if (!inline && !nested && !labelled) {
-        if (W <= ${PHONE_MAX} && (r.width < ${TAP_MIN} - 0.01 || r.height < ${TAP_MIN} - 0.01)) group('small-target', sig(e) + '|' + Math.round(r.width) + 'x' + Math.round(r.height), () => ({ what: name(e), size: [r1(r.width), r1(r.height)] }));
+        if (W <= ${PHONE_MAX} && !e.disabled && e.getAttribute('aria-disabled') !== 'true') {
+          const hit = hitBox(e, r);
+          if (hit.width < ${TAP_MIN} - 0.01 || hit.height < ${TAP_MIN} - 0.01) group('small-target', sig(e) + '|' + Math.round(hit.width) + 'x' + Math.round(hit.height), () => ({ what: name(e), size: [r1(hit.width), r1(hit.height)] }));
+        }
         offGrid(e, 'control height', r.height);
         if (style.pointerEvents !== 'none') {
           const by = coveredBy(e, r.left + r.width / 2, r.top + r.height / 2);
