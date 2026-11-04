@@ -3,7 +3,8 @@
 // session with a reply, Dictation, Machines, a project board, and a reply's More sheet. What the polish tickets fixed
 // stays fixed: no emoji or symbol glyphs as icons (PP-402); hints at 3:1 and words at 4.5:1, no text under 12 px
 // (PP-399); every control a 40 px tap on a phone, its own box or a layer past it (PP-400); padding, gaps, corners and
-// control heights on the 4 px grid (PP-401). With PHONE_SHOTS, screenshots go there.
+// control heights on the 4 px grid (PP-401); icons at 16, 20 or 24 px with stroke 2 (PP-403). With PHONE_SHOTS,
+// screenshots go there.
 import { type App, cleanUp, cleanUpAll, newSession, openApp, owner, root, say, scriptedModel, until, work } from "./helpers.ts";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import assert from "node:assert/strict";
@@ -159,6 +160,15 @@ test("padding, gaps, corners and control heights on the 4 px grid in whole pixel
         found("off-grid", (find) => find.kind === "off-grid" && find.property !== "icon width" && !(find.property === "control height" && CONTENT.test(find.what))),
         [],
     );
+});
+
+test("icons on one scale with one stroke: 16 and 20 px on the main screens, stroke 2 (PP-403)", real, () => {
+    const sizes = new Set([...reports.values()].flatMap((report) => report.summary?.icons ?? []));
+    const strokes = new Set([...reports.values()].flatMap((report) => report.summary?.strokes ?? []));
+
+    assert.deepEqual([...sizes].filter((size) => !["16x16", "20x20", "24x24"].includes(size)), []);
+    assert.deepEqual([...strokes], ["2px"]);
+    assert.deepEqual(found("off-grid", (find) => find.kind === "off-grid" && find.property === "icon width"), []);
 });
 
 test("a tool call's icon is a line icon from ICONS, never a symbol (PP-402)", () => {

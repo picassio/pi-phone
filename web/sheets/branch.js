@@ -227,7 +227,7 @@ export function BranchPicker() {
 
     const rowBody = (each) => {
         if (each.kind === "make") {
-            return html`<${Icon} name="plus" size=${14} />
+            return html`<${Icon} name="plus" size=${16} />
                 <span class="pop-menu-row-text">
                     <span class="pop-menu-row-name">${tx("Make the branch {name}", { name: html`<span class="mono">${each.name}</span>` })}</span>
                     <span class="pop-menu-row-sub">${makeFrom(headLabel(view.branch), branches.changed > 0)}</span>
@@ -247,7 +247,7 @@ export function BranchPicker() {
                 <span class="pop-menu-row-sub">${sub}</span>
             </span>
             ${each.kind === "local" && html`<${Track} upstream=${branch.upstream} />`}
-            ${each.kind === "local" && branch.current && html`<${Icon} name="check" size=${14} />`}`;
+            ${each.kind === "local" && branch.current && html`<${Icon} name="check" size=${16} />`}`;
     };
 
     // Arrows and Enter move through the rows from the search box or the picker itself, not from its other buttons.
@@ -302,7 +302,7 @@ export function BranchPicker() {
             <header class="pop-menu-head">
                 <span>${t("Branch")}</span>
                 <span class="branch-head mono" title=${view.branch?.detached ? t("No branch: a commit") : t("Checked out")}>
-                    <${Icon} name="fork" size=${12} /> ${headLabel(view.branch) || t("none")}
+                    <${Icon} name="fork" size=${16} /> ${headLabel(view.branch) || t("none")}
                 </span>
             </header>
             <label class="search pop-menu-search">

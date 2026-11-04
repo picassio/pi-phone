@@ -717,7 +717,7 @@ function FileHead({ file, tools, viewed, onViewed, open, onToggle, note }) {
                 aria-label=${open ? t("Fold") : t("Unfold")}
                 onClick=${onToggle}
             >
-                <${Icon} name="chevron" size=${14} class=${`chev ${open ? "open" : ""}`} />
+                <${Icon} name="chevron" size=${16} class=${`chev ${open ? "open" : ""}`} />
             </button>`
         }
         <span class=${`change-kind ${kind}`} title=${KIND_NAMES()[kind] ?? kind}>${KIND_LETTERS[kind] ?? "M"}</span>
@@ -1087,7 +1087,7 @@ function TreeDir({ dir, depth, current, viewed, onPick }) {
             aria-expanded=${open ? "true" : "false"}
             onClick=${() => setOpen(!open)}
         >
-            <${Icon} name="chevron" size=${12} class=${`chev ${open ? "open" : ""}`} />
+            <${Icon} name="chevron" size=${16} class=${`chev ${open ? "open" : ""}`} />
             <span class="dr-name">${dir.name}</span>
         </button>
         ${
@@ -1129,7 +1129,7 @@ function TreeNode({ node, depth, current, viewed, onPick }) {
             <span class=${`change-kind ${file.kind}`}>${KIND_LETTERS[file.kind]}</span>
             <span class="dr-name">${file.path.split("/").pop()}</span>
             ${file.byPi && html`<img class="dr-pi" src="icon.svg" title=${t("Pi edited it")} alt=${t("Pi edited it")} />`}
-            <span class="dr-tail">${viewed(file) ? html`<${Icon} name="check" size=${14} />` : html`<${ChangeCounts} added=${file.added ?? 0} removed=${file.removed ?? 0} />`}</span>
+            <span class="dr-tail">${viewed(file) ? html`<${Icon} name="check" size=${16} />` : html`<${ChangeCounts} added=${file.added ?? 0} removed=${file.removed ?? 0} />`}</span>
         </button>`,
     )}`;
 }
@@ -1736,11 +1736,11 @@ export function DiffReview({ active = true, autoFocus = false, covering = false 
                                         title=${t("Switch or make a branch")}
                                         onClick=${() => openSheet({ type: "branch" })}
                                     >
-                                        <${Icon} name="fork" size=${12} />
+                                        <${Icon} name="fork" size=${16} />
                                         ${changes.repo.branch}
                                     </button>`
                                   : html`<span class="dr-branch" title=${t("Branch")}>
-                                        <${Icon} name="fork" size=${12} />
+                                        <${Icon} name="fork" size=${16} />
                                         ${changes.repo.branch}
                                     </span>`)
                           }
@@ -1811,7 +1811,7 @@ export function DiffReview({ active = true, autoFocus = false, covering = false 
             all.length === 0 &&
             changes.files.length > 0 &&
             html`<div class="dr-clean" data-part="review-nothing-new">
-                <${Icon} name="check" size=${22} />
+                <${Icon} name="check" size=${20} />
                 <p>${when === null ? t("No changes.") : t("Nothing changed since your last review ({time}).", { time: when })}</p>
                 <button type="button" class="link" onClick=${() => setMode("head")}>${t("vs HEAD shows everything")}</button>
             </div>`
@@ -1820,7 +1820,7 @@ export function DiffReview({ active = true, autoFocus = false, covering = false 
             changes.repo &&
             changes.files.length === 0 &&
             html`<div class="dr-clean">
-                <${Icon} name="check" size=${22} />
+                <${Icon} name="check" size=${20} />
                 <p>${changes.repo.branch ? t("No uncommitted changes on {branch}.", { branch: changes.repo.branch }) : t("No uncommitted changes.")}</p>
             </div>`
         }

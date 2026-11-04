@@ -239,8 +239,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   (a session row 52, the title 48, a sheet's list row 44, its separator drawn as an inset shadow, not a border).
   Blocks as tall as their words (a message, the message box, a task's card) grow by their text's line height. Weights 400 to 600, section labels in sentence case without
   letter spacing, counts as a plain number after the label ("Settled 50"), paddings, margins and gaps on the 4 px grid
-  (2 px steps and 1 to 3 px nudges inside small controls), icons at 12, 14 or 16 px (19 and up only in the rail and
-  empty states), no hue gradients. Icons are line icons from `ICONS` (`Icon`, or `iconElement` for Markdown built
+  (2 px steps and 1 to 3 px nudges inside small controls), icons on one scale with one stroke (PP-403): 16 px in
+  rows, buttons and chips (12 and 14 went to 16), 20 in the rail, the top bar and sheet heads (18 to 22 went to 20),
+  24 in empty states (26 and 28 went to 24), stroke 2 (the `Icon` default and the dominant one: the 2.2, 2.4, 2.5 and
+  3.5 overrides went, and a step's marks are icons at 16 in their 20 px circle, not 10 px drawings at 1.7), no hue
+  gradients. Icons are line icons from `ICONS` (`Icon`, or `iconElement` for Markdown built
   outside Preact), never emoji or symbol glyphs as icons (PP-402: React was `☺+`, tool calls `▣`/`◍`/`▦`/`⚙`, a
   subagent's row `✓`/`■`, attachments `📄`/`📎`/`🖼`): a tool call's line names one (`describeCall`'s `icon`, an `ICONS`
   name), peek tiles draw it, and rows of words only (`nowDoing`) leave it out. The Providers list shows once the plan limits and the OpenAI-compatible providers

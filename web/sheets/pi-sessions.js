@@ -49,7 +49,7 @@ function SessionRow({ session }) {
                 ${pocket.behind ? t("Pi went on") : t("in Pocket")}
             </span>`
         }
-        <${Icon} name="chevron" size=${14} />
+        <${Icon} name="chevron" size=${16} />
     </button>`;
 }
 
@@ -230,7 +230,7 @@ export function PiSessionsSheet() {
 
                 return html`<section class="pi-folder" key=${cwd}>
                     <div class="pi-folder-head" title=${cwd}>
-                        <${Icon} name="folder" size=${14} />
+                        <${Icon} name="folder" size=${16} />
                         <span class="pi-folder-name">${name}</span>
                         ${parent && html`<span class="pi-folder-parent">${parent}</span>`}
                     </div>

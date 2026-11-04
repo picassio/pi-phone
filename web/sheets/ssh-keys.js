@@ -108,7 +108,7 @@ export function SshKeysSheet() {
                 ? html`<div class="sheet-actions">
                     <button class="button" onClick=${() => setAdding("import")}>${t("Import a key…")}</button>
                     <button class="button primary" onClick=${() => setAdding("generate")}>
-                        <${Icon} name="plus" size=${14} /> ${t("Generate a key")}
+                        <${Icon} name="plus" size=${16} /> ${t("Generate a key")}
                     </button>
                 </div>`
                 : html`<div class="field">

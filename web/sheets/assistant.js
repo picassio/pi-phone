@@ -11,7 +11,7 @@ const DEFAULTS = { opens: "last", folder: null, session: null, send: "tap", from
 
 function Step({ number, done, title, text, open, action = t("Open") }) {
     return html`<li class=${`phone-step ${done ? "done" : ""}`} data-part="assistant-step">
-        <span class="phone-step-mark" role="img" aria-label=${done ? t("done") : number}>${done ? html`<${Icon} name="check" size=${14} />` : number}</span>
+        <span class="phone-step-mark" role="img" aria-label=${done ? t("done") : number}>${done ? html`<${Icon} name="check" size=${16} />` : number}</span>
         <div class="phone-step-text">
             <div>${title}</div>
             <div class="muted small">${text}</div>

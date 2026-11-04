@@ -452,12 +452,12 @@ function UserEntry({ entry, view, users }) {
                     style=${`--who:${mark}`}
                     aria-hidden="true"
                 >
-                    ${team ? html`<${Icon} name="board" size=${12} />` : picture ? html`<img src=${picture} alt="" />` : name ? initials(name) : "›"}
+                    ${team ? html`<${Icon} name="board" size=${16} />` : picture ? html`<img src=${picture} alt="" />` : name ? initials(name) : "›"}
                 </span>
                 ${name && html`<b class="prompt-author" data-part="prompt-author">${name}</b>`}
                 ${entry.at && html`<span class="prompt-time">${clock(entry.at)}</span>`}
                 ${scheduled && html`<span class="prompt-time">· ${t("scheduled")}</span>`}
-                ${spoken && html`<span class="prompt-time voice-mark" data-part="voice-mark">· <${Icon} name="mic" size=${12} /> ${t("voice")}</span>`}
+                ${spoken && html`<span class="prompt-time voice-mark" data-part="voice-mark">· <${Icon} name="mic" size=${16} /> ${t("voice")}</span>`}
                 ${via && viaNote && html`<span class="prompt-time">· ${team ? (peerText === undefined ? viaNote : t("a linked session")) : t("via {where}", { where: peerText === undefined ? viaNote : t("a linked session") })}</span>`}
             </span>
             <div class="prompt-body" data-part="prompt-text">
@@ -468,7 +468,7 @@ function UserEntry({ entry, view, users }) {
                         title=${skill[2]}
                         onClick=${() => openFile(skill[2])}
                     >
-                        <${Icon} name="bolt" size=${12} /> ${skill[1]}
+                        <${Icon} name="bolt" size=${16} /> ${skill[1]}
                     </button>`
                 }
                 ${
@@ -491,7 +491,7 @@ function UserEntry({ entry, view, users }) {
                                     title=${t("Sent with the message: {path}", { path })}
                                     onClick=${() => openFile(path)}
                                 >
-                                    <${Icon} name="file" size=${12} /> ${path.split("/").pop()}
+                                    <${Icon} name="file" size=${16} /> ${path.split("/").pop()}
                                 </button>`,
                         )}
                     </div>`
@@ -507,7 +507,7 @@ function UserEntry({ entry, view, users }) {
                 ${
                     others.length > 0 &&
                     html`<div class="attachments">
-                        ${others.map((file) => html`<span class="chip"><${Icon} name="clip" size=${12} /> ${file.name}</span>`)}
+                        ${others.map((file) => html`<span class="chip"><${Icon} name="clip" size=${16} /> ${file.name}</span>`)}
                     </div>`
                 }
                 ${
@@ -625,32 +625,26 @@ function Collapsible({ text, limit = 600 }) {
 
 // ─── What Pi did: its thinking and tool calls, a line each on a timeline ───────────────
 
-/** What a step's mark says, by how the call went; a call still running shows a spinner instead. */
-// Drawn, not typed: a font draws these glyphs thin and off center in a 19px circle.
-const markSvg = (body) => html`<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
-const CROSS = markSvg(html`<path d="M2.8 2.8l4.4 4.4M7.2 2.8L2.8 7.2" />`);
-const MARKS = {
-    done: markSvg(html`<path d="M2.2 5.3l1.9 1.9 3.7-4.2" />`),
-    error: CROSS,
-    denied: CROSS,
-    stopped: markSvg(html`<path d="M2.6 5h4.8" />`),
-    approval: markSvg(html`<path d="M5 2.2v3.3" stroke-width="1.9" /><circle cx="5" cy="7.8" r="1.05" fill="currentColor" stroke="none" />`),
-};
+/**
+ * What a step's mark says, by how the call went (a call still running shows a spinner instead): a line icon at 16 px
+ * in the 20 px circle, as every icon is (PP-403).
+ */
+const MARKS = { done: "check", error: "close", denied: "close", stopped: "minus", approval: "alert" };
 
-/** A step's mark: a small circle that says how it went. A thought is ✦, and a subagent's call ⑂ unless it failed. */
+/** A step's mark: a small circle that says how it went. A thought is a sparkle, and a subagent's call a fork unless it failed. */
 function StepMark({ status, kind }) {
     const agent = kind === "agent" && (status === "done" || status === "running");
     const spinning = kind !== "thought" && !agent && status === "running";
     // "asking" and "spinning", not "approval" and "running": those are cards' classes, whose padding and border would land on the circle.
     const look = kind === "thought" ? "thought" : agent ? "agent" : status === "approval" ? "asking" : status === "running" ? "spinning" : status;
-    const mark = kind === "thought" ? "✦" : agent ? "⑂" : MARKS[status];
+    const mark = kind === "thought" ? "sparkle" : agent ? "fork" : MARKS[status];
 
     return html`<span
         class=${`step-mark ${look}`}
         data-part="step-mark"
         aria-hidden=${spinning ? undefined : "true"}
     >
-        ${spinning ? html`<${Spinner} />` : mark}
+        ${spinning ? html`<${Spinner} />` : mark && html`<${Icon} name=${mark} size=${16} />`}
     </span>`;
 }
 
@@ -1113,7 +1107,7 @@ function ToolStep({
                         ${nested.map(
                             (each) => html`<div class=${`nested-call ${each.status}`}>
                                 <span class="nested-status">
-                                    <${Icon} name=${each.status === "ok" ? "check" : each.status === "running" ? "more" : each.status === "cancelled" ? "minus" : "close"} size=${12} />
+                                    <${Icon} name=${each.status === "ok" ? "check" : each.status === "running" ? "more" : each.status === "cancelled" ? "minus" : "close"} size=${16} />
                                 </span>
                                 <span class="mono">${each.name}</span>
                                 ${
@@ -1270,7 +1264,7 @@ function ToolStep({
                 class=${`step-decision ${decision.allow ? "allowed" : "denied"}`}
                 title=${new Date(decision.at).toLocaleString()}
             >
-                <${Icon} name="shield" size=${14} /> ${decided(decision)}
+                <${Icon} name="shield" size=${16} /> ${decided(decision)}
             </div>`
         }
         ${
@@ -1519,7 +1513,7 @@ function ActivityGroup({
                 redraw((n) => n + 1);
             }}
         >
-            <${Icon} name="chevron" size=${14} class="chev" part="activity-chevron" />
+            <${Icon} name="chevron" size=${16} class="chev" part="activity-chevron" />
             <span class="activity-summary">${summarize(all, thinking)}</span>
             ${failed > 0 && html`<span class="activity-failed">${t("{n} failed", { n: failed })}</span>`}
             <${GroupTime} id=${id} start=${start} end=${end} live=${live} />
@@ -1738,7 +1732,7 @@ function DecisionBar({ approvals, conversationId }) {
         setFold(value);
     };
     const row = (each) => html`<button type="button" class="decision" key=${each.key} data-key=${each.key} onClick=${() => showWaiting(each.key)}>
-        <span class="decision-icon" aria-hidden="true"><${Icon} name=${each.icon} size=${14} /></span>
+        <span class="decision-icon" aria-hidden="true"><${Icon} name=${each.icon} size=${16} /></span>
         <span class="decision-text">
             <b>${each.title}</b>
             ${each.detail && html`<small>${each.detail}</small>`}
@@ -1763,7 +1757,7 @@ function DecisionBar({ approvals, conversationId }) {
             foldable &&
             !folded &&
             html`<button type="button" class="decision-fold" aria-expanded="true" data-part="decision-fold" onClick=${() => setFolded(true)}>
-                <${Icon} name="down" size=${14} />${t("Fold")}
+                <${Icon} name="down" size=${16} />${t("Fold")}
             </button>`
         }
     </div>`;
@@ -2028,7 +2022,7 @@ function MachineAddCard({ approval }) {
                 ${form.hostKeys.map((fingerprint) => html`<div class="mono small">${fingerprint}</div>`)}
                 ${
                     form.matches === true
-                        ? html`<span class="machine-add-match"><${Icon} name="check" size=${12} /> ${t("the one Pi read on the machine itself")}</span>`
+                        ? html`<span class="machine-add-match"><${Icon} name="check" size=${16} /> ${t("the one Pi read on the machine itself")}</span>`
                         : html`<span class="muted small">${t("Compare it with the machine's own, if you can.")}</span>`
                 }
             </dd>
@@ -2382,7 +2376,7 @@ function PhoneControlLine({ conversationId }) {
 
     return running.map(
         (each) => html`<div class="phone-control-line" data-part="phone-control-line" key=${each.device}>
-            <${Icon} name="phone" size=${14} />
+            <${Icon} name="phone" size=${16} />
             <span class="phone-control-what">
                 ${[
                     t("Using {device}", { device: each.deviceName === "This phone" ? t("this phone") : each.deviceName }),
@@ -2686,7 +2680,7 @@ function AnswerActions({ entry }) {
             class="answer-tool"
             onClick=${() => attempt(() => actions.pin({ entryId: entry.id }))}
         >
-            ${pinned ? html`<${Icon} name="pin" size=${12} /> ${t("Pinned")}` : t("Pin")}
+            ${pinned ? html`<${Icon} name="pin" size=${16} /> ${t("Pinned")}` : t("Pin")}
         </button>
         <button
             class="answer-tool"
@@ -2770,7 +2764,7 @@ function Divider({ entry }) {
 
     return html`<div class="divider">
         <button class="link" onClick=${() => setOpen(!open)}>
-            ${t("Context compacted")} <${Icon} name="chevron" size=${12} class=${`chev ${open ? "open" : ""}`} />
+            ${t("Context compacted")} <${Icon} name="chevron" size=${16} class=${`chev ${open ? "open" : ""}`} />
         </button>
         ${open && html`<div class="divider-body"><${Markdown} text=${entry.summary} /></div>`}
     </div>`;
@@ -2930,7 +2924,7 @@ function VoiceEntry({ entry }) {
     return html`<div class="voice-entry" id=${`entry-${entry.id}`} data-part="voice-entry">
         ${entry.turns.map(
             (turn) => html`<div class="voice-line" data-part="voice-line">
-                <${Icon} name=${turn.speaker === "you" ? "mic" : "speaker"} size=${12} />
+                <${Icon} name=${turn.speaker === "you" ? "mic" : "speaker"} size=${16} />
                 <span><b>${turn.speaker === "you" ? t("You") : t("Voice")}</b> · ${turn.text}</span>
             </div>`,
         )}
@@ -3580,7 +3574,7 @@ function LiveLine({ live, approvals, start, entries, conversationId }) {
                 aria-label=${open ? t("Hide Pi's thinking") : t("Show Pi's thinking")}
                 title=${open ? t("Hide Pi's thinking") : t("Show Pi's thinking")}
                 onClick=${fold}
-            ><${Icon} name="chevron" size=${14} class="chev" /></button>`
+            ><${Icon} name="chevron" size=${16} class="chev" /></button>`
         }
         <span class="live-dot" data-part="live-mark" aria-hidden="true"></span>
         <span class="live-state" role="status">
@@ -4074,10 +4068,10 @@ export function Transcript() {
                 sessionsLoaded &&
                 (source
                     ? html`<button class="breadcrumb" onClick=${() => navigate(source.id)}>
-                        <${Icon} name="fork" size=${14} /> ${t("Forked from {title}", { title: source.title ?? t("New session") })}
+                        <${Icon} name="fork" size=${16} /> ${t("Forked from {title}", { title: source.title ?? t("New session") })}
                     </button>`
                     : html`<p class="muted small">
-                        <${Icon} name="fork" size=${14} /> ${t("Forked from another session")}
+                        <${Icon} name="fork" size=${16} /> ${t("Forked from another session")}
                     </p>`)
             }
             ${

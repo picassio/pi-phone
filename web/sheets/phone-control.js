@@ -12,7 +12,7 @@ const GROUP_OF = { "a banking or payment app": "banking", "a password manager or
 
 function Step({ number, done, title, text, open }) {
     return html`<li class=${`phone-step ${done ? "done" : ""}`} data-part="phone-step">
-        <span class="phone-step-mark" role="img" aria-label=${done ? t("done") : number}>${done ? html`<${Icon} name="check" size=${14} />` : number}</span>
+        <span class="phone-step-mark" role="img" aria-label=${done ? t("done") : number}>${done ? html`<${Icon} name="check" size=${16} />` : number}</span>
         <div class="phone-step-text">
             <div>${title}</div>
             <div class="muted small">${text}</div>
@@ -117,18 +117,18 @@ export function PhoneControlSheet() {
             <div class="phone-section-title">${t("Never these apps")}</div>
             <div class="muted small">${t("Pi never reads or controls these, even when a card names them. Only you change this list, here.")}</div>
             <div class="phone-never" data-part="phone-never">
-                <span class="chip"><${Icon} name="shield" size=${12} /> ${t("pi-phone itself (always)")}</span>
+                <span class="chip"><${Icon} name="shield" size=${16} /> ${t("pi-phone itself (always)")}</span>
                 ${state.never.groups.map(
                     (group) =>
-                        html`<span class="chip"><${Icon} name="shield" size=${12} /> ${t(group.label)}${apps !== null && html` <span class="muted">· ${t("{n} installed", { n: counts[group.id] ?? 0 })}</span>`}</span>`,
+                        html`<span class="chip"><${Icon} name="shield" size=${16} /> ${t(group.label)}${apps !== null && html` <span class="muted">· ${t("{n} installed", { n: counts[group.id] ?? 0 })}</span>`}</span>`,
                 )}
                 ${own.map(
                     (each) => html`<span class="chip" title=${each.package}>
                         ${each.label}
-                        <button aria-label=${t("Remove {name}", { name: each.label })} onClick=${() => never({ remove: each.package })}><${Icon} name="close" size=${12} /></button>
+                        <button aria-label=${t("Remove {name}", { name: each.label })} onClick=${() => never({ remove: each.package })}><${Icon} name="close" size=${16} /></button>
                     </span>`,
                 )}
-                ${apps !== null && html`<button class="chip" onClick=${() => setAdding(!adding)}><${Icon} name="plus" size=${12} /> ${t("Add")}</button>`}
+                ${apps !== null && html`<button class="chip" onClick=${() => setAdding(!adding)}><${Icon} name="plus" size=${16} /> ${t("Add")}</button>`}
             </div>
             ${
                 adding &&

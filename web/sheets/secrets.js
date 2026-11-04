@@ -200,7 +200,7 @@ export function SecretsSheet() {
                   />`
                 : html`<div class="sheet-actions">
                       <button class="button primary" onClick=${() => setAdding(true)}>
-                          <${Icon} name="plus" size=${14} /> ${t("Add a secret")}
+                          <${Icon} name="plus" size=${16} /> ${t("Add a secret")}
                       </button>
                   </div>`
         }

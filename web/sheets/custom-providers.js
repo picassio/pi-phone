@@ -249,7 +249,7 @@ function ProviderForm({ provider, secrets, onDone }) {
                 </div>`,
             )}
             <button class="button small ghost cp-add" onClick=${() => setHeaders((list) => [...list, { name: "", value: "" }])}>
-                <${Icon} name="plus" size=${14} /> ${t("Add header")}
+                <${Icon} name="plus" size=${16} /> ${t("Add header")}
             </button>
             <p class="muted small">${t("Kept as typed in the model configuration: put a key in the API key field, not here.")}</p>
         </div>
@@ -257,7 +257,7 @@ function ProviderForm({ provider, secrets, onDone }) {
             <div class="label">${t("Models")}</div>
             <div class="row cp-find">
                 <button class="button small" disabled=${!urlOk || finding || (keyKind === "secret" && keySecret === "")} onClick=${find}>
-                    <${Icon} name="search" size=${14} /> ${finding ? t("Finding…") : t("Find models")}
+                    <${Icon} name="search" size=${16} /> ${finding ? t("Finding…") : t("Find models")}
                 </button>
                 <span class="muted small">${t("Asks the server's /models.")}</span>
             </div>
@@ -409,7 +409,7 @@ export function CustomProviders({ changed, onLoaded }) {
             (editing === "new"
                 ? html`<div class="provider family"><${ProviderForm} secrets=${state.secrets} onDone=${done} /></div>`
                 : html`<button class="button small cp-add" onClick=${() => setEditing("new")}>
-                      <${Icon} name="plus" size=${14} /> ${t("Add an OpenAI-compatible provider")}
+                      <${Icon} name="plus" size=${16} /> ${t("Add an OpenAI-compatible provider")}
                   </button>`)
         }
     </div>`;

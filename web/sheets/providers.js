@@ -84,7 +84,7 @@ function FavoriteModels() {
 
     return html`<div class="favorite-models" data-part="favorite-models">
         <button class="list-item" aria-expanded=${open} onClick=${() => setOpen(!open)}>
-            <span><${Icon} name="star" size=${14} /> ${t("Favorite models")}</span>
+            <span><${Icon} name="star" size=${16} /> ${t("Favorite models")}</span>
             <span class="muted small">${starred.size === 0 ? t("none yet") : tn(starred.size, "{n} starred", "{n} starred")}</span>
         </button>
         ${
@@ -120,7 +120,7 @@ function FavoriteModels() {
                                         title=${on ? t("Take it out of your favorites") : t("Add it to your favorites: first in your model picker")}
                                         onClick=${() => setModelFavorite(spec, !on)}
                                     >
-                                        <${Icon} name="star" size=${18} />
+                                        <${Icon} name="star" size=${20} />
                                     </button>
                                 </div>`;
                             })}

@@ -63,7 +63,7 @@ export function AudioSheet() {
                 <div class="audio-voice-row" data-part="audio-voice">
                     <${Choice} label=${t("Default voice")} value=${state.voice ?? "auto"} options=${options(state.voices, state.defaults.voice)} onChange=${(value) => pick("voice", value)} />
                     <button class="button small ghost" data-part="audio-sample" disabled=${sampling || !state.signedIn} aria-label=${t("Play a sample of {voice}", { voice })} onClick=${sample}>
-                        <${Icon} name=${sampling ? "pause" : "play"} size=${14} /> ${t("Sample")}
+                        <${Icon} name=${sampling ? "pause" : "play"} size=${16} /> ${t("Sample")}
                     </button>
                 </div>
                 <p class="muted small">${t("The sample is read in your language by the reading model once, then kept.")}</p>

@@ -39,7 +39,7 @@ export function DesignSystemSheet() {
                 <span>${title}${category && html` <span class="muted small">· ${category}</span>`}</span>
                 <span class="muted small">${detail}</span>
             </span>
-            ${chosen && html`<span class="sg-check"><${Icon} name="check" size=${14} /></span>`}
+            ${chosen && html`<span class="sg-check"><${Icon} name="check" size=${16} /></span>`}
         </button>`;
     };
     const shown = state === null ? [] : matching(state.systems, query);

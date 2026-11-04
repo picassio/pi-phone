@@ -111,7 +111,7 @@ export function BrowserRunCard({ args, status, resultText, conversationId }) {
 
     return html`<div class="pr-card" data-state=${state}>
         <div class="pr-head">
-            <span class="pr-mark" aria-hidden="true">${running ? html`<span class="pb-spin"></span>` : html`<${Icon} name="globe" size=${14} />`}</span>
+            <span class="pr-mark" aria-hidden="true">${running ? html`<span class="pb-spin"></span>` : html`<${Icon} name="globe" size=${16} />`}</span>
             <b class="pr-title">${title}</b>
             <span class="pr-meta">${meta}</span>
             ${

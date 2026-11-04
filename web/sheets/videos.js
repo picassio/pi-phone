@@ -28,7 +28,7 @@ export function VideosSheet() {
                 <span>${title}</span>
                 <span class="muted small">${detail}</span>
             </span>
-            ${chosen && html`<span class="sg-check"><${Icon} name="check" size=${14} /></span>`}
+            ${chosen && html`<span class="sg-check"><${Icon} name="check" size=${16} /></span>`}
         </button>`;
     const gone = state !== null && state.askModel !== null && !state.askModels.some((model) => model.id === state.askModel);
     const makeGone = state !== null && state.model !== null && !state.makeModels.some((model) => model.id === state.model);

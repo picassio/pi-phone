@@ -109,7 +109,7 @@ export default function documents(pocket) {
     function DocMarkdown({ scope, text }) {
         return html`<${Markdown} text=${linkPages(useImages(scope, text))} class="pd-body" />`;
     }
-    const svg = (path, size = 14) =>
+    const svg = (path, size = 16) =>
         html`<svg width=${size} height=${size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d=${path} /></svg>`;
     /** ⋯ as three filled dots, as the app's other menus draw it. */
     const dots = html`<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>`;
@@ -300,7 +300,7 @@ export default function documents(pocket) {
         const newFolder = (parentId) => pocket.openSheet("new-folder", { scope: current.id, parentId });
         const pageRow = (page, depth) =>
             html`<button class=${`pd-row pd-page-row ${page.id === selected ? "selected" : ""}`} key=${page.id} style=${`--depth:${depth}`} onClick=${() => go({ kind: "page", scope: current.id, id: page.id })}>
-                ${svg(DOCS, 14)}
+                ${svg(DOCS, 16)}
                 <span class="pd-page-text"><span class="pd-row-title">${page.title}</span><span class="pd-row-meta">${page.updatedByName} · ${ago(page.updatedAt)}</span></span>
             </button>`;
         const section = (folder, depth) => {
@@ -309,7 +309,7 @@ export default function documents(pocket) {
             return html`<div class="pd-folder" key=${folder.id}>
                 <div class="pd-section" style=${`--depth:${depth}`}>
                     <button class="pd-fold" aria-expanded=${!folded} onClick=${() => setShut({ ...shut, [folder.id]: !folded })}>
-                        ${svg(folded ? "M9 6l6 6-6 6" : "M6 9l6 6 6-6", 13)}<span class="pd-section-name">${folder.name}</span><span class="pd-count">${pagesIn(tree, folder.id)}</span>
+                        ${svg(folded ? "M9 6l6 6-6 6" : "M6 9l6 6 6-6", 16)}<span class="pd-section-name">${folder.name}</span><span class="pd-count">${pagesIn(tree, folder.id)}</span>
                     </button>
                     ${
                         current.write &&
@@ -378,7 +378,7 @@ export default function documents(pocket) {
                     ? html`<${Loader} label=${t("Opening")} />`
                     : empty
                       ? html`<div class="pd-empty">
-                            <div class="pd-empty-icon">${svg(DOCS, 26)}</div>
+                            <div class="pd-empty-icon">${svg(DOCS, 24)}</div>
                             <h3>${t("No documents here yet")}</h3>
                             <p>${current.id === "mine" ? t("Your own pages, in folders: only you see them.") : current.id === "team" ? t("Pages for everyone on this server, in folders.") : t("Pages you and Pi write for this board, in folders.")}</p>
                             ${

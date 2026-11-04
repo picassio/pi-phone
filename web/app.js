@@ -179,7 +179,7 @@ function Topbar() {
             title=${t("Sessions")}
             onClick=${toSessions}
         >
-            <${Icon} name="back" size=${22} />
+            <${Icon} name="back" size=${20} />
             ${waiting > 0 && html`<span class="badge warn">${waiting}</span>`}
         </button>
         <div class="title">
@@ -227,10 +227,10 @@ function Topbar() {
                                         title=${view.branch?.detached ? t("No branch: switch to one") : t("Switch or make a branch")}
                                         onClick=${() => openSheet({ type: "branch" })}
                                     >
-                                        <${Icon} name="fork" size=${12} /><span class="title-branch-name">${branch}</span>
+                                        <${Icon} name="fork" size=${16} /><span class="title-branch-name">${branch}</span>
                                     </button>`
                                   : html`<span class="title-branch" title=${t("The git branch")}>
-                                        <${Icon} name="fork" size=${12} /><span class="title-branch-name">${branch}</span>
+                                        <${Icon} name="fork" size=${16} /><span class="title-branch-name">${branch}</span>
                                     </span>`)
                           }
                           ${
@@ -319,7 +319,7 @@ function Notice({ notice, leaving }) {
     >
         <span class="notice-mark" aria-hidden="true"></span>
         <span class="notice-text">${notice.message}</span>
-        <${Icon} name=${notice.action ? "chevron" : "close"} size=${14} />
+        <${Icon} name=${notice.action ? "chevron" : "close"} size=${16} />
     </button>`;
 }
 

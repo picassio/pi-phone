@@ -177,7 +177,7 @@ export function KeptPageRailButtons() {
                 aria-pressed=${shown}
                 onClick=${() => (shown ? closePage() : openKeptPage(page))}
             >
-                <${Icon} name="artifact" size=${19} />
+                <${Icon} name="artifact" size=${20} />
             </button>`;
         })}
     </div>`;

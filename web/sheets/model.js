@@ -283,7 +283,7 @@ export function ModelPicker() {
                     }
                 </span>
                 <button class="pop-menu-link" onClick=${() => openSheet({ type: "providers" })}>
-                    <${Icon} name="key" size=${14} /> ${t("Providers")}</button>
+                    <${Icon} name="key" size=${16} /> ${t("Providers")}</button>
             </header>
             ${
                 searchable &&
@@ -316,7 +316,7 @@ export function ModelPicker() {
                                 setPicked(0);
                             }}
                         >
-                            ${only && html`<${Icon} name="star" size=${14} />`}${label}
+                            ${only && html`<${Icon} name="star" size=${16} />`}${label}
                         </button>`,
                     )}
                 </div>`
@@ -347,8 +347,8 @@ export function ModelPicker() {
                                 ${model.account ? `${model.provider.split("~")[0]} · ${model.account} account` : model.provider}${!forDefault && isDefault(model) ? " · default" : ""}${model.signIn ? " · needs sign-in" : ""}${usageLine(model.provider) ? ` · ${usageLine(model.provider)}` : ""}
                             </span>
                         </span>
-                        ${isFavoriteModel(model) && html`<span class="model-star" title=${t("Favorite")} aria-label=${t("Favorite")}><${Icon} name="star" size=${14} /></span>`}
-                        ${isCurrent(model) && html`<${Icon} name="check" size=${14} />`}
+                        ${isFavoriteModel(model) && html`<span class="model-star" title=${t("Favorite")} aria-label=${t("Favorite")}><${Icon} name="star" size=${16} /></span>`}
+                        ${isCurrent(model) && html`<${Icon} name="check" size=${16} />`}
                     </button>`,
                 )}
             </div>
@@ -394,7 +394,7 @@ export function ModelPicker() {
                             ${
                                 sessionIsDefault
                                     ? html`<span class="pop-menu-default-mark">
-                                          <${Icon} name="check" size=${14} /> ${t("Default")}</span>`
+                                          <${Icon} name="check" size=${16} /> ${t("Default")}</span>`
                                     : html`<button
                                           class="pop-menu-link"
                                           title=${t("New sessions start with this model and thinking level")}

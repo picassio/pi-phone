@@ -145,7 +145,7 @@ export function QuoteReplyButton() {
         onMouseDown=${(event) => event.preventDefault()}
         onClick=${reply}
     >
-        <${Icon} name="reply" size=${14} stroke=${2} />
+        <${Icon} name="reply" size=${16} />
         <span>${t("Reply")}</span>
     </button>`;
 }

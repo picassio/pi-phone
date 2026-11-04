@@ -338,7 +338,7 @@ export function useDictation(box, onText, { top = false } = {}) {
 }
 
 /** The mic: starts dictation, and while it listens, stops it. None where the browser cannot recognise speech. */
-export function MicButton({ dictation, class: className = "", size = 17, part }) {
+export function MicButton({ dictation, class: className = "", size = 16, part }) {
     if (!voiceAvailable()) {
         return null;
     }

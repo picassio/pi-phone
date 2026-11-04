@@ -566,7 +566,7 @@ export function BrowserPanel({ leaving = false }) {
             ${
                 !beside &&
                 html`<button class="icon-button files-back" type="button" aria-label=${t("Back to the conversation")} onClick=${() => setBrowserOpen(false)}>
-                    <${Icon} name="back" size=${22} />
+                    <${Icon} name="back" size=${20} />
                 </button>`
             }
             <div class="pb-title">
@@ -600,7 +600,7 @@ export function BrowserPanel({ leaving = false }) {
                 state?.open
                     ? html`<${Frame} interactive=${takenOver} onWheel=${(point) => send({ type: "scroll", ...point })} />`
                     : html`<div class="pb-empty">
-                          <${Icon} name="globe" size=${28} />
+                          <${Icon} name="globe" size=${24} />
                           <p>${t("Pi's browser opens when Pi browses: ask Pi to open a page, or to do something on a site.")}</p>
                           <${BrowseOn} state=${state} />
                       </div>`
@@ -652,7 +652,7 @@ export function BrowserPreview() {
     return html`<button class="pb-preview" onClick=${() => setBrowserOpen(true)} aria-label=${t("Pi's browser: {doing}. Open it.", { doing: state.doing })}>
         <${PreviewImage} image=${image} />
         <span class="pb-preview-text"><b>${t("Pi's browser")}</b><span>${state.doing}</span></span>
-        <${Icon} name="chevron" size=${14} />
+        <${Icon} name="chevron" size=${16} />
     </button>`;
 }
 

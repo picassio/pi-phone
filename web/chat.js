@@ -247,7 +247,7 @@ class ChatLine extends Component {
                 html`<div class="chat-meta">
                     <span class="chat-name">${mine ? t("You") : senderName(message, users)}</span>
                     <span class="muted">${clock(message.at)}</span>
-                    ${pinned && html`<${Icon} name="pin" size=${12} class="muted" />`}
+                    ${pinned && html`<${Icon} name="pin" size=${16} class="muted" />`}
                 </div>`
             }
             ${
@@ -465,7 +465,7 @@ function ChatTab({ highlight, focus }) {
     };
 
     return html`<div class="chat-label">
-        <${Icon} name="eye" size=${12} />${t("Side chat · Pi does not see this chat.")}
+        <${Icon} name="eye" size=${16} />${t("Side chat · Pi does not see this chat.")}
     </div>
     <div class="chat-log" ref=${log}>
         ${chat.length === 0 && html`<div class="muted">${t("No messages yet.")}</div>`}
@@ -501,7 +501,7 @@ function ChatTab({ highlight, focus }) {
                 aria-label=${t("Stop quoting")}
                 onClick=${() => store.set({ chatQuote: null })}
             >
-                <${Icon} name="close" size=${12} />
+                <${Icon} name="close" size=${16} />
             </button>
         </div>`
     }
@@ -612,7 +612,7 @@ function PinsTab({ onShowChat }) {
                     aria-label=${t("Unpin")}
                     onClick=${() => attempt(() => actions.pin(pin.entryId !== undefined ? { entryId: pin.entryId } : { chatId: pin.chatId }))}
                 >
-                    <${Icon} name="close" size=${12} />
+                    <${Icon} name="close" size=${16} />
                 </button>
             </div>`,
         )}
@@ -805,7 +805,7 @@ function PeopleTabs({ ask, focus }) {
                 class="people-pin"
                 onClick=${() => (featured.entryId !== undefined ? jumpToEntry(featured.entryId) : setHighlight(featured.chatId))}
             >
-                <${Icon} name="pin" size=${14} />
+                <${Icon} name="pin" size=${16} />
                 <span><b>${t("Pinned by {name}", { name: pinnedBy })}</b> · ${featured.text}</span>
             </button>`
         }

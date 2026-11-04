@@ -2357,7 +2357,7 @@ function Overlay({ record, spec }) {
         <header class="ext-overlay-head" onPointerDown=${drag}>
             <span class="ext-overlay-title">${spec.title}</span>
             <button class="icon-button small" type="button" aria-label=${t("Close {title}", { title: spec.title })} title=${t("Close")} onClick=${close}>
-                <${Icon} name="close" size=${14} />
+                <${Icon} name="close" size=${16} />
             </button>
         </header>
         <div class="ext-overlay-body">
@@ -2483,12 +2483,12 @@ export function ExtensionPanel({ leaving = false }) {
             ${
                 !beside &&
                 html`<button class="icon-button files-back" type="button" aria-label=${t("Back to the conversation")} onClick=${closeExtensionPanel}>
-                    <${Icon} name="back" size=${22} />
+                    <${Icon} name="back" size=${20} />
                 </button>`
             }
             <div class="ext-panel-tabs" role="tablist" aria-label=${t("Side panel")}>
-                ${browser && html`<button class="ext-panel-tab" role="tab" aria-selected="false" onClick=${() => setBrowserOpen(true)}><${Icon} name="globe" size=${14} />${t("Browser")}</button>`}
-                ${computer && html`<button class="ext-panel-tab" role="tab" aria-selected="false" onClick=${() => setComputerOpen(true)}><${Icon} name="monitor" size=${14} />${t("Computer")}</button>`}
+                ${browser && html`<button class="ext-panel-tab" role="tab" aria-selected="false" onClick=${() => setBrowserOpen(true)}><${Icon} name="globe" size=${16} />${t("Browser")}</button>`}
+                ${computer && html`<button class="ext-panel-tab" role="tab" aria-selected="false" onClick=${() => setComputerOpen(true)}><${Icon} name="monitor" size=${16} />${t("Computer")}</button>`}
                 ${tabs.map(({ record: each, spec: tab }) => {
                     const on = each.module === target?.module && tab.id === target?.id;
 
@@ -2499,7 +2499,7 @@ export function ExtensionPanel({ leaving = false }) {
                         aria-selected=${on}
                         onClick=${() => !on && openExtensionPanel(each.module, tab.id)}
                     >
-                        <${Icon} path=${pathOf(tab)} size=${14} />${tab.title}
+                        <${Icon} path=${pathOf(tab)} size=${16} />${tab.title}
                     </button>`;
                 })}
             </div>

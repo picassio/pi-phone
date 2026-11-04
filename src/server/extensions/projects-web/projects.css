@@ -74,6 +74,12 @@
     cursor: pointer;
 }
 
+/* The board's icons keep their size in a row that shrinks (PP-403: the title's chevron was squeezed to 8 px). */
+.pj svg,
+.pj-title-button > svg {
+    flex: none;
+}
+
 .pj-title-button:hover {
     background: var(--hover);
 }

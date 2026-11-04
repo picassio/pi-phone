@@ -44,7 +44,7 @@ export function ImagesSheet() {
                 <span>${title}</span>
                 <span class="muted small">${detail}</span>
             </span>
-            ${chosen && html`<span class="sg-check"><${Icon} name="check" size=${14} /></span>`}
+            ${chosen && html`<span class="sg-check"><${Icon} name="check" size=${16} /></span>`}
         </button>`;
     const groups = state === null ? [] : [...new Set(state.models.map((model) => model.provider))];
     const gone = state !== null && state.model !== null && !state.models.some((model) => model.id === state.model);

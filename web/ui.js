@@ -73,7 +73,7 @@ export function Thumb({ src, alt = t("image") }) {
     const [broken, setBroken] = useState(false);
 
     if (broken) {
-        return html`<span class="chip" title=${t("This image could not be loaded")}><${Icon} name="image" size=${12} /> ${alt}</span>`;
+        return html`<span class="chip" title=${t("This image could not be loaded")}><${Icon} name="image" size=${16} /> ${alt}</span>`;
     }
 
     return html`<button
@@ -1150,6 +1150,8 @@ const ICONS = {
     pencil: "M4 20h4L19 9l-4-4L4 16zM13 7l4 4",
     code: "M8 7l-5 5 5 5M16 7l5 5-5 5",
     sliders: "M4 7h9M17 7h3M15 5v4M4 17h3M11 17h9M9 15v4",
+    // A step that waits for an approval: an exclamation mark.
+    alert: "M12 6v7M12 17.5h.01",
     // Something to note: a bolt (a skill a message runs).
     bolt: "M13 3L5 14h6l-1 7 8-11h-6z",
 };
@@ -2196,7 +2198,7 @@ export function Choice({ value, options, onChange, label, disabled, placeholder 
                                 <span class="pop-menu-row-name">${option.label}</span>
                                 ${option.detail && html`<span class="pop-menu-row-sub">${option.detail}</span>`}
                             </span>
-                            ${option.value === value && html`<${Icon} name="check" size=${14} />`}
+                            ${option.value === value && html`<${Icon} name="check" size=${16} />`}
                         </button>`,
                     )}
                 </div>
@@ -2334,7 +2336,7 @@ export function MultiChoice({ options, onAdd, label, placeholder = t("Add…"), 
                                         data-value=${option.value}
                                         onClick=${() => toggle(option.value)}
                                     >
-                                        <span class=${`mc-box ${on ? "on" : ""}`} aria-hidden="true">${on && html`<${Icon} name="check" size=${12} />`}</span>
+                                        <span class=${`mc-box ${on ? "on" : ""}`} aria-hidden="true">${on && html`<${Icon} name="check" size=${16} />`}</span>
                                         <span class="pop-menu-row-text">
                                             <span class="pop-menu-row-name">${option.label}</span>
                                             ${option.detail && html`<span class="pop-menu-row-sub">${option.detail}</span>`}

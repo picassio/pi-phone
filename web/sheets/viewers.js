@@ -30,7 +30,7 @@ export function ArtifactsSheet() {
                         onClick=${() => openSheet({ type: "viewer", id: artifact.id, version: version.version })}
                     >
                         <span class="artifact-cover" aria-hidden="true">
-                            <${Icon} name="file" size=${28} />
+                            <${Icon} name="file" size=${24} />
                             <span>${artifact.type}</span>
                         </span>
                         <span class="artifact-info">

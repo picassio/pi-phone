@@ -188,7 +188,7 @@ function AgentRow({ agent }) {
                 title=${t("Stop")}
                 onClick=${stop}
             >
-                <${Icon} name="stop" size=${14} />
+                <${Icon} name="stop" size=${16} />
             </button>`
         }
     </div>`;
@@ -276,7 +276,7 @@ function Bar({ agents, active, open, held }) {
                         ${lead.name}: ${nowDoing(lead)}
                     </span>`
                 }
-                <span class="agents-chevron"><${Icon} name="chevron" size=${14} /></span>
+                <span class="agents-chevron"><${Icon} name="chevron" size=${16} /></span>
             </button>
             ${
                 !active &&
@@ -289,7 +289,7 @@ function Bar({ agents, active, open, held }) {
                         store.set({ subagentsOpen: null });
                     }}
                 >
-                    <${Icon} name="close" size=${14} />
+                    <${Icon} name="close" size=${16} />
                 </button>`
             }
         </div>

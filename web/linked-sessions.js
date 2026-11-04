@@ -28,7 +28,7 @@ export function LinkedSessions() {
     }
 
     const link = (session, label) => html`<button class="breadcrumb" key=${session.id} data-part="linked-session" onClick=${() => navigate(session.id)}>
-        <${Icon} name="fork" size=${14} />
+        <${Icon} name="fork" size=${16} />
         <span>${label}: ${session.title ?? t("New session")}</span>
     </button>`;
     const shown = open || started.length <= SHOWN ? started : started.slice(0, SHOWN);

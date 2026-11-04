@@ -117,7 +117,7 @@ export function GuideBar() {
             <b>${t("Getting started")}</b>
             <span class="muted small">${t("{done} of {n} done", { done, n: guide.items.length })}</span>
             <span class="guide-progress" aria-hidden="true"><i style=${`width:${Math.round((done / guide.items.length) * 100)}%`}></i></span>
-            ${!WIDE.matches && html`<${Icon} name="chevron" size=${14} class=${open ? "guide-chevron up" : "guide-chevron"} />`}
+            ${!WIDE.matches && html`<${Icon} name="chevron" size=${16} class=${open ? "guide-chevron up" : "guide-chevron"} />`}
         </button>
         ${
             !full &&
@@ -130,7 +130,7 @@ export function GuideBar() {
             html`<ul class="guide-items">
                 ${guide.items.map(
                     (item) => html`<li class=${item.done ? "done" : item === now && !guide.finished ? "now" : ""}>
-                        <span class="guide-mark" role="img" aria-label=${item.done ? t("done") : t("to do")}>${item.done && html`<${Icon} name="check" size=${12} />`}</span>
+                        <span class="guide-mark" role="img" aria-label=${item.done ? t("done") : t("to do")}>${item.done && html`<${Icon} name="check" size=${16} />`}</span>
                         ${item.text}
                     </li>`,
                 )}

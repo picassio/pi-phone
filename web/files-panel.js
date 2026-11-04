@@ -185,7 +185,7 @@ function TreeFolder({ path, depth, ctx }) {
             >
                 ${
                     entry.dir
-                        ? html`<${Icon} name="chevron" size=${12} class=${`chev ${open ? "open" : ""}`} />`
+                        ? html`<${Icon} name="chevron" size=${16} class=${`chev ${open ? "open" : ""}`} />`
                         : html`<span class="ft-spacer"></span>`
                 }
                 <span class="ft-name">${entry.name}</span>
@@ -224,7 +224,7 @@ function Matches({ query, root, onPick }) {
                 data-path=${`${root}/${entry.path.replace(/\/$/, "")}`}
                 onClick=${(event) => onPick(event.currentTarget.dataset.path, entry.dir)}
             >
-                <${Icon} name=${entry.dir ? "folder" : "file"} size=${14} />
+                <${Icon} name=${entry.dir ? "folder" : "file"} size=${16} />
                 <span class="ft-name"><${Marked} text=${entry.name} hits=${entry.nameHits} /></span>
                 <span class="ft-parent"><${Marked} text=${entry.parent} hits=${entry.parentHits} /></span>
             </button>`,
@@ -656,7 +656,7 @@ function FilesTab({ changes, covering }) {
                                   aria-label=${shown.from === "changes" ? t("Back to Changes") : t("Back to the files")}
                                   onClick=${closeFile}
                               >
-                                  <${Icon} name="back" size=${22} />
+                                  <${Icon} name="back" size=${20} />
                               </button>`
                           }
                           <strong class="ft-view-name" title=${shown.path}>${name}</strong>
@@ -693,7 +693,7 @@ function FilesTab({ changes, covering }) {
                   </div>`
                 : side &&
                   html`<div class="ft-view ft-empty">
-                      <${Icon} name="file" size=${26} />
+                      <${Icon} name="file" size=${24} />
                       <p class="muted small">${t("Pick a file to read it here.")}</p>
                   </div>`
         }
@@ -733,7 +733,7 @@ export function FilesPanel({ leaving = false }) {
                     title=${t("Back (Alt+E)")}
                     onClick=${() => setFilesOpen(false)}
                 >
-                    <${Icon} name="back" size=${22} />
+                    <${Icon} name="back" size=${20} />
                 </button>`
             }
             <div class="files-tabs" role="tablist">

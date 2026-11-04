@@ -318,7 +318,7 @@ function Images({ question, answer, onChange, disabled, conversationId }) {
         ${paths.map(
             (path) => html`<span class="interview-thumb" key=${path}>
                 <img src=${fileUrl(path, conversationId)} alt="" />
-                ${!disabled && html`<button class="icon-button" aria-label=${t("Remove")} onClick=${() => remove(path)}><${Icon} name="close" size=${14} /></button>`}
+                ${!disabled && html`<button class="icon-button" aria-label=${t("Remove")} onClick=${() => remove(path)}><${Icon} name="close" size=${16} /></button>`}
             </span>`,
         )}
         <input

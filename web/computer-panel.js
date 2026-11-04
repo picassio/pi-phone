@@ -307,7 +307,7 @@ export function ComputerPanel({ leaving = false }) {
             ${
                 !beside &&
                 html`<button class="icon-button files-back" type="button" aria-label=${t("Back to the conversation")} onClick=${() => setComputerOpen(false)}>
-                    <${Icon} name="back" size=${22} />
+                    <${Icon} name="back" size=${20} />
                 </button>`
             }
             <div class="pb-title">
@@ -348,7 +348,7 @@ export function ComputerPanel({ leaving = false }) {
                 open
                     ? html`<${Frame} panel=${panel} interactive=${takenOver} />`
                     : html`<div class="pb-empty">
-                          <${Icon} name="monitor" size=${28} />
+                          <${Icon} name="monitor" size=${24} />
                           <p>${t("Pi's computer shows here while Pi controls one of your machines, after you approve its card.")}</p>
                       </div>`
             }
@@ -397,7 +397,7 @@ export function ComputerPreview() {
     return html`<button class="pb-preview" onClick=${() => setComputerOpen(true)} aria-label=${t("Pi's computer: {doing}. Open it.", { doing: panel.doing })}>
         <${PreviewImage} panel=${panel} frame=${frame} onFrame=${setFrame} />
         <span class="pb-preview-text"><b>${t("Pi's computer")} · ${panel.machineName}</b><span>${panel.doing}</span></span>
-        <${Icon} name="chevron" size=${14} />
+        <${Icon} name="chevron" size=${16} />
     </button>`;
 }
 

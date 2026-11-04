@@ -183,7 +183,7 @@ function DriverBar() {
         );
 
         return html`<div class="driver-bar mine">
-            <span class="driver-label"><${Icon} name="wheel" size=${14} /> ${t("You're driving")}</span>
+            <span class="driver-label"><${Icon} name="wheel" size=${16} /> ${t("You're driving")}</span>
             ${turns.asks.map(
                 (id) => html`<span class="driver-ask">
                     ${tx("{who} asks to drive", { who: name(id) })} <button class="link small" onClick=${() => run("handover", id)}>${t("Hand over")}</button>
@@ -216,7 +216,7 @@ function DriverBar() {
 
     return html`<div class="driver-bar">
         <span class="driver-label">
-            <${Icon} name="wheel" size=${14} />
+            <${Icon} name="wheel" size=${16} />
             ${turns.driver === undefined ? t("No one is driving") : driverHere ? t("{who} is driving", { who: name(turns.driver) }) : t("{who} is driving (away)", { who: name(turns.driver) })}
         </span>
         <span class="grow"></span>
@@ -281,7 +281,7 @@ function CiWatchBar() {
                     <span class="ci-dot" aria-hidden="true"></span>
                     <span class="ci-name">${watch.workflow}</span>
                     <span class="ci-meta">#${watch.number}</span>
-                    <span class="ci-branch"><${Icon} name="fork" size=${12} />${watch.branch}</span>
+                    <span class="ci-branch"><${Icon} name="fork" size=${16} />${watch.branch}</span>
                     <span class="ci-time" aria-label=${t("watched for")}>${elapsed(watch.startedAt)}</span>
                 </a>
                 ${
@@ -292,7 +292,7 @@ function CiWatchBar() {
                         title=${t("Stop watching")}
                         onClick=${() => attempt(() => actions.stopCiWatch(watch))}
                     >
-                        <${Icon} name="close" size=${14} />
+                        <${Icon} name="close" size=${16} />
                     </button>`
                 }
             </div>`,
@@ -1337,7 +1337,7 @@ export function Composer() {
                                     title=${queuedReports(item) ? t("Discard these reports: Pi will not get them") : t("Withdraw")}
                                     onClick=${() => attempt(() => actions.withdraw(item.id))}
                                 >
-                                    <${Icon} name="close" size=${14} />
+                                    <${Icon} name="close" size=${16} />
                                 </button>`
                             }
                         </div>`,
@@ -1450,7 +1450,7 @@ export function Composer() {
                             >
                                 <${Icon}
                                     name=${item.dir ? "folder" : "file"}
-                                    size=${14}
+                                    size=${16}
                                     class="file-icon"
                                 />
                                 <span class="file-name">
@@ -1552,7 +1552,7 @@ export function Composer() {
                                             }}
                                         />`
                                     }
-                                    ${file.state === "uploading" ? html`<${Spinner} />` : file.preview ? "" : html`<${Icon} name="clip" size=${14} />`}
+                                    ${file.state === "uploading" ? html`<${Spinner} />` : file.preview ? "" : html`<${Icon} name="clip" size=${16} />`}
                                     <span class="chip-name" title=${file.name}>${file.name}</span>
                                     <span class="muted">${formatBytes(file.size)}</span>
                                     <button
@@ -1565,7 +1565,7 @@ export function Composer() {
                                             );
                                         }}
                                     >
-                                        <${Icon} name="close" size=${12} />
+                                        <${Icon} name="close" size=${16} />
                                     </button>
                                 </span>`,
                             )}
@@ -1574,14 +1574,14 @@ export function Composer() {
                     ${
                         store.state.replyQuote &&
                         html`<div class="quote-strip" data-part="quote-strip">
-                            <${Icon} name="reply" size=${12} />
+                            <${Icon} name="reply" size=${16} />
                             <span class="quote-strip-text">${store.state.replyQuote}</span>
                             <button
                                 class="icon-button small"
                                 aria-label=${t("Remove the quote")}
                                 onClick=${() => store.set({ replyQuote: null })}
                             >
-                                <${Icon} name="close" size=${12} />
+                                <${Icon} name="close" size=${16} />
                             </button>
                         </div>`
                     }
@@ -1629,10 +1629,10 @@ export function Composer() {
                             title=${level ? t("Model and thinking: {model}, {level}", { model: modelLabel(agent), level }) : t("Model and thinking: {model}", { model: modelLabel(agent) })}
                             onClick=${() => openSheet({ type: "model" })}
                         >
-                            <${Icon} name="sparkle" size=${12} class="model-spark" />
+                            <${Icon} name="sparkle" size=${16} class="model-spark" />
                             <span class="model-name">${shortModel(agent)}</span>
                             ${level && html`<span class="model-level">${level}</span>`}
-                            <${Icon} name="chevron" size=${12} stroke=${2.2} class="model-caret" />
+                            <${Icon} name="chevron" size=${16} class="model-caret" />
                         </button>
                         ${
                             planAvailable() &&
@@ -1711,7 +1711,7 @@ export function Composer() {
                             ${
                                 sending
                                     ? html`<${Spinner} />`
-                                    : html`<${Icon} name="send" size=${16} stroke=${2.4} />`
+                                    : html`<${Icon} name="send" size=${16} />`
                             }
                         </button>
                         ${busy && html`<${StopButton} />`}
@@ -2162,7 +2162,7 @@ function StatusLine() {
                 title=${guard.detail}
                 onClick=${() => openSheet({ type: "extensions" })}
             >
-                <${Icon} name="shield" size=${12} />
+                <${Icon} name="shield" size=${16} />
                 <span><span class="word">${t("guard")}${" "}</span>${state}</span>
             </button>`,
         );

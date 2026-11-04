@@ -178,7 +178,7 @@ export function PeeksRailButton() {
         aria-pressed=${on}
         onClick=${togglePeeks}
     >
-        <${Icon} name="tiles" size=${19} />
+        <${Icon} name="tiles" size=${20} />
     </button>`;
 }
 
@@ -422,7 +422,7 @@ function Status({ status }) {
         return html`<span class="peek-run" title=${t("Running")}>…</span>`;
     }
 
-    return status === "error" ? html`<span class="err" title=${t("Failed")}><${Icon} name="close" size=${12} /></span>` : null;
+    return status === "error" ? html`<span class="err" title=${t("Failed")}><${Icon} name="close" size=${16} /></span>` : null;
 }
 
 /** A line of a tile: a mark column (who or what), then the words, two lines at most. */
@@ -444,7 +444,7 @@ function PeekLine({ line }) {
 
             return html`<div class="peek-line cmd">
                 <span class="peek-mark">
-                    <${Icon} path=${call.iconPath} name=${call.icon} size=${12} />
+                    <${Icon} path=${call.iconPath} name=${call.icon} size=${16} />
                 </span>
                 <span class="peek-text">
                     ${call.label} ${call.subject}${" "}
@@ -455,7 +455,7 @@ function PeekLine({ line }) {
 
         case "shell":
             return html`<div class="peek-line cmd">
-                <span class="peek-mark"><${Icon} name="terminal" size=${12} /></span>
+                <span class="peek-mark"><${Icon} name="terminal" size=${16} /></span>
                 <span class="peek-text">${line.command}${" "}<${Status} status=${line.status} /></span>
             </div>`;
         case "note":
@@ -492,7 +492,7 @@ export const wholeOnTile = (approval) =>
 function PeekAsk({ approval, compact, who }) {
     return html`<div class="peek-ask" title=${`${approval.subject}\n\n${approval.reason}`}>
         <span class="peek-ask-tool mono">
-            <${Icon} name="shield" size=${12} />${approval.tool}
+            <${Icon} name="shield" size=${16} />${approval.tool}
             ${who !== undefined && html`<span class="peek-ask-who">${t("{who} asks", { who })}</span>`}
         </span>
         <div class=${`peek-ask-what mono ${wholeOnTile(approval) ? "whole" : ""}`}>
@@ -619,10 +619,10 @@ function AgentRows({ agents, compact }) {
                         boardFocus: more[0].conversationId,
                     })}
             >
-                <${Icon} name="fork" size=${14} />
+                <${Icon} name="fork" size=${16} />
                 <span class="agent-more-count">${t("{n} more", { n: more.length })}</span>
                 ${waitingMore > 0 && html`<span class="agent-more-wait">${waitWords}</span>`}
-                <${Icon} name="chevron" size=${14} />
+                <${Icon} name="chevron" size=${16} />
             </button>`
         }
     </div>`;
@@ -857,7 +857,7 @@ function PeekColumn({ tiles, leaving = false }) {
             class=${`peeks-jump ${way}`}
             onClick=${() => reveal(pick(ids))}
         >
-            <${Icon} name=${way === "up" ? "up" : "arrow-down"} size=${12} /> ${ids.length} ${verb[ids.length === 1 ? 0 : 1]}
+            <${Icon} name=${way === "up" ? "up" : "arrow-down"} size=${16} /> ${ids.length} ${verb[ids.length === 1 ? 0 : 1]}
         </button>`;
 
     useOnScreen(list);
@@ -874,7 +874,7 @@ function PeekColumn({ tiles, leaving = false }) {
             ${
                 props.length === 0 &&
                 html`<div class="peeks-empty">
-                    <${Icon} name="tiles" size=${28} />
+                    <${Icon} name="tiles" size=${24} />
                     <p>${t("Other sessions show here while they work, wait for you, or finish.")}</p>
                     <p class="muted small">${t("Pinned sessions stay here. Alt+P hides this.")}</p>
                 </div>`

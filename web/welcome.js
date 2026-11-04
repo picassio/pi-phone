@@ -150,7 +150,7 @@ function ModelStep({ back, next }) {
                     <span class="grow"><span class="welcome-title">${each.name}</span><span class="muted small">${each.detail}</span></span>
                     ${
                         signedIn
-                            ? html`<span class="welcome-done"><${Icon} name="check" size=${14} /> ${t("Signed in")}</span>`
+                            ? html`<span class="welcome-done"><${Icon} name="check" size=${16} /> ${t("Signed in")}</span>`
                             : html`<button class="button small primary" disabled=${providers === null} onClick=${() => login(each.id)}>${t("Sign in")}</button>`
                     }
                 </div>`;
@@ -173,7 +173,7 @@ function ModelStep({ back, next }) {
 /** One permission: its state, what it is for, and the button that opens Android's or the browser's own screen. */
 function Permission({ n, done, title, text, button, onClick }) {
     return html`<li class=${`phone-step ${done ? "done" : ""}`} data-part="welcome-permission">
-        <span class="phone-step-mark" role="img" aria-label=${done ? t("done") : String(n)}>${done ? html`<${Icon} name="check" size=${14} />` : n}</span>
+        <span class="phone-step-mark" role="img" aria-label=${done ? t("done") : String(n)}>${done ? html`<${Icon} name="check" size=${16} />` : n}</span>
         <div class="phone-step-text">
             <div>${title}</div>
             <div class="muted small">${text}</div>

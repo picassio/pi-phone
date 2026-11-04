@@ -133,7 +133,7 @@ function WikiCame({ paths }) {
             html`<p class="muted small wiki-came-note">${t("The app's wiki search sent these pages to Pi with your message. You did not write them.")}</p>
                 ${paths.map(
                     (path) => html`<a class="list-item" data-part="wiki-came" href=${`#wiki:${encodeURIComponent(path)}`} onClick=${closeSheet}>
-                        <span><${Icon} name="file" size=${14} /> ${path.split("/").pop()}</span>
+                        <span><${Icon} name="file" size=${16} /> ${path.split("/").pop()}</span>
                         <span class="muted small">${path}</span>
                     </a>`,
                 )}`

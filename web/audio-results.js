@@ -44,7 +44,7 @@ export function DownloadButton({ path, conversationId, compact = false }) {
         aria-label=${t("Download {name}", { name })}
         onClick=${() => attempt(() => downloadFile(`api/c/${conversationId}/download?path=${encodeURIComponent(path)}`, name))}
     >
-        <${Icon} name="download" size=${14} />${compact ? "" : ` ${t("Download")}`}
+        <${Icon} name="download" size=${16} />${compact ? "" : ` ${t("Download")}`}
     </button>`;
 }
 
@@ -121,8 +121,8 @@ export function MadeTranscript({ transcript, conversationId }) {
         ${lines.map((line) => html`<p><span class="made-transcript-time">${clock(line.start / 1000)}</span>${line.text}</p>`)}
         ${more > 0 && html`<p class="muted small">${t("+ {count} more lines", { count: String(more) })}</p>`}
         <div class="made-transcript-actions">
-            <button class="button small ghost" data-part="transcript-copy" onClick=${copy}><${Icon} name="copy" size=${14} /> ${t("Copy")}</button>
-            <button class="button small ghost" data-part="transcript-open" onClick=${() => openFile(transcript.path)}><${Icon} name="external" size=${14} /> ${t("Open file")}</button>
+            <button class="button small ghost" data-part="transcript-copy" onClick=${copy}><${Icon} name="copy" size=${16} /> ${t("Copy")}</button>
+            <button class="button small ghost" data-part="transcript-open" onClick=${() => openFile(transcript.path)}><${Icon} name="external" size=${16} /> ${t("Open file")}</button>
             <${DownloadButton} path=${transcript.path} conversationId=${conversationId} />
         </div>
     </div>`;

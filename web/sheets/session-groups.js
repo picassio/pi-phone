@@ -63,8 +63,8 @@ export function MoveSheet({ ids }) {
                         aria-current=${current?.id === group.id ? "true" : undefined}
                         onClick=${() => done(moveToGroup(ids, group.id))}
                     >
-                        <span><${Icon} name="folder" size=${14} />${group.name}</span>
-                        ${current?.id === group.id ? html`<span class="sg-check"><${Icon} name="check" size=${14} /></span>` : html`<span class="muted small">${chats(count(group))}</span>`}
+                        <span><${Icon} name="folder" size=${16} />${group.name}</span>
+                        ${current?.id === group.id ? html`<span class="sg-check"><${Icon} name="check" size=${16} /></span>` : html`<span class="muted small">${chats(count(group))}</span>`}
                     </button>`,
                 )}
                 ${typed === "" && item("No group", () => done(moveToGroup(ids, null)), "back to Active")}

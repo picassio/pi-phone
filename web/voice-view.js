@@ -39,7 +39,7 @@ export async function startVoiceSession() {
 }
 
 /** Voice beside New (the session list, the desktop's home): a new session with a call. */
-export function VoiceNewButton({ className = "new-button voice-new", size = 14 }) {
+export function VoiceNewButton({ className = "new-button voice-new", size = 16 }) {
     if (!voiceAvailable()) {
         return null;
     }
@@ -157,7 +157,7 @@ export function Recent() {
     return html`<div class="voice-recent" ref=${list} data-part="voice-recent">
         ${rows.slice(-8).map(
             (row) => html`<div class="voice-line" key=${row.key}>
-                <${Icon} name=${row.icon} size=${14} />
+                <${Icon} name=${row.icon} size=${16} />
                 <span><b>${row.who}</b> · ${row.text.length > 400 ? `${row.text.slice(0, 400)}…` : row.text}</span>
             </div>`,
         )}
@@ -196,7 +196,7 @@ export function VoicePanel({ leaving = false }) {
             ${
                 !beside &&
                 html`<button class="icon-button files-back" type="button" aria-label=${t("Back to the chat (the call goes on)")} onClick=${hideVoice}>
-                    <${Icon} name="back" size=${22} />
+                    <${Icon} name="back" size=${20} />
                 </button>`
             }
             <div class="pb-title">
@@ -212,7 +212,7 @@ export function VoicePanel({ leaving = false }) {
                 onClick=${() => setModes(!modes)}
             >
                 <span class="assist-pill-name">${modeName}</span>
-                <${Icon} name="down" size=${14} />
+                <${Icon} name="down" size=${16} />
             </button>
             ${
                 beside &&
@@ -271,7 +271,7 @@ function MicButton({ call }) {
         aria-label=${tap ? (off ? t("Tap to talk") : t("Mute")) : off ? t("Unmute") : t("Mute")}
         onClick=${() => (tap ? toggleMic("tap") : setVoiceMuted(!off))}
     >
-        <${Icon} name=${off && !tap ? "micoff" : "mic"} size=${22} />
+        <${Icon} name=${off && !tap ? "micoff" : "mic"} size=${20} />
         <span class="voice-mic-words"><b>${words[0]}</b><small>${words[1]}</small></span>
     </button>`;
 }

@@ -522,13 +522,13 @@ export function AssistView() {
         settings.from !== false &&
         html`<div class="assist-chips">
             <span class=${`chip assist-from ${fromOn ? "" : "off"}`} data-part="assist-from">
-                <${Icon} name="phone" size=${14} />
+                <${Icon} name="phone" size=${16} />
                 ${t("From {app}", { app: from.label })}
                 <button
                     aria-label=${fromOn ? t("Don't say you're in {app}", { app: from.label }) : t("Say you're in {app}", { app: from.label })}
                     onClick=${() => setFromOn(!fromOn)}
                 >
-                    <${Icon} name=${fromOn ? "close" : "undo"} size=${12} />
+                    <${Icon} name=${fromOn ? "close" : "undo"} size=${16} />
                 </button>
             </span>
         </div>`;
@@ -563,7 +563,7 @@ export function AssistView() {
                 >
                     <span class="assist-pill-name">${target === null ? t("Loading…") : named(target)}</span>
                     <small>${target?.kind === "new" ? shortPath(target.folder ?? "", home) : chosen === "last" ? t("last") : `#${target?.id ?? ""}`}</small>
-                    <${Icon} name="down" size=${14} />
+                    <${Icon} name="down" size=${16} />
                 </button>
                 <span class="assist-space"></span>
                 ${
@@ -595,7 +595,7 @@ export function AssistView() {
                                           (each) => html`<button role="option" aria-selected=${chosen === each.opens} onClick=${() => choose(each.opens)}>
                                               <b>${named(each)}</b>
                                               <small>${each.kind === "new" ? `${each.hint} · ${shortPath(each.folder ?? "", home)}` : each.hint}</small>
-                                              ${chosen === each.opens && html`<${Icon} name="check" size=${14} />`}
+                                              ${chosen === each.opens && html`<${Icon} name="check" size=${16} />`}
                                           </button>`,
                                       )
                                   }
@@ -605,7 +605,7 @@ export function AssistView() {
                                       (each) => html`<button role="option" aria-selected=${chosen === each.id} data-part="assist-session" onClick=${() => choose(each.id)}>
                                           <b>${each.title ?? t("New session")}</b>
                                           <small>#${each.id} · ${shortPath(each.cwd ?? "", home)}</small>
-                                          ${chosen === each.id && html`<${Icon} name="check" size=${14} />`}
+                                          ${chosen === each.id && html`<${Icon} name="check" size=${16} />`}
                                       </button>`,
                                   )}
                               </div>

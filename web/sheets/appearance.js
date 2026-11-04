@@ -219,12 +219,12 @@ function LookTools() {
 
     return html`<div class="look-tools">
         <button class="button" disabled=${!look?.usable} onClick=${() => setNaming(true)}>
-            <${Icon} name="copy" size=${14} /> ${t("Duplicate")}
+            <${Icon} name="copy" size=${16} /> ${t("Duplicate")}
         </button>
         ${
             look && !look.builtIn
                 ? html`<button class="button" onClick=${() => attempt(() => editWithPi(id))}>
-                        <${Icon} name="sparkle" size=${14} /> ${t("Edit with Pi")}
+                        <${Icon} name="sparkle" size=${16} /> ${t("Edit with Pi")}
                     </button>
                     <button class="button ghost" onClick=${remove}>${t("Remove")}</button>`
                 : html`<span class="muted small">${t("Duplicate it to make a theme of your own.")}</span>`
@@ -273,12 +273,12 @@ function ColorsTools() {
 
     return html`<div class="look-tools">
         <button class="button" onClick=${() => setNaming(true)}>
-            <${Icon} name="copy" size=${14} /> ${t("Duplicate colors")}
+            <${Icon} name="copy" size=${16} /> ${t("Duplicate colors")}
         </button>
         ${
             own &&
             html`<button class="button" onClick=${() => attempt(() => editWithPi(own.id))}>
-                    <${Icon} name="sparkle" size=${14} /> ${t("Edit with Pi")}
+                    <${Icon} name="sparkle" size=${16} /> ${t("Edit with Pi")}
                 </button>
                 <button class="button ghost" onClick=${remove}>${t("Remove")}</button>`
         }

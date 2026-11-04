@@ -90,7 +90,7 @@ export function VoiceSheet() {
                               onClick=${() => settings.model !== model.id && change({ model: model.id })}
                           >
                               <span class=${settings.model === model.id ? "voice-chosen" : ""}>
-                                  ${settings.model === model.id && html`<${Icon} name="check" size=${14} stroke=${2.4} />`} ${model.id}
+                                  ${settings.model === model.id && html`<${Icon} name="check" size=${16} />`} ${model.id}
                               </span>
                               <span class="muted small">${PATHS()[model.path] ?? model.path}</span>
                           </button>`,

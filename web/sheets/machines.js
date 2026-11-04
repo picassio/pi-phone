@@ -173,7 +173,7 @@ function WindowsSetup({ publicKey }) {
                         () => notify("error", t("Could not copy.")),
                     )}
             >
-                <${Icon} name="copy" size=${14} /> ${t("Copy script")}
+                <${Icon} name="copy" size=${16} /> ${t("Copy script")}
             </button>
         </div>
         <pre class="ssh-public-key">${script}</pre>
@@ -788,11 +788,11 @@ export function MachinesSheet() {
                           team.available &&
                           team.manage &&
                           html`<button class="button" onClick=${() => setAddingTeam(true)}>
-                              <${Icon} name="plus" size=${14} /> ${t("Add team machine")}
+                              <${Icon} name="plus" size=${16} /> ${t("Add team machine")}
                           </button>`
                       }
                       <button class="button primary" onClick=${() => setAdding(true)}>
-                          <${Icon} name="plus" size=${14} /> ${t("Add a machine")}
+                          <${Icon} name="plus" size=${16} /> ${t("Add a machine")}
                       </button>
                   </div>`
         }

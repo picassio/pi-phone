@@ -547,7 +547,7 @@ export function CwdSheet({ mode, start, title }) {
                                         <${Icon}
                                             key=${`${crumb.path}/`}
                                             name="chevron"
-                                            size=${12}
+                                            size=${16}
                                             class="fp-sep"
                                         />`,
                           )}
@@ -562,7 +562,7 @@ export function CwdSheet({ mode, start, title }) {
                     setNaming(true);
                 }}
             >
-                <${Icon} name="plus" size=${14} /> ${t("New folder")}
+                <${Icon} name="plus" size=${16} /> ${t("New folder")}
             </button>
         </div>
         ${
@@ -698,7 +698,7 @@ export function CwdSheet({ mode, start, title }) {
                     >
                         <${Icon} name="folder" size=${16} />
                         <span class="fp-name">${dir.name}</span>
-                        ${touch && html`<${Icon} name="chevron" size=${14} class="fp-chev" />`}
+                        ${touch && html`<${Icon} name="chevron" size=${16} class="fp-chev" />`}
                     </button>`,
                 )}
                 ${listing && dirs.length === 0 && html`<p class="fp-note">${t("No folders in here.")}</p>`}

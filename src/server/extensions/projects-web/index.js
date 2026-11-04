@@ -149,12 +149,13 @@ export default function projects(pocket) {
 
     pocket.style("projects.css");
 
-    const svg = (path, size = 14, cls = "") =>
+    // Line icons on the app's scale (PP-403): 16, 20 or 24 px, stroke 2.
+    const svg = (path, size = 16, cls = "") =>
         html`<svg class=${cls} width=${size} height=${size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d=${path} /></svg>`;
     const typeChip = (type) => {
         const kind = TYPE[type] ?? TYPE.task;
 
-        return html`<span class=${`pj-type pj-type-${kind.id}`} style=${`--tt:${kind.tone}`}>${svg(kind.icon, 11)}${typeLabel[kind.id]}</span>`;
+        return html`<span class=${`pj-type pj-type-${kind.id}`} style=${`--tt:${kind.tone}`}>${svg(kind.icon, 16)}${typeLabel[kind.id]}</span>`;
     };
     const priority = (value) =>
         value === 4
@@ -303,7 +304,7 @@ export default function projects(pocket) {
 
         if (list.length === 0) {
             return html`<div class="pj-empty-page">
-                <div class="pj-empty-icon">${svg(BOARD, 28)}</div>
+                <div class="pj-empty-icon">${svg(BOARD, 24)}</div>
                 <h3>${t("No projects yet")}</h3>
                 <p class="muted">${t("A board of tasks for you and Pi: a backlog that keeps work from being forgotten. Pi also offers to start one when a session's work has several parts.")}</p>
                 <button class="button primary" onClick=${() => pocket.openSheet("new-project")}>${t("New project")}</button>
@@ -320,7 +321,7 @@ export default function projects(pocket) {
                     <button class="pj-title-button" aria-haspopup="listbox" aria-expanded=${picking} onClick=${() => setPicking(!picking)}>
                         <span class="pj-key">${project?.key}</span>
                         <span class="pj-name">${project?.name}</span>
-                        ${svg("m6 9 6 6 6-6", 14)}
+                        ${svg("m6 9 6 6 6-6", 16)}
                     </button>
                     ${
                         picking &&
@@ -367,7 +368,7 @@ export default function projects(pocket) {
                     ${t("Docs")}
                 </button>
                 <button class="icon-button" title=${t("Project settings")} aria-label=${t("Project settings")} onClick=${() => pocket.openSheet("project", { project: key })}>
-                    ${svg("M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6", 18)}
+                    ${svg("M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6", 20)}
                 </button>
                 <button class="button primary small pj-add" onClick=${() => pocket.openSheet("new-task", { project: key })}>${t("+ Task")}</button>
             </div>
@@ -392,7 +393,7 @@ export default function projects(pocket) {
                     return html`${running > 0 && html`<span class="pj-chip" style="--tone:var(--o-cyan)"><i></i>${tx("Running {count}", { count: html`<b>${running}</b>` })}</span>`}
                     ${queued > 0 && html`<span class="pj-chip" style="--tone:var(--faint)"><i></i>${tx("Queued {count}", { count: html`<b>${queued}</b>` })}</span>`}`;
                 })()}
-                ${board?.lead && html`<a class="pj-chip pj-lead-chip" href=${`s/${board.lead.session}`} title=${t("The project's main session")}>${svg("M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z", 12)} ${t("Main session")}</a>`}
+                ${board?.lead && html`<a class="pj-chip pj-lead-chip" href=${`s/${board.lead.session}`} title=${t("The project's main session")}>${svg("M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z", 16)} ${t("Main session")}</a>`}
                 <span class="pj-chip quiet">${tn(total, "{n} task · {done} done", "{n} tasks · {done} done", { done: counts.done ?? 0 })}</span>
             </div>
             <div class="pj-views" role="tablist" aria-label=${t("View")}>
@@ -405,7 +406,7 @@ export default function projects(pocket) {
                             setView(id);
                             localStorage.setItem(VIEW, id);
                         }}
-                    >${svg(path, 14)}<span>${viewLabel[id]}</span></button>`,
+                    >${svg(path, 16)}<span>${viewLabel[id]}</span></button>`,
                 )}
             </div>
             ${problem && html`<p class="pj-problem">${problem}</p>`}
@@ -543,7 +544,7 @@ export default function projects(pocket) {
                         (each) => html`<tbody>
                             <tr class="pv-group" onClick=${() => fold(each.key)}>
                                 <td colspan="7">
-                                    <span class="pv-group-in">${svg(folded.has(each.key) ? CHEVRON : "M6 9l6 6 6-6", 12)}${each.mark}${each.label}<span class="pt-n">${each.tasks.length}</span></span>
+                                    <span class="pv-group-in">${svg(folded.has(each.key) ? CHEVRON : "M6 9l6 6 6-6", 16)}${each.mark}${each.label}<span class="pt-n">${each.tasks.length}</span></span>
                                 </td>
                             </tr>
                             ${
@@ -568,7 +569,7 @@ export default function projects(pocket) {
                 <div class="pv-rows">
                     ${groups.map(
                         (each) => html`<button class="pv-row-group" aria-expanded=${!folded.has(each.key)} onClick=${() => fold(each.key)}>
-                                ${svg(folded.has(each.key) ? CHEVRON : "M6 9l6 6 6-6", 12)}${each.mark}${each.label}<span class="pt-n">${each.tasks.length}</span>
+                                ${svg(folded.has(each.key) ? CHEVRON : "M6 9l6 6 6-6", 16)}${each.mark}${each.label}<span class="pt-n">${each.tasks.length}</span>
                             </button>
                             ${
                                 !folded.has(each.key) &&
@@ -798,9 +799,9 @@ export default function projects(pocket) {
 
         return html`<div class="pv pv-calendar">
             <div class="pv-bar-top">
-                <button class="pv-btn" aria-label=${t("Previous month")} onClick=${() => shift(-1)}>${svg("M15 6l-6 6 6 6", 14)}</button>
+                <button class="pv-btn" aria-label=${t("Previous month")} onClick=${() => shift(-1)}>${svg("M15 6l-6 6 6 6", 16)}</button>
                 <strong class="pv-month">${t("{month} {year}", { month: MONTHS[month.getMonth()], year: month.getFullYear() })}</strong>
-                <button class="pv-btn" aria-label=${t("Next month")} onClick=${() => shift(1)}>${svg(CHEVRON, 14)}</button>
+                <button class="pv-btn" aria-label=${t("Next month")} onClick=${() => shift(1)}>${svg(CHEVRON, 16)}</button>
                 ${(month.getMonth() !== now.getMonth() || month.getFullYear() !== now.getFullYear()) && html`<button class="pv-btn" onClick=${() => setMonth(new Date(now.getFullYear(), now.getMonth(), 1))}>${t("Today")}</button>`}
                 <span class="pj-sp"></span>
                 <span class="pv-hint pv-wide">${t("By due date · drag a task to another day")}</span>
@@ -1031,14 +1032,14 @@ export default function projects(pocket) {
             >
                 <div class="pj-row">
                     ${typeChip(task.type)}${priority(task.priority)}<span class="pj-sp"></span>
-                    ${task.operatorReview && html`<span class="pj-approve" title=${t("Needs a person's approval before Done")}>${svg("M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z", 12)}</span>`}
+                    ${task.operatorReview && html`<span class="pj-approve" title=${t("Needs a person's approval before Done")}>${svg("M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z", 16)}</span>`}
                     ${
                         task.run && ACTIVE.has(task.run.state) &&
                         html`<span class=${`pj-running ${task.run.state}`} title=${runLabel[task.run.state]}><i></i>${task.run.state === "queued" ? t("queued") : t("running")}</span>`
                     }
                 </div>
                 <div class="pj-card-title">${task.title}</div>
-                ${parent && html`<div class="pj-parent">${svg("M6 4v7a4 4 0 0 0 4 4h8M15 12l3 3-3 3", 11)}<span>${parent.title}</span></div>`}
+                ${parent && html`<div class="pj-parent">${svg("M6 4v7a4 4 0 0 0 4 4h8M15 12l3 3-3 3", 16)}<span>${parent.title}</span></div>`}
                 ${task.waitingOn.length > 0 && html`<div class="pj-waiting">${t("Waiting on {refs}", { refs: task.waitingOn.join(", ") })}</div>`}
                 ${task.state === "blocked" && task.blockedReason && html`<div class="pj-blocked">${task.blockedReason}</div>`}
                 ${
@@ -1049,7 +1050,7 @@ export default function projects(pocket) {
                 }
                 <div class="pj-foot">
                     <span class="pj-id">${task.ref.toLowerCase()}</span>
-                    ${task.due && html`<span class=${`pj-due ${dueClass(task.due, task.state)}`}>${svg("M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2", 12)}${dayLabel(task.due)}</span>`}
+                    ${task.due && html`<span class=${`pj-due ${dueClass(task.due, task.state)}`}>${svg("M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2", 16)}${dayLabel(task.due)}</span>`}
                     <span class="pj-sp"></span>
                     <span class="pj-age" title=${t("Last changed")}>${ago(task.updatedAt)}</span>
                     ${avatar(task.assignee, people)}
@@ -1097,8 +1098,8 @@ export default function projects(pocket) {
                     >
                         <div class="pj-tbar"></div>
                         <header>
-                            ${isCollapsed && svg("m6 17 5-5-5-5M13 17l5-5-5-5", 14, "pj-unfold")}
-                            ${svg(state.icon, 15, "pj-col-icon")}
+                            ${isCollapsed && svg("m6 17 5-5-5-5M13 17l5-5-5-5", 16, "pj-unfold")}
+                            ${svg(state.icon, 16, "pj-col-icon")}
                             <span class="pj-col-label">${stateLabel[state.id]}</span>
                             <span class="pj-count">${items.length}</span>
                             ${!isCollapsed && state.wip !== undefined && html`<span class=${`pj-wip ${atWip ? "over" : ""}`} title=${t("Work-in-progress limit")}>${items.length}/${state.wip}</span>`}
@@ -1106,7 +1107,7 @@ export default function projects(pocket) {
                             ${
                                 !isCollapsed &&
                                 html`<button class="pj-fold" title=${t("Collapse {state}", { state: stateLabel[state.id] })} aria-label=${t("Collapse {state}", { state: stateLabel[state.id] })} onClick=${() => toggle(state.id)}>
-                                    ${svg("m11 17-5-5 5-5M18 17l-5-5 5-5", 14)}
+                                    ${svg("m11 17-5-5 5-5M18 17l-5-5 5-5", 16)}
                                 </button>`
                             }
                         </header>
@@ -1413,11 +1414,11 @@ export default function projects(pocket) {
 
         return html`<div class="pt" data-task=${task.ref}>
             <header class="pt-head">
-                <span class="pt-type" title=${typeLabel[task.type]} style=${`--tt:${TYPE[task.type].tone}`}>${svg(TYPE[task.type].icon, 13)}</span>
+                <span class="pt-type" title=${typeLabel[task.type]} style=${`--tt:${TYPE[task.type].tone}`}>${svg(TYPE[task.type].icon, 16)}</span>
                 <span class="pt-ref">${task.ref}</span>
                 <span class="pt-anchor">
                     <button class="pt-state" style=${`--tone:${state.tone}`} aria-haspopup="menu" aria-expanded=${menu === "state"} onClick=${() => toggle("state")}>
-                        <i></i>${stateLabel[state.id]}${svg("M6 9l6 6 6-6", 11)}
+                        <i></i>${stateLabel[state.id]}${svg("M6 9l6 6 6-6", 16)}
                     </button>
                     <${Popover} open=${menu === "state"} onClose=${() => setMenu(null)} align="left">
                         ${STATES.map(
@@ -1425,7 +1426,7 @@ export default function projects(pocket) {
                                 setMenu(null);
                                 each.id !== task.state && save({ state: each.id });
                             }}>
-                                <span class="pt-dot" style=${`--tone:${each.tone}`}></span>${stateLabel[each.id]}${each.id === task.state && html`<span class="pj-sp"></span>${svg(CHECK, 14)}`}
+                                <span class="pt-dot" style=${`--tone:${each.tone}`}></span>${stateLabel[each.id]}${each.id === task.state && html`<span class="pj-sp"></span>${svg(CHECK, 16)}`}
                             </button>`,
                         )}
                     <//>
@@ -1443,7 +1444,7 @@ export default function projects(pocket) {
                             (each) => html`<button role="menuitemradio" aria-checked=${each.id === task.type} class=${each.id === task.type ? "on" : ""} onClick=${() => {
                                 setMenu(null);
                                 each.id !== task.type && save({ type: each.id });
-                            }}>${svg(each.icon, 15)}${typeLabel[each.id]}${each.id === task.type && html`<span class="pj-sp"></span>${svg(CHECK, 14)}`}</button>`,
+                            }}>${svg(each.icon, 16)}${typeLabel[each.id]}${each.id === task.type && html`<span class="pj-sp"></span>${svg(CHECK, 16)}`}</button>`,
                         )}
                         <hr />
                         <button role="menuitem" class="danger" onClick=${() => {
@@ -1453,7 +1454,7 @@ export default function projects(pocket) {
                                     pocket.notify("info", t("Deleted {ref}.", { ref: task.ref }));
                                     close();
                                 }, failed);
-                        }}>${svg(TRASH, 15)}${t("Delete {ref}…", { ref: task.ref })}</button>
+                        }}>${svg(TRASH, 16)}${t("Delete {ref}…", { ref: task.ref })}</button>
                     <//>
                 </span>
                 <button class="icon-button" aria-label=${t("Close")} onClick=${() => close()}><${Icon} name="close" /></button>
@@ -1462,7 +1463,7 @@ export default function projects(pocket) {
             <div class="pt-body">
                 <${TitleField} task=${task} save=${save} />
                 <div class="pt-where">
-                    ${svg(BOARD, 12)}<b>${project.key} · ${project.name}</b>${made && html`<span>${t("· made by {name} {time} ago", { name: made.actorName, time: ago(made.createdAt) })}</span>`}
+                    ${svg(BOARD, 16)}<b>${project.key} · ${project.name}</b>${made && html`<span>${t("· made by {name} {time} ago", { name: made.actorName, time: ago(made.createdAt) })}</span>`}
                 </div>
                 ${task.waitingOn.length > 0 && task.state !== "done" && html`<div class="pt-note">${t("Waiting on {refs}: the main session decides when it runs.", { refs: task.waitingOn.join(", ") })}</div>`}
                 ${
@@ -1569,7 +1570,7 @@ export default function projects(pocket) {
             ? html`<a class="btn small" href=${`s/${run.conversationId}`} onClick=${() => close()}>${t("Open session")}</a>`
             : null;
         const sessionLine = run?.conversationId
-            ? html`<div class="pt-run-session">${svg(CHAT, 13)}<span>${which > 1 ? t("Session #{id} · {nth} run", { id: run.conversationId, nth: nth(which) }) : t("Session #{id}", { id: run.conversationId })}</span><span class="pj-sp"></span>${open}</div>`
+            ? html`<div class="pt-run-session">${svg(CHAT, 16)}<span>${which > 1 ? t("Session #{id} · {nth} run", { id: run.conversationId, nth: nth(which) }) : t("Session #{id}", { id: run.conversationId })}</span><span class="pj-sp"></span>${open}</div>`
             : null;
         const card = (tone, mark, title, lines, actions, footer = null) => html`<section class="pt-run" style=${`--tone:${tone}`}>
             <div class="pt-run-top">
@@ -1588,7 +1589,7 @@ export default function projects(pocket) {
         if (!run && theirs && ACTIVE.has(theirs.state)) {
             return card(
                 "var(--accent)",
-                svg(PLAY, 13),
+                svg(PLAY, 16),
                 theirs.state === "queued" ? t("{name}'s Pi is about to work on it", { name: theirs.by }) : t("{name}'s Pi is working on it", { name: theirs.by }),
                 html`<span>${theirs.branch ? tx("In their own pi-phone, on {branch}.", { branch: html`<code>${theirs.branch}</code>` }) : t("In their own pi-phone.")}</span>`,
                 null,
@@ -1598,21 +1599,21 @@ export default function projects(pocket) {
         if (!run) {
             return card(
                 "var(--muted)",
-                svg(PLAY, 13),
+                svg(PLAY, 16),
                 t("Not run yet"),
                 html`<span>${
                     project.autoRuns
                         ? tx("Give it to Pi and it runs by itself, or run it now: in a git worktree on {branch}.", { branch: html`<code>task/${task.ref}</code>` })
                         : tx("Pi works on it in its own session, in a git worktree on {branch}.", { branch: html`<code>task/${task.ref}</code>` })
                 }</span>`,
-                html`<button class="btn primary grow" disabled=${busy} onClick=${() => act(() => pocket.api(`tasks/${task.ref}/run`, {}))}>${svg(PLAY, 13)}${t("Run now")}</button>`,
+                html`<button class="btn primary grow" disabled=${busy} onClick=${() => act(() => pocket.api(`tasks/${task.ref}/run`, {}))}>${svg(PLAY, 16)}${t("Run now")}</button>`,
             );
         }
 
         if (run.merged !== null) {
             return card(
                 "var(--ok)",
-                svg(CHECK, 15),
+                svg(CHECK, 16),
                 t("Merged into {base}", { base: run.base }),
                 html`<span>${t("by {name} {time} ago", { name: run.merged.byName, time: ago(run.merged.at) })}${run.merged.stat ? " · " : ""}${diffStat(run.merged.stat)}${run.merged.commit ? html` · <code>${run.merged.commit}</code>` : ""}</span>`,
                 null,
@@ -1623,7 +1624,7 @@ export default function projects(pocket) {
         if (run.state === "queued") {
             return card(
                 "var(--faint)",
-                svg("M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", 15),
+                svg("M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", 16),
                 t("Waiting for a place"),
                 html`<span>${run.note ? t("It starts when a place has room: {note}", { note: run.note }) : t("It starts when a place has room.")}</span>`,
                 html`<button class="btn" disabled=${busy} onClick=${() => act(() => pocket.api(`tasks/${task.ref}/run`, undefined, { method: "DELETE" }))}>${t("Cancel")}</button>`,
@@ -1646,7 +1647,7 @@ export default function projects(pocket) {
                           ? where ? tx("Waiting for an approval in {folder}", where) : t("Waiting for an approval")
                           : where ? tx("In its own session in {folder}", where) : t("In its own session");
                 })()}</span>${branchLine}`,
-                run.conversationId ? html`<a class="btn primary grow" href=${`s/${run.conversationId}`} onClick=${() => close()}>${svg(CHAT, 14)}${t("Open session")}</a>` : null,
+                run.conversationId ? html`<a class="btn primary grow" href=${`s/${run.conversationId}`} onClick=${() => close()}>${svg(CHAT, 16)}${t("Open session")}</a>` : null,
             );
         }
 
@@ -1658,7 +1659,7 @@ export default function projects(pocket) {
                   ? ["var(--warn)", "!", t("Its run stopped"), run.note ?? t("The task was not finished.")]
                   : run.state === "cancelled"
                     ? ["var(--faint)", "–", t("Cancelled"), t("It was taken off the queue before it started.")]
-                    : ["var(--accent)", svg(DIFF, 15), task.state === "done" ? t("Done, not merged") : t("Ready to review"), finished];
+                    : ["var(--accent)", svg(DIFF, 16), task.state === "done" ? t("Done, not merged") : t("Ready to review"), finished];
 
         return card(
             ended[0],
@@ -1672,7 +1673,7 @@ export default function projects(pocket) {
                     disabled=${busy}
                     onClick=${() => (diff === null ? pocket.api(`tasks/${task.ref}/diff`).then((answer) => setDiff(answer.diff || t("No changes on this branch.")), failed) : setDiff(null))}
                 >
-                    ${svg(DIFF, 14)}${diff === null ? t("See changes") : t("Hide changes")}
+                    ${svg(DIFF, 16)}${diff === null ? t("See changes") : t("Hide changes")}
                 </button>`
             }${
                 branchReady &&
@@ -1686,9 +1687,9 @@ export default function projects(pocket) {
                             pocket.notify("info", t("Merged {branch} into {base}.", { branch: run.branch, base: run.base }));
                         })}
                 >
-                    ${svg(MERGE, 14)}${t("Merge into {base}", { base: run.base })}
+                    ${svg(MERGE, 16)}${t("Merge into {base}", { base: run.base })}
                 </button>`
-            }${canRun && !branchReady && html`<button class="btn primary grow" disabled=${busy} onClick=${() => act(() => pocket.api(`tasks/${task.ref}/run`, {}))}>${svg(PLAY, 13)}${t("Run again")}</button>`}`,
+            }${canRun && !branchReady && html`<button class="btn primary grow" disabled=${busy} onClick=${() => act(() => pocket.api(`tasks/${task.ref}/run`, {}))}>${svg(PLAY, 16)}${t("Run again")}</button>`}`,
             sessionLine,
         );
     }
@@ -1842,7 +1843,7 @@ export default function projects(pocket) {
                         aria-checked=${item.done}
                         onClick=${() => save({ checklist: task.checklist.map((each, at) => (at === index ? { ...each, done: !each.done } : each)) })}
                     >
-                        <span class="pt-box">${item.done && svg(CHECK, 11)}</span><span>${item.text}</span>
+                        <span class="pt-box">${item.done && svg(CHECK, 16)}</span><span>${item.text}</span>
                     </button>
                     <button class="pt-x" aria-label=${t("Remove {label}", { label: item.text })} onClick=${() => save({ checklist: task.checklist.filter((_each, at) => at !== index) })}>×</button>
                 </div>`,
@@ -1941,7 +1942,7 @@ export default function projects(pocket) {
                 // In someone else's pi-phone (the team server): named, not a link.
                 if (!/^\d+$/.test(session.conversationId)) {
                     return html`<div class="pt-row pt-session">
-                        <span class="pt-sess-icon">${svg(CHAT, 14)}</span>
+                        <span class="pt-sess-icon">${svg(CHAT, 16)}</span>
                         <span class="pt-t">${session.by ? t("In {name}'s pi-phone", { name: session.by }) : t("In someone else's pi-phone")}<small>${session.role === "worker" ? t("Their Pi's run") : session.role === "main" ? t("Leads it there") : t("Mentions it")}</small></span>
                     </div>`;
                 }
@@ -1968,9 +1969,9 @@ export default function projects(pocket) {
                           : t("Mentions it");
 
                 return html`<a class="pt-row pt-session" href=${`s/${session.conversationId}`} onClick=${() => close()}>
-                    <span class=${`pt-sess-icon ${busy ? "busy" : ""} ${session.state?.waiting ? "waiting" : ""}`}>${svg(session.role === "main" ? BOARD : CHAT, 14)}</span>
+                    <span class=${`pt-sess-icon ${busy ? "busy" : ""} ${session.state?.waiting ? "waiting" : ""}`}>${svg(session.role === "main" ? BOARD : CHAT, 16)}</span>
                     <span class="pt-t">${(session.title ?? t("Session #{id}", { id: session.conversationId })).replace(/^[A-Z][A-Z0-9]{1,5}-\d+ · /, "")}<small>${what} · #${session.conversationId}</small></span>
-                    ${svg(CHEVRON, 15, "pt-chev")}
+                    ${svg(CHEVRON, 16, "pt-chev")}
                 </a>`;
             })}
         </section>`;

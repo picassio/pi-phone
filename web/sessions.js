@@ -478,7 +478,7 @@ function NeedArea({ session, need, steers, me, rule }) {
 
         return html`<div class="need-area need-ask" data-part="session-ask">
             <div class="need-what" title=${`${ask.subject}\n\n${ask.reason}`}>
-                <span class="need-tool mono"><${Icon} name="shield" size=${12} />${ask.tool}</span>
+                <span class="need-tool mono"><${Icon} name="shield" size=${16} />${ask.tool}</span>
                 <span class=${`need-command mono ${wholeOnTile(ask) ? "whole" : ""}`} data-part="session-ask-command">${ask.subject}</span>
                 ${ask.reason && html`<span class="need-why" data-part="session-ask-reason">${ask.reason}</span>`}
             </div>
@@ -756,10 +756,10 @@ function SessionRow({
         >
             <span class="session-lines">
                 <span class="session-l1">
-                    <${Icon} name=${session.group ? "board" : remote ? "monitor" : "folder"} size=${12} />
+                    <${Icon} name=${session.group ? "board" : remote ? "monitor" : "folder"} size=${16} />
                     <span class="session-where">${place}</span>
-                    ${pinned && html`<span class="session-pinned" title=${t("Pinned")}><${Icon} name="pin" size=${12} /></span>`}
-                    ${filed && html`<span class="sg-tag" title=${t("In the group {name}", { name: filed })}><${Icon} name="folder" size=${9} />${filed}</span>`}
+                    ${pinned && html`<span class="session-pinned" title=${t("Pinned")}><${Icon} name="pin" size=${16} /></span>`}
+                    ${filed && html`<span class="sg-tag" title=${t("In the group {name}", { name: filed })}><${Icon} name="folder" size=${16} />${filed}</span>`}
                     <span class="session-side">
                         ${
                             fork &&
@@ -767,7 +767,7 @@ function SessionRow({
                                 class=${`session-fork ${live > 0 ? "" : "failed"}`}
                                 title=${subagentsTip(counts)}
                             >
-                                <${Icon} name="fork" size=${12} />${live > 0 ? live : failed}
+                                <${Icon} name="fork" size=${16} />${live > 0 ? live : failed}
                             </span>`
                         }
                         ${!fork && person && html`<${Avatar} person=${person} size=${16} />`}
@@ -800,7 +800,7 @@ function SessionRow({
                     (branch || task || settled) &&
                     html`<span class="session-l3">
                         ${task && html`<span class="session-ref">${task[1]}</span>`}
-                        ${branch && html`<${Icon} name="fork" size=${12} /><span class="session-branch">${branch}</span>`}
+                        ${branch && html`<${Icon} name="fork" size=${16} /><span class="session-branch">${branch}</span>`}
                         ${settled && html`<span class="session-reason">${settled}</span>`}
                     </span>`
                 }
@@ -808,7 +808,7 @@ function SessionRow({
             <span class="session-status" data-part="session-mark" style=${`--folder:${folderColor(session.cwd)}`}>
                 ${
                     selected
-                        ? html`<span class="state-check" role="img" aria-label=${t("Selected")}><${Icon} name="check" size=${9} /></span>`
+                        ? html`<span class="state-check" role="img" aria-label=${t("Selected")}><${Icon} name="check" size=${16} /></span>`
                         : session.waiting
                           ? html`<span class="status-need" role="img" aria-label=${steers ? t("Needs you") : t("Waiting")} title=${session.asks !== undefined ? t("Pi asks you: {title}", { title: session.asks }) : steers ? t("Needs you") : t("Waiting for approval")}></span>`
                           : session.limited !== undefined
@@ -819,7 +819,7 @@ function SessionRow({
                               ? html`<span class="status-fail" role="img" aria-label=${t("Failed")} title=${t("Its last run failed")}></span>`
                               : mark.shape === "fresh"
                                 ? html`<span class=${`status-idle ${mark.shape}`} role="img" aria-label=${mark.label} title=${mark.label}>
-                                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9a4.5 4.5 0 0 0 1 9z" /></svg>
+                                      <${Icon} path="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9a4.5 4.5 0 0 0 1 9z" size=${16} />
                                   </span>`
                                 : // Idle and read: nothing to say, so no mark (PP-334; the cloud on every row said nothing).
                                   html`<span class="status-idle seen" aria-label=${t("Idle")}></span>`
@@ -840,7 +840,7 @@ function SessionRow({
                 ${foldTrouble && html`<span class=${`group-trouble ${foldTrouble}`} aria-hidden="true"></span>`}
                 <span class="session-fold-pill">
                     ${kids}
-                    <${Icon} name="down" size=${12} />
+                    <${Icon} name="down" size=${16} />
                 </span>
             </button>`
         }
@@ -856,7 +856,7 @@ function SessionRow({
                     aria-label=${t("Move to group")}
                     onClick=${() => openSheet({ type: "session-move", ids: [session.id] })}
                 >
-                    <${Icon} name="folder" size=${14} />
+                    <${Icon} name="folder" size=${16} />
                 </button>`
             }
             ${
@@ -868,7 +868,7 @@ function SessionRow({
                     aria-label=${settled ? t("Un-settle") : t("Settle")}
                     onClick=${() => setSettled(session.id, !settled)}
                 >
-                    <${Icon} name=${settled ? "undo" : "check"} size=${14} />
+                    <${Icon} name=${settled ? "undo" : "check"} size=${16} />
                 </button>`
             }
             ${
@@ -879,7 +879,7 @@ function SessionRow({
                     aria-label=${session.archived ? t("Unarchive") : t("Archive")}
                     onClick=${() => setArchived([session.id], !session.archived)}
                 >
-                    <${Icon} name=${session.archived ? "unarchive" : "archive"} size=${14} />
+                    <${Icon} name=${session.archived ? "unarchive" : "archive"} size=${16} />
                 </button>`
             }
             ${
@@ -890,7 +890,7 @@ function SessionRow({
                     aria-label=${pinned ? t("Unpin") : t("Pin")}
                     onClick=${() => togglePin(session.id)}
                 >
-                    <${Icon} name="pin" size=${14} />
+                    <${Icon} name="pin" size=${16} />
                 </button>`
             }
             ${
@@ -901,7 +901,7 @@ function SessionRow({
                     aria-label=${marked ? t("Mark read") : t("Mark unread")}
                     onClick=${() => setUnread(session.id, !marked)}
                 >
-                    <${Icon} name=${marked ? "check" : "unread"} size=${14} />
+                    <${Icon} name=${marked ? "check" : "unread"} size=${16} />
                 </button>`
             }
         </span>`
@@ -1168,19 +1168,19 @@ function ScopePicker({ scope, onScope, sessions, home, mine }) {
 
     return html`<div class=${`session-scope ${open ? "open" : ""}`} data-part="session-scope">
         <button class="session-scope-button" aria-haspopup="listbox" aria-expanded=${open} onClick=${() => setOpen(!open)}>
-            <${Icon} name=${icon} size=${14} />
+            <${Icon} name=${icon} size=${16} />
             <span class="scope-label">${name}</span>
-            <${Icon} name="down" size=${12} />
+            <${Icon} name="down" size=${16} />
         </button>
         ${
             open &&
             html`<div class="session-scope-menu" role="listbox" aria-label=${t("Show")}>
                 ${option("all", null, t("All"), t("{n} active", { n: live.length }))}
-                ${option("priority", html`<${Icon} name="star" size=${14} />`, t("Priority"), tn(needsYouCount(sessions), "{n} needs you", "{n} need you"))}
-                ${option("waits", html`<${Icon} name="chat" size=${14} />`, t("Waits for you"), `${live.filter((session) => session.waiting).length}`)}
+                ${option("priority", html`<${Icon} name="star" size=${16} />`, t("Priority"), tn(needsYouCount(sessions), "{n} needs you", "{n} need you"))}
+                ${option("waits", html`<${Icon} name="chat" size=${16} />`, t("Waits for you"), `${live.filter((session) => session.waiting).length}`)}
                 ${filed.length > 0 && html`<div class="scope-sec">${t("Groups")}</div>`}
                 ${filed.map(({ group, count }) =>
-                    option(`fg:${group.id}`, html`<${Icon} name=${group.pinned ? "pin" : "folder"} size=${14} />`, group.name, `${count}`),
+                    option(`fg:${group.id}`, html`<${Icon} name=${group.pinned ? "pin" : "folder"} size=${16} />`, group.name, `${count}`),
                 )}
                 ${teams.size > 0 && html`<div class="scope-sec">${t("Projects")}</div>`}
                 ${[...teams.values()]
@@ -1200,7 +1200,7 @@ function ScopePicker({ scope, onScope, sessions, home, mine }) {
                     .map((folder) =>
                         option(
                             `folder:${folder.cwd}`,
-                            html`<${Icon} name=${folder.cwd.startsWith("machine:") ? "monitor" : "folder"} size=${14} />`,
+                            html`<${Icon} name=${folder.cwd.startsWith("machine:") ? "monitor" : "folder"} size=${16} />`,
                             folderPlace(folder.cwd),
                             `${folder.count}`,
                         ),
@@ -1973,7 +1973,7 @@ function AllSessions({ compact = false }) {
                     title=${t("New session (Alt+N)")}
                     onClick=${() => openSheet({ type: "cwd", mode: "new" })}
                 >
-                    <${Icon} name="plus" size=${14} />${t("New")}</button>`
+                    <${Icon} name="plus" size=${16} />${t("New")}</button>`
             }
             ${canStart && html`<${VoiceNewButton} />`}
         </div>
@@ -1982,7 +1982,7 @@ function AllSessions({ compact = false }) {
             !compact && !WIDE.matches && html`<${WhatsNewCard} />`
         }
         <label class=${`search ${query ? "filled" : ""}`} data-part="session-search">
-            <${Icon} name="search" size=${14} />
+            <${Icon} name="search" size=${16} />
             <input
                 placeholder=${t("Search sessions")}
                 aria-label=${t("Search sessions")}
@@ -2005,7 +2005,7 @@ function AllSessions({ compact = false }) {
                         aria-label=${t("Clear")}
                         onClick=${() => setQuery("")}
                     >
-                        <${Icon} name="close" size=${14} />
+                        <${Icon} name="close" size=${16} />
                     </button>`
                     : html`<span
                             class="search-keys"
@@ -2027,7 +2027,7 @@ function AllSessions({ compact = false }) {
                                 store.set({ launcher: true, drawer: false });
                             }}
                         >
-                            <${Icon} name="command" size=${14} />
+                            <${Icon} name="command" size=${16} />
                         </button>`
             }
         </label>
@@ -2051,7 +2051,7 @@ function AllSessions({ compact = false }) {
                 shown.length > 0 &&
                 !groups.some((group) => group.slot === "needs") &&
                 html`<div class="priority-clear" data-part="session-clear">
-                    <${Icon} name="check" size=${14} />
+                    <${Icon} name="check" size=${16} />
                     <span>${t("Nothing needs you")}</span>
                 </div>`
             }
@@ -2079,7 +2079,7 @@ function AllSessions({ compact = false }) {
                     ${
                         folder && naming === folder.id
                             ? html`<div class="group-head sg-head sg-naming" data-part="session-group-head">
-                                  <${Icon} name="folder" size=${12} />
+                                  <${Icon} name="folder" size=${16} />
                                   <input
                                       class="sg-name-field"
                                       aria-label=${t("The group's name")}
@@ -2129,13 +2129,13 @@ function AllSessions({ compact = false }) {
                                 aria-expanded=${!isClosed}
                             >
                                 <span class="group-name" data-part="session-group-name">
-                                    ${folder && html`<${Icon} name="folder" size=${12} />`}
+                                    ${folder && html`<${Icon} name="folder" size=${16} />`}
                                     ${
                                         typeof group.label === "string"
                                             ? html`<b>${group.label}</b>`
                                             : group.label
                                     }
-                                    ${folder?.pinned && html`<span class="sg-pin" title=${t("Pinned")}><${Icon} name="pin" size=${12} /></span>`}
+                                    ${folder?.pinned && html`<span class="sg-pin" title=${t("Pinned")}><${Icon} name="pin" size=${16} /></span>`}
                                 </span>
                                 ${
                                     trouble &&
@@ -2149,7 +2149,7 @@ function AllSessions({ compact = false }) {
                                 <span class="group-count" data-part="session-group-count">
                                     ${group.count ?? group.total}
                                 </span>
-                                ${group.key !== "flat" && html`<${Icon} name="down" size=${12} />`}
+                                ${group.key !== "flat" && html`<${Icon} name="down" size=${16} />`}
                             </button>`
                             : null
                     }
@@ -2177,7 +2177,7 @@ function AllSessions({ compact = false }) {
                             aria-label=${t("{name}: the group's menu", { name: folder.name })}
                             onClick=${() => openSheet({ type: "session-group", id: folder.id })}
                         >
-                            <${Icon} name="more" size=${14} />
+                            <${Icon} name="more" size=${16} />
                         </button>`
                     }
                     <div class="group-body" inert=${isClosed}>
@@ -2189,7 +2189,7 @@ function AllSessions({ compact = false }) {
                 ${
                     lastFolder &&
                     html`<div class="sg-foot">
-                        <button class="sg-new" data-part="session-group-new" onClick=${newGroup}><${Icon} name="plus" size=${12} /><span>${t("New group")}</span></button>
+                        <button class="sg-new" data-part="session-group-new" onClick=${newGroup}><${Icon} name="plus" size=${16} /><span>${t("New group")}</span></button>
                         ${
                             empties > 0 &&
                             !closed.has("groups") &&
@@ -2231,7 +2231,7 @@ function AllSessions({ compact = false }) {
                     aria-label=${t("Clear the selection")}
                     onClick=${clearSelection}
                 >
-                    <${Icon} name="close" size=${14} />
+                    <${Icon} name="close" size=${16} />
                 </button>
             </div>`
         }
@@ -2379,7 +2379,7 @@ function Rail({ foldable = false, folded = false }) {
                     aria-expanded=${!folded}
                     onClick=${fold}
                 >
-                    <${Icon} name="chat" size=${19} />
+                    <${Icon} name="chat" size=${20} />
                     ${needsBadge}
                 </button>`
                 : html`<span
@@ -2389,7 +2389,7 @@ function Rail({ foldable = false, folded = false }) {
                     title=${t("Sessions")}
                     aria-current="page"
                 >
-                    <${Icon} name="chat" size=${19} />
+                    <${Icon} name="chat" size=${20} />
                     ${needsBadge}
                 </span>`
         }
@@ -2404,7 +2404,7 @@ function Rail({ foldable = false, folded = false }) {
                 aria-label=${t("New session")}
                 onClick=${() => openSheet({ type: "cwd", mode: "new" })}
             >
-                <${Icon} name="plus" size=${19} />
+                <${Icon} name="plus" size=${20} />
             </button>`
         }
         ${folded && html`<${RailTiles} />`}
@@ -2417,7 +2417,7 @@ function Rail({ foldable = false, folded = false }) {
             aria-label=${busy > 0 ? t("Running now, {n}", { n: busy }) : t("Running now")}
             onClick=${() => openSheet({ type: "running" })}
         >
-            <${Icon} name="pulse" size=${19} />
+            <${Icon} name="pulse" size=${20} />
             ${busy > 0 && html`<span class="rail-count">${busy}</span>`}
         </button>
         <button
@@ -2436,7 +2436,7 @@ function Rail({ foldable = false, folded = false }) {
             aria-pressed=${board}
             onClick=${toggleBoard}
         >
-            <${Icon} name="fork" size=${19} />
+            <${Icon} name="fork" size=${20} />
             ${live > 0 && html`<span class="rail-count">${live}</span>`}
             ${
                 (failed > 0 || agents.waiting > 0) &&
@@ -2452,7 +2452,7 @@ function Rail({ foldable = false, folded = false }) {
             aria-label=${t("All artifacts")}
             onClick=${() => openSheet({ type: "all-artifacts" })}
         >
-            <${Icon} name="grid" size=${19} />
+            <${Icon} name="grid" size=${20} />
         </button>
         <${ExtensionRailButtons} />
         <${KeptPageRailButtons} />
@@ -2467,7 +2467,7 @@ function Rail({ foldable = false, folded = false }) {
                     aria-label=${t("People & account")}
                     onClick=${() => openGatewayPage("people")}
                 >
-                    <${Icon} name="users" size=${19} />
+                    <${Icon} name="users" size=${20} />
                 </button>`
                 : collab()
                 ? html`<button
@@ -2477,7 +2477,7 @@ function Rail({ foldable = false, folded = false }) {
                     aria-label=${t("People")}
                     onClick=${() => openSheet({ type: "people" })}
                 >
-                    <${Icon} name="users" size=${19} />
+                    <${Icon} name="users" size=${20} />
                 </button>`
                 : html`<button
                     class="rail-button"
@@ -2486,7 +2486,7 @@ function Rail({ foldable = false, folded = false }) {
                     aria-label=${t("Devices")}
                     onClick=${() => openSheet({ type: "invite" })}
                 >
-                    <${Icon} name="users" size=${19} />
+                    <${Icon} name="users" size=${20} />
                 </button>`
         }
         ${
@@ -2499,7 +2499,7 @@ function Rail({ foldable = false, folded = false }) {
                 aria-label=${t("Providers")}
                 onClick=${() => openSheet({ type: "providers" })}
             >
-                <${Icon} name="key" size=${19} />
+                <${Icon} name="key" size=${20} />
             </button>`
         }
         <button
@@ -2509,7 +2509,7 @@ function Rail({ foldable = false, folded = false }) {
             aria-label=${t("Theme")}
             onClick=${() => openSheet({ type: "appearance" })}
         >
-            <${Icon} name="palette" size=${19} />
+            <${Icon} name="palette" size=${20} />
         </button>
         <button
             class="rail-button"
@@ -2518,7 +2518,7 @@ function Rail({ foldable = false, folded = false }) {
             aria-label=${t("Settings")}
             onClick=${() => openSheet({ type: "menu", fromPlaces: true })}
         >
-            <${Icon} name="menu" size=${19} />
+            <${Icon} name="menu" size=${20} />
         </button>
         <button
             class="rail-button rail-me"

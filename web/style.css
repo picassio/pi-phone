@@ -6029,9 +6029,6 @@ pre.diff .del {
     color: var(--accent);
 }
 
-.rail-new .icon {
-    stroke-width: 2.4;
-}
 
 /* How many: sessions where Pi works, or subagents that work or wait. */
 .rail-count {
@@ -6234,9 +6231,6 @@ pre.diff .del {
     }
 }
 
-.new-button .icon {
-    stroke-width: 2.4;
-}
 
 /* Voice beside New (PP-192): a new session with a call; quieter than New, in the accent. */
 .new-button.voice-new {
@@ -6924,17 +6918,14 @@ pre.diff .del {
     flex: none;
     display: grid;
     place-items: center;
-    width: 11px;
-    height: 11px;
-    border-radius: var(--r-mark);
+    width: 16px;
+    height: 16px;
+    border-radius: var(--r-tag);
     background: var(--accent-fill);
     color: var(--accent-ink);
     animation: popin 0.16s var(--ease-out);
 }
 
-.state-check .icon {
-    stroke-width: 3.5;
-}
 
 .session-title {
     font-size: 14px;
@@ -7016,9 +7007,6 @@ pre.diff .del {
     color: var(--err);
 }
 
-.session-fork .icon {
-    stroke-width: 2.4;
-}
 
 /* A call waits for you there. */
 .session-needs {

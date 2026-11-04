@@ -197,7 +197,7 @@ function BoardVoice({ call, small, toBoard, onType }) {
                 onClick=${() => setModes(!modes)}
             >
                 <span class="assist-pill-name">${modeName}</span>
-                <${Icon} name="down" size=${14} />
+                <${Icon} name="down" size=${16} />
             </button>
             <button class="icon-button" type="button" aria-label=${t("Make it small")} data-part="board-voice-small" onClick=${small}><${Icon} name="minus" size=${16} /></button>
         </div>
@@ -479,7 +479,7 @@ export function BoardView() {
             ${
                 row.subagents?.length > 0 &&
                 html`<button type="button" class="pgb-fold" data-part="pgb-fold" aria-expanded=${String(unfolded)} onClick=${() => toggle(row.conversationId)}>
-                        ${row.subagentsText}<${Icon} name=${unfolded ? "up" : "down"} size=${12} />
+                        ${row.subagentsText}<${Icon} name=${unfolded ? "up" : "down"} size=${16} />
                     </button>
                     ${
                         unfolded &&

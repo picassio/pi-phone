@@ -429,7 +429,7 @@ function DetailBar({ agent, title, onClose }) {
 /** The search field: finds subagents by name, what they were asked, what they do now, and why they failed. */
 function Search({ query, setQuery }) {
     return html`<label class=${`board-search ${query ? "filled" : ""}`}>
-        <${Icon} name="search" size=${14} />
+        <${Icon} name="search" size=${16} />
         <input
             placeholder=${t("Find a subagent or task")}
             value=${query}

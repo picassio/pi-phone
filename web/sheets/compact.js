@@ -17,7 +17,7 @@ function AtChoices({ label, value, inherit, onPick }) {
     const valid = Number.isInteger(number) && number >= MIN && number <= MAX;
     const row = (key, title, hint, chosen) => html`<button class=${`list-item sg-pick ${chosen ? "on" : ""}`} aria-pressed=${chosen} onClick=${() => onPick(key)}>
         <span>${title}</span>
-        ${chosen ? html`<span class="sg-check"><${Icon} name="check" size=${14} /></span>` : html`<span class="muted small">${hint}</span>`}
+        ${chosen ? html`<span class="sg-check"><${Icon} name="check" size=${16} /></span>` : html`<span class="muted small">${hint}</span>`}
     </button>`;
 
     return html`<div class="field">
@@ -40,7 +40,7 @@ function AtChoices({ label, value, inherit, onPick }) {
                 />
                 <span>${t("% of the context")}</span>
                 <button class="button small primary" disabled=${!valid || value === number} onClick=${() => onPick(number)}>
-                    ${value === number ? html`<${Icon} name="check" size=${14} />` : t("Use")}
+                    ${value === number ? html`<${Icon} name="check" size=${16} />` : t("Use")}
                 </button>
             </div>
         </div>

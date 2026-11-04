@@ -44,7 +44,7 @@ export function CrdConnectForm({ machineName, busy, onSubmit, onCancel, cancelLa
                 ${t("On this phone, open Google's page and sign in with the Google account you will connect from:")}
                 <div class="crd-link">
                     <a class="linked" href=${CRD_HEADLESS} target="_blank" rel="noopener noreferrer" onClick=${(event) => event.stopPropagation()}>${CRD_HEADLESS}</a>
-                    <button type="button" class="button small" onClick=${copy}><${Icon} name="copy" size=${14} /> ${t("Copy link")}</button>
+                    <button type="button" class="button small" onClick=${copy}><${Icon} name="copy" size=${16} /> ${t("Copy link")}</button>
                 </div>
             </li>
             <li>${tx("Tap {begin}, then {next}, then {authorize}.", { begin: html`<b>${t("Begin")}</b>`, next: html`<b>${t("Next")}</b>`, authorize: html`<b>${t("Authorize")}</b>` })}</li>
