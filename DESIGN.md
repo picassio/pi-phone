@@ -226,7 +226,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   13, 14, 16, 20, 24; a few 10 and 15 in tight places), weights 400 to 600, section labels in sentence case without
   letter spacing, counts as a plain number after the label ("Settled 50"), paddings, margins and gaps on the 4 px grid
   (2 px steps and 1 to 3 px nudges inside small controls), icons at 12, 14 or 16 px (19 and up only in the rail and
-  empty states), no hue gradients. The Providers list shows once the plan limits and the OpenAI-compatible providers
+  empty states), no hue gradients. Icons are line icons from `ICONS` (`Icon`, or `iconElement` for Markdown built
+  outside Preact), never emoji or symbol glyphs as icons (PP-402: React was `☺+`, tool calls `▣`/`◍`/`▦`/`⚙`, a
+  subagent's row `✓`/`■`, attachments `📄`/`📎`/`🖼`): a tool call's line names one (`describeCall`'s `icon`, an `ICONS`
+  name), peek tiles draw it, and rows of words only (`nowDoing`) leave it out. The Providers list shows once the plan limits and the OpenAI-compatible providers
   are in, so nothing moves under a tap.
 - **Machines** (`src/server/machines.ts`, `web/sheets/machines.js`): other computers sessions can work on, through
   `@earendil-works/pi-env` (its daemon on the machine, deployed over ssh and verified by hash). `machines.json` holds
@@ -664,8 +667,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   follow-up starting "Interview <id> finished." (`src/server/deliver.ts`, shared with `watch_ci`). Allowed in plan mode.
   **Helpers** (`src/server/interview-helpers.ts`, `POST /api/c/<id>/interview-helpers`), for single and multiple choice
   questions while the interview waits, for those who steer, on the session's own model (`src/server/side-model.ts`,
-  shared with titles: spend counted, held-back sessions ask nothing): ✦ More options (up to 3, added to the question),
-  ↻ Review (a rewrite of the question and options, shown as a proposal; using it renames the draft's choices by
+  shared with titles: spend counted, held-back sessions ask nothing): More options (up to 3, added to the question),
+  Review (a rewrite of the question and options, shown as a proposal; using it renames the draft's choices by
   position), and Ask beside each option (a thread kept in the interview as `asked`, by `<question id>\n<option>`). Docs are copied as JSON, not with
   `structuredClone`: `tx.doc` objects are proxies, which it cannot clone ("#<Object> could not be cloned").
 - **Web access** (`src/server/web/`, `extensions/web.ts`, `web/sheets/web-access.js`): pi-web-access's tools, native, with

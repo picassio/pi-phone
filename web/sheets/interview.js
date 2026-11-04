@@ -266,7 +266,7 @@ function Choices({ question, answer, onChange, disabled, conversationId, helpers
             !disabled &&
             html`<div class="interview-helpers">
                 <button class="button small" disabled=${busy !== null} onClick=${() => run("more", () => helpers.more(question.id))}>
-                    ${busy === "more" ? t("Thinking…") : t("✦ More options")}
+                    ${busy === "more" ? t("Thinking…") : t("More options")}
                 </button>
                 <button
                     class="button small"
@@ -280,7 +280,7 @@ function Choices({ question, answer, onChange, disabled, conversationId, helpers
                             }
                         })}
                 >
-                    ${busy === "review" ? t("Reviewing…") : t("↻ Review")}
+                    ${busy === "review" ? t("Reviewing…") : t("Review")}
                 </button>
             </div>`
         }

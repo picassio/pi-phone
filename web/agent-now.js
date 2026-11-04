@@ -24,7 +24,8 @@ export function nowDoing(agent, peek = store.state.peeks?.[agent.conversationId]
     if (last?.kind === "tool" && last.status === "running") {
         const call = describeCall({ name: last.name, args: last.args });
 
-        return [call.icon, call.label, call.subject].filter(Boolean).join(" ");
+        // Words only: the call's icon is a line icon, drawn where there is room for one (peek tiles).
+        return [call.label, call.subject].filter(Boolean).join(" ");
     }
 
     if (last?.kind === "shell") {

@@ -422,7 +422,7 @@ function Status({ status }) {
         return html`<span class="peek-run" title=${t("Running")}>…</span>`;
     }
 
-    return status === "error" ? html`<span class="err" title=${t("Failed")}>✕</span>` : null;
+    return status === "error" ? html`<span class="err" title=${t("Failed")}><${Icon} name="close" size=${12} /></span>` : null;
 }
 
 /** A line of a tile: a mark column (who or what), then the words, two lines at most. */
@@ -444,7 +444,7 @@ function PeekLine({ line }) {
 
             return html`<div class="peek-line cmd">
                 <span class="peek-mark">
-                    ${call.iconPath ? html`<${Icon} path=${call.iconPath} size=${12} />` : call.icon}
+                    <${Icon} path=${call.iconPath} name=${call.icon} size=${12} />
                 </span>
                 <span class="peek-text">
                     ${call.label} ${call.subject}${" "}
@@ -455,7 +455,7 @@ function PeekLine({ line }) {
 
         case "shell":
             return html`<div class="peek-line cmd">
-                <span class="peek-mark">${">_"}</span>
+                <span class="peek-mark"><${Icon} name="terminal" size=${12} /></span>
                 <span class="peek-text">${line.command}${" "}<${Status} status=${line.status} /></span>
             </div>`;
         case "note":
@@ -851,13 +851,13 @@ function PeekColumn({ tiles, leaving = false }) {
             ?.querySelector(`[data-peek="${id}"]`)
             ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     const verb = canSteer() ? ["needs you", "need you"] : ["waiting", "waiting"];
-    const jump = (ids, arrow, pick) =>
+    const jump = (ids, way, pick) =>
         ids.length > 0 &&
         html`<button
-            class=${`peeks-jump ${arrow === "▲" ? "up" : "down"}`}
+            class=${`peeks-jump ${way}`}
             onClick=${() => reveal(pick(ids))}
         >
-            ${arrow} ${ids.length} ${verb[ids.length === 1 ? 0 : 1]}
+            <${Icon} name=${way === "up" ? "up" : "arrow-down"} size=${12} /> ${ids.length} ${verb[ids.length === 1 ? 0 : 1]}
         </button>`;
 
     useOnScreen(list);
@@ -880,8 +880,8 @@ function PeekColumn({ tiles, leaving = false }) {
                 </div>`
             }
         </div>
-        ${jump(away.up, "▲", (ids) => ids.at(-1))}
-        ${jump(away.down, "▼", (ids) => ids[0])}
+        ${jump(away.up, "up", (ids) => ids.at(-1))}
+        ${jump(away.down, "down", (ids) => ids[0])}
     </aside>`;
 }
 

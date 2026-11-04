@@ -85,8 +85,8 @@ export function ArtifactViewer({ id, version }) {
                 </select>`
             }
             ${artifact && html`<${KeepButton} conversation=${view.conversation.id} artifact=${id} />`}
-            <button class="icon-button" title=${t("Reload")} onClick=${() => setNonce(nonce + 1)}>
-                ↻
+            <button class="icon-button" title=${t("Reload")} aria-label=${t("Reload")} onClick=${() => setNonce(nonce + 1)}>
+                <${Icon} name="reload" />
             </button>
             <a class="button small" href=${src} target="_blank" rel="noopener">${t("Open tab")}</a>
             <button class="icon-button" onClick=${closeSheet} aria-label=${t("Close")}>

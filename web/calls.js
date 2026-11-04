@@ -28,7 +28,8 @@ export function describersChanged() {
 export const describersRevision = () => ownRevision;
 
 /**
- * A tool call in one line: an icon, a label, and what it acts on. Peek tiles describe calls this way too. `own` marks a
+ * A tool call in one line: an icon (a name in `ICONS`, web/ui.js: a line icon, never a symbol), a label, and what it
+ * acts on. Peek tiles describe calls this way too. `own` marks a
  * call an extension described. Labels and the words in subjects are in the person's language (`i18n.js`); paths,
  * commands and what Pi typed stay as they are.
  */
@@ -39,18 +40,18 @@ export function describeCall(call) {
         case "read": {
             const range = args.offset ? `:${args.offset}${args.limit ? `+${args.limit}` : ""}` : "";
 
-            return { icon: "▤", label: t("Read"), subject: `${args.path ?? ""}${range}`, mono: true };
+            return { icon: "file", label: t("Read"), subject: `${args.path ?? ""}${range}`, mono: true };
         }
 
         case "write":
-            return { icon: "✎", label: t("Write"), subject: args.path ?? "", mono: true };
+            return { icon: "pencil", label: t("Write"), subject: args.path ?? "", mono: true };
         case "edit":
-            return { icon: "✎", label: t("Edit"), subject: args.path ?? "", mono: true };
+            return { icon: "pencil", label: t("Edit"), subject: args.path ?? "", mono: true };
         case "bash":
-            return { icon: ">_", label: "", subject: short(args.command, 140), mono: true };
+            return { icon: "terminal", label: "", subject: short(args.command, 140), mono: true };
         case "artifact":
             return {
-                icon: "✦",
+                icon: "artifact",
                 label: t("Artifact"),
                 subject: args.title ?? args.id ?? "",
                 mono: false,
@@ -63,7 +64,7 @@ export function describeCall(call) {
                 .map((each) => each.trim())
                 .find((each) => each !== "" && !each.startsWith("//"));
 
-            return { icon: "{}", label: t("Codemode"), subject: short(line ?? "", 140), mono: true };
+            return { icon: "code", label: t("Codemode"), subject: short(line ?? "", 140), mono: true };
         }
 
         case "interview": {
@@ -75,20 +76,20 @@ export function describeCall(call) {
                 title = String(args.questions ?? "").startsWith("{") ? "" : String(args.questions ?? "");
             }
 
-            return { icon: "?", label: args.async === true ? t("Interview, answered later") : t("Interview"), subject: title };
+            return { icon: "chat", label: args.async === true ? t("Interview, answered later") : t("Interview"), subject: title };
         }
         // The app's settings (extensions/settings.ts), devices, and board settings: what they read or change.
         case "settings":
-            return { icon: "⚙", label: t("Reads settings"), subject: args.id ? `${args.id}${args.target ? ` (${args.target})` : ""}` : (args.area ?? t("all")), mono: Boolean(args.id) };
+            return { icon: "sliders", label: t("Reads settings"), subject: args.id ? `${args.id}${args.target ? ` (${args.target})` : ""}` : (args.area ?? t("all")), mono: Boolean(args.id) };
         case "setting_change":
-            return { icon: "⚙", label: t("Changes"), subject: `${args.id ?? ""}${args.target ? ` (${args.target})` : ""} → ${short(args.value ?? "", 60)}`, mono: true };
+            return { icon: "sliders", label: t("Changes"), subject: `${args.id ?? ""}${args.target ? ` (${args.target})` : ""} → ${short(args.value ?? "", 60)}`, mono: true };
         // A screen for the person to act on (PP-235): the card below has its button.
         case "show_screen":
-            return { icon: "↗", label: t("Shows you"), subject: args.screen ?? "" };
+            return { icon: "external", label: t("Shows you"), subject: args.screen ?? "" };
         // The Getting started checklist (PP-235).
         case "guide":
             return {
-                icon: "☑",
+                icon: "check",
                 label: t("Checklist"),
                 subject:
                     args.action === "set"
@@ -100,16 +101,16 @@ export function describeCall(call) {
                             : t("unticks {item}", { item: args.item ?? "" }),
             };
         case "app_action":
-            return { icon: "⚙", label: t("Action"), subject: `${args.id ?? ""}${args.args && Object.keys(args.args).length > 0 ? ` ${Object.values(args.args).join(", ")}` : ""}`, mono: true };
+            return { icon: "sliders", label: t("Action"), subject: `${args.id ?? ""}${args.args && Object.keys(args.args).length > 0 ? ` ${Object.values(args.args).join(", ")}` : ""}`, mono: true };
         case "devices":
-            return { icon: "⚙", label: t("Devices"), subject: t("signed in") };
+            return { icon: "phone", label: t("Devices"), subject: t("signed in") };
         case "device_sign_out":
-            return { icon: "⚙", label: t("Signs out"), subject: t("device {id}", { id: String(args.id ?? "").slice(0, 8) }), mono: true };
+            return { icon: "logout", label: t("Signs out"), subject: t("device {id}", { id: String(args.id ?? "").slice(0, 8) }), mono: true };
         case "sign_out_everywhere":
-            return { icon: "⚙", label: t("Signs out"), subject: t("every device") };
+            return { icon: "logout", label: t("Signs out"), subject: t("every device") };
         case "board_settings":
             return {
-                icon: "▦",
+                icon: "board",
                 label: t("Board settings"),
                 subject:
                     [args.closer && t("closer {closer}", { closer: args.closer }), args.rules && t("rules {rules}", { rules: args.rules })].filter(Boolean).join(", ") ||
@@ -118,167 +119,167 @@ export function describeCall(call) {
         case "screenshot": {
             const what = args.artifact ? t("artifact {id}", { id: args.artifact }) : String(args.path ?? args.url ?? "").replace(/^https?:\/\//, "").replace(/^.*\//, (m) => (args.path ? "" : m));
 
-            return { icon: "▣", label: t("Looks at"), subject: args.widths ? t("{what} at {widths} px", { what, widths: args.widths.join(", ") }) : what, mono: true };
+            return { icon: "eye", label: t("Looks at"), subject: args.widths ? t("{what} at {widths} px", { what, widths: args.widths.join(", ") }) : what, mono: true };
         }
         case "redline": {
             const what = args.artifact ? t("artifact {id}", { id: args.artifact }) : String(args.path ?? args.url ?? "").replace(/^https?:\/\//, "");
 
-            return { icon: "▣", label: t("Redlines"), subject: args.selector ? `${what} ${args.selector}` : what, mono: true };
+            return { icon: "eye", label: t("Redlines"), subject: args.selector ? `${what} ${args.selector}` : what, mono: true };
         }
         // Pi's browser (extensions/browser.ts): what it did, and to what.
         case "browser_open":
             return {
-                icon: "◍",
+                icon: "globe",
                 label: t("Opens"),
                 subject: args.machine ? t("{url} on {machine}", { url: String(args.url ?? "").replace(/^https?:\/\//, ""), machine: args.machine }) : String(args.url ?? "").replace(/^https?:\/\//, ""),
                 mono: true,
             };
         // A browser on a machine that Pi attaches to, and lets go of (PP-274).
         case "browser_attach":
-            return { icon: "◍", label: t("Attaches to"), subject: t("{what} on {machine}", { what: args.label || (args.port ? t("port {port}", { port: args.port }) : String(args.devtools_active_port ?? "")), machine: args.machine ?? "" }) };
+            return { icon: "globe", label: t("Attaches to"), subject: t("{what} on {machine}", { what: args.label || (args.port ? t("port {port}", { port: args.port }) : String(args.devtools_active_port ?? "")), machine: args.machine ?? "" }) };
         case "browser_detach":
-            return { icon: "◍", label: t("Detaches"), subject: t("the attached browser") };
+            return { icon: "globe", label: t("Detaches"), subject: t("the attached browser") };
         case "browser_new_tab":
-            return { icon: "◍", label: t("New tab"), subject: args.url === undefined ? t("blank") : String(args.url).replace(/^https?:\/\//, ""), mono: true };
+            return { icon: "globe", label: t("New tab"), subject: args.url === undefined ? t("blank") : String(args.url).replace(/^https?:\/\//, ""), mono: true };
         case "browser_snapshot":
-            return { icon: "◍", label: t("Reads"), subject: t("the page") };
+            return { icon: "globe", label: t("Reads"), subject: t("the page") };
         case "browser_text":
-            return { icon: "◍", label: t("Reads"), subject: t("the whole page") };
+            return { icon: "globe", label: t("Reads"), subject: t("the whole page") };
         case "browser_eval":
-            return { icon: "◍", label: t("Reads with a script"), subject: short(String(args.expression ?? ""), 80), mono: true };
+            return { icon: "globe", label: t("Reads with a script"), subject: short(String(args.expression ?? ""), 80), mono: true };
         case "browser_screenshot":
-            return { icon: "◍", label: t("Looks at"), subject: args.full_page ? t("the whole page") : t("the page") };
+            return { icon: "globe", label: t("Looks at"), subject: args.full_page ? t("the whole page") : t("the page") };
         case "browser_layout_check":
-            return { icon: "◍", label: t("Measures"), subject: t("the page's layout") };
+            return { icon: "globe", label: t("Measures"), subject: t("the page's layout") };
         case "browser_redline":
-            return { icon: "◍", label: t("Redlines"), subject: args.selector ?? t("the page"), mono: args.selector !== undefined };
+            return { icon: "globe", label: t("Redlines"), subject: args.selector ?? t("the page"), mono: args.selector !== undefined };
         case "browser_click":
             return {
-                icon: "◍",
+                icon: "globe",
                 label: args.how === "double" ? t("Double-clicks") : args.how === "right" ? t("Right-clicks") : args.how === "long" ? t("Long-presses") : t("Clicks"),
                 subject: `[${args.index ?? ""}]`,
             };
         case "browser_hover":
-            return { icon: "◍", label: t("Points at"), subject: `[${args.index ?? ""}]` };
+            return { icon: "globe", label: t("Points at"), subject: `[${args.index ?? ""}]` };
         case "browser_select_text":
             return {
-                icon: "◍",
+                icon: "globe",
                 label: t("Selects"),
                 subject: [args.text !== undefined ? `“${short(args.text, 60)}”` : args.all ? t("everything") : `${args.start ?? 0}–${args.end ?? ""}`, args.index === undefined ? "" : `[${args.index}]`].filter(Boolean).join(" "),
             };
         case "browser_permission":
             return args.allow === false
-                ? { icon: "◍", label: t("Denies"), subject: String(args.permission ?? "") }
-                : { icon: "◍", label: t("Asks you"), subject: t("to allow {permission}", { permission: args.permission ?? "" }) };
+                ? { icon: "globe", label: t("Denies"), subject: String(args.permission ?? "") }
+                : { icon: "globe", label: t("Asks you"), subject: t("to allow {permission}", { permission: args.permission ?? "" }) };
         case "browser_focus":
-            return { icon: "◍", label: t("Focuses"), subject: `[${args.index ?? ""}]` };
+            return { icon: "globe", label: t("Focuses"), subject: `[${args.index ?? ""}]` };
         case "browser_drag":
             return {
-                icon: "◍",
+                icon: "globe",
                 label: t("Drags"),
                 subject: args.to !== undefined ? t("[{from}] onto [{to}]", { from: args.index ?? "", to: args.to }) : t("[{from}] by {dx}, {dy} px", { from: args.index ?? "", dx: args.dx ?? 0, dy: args.dy ?? 0 }),
             };
         case "browser_type":
             // A saved secret by its name only (PP-32): its value never reaches the call.
             return {
-                icon: "◍",
+                icon: "globe",
                 label: t("Types"),
                 subject: args.secret
                     ? t("[secret {name}] into [{index}]", { name: args.secret, index: args.index ?? "" })
                     : t("“{text}” into [{index}]", { text: short(args.text ?? "", 60), index: args.index ?? "" }),
             };
         case "browser_select":
-            return { icon: "◍", label: t("Chooses"), subject: t("“{option}” in [{index}]", { option: args.option ?? "", index: args.index ?? "" }) };
+            return { icon: "globe", label: t("Chooses"), subject: t("“{option}” in [{index}]", { option: args.option ?? "", index: args.index ?? "" }) };
         case "browser_scroll":
-            return { icon: "◍", label: t("Scrolls"), subject: args.direction === "up" ? t("up") : t("down") };
+            return { icon: "globe", label: t("Scrolls"), subject: args.direction === "up" ? t("up") : t("down") };
         case "browser_press":
-            return { icon: "◍", label: t("Presses"), subject: args.key ?? "" };
+            return { icon: "globe", label: t("Presses"), subject: args.key ?? "" };
         case "browser_back":
-            return { icon: "◍", label: t("Goes back"), subject: "" };
+            return { icon: "globe", label: t("Goes back"), subject: "" };
         case "browser_forward":
-            return { icon: "◍", label: t("Goes forward"), subject: "" };
+            return { icon: "globe", label: t("Goes forward"), subject: "" };
         case "browser_wait":
-            return { icon: "◍", label: t("Waits"), subject: args.text ? t("for “{text}”", { text: args.text }) : t("{n} s", { n: args.seconds ?? 1 }) };
+            return { icon: "globe", label: t("Waits"), subject: args.text ? t("for “{text}”", { text: args.text }) : t("{n} s", { n: args.seconds ?? 1 }) };
         case "browser_upload":
-            return { icon: "◍", label: t("Uploads"), subject: (args.paths ?? []).join(", "), mono: true };
+            return { icon: "globe", label: t("Uploads"), subject: (args.paths ?? []).join(", "), mono: true };
         case "browser_save_pdf":
-            return { icon: "◍", label: t("Saves PDF"), subject: args.path ?? "", mono: true };
+            return { icon: "globe", label: t("Saves PDF"), subject: args.path ?? "", mono: true };
         case "browser_tabs":
             return {
-                icon: "◍",
+                icon: "globe",
                 label: t("Tabs"),
                 subject: args.close ? t("closes {n}", { n: args.close }) : args.switch_to ? t("to {n}", { n: args.switch_to }) : t("lists them"),
             };
         case "browser_size":
-            return { icon: "◍", label: t("Size"), subject: args.size === "desktop" ? t("desktop, 1280 px") : t("phone, 412 px") };
+            return { icon: "globe", label: t("Size"), subject: args.size === "desktop" ? t("desktop, 1280 px") : t("phone, 412 px") };
         case "browser_close":
-            return { icon: "◍", label: t("Closes"), subject: t("this session's tabs") };
+            return { icon: "globe", label: t("Closes"), subject: t("this session's tabs") };
         case "browser_run":
-            return { icon: "◍", label: t("Browser run"), subject: short(args.goal ?? "", 100) };
+            return { icon: "globe", label: t("Browser run"), subject: short(args.goal ?? "", 100) };
         case "browser_sign_in":
-            return { icon: "◍", label: t("Asks you"), subject: t("to sign in") };
+            return { icon: "globe", label: t("Asks you"), subject: t("to sign in") };
         case "browser_ask_code":
-            return { icon: "◍", label: t("Asks you"), subject: t("for a code") };
+            return { icon: "globe", label: t("Asks you"), subject: t("for a code") };
         case "computer_run":
-            return { icon: "◍", label: t("Computer run"), subject: short(args.goal ?? "", 100) };
+            return { icon: "monitor", label: t("Computer run"), subject: short(args.goal ?? "", 100) };
         case "computer_sign_in":
-            return { icon: "◍", label: t("Asks you"), subject: args.username === undefined && args.password === undefined ? t("for a code") : t("to sign in") };
+            return { icon: "monitor", label: t("Asks you"), subject: args.username === undefined && args.password === undefined ? t("for a code") : t("to sign in") };
         case "browser_ask_user":
-            return { icon: "◍", label: t("Asks you"), subject: short(args.instruction ?? "", 100) };
+            return { icon: "globe", label: t("Asks you"), subject: short(args.instruction ?? "", 100) };
         case "web_search": {
             const queries = [...(args.query ? [args.query] : []), ...(args.queries ?? [])];
 
-            return { icon: "⌕", label: t("Web search"), subject: queries.join(" · ") };
+            return { icon: "search", label: t("Web search"), subject: queries.join(" · ") };
         }
         case "fetch_content": {
             const urls = [...(args.url ? [args.url] : []), ...(args.urls ?? [])];
 
-            return { icon: "↓", label: t("Read"), subject: urls.map((url) => url.replace(/^https?:\/\//, "")).join(" · "), mono: true };
+            return { icon: "download", label: t("Read"), subject: urls.map((url) => url.replace(/^https?:\/\//, "")).join(" · "), mono: true };
         }
         case "file_to_markdown":
-            return { icon: "▤", label: t("As Markdown"), subject: args.path ?? "", mono: true };
+            return { icon: "file", label: t("As Markdown"), subject: args.path ?? "", mono: true };
         case "board_mode":
-            return { icon: "▦", label: t("Asks to use the board"), subject: `${args.project ?? ""}`, mono: true };
+            return { icon: "board", label: t("Asks to use the board"), subject: `${args.project ?? ""}`, mono: true };
         case "project_list":
-            return { icon: "▦", label: t("Projects"), subject: t("the boards Pi may use") };
+            return { icon: "board", label: t("Projects"), subject: t("the boards Pi may use") };
         case "project_create":
-            return { icon: "▦", label: t("Makes project"), subject: `${args.key ?? ""} · ${args.name ?? ""}` };
+            return { icon: "board", label: t("Makes project"), subject: `${args.key ?? ""} · ${args.name ?? ""}` };
         case "project_update":
-            return { icon: "▦", label: t("Changes project"), subject: `${args.project ?? ""}` };
+            return { icon: "board", label: t("Changes project"), subject: `${args.project ?? ""}` };
         case "project_team":
-            return { icon: "▦", label: t("Starts the main session of"), subject: `${args.project ?? ""}` };
+            return { icon: "board", label: t("Starts the main session of"), subject: `${args.project ?? ""}` };
         case "task_link_session":
-            return { icon: "▦", label: t("Links a session to"), subject: `${args.task ?? ""}`, mono: true };
+            return { icon: "board", label: t("Links a session to"), subject: `${args.task ?? ""}`, mono: true };
         case "project_share":
-            return { icon: "▦", label: t("Shares project"), subject: t("{project} with {people}", { project: args.project ?? "", people: (args.people ?? []).join(", ") }) };
+            return { icon: "board", label: t("Shares project"), subject: t("{project} with {people}", { project: args.project ?? "", people: (args.people ?? []).join(", ") }) };
         case "project_delete":
-            return { icon: "▦", label: t("Deletes project"), subject: `${args.project ?? ""}`, mono: true };
+            return { icon: "board", label: t("Deletes project"), subject: `${args.project ?? ""}`, mono: true };
         case "task_delete":
-            return { icon: "▦", label: t("Deletes task"), subject: `${args.task ?? ""}`, mono: true };
+            return { icon: "board", label: t("Deletes task"), subject: `${args.task ?? ""}`, mono: true };
         case "task_cancel_run":
-            return { icon: "▦", label: t("Withdraws the run of"), subject: `${args.task ?? ""}`, mono: true };
+            return { icon: "board", label: t("Withdraws the run of"), subject: `${args.task ?? ""}`, mono: true };
         case "task_diff":
-            return { icon: "▦", label: t("Diff of"), subject: `${args.task ?? ""}`, mono: true };
+            return { icon: "board", label: t("Diff of"), subject: `${args.task ?? ""}`, mono: true };
         case "task_merge":
-            return { icon: "▦", label: t("Merges"), subject: `${args.task ?? ""}`, mono: true };
+            return { icon: "board", label: t("Merges"), subject: `${args.task ?? ""}`, mono: true };
         case "task_run":
-            return { icon: "▦", label: t("Runs"), subject: `${args.task ?? ""}`, mono: true };
+            return { icon: "board", label: t("Runs"), subject: `${args.task ?? ""}`, mono: true };
         case "task_list":
-            return { icon: "▦", label: t("Tasks"), subject: [args.project, args.state, args.text].filter(Boolean).join(" · ") || t("on the board") };
+            return { icon: "board", label: t("Tasks"), subject: [args.project, args.state, args.text].filter(Boolean).join(" · ") || t("on the board") };
         case "task_get":
-            return { icon: "▦", label: t("Reads task"), subject: `${args.task ?? ""}`, mono: true };
+            return { icon: "board", label: t("Reads task"), subject: `${args.task ?? ""}`, mono: true };
         case "task_create":
-            return { icon: "▦", label: t("Adds task"), subject: `${args.title ?? ""}` };
+            return { icon: "board", label: t("Adds task"), subject: `${args.title ?? ""}` };
         case "task_update":
-            return { icon: "▦", label: t("Updates task"), subject: `${args.task ?? ""}${args.state ? ` → ${args.state}` : ""}`, mono: true };
+            return { icon: "board", label: t("Updates task"), subject: `${args.task ?? ""}${args.state ? ` → ${args.state}` : ""}`, mono: true };
         case "task_comment":
-            return { icon: "▦", label: t("Comments on"), subject: `${args.task ?? ""}`, mono: true };
+            return { icon: "board", label: t("Comments on"), subject: `${args.task ?? ""}`, mono: true };
         case "secrets_list":
-            return { icon: "⚿", label: t("Secrets"), subject: t("the names Pi may use here") };
+            return { icon: "key", label: t("Secrets"), subject: t("the names Pi may use here") };
         case "secret_request":
-            return { icon: "⚿", label: t("Asks for secret"), subject: `${args.name ?? ""}`, mono: true };
+            return { icon: "key", label: t("Asks for secret"), subject: `${args.name ?? ""}`, mono: true };
         case "secret_save":
-            return { icon: "⚿", label: t("Saves secret"), subject: t("{name} from {command}", { name: args.name ?? "", command: short(args.command ?? "", 100) }), mono: true };
+            return { icon: "key", label: t("Saves secret"), subject: t("{name} from {command}", { name: args.name ?? "", command: short(args.command ?? "", 100) }), mono: true };
 
         case "browser": {
             const firstLine = String(args.script ?? "")
@@ -299,7 +300,7 @@ export function describeCall(call) {
                     : "";
 
             return {
-                icon: "◎",
+                icon: "globe",
                 label: t("Browser {action}", { action: args.action ?? "" }),
                 subject: short(`${what}${typed}`, 120),
                 mono: true,
@@ -308,7 +309,7 @@ export function describeCall(call) {
 
         case "subagent":
             return {
-                icon: "⧉",
+                icon: "fork",
                 label: t("Subagent {action}", { action: args.action ?? "" }),
                 subject: [args.name, args.message && short(args.message, 60)]
                     .filter(Boolean)
@@ -320,11 +321,11 @@ export function describeCall(call) {
             const own = ownDescription(call.name, args);
 
             if (own !== undefined) {
-                return { icon: "⚙", mono: false, own: true, ...own };
+                return { icon: "grid", mono: false, own: true, ...own };
             }
 
             return {
-                icon: "⚙",
+                icon: "grid",
                 label: call.name,
                 subject: short(JSON.stringify(args), 100),
                 mono: true,

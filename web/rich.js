@@ -294,7 +294,7 @@ function RichBlock({ kind, lang, source, streaming }) {
                     title=${running ? t("Stop its scripts") : t("Run its scripts in a sandbox, as an artifact runs: it can reach the internet, not the app")}
                     onClick=${() => setRunning(!running)}
                 >
-                    ${running ? t("■ Stop") : t("▶ Run")}
+                    ${running ? t("Stop") : t("Run")}
                 </button>`
             }
             <button type="button" class="copy" onClick=${copy}>${t("Copy")}</button>

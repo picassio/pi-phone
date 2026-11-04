@@ -82,8 +82,8 @@ export function openSubagent(id) {
     navigate(id);
 }
 
-/** The mark a row starts with, for a subagent that is not working. */
-const MARKS = { done: "✓", stopped: "■", failed: "!" };
+/** The mark a row starts with, for a subagent that is not working: a line icon, never a symbol. */
+const MARKS = { done: "check", stopped: "stop", failed: "close" };
 
 /** "3 subagents working": every one of them in one state. */
 function allIn(status, n) {
@@ -166,7 +166,7 @@ function AgentRow({ agent }) {
     return html`<div class=${`agent-row ${status}`} data-peek=${agent.conversationId}>
         <button class="agent-open" onClick=${() => openSubagent(agent.conversationId)}>
             <span class="agent-mark" aria-hidden="true">
-                ${agent.busy ? html`<${Spinner} />` : MARKS[status]}
+                ${agent.busy ? html`<${Spinner} />` : MARKS[status] && html`<${Icon} name=${MARKS[status]} size=${16} />`}
             </span>
             <span class="agent-main">
                 <span class="agent-head">

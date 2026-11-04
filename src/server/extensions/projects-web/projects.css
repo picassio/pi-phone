@@ -603,6 +603,13 @@
     font: 11.5px var(--mono);
 }
 
+/* The due day, after a small clock (a line icon). */
+.pj-due {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
 .pj-due.soon {
     color: var(--warn);
 }

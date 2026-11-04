@@ -468,7 +468,7 @@ function UserEntry({ entry, view, users }) {
                         title=${skill[2]}
                         onClick=${() => openFile(skill[2])}
                     >
-                        ⚡ ${skill[1]}
+                        <${Icon} name="bolt" size=${12} /> ${skill[1]}
                     </button>`
                 }
                 ${
@@ -491,7 +491,7 @@ function UserEntry({ entry, view, users }) {
                                     title=${t("Sent with the message: {path}", { path })}
                                     onClick=${() => openFile(path)}
                                 >
-                                    📄 ${path.split("/").pop()}
+                                    <${Icon} name="file" size=${12} /> ${path.split("/").pop()}
                                 </button>`,
                         )}
                     </div>`
@@ -507,7 +507,7 @@ function UserEntry({ entry, view, users }) {
                 ${
                     others.length > 0 &&
                     html`<div class="attachments">
-                        ${others.map((file) => html`<span class="chip">📎 ${file.name}</span>`)}
+                        ${others.map((file) => html`<span class="chip"><${Icon} name="clip" size=${12} /> ${file.name}</span>`)}
                     </div>`
                 }
                 ${
@@ -1113,7 +1113,7 @@ function ToolStep({
                         ${nested.map(
                             (each) => html`<div class=${`nested-call ${each.status}`}>
                                 <span class="nested-status">
-                                    ${each.status === "ok" ? "✓" : each.status === "running" ? "…" : each.status === "cancelled" ? "–" : "!"}
+                                    <${Icon} name=${each.status === "ok" ? "check" : each.status === "running" ? "more" : each.status === "cancelled" ? "minus" : "close"} size=${12} />
                                 </span>
                                 <span class="mono">${each.name}</span>
                                 ${
@@ -2665,7 +2665,7 @@ function AnswerActions({ entry }) {
                 title=${t("React")}
                 onClick=${() => setPicking(!picking)}
             >
-                ☺+
+                <${Icon} name="react" size=${16} />
             </button>
             ${
                 picking &&
@@ -2770,7 +2770,7 @@ function Divider({ entry }) {
 
     return html`<div class="divider">
         <button class="link" onClick=${() => setOpen(!open)}>
-            ${t("Context compacted")} ${open ? "▾" : "▸"}
+            ${t("Context compacted")} <${Icon} name="chevron" size=${12} class=${`chev ${open ? "open" : ""}`} />
         </button>
         ${open && html`<div class="divider-body"><${Markdown} text=${entry.summary} /></div>`}
     </div>`;

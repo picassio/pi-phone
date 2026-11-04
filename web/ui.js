@@ -73,7 +73,7 @@ export function Thumb({ src, alt = t("image") }) {
     const [broken, setBroken] = useState(false);
 
     if (broken) {
-        return html`<span class="chip" title=${t("This image could not be loaded")}>🖼 ${alt}</span>`;
+        return html`<span class="chip" title=${t("This image could not be loaded")}><${Icon} name="image" size=${12} /> ${alt}</span>`;
     }
 
     return html`<button
@@ -313,7 +313,7 @@ function sanitize(html, fold) {
             continue;
         }
 
-        const label = `🖼 ${image.getAttribute("alt") || t("image")}`;
+        const label = image.getAttribute("alt") || t("image");
         let host;
 
         try {
@@ -324,14 +324,14 @@ function sanitize(html, fold) {
 
         // Inside a link already, or not a web address: the label alone.
         if (host === undefined || image.closest("a")) {
-            image.replaceWith(label);
+            image.replaceWith(iconElement("image", 12), " ", label);
             continue;
         }
 
         const link = document.createElement("a");
 
         link.href = src;
-        link.textContent = label;
+        link.append(iconElement("image", 12), " ", label);
         link.title = t("Image from {host}", { host });
         link.target = "_blank";
         link.rel = "noopener noreferrer";
@@ -786,7 +786,7 @@ document.addEventListener(
         const note = document.createElement("span");
 
         note.className = "image-missing";
-        note.textContent = `🖼 ${image.alt ? t("{name} could not be loaded", { name: image.alt }) : t("Image could not be loaded")}`;
+        note.append(iconElement("image", 12), " ", image.alt ? t("{name} could not be loaded", { name: image.alt }) : t("Image could not be loaded"));
         image.after(note);
     },
     true,
@@ -1142,6 +1142,16 @@ const ICONS = {
     compact: "M4 3h16M4 21h16M12 6v5M9 8l3 3 3-3M12 18v-5M9 16l3-3 3 3",
     // Taking turns: a steering wheel.
     wheel: "M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18zM12 10a2 2 0 1 0 0 4 2 2 0 1 0 0-4zM3.3 11.2l6.7.6M20.7 11.2l-6.7.6M12 14v6.9",
+    // A picture that is not shown: a frame with a hill and the sun.
+    image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01",
+    // React to an answer (PP-402): a smile with a plus where its circle opens.
+    react: "M20.8 11a9 9 0 11-7.8-7.9M8.5 14.5a4.5 4.5 0 007 0M9 9.5h.01M15 9.5h.01M16 5h6M19 2v6",
+    // A tool call's line: writing or editing a file, a script, settings.
+    pencil: "M4 20h4L19 9l-4-4L4 16zM13 7l4 4",
+    code: "M8 7l-5 5 5 5M16 7l5 5-5 5",
+    sliders: "M4 7h9M17 7h3M15 5v4M4 17h3M11 17h9M9 15v4",
+    // Something to note: a bolt (a skill a message runs).
+    bolt: "M13 3L5 14h6l-1 7 8-11h-6z",
 };
 
 /** How far each key scrolls a sheet's body, by its height. */
@@ -1183,6 +1193,22 @@ function scrollFromKeys(event) {
 /** An icon's SVG path, for marks drawn outside Preact (gestures.js); "" for a name that is not one of the icons. */
 export const iconPath = (name) =>
     typeof name === "string" && Object.hasOwn(ICONS, name) ? ICONS[name] : "";
+
+/** One of the icons as an element, as `Icon` draws it, for text built outside Preact (Markdown's images). */
+function iconElement(name, size) {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    const path = document.createElementNS(ns, "path");
+
+    for (const [key, value] of Object.entries({ class: "icon", width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) {
+        svg.setAttribute(key, String(value));
+    }
+
+    path.setAttribute("d", iconPath(name));
+    svg.append(path);
+
+    return svg;
+}
 
 /** A web address in plain text: http(s), up to a space or a closing bracket; trailing punctuation is the sentence's. */
 const WEB_ADDRESS = /https?:\/\/[^\s<>"'`)\]]+/g;

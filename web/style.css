@@ -4648,6 +4648,10 @@ pre.diff .del {
     padding-top: 0.5rem;
 }
 
+.divider .link > .icon {
+    vertical-align: -2px;
+}
+
 .divider-body {
     text-align: left;
     margin-top: 0.5rem;
@@ -10553,8 +10557,10 @@ body.plain-page {
 }
 
 .nested-status {
-    width: 1rem;
-    text-align: center;
+    align-self: center;
+    display: inline-flex;
+    justify-content: center;
+    width: 16px;
     color: var(--ok);
 }
 
@@ -12658,7 +12664,10 @@ textarea.notes {
 
 .peek-mark {
     flex: none;
+    display: inline-flex;
+    align-items: center;
     width: 14px;
+    height: 18px;
     font: 600 11px / 18px var(--mono);
     color: var(--faint);
 }
@@ -16894,11 +16903,11 @@ textarea.notes {
 
 .agent-mark {
     flex: none;
-    width: 1rem;
-    padding-top: 0.05rem;
+    display: inline-flex;
+    justify-content: center;
+    width: 16px;
+    padding-top: 2px;
     color: var(--ok);
-    font-weight: 600;
-    text-align: center;
 }
 
 .agent-row.failed .agent-mark {

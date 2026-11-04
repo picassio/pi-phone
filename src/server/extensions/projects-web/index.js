@@ -1049,7 +1049,7 @@ export default function projects(pocket) {
                 }
                 <div class="pj-foot">
                     <span class="pj-id">${task.ref.toLowerCase()}</span>
-                    ${task.due && html`<span class=${`pj-due ${dueClass(task.due, task.state)}`}>◷ ${dayLabel(task.due)}</span>`}
+                    ${task.due && html`<span class=${`pj-due ${dueClass(task.due, task.state)}`}>${svg("M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2", 12)}${dayLabel(task.due)}</span>`}
                     <span class="pj-sp"></span>
                     <span class="pj-age" title=${t("Last changed")}>${ago(task.updatedAt)}</span>
                     ${avatar(task.assignee, people)}

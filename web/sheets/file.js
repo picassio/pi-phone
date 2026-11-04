@@ -261,7 +261,7 @@ function FileActions({ file, shown, previewable, preview, onPreview, running, on
             title=${running ? t("Stop its scripts") : t("Run its scripts in a sandbox, as an artifact runs: it can reach the internet, not the app")}
             onClick=${() => onRun(!running)}
         >
-            ${running ? t("■ Stop") : t("▶ Run")}
+            ${running ? t("Stop") : t("Run")}
         </button>`
     }
     ${
