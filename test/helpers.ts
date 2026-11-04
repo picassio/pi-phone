@@ -1,5 +1,7 @@
 // What the server tests share: an isolated Pi install and data folder, a scripted model, and small helpers. Import
 // this before anything from src/: it points Pi's config at a temporary folder first.
+// No server of a test on a port fetch refuses (PP-404).
+import "./support/safe-ports.ts";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

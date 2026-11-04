@@ -1,5 +1,7 @@
 // Machines: addresses, keys, host keys, and connecting through pi-env to a real sshd on this machine (when one is
 // installed, as in the app's rootfs and Termux).
+// Its free ports are never one fetch refuses (PP-404).
+import "./support/safe-ports.ts";
 import assert from "node:assert/strict";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";

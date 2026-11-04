@@ -1,3 +1,5 @@
+// Its free ports are never one fetch refuses (PP-404).
+import "./support/safe-ports.ts";
 import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import { test } from "node:test";

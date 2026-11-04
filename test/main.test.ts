@@ -1,4 +1,6 @@
 // The server process: how it starts and stops. Each test runs `src/server/main.ts` with its own data and Pi folders.
+// Its free ports are never one fetch refuses (PP-404).
+import "./support/safe-ports.ts";
 import assert from "node:assert/strict";
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
