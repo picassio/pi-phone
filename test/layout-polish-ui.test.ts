@@ -1,7 +1,8 @@
 // pi-phone's own main screens under the layout check (PP-395's `layoutCheck`, the one `screenshot` runs), in a real
 // browser at 390 and 1280 px, in a dark palette (Tokyo Night) and a light one (Catppuccin Latte): the session list, a
 // session with a reply, Dictation, Machines, a project board, and a reply's More sheet. What the polish tickets fixed
-// stays fixed: no emoji or symbol glyphs as icons (PP-402). With PHONE_SHOTS, screenshots go there.
+// stays fixed: no emoji or symbol glyphs as icons (PP-402); hints at 3:1 and words at 4.5:1, no text under 12 px
+// (PP-399). With PHONE_SHOTS, screenshots go there.
 import { type App, cleanUp, cleanUpAll, newSession, openApp, owner, root, say, scriptedModel, until, work } from "./helpers.ts";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import assert from "node:assert/strict";
@@ -129,6 +130,20 @@ test("the main screens were checked in both palettes at both widths", real, () =
 
 test("no emoji or symbol glyphs as icons on the main screens (PP-402)", real, () => {
     assert.deepEqual(found("emoji"), []);
+});
+
+/**
+ * Hints, which the owner holds to 3:1 rather than 4.5:1 (PP-399): counts, times, keys, a task's ref, the quiet "Add a
+ * task". Everything else is words, at 4.5:1.
+ */
+const HINTS = /^(?:span\.(?:sessions-count|session-time|search-keys|prompt-time|activity-time|pj-id|pj-count|pj-wip|pj-age)|kbd|button\.pj-add-row)\b/;
+
+test("text reads on the main screens: hints at 3:1, words at 4.5:1, in both palettes (PP-399)", real, () => {
+    assert.deepEqual(found("contrast", (find) => find.kind === "contrast" && (find.ratio < 3 || !HINTS.test(find.what))), []);
+});
+
+test("no text under 12 px on the main screens (PP-399)", real, () => {
+    assert.deepEqual(found("small-text"), []);
 });
 
 test("a tool call's icon is a line icon from ICONS, never a symbol (PP-402)", () => {

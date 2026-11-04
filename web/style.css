@@ -95,9 +95,19 @@
     --hair-2: color-mix(in srgb, var(--body) 17%, transparent);
     --text: var(--o-fg-bright);
     --body: var(--o-fg);
-    /* Quieter text at 4.5:1 or more on the ground (WCAG AA) with every palette that comes with the app. */
-    --muted: color-mix(in oklab, var(--body) 76%, var(--bg));
-    --faint: color-mix(in oklab, var(--body) 42%, var(--bg));
+    /*
+     * Quieter text, with every palette that comes with the app, on the ground, cards, raised segments and selected rows
+     * (PP-399, test/theme-contrast.test.ts): --muted, secondary words, at 4.5:1 or more (WCAG AA); --faint, hints
+     * (counts, times, keys), at 3:1 or more.
+     */
+    --muted: color-mix(in oklab, var(--body) 88%, var(--bg));
+    --faint: color-mix(in oklab, var(--body) 66%, var(--bg));
+    /*
+     * Words in a color on that color's tint (a person's initials in `--who`, a board column's count in its state's
+     * color): the color mixed this far toward light, so they read at 4.5:1 on the tint.
+     */
+    --tint-ink-share: 55%;
+    --tint-ink-toward: #fff;
     --accent: var(--o-accent);
     --accent-ink: var(--bg);
     /* The accent as a fill under text (buttons, badges): darker in light themes, so text on it stays readable. */
@@ -218,20 +228,24 @@
     --accent-ink: #fff;
     --scrim: color-mix(in srgb, var(--desk) 55%, transparent);
     --line: color-mix(in srgb, var(--body) 15%, var(--bg));
-    --muted: color-mix(in oklab, var(--body) 87%, var(--bg));
-    --faint: color-mix(in oklab, var(--body) 58%, var(--bg));
+    --muted: color-mix(in oklab, var(--body) 92%, var(--bg));
+    --faint: color-mix(in oklab, var(--body) 75%, var(--bg));
+    --tint-ink-share: 62%;
+    --tint-ink-toward: #000;
     --warn: color-mix(in oklab, var(--o-yellow) 62%, var(--o-fg));
     --ok: color-mix(in oklab, var(--o-green) 78%, var(--o-fg));
     --err: color-mix(in oklab, var(--o-red) 85%, var(--o-fg));
-    --accent-fill: color-mix(in oklab, var(--accent) 76%, var(--body));
-    /* Code's colors further still: halfway, yellow (the lightest) more, so each reads at 3:1 or better. */
-    --hl-kw: color-mix(in oklab, var(--o-magenta) 50%, var(--o-fg));
-    --hl-str: color-mix(in oklab, var(--o-green) 50%, var(--o-fg));
-    --hl-num: color-mix(in oklab, var(--o-orange) 50%, var(--o-fg));
-    --hl-fn: color-mix(in oklab, var(--o-blue) 50%, var(--o-fg));
-    --hl-type: color-mix(in oklab, var(--o-yellow) 40%, var(--o-fg));
-    --hl-op: color-mix(in oklab, var(--o-cyan) 50%, var(--o-fg));
-    --hl-tag: color-mix(in oklab, var(--o-red) 50%, var(--o-fg));
+    /* The accent as words and marks: darker, so links read at 4.5:1 (PP-399); its fill keeps the palette's own. */
+    --accent: color-mix(in oklab, var(--o-accent) 78%, #000);
+    --accent-fill: color-mix(in oklab, var(--o-accent) 76%, var(--body));
+    /* Code's colors darker still, toward black so each keeps its hue and reads at 4.5:1 (PP-399). */
+    --hl-kw: color-mix(in oklab, var(--o-magenta) 66%, #000);
+    --hl-str: color-mix(in oklab, var(--o-green) 66%, #000);
+    --hl-num: color-mix(in oklab, var(--o-orange) 66%, #000);
+    --hl-fn: color-mix(in oklab, var(--o-blue) 66%, #000);
+    --hl-type: color-mix(in oklab, var(--o-yellow) 66%, #000);
+    --hl-op: color-mix(in oklab, var(--o-cyan) 66%, #000);
+    --hl-tag: color-mix(in oklab, var(--o-red) 66%, #000);
 }
 
 * {
@@ -373,7 +387,7 @@ kbd {
     min-width: 22px;
     height: 22px;
     padding: 0 6px;
-    font: 600 11px/1 var(--mono);
+    font: 600 12px/1 var(--mono);
     color: var(--text);
     background: var(--card);
     border: 1px solid var(--hair-2);
@@ -391,7 +405,7 @@ kbd {
 }
 
 .small {
-    font-size: 0.8rem;
+    font-size: 12px;
 }
 
 .grow {
@@ -641,14 +655,14 @@ kbd {
 }
 
 .boot-caption {
-    font-size: 0.75rem;
+    font-size: 12px;
     letter-spacing: 0.14em;
     text-transform: lowercase;
 }
 
 .boot-detail {
     max-width: 32ch;
-    font-size: 0.75rem;
+    font-size: 12px;
     line-height: 1.5;
     opacity: 0.8;
 }
@@ -706,7 +720,7 @@ kbd {
     align-items: center;
     gap: 0.55rem;
     padding: 0.6rem 0.1rem;
-    font-size: 0.85rem;
+    font-size: 12px;
     color: var(--muted);
 }
 
@@ -1017,7 +1031,7 @@ kbd {
 
 .topbar .avatar,
 .rail .avatar {
-    font-size: 11px;
+    font-size: 12px;
 }
 
 /* Below the sidebar's width the top bar leads back to the session list, each button a thumb wide. */
@@ -1169,7 +1183,7 @@ kbd {
     padding: 0 8px;
     border-radius: calc(var(--r-tag) + 1px);
     background: var(--card);
-    font: 11px / 1 var(--mono);
+    font: 12px / 1 var(--mono);
     color: var(--muted);
     transition:
         color var(--t-hover) var(--ease-out),
@@ -1213,7 +1227,7 @@ kbd {
     padding: 0 8px;
     border-radius: calc(var(--r-tag) + 1px);
     background: var(--card);
-    font: 11px / 1 var(--mono);
+    font: 12px / 1 var(--mono);
     color: var(--muted);
     transition:
         color var(--t-hover) var(--ease-out),
@@ -1364,7 +1378,7 @@ kbd {
     border-radius: var(--radius);
     background: var(--accent-fill);
     color: var(--accent-ink);
-    font-size: 0.68rem;
+    font-size: 12px;
     font-weight: 600;
     display: grid;
     place-items: center;
@@ -1380,7 +1394,7 @@ kbd {
     display: inline-grid;
     place-items: center;
     font-weight: 600;
-    font-size: 0.7rem;
+    font-size: 12px;
 }
 
 /* ─── Transcript ───────────────────────────────────────────── */
@@ -1569,8 +1583,8 @@ kbd {
     height: 22px;
     border-radius: 50%;
     background: color-mix(in srgb, var(--who) 20%, transparent);
-    color: var(--who);
-    font-size: 10px;
+    color: color-mix(in oklab, var(--who) var(--tint-ink-share), var(--tint-ink-toward));
+    font-size: 12px;
     font-weight: 600;
     line-height: 1;
 }
@@ -2118,7 +2132,7 @@ kbd {
     border-radius: var(--r-pill);
     background: var(--err-soft);
     color: var(--err);
-    font: 500 11px var(--sans);
+    font: 500 12px var(--sans);
 }
 
 .activity-time {
@@ -2211,7 +2225,7 @@ kbd {
     background: linear-gradient(var(--tint), var(--tint)), var(--bg);
     box-shadow: 0 0 0 3px var(--bg);
     color: var(--muted);
-    font: 600 10px / 1 var(--mono);
+    font: 600 12px / 1 var(--mono);
     transition:
         background-color var(--t-border) var(--ease-out),
         color var(--t-border) var(--ease-out);
@@ -2388,7 +2402,7 @@ a.linked {
 .step-body .dv-block {
     border-radius: var(--r-control);
     overflow: hidden;
-    font-size: 0.76rem;
+    font-size: 12px;
     line-height: 1.6;
 }
 
@@ -2654,7 +2668,7 @@ pre.diff .del {
     border-radius: 4px;
     background: var(--hover);
     color: var(--muted);
-    font: 500 11px var(--mono);
+    font: 500 12px var(--mono);
 }
 
 .review-prio.urgent {
@@ -2859,7 +2873,7 @@ pre.diff .del {
 .decision-go {
     flex: none;
     display: inline-flex;
-    font-size: 0.8rem;
+    font-size: 12px;
     font-weight: 600;
     color: var(--warn);
 }
@@ -2942,7 +2956,7 @@ pre.diff .del {
     flex: 1;
     min-width: 0;
     text-align: right;
-    font-size: 0.75rem;
+    font-size: 12px;
     color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
@@ -2959,7 +2973,7 @@ pre.diff .del {
 
 .pgb-tab {
     padding: 8px 0;
-    font-size: 0.82rem;
+    font-size: 12px;
     color: var(--muted);
 }
 
@@ -3002,7 +3016,7 @@ pre.diff .del {
     border-radius: 10px;
     background: var(--av);
     color: #1a1b26;
-    font-size: 0.82rem;
+    font-size: 12px;
     font-weight: 600;
 }
 
@@ -3027,7 +3041,7 @@ pre.diff .del {
 .pgb-text small,
 .pgb-sub small {
     color: var(--muted);
-    font-size: 0.78rem;
+    font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3043,7 +3057,7 @@ pre.diff .del {
 
 .pgb-meta time,
 .pgb-sub time {
-    font-size: 0.72rem;
+    font-size: 12px;
     color: var(--dim, var(--muted));
     font-variant-numeric: tabular-nums;
 }
@@ -3051,7 +3065,7 @@ pre.diff .del {
 .pgb-badge {
     padding: 1px 8px;
     border-radius: 99px;
-    font-size: 0.68rem;
+    font-size: 12px;
     font-weight: 600;
 }
 
@@ -3102,7 +3116,7 @@ pre.diff .del {
 
 .pgb-sec {
     padding: 8px 16px 3px;
-    font-size: 0.66rem;
+    font-size: 12px;
     font-weight: 600;
     color: var(--dim, var(--muted));
 }
@@ -3119,7 +3133,7 @@ pre.diff .del {
     border-radius: 9px;
     background: var(--card-2);
     color: var(--text);
-    font-size: 0.78rem;
+    font-size: 12px;
     font-weight: 600;
 }
 
@@ -3134,7 +3148,7 @@ pre.diff .del {
     align-items: center;
     gap: 4px;
     margin: -6px 0 10px 62px;
-    font-size: 0.74rem;
+    font-size: 12px;
     color: var(--accent);
 }
 
@@ -3233,7 +3247,7 @@ pre.diff .del {
     border-radius: 10px;
     background: var(--accent);
     color: var(--accent-ink);
-    font-size: 0.82rem;
+    font-size: 12px;
     font-weight: 600;
 }
 
@@ -3243,7 +3257,7 @@ pre.diff .del {
     gap: 10px;
     padding: 8px 14px;
     background: var(--warn-soft);
-    font-size: 0.78rem;
+    font-size: 12px;
 }
 
 .pgb-problem span {
@@ -3298,7 +3312,7 @@ pre.diff .del {
 }
 
 .pgb-calltext small {
-    font-size: 0.72rem;
+    font-size: 12px;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
 }
@@ -3387,7 +3401,7 @@ pre.diff .del {
     border: 0;
     background: none;
     min-height: 0;
-    font-size: 0.78rem;
+    font-size: 12px;
     color: var(--muted);
 }
 
@@ -3409,13 +3423,13 @@ pre.diff .del {
     justify-content: space-between;
     gap: 8px;
     padding: 10px 16px 12px;
-    font-size: 0.75rem;
+    font-size: 12px;
     color: var(--muted);
 }
 
 .pgb-link {
     color: var(--accent);
-    font-size: 0.78rem;
+    font-size: 12px;
     font-weight: 600;
 }
 
@@ -3569,7 +3583,7 @@ pre.diff .del {
 
 .assist-menu-title {
     margin: 10px 8px 6px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--faint);
 }
@@ -4381,7 +4395,7 @@ pre.diff .del {
 .live-esc {
     flex: none;
     margin-left: auto;
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--faint);
 }
 
@@ -5217,7 +5231,7 @@ pre.diff .del {
     background: var(--card-2);
     border-radius: var(--radius);
     padding: 0.2rem 0.55rem;
-    font-size: 0.78rem;
+    font-size: 12px;
     max-width: 100%;
     white-space: nowrap;
     overflow: hidden;
@@ -5654,7 +5668,7 @@ pre.diff .del {
 }
 
 .status-line .num {
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     font-variant-numeric: tabular-nums;
 }
 
@@ -6029,7 +6043,7 @@ pre.diff .del {
     background: var(--accent-fill);
     color: var(--accent-ink);
     box-shadow: 0 0 0 2px var(--bg);
-    font: 600 10px/1 var(--mono);
+    font: 600 12px/1 var(--mono);
     animation: popin var(--t-in) var(--ease-out);
 }
 
@@ -6192,7 +6206,7 @@ pre.diff .del {
 
 .sessions-count {
     margin-right: auto;
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--faint);
 }
 
@@ -6290,7 +6304,7 @@ pre.diff .del {
     flex: none;
     border: 1px solid var(--hair);
     border-radius: var(--r-tag);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -6351,7 +6365,7 @@ pre.diff .del {
     padding: 4px 6px;
     border: 1px solid var(--hair);
     border-radius: var(--r-tag);
-    font: 11px / 1 var(--mono);
+    font: 12px / 1 var(--mono);
     color: var(--faint);
     white-space: nowrap;
     opacity: 1;
@@ -6546,7 +6560,7 @@ pre.diff .del {
 /* How many, in mono, beside the name; the fold's chevron at the end. */
 .group-count {
     flex: 1;
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--faint);
 }
 
@@ -6664,7 +6678,7 @@ pre.diff .del {
     padding: 0 6px;
     border: 0;
     background: none;
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--muted);
 }
 
@@ -6970,7 +6984,7 @@ pre.diff .del {
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--faint);
     transition: opacity var(--t-hover) var(--ease-out);
 }
@@ -7006,7 +7020,7 @@ pre.diff .del {
     border-radius: var(--r-pill);
     background: var(--warn-soft);
     color: var(--warn);
-    font: 500 11px var(--sans);
+    font: 500 12px var(--sans);
 }
 
 /* Pi works there. */
@@ -7019,7 +7033,7 @@ pre.diff .del {
 }
 
 .session-side .avatar {
-    font-size: 8px;
+    font-size: 12px;
 }
 
 .session-side .unread-dot {
@@ -7190,7 +7204,7 @@ pre.diff .del {
     flex: 1;
     min-width: 0;
     overflow: hidden;
-    font-size: 0.76rem;
+    font-size: 12px;
     color: var(--muted);
     white-space: nowrap;
 }
@@ -7209,7 +7223,7 @@ pre.diff .del {
 
 .select-bar .button {
     padding: 0.2rem 0.5rem;
-    font-size: 0.76rem;
+    font-size: 12px;
 }
 
 .select-clear {
@@ -7247,7 +7261,7 @@ pre.diff .del {
 .sessions-empty {
     padding: 1.2rem 0.6rem;
     color: var(--muted);
-    font-size: 0.85rem;
+    font-size: 12px;
     animation: fade var(--t-fade) var(--ease-almost);
 }
 
@@ -7419,14 +7433,14 @@ pre.diff .del {
     padding: 0;
     border: 0;
     background: none;
-    font: 400 11px var(--mono);
+    font: 400 12px var(--mono);
     color: var(--faint);
     opacity: 1;
 }
 
 .splash-actions .button.primary kbd {
     color: inherit;
-    opacity: 0.7;
+    opacity: 0.9;
 }
 
 /* Jump back in: a row per recent session, numbered as Alt+1…9 number them. */
@@ -7469,7 +7483,7 @@ pre.diff .del {
     place-items: center;
     border: 1px solid var(--hair-2);
     border-radius: calc(var(--r-tag) + 1px);
-    font: 11px / 1 var(--mono);
+    font: 12px / 1 var(--mono);
     color: var(--muted);
 }
 
@@ -7739,7 +7753,7 @@ pre.diff .del {
 }
 
 .choice-detail {
-    font-size: 0.72rem;
+    font-size: 12px;
     color: var(--muted);
 }
 
@@ -7770,7 +7784,7 @@ pre.diff .del {
 /* Several at once (MultiChoice, PP-281): a box on each, groups by provider, and a foot with Add. */
 .mc-group {
     padding: 0.55rem 0.8rem 0.2rem;
-    font-size: 0.7rem;
+    font-size: 12px;
     color: var(--muted);
     border-bottom: 1px solid var(--line);
 }
@@ -7867,7 +7881,7 @@ pre.diff .del {
     align-items: center;
     gap: 6px;
     margin-top: 4px;
-    font-size: 0.72rem;
+    font-size: 12px;
     color: var(--muted);
     min-width: 0;
 }
@@ -7967,7 +7981,7 @@ pre.diff .del {
     gap: 0.6rem;
     padding: 0.55rem 0.8rem;
     border-bottom: 1px solid var(--line);
-    font-size: 0.82rem;
+    font-size: 12px;
     font-weight: 600;
     color: var(--text);
 }
@@ -7976,7 +7990,7 @@ pre.diff .del {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    font-size: 0.75rem;
+    font-size: 12px;
     font-weight: 400;
     color: var(--muted);
     transition: color var(--t-hover) var(--ease-out);
@@ -8102,7 +8116,7 @@ pre.diff .del {
 }
 
 .pop-menu-row-sub {
-    font-size: 0.7rem;
+    font-size: 12px;
     color: var(--muted);
 }
 
@@ -8132,7 +8146,7 @@ pre.diff .del {
     justify-content: space-between;
     gap: 0.3rem 0.8rem;
     padding-block: 0.55rem;
-    font-size: 0.75rem;
+    font-size: 12px;
 }
 
 .pop-menu-foot + .pop-menu-default {
@@ -8225,7 +8239,7 @@ pre.diff .del {
 
 .branch-track {
     flex: none;
-    font: 0.7rem var(--mono);
+    font: 12px var(--mono);
     color: var(--muted);
 }
 
@@ -8289,7 +8303,7 @@ pre.diff .del {
 }
 
 .model-menu .pop-menu-row-sub {
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--faint);
 }
 
@@ -8309,7 +8323,7 @@ pre.diff .del {
     display: inline-flex;
     align-items: center;
     margin-left: 4px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 400;
     white-space: nowrap;
 }
@@ -8737,7 +8751,7 @@ pre.diff .del {
 
 .link {
     color: var(--accent);
-    font-size: 0.85rem;
+    font-size: 12px;
 }
 
 .segmented {
@@ -8883,7 +8897,7 @@ pre.diff .del {
     min-width: 0;
     height: 34px;
     padding: 0.3rem 0.5rem;
-    font-size: 0.85rem;
+    font-size: 12px;
 }
 
 .fp-line .icon-button {
@@ -8925,7 +8939,7 @@ pre.diff .del {
     padding: 0.3rem 0.3rem 0.3rem 0.6rem;
     border: 1px solid var(--warn-line);
     background: var(--warn-soft);
-    font-size: 0.82rem;
+    font-size: 12px;
     color: var(--body);
     overflow-wrap: anywhere;
 }
@@ -8971,7 +8985,7 @@ pre.diff .del {
     padding: 0.25rem 0.45rem;
     border-radius: var(--radius);
     text-align: left;
-    font-size: 0.82rem;
+    font-size: 12px;
     color: var(--body);
 }
 
@@ -9006,7 +9020,7 @@ pre.diff .del {
 .fp-key {
     flex: none;
     margin-left: auto;
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--faint);
 }
 
@@ -9021,7 +9035,7 @@ pre.diff .del {
     margin: auto 0.45rem 0.2rem;
     padding-top: 0.6rem;
     text-align: left;
-    font-size: 0.78rem;
+    font-size: 12px;
 }
 
 .fp-list {
@@ -9085,7 +9099,7 @@ pre.diff .del {
 .fp-note {
     margin: 0;
     padding: 0.8rem;
-    font-size: 0.82rem;
+    font-size: 12px;
     color: var(--muted);
 }
 
@@ -9103,7 +9117,7 @@ pre.diff .del {
     min-width: 0;
     display: flex;
     gap: 0.4rem;
-    font-size: 0.82rem;
+    font-size: 12px;
     white-space: nowrap;
 }
 
@@ -9184,7 +9198,7 @@ pre.diff .del {
     display: flex;
     gap: 0.4rem;
     align-items: center;
-    font-size: 0.82rem;
+    font-size: 12px;
     color: var(--muted);
     margin-bottom: 0.35rem;
 }
@@ -9655,7 +9669,7 @@ pre.diff .del {
     gap: 8px;
     background: var(--card);
     color: var(--faint);
-    font: 11px var(--mono);
+    font: 12px var(--mono);
 }
 
 .artifact-info {
@@ -9947,7 +9961,7 @@ pre.diff .del {
 
 .image-missing {
     display: inline-block;
-    font-size: 0.8rem;
+    font-size: 12px;
     color: var(--muted);
     border: 1px dashed var(--line-strong);
     border-radius: var(--radius);
@@ -10057,7 +10071,7 @@ pre.diff .del {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 0.85rem;
+    font-size: 12px;
     color: var(--text);
 }
 
@@ -10316,7 +10330,7 @@ body.plain-page {
 }
 
 .people-more {
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--muted);
 }
 
@@ -10325,11 +10339,11 @@ body.plain-page {
     place-items: center;
     flex: none;
     background: color-mix(in srgb, var(--who, var(--accent)) 20%, transparent);
-    color: var(--who, var(--accent));
+    color: color-mix(in oklab, var(--who, var(--accent)) var(--tint-ink-share), var(--tint-ink-toward));
     border: 0;
     border-radius: 50%;
     overflow: hidden;
-    font-size: 0.62rem;
+    font-size: 12px;
     font-weight: 600;
     line-height: 1;
     letter-spacing: 0;
@@ -10546,7 +10560,7 @@ body.plain-page {
     flex-direction: column;
     gap: 0.15rem;
     margin: 0.35rem 0;
-    font-size: 0.8rem;
+    font-size: 12px;
 }
 
 .nested-call {
@@ -10849,7 +10863,7 @@ textarea.notes {
 .trust-current {
     flex: none;
     color: var(--accent);
-    font-size: 0.78rem;
+    font-size: 12px;
 }
 
 .trust-actions {
@@ -11016,7 +11030,7 @@ textarea.notes {
     background: var(--card);
     border: 1px solid var(--line);
     border-left: 2px solid var(--accent);
-    font-size: 0.82rem;
+    font-size: 12px;
 }
 
 /* The words that wait keep a readable width: where Approve and Discard would squeeze them, they go below. */
@@ -11256,7 +11270,7 @@ textarea.notes {
     position: absolute;
     bottom: 4px;
     color: var(--faint);
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     white-space: nowrap;
     transform: translateX(-50%);
 }
@@ -11489,7 +11503,7 @@ textarea.notes {
     border: 1px solid var(--hair);
     border-radius: var(--r-tag);
     background: none;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -11586,7 +11600,7 @@ textarea.notes {
     padding: 0;
     border: 0;
     background: none;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -11642,7 +11656,7 @@ textarea.notes {
 }
 
 .launcher-count {
-    font: 400 11px var(--mono);
+    font: 400 12px var(--mono);
 }
 
 .launcher-item {
@@ -11759,7 +11773,7 @@ textarea.notes {
     display: flex;
     gap: 4px;
     align-items: center;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -12002,7 +12016,7 @@ textarea.notes {
 
 .tc-name small {
     font-weight: 400;
-    font-size: 11px;
+    font-size: 12px;
     color: inherit;
     opacity: 0.6;
 }
@@ -12039,7 +12053,7 @@ textarea.notes {
 
 .theme-desktop .tc-note {
     padding: 0 0 0.45rem;
-    font-size: 0.68rem;
+    font-size: 12px;
     color: var(--o-fg);
     opacity: 0.75;
 }
@@ -12152,7 +12166,7 @@ textarea.notes {
 }
 
 .look-name small {
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--faint);
 }
 
@@ -12323,7 +12337,7 @@ textarea.notes {
 
 .people-count {
     flex: 1;
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--faint);
 }
 
@@ -12641,7 +12655,7 @@ textarea.notes {
 .peek-cwd {
     padding-left: 16px;
     color: var(--faint);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 /* The last few lines: a mark for who or what, then the words, two lines at most. */
@@ -12668,7 +12682,7 @@ textarea.notes {
     align-items: center;
     width: 14px;
     height: 18px;
-    font: 600 11px / 18px var(--mono);
+    font: 600 12px / 18px var(--mono);
     color: var(--faint);
 }
 
@@ -12834,7 +12848,7 @@ textarea.notes {
 .agent-tile-state {
     flex: none;
     color: var(--faint);
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.02em;
 }
 
@@ -13245,7 +13259,7 @@ textarea.notes {
     border-radius: var(--r-tag);
     background: var(--warn-soft);
     color: var(--warn);
-    font: 600 10px/1 var(--mono);
+    font: 600 12px/1 var(--mono);
 }
 
 .change-kind.added,
@@ -13315,7 +13329,7 @@ textarea.notes {
     height: 18px;
     padding: 0 6px;
     border-radius: var(--r-tag);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .dv-chip.warn {
@@ -13751,7 +13765,7 @@ textarea.notes {
 
 .dv-note-count {
     margin-left: 2px;
-    font: 11px var(--mono);
+    font: 12px var(--mono);
 }
 
 .dv-chip.ok {
@@ -13765,7 +13779,7 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .dr-path {
@@ -13953,7 +13967,7 @@ textarea.notes {
 }
 
 .dr-tail .dv-counts {
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .dr-files {
@@ -13980,7 +13994,7 @@ textarea.notes {
     gap: 0.4rem;
     padding: 2.5rem 1rem;
     color: var(--ok);
-    font-size: 0.85rem;
+    font-size: 12px;
 }
 
 .dr-clean p {
@@ -13993,7 +14007,7 @@ textarea.notes {
 }
 
 .dr-pionly .list-item {
-    font-size: 0.8rem;
+    font-size: 12px;
 }
 
 /* ─── Files tile ───────────────────────────────────────────── */
@@ -14135,7 +14149,7 @@ textarea.notes {
     border-radius: var(--r-pill);
     background: var(--accent-soft);
     color: var(--accent);
-    font: 600 10px/1 var(--mono);
+    font: 600 12px/1 var(--mono);
 }
 
 .files-body {
@@ -14220,7 +14234,7 @@ textarea.notes {
 .ft-kind {
     margin-left: auto;
     padding-left: 6px;
-    font: 600 10px var(--mono);
+    font: 600 12px var(--mono);
 }
 
 .ft-kind.modified,
@@ -14267,7 +14281,7 @@ textarea.notes {
     margin-left: auto;
     padding-left: 0.6rem;
     color: var(--faint);
-    font-size: 11px;
+    font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     direction: rtl;
@@ -14441,7 +14455,7 @@ textarea.notes {
 
 .browser-bar .badge {
     border-radius: var(--r-pill);
-    font: 600 10px var(--mono);
+    font: 600 12px var(--mono);
 }
 
 .browser-bar .badge.err {
@@ -14855,7 +14869,7 @@ textarea.notes {
     padding: 2px 12px;
     border-bottom: 1px solid var(--hair);
     color: var(--faint);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .browser-foot {
@@ -15902,7 +15916,7 @@ textarea.notes {
     border-radius: var(--r-pill);
     background: var(--accent-fill);
     color: var(--accent-ink);
-    font: 600 10px/1 var(--mono);
+    font: 600 12px/1 var(--mono);
     box-shadow: none;
 }
 
@@ -15996,7 +16010,7 @@ textarea.notes {
     background: var(--panel);
     border: 1px solid var(--line-strong);
     color: var(--muted);
-    font-size: 0.82rem;
+    font-size: 12px;
     box-shadow: 0 6px 20px rgb(0 0 0 / 0.35);
     pointer-events: none;
     opacity: 0;
@@ -16528,7 +16542,7 @@ textarea.notes {
     min-width: 0;
     padding: 0 0.15rem;
     color: var(--muted);
-    font-size: 0.78rem;
+    font-size: 12px;
 }
 
 .pi-folder-head .icon {
@@ -16618,7 +16632,7 @@ textarea.notes {
 
 .pi-session-meta {
     color: var(--muted);
-    font-size: 0.76rem;
+    font-size: 12px;
 }
 
 .pi-tag {
@@ -16626,7 +16640,7 @@ textarea.notes {
     background: var(--accent-soft);
     border-radius: var(--r-pill);
     padding: 0.05rem 0.5rem;
-    font-size: 0.72rem;
+    font-size: 12px;
     white-space: nowrap;
 }
 
@@ -16644,7 +16658,7 @@ textarea.notes {
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    font-size: 0.82rem;
+    font-size: 12px;
 }
 
 .pi-facts > div {
@@ -16680,7 +16694,7 @@ textarea.notes {
     flex-wrap: wrap;
     align-items: baseline;
     gap: 0.3rem 0.6rem;
-    font-size: 0.85rem;
+    font-size: 12px;
 }
 
 .pi-convo {
@@ -16803,7 +16817,7 @@ textarea.notes {
 .agents-more {
     margin-left: 2px;
     color: var(--muted);
-    font-size: 0.7rem;
+    font-size: 12px;
     line-height: 7px;
 }
 
@@ -16920,7 +16934,7 @@ textarea.notes {
 
 .agent-error {
     color: var(--err);
-    font-size: 0.78rem;
+    font-size: 12px;
     overflow-wrap: anywhere;
 }
 
@@ -16946,7 +16960,7 @@ textarea.notes {
 
 .agent-when {
     color: var(--muted);
-    font-size: 0.76rem;
+    font-size: 12px;
     font-variant-numeric: tabular-nums;
 }
 
@@ -16955,7 +16969,7 @@ textarea.notes {
     background: var(--accent-soft);
     border-radius: var(--r-pill);
     padding: 0 0.45rem;
-    font-size: 0.72rem;
+    font-size: 12px;
     white-space: nowrap;
 }
 
@@ -16973,7 +16987,7 @@ textarea.notes {
 
 .agent-asked {
     color: var(--muted);
-    font-size: 0.76rem;
+    font-size: 12px;
 }
 
 .agent-stop {
@@ -17471,7 +17485,7 @@ textarea.notes {
 }
 
 .board-filter-count {
-    font: 400 11px var(--mono);
+    font: 400 12px var(--mono);
     font-variant-numeric: tabular-nums;
     color: var(--muted);
 }
@@ -17502,7 +17516,7 @@ textarea.notes {
 .board-empty {
     padding: 1.2rem 0;
     color: var(--muted);
-    font-size: 0.85rem;
+    font-size: 12px;
 }
 
 /* A session: its title and how its subagents are, a square for each, and a sub-tile for each at work. */
@@ -17626,7 +17640,7 @@ textarea.notes {
     align-self: center;
     margin-left: 3px;
     color: var(--muted);
-    font: 11px var(--mono);
+    font: 12px var(--mono);
 }
 
 .board-cell {
@@ -17960,11 +17974,11 @@ textarea.notes {
 }
 
 .board.phone .board-need-head {
-    font-size: 0.84rem;
+    font-size: 12px;
 }
 
 .board.phone .board-need-session {
-    font-size: 0.7rem;
+    font-size: 12px;
 }
 
 .board.phone .board-row {
@@ -17992,14 +18006,14 @@ textarea.notes {
 }
 
 .board.phone .board-session-name {
-    font-size: 0.84rem;
+    font-size: 12px;
 }
 
 .board.phone .board-summary {
     flex: none;
     margin-left: auto;
     padding-left: 0;
-    font-size: 0.68rem;
+    font-size: 12px;
 }
 
 .board.phone .board-cells {
@@ -18043,12 +18057,12 @@ textarea.notes {
 
 .board-bar .board-detail-state {
     margin-left: 0;
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .board-bar-when {
     margin-left: auto;
-    font-size: 0.72rem;
+    font-size: 12px;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -18066,7 +18080,7 @@ textarea.notes {
 }
 
 .board-bar-session {
-    font-size: 0.74rem;
+    font-size: 12px;
     color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
@@ -18317,7 +18331,7 @@ textarea.notes {
 .pip-status {
     min-width: 0;
     color: var(--muted);
-    font-size: 11px;
+    font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -18329,7 +18343,7 @@ textarea.notes {
     align-items: center;
     gap: 4px;
     margin-right: 4px;
-    font: 11px var(--mono);
+    font: 12px var(--mono);
     color: var(--muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -18427,7 +18441,7 @@ textarea.notes {
 
 .pip-error {
     color: var(--err);
-    font-size: 0.85rem;
+    font-size: 12px;
 }
 
 /* A report from a session PiP follows: three lines until opened. */
@@ -18915,7 +18929,7 @@ textarea.notes {
 }
 
 .hook-text {
-    font-size: 0.85rem;
+    font-size: 12px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
@@ -18982,7 +18996,7 @@ textarea.notes {
 
 .gallery-row-name {
     color: var(--muted);
-    font-size: 0.76rem;
+    font-size: 12px;
     overflow-wrap: anywhere;
 }
 
@@ -19000,7 +19014,7 @@ textarea.notes {
     flex-wrap: wrap;
     gap: 0.1rem 0.55rem;
     color: var(--muted);
-    font-size: 0.76rem;
+    font-size: 12px;
     overflow-wrap: anywhere;
 }
 
@@ -19133,7 +19147,7 @@ textarea.notes {
 }
 
 .gallery-declares dd.mono {
-    font-size: 0.78rem;
+    font-size: 12px;
 }
 
 .gallery-file {
@@ -19337,7 +19351,7 @@ pre.gallery-code {
 .ssh-public-key {
     margin: 6px 0 0;
     padding: 8px 10px;
-    font: 11px/1.4 var(--mono);
+    font: 12px/1.4 var(--mono);
     white-space: pre-wrap;
     word-break: break-all;
     background: var(--code-bg);
@@ -19709,7 +19723,7 @@ pre.gallery-code {
 .scope-sec {
     padding: 8px 10px 3px;
     color: var(--faint);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .scope-sec:empty {
@@ -19796,7 +19810,7 @@ pre.gallery-code {
 
 .session-ref {
     flex: none;
-    font: 600 11px var(--mono);
+    font: 600 12px var(--mono);
     color: var(--accent);
 }
 
@@ -20076,7 +20090,7 @@ pre.gallery-code {
     border-radius: 999px;
     background: var(--hover);
     color: var(--muted);
-    font-size: 11px;
+    font-size: 12px;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
@@ -20351,7 +20365,7 @@ pre.gallery-code {
     border-radius: var(--r-tag);
     background: var(--accent-soft);
     color: var(--accent);
-    font: 600 11px var(--mono);
+    font: 600 12px var(--mono);
 }
 
 /* A bare sheet (an extension's task sheet): no title bar, only the grip on a phone; what is in it fills the body edge to
@@ -20724,7 +20738,7 @@ pre.gallery-code {
     border-radius: var(--r-tag);
     background: var(--accent-fill);
     color: var(--accent-ink);
-    font: 600 11px / 1.4 var(--sans);
+    font: 600 12px / 1.4 var(--sans);
     white-space: nowrap;
 }
 
@@ -20990,7 +21004,7 @@ pre.gallery-code {
     border: 1px solid var(--accent-line);
     border-radius: 999px;
     color: var(--accent);
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     vertical-align: 2px;

@@ -222,8 +222,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
 - **StateTag** (`web/ui.js`, PP-330; also to extensions as `pocket.StateTag`): a thing's state at the end of its title
   line as a word and a small dot in the theme's green, yellow, red or muted ("Connected", "Ready", "Needs sign-in",
   "On"), never a ✓ or ⚠ dingbat. pi-phone's own screens had unslop's pass (PP-328, the owner's OK on the mockups of
-  2026-11-02); `test/unslop-ui.test.ts` holds them to it. Its rules for `web/style.css`: whole-pixel type sizes (11, 12,
-  13, 14, 16, 20, 24; a few 10 and 15 in tight places), weights 400 to 600, section labels in sentence case without
+  2026-11-02); `test/unslop-ui.test.ts` holds them to it. Its rules for `web/style.css`: whole-pixel type sizes, 12 px at the
+  least (PP-399: the 8 to 11 px and under-0.86rem sizes went to 12; the subagents board's 8 px state squares keep
+  theirs; avatars under 24 px show one initial) and then 13, 14, 16, 20, 24, a few 15 in tight places; contrast by
+  token (PP-399, the owner's rule): words at 4.5:1 or more, hints (counts, times, keys) at 3:1 or more, with every
+  palette that comes with the app on the ground, cards, raised segments and selected rows: `--muted` is the body 88 %
+  toward the ground (92 % light), `--faint` 66 % (75 % light), a light palette's `--accent` and code colors 78 % and 66 %
+  toward black (its fills keep the palette's accent), and words in a color on its own tint (initials, a board column's
+  count) mix `--tint-ink-share` toward `--tint-ink-toward`; `test/theme-contrast.test.ts` computes them for every
+  palette. Weights 400 to 600, section labels in sentence case without
   letter spacing, counts as a plain number after the label ("Settled 50"), paddings, margins and gaps on the 4 px grid
   (2 px steps and 1 to 3 px nudges inside small controls), icons at 12, 14 or 16 px (19 and up only in the rail and
   empty states), no hue gradients. Icons are line icons from `ICONS` (`Icon`, or `iconElement` for Markdown built

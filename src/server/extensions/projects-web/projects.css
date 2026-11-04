@@ -92,7 +92,7 @@
     border-radius: var(--r-tag);
     background: var(--accent-soft);
     color: var(--accent);
-    font: 600 11px var(--mono);
+    font: 600 12px var(--mono);
 }
 
 .pj-menu {
@@ -183,10 +183,11 @@
     color: var(--text);
 }
 
+/* The board's sum ("5 tasks · 0 done"): words, so muted rather than faint (PP-399). */
 .pj-chip.quiet {
     border-color: transparent;
     background: none;
-    color: var(--faint);
+    color: var(--muted);
 }
 
 /* ─── The board ─── */
@@ -251,7 +252,7 @@
 
 .pj-col-label {
     color: var(--text);
-    font: 600 11.5px var(--mono);
+    font: 600 12px var(--mono);
     letter-spacing: 0.14em;
     text-transform: uppercase;
     white-space: nowrap;
@@ -266,8 +267,8 @@
     padding: 0 6px;
     border-radius: 3px;
     background: color-mix(in srgb, var(--tone) 16%, transparent);
-    color: var(--tone);
-    font-size: 11px;
+    color: color-mix(in oklab, var(--tone) var(--tint-ink-share), var(--tint-ink-toward));
+    font-size: 12px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
@@ -279,7 +280,7 @@
 
 .pj-wip {
     color: var(--faint);
-    font-size: 11px;
+    font-size: 12px;
     font-variant-numeric: tabular-nums;
 }
 
@@ -464,7 +465,7 @@
     border-radius: 3px;
     background: color-mix(in srgb, var(--tt) 14%, transparent);
     color: var(--tt);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
 }
 
@@ -518,7 +519,7 @@
     border-radius: 3px;
     background: var(--err);
     color: var(--bg);
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 800;
     line-height: 13px;
     text-align: center;
@@ -545,7 +546,7 @@
     border-radius: 3px;
     background: color-mix(in srgb, var(--body) 7%, transparent);
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .pj-parent span {
@@ -556,12 +557,12 @@
 
 .pj-waiting {
     color: var(--warn);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .pj-blocked {
     color: var(--err);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .pj-prog {
@@ -569,7 +570,7 @@
     align-items: center;
     gap: 8px;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 12px;
     font-variant-numeric: tabular-nums;
 }
 
@@ -595,12 +596,12 @@
     padding: 8px 11px;
     border-top: 1px solid var(--kline);
     color: var(--faint);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .pj-id {
     color: var(--faint);
-    font: 11.5px var(--mono);
+    font: 12px var(--mono);
 }
 
 /* The due day, after a small clock (a line icon). */
@@ -627,7 +628,7 @@
     border-radius: 50%;
     background: var(--o-orange);
     color: var(--bg);
-    font-size: 9.5px;
+    font-size: 12px;
     font-weight: 600;
 }
 
@@ -899,7 +900,7 @@
     align-items: center;
     gap: 5px;
     color: var(--o-cyan);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .pj-running i {
@@ -1123,7 +1124,7 @@
 
 .pt-menu-label {
     padding: 8px 10px 4px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -1363,7 +1364,7 @@
     padding: 10px;
     border-radius: var(--r-row);
     background: var(--bg);
-    font: 11.5px / 1.5 var(--mono);
+    font: 12px / 1.5 var(--mono);
     color: var(--body);
 }
 
@@ -1840,7 +1841,7 @@ button.pt-chip:hover {
     width: 22px;
     height: 22px;
     margin-top: 1px;
-    font-size: 9.5px;
+    font-size: 12px;
     box-shadow: 0 0 0 3px var(--bg);
     flex: none;
 }
@@ -2016,7 +2017,7 @@ button.pt-chip:hover {
 }
 
 .pv-ref {
-    font: 600 11.5px var(--mono);
+    font: 600 12px var(--mono);
     color: var(--faint);
 }
 
@@ -2030,7 +2031,7 @@ button.pt-chip:hover {
     padding: 0 6px;
     border-radius: var(--r-tag);
     background: var(--card-2);
-    font-size: 11px;
+    font-size: 12px;
     line-height: 18px;
     color: var(--muted);
 }
@@ -2052,7 +2053,7 @@ button.pt-chip:hover {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--faint);
     font-variant-numeric: tabular-nums;
 }
@@ -2078,7 +2079,7 @@ button.pt-chip:hover {
     padding: 1px 8px;
     border-radius: 999px;
     box-shadow: inset 0 0 0 1px var(--hair-2);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text);
     white-space: nowrap;
 }
@@ -2137,7 +2138,7 @@ i.live {
     border-bottom: 1px solid var(--hair);
     background: var(--bg);
     text-align: left;
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--faint);
     white-space: nowrap;
@@ -2190,7 +2191,7 @@ i.live {
 }
 
 .pv-blocked {
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--err);
 }
@@ -2301,7 +2302,7 @@ i.live {
     align-items: flex-end;
     padding: 0 12px 6px;
     background: var(--bg);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -2380,7 +2381,7 @@ i.live {
     padding-bottom: 5px;
     border-left: 1px solid transparent;
     text-align: center;
-    font-size: 10.5px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -2389,7 +2390,7 @@ i.live {
 }
 
 .pv-tl-day b {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--muted);
 }
@@ -2406,7 +2407,7 @@ i.live {
     flex: none;
     padding-top: 4px;
     border-left: 1px solid var(--hair);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--muted);
     white-space: nowrap;
@@ -2460,7 +2461,7 @@ i.live {
     border: 1px solid color-mix(in srgb, var(--tone) 55%, transparent);
     border-radius: 6px;
     background: color-mix(in srgb, var(--tone) 18%, var(--bg));
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text);
     white-space: nowrap;
 }
@@ -2513,7 +2514,7 @@ i.live {
 .pv-wd {
     padding: 6px 8px;
     background: var(--card);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--faint);
 }
 
@@ -2543,7 +2544,7 @@ i.live {
 .pv-d {
     align-self: flex-start;
     padding: 1px 5px;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--muted);
 }
 
@@ -2563,7 +2564,7 @@ i.live {
     border-radius: 5px;
     background: var(--card-2);
     box-shadow: inset 3px 0 0 var(--tone);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text);
     text-align: left;
     white-space: nowrap;
@@ -2595,7 +2596,7 @@ i.live {
 
 .pv-more {
     padding: 0 6px;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--muted);
     text-align: left;
 }
@@ -2688,7 +2689,7 @@ i.live {
     .pv-mini-wd {
         padding-bottom: 4px;
         text-align: center;
-        font-size: 11px;
+        font-size: 12px;
         color: var(--faint);
     }
 
@@ -2808,7 +2809,7 @@ i.live {
 /* The team server (PP-43): headings in the board picker (Mine, Team, Shared with me), and a board's Wiki view. */
 .pj-menu-h {
     padding: 8px 12px 4px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;

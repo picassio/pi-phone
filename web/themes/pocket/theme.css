@@ -49,8 +49,10 @@
     /* Text */
     /* --text: var(--o-fg-bright); */
     /* --body: var(--o-fg); */
-    /* --muted: color-mix(in oklab, var(--body) 76%, var(--bg)); */
-    /* --faint: color-mix(in oklab, var(--body) 42%, var(--bg)); */
+    /* --muted: color-mix(in oklab, var(--body) 88%, var(--bg)); */
+    /* --faint: color-mix(in oklab, var(--body) 66%, var(--bg)); */
+    /* --tint-ink-share: 55%; */
+    /* --tint-ink-toward: #fff; */
 
     /* Accent and status */
     /* --accent: var(--o-accent); */
@@ -140,19 +142,22 @@
     /* --accent-ink: #fff; */
     /* --scrim: color-mix(in srgb, var(--desk) 55%, transparent); */
     /* --line: color-mix(in srgb, var(--body) 15%, var(--bg)); */
-    /* --muted: color-mix(in oklab, var(--body) 87%, var(--bg)); */
-    /* --faint: color-mix(in oklab, var(--body) 58%, var(--bg)); */
+    /* --muted: color-mix(in oklab, var(--body) 92%, var(--bg)); */
+    /* --faint: color-mix(in oklab, var(--body) 75%, var(--bg)); */
+    /* --tint-ink-share: 62%; */
+    /* --tint-ink-toward: #000; */
     /* --warn: color-mix(in oklab, var(--o-yellow) 62%, var(--o-fg)); */
     /* --ok: color-mix(in oklab, var(--o-green) 78%, var(--o-fg)); */
     /* --err: color-mix(in oklab, var(--o-red) 85%, var(--o-fg)); */
-    /* --accent-fill: color-mix(in oklab, var(--accent) 76%, var(--body)); */
-    /* --hl-kw: color-mix(in oklab, var(--o-magenta) 50%, var(--o-fg)); */
-    /* --hl-str: color-mix(in oklab, var(--o-green) 50%, var(--o-fg)); */
-    /* --hl-num: color-mix(in oklab, var(--o-orange) 50%, var(--o-fg)); */
-    /* --hl-fn: color-mix(in oklab, var(--o-blue) 50%, var(--o-fg)); */
-    /* --hl-type: color-mix(in oklab, var(--o-yellow) 40%, var(--o-fg)); */
-    /* --hl-op: color-mix(in oklab, var(--o-cyan) 50%, var(--o-fg)); */
-    /* --hl-tag: color-mix(in oklab, var(--o-red) 50%, var(--o-fg)); */
+    /* --accent: color-mix(in oklab, var(--o-accent) 78%, #000); */
+    /* --accent-fill: color-mix(in oklab, var(--o-accent) 76%, var(--body)); */
+    /* --hl-kw: color-mix(in oklab, var(--o-magenta) 66%, #000); */
+    /* --hl-str: color-mix(in oklab, var(--o-green) 66%, #000); */
+    /* --hl-num: color-mix(in oklab, var(--o-orange) 66%, #000); */
+    /* --hl-fn: color-mix(in oklab, var(--o-blue) 66%, #000); */
+    /* --hl-type: color-mix(in oklab, var(--o-yellow) 66%, #000); */
+    /* --hl-op: color-mix(in oklab, var(--o-cyan) 66%, #000); */
+    /* --hl-tag: color-mix(in oklab, var(--o-red) 66%, #000); */
 }
 
 /*

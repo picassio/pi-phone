@@ -48,6 +48,8 @@ export const TOKENS = [
     "--body",
     "--muted",
     "--faint",
+    "--tint-ink-share",
+    "--tint-ink-toward",
     // Accent and status
     "--accent",
     "--accent-ink",

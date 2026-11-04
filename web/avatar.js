@@ -106,7 +106,7 @@ export function Avatar({ person, size = 24 }) {
           : person.name;
 
     const src = avatarSrc(person);
-    // Initials grow with a big avatar; small ones keep the stylesheet's size.
+    // Initials grow with a big avatar; small ones keep the stylesheet's size (12 px, PP-399), one letter under 24 px.
     const font = size > 30 ? `;font-size:${Math.round(size * 0.4)}px` : "";
 
     return html`<span
@@ -114,6 +114,6 @@ export function Avatar({ person, size = 24 }) {
         style=${`--who:${personColor(person.id)};width:${size}px;height:${size}px${font}`}
         title=${title}
     >
-        ${src ? html`<img class="avatar-img" src=${src} alt="" />` : initials(person.name)}
+        ${src ? html`<img class="avatar-img" src=${src} alt="" />` : size < 24 ? initials(person.name).slice(0, 1) : initials(person.name)}
     </span>`;
 }
