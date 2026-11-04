@@ -1504,6 +1504,11 @@ export class PocketApp {
             phone: this.phoneControl,
             computer: this.computerControl,
             rootOf: (conversationId) => Number(this.rootOf(conversationId as unknown as ConversationId)),
+            parentOf: (conversationId) => {
+                const parent = this.parentOf(conversationId as unknown as ConversationId);
+
+                return parent === undefined ? undefined : Number(parent);
+            },
             web: this.web,
             images: this.images,
             videos: this.videos,

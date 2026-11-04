@@ -196,7 +196,8 @@ dự án thật.</sub>
   nghị lại. Mục "Bảng cho phiên này" trong menu phiên bật hoặc tắt chế độ bảng, và đặt ai chuyển tác vụ sang Xong ở đó
   (bạn trên bảng, Pi sau khi bạn duyệt trong cuộc trò chuyện, hoặc Pi sau khi tự xác nhận công việc: chạy thật và đo
   đạc) cùng quy tắc bảng (theo dự án, Đầy đủ, hoặc Nhẹ; mỗi dự án cũng có Đầy đủ hoặc Nhẹ; `board_settings` và
-  `project_update` cho Pi). Liên kết `#task:PP-3` mở một tác vụ ở bất cứ đâu. **Một nhóm agent cho mỗi dự án:** phiên
+  `project_update` cho Pi). Subagent của một phiên đang dùng bảng cũng làm việc trên bảng đó với cùng thiết lập. Liên
+  kết `#task:PP-3` mở một tác vụ ở bất cứ đâu. **Một nhóm agent cho mỗi dự án:** phiên
   chính của nó dẫn dắt (lên kế hoạch, hỏi trước khi chạy tác vụ, xem xét, không bao giờ viết mã); một tác vụ giao cho Pi
   chạy trong phiên tác vụ riêng, trong git worktree trên `task/PP-12`, tại nơi (điện thoại hoặc một máy) còn chỗ, nhiều
   nhất bao nhiêu cùng lúc tùy mỗi nơi cho phép. Khi xong, nó báo về phiên chính, và về phiên đã chạy nó nếu đó là phiên khác; bạn xem diff của nhánh và gộp nó từ tác

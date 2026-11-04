@@ -253,6 +253,7 @@
     "Board mode is off in this session: ask the person first with board_mode.": "Chế độ bảng đang tắt trong phiên này: hãy hỏi người dùng trước bằng board_mode.",
     "The person turned board mode off in this session: work without the board.": "Người dùng đã tắt chế độ bảng trong phiên này: hãy làm việc không cần bảng.",
     "Say which project (its key): this session has none of its own.": "Nêu dự án nào (mã của nó): phiên này không có dự án riêng.",
+    "This subagent follows the board mode of session #{1}: its settings are changed there.": "Subagent này theo chế độ bảng của phiên #{1}: thiết lập của nó được đổi ở đó.",
     "There is no project {1}: give a name to make it, or pick one from project_list.": "Không có dự án {1}: đưa tên để tạo, hoặc chọn từ project_list.",
     "A project's key is 2 to 6 letters or digits.": "Mã dự án gồm 2 đến 6 chữ hoặc số.",
     "Give the project a name, up to 80 characters.": "Đặt tên dự án, tối đa 80 ký tự.",

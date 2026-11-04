@@ -605,6 +605,8 @@ export interface PocketHost {
     readonly computer: ComputerControl;
     /** The session a conversation belongs to: itself, or a subagent's session. */
     rootOf(conversationId: number): number;
+    /** The conversation that spawned a subagent's; undefined for any other conversation. */
+    parentOf(conversationId: number): number | undefined;
     /** Image generation (`image-gen.ts`, PP-275): its providers and models, as Settings › Images has them. */
     readonly images: ImageGen;
     /** Videos through OpenRouter (PP-297): the models that watch them, and asking one. */

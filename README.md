@@ -184,7 +184,8 @@ No Termux, no laptop, no cloud VM.
   merge is kept on the run (who, when, the commit), so a merged branch is not offered again.
   The session menu's "Board for this session" turns board mode on or off, and sets who moves tasks to Done there (you on the
   board, Pi once you approve in chat, or Pi once it verified the work itself: live and measured) and its board rules (the project's, Full, or Light; each project has Full or
-  Light too; `board_settings` and `project_update` for Pi). `#task:PP-3` links open a task anywhere.
+  Light too; `board_settings` and `project_update` for Pi). Subagents of a session on a board work on that board with
+  its settings. `#task:PP-3` links open a task anywhere.
   **An agent team per project:** its main session leads (plans, asks before a task runs, reviews, never writes code);
   a task given to Pi runs in a task session of its own, in a git worktree on `task/PP-12`, at the place (the phone or a
   machine) with room, as many at once as each place allows. Its end is reported to the main session, and to the session

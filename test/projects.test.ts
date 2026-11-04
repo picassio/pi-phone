@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { SubagentsDoc } from "../src/server/docs.ts";
 import { createHandler } from "../src/server/http.ts";
 import { type Actor, type Person, Projects } from "../src/server/projects.ts";
 import { ownRequest } from "../src/server/requests.ts";
@@ -242,16 +243,25 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "stop the board": ["board_mode", { project: "PP", reason: "Done with it", off: true }],
     "make a board": ["project_create", { key: "ab", name: "Agent board", reason: "Track the agent work" }],
     "make PP again": ["project_create", { key: "PP", name: "Again" }],
+    "reprioritise it": ["task_update", { task: "PP-1", priority: 2 }],
+    "start a board helper": ["subagent", { action: "spawn", name: "boarder", message: "as a helper, reprioritise it" }],
+    "send the board helper": ["subagent", { action: "send", name: "boarder", message: "as a helper, add a task" }],
 };
 let prompt = "";
+/** The projects section of the newest request a subagent made for a message that starts "as a helper". */
+let helperPrompt = "";
 const route: FauxResponseStep = (request) => {
+    const { role, text } = lastText(request as never);
+
     for (const message of (request as { messages: { role: string; sections?: Record<string, string | null> }[] }).messages) {
         if (message.role === "system" && message.sections?.projects !== undefined) {
             prompt = message.sections.projects ?? "";
+
+            if (role === "user" && text.startsWith("as a helper")) {
+                helperPrompt = prompt;
+            }
         }
     }
-
-    const { role, text } = lastText(request as never);
 
     for (const [ask, [tool, args]] of Object.entries(calls)) {
         if (role === "user" && text.endsWith(ask)) {
@@ -404,6 +414,27 @@ test("Pi sets a project up with its tools: its folder and places, its main sessi
     const detail = (await (await call(app.config.ownerToken, "GET", "tasks/PP-2")).json()) as { sessions: { conversationId: string; role: string }[] };
 
     assert.ok(detail.sessions.some((each) => each.conversationId === String(id) && each.role === "linked"));
+});
+
+test("a subagent works on its parent session's board; its own off still wins (PP-397)", async () => {
+    const id = await newSession(app);
+
+    await call(app.config.ownerToken, "PUT", `board-mode/${String(id)}`, { on: true, project: "PP" });
+    await turn(id, "start a board helper");
+    const helper = (await app.harness.snapshot(SubagentsDoc, id, context))!.agents.boarder!.conversationId;
+    const said = async () => (await modelTexts(app, helper)).filter((text) => text.includes("tool said: "));
+
+    await until(async () => (await said()).length === 1, "the helper's task_update");
+    assert.match((await said())[0]!, /tool said: PP-1 is In Progress\./, "no board mode of its own: it follows its parent's");
+    assert.match(helperPrompt, new RegExp(`Board mode is on in this session \\(as in session #${String(id)}, which this subagent works for\\), with project PP · pi-phone: track this work on the board`));
+    assert.match(helperPrompt, /blocked_reason/, "with the board's rules");
+
+    // Turned off in the subagent itself, it stays off there, whatever its parent's.
+    assert.equal((await call(app.config.ownerToken, "PUT", `board-mode/${String(helper)}`, { on: false, project: "PP" })).status, 200);
+    await turn(id, "send the board helper");
+    await until(async () => (await said()).length === 2, "the helper's task_create");
+    assert.match((await said())[1]!, /The person turned board mode off in this session: work without the board/);
+    assert.match(helperPrompt, /Projects: the person said no to a board in this session\. Work without it/, "its own no, not its parent's");
 });
 
 test("Pi makes a board from any session, only after the person says yes; a taken key is refused before asking", async () => {

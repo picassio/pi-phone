@@ -16,6 +16,7 @@ import { LEAD_RULES, Team, taskRules } from "../project-runs.ts";
 import {
     type Actor,
     BOARD_RULE_LEVELS,
+    type BoardMode,
     type BoardRules,
     type BoardTask,
     CLOSERS,
@@ -516,6 +517,27 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
 
     // ---- Tools ---------------------------------------------------------------------------------------------------
 
+    /**
+     * A session's board mode as Pi works with it: its own, or, where nobody decided there (a subagent's conversation),
+     * its parent's, up the chain of subagents (PP-397). `from` is the session whose mode it is.
+     */
+    const boardModeOf = (conversationId: string): { mode: BoardMode; from: string } | undefined => {
+        let current: string | undefined = conversationId;
+
+        for (let depth = 0; depth < 32 && current !== undefined; depth++) {
+            const mode = projects.boardMode(current);
+
+            if (mode !== undefined) {
+                return { mode, from: current };
+            }
+
+            const parent = host.parentOf(Number(current));
+
+            current = parent === undefined ? undefined : String(parent);
+        }
+
+        return undefined;
+    };
     /** Pi, working for the person whose message led to this work in this session. */
     const piOf = (conversationId: string): Actor => {
         // Conversation ids are numbers to the app; the board keeps them as text.
@@ -527,11 +549,11 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         }
 
         // Who closes tasks Pi worked on, as this session's board mode says: the board's rules need it wherever it lives.
-        return { kind: "pi", person, conversationId, closer: projects.boardMode(conversationId)?.closer ?? "person" };
+        return { kind: "pi", person, conversationId, closer: boardModeOf(conversationId)?.mode.closer ?? "person" };
     };
-    /** Board tools work only where the person said yes. */
+    /** Board tools work only where the person said yes (here, or in the session a subagent works for). */
     const onBoard = (conversationId: string): { actor: Actor; project: string | null } => {
-        const mode = projects.boardMode(conversationId);
+        const mode = boardModeOf(conversationId)?.mode;
 
         if (mode?.on !== true) {
             throw new HttpError(
@@ -669,7 +691,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                 off: opt(bool({ description: "Turn board mode off here instead" })),
             }, { open: true }),
             async (args, conversationId, api, context) => {
-                const mode = projects.boardMode(conversationId);
+                const mode = boardModeOf(conversationId)?.mode;
 
                 if (args.off === true) {
                     if (mode?.on !== true) {
@@ -753,10 +775,14 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             }, { open: true }),
             async (args, conversationId, api, context) => {
                 const { actor } = onBoard(conversationId);
-                const mode = projects.boardMode(conversationId)!;
+                const { mode, from } = boardModeOf(conversationId)!;
 
                 if (args.closer === undefined && args.rules === undefined) {
-                    return `Here: ${mode.closer === "verified" ? "you move tasks to done once you verified them" : mode.closer === "pi" ? "you move tasks to done once the person approves in chat" : "a person moves tasks to done"}; ${mode.rules ?? `the project's (${mode.project?.rules ?? "full"})`} board rules.`;
+                    return `Here: ${mode.closer === "verified" ? "you move tasks to done once you verified them" : mode.closer === "pi" ? "you move tasks to done once the person approves in chat" : "a person moves tasks to done"}; ${mode.rules ?? `the project's (${mode.project?.rules ?? "full"})`} board rules${from === conversationId ? "" : ` (as session #${from}, which this subagent works for)`}.`;
+                }
+
+                if (from !== conversationId) {
+                    throw new HttpError(409, `This subagent follows the board mode of session #${from}: its settings are changed there.`);
                 }
 
                 const said = [
@@ -801,7 +827,7 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
             obj({}, { open: true }),
             async (_args, conversationId) => {
                 const list = await boards.list(piOf(conversationId));
-                const mode = projects.boardMode(conversationId);
+                const mode = boardModeOf(conversationId)?.mode;
                 const said =
                     mode?.on === true
                         ? `Board mode is on here${mode.project === null ? "" : `, with ${mode.project.key}`}.`
@@ -1305,14 +1331,16 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
                     return `${taskRules(found.task, run)}\n${boardRules(found.project.rules, "person")}`;
                 }
 
-                const mode = projects.boardMode(id);
+                const decided = boardModeOf(id);
+                const mode = decided?.mode;
+                const follows = decided === undefined || decided.from === id ? "" : ` (as in session #${decided.from}, which this subagent works for)`;
 
                 if (mode?.on === true) {
-                    return `Board mode is on in this session${mode.project === null ? "" : `, with project ${mode.project.key} · ${mode.project.name}`}: track this work on the board.\n${boardRules(mode.rules ?? mode.project?.rules ?? "full", mode.closer)}${mode.project === null ? "" : await wikiIndex(mode.project.key, id)}`;
+                    return `Board mode is on in this session${follows}${mode.project === null ? "" : `, with project ${mode.project.key} · ${mode.project.name}`}: track this work on the board.\n${boardRules(mode.rules ?? mode.project?.rules ?? "full", mode.closer)}${mode.project === null ? "" : await wikiIndex(mode.project.key, id)}`;
                 }
 
                 if (mode !== undefined) {
-                    return "Projects: the person said no to a board in this session. Work without it; ask again with board_mode only when they ask for a board (they can also turn it on from the session menu).";
+                    return `Projects: the person said no to a board in this session${follows}. Work without it; ask again with board_mode only when they ask for a board (they can also turn it on from the session menu).`;
                 }
 
                 return "Projects: the person keeps project boards (project_list). When work here has several parts worth tracking, or they ask you to track or remember something, ask once with board_mode before using any board tool. Do not ask for one-off questions or small changes.";

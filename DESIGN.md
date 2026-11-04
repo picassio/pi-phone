@@ -2240,7 +2240,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **Board mode**: Pi uses a board only in sessions where the person said yes. `board_mode` asks once on an inline
     card (an approval with `tool: "board_mode"`, drawn by `BoardModeCard`); a no is kept and Pi does not ask again;
     `PUT /api/x/projects/board-mode/<session>` is the session's switch. Every other board tool except
-    `project_list` refuses while it is off. Pi acts as the person it works for (`requesterOf`). Its rules
+    `project_list` refuses while it is off. A subagent's conversation where nobody decided (no row of its own) follows
+    its parent's board mode, up the chain (`host.parentOf`; PP-397): the same project, closer and rules, in the tools
+    and in the prompt section, which names the session it follows; its own on or off still wins, and `board_settings`
+    changes are refused there (they are the parent session's). Pi acts as the person it works for (`requesterOf`). Its rules
     (`boardRules`, full or light) include reading a task's state on the board before telling the person what is left
     or waits for them, never from the wiki or memory, and fixing a note that differs (the owner, 2026-11-01: an old note
     had Pi remind him of tasks he had done), and pstack interrogate's rule (PP-316): a finding (a bug, a broken rule, a

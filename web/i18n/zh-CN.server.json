@@ -447,6 +447,7 @@
     "Send on (true or false), and the project's key.": "请提供 on（true 或 false）和项目的键。",
     "Nobody asked for this work, so there is nobody to act for on the board.": "没有人要求这项工作，因此在看板上无法代表任何人操作。",
     "Say which project (its key): this session has none of its own.": "请指明哪个项目（其键）：此会话没有自己的项目。",
+    "This subagent follows the board mode of session #{1}: its settings are changed there.": "此子智能体沿用会话 #{1} 的看板模式：其设置在那里更改。",
     "There is no project {1}: give a name to make it, or pick one from project_list.": "没有项目 {1}：请提供名称来创建它，或从 project_list 中选择一个。",
     "A project's key is 2 to 6 letters or digits.": "项目的键为 2 到 6 个字母或数字。",
     "Give the project a name, up to 80 characters.": "请为项目命名，最多 80 个字符。",
