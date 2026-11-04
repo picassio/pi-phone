@@ -232,7 +232,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   count) mix `--tint-ink-share` toward `--tint-ink-toward`; `test/theme-contrast.test.ts` computes them for every
   palette. Taps (PP-400): `.button` and a dropdown (`.choice`) are 40 px tall, a small button 40 on touch; a smaller
   control that keeps its look (a chip, New, the composer's icons, a list's head) takes a 40 px tap through a
-  `::before` layer on `(pointer: coarse)`, kept inside a scrolling row's padding, which would clip it. Weights 400 to 600, section labels in sentence case without
+  `::before` layer on `(pointer: coarse)`, kept inside a scrolling row's padding, which would clip it. The grid
+  (PP-401): padding, gaps, corners and sizes from 12 px up in whole pixels on the 4 px grid, a value halfway between
+  two going to the one on the 8 px grid (6 and 10 to 8, 14 and 18 to 16); rem paddings as pixels; corners from the
+  `--r-*` tokens (2, 4, 8, 8, 12, 12, 16, 20, 24), never a token plus or minus a pixel; rows' lines in whole pixels
+  (a session row 52, the title 48, a sheet's list row 44, its separator drawn as an inset shadow, not a border).
+  Blocks as tall as their words (a message, the message box, a task's card) grow by their text's line height. Weights 400 to 600, section labels in sentence case without
   letter spacing, counts as a plain number after the label ("Settled 50"), paddings, margins and gaps on the 4 px grid
   (2 px steps and 1 to 3 px nudges inside small controls), icons at 12, 14 or 16 px (19 and up only in the rail and
   empty states), no hue gradients. Icons are line icons from `ICONS` (`Icon`, or `iconElement` for Markdown built

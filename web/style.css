@@ -147,16 +147,18 @@
      * Corners, from small to large: state squares; inline code, keys, and small tags; a segment in its track; small
      * buttons and list rows; icon buttons, fields, and segmented tracks; cards and primary buttons; windows, approval
      * cards, and peek tiles; the message box, sheets, and the launcher; PiP. Pills and avatars are round (999px).
+     * On the 4 px grid (PP-401; 2 px for the smallest squares), a segment 4 px inside its track's corner. Corners use
+     * these, never a token plus or minus a pixel.
      */
-    --r-mark: 3px;
-    --r-tag: 5px;
-    --r-seg: 7px;
-    --r-row: 9px;
-    --r-control: 10px;
+    --r-mark: 2px;
+    --r-tag: 4px;
+    --r-seg: 8px;
+    --r-row: 8px;
+    --r-control: 12px;
     --r-card: 12px;
-    --r-window: 14px;
-    --r-sheet: 18px;
-    --r-float: 20px;
+    --r-window: 16px;
+    --r-sheet: 20px;
+    --r-float: 24px;
     --r-pill: 999px;
     /* Fields and plain controls that name no corner of their own. */
     --radius: var(--r-control);
@@ -170,9 +172,9 @@
     --transcript-gutter: 0px;
     /* The timeline in an activity group: where its rule and the centers of its marks are, the marks' size, and the gap
      * from a mark to its words (and to what a step shows under them). */
-    --timeline-x: 22.5px;
-    --step-mark-size: 19px;
-    --step-gap: 10px;
+    --timeline-x: 22px;
+    --step-mark-size: 20px;
+    --step-gap: 8px;
     /* Tiled windows' border, the one in focus, and the ring around that one. */
     --window-border: var(--hair);
     --window-border-active: var(--accent-line);
@@ -301,7 +303,7 @@ select {
     background: var(--card);
     border: 1px solid var(--hair-2);
     border-radius: var(--radius);
-    padding: 0.6rem 0.75rem;
+    padding: 8px 12px;
     width: 100%;
     outline: none;
     color: var(--text);
@@ -384,15 +386,15 @@ a {
 kbd {
     display: inline-grid;
     place-items: center;
-    min-width: 22px;
-    height: 22px;
-    padding: 0 6px;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
     font: 600 12px/1 var(--mono);
     color: var(--text);
     background: var(--card);
     border: 1px solid var(--hair-2);
     border-bottom-width: 2px;
-    border-radius: calc(var(--r-tag) + 1px);
+    border-radius: var(--r-tag);
     vertical-align: middle;
 }
 
@@ -415,7 +417,7 @@ kbd {
 .meter {
     display: inline-flex;
     height: 4px;
-    border-radius: calc(var(--r-mark) - 1px);
+    border-radius: var(--r-mark);
     overflow: hidden;
     background: var(--hair-2);
 }
@@ -448,7 +450,7 @@ kbd {
 .state-tag {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     margin-left: auto;
     font-size: 12px;
     font-weight: 400;
@@ -586,9 +588,9 @@ kbd {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1.1rem;
+    gap: 16px;
     height: 100dvh;
-    padding: 1.5rem;
+    padding: 20px;
     font-family: var(--mono);
     color: var(--muted);
     text-align: center;
@@ -718,8 +720,8 @@ kbd {
 .loader {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
-    padding: 0.6rem 0.1rem;
+    gap: 8px;
+    padding: 8px 1.4000000000000001px;
     font-size: 12px;
     color: var(--muted);
 }
@@ -861,7 +863,7 @@ kbd {
     }
     /* Folded: the rail alone, and the sidebar's border. */
     :root[data-rail="on"] .sidebar {
-        width: 57px;
+        width: 56px;
     }
     :root[data-tiling="on"][data-rail="on"] .sidebar {
         width: calc(56px + 2 * var(--border));
@@ -962,7 +964,7 @@ kbd {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-height: calc(46px + 12px * var(--space-y) + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) 0 0;
     border-bottom: 1px solid var(--hair);
@@ -1099,7 +1101,6 @@ kbd {
     min-width: 120px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
     padding: calc(4px * var(--space-y)) 8px;
     margin-left: 12px;
     border-radius: var(--r-row);
@@ -1123,10 +1124,11 @@ kbd {
     outline-offset: -1px;
 }
 
+/* Whole-pixel lines (PP-401): the title 20, its line under it 20 (24 on touch), so the title is 48 (44 on touch). */
 .title-main {
     font-weight: 600;
     font-size: 15px;
-    line-height: 1.3;
+    line-height: 20px;
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
@@ -1181,7 +1183,7 @@ kbd {
     min-width: 0;
     height: 20px;
     padding: 0 8px;
-    border-radius: calc(var(--r-tag) + 1px);
+    border-radius: var(--r-tag);
     background: var(--card);
     font: 12px / 1 var(--mono);
     color: var(--muted);
@@ -1225,7 +1227,7 @@ kbd {
     max-width: 50%;
     height: 20px;
     padding: 0 8px;
-    border-radius: calc(var(--r-tag) + 1px);
+    border-radius: var(--r-tag);
     background: var(--card);
     font: 12px / 1 var(--mono);
     color: var(--muted);
@@ -1290,7 +1292,7 @@ kbd {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    height: 30px;
+    height: 32px;
     padding: 0 12px;
     border: 1px solid var(--hair);
     border-radius: var(--r-pill);
@@ -1330,7 +1332,7 @@ kbd {
 @media (max-width: 699px) {
     .changes-button {
         height: 28px;
-        padding: 0 10px;
+        padding: 0 8px;
         font-size: 12px;
     }
 }
@@ -1373,8 +1375,8 @@ kbd {
     position: absolute;
     top: 3px;
     right: 2px;
-    min-width: 17px;
-    height: 17px;
+    min-width: 16px;
+    height: 16px;
     border-radius: var(--radius);
     background: var(--accent-fill);
     color: var(--accent-ink);
@@ -1390,7 +1392,7 @@ kbd {
     background: var(--warn);
     color: var(--accent-ink);
     border-radius: var(--radius);
-    min-width: 18px;
+    min-width: 16px;
     display: inline-grid;
     place-items: center;
     font-weight: 600;
@@ -1449,7 +1451,7 @@ kbd {
 
 @media (max-width: 699px) {
     .transcript {
-        padding: calc(18px * var(--space-y)) calc(16px * var(--space-x)) calc(14px * var(--space-y));
+        padding: calc(16px * var(--space-y)) calc(16px * var(--space-x)) calc(16px * var(--space-y));
         padding-inline-start: calc(16px * var(--space-x) + var(--transcript-gutter));
     }
 }
@@ -1462,8 +1464,8 @@ kbd {
 .empty {
     display: grid;
     place-items: center;
-    gap: 0.6rem;
-    padding: 3rem 1rem;
+    gap: 8px;
+    padding: 40px 16px;
     text-align: center;
     color: var(--muted);
 }
@@ -1480,7 +1482,7 @@ kbd {
     color: var(--accent);
     font-size: 13px;
     display: inline-flex;
-    gap: 0.25rem;
+    gap: 4px;
     align-items: center;
 }
 
@@ -1538,7 +1540,7 @@ kbd {
     display: flex;
     flex-direction: column;
     gap: calc(4px * var(--space-y));
-    padding: calc(12px * var(--space-y)) calc(16px * var(--space-x)) calc(14px * var(--space-y));
+    padding: calc(12px * var(--space-y)) calc(16px * var(--space-x)) calc(16px * var(--space-y));
     border: 1px solid var(--hair);
     border-radius: var(--r-window);
     background: var(--card);
@@ -1548,8 +1550,8 @@ kbd {
 
 @media (max-width: 699px) {
     .user-row > .prompt {
-        padding: calc(12px * var(--space-y)) calc(14px * var(--space-x)) calc(13px * var(--space-y));
-        border-radius: calc(var(--r-window) + 2px);
+        padding: calc(12px * var(--space-y)) calc(16px * var(--space-x)) calc(12px * var(--space-y));
+        border-radius: calc(var(--r-window) + 4px);
     }
 }
 
@@ -1579,8 +1581,8 @@ kbd {
     flex: none;
     display: grid;
     place-items: center;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     background: color-mix(in srgb, var(--who) 20%, transparent);
     color: color-mix(in oklab, var(--who) var(--tint-ink-share), var(--tint-ink-toward));
@@ -1600,7 +1602,7 @@ kbd {
 
 .prompt-body {
     min-width: 0;
-    padding-left: 30px;
+    padding-left: 32px;
 }
 
 .user-text {
@@ -1611,7 +1613,7 @@ kbd {
 
 /* Code a person wrote in backticks (PP-351): as Pi's replies show it (`.md code`, `.md pre`). */
 .user-text code {
-    padding: 2px 6px;
+    padding: 2px 8px;
     border-radius: var(--r-tag);
     background: var(--card-2);
     color: var(--text);
@@ -1660,7 +1662,7 @@ kbd {
 .files {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.3rem;
+    gap: 4px;
     margin-top: 0.35rem;
 }
 
@@ -1668,7 +1670,7 @@ kbd {
 .reply {
     display: flex;
     flex-direction: column;
-    gap: calc(10px * var(--space-y));
+    gap: calc(8px * var(--space-y));
     min-width: 0;
     color: var(--body);
 }
@@ -1749,7 +1751,7 @@ kbd {
 }
 
 .md code {
-    padding: 2px 6px;
+    padding: 2px 8px;
     border-radius: var(--r-tag);
     background: var(--card-2);
     color: var(--text);
@@ -1802,7 +1804,7 @@ kbd {
 }
 
 .md table:not(.dv-table) :is(td, th) {
-    padding: 6px 12px;
+    padding: 8px 12px;
     text-align: left;
     /* Words break only when longer than the cell can be, and a cell keeps room for a few words: a crowded table
      * scrolls sideways instead of crushing its columns. */
@@ -1833,7 +1835,7 @@ kbd {
 
 .md blockquote {
     margin: 0.5rem 0;
-    padding-left: 0.8rem;
+    padding-left: 12px;
     border-left: 2px solid var(--hair-2);
     color: var(--muted);
 }
@@ -1852,8 +1854,8 @@ kbd {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 34px;
-    padding: 0 6px 0 14px;
+    height: 32px;
+    padding: 0 8px 0 16px;
     border-bottom: 1px solid var(--hair);
     font-size: 12px;
     color: var(--muted);
@@ -1889,7 +1891,7 @@ kbd {
 
 .md pre {
     margin: 0;
-    padding: 12px 14px;
+    padding: 12px 16px;
     overflow-x: auto;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
@@ -1956,17 +1958,17 @@ kbd {
     flex-wrap: wrap;
     align-items: center;
     gap: 4px;
-    min-height: 26px;
+    min-height: 24px;
     font-size: 13px;
-    line-height: 1.6;
+    line-height: 20px;
 }
 
 .reaction {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    height: 26px;
-    padding: 0 10px;
+    height: 24px;
+    padding: 0 8px;
     border: 1px solid var(--hair-2);
     border-radius: var(--r-pill);
     color: var(--text);
@@ -1997,7 +1999,7 @@ kbd {
     align-items: center;
     gap: 4px;
     flex: none;
-    height: 26px;
+    height: 24px;
     padding: 0 8px;
     border: 0;
     border-radius: var(--r-seg);
@@ -2088,7 +2090,7 @@ kbd {
 .activity-head {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
     /* 40px, 35px, and 30px; a thumb's 34px at least on a touch screen. */
     min-height: calc(22px + 18px * var(--space-y));
@@ -2149,12 +2151,12 @@ kbd {
 /* The timeline: a line per call, each with its mark on a thin rule. */
 .timeline {
     position: relative;
-    padding: calc(6px * var(--space-y)) 0;
+    padding: calc(8px * var(--space-y)) 0;
 }
 
 /* A group that is one thought alone: its words, under the line that names it. */
 .activity-thought {
-    padding: calc(10px * var(--space-y)) calc(12px * var(--space-x)) calc(12px * var(--space-y));
+    padding: calc(8px * var(--space-y)) calc(12px * var(--space-x)) calc(12px * var(--space-y));
 }
 
 /* What a person opened unrolls (`unrolling`, transcript.js); what opens by itself (a session's open groups, a group
@@ -2166,7 +2168,7 @@ kbd {
 .timeline::before {
     content: "";
     position: absolute;
-    left: calc(var(--timeline-x) - 0.5px);
+    left: calc(var(--timeline-x) - 1px);
     top: 20px;
     bottom: 20px;
     width: 1px;
@@ -2190,8 +2192,8 @@ kbd {
     display: flex;
     align-items: center;
     gap: var(--step-gap);
-    min-height: 34px;
-    padding: 0 14px 0 calc(var(--timeline-x) - var(--step-mark-size) / 2);
+    min-height: 32px;
+    padding: 0 16px 0 calc(var(--timeline-x) - var(--step-mark-size) / 2);
     text-align: left;
     transition: background-color var(--t-hover) var(--ease-out);
 }
@@ -2330,8 +2332,8 @@ kbd {
 .step-decision {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 0 14px 6px calc(var(--timeline-x) + var(--step-mark-size) / 2 + var(--step-gap));
+    gap: 8px;
+    padding: 0 16px 8px calc(var(--timeline-x) + var(--step-mark-size) / 2 + var(--step-gap));
     font-size: 12px;
     color: var(--muted);
 }
@@ -2373,7 +2375,7 @@ kbd {
 .thought-body {
     max-height: 50vh;
     overflow: auto;
-    padding: 10px 12px;
+    padding: 8px 12px;
     border: 1px solid var(--hair);
     border-radius: var(--r-control);
     background: var(--code-bg);
@@ -2410,7 +2412,7 @@ pre.output,
 pre.cmd,
 pre.diff {
     margin: 0;
-    padding: 10px 12px;
+    padding: 8px 12px;
     max-height: 45vh;
     overflow: auto;
     border: 1px solid var(--hair);
@@ -2446,7 +2448,7 @@ pre.diff .del {
 .artifact-link {
     align-self: flex-start;
     max-width: 100%;
-    min-height: 30px;
+    min-height: 32px;
     padding: 0 8px;
     margin-left: -8px;
     border-radius: var(--r-seg);
@@ -2563,7 +2565,7 @@ pre.diff .del {
 
 /* A subagent's report: a card. */
 .report {
-    padding: 12px 14px;
+    padding: 12px 16px;
     border: 1px solid var(--hair);
     border-radius: var(--r-window);
     background: var(--card);
@@ -2582,7 +2584,7 @@ pre.diff .del {
 
 .report-head {
     display: flex;
-    gap: 0.4rem;
+    gap: 4px;
     align-items: center;
     margin-bottom: 4px;
     font-size: 13px;
@@ -2664,7 +2666,7 @@ pre.diff .del {
 
 .review-prio {
     flex: none;
-    padding: 0 6px;
+    padding: 0 8px;
     border-radius: 4px;
     background: var(--hover);
     color: var(--muted);
@@ -2734,7 +2736,7 @@ pre.diff .del {
     overflow-wrap: anywhere;
     padding: 16px;
     border: 1px solid var(--warn-line);
-    border-radius: calc(var(--r-window) + 2px);
+    border-radius: calc(var(--r-window) + 4px);
     background: var(--warn-soft);
     animation: pop 0.35s var(--ease-out);
 }
@@ -2788,9 +2790,9 @@ pre.diff .del {
 .machine-add-facts {
     display: grid;
     grid-template-columns: max-content minmax(0, 1fr);
-    gap: 6px 12px;
+    gap: 8px 12px;
     margin: 0;
-    padding: 10px 12px;
+    padding: 8px 12px;
     border: 1px solid var(--hair);
     border-radius: var(--r-control);
     font-size: 13px;
@@ -2814,8 +2816,8 @@ pre.diff .del {
     z-index: 5;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px 10px 8px;
+    gap: 8px;
+    padding: 8px 8px 8px;
     /* The chat under it does not show through around the card. */
     background: linear-gradient(var(--bg) 75%, transparent);
 }
@@ -2823,12 +2825,12 @@ pre.diff .del {
 .decision {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
     max-width: var(--column, 760px);
     margin: 0 auto;
     padding: 8px 12px;
-    border-radius: 14px;
+    border-radius: 16px;
     text-align: left;
     color: var(--text);
     background: color-mix(in srgb, var(--warn) 14%, var(--bg));
@@ -2837,8 +2839,8 @@ pre.diff .del {
 }
 
 .decision-icon {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     flex: none;
     display: grid;
     place-items: center;
@@ -2890,7 +2892,7 @@ pre.diff .del {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 2px 10px;
+    padding: 2px 8px;
     border-radius: var(--r-pill);
     font-size: 12px;
     color: var(--muted);
@@ -2934,7 +2936,7 @@ pre.diff .del {
     background: color-mix(in srgb, var(--bg) 97%, transparent);
     backdrop-filter: blur(18px);
     border: 1px solid var(--hair-2);
-    border-radius: 22px;
+    border-radius: 24px;
     overflow: hidden;
     color: var(--text);
     box-shadow: 0 18px 50px color-mix(in srgb, #000 45%, transparent);
@@ -2943,8 +2945,8 @@ pre.diff .del {
 .pgb-head {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 14px 10px 10px 14px;
+    gap: 8px;
+    padding: 16px 8px 8px 16px;
 }
 
 .pgb-head b {
@@ -2966,7 +2968,7 @@ pre.diff .del {
 /* The filter: tabs, the one shown underlined, each with its count. */
 .pgb-tabs {
     display: flex;
-    gap: 18px;
+    gap: 16px;
     padding: 0 16px;
     border-bottom: 1px solid var(--hair);
 }
@@ -3008,12 +3010,12 @@ pre.diff .del {
 
 /* The session's square: its folder's color, its initial. */
 .pgb-av {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     flex: none;
     display: grid;
     place-items: center;
-    border-radius: 10px;
+    border-radius: 8px;
     background: var(--av);
     color: #1a1b26;
     font-size: 12px;
@@ -3052,7 +3054,7 @@ pre.diff .del {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 3px;
+    gap: 4px;
 }
 
 .pgb-meta time,
@@ -3115,7 +3117,7 @@ pre.diff .del {
 }
 
 .pgb-sec {
-    padding: 8px 16px 3px;
+    padding: 8px 16px 4px;
     font-size: 12px;
     font-weight: 600;
     color: var(--dim, var(--muted));
@@ -3125,12 +3127,12 @@ pre.diff .del {
 .pgb-ask {
     display: flex;
     gap: 8px;
-    padding: 0 16px 12px 62px;
+    padding: 0 16px 12px 64px;
 }
 
 .pgb-btn {
-    padding: 6px 12px;
-    border-radius: 9px;
+    padding: 8px 12px;
+    border-radius: 8px;
     background: var(--card-2);
     color: var(--text);
     font-size: 12px;
@@ -3162,7 +3164,7 @@ pre.diff .del {
     align-items: center;
     gap: 8px;
     width: 100%;
-    padding: 6px 0 6px 10px;
+    padding: 8px 0 8px 8px;
     text-align: left;
     color: var(--text);
 }
@@ -3178,13 +3180,13 @@ pre.diff .del {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 22px 0 18px;
+    gap: 8px;
+    padding: 24px 0 16px;
 }
 
 .pgb-empty {
     margin: 0;
-    padding: 10px 12px;
+    padding: 8px 12px;
 }
 
 
@@ -3210,7 +3212,7 @@ pre.diff .del {
 
 .pgb-reply {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     padding: 8px;
     border-top: 1px solid var(--hair);
 }
@@ -3241,10 +3243,10 @@ pre.diff .del {
 .pgb-callbtn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex: none;
-    padding: 8px 14px;
-    border-radius: 10px;
+    padding: 8px 16px;
+    border-radius: 8px;
     background: var(--accent);
     color: var(--accent-ink);
     font-size: 12px;
@@ -3254,8 +3256,8 @@ pre.diff .del {
 .pgb-problem {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 14px;
+    gap: 8px;
+    padding: 8px 16px;
     background: var(--warn-soft);
     font-size: 12px;
 }
@@ -3271,7 +3273,7 @@ pre.diff .del {
 .pgb-call.pill {
     background: var(--bg);
     border: 1px solid var(--hair-2);
-    border-radius: 22px;
+    border-radius: 24px;
     overflow: hidden;
 }
 
@@ -3283,7 +3285,7 @@ pre.diff .del {
 .pgb-callline {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     padding: 8px 8px 8px 12px;
 }
 
@@ -3292,7 +3294,7 @@ pre.diff .del {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     text-align: left;
     color: var(--text);
 }
@@ -3334,7 +3336,7 @@ pre.diff .del {
 /* The chip's wave: the app's Voice wave, small. */
 .pgb-chipwave {
     width: 52px;
-    height: 22px;
+    height: 24px;
     flex: none;
     overflow: hidden;
     display: flex;
@@ -3343,7 +3345,7 @@ pre.diff .del {
 
 .pgb-chipwave .assist-wave {
     gap: 2px;
-    height: 22px;
+    height: 24px;
     transform: scaleY(0.7);
 }
 
@@ -3410,7 +3412,7 @@ pre.diff .del {
 }
 
 .pgb-voice .voice-recent {
-    padding: 10px 14px;
+    padding: 8px 16px;
 }
 
 .pgb-voice .voice-foot {
@@ -3422,7 +3424,7 @@ pre.diff .del {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 10px 16px 12px;
+    padding: 8px 16px 12px;
     font-size: 12px;
     color: var(--muted);
 }
@@ -3492,7 +3494,7 @@ pre.diff .del {
 
 .assist-grab {
     flex: none;
-    width: 38px;
+    width: 40px;
     height: 4px;
     margin: 8px auto 2px;
     border-radius: 2px;
@@ -3503,15 +3505,15 @@ pre.diff .del {
     flex: none;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px 6px 12px;
+    gap: 8px;
+    padding: 4px 8px 8px 12px;
 }
 
 .assist-mark {
     flex: none;
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
     display: grid;
     place-items: center;
     background: var(--raised);
@@ -3523,11 +3525,11 @@ pre.diff .del {
 .assist-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
     max-width: 65%;
     min-height: 32px;
-    padding: 0 10px;
+    padding: 0 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-pill);
     background: var(--card);
@@ -3593,7 +3595,7 @@ pre.diff .del {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 0 8px;
-    padding: 8px 10px;
+    padding: 8px 8px;
     border: 0;
     border-radius: var(--r-row);
     background: none;
@@ -3639,7 +3641,7 @@ pre.diff .del {
     display: flex;
     flex-direction: column;
     overflow: auto;
-    padding: 2px 16px 10px;
+    padding: 2px 16px 8px;
 }
 
 .assist-sheet.talking .assist-body {
@@ -3652,7 +3654,7 @@ pre.diff .del {
 
 /* What is heard, as it is heard: the words are the sheet's hero, settled ones bright, ones still changing faint. */
 .assist-words {
-    min-height: 86px;
+    min-height: 88px;
     padding-top: 4px;
     color: var(--text);
     font-size: 20px;
@@ -3692,7 +3694,7 @@ pre.diff .del {
 .assist-notice {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
     margin: 4px 0;
     padding: 12px;
     border: 1px solid var(--hair);
@@ -3729,19 +3731,19 @@ pre.diff .del {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 8px 12px 14px;
+    padding: 8px 12px 16px;
     border-top: 1px solid var(--hair);
 }
 
 .assist-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 
 .assist-from {
     height: 28px;
-    gap: 6px;
+    gap: 8px;
     border-color: var(--hair);
     border-radius: var(--r-pill);
     font-size: 13px;
@@ -3765,11 +3767,11 @@ pre.diff .del {
 }
 
 .assist-wave {
-    height: 34px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 4px;
 }
 
 .assist-wave i {
@@ -3797,8 +3799,8 @@ pre.diff .del {
 /* One loud button: Stop while listening, the mic to listen again. */
 .assist-big {
     position: relative;
-    width: 62px;
-    height: 62px;
+    width: 64px;
+    height: 64px;
     display: grid;
     place-items: center;
     border: 0;
@@ -3839,13 +3841,13 @@ pre.diff .del {
     gap: 8px;
     padding: 8px 8px 8px 12px;
     border: 1px solid var(--accent-line);
-    border-radius: 14px;
+    border-radius: 16px;
     background: var(--card);
 }
 
 .assist-box textarea {
     flex: 1;
-    min-height: 42px;
+    min-height: 40px;
     padding: 0;
     resize: none;
     border: 0;
@@ -3993,7 +3995,7 @@ pre.diff .del {
     align-items: center;
     gap: 8px;
     min-width: 0;
-    padding: 8px 10px 8px 12px;
+    padding: 8px 8px 8px 12px;
     border: 1px solid var(--hair);
     border-radius: var(--r-control);
     background: var(--card-2);
@@ -4031,15 +4033,15 @@ pre.diff .del {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px;
+    padding: 12px 16px;
 }
 
 .phone-step-mark {
     flex: none;
     display: grid;
     place-items: center;
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     border: 1px solid var(--hair);
     border-radius: 50%;
     font-size: 13px;
@@ -4064,11 +4066,11 @@ pre.diff .del {
 .phone-never {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 
 .phone-never .chip {
-    gap: 6px;
+    gap: 8px;
     color: var(--text);
 }
 
@@ -4102,7 +4104,7 @@ pre.diff .del {
     display: flex;
     justify-content: space-between;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     border: 0;
     border-bottom: 1px solid var(--hair);
     background: none;
@@ -4123,7 +4125,7 @@ pre.diff .del {
 }
 
 .approval pre.cmd {
-    padding: 10px 12px;
+    padding: 8px 12px;
     border: 0;
     font-size: 13px;
     line-height: 1.5;
@@ -4266,7 +4268,7 @@ pre.diff .del {
 
 .ask-field input {
     min-height: 40px;
-    padding: 8px 10px;
+    padding: 8px 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-control);
     background: var(--bg);
@@ -4290,7 +4292,7 @@ pre.diff .del {
 }
 
 .approval-actions .button.primary {
-    padding: 0 18px;
+    padding: 0 16px;
 }
 
 /* The shared button's least height is 38px; touch screens keep their thumb height. */
@@ -4315,12 +4317,12 @@ pre.diff .del {
 /* On a phone: the answers share the width, thumb-tall. */
 @media (max-width: 699px) {
     .approval {
-        padding: 14px;
+        padding: 16px;
     }
 
     .approval-shield {
-        width: 30px;
-        height: 30px;
+        width: 32px;
+        height: 32px;
     }
 
     .approval-ask {
@@ -4333,8 +4335,8 @@ pre.diff .del {
     }
 
     .approval-actions .button {
-        height: 42px;
-        border-radius: calc(var(--r-control) + 1px);
+        height: 40px;
+        border-radius: var(--r-control);
         font-size: 14px;
     }
 }
@@ -4423,7 +4425,7 @@ pre.diff .del {
 .live-acts {
     flex: none;
     display: flex;
-    gap: 6px;
+    gap: 8px;
     margin-left: auto;
 }
 
@@ -4478,9 +4480,9 @@ pre.diff .del {
     flex-direction: column;
     gap: 12px;
     min-width: 0;
-    padding: 14px 16px;
+    padding: 16px 16px;
     border: 1px solid var(--warn-line);
-    border-radius: calc(var(--r-window) + 2px);
+    border-radius: calc(var(--r-window) + 4px);
     background: var(--warn-soft);
     animation: pop 0.35s var(--ease-out);
 }
@@ -4488,7 +4490,7 @@ pre.diff .del {
 .limit-card-head {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
 }
 
 .limit-card-head .state-mark {
@@ -4565,8 +4567,8 @@ pre.diff .del {
     align-items: center;
     justify-content: center;
     flex: none;
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     margin-right: -4px;
     padding: 0;
     border: 0;
@@ -4605,7 +4607,7 @@ pre.diff .del {
 /* A quiet reading area, not another timeline card. The existing Thought steps and their boxes are unchanged. */
 .live-thought {
     min-width: 0;
-    padding: 10px 14px 12px;
+    padding: 8px 16px 12px;
     border-radius: var(--r-card);
     background: var(--card);
     animation: fade var(--t-fade) var(--ease-almost);
@@ -4644,7 +4646,7 @@ pre.diff .del {
 }
 
 .error-box {
-    padding: 10px 14px;
+    padding: 8px 16px;
     border: 1px solid var(--err-line);
     border-radius: var(--r-card);
     background: var(--err-soft);
@@ -4659,7 +4661,7 @@ pre.diff .del {
     color: var(--muted);
     font-size: 13px;
     border-top: 1px solid var(--hair);
-    padding-top: 0.5rem;
+    padding-top: 8px;
 }
 
 .divider .link > .icon {
@@ -4834,14 +4836,14 @@ pre.diff .del {
 }
 
 .dock[data-compact] .trust-actions {
-    gap: 0.5rem;
+    gap: 8px;
 }
 
 /* Messages waiting for Pi: a few rows' height at most, so the conversation stays in view; more scroll inside. */
 .inbox {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     margin-bottom: 6px;
     max-height: min(28vh, 12rem);
     overflow-y: auto;
@@ -4855,7 +4857,7 @@ pre.diff .del {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 34px;
+    min-height: 32px;
     padding: 0 4px 0 12px;
     border: 1px solid var(--hair);
     border-radius: var(--r-control);
@@ -4903,8 +4905,8 @@ pre.diff .del {
 }
 
 .queued .queued-remove {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     color: var(--muted);
 }
 
@@ -4948,10 +4950,10 @@ pre.diff .del {
 .command {
     display: flex;
     align-items: baseline;
-    gap: 0.5rem;
+    gap: 8px;
     width: 100%;
     text-align: left;
-    padding: 8px 10px;
+    padding: 8px 8px;
     border-radius: var(--r-row);
     font-size: 13px;
     transition: background-color var(--t-hover) var(--ease-out);
@@ -5016,7 +5018,7 @@ pre.diff .del {
 .file-note {
     font-size: 13px;
     color: var(--muted);
-    padding: 8px 10px;
+    padding: 8px 8px;
 }
 
 .command-hint.wraps {
@@ -5025,7 +5027,7 @@ pre.diff .del {
 
 .command-hint {
     font-size: 13px;
-    padding: 0 10px 6px;
+    padding: 0 8px 8px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -5054,7 +5056,7 @@ pre.diff .del {
 
 .composer .files {
     margin: 0;
-    padding: 10px 14px 0;
+    padding: 8px 16px 0;
 }
 
 /* One line to start with, growing with the text (`fitBox`). */
@@ -5066,7 +5068,7 @@ pre.diff .del {
     background: none;
     color: var(--text);
     resize: none;
-    padding: calc(14px * var(--space-y)) calc(16px * var(--space-x)) 2px;
+    padding: calc(16px * var(--space-y)) calc(16px * var(--space-x)) 2px;
     max-height: 40vh;
     font-size: 15px;
     line-height: 1.5;
@@ -5076,7 +5078,7 @@ pre.diff .del {
 @media (pointer: coarse) {
     .composer textarea {
         min-height: 40px;
-        padding: calc(13px * var(--space-y)) calc(15px * var(--space-x)) 2px;
+        padding: calc(12px * var(--space-y)) calc(16px * var(--space-x)) 2px;
         font-size: 16px;
     }
     /* The status line's own room below it is enough. */
@@ -5088,8 +5090,8 @@ pre.diff .del {
 .composer-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: calc(6px * var(--space-y)) calc(10px * var(--space-x)) calc(4px + 6px * var(--space-y));
+    gap: 8px;
+    padding: calc(8px * var(--space-y)) calc(8px * var(--space-x)) calc(4px + 8px * var(--space-y));
 }
 
 /* On a phone its bottom keeps 5px or more at every density: the status line's guard reaches up into it for a thumb's
@@ -5097,8 +5099,8 @@ pre.diff .del {
 @media (max-width: 699px) {
     .composer-row {
         gap: 4px;
-        padding: calc(6px * var(--space-y)) calc(8px * var(--space-x))
-            calc(3px + 5px * var(--space-y));
+        padding: calc(8px * var(--space-y)) calc(8px * var(--space-x))
+            calc(4px + 4px * var(--space-y));
     }
 }
 
@@ -5137,10 +5139,10 @@ pre.diff .del {
 .model-chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
-    height: 30px;
-    padding: 0 10px 0 12px;
+    height: 32px;
+    padding: 0 8px 0 12px;
     border-radius: var(--r-pill);
     background: var(--hover);
     font-size: 13px;
@@ -5219,19 +5221,20 @@ pre.diff .del {
         display: none;
     }
 
+    /* 4 px: on the grid and closer than the usual 8 (PP-401; 8 here pushed Stop out again). */
     .composer.busy .mode-switch button {
-        padding-inline: 6px;
+        padding-inline: 4px;
     }
 }
 
 .chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 4px;
     border: 1px solid var(--line);
     background: var(--card-2);
     border-radius: var(--radius);
-    padding: 0.2rem 0.55rem;
+    padding: 4px 8px;
     font-size: 12px;
     max-width: 100%;
     white-space: nowrap;
@@ -5271,7 +5274,7 @@ pre.diff .del {
 /* Plan mode: an outlined pill, filled softly in the accent while it is on. */
 .composer-row .plan-chip {
     flex: none;
-    height: 30px;
+    height: 32px;
     padding: 0 12px;
     border: 1px solid var(--hair-2);
     border-radius: var(--r-pill);
@@ -5307,7 +5310,7 @@ pre.diff .del {
 
 .mode-switch button {
     height: 28px;
-    padding: 0 10px;
+    padding: 0 8px;
     border-radius: var(--r-pill);
     font-size: 12px;
     font-weight: 500;
@@ -5335,8 +5338,8 @@ pre.diff .del {
 .stop-button,
 .send-button {
     flex: none;
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -5436,7 +5439,7 @@ pre.diff .del {
 
 .voice-modes {
     flex: none;
-    padding: 8px 14px 4px;
+    padding: 8px 16px 4px;
     border-bottom: 1px solid var(--hair);
 }
 
@@ -5446,8 +5449,8 @@ pre.diff .del {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px 16px;
+    gap: 8px;
+    padding: 16px 16px;
 }
 
 .voice-recent .voice-line {
@@ -5471,7 +5474,7 @@ pre.diff .del {
 }
 
 .voice-foot {
-    padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
+    padding: 8px 16px calc(12px + env(safe-area-inset-bottom));
 }
 
 .voice-who {
@@ -5660,8 +5663,8 @@ pre.diff .del {
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 4px 14px;
-    padding-top: calc(3px + 5px * var(--space-y));
+    gap: 4px 16px;
+    padding-top: calc(4px + 4px * var(--space-y));
     font-size: 12px;
     line-height: 16px;
     color: var(--muted);
@@ -5676,7 +5679,7 @@ pre.diff .del {
 .status-line .context {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .status-line .meter {
@@ -5697,7 +5700,7 @@ pre.diff .del {
     justify-content: space-between;
     gap: 12px;
     min-height: 40px;
-    padding: 6px 0;
+    padding: 8px 0;
     border-bottom: 1px solid var(--hair);
 }
 
@@ -5804,8 +5807,8 @@ pre.diff .del {
 
 .extension {
     display: flex;
-    gap: 14px;
-    padding: 12px 14px;
+    gap: 16px;
+    padding: 12px 16px;
     background: var(--bg);
 }
 
@@ -5819,7 +5822,7 @@ pre.diff .del {
     flex-direction: column;
     gap: 8px;
     margin-top: 8px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     border-radius: var(--r-control);
     border: 1px solid var(--warn-line);
     background: var(--warn-soft);
@@ -5837,7 +5840,7 @@ pre.diff .del {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 4px;
     overflow-wrap: anywhere;
 }
 
@@ -5854,7 +5857,7 @@ pre.diff .del {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 0.45rem;
+    gap: 8px;
 }
 
 /* Removing a drop-in (PP-372) asks in its own row first: what goes, and whether its data goes too. */
@@ -5884,10 +5887,10 @@ pre.diff .del {
 /* The on and off switch (`Switch` in ui.js), in every sheet that has one. */
 .switch {
     position: relative;
-    width: 38px;
-    height: 22px;
+    width: 40px;
+    height: 24px;
     flex: none;
-    padding: 3px;
+    padding: 4px;
     border-radius: var(--r-pill);
     background: var(--hair-2);
     border: 0;
@@ -5940,7 +5943,7 @@ pre.diff .del {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-height: 0;
     padding: calc(env(safe-area-inset-top) + 12px) 0 calc(env(safe-area-inset-bottom) + 12px);
     border-right: 1px solid var(--hair);
@@ -6035,8 +6038,8 @@ pre.diff .del {
     position: absolute;
     top: 1px;
     right: 0;
-    min-width: 15px;
-    height: 15px;
+    min-width: 16px;
+    height: 16px;
     padding: 0 4px;
     display: grid;
     place-items: center;
@@ -6103,7 +6106,7 @@ pre.diff .del {
     flex-direction: column;
     align-items: center;
     gap: 4px;
-    padding: 6px 0;
+    padding: 8px 0;
     border-top: 1px solid var(--hair);
     border-bottom: 1px solid var(--hair);
     scrollbar-width: none;
@@ -6186,7 +6189,7 @@ pre.diff .del {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    padding: calc(env(safe-area-inset-top) + 14px) 12px calc(env(safe-area-inset-bottom) + 10px);
+    padding: calc(env(safe-area-inset-top) + 16px) 12px calc(env(safe-area-inset-bottom) + 8px);
     container: sessions / inline-size;
 }
 
@@ -6215,9 +6218,9 @@ pre.diff .del {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    height: 30px;
+    height: 32px;
     padding: 0 12px 0 8px;
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     background: var(--accent-fill);
     color: var(--accent-ink);
     font-weight: 600;
@@ -6280,12 +6283,15 @@ pre.diff .del {
     color: var(--muted);
 }
 
+/* The field over the whole label, its border too, so it is as tall as the label (PP-401: 36 or 40, not 34 or 38). */
 .search input {
     flex: 1;
+    align-self: stretch;
+    margin-block: -1px;
     border: 0;
     border-radius: 0;
     background: none;
-    padding: 8px 0;
+    padding: 0;
     min-width: 0;
     font-size: 14px;
 }
@@ -6315,9 +6321,9 @@ pre.diff .del {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 34px;
-    min-height: 34px;
-    padding: 0 6px 0 10px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0 8px 0 8px;
     background: var(--card);
     border: 1px solid var(--hair);
     border-radius: var(--r-control);
@@ -6353,7 +6359,8 @@ pre.diff .del {
 .sessions .search input {
     flex: 1;
     min-width: 0;
-    height: 100%;
+    align-self: stretch;
+    margin-block: -1px;
     padding: 0;
     border: 0;
     background: none;
@@ -6363,7 +6370,7 @@ pre.diff .del {
 
 /* "Ctrl K": a small tag at the field's end. */
 .sessions .search-keys {
-    padding: 4px 6px;
+    padding: 4px 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-tag);
     font: 12px / 1 var(--mono);
@@ -6375,8 +6382,8 @@ pre.diff .del {
 .search-clear {
     position: relative;
     flex: none;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     display: grid;
     place-items: center;
     color: var(--muted);
@@ -6396,8 +6403,8 @@ pre.diff .del {
 .search-launcher {
     position: relative;
     flex: none;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     display: none;
     place-items: center;
     color: var(--muted);
@@ -6421,7 +6428,7 @@ pre.diff .del {
     margin-top: 10px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    padding: 3px;
+    padding: 4px;
     border-radius: var(--r-control);
     background: var(--card);
 }
@@ -6429,10 +6436,10 @@ pre.diff .del {
 .session-tabs button {
     position: relative;
     z-index: 1;
-    height: 26px;
+    height: 24px;
     display: grid;
     place-items: center;
-    padding: 0 6px;
+    padding: 0 8px;
     border-radius: var(--r-seg);
     font-size: 13px;
     color: var(--muted);
@@ -6503,10 +6510,11 @@ pre.diff .del {
 .group-head {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     width: 100%;
-    padding: calc(4px + 10px * var(--space-y)) 8px calc(6px * var(--space-y));
+    padding: calc(4px + 8px * var(--space-y)) 8px calc(8px * var(--space-y));
     font-size: 12px;
+    line-height: 16px;
     font-weight: 500;
     color: var(--muted);
     text-align: left;
@@ -6608,7 +6616,7 @@ pre.diff .del {
 
 .session-row {
     position: relative;
-    padding-inline-start: calc(var(--linked-depth, 0) * 14px);
+    padding-inline-start: calc(var(--linked-depth, 0) * 16px);
 }
 
 /* A row new to this page rises in, the rows in turn. Back to the list builds it again: those rows show as they were,
@@ -6632,7 +6640,7 @@ pre.diff .del {
 
 .session-branches > span {
     position: relative;
-    width: 14px;
+    width: 16px;
 }
 
 .session-branches > .continues::before,
@@ -6654,7 +6662,7 @@ pre.diff .del {
     width: 8px;
     border-bottom: 1.5px solid currentColor;
     border-left: 1.5px solid currentColor;
-    border-bottom-left-radius: calc(var(--r-tag) + 1px);
+    border-bottom-left-radius: var(--r-tag);
 }
 
 /* The last child: only the corner, no line on down. */
@@ -6676,7 +6684,7 @@ pre.diff .del {
     justify-content: center;
     gap: 4px;
     min-width: 44px;
-    padding: 0 6px;
+    padding: 0 8px;
     border: 0;
     background: none;
     font: 12px var(--mono);
@@ -6687,9 +6695,9 @@ pre.diff .del {
 .session-fold-pill {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
     height: 20px;
-    padding: 0 6px;
+    padding: 0 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-pill);
     background: var(--card-2);
@@ -6730,7 +6738,7 @@ pre.diff .del {
     width: 100%;
     /* 36px, 32px, and 29px. */
     height: calc(24px + 12px * var(--space-y));
-    padding: 0 10px;
+    padding: 0 8px;
     border-radius: var(--r-row);
     text-align: left;
     border: 1px solid transparent;
@@ -6792,7 +6800,7 @@ pre.diff .del {
     flex: none;
     width: 8px;
     height: 8px;
-    border-radius: calc(var(--r-mark) - 0.5px);
+    border-radius: var(--r-mark);
     color: var(--folder, var(--muted));
 }
 
@@ -6994,9 +7002,9 @@ pre.diff .del {
 .session-fork {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    height: 18px;
-    padding: 0 6px;
+    gap: 4px;
+    height: 16px;
+    padding: 0 8px;
     border-radius: var(--r-pill);
     background: var(--accent-soft);
     font-weight: 600;
@@ -7016,7 +7024,7 @@ pre.diff .del {
 .session-needs {
     display: grid;
     place-items: center;
-    height: 18px;
+    height: 16px;
     padding: 0 8px;
     border-radius: var(--r-pill);
     background: var(--warn-soft);
@@ -7049,7 +7057,7 @@ pre.diff .del {
 }
 
 .session-time {
-    min-width: 22px;
+    min-width: 24px;
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
@@ -7079,8 +7087,8 @@ pre.diff .del {
 }
 
 .session-act {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     display: grid;
     place-items: center;
     color: var(--muted);
@@ -7134,11 +7142,11 @@ pre.diff .del {
         min-width: 56px;
     }
     .session-row.one-act:hover .session-side {
-        min-width: 26px;
+        min-width: 24px;
     }
     /* Three live buttons: archive, pin, and mark-unread. */
     .session-row.three-acts:hover .session-side {
-        min-width: 86px;
+        min-width: 88px;
     }
     /* Keyboard focus in the row shows them too, not the focus a click leaves on the open session's row. Kept apart
        from the rules above: a browser without :has() drops only these. */
@@ -7151,10 +7159,10 @@ pre.diff .del {
         min-width: 56px;
     }
     .session-row.one-act:has(:focus-visible) .session-side {
-        min-width: 26px;
+        min-width: 24px;
     }
     .session-row.three-acts:has(:focus-visible) .session-side {
-        min-width: 86px;
+        min-width: 88px;
     }
     /* While Ctrl/⌘ drags a selection, rows do not show their buttons. */
     :root.selecting .session-row .session-act {
@@ -7223,7 +7231,7 @@ pre.diff .del {
 }
 
 .select-bar .button {
-    padding: 0.2rem 0.5rem;
+    padding: 4px 8px;
     font-size: 12px;
 }
 
@@ -7251,7 +7259,7 @@ pre.diff .del {
 @media (pointer: coarse) {
     .select-bar .button {
         min-height: 36px;
-        padding-inline: 0.8rem;
+        padding-inline: 12px;
     }
     .select-clear {
         width: 36px;
@@ -7260,7 +7268,7 @@ pre.diff .del {
 }
 
 .sessions-empty {
-    padding: 1.2rem 0.6rem;
+    padding: 16px 8px;
     color: var(--muted);
     font-size: 12px;
     animation: fade var(--t-fade) var(--ease-almost);
@@ -7271,7 +7279,7 @@ pre.diff .del {
     display: flex;
     align-items: center;
     height: 36px;
-    padding: 0 10px 0 28px;
+    padding: 0 8px 0 28px;
 }
 
 .session-placeholder span {
@@ -7369,7 +7377,7 @@ pre.diff .del {
 
 .fetch-colors {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     margin-top: 10px;
 }
 
@@ -7396,7 +7404,7 @@ pre.diff .del {
 
 .splash-actions .button {
     height: 40px;
-    padding: 0 14px;
+    padding: 0 16px;
     gap: 8px;
     border: 1px solid var(--hair-2);
     border-radius: var(--r-control);
@@ -7453,7 +7461,7 @@ pre.diff .del {
 }
 
 .splash-heading {
-    padding: 0 4px 6px;
+    padding: 0 4px 8px;
     font-size: 12px;
     font-weight: 500;
     color: var(--muted);
@@ -7483,7 +7491,7 @@ pre.diff .del {
     display: grid;
     place-items: center;
     border: 1px solid var(--hair-2);
-    border-radius: calc(var(--r-tag) + 1px);
+    border-radius: var(--r-tag);
     font: 12px / 1 var(--mono);
     color: var(--muted);
 }
@@ -7629,7 +7637,7 @@ pre.diff .del {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
-    gap: 2px 10px;
+    gap: 2px 8px;
 }
 
 .usage-track {
@@ -7670,7 +7678,7 @@ pre.diff .del {
 .limit-switch {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
     margin-top: 6px;
 }
 
@@ -7681,7 +7689,7 @@ pre.diff .del {
 }
 
 .usage-meter {
-    padding: 3px 8px;
+    padding: 4px 8px;
     border: 1px solid var(--hair-2);
     border-radius: 99px;
     font: 600 12px/1.3 var(--mono);
@@ -7711,10 +7719,10 @@ pre.diff .del {
 .choice {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 8px;
     width: 100%;
     min-height: 40px;
-    padding: 0.45rem 0.75rem;
+    padding: 8px 12px;
     background: var(--card);
     border: 1px solid var(--hair-2);
     border-radius: var(--radius);
@@ -7770,7 +7778,7 @@ pre.diff .del {
 
 .field .choice {
     font-size: 14px;
-    border-radius: calc(var(--r-control) + 1px);
+    border-radius: var(--r-control);
 }
 
 /* Its list: the menus' pop-up, over the sheet it opens in; rows measured from the list's top (`reveal`). */
@@ -7784,7 +7792,7 @@ pre.diff .del {
 
 /* Several at once (MultiChoice, PP-281): a box on each, groups by provider, and a foot with Add. */
 .mc-group {
-    padding: 0.55rem 0.8rem 0.2rem;
+    padding: 8px 12px 4px;
     font-size: 12px;
     color: var(--muted);
     border-bottom: 1px solid var(--line);
@@ -7818,8 +7826,8 @@ pre.diff .del {
 .mc-foot {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.6rem;
+    gap: 8px;
+    padding: 8px 8px;
     border-top: 1px solid var(--line);
 }
 
@@ -7837,7 +7845,7 @@ pre.diff .del {
 .sam-model {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 8px 0;
     border-bottom: 1px solid var(--hair);
 }
@@ -7880,7 +7888,7 @@ pre.diff .del {
 .sam-meter {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     margin-top: 4px;
     font-size: 12px;
     color: var(--muted);
@@ -7891,7 +7899,7 @@ pre.diff .del {
     width: 64px;
     height: 4px;
     flex: none;
-    border-radius: 3px;
+    border-radius: 4px;
     background: var(--hair-2);
     overflow: hidden;
 }
@@ -7917,7 +7925,7 @@ pre.diff .del {
 }
 
 .sam-add {
-    padding-top: 10px;
+    padding-top: 8px;
 }
 
 /* ─── Pop-up menus: the model and branch pickers ───────────── */
@@ -7979,8 +7987,8 @@ pre.diff .del {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.6rem;
-    padding: 0.55rem 0.8rem;
+    gap: 8px;
+    padding: 8px 12px;
     border-bottom: 1px solid var(--line);
     font-size: 12px;
     font-weight: 600;
@@ -7990,7 +7998,7 @@ pre.diff .del {
 .pop-menu-link {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 4px;
     font-size: 12px;
     font-weight: 400;
     color: var(--muted);
@@ -8085,9 +8093,9 @@ pre.diff .del {
 .pop-menu-row {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 8px;
     width: 100%;
-    padding: 0.5rem 0.8rem;
+    padding: 8px 12px;
     text-align: left;
     border-bottom: 1px solid var(--line);
     color: var(--text);
@@ -8127,11 +8135,11 @@ pre.diff .del {
 
 .pop-menu-note {
     margin: 0;
-    padding: 0.6rem 0.8rem;
+    padding: 8px 12px;
 }
 
 .pop-menu-foot {
-    padding: 0.4rem 0.8rem 0.7rem;
+    padding: 4px 12px 8px;
     border-top: 1px solid var(--line);
 }
 
@@ -8145,8 +8153,8 @@ pre.diff .del {
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.3rem 0.8rem;
-    padding-block: 0.55rem;
+    gap: 4px 12px;
+    padding-block: 8px;
     font-size: 12px;
 }
 
@@ -8158,7 +8166,7 @@ pre.diff .del {
 .pop-menu-default-mark {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 4px;
     color: var(--ok);
 }
 
@@ -8170,7 +8178,7 @@ pre.diff .del {
 
 /* A heading between a menu's groups of rows. */
 .pop-menu-label {
-    padding: 10px 10px 4px;
+    padding: 8px 8px 4px;
     font-size: 12px;
     font-weight: 500;
     color: var(--faint);
@@ -8186,14 +8194,14 @@ pre.diff .del {
 }
 
 .branch-picker .pop-menu-head {
-    padding: 12px 14px;
+    padding: 12px 16px;
     border-color: var(--hair);
     font-size: 13px;
     font-weight: 600;
 }
 
 .branch-picker .pop-menu-list {
-    padding: 6px;
+    padding: 8px;
 }
 
 .branch-picker .pop-menu-foot {
@@ -8204,7 +8212,7 @@ pre.diff .del {
 .branch-picker .pop-menu-row {
     border: 0;
     border-radius: var(--r-row);
-    padding: 8px 10px;
+    padding: 8px 8px;
 }
 
 .branch-picker .pop-menu-row.on {
@@ -8225,11 +8233,11 @@ pre.diff .del {
 .branch-head {
     display: inline-flex;
     padding: 2px 8px;
-    border-radius: calc(var(--r-tag) + 1px);
+    border-radius: var(--r-tag);
     background: var(--card);
     font-size: 12px;
     align-items: center;
-    gap: 0.3rem;
+    gap: 4px;
     min-width: 0;
     overflow: hidden;
     font-weight: 400;
@@ -8258,7 +8266,7 @@ pre.diff .del {
  * name, a check on the current one), and Thinking's levels in one track.
  */
 .model-menu .pop-menu-head {
-    padding: 12px 14px 8px;
+    padding: 12px 16px 8px;
     border-bottom: 0;
     font-size: 13px;
     font-weight: 500;
@@ -8272,12 +8280,12 @@ pre.diff .del {
 }
 
 .model-menu .pop-menu-list {
-    padding: 0 6px 6px;
+    padding: 0 8px 8px;
 }
 
 .model-menu .pop-menu-row {
-    gap: 10px;
-    padding: 8px 10px;
+    gap: 8px;
+    padding: 8px 8px;
     border-bottom: 0;
     border-radius: var(--r-row);
 }
@@ -8309,7 +8317,7 @@ pre.diff .del {
 }
 
 .model-menu .pop-menu-foot {
-    padding: 10px 14px 14px;
+    padding: 8px 16px 16px;
     border-top: 1px solid var(--hair);
 }
 
@@ -8330,7 +8338,7 @@ pre.diff .del {
 }
 
 .model-scope button {
-    padding: 6px 3px;
+    padding: 8px 4px;
     color: var(--muted);
     font: inherit;
 }
@@ -8364,14 +8372,14 @@ pre.diff .del {
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     gap: 0;
-    padding: 3px;
+    padding: 4px;
     border: 0;
     border-radius: var(--r-control);
     background: var(--card);
 }
 
 .segmented.model-levels button {
-    height: 26px;
+    height: 24px;
     min-width: 0;
     padding: 0;
     overflow: hidden;
@@ -8400,17 +8408,17 @@ pre.diff .del {
 .sheet-head {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-height: calc(42px + 14px * var(--space-y));
     flex: none;
-    padding: 0 10px 0 calc(20px * var(--space-x));
+    padding: 0 8px 0 calc(20px * var(--space-x));
     border-bottom: 1px solid var(--hair);
     position: relative;
 }
 
 .sheet-head > .icon-button {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
 }
 
 .sheet-head > .sheet-back {
@@ -8421,7 +8429,7 @@ pre.diff .del {
 
 @media (max-width: 699px) {
     .sheet-head {
-        padding-top: 14px;
+        padding-top: 16px;
         min-height: calc(56px + 14px * var(--space-y));
     }
     .sheet-head > .icon-button {
@@ -8480,7 +8488,7 @@ pre.diff .del {
     padding: calc(16px * var(--space-y)) calc(20px * var(--space-x)) calc(20px * var(--space-y));
     display: flex;
     flex-direction: column;
-    gap: calc(14px * var(--space-y));
+    gap: calc(16px * var(--space-y));
 }
 
 .sheet-body > * {
@@ -8502,8 +8510,9 @@ pre.diff .del {
     background: var(--bg);
 }
 
+/* The line between rows is drawn, not laid out, so a row keeps its whole height (PP-401: 44 px, not 45). */
 .sheet-list > :not(:first-child) {
-    border-top: 1px solid var(--hair);
+    box-shadow: inset 0 1px var(--hair);
 }
 
 .sheet-list > .list-item {
@@ -8527,16 +8536,17 @@ pre.diff .del {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
     /* 44px, 40px, and 37px. */
     min-height: calc(32px + 12px * var(--space-y));
     text-align: left;
-    padding: calc(12px * var(--space-y)) calc(14px * var(--space-x));
+    padding: calc(12px * var(--space-y)) calc(16px * var(--space-x));
     border-radius: var(--r-row);
     background: var(--bg);
     border: 0;
     font-size: 14px;
+    line-height: 20px;
     color: var(--text);
     text-decoration: none;
     margin-bottom: 2px;
@@ -8560,7 +8570,7 @@ pre.diff .del {
 .list-item > span:first-child {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 8px;
 }
 
 .list-item.active {
@@ -8579,7 +8589,7 @@ pre.diff .del {
 .field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
 }
 
@@ -8592,7 +8602,7 @@ pre.diff .del {
 .field input,
 .field textarea {
     font-size: 14px;
-    border-radius: calc(var(--r-control) + 1px);
+    border-radius: var(--r-control);
 }
 
 @media (pointer: coarse) {
@@ -8609,12 +8619,12 @@ pre.diff .del {
     display: inline-grid;
     place-items: center;
     flex: none;
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     margin: 0;
     padding: 0;
     border: 1.5px solid var(--hair-2);
-    border-radius: calc(var(--r-tag) - 1px);
+    border-radius: var(--r-tag);
     background: var(--card);
     color: var(--accent-ink);
     cursor: pointer;
@@ -8651,7 +8661,7 @@ pre.diff .del {
 
 .row {
     display: flex;
-    gap: 0.45rem;
+    gap: 8px;
     align-items: center;
 }
 
@@ -8663,7 +8673,7 @@ pre.diff .del {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
+    gap: 4px;
     min-height: 40px;
     border: 1px solid transparent;
     background: var(--card-2);
@@ -8726,7 +8736,7 @@ pre.diff .del {
 
 .button.sheet-footer {
     min-height: 40px;
-    border-radius: calc(var(--r-control) + 1px);
+    border-radius: var(--r-control);
 }
 
 /* Away from Save, in the color of what cannot be undone here. */
@@ -8736,9 +8746,9 @@ pre.diff .del {
 }
 
 .button.small {
-    min-height: 30px;
+    min-height: 32px;
     padding: 4px 12px;
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     font-size: 13px;
 }
 
@@ -8753,6 +8763,7 @@ pre.diff .del {
 .link {
     color: var(--accent);
     font-size: 12px;
+    line-height: 16px;
 }
 
 .segmented {
@@ -8760,7 +8771,7 @@ pre.diff .del {
     flex-wrap: wrap;
     align-self: flex-start;
     gap: 0;
-    padding: 3px;
+    padding: 4px;
     border-radius: var(--r-control);
     background: var(--card);
 }
@@ -8771,6 +8782,7 @@ pre.diff .del {
     border-radius: var(--r-seg);
     padding: 4px 12px;
     font-size: 13px;
+    line-height: 20px;
     font-weight: 500;
     color: var(--muted);
     background: none;
@@ -8802,8 +8814,8 @@ pre.diff .del {
 .folder-sheet .sheet-body {
     flex: 1;
     min-height: 0;
-    gap: 0.5rem;
-    padding-bottom: 0.75rem;
+    gap: 8px;
+    padding-bottom: 12px;
 }
 
 .fp-bar {
@@ -8826,7 +8838,7 @@ pre.diff .del {
 
 .fp-new {
     flex: none;
-    gap: 0.3rem;
+    gap: 4px;
 }
 
 .fp-crumbs {
@@ -8837,8 +8849,8 @@ pre.diff .del {
     overflow-x: auto;
     scrollbar-width: none;
     white-space: nowrap;
-    min-height: 34px;
-    padding: 0 6px;
+    min-height: 32px;
+    padding: 0 8px;
     border-radius: var(--r-row);
     background: var(--card);
     font: 13px var(--mono);
@@ -8864,7 +8876,7 @@ pre.diff .del {
 
 .fp-crumb {
     flex: none;
-    padding: 0.3rem 0.35rem;
+    padding: 4px 4px;
     border-radius: var(--radius);
     color: var(--muted);
 }
@@ -8890,14 +8902,14 @@ pre.diff .del {
 .fp-line {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 4px;
 }
 
 .fp-line input {
     flex: 1;
     min-width: 0;
-    height: 34px;
-    padding: 0.3rem 0.5rem;
+    height: 32px;
+    padding: 4px 8px;
     font-size: 12px;
 }
 
@@ -8913,7 +8925,7 @@ pre.diff .del {
 }
 
 .fp-naming {
-    padding: 0.35rem 0.4rem 0.35rem 0.6rem;
+    padding: 4px 4px 4px 8px;
     border-bottom: 1px solid var(--line);
     background: var(--accent-soft);
 }
@@ -8936,8 +8948,8 @@ pre.diff .del {
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.3rem 0.6rem;
-    padding: 0.3rem 0.3rem 0.3rem 0.6rem;
+    gap: 4px 8px;
+    padding: 4px 4px 4px 8px;
     border: 1px solid var(--warn-line);
     background: var(--warn-soft);
     font-size: 12px;
@@ -8948,7 +8960,7 @@ pre.diff .del {
 .fp-missing-actions {
     display: flex;
     align-items: center;
-    gap: 0.2rem;
+    gap: 4px;
 }
 
 .fp-missing-actions .icon-button {
@@ -8971,7 +8983,7 @@ pre.diff .del {
     display: flex;
     flex-direction: column;
     gap: 1px;
-    padding: 0.3rem;
+    padding: 4px;
     overflow-y: auto;
     overscroll-behavior: contain;
     background: var(--bg);
@@ -8980,10 +8992,10 @@ pre.diff .del {
 .fp-place {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 8px;
     width: 100%;
     min-height: 2rem;
-    padding: 0.25rem 0.45rem;
+    padding: 4px 8px;
     border-radius: var(--radius);
     text-align: left;
     font-size: 12px;
@@ -9034,7 +9046,7 @@ pre.diff .del {
 
 .fp-pi {
     margin: auto 0.45rem 0.2rem;
-    padding-top: 0.6rem;
+    padding-top: 8px;
     text-align: left;
     font-size: 12px;
 }
@@ -9057,11 +9069,11 @@ pre.diff .del {
 .fp-row {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
+    gap: 8px;
     width: 100%;
-    min-height: 34px;
-    padding: 6px 10px;
-    border-radius: calc(var(--r-row) - 1px);
+    min-height: 32px;
+    padding: 8px 8px;
+    border-radius: var(--r-row);
     text-align: left;
     font: 13px var(--mono);
     color: var(--body);
@@ -9099,7 +9111,7 @@ pre.diff .del {
 
 .fp-note {
     margin: 0;
-    padding: 0.8rem;
+    padding: 12px;
     font-size: 12px;
     color: var(--muted);
 }
@@ -9110,14 +9122,14 @@ pre.diff .del {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.4rem 0.9rem;
+    gap: 4px 12px;
 }
 
 .fp-target {
     flex: 1 0 100%;
     min-width: 0;
     display: flex;
-    gap: 0.4rem;
+    gap: 4px;
     font-size: 12px;
     white-space: nowrap;
 }
@@ -9157,7 +9169,7 @@ pre.diff .del {
 .fp-options {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.2rem 0.9rem;
+    gap: 4px 12px;
 }
 
 .fp-options .check {
@@ -9166,7 +9178,7 @@ pre.diff .del {
 
 .fp-buttons {
     display: flex;
-    gap: 0.5rem;
+    gap: 8px;
     margin-left: auto;
 }
 
@@ -9178,7 +9190,7 @@ pre.diff .del {
 /* Phones: the buttons share the width, under the options. */
 @media (max-width: 699px) {
     .fp-new {
-        padding-inline: 0.6rem;
+        padding-inline: 8px;
     }
     .fp-buttons {
         flex: 1 0 100%;
@@ -9197,7 +9209,7 @@ pre.diff .del {
 
 .check {
     display: flex;
-    gap: 0.4rem;
+    gap: 4px;
     align-items: center;
     font-size: 12px;
     color: var(--muted);
@@ -9209,7 +9221,7 @@ pre.diff .del {
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px;
+    padding: 12px 16px;
     background: var(--bg);
 }
 
@@ -9252,7 +9264,7 @@ pre.diff .del {
 
 .provider-actions {
     display: flex;
-    gap: 0.35rem;
+    gap: 4px;
     flex-wrap: wrap;
     justify-content: flex-end;
 }
@@ -9262,8 +9274,8 @@ pre.diff .del {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.6rem;
-    padding: 0.4rem 0;
+    gap: 8px;
+    padding: 4px 0;
     border-top: 1px solid var(--hair);
 }
 
@@ -9283,11 +9295,11 @@ pre.diff .del {
 
 /* An account of a provider (accounts.ts): under its provider, set in. */
 .provider.account {
-    padding-left: 30px;
+    padding-left: 32px;
 }
 
 .account-name {
-    gap: 6px;
+    gap: 8px;
     margin-top: 8px;
 }
 
@@ -9305,8 +9317,8 @@ pre.diff .del {
 .custom-providers {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.6rem 0 0.8rem;
+    gap: 4px;
+    padding: 8px 0 12px;
     margin-bottom: 0.4rem;
     border-bottom: 1px solid var(--hair);
 }
@@ -9326,7 +9338,7 @@ pre.diff .del {
 .cp-form {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
     min-width: 0;
 }
 
@@ -9365,14 +9377,14 @@ pre.diff .del {
 .cp-models {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
 
 .cp-model {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px 10px;
+    gap: 8px;
+    padding: 8px 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
 }
@@ -9393,7 +9405,7 @@ pre.diff .del {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 12px;
+    gap: 8px 12px;
 }
 
 .cp-model-fields .check {
@@ -9447,13 +9459,13 @@ pre.diff .del {
 }
 
 .subagent-models-list > p {
-    padding: 0.6rem;
+    padding: 8px;
 }
 
 .subagent-model {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 8px;
     min-height: 44px;
     padding: 8px 12px;
     border-top: 1px solid var(--hair);
@@ -9473,8 +9485,8 @@ pre.diff .del {
 .limit-wait {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.6rem 0 0.8rem;
+    gap: 4px;
+    padding: 8px 0 12px;
     margin-bottom: 0.4rem;
     border-bottom: 1px solid var(--hair);
 }
@@ -9493,20 +9505,20 @@ pre.diff .del {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding-top: 0.2rem;
+    padding-top: 4px;
 }
 
 .invite {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 8px;
     align-items: stretch;
 }
 
 .qr {
     background: #fff;
     border-radius: var(--radius);
-    padding: 0.6rem;
+    padding: 8px;
     /* Smaller on short screens, so the invite sheet fits a laptop window without scrolling. */
     width: min(70vw, clamp(160px, 25dvh, 260px));
     align-self: center;
@@ -9536,7 +9548,7 @@ pre.diff .del {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
 
 @media (max-width: 480px) {
@@ -9571,7 +9583,7 @@ pre.diff .del {
     font: 600 22px var(--mono);
     letter-spacing: 0.12em;
     text-align: center;
-    padding: 6px;
+    padding: 8px;
     border-radius: var(--r-control);
     background: var(--bg);
 }
@@ -9616,7 +9628,7 @@ pre.diff .del {
 .auth-event {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 4px;
 }
 
 /* ─── Artifact viewer ──────────────────────────────────────── */
@@ -9634,15 +9646,15 @@ pre.diff .del {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 58px;
-    padding: calc(env(safe-area-inset-top) + 8px) 10px 8px 20px;
+    min-height: 56px;
+    padding: calc(env(safe-area-inset-top) + 8px) 8px 8px 20px;
     border-bottom: 1px solid var(--hair);
 }
 
 .artifact-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 8px;
 }
 
 .artifact-card {
@@ -9678,7 +9690,7 @@ pre.diff .del {
     flex-direction: column;
     gap: 2px;
     width: 100%;
-    padding: 10px 12px;
+    padding: 8px 12px;
     overflow-wrap: anywhere;
 }
 
@@ -9692,7 +9704,7 @@ pre.diff .del {
 
 .message-actions > .group-title {
     margin: 0;
-    padding: 8px 14px;
+    padding: 8px 16px;
     background: var(--card);
 }
 
@@ -9702,7 +9714,7 @@ pre.diff .del {
 }
 
 .message-model-search {
-    padding: 8px 14px;
+    padding: 8px 16px;
 }
 
 .message-preview {
@@ -9748,7 +9760,7 @@ pre.diff .del {
 
 .viewer select {
     width: auto;
-    padding: 0.3rem 0.4rem;
+    padding: 4px 4px;
 }
 
 .viewer iframe {
@@ -9781,7 +9793,7 @@ pre.diff .del {
     display: flex;
     justify-content: space-between;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 8px 8px;
 }
 
 /* Audio Pi read aloud (PP-307): play, its waveform, time and name. */
@@ -9792,13 +9804,13 @@ pre.diff .del {
     border: 1px solid var(--hair);
     border-radius: var(--r-control);
     background: var(--card);
-    padding: 10px 12px;
+    padding: 8px 12px;
 }
 
 .made-audio-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .made-audio-play {
@@ -9817,7 +9829,7 @@ pre.diff .del {
 .made-audio-wave {
     flex: 1;
     min-width: 0;
-    height: 34px;
+    height: 32px;
     display: flex;
     align-items: center;
     gap: 2px;
@@ -9858,7 +9870,7 @@ pre.diff .del {
 .made-video-end {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex: none;
 }
 
@@ -9907,7 +9919,7 @@ pre.diff .del {
 .thumbs {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: 4px;
     margin-top: 0.4rem;
 }
 
@@ -9966,13 +9978,13 @@ pre.diff .del {
     color: var(--muted);
     border: 1px dashed var(--line-strong);
     border-radius: var(--radius);
-    padding: 0.25rem 0.55rem;
+    padding: 4px 8px;
 }
 
 .artifact-preview {
     display: block;
     width: 100%;
-    padding: 0.5rem;
+    padding: 8px;
     border: 1px solid var(--line);
     background: #fff;
     cursor: zoom-in;
@@ -9987,12 +9999,12 @@ pre.diff .del {
 }
 
 .chip.with-thumb {
-    padding-left: 0.2rem;
+    padding-left: 4px;
 }
 
 .chip-thumb {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     border-radius: var(--radius);
     object-fit: cover;
     flex: none;
@@ -10055,8 +10067,8 @@ pre.diff .del {
     right: 0;
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: calc(env(safe-area-inset-top) + 0.4rem) 0.4rem 0.4rem 0.9rem;
+    gap: 4px;
+    padding: calc(env(safe-area-inset-top) + 4px) 4px 4px 12px;
     background: var(--bg);
     border-bottom: 1px solid var(--hair);
     cursor: default;
@@ -10089,7 +10101,7 @@ pre.diff .del {
     z-index: 40;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     width: min(calc(100vw - 20px), 440px);
     pointer-events: none;
 }
@@ -10108,7 +10120,7 @@ pre.diff .del {
     align-items: flex-start;
     gap: 12px;
     min-height: 44px;
-    padding: 12px 12px 12px 14px;
+    padding: 12px 12px 12px 16px;
     border-radius: var(--r-card);
     background:
         linear-gradient(100deg, color-mix(in srgb, var(--level) 9%, transparent), transparent 48%),
@@ -10138,7 +10150,7 @@ pre.diff .del {
     width: 8px;
     height: 8px;
     margin: 6px 1px 0;
-    border-radius: calc(var(--r-mark) - 0.5px);
+    border-radius: var(--r-mark);
     background: var(--level);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--level) 18%, transparent);
 }
@@ -10235,10 +10247,10 @@ pre.diff .del {
 .plain {
     max-width: 440px;
     margin: 0 auto;
-    padding: 3rem 1.2rem;
+    padding: 40px 16px;
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 12px;
 }
 
 .signin .pi.big {
@@ -10256,23 +10268,23 @@ pre.diff .del {
 .plain form {
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 12px;
 }
 
 .plain label {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 4px;
     color: var(--muted);
 }
 
 .plain button {
-    min-height: 42px;
+    min-height: 40px;
     background: var(--accent-fill);
     color: var(--accent-ink);
     font-weight: 600;
-    border-radius: calc(var(--r-control) + 1px);
-    padding: 10px 16px;
+    border-radius: var(--r-control);
+    padding: 8px 16px;
 }
 
 .plain h1,
@@ -10385,15 +10397,15 @@ body.plain-page {
 .typing-line {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 8px;
     font-size: 12px;
     color: var(--muted);
-    padding: 0 0.2rem 0.3rem;
+    padding: 0 4px 4px;
 }
 
 .typing-dots {
     display: inline-flex;
-    gap: 3px;
+    gap: 4px;
 }
 
 .typing-dots span {
@@ -10426,7 +10438,7 @@ body.plain-page {
 .chat-label {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     padding: 4px;
     color: var(--faint);
     font-size: 12px;
@@ -10435,7 +10447,7 @@ body.plain-page {
 .chat-log {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
     flex: 1;
     min-height: 80px;
     overflow-y: auto;
@@ -10452,7 +10464,7 @@ body.plain-page {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 3px;
+    gap: 4px;
 }
 
 .chat-msg.mine {
@@ -10470,7 +10482,7 @@ body.plain-page {
 .chat-meta {
     font-size: 12px;
     display: flex;
-    gap: 6px;
+    gap: 8px;
     padding: 0 4px;
     align-items: baseline;
     color: var(--faint);
@@ -10505,12 +10517,12 @@ body.plain-page {
 
 .chat-compose {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     align-items: flex-end;
     background: var(--card);
     border: 1px solid var(--hair-2);
     border-radius: var(--r-sheet);
-    padding: 4px 4px 4px 14px;
+    padding: 4px 4px 4px 16px;
 }
 
 .chat-compose:focus-within {
@@ -10532,8 +10544,8 @@ body.plain-page {
 }
 
 .chat-compose .round.send {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     flex: none;
 }
@@ -10559,7 +10571,7 @@ body.plain-page {
 .nested-calls {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 4px;
     margin: 0.35rem 0;
     font-size: 12px;
 }
@@ -10568,7 +10580,7 @@ body.plain-page {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.45rem;
+    gap: 8px;
 }
 
 .nested-status {
@@ -10591,7 +10603,7 @@ body.plain-page {
 
 .nested-error {
     flex-basis: 100%;
-    padding-left: 1.45rem;
+    padding-left: 20px;
     white-space: pre-wrap;
     word-break: break-word;
 }
@@ -10642,7 +10654,7 @@ body.plain-page {
     background: var(--card);
     color: var(--muted);
     font-size: 12px;
-    padding: 4px 10px;
+    padding: 4px 8px;
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 3;
@@ -10653,7 +10665,7 @@ body.plain-page {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 8px 8px;
     border-radius: var(--r-row);
     background: var(--card);
     color: var(--muted);
@@ -10675,7 +10687,7 @@ body.plain-page {
 
 .mention.me {
     background: var(--accent-soft);
-    padding: 0 0.15rem;
+    padding: 0 4px;
 }
 
 .mention-list {
@@ -10694,17 +10706,17 @@ body.plain-page {
 .pin-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     overflow-y: auto;
 }
 
 .pin {
     display: flex;
     align-items: flex-start;
-    gap: 6px;
+    gap: 8px;
     background: var(--card);
     border: 1px solid var(--hair);
-    border-radius: calc(var(--r-control) + 1px);
+    border-radius: var(--r-control);
     padding: 8px 8px 8px 12px;
 }
 
@@ -10717,7 +10729,7 @@ body.plain-page {
 .pin-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem;
+    gap: 8px;
     font-size: 12px;
 }
 
@@ -10746,8 +10758,8 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 10px;
-    padding: 6px 10px 6px 14px;
+    gap: 8px 8px;
+    padding: 8px 8px 8px 16px;
     margin-bottom: 4px;
     background: var(--card);
     border: 1px solid var(--hair);
@@ -10804,7 +10816,7 @@ textarea.notes {
 .usage-warning-switch {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
 }
 
@@ -10821,7 +10833,7 @@ textarea.notes {
 .trust-choice {
     justify-content: flex-start;
     gap: 12px;
-    padding: 14px;
+    padding: 16px;
     margin-bottom: 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
@@ -10832,8 +10844,8 @@ textarea.notes {
 }
 
 .trust-radio {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     flex: none;
     border-radius: var(--r-pill);
     border: 1.5px solid var(--hair-2);
@@ -10852,7 +10864,7 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.15rem;
+    gap: 4px;
     min-width: 0;
     text-align: left;
 }
@@ -10870,7 +10882,7 @@ textarea.notes {
 .trust-actions {
     display: flex;
     align-items: center;
-    gap: 0.7rem;
+    gap: 8px;
     margin-left: auto;
 }
 
@@ -10881,7 +10893,7 @@ textarea.notes {
 .driver-label {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     color: var(--text);
     font-weight: 600;
 }
@@ -10898,7 +10910,7 @@ textarea.notes {
     flex-basis: 100%;
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: 4px;
 }
 
 .view-only {
@@ -10910,7 +10922,7 @@ textarea.notes {
 }
 
 .composer-row.stop-only {
-    padding: 4px 6px;
+    padding: 4px 8px;
 }
 
 .unread-dot {
@@ -10923,7 +10935,7 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px;
+    padding: 12px 16px;
 }
 
 @media (max-width: 480px) {
@@ -10944,7 +10956,7 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 0.3rem;
+    gap: 4px;
 }
 
 .flash {
@@ -10970,7 +10982,7 @@ textarea.notes {
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
     background: var(--card);
-    padding: 12px 14px;
+    padding: 12px 16px;
     margin: 0;
     font-size: 14px;
 }
@@ -10979,7 +10991,7 @@ textarea.notes {
 .setting {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 8px;
     margin-top: 0.4rem;
 }
 
@@ -10997,7 +11009,7 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px;
+    padding: 12px 16px;
     font-size: 14px;
 }
 
@@ -11013,7 +11025,7 @@ textarea.notes {
 /* A change to a lesson that waits for the owner, under the lesson it would change. */
 .lesson-proposal {
     margin-top: 0.35rem;
-    padding-left: 0.6rem;
+    padding-left: 8px;
     border-left: 2px solid var(--accent);
 }
 
@@ -11022,12 +11034,12 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.4rem 0.6rem;
+    gap: 4px 8px;
     margin-top: 0.3rem;
 }
 
 .lesson-call.waiting {
-    padding: 0.35rem 0.5rem;
+    padding: 4px 8px;
     background: var(--card);
     border: 1px solid var(--line);
     border-left: 2px solid var(--accent);
@@ -11044,7 +11056,7 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 12px 14px;
+    padding: 12px 16px;
     font-size: 14px;
 }
 
@@ -11068,7 +11080,7 @@ textarea.notes {
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.3rem 0.6rem;
+    gap: 4px 8px;
 }
 
 .lesson-source {
@@ -11139,18 +11151,18 @@ textarea.notes {
 .running-task {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 8px;
 }
 
 .running-head {
-    padding: 10px 12px 10px 14px;
+    padding: 8px 12px 8px 16px;
     background: var(--card);
 }
 
 .running-head > .folder-mark {
     width: 8px;
     height: 8px;
-    border-radius: calc(var(--r-mark) - 0.5px);
+    border-radius: var(--r-mark);
 }
 
 .running-head .link {
@@ -11177,7 +11189,7 @@ textarea.notes {
 
 .running-task {
     font-size: 13px;
-    padding: 8px 14px;
+    padding: 8px 16px;
     border-top: 1px solid var(--hair);
 }
 
@@ -11198,7 +11210,7 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     gap: 4px 12px;
-    padding: 0 14px 8px;
+    padding: 0 16px 8px;
     background: var(--card);
 }
 
@@ -11219,7 +11231,7 @@ textarea.notes {
     flex-direction: column;
     gap: 4px;
     width: 100%;
-    padding: 8px 14px;
+    padding: 8px 16px;
     border-top: 1px solid var(--hair);
     text-align: left;
 }
@@ -11367,7 +11379,7 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 6px 10px;
+    gap: 8px 8px;
     color: var(--muted);
     font-size: 13px;
 }
@@ -11383,9 +11395,9 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 12px;
+    gap: 8px 12px;
     min-height: 48px;
-    padding: 10px 14px;
+    padding: 8px 16px;
     font-size: 14px;
     color: var(--text);
 }
@@ -11452,12 +11464,12 @@ textarea.notes {
 .limit-edit {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 4px;
 }
 
 .limit-edit input {
     width: 72px;
-    min-height: 30px;
+    min-height: 32px;
     padding: 4px 8px;
     border-radius: var(--r-seg);
     font-family: var(--mono);
@@ -11472,7 +11484,7 @@ textarea.notes {
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    padding: calc(env(safe-area-inset-top) + 11vh) 10px 10px;
+    padding: calc(env(safe-area-inset-top) + 11vh) 8px 8px;
     background: var(--scrim);
     animation: fade var(--t-fade) var(--ease-almost);
 }
@@ -11500,7 +11512,7 @@ textarea.notes {
 }
 
 .launcher kbd {
-    padding: 4px 6px;
+    padding: 4px 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-tag);
     background: none;
@@ -11512,9 +11524,9 @@ textarea.notes {
     display: flex;
     flex: none;
     align-items: center;
-    gap: 10px;
-    height: 58px;
-    padding: 0 12px 0 18px;
+    gap: 8px;
+    height: 56px;
+    padding: 0 12px 0 16px;
     border-bottom: 1px solid var(--hair);
     color: var(--accent);
 }
@@ -11566,14 +11578,14 @@ textarea.notes {
     flex: none;
     flex-wrap: wrap;
     gap: 4px;
-    padding: 10px 14px 4px;
+    padding: 8px 16px 4px;
 }
 
 .launcher-types button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 8px;
     height: 28px;
     padding: 0 12px;
     border: 1px solid transparent;
@@ -11612,7 +11624,7 @@ textarea.notes {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 4px 18px 0;
+    padding: 4px 16px 0;
     min-height: 36px;
     color: var(--faint);
     font-size: 12px;
@@ -11625,7 +11637,7 @@ textarea.notes {
 
 .launcher-summary button {
     min-height: 36px;
-    padding: 0.4rem;
+    padding: 4px;
     color: var(--text);
     text-decoration: underline;
     text-underline-offset: 3px;
@@ -11650,7 +11662,7 @@ textarea.notes {
     display: flex;
     justify-content: space-between;
     gap: 8px;
-    padding: 12px 10px 4px;
+    padding: 12px 8px 4px;
     font-size: 12px;
     font-weight: 500;
     color: var(--faint);
@@ -11665,8 +11677,8 @@ textarea.notes {
     align-items: center;
     gap: 12px;
     width: 100%;
-    min-height: 42px;
-    padding: 6px 10px;
+    min-height: 40px;
+    padding: 8px 8px;
     border-radius: var(--r-control);
     text-align: left;
     color: var(--text);
@@ -11682,7 +11694,7 @@ textarea.notes {
     flex: none;
     display: grid;
     place-items: center;
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     background: var(--card);
     color: var(--muted);
 }
@@ -11788,7 +11800,7 @@ textarea.notes {
     width: 28px;
     height: 28px;
     flex: none;
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     overflow: hidden;
     box-shadow: 0 0 0 1px var(--hair-2);
 }
@@ -11797,10 +11809,10 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.65rem;
+    gap: 8px;
     min-height: 0;
     overflow-y: auto;
-    padding: 1.6rem 1rem;
+    padding: 24px 16px;
     color: var(--muted);
     text-align: center;
     font-size: 0.9rem;
@@ -11831,7 +11843,7 @@ textarea.notes {
     flex: none;
     flex-wrap: wrap;
     gap: 8px 16px;
-    padding: 10px 18px;
+    padding: 8px 16px;
     border-top: 1px solid var(--hair);
     font-size: 12px;
     color: var(--faint);
@@ -11840,7 +11852,7 @@ textarea.notes {
 .launcher-foot span {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 4px;
 }
 
 .launcher-foot kbd {
@@ -11865,8 +11877,8 @@ textarea.notes {
         max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 32px);
     }
     .launcher-input {
-        padding: 0.5rem 0.7rem;
-        gap: 0.6rem;
+        padding: 8px 8px;
+        gap: 8px;
     }
     .launcher-escape,
     .launcher-types kbd,
@@ -11874,8 +11886,8 @@ textarea.notes {
         display: none;
     }
     .launcher-types {
-        gap: 0.3rem;
-        padding: 0.5rem;
+        gap: 4px;
+        padding: 8px;
     }
     .launcher-close {
         width: 44px;
@@ -11885,7 +11897,7 @@ textarea.notes {
         height: auto;
         flex: 1;
         min-height: 44px;
-        padding-inline: 0.5rem;
+        padding-inline: 8px;
     }
     .launcher-summary,
     .launcher-summary button {
@@ -11893,11 +11905,11 @@ textarea.notes {
     }
     .launcher-item {
         min-height: 60px;
-        gap: 0.6rem;
-        padding-inline: 0.6rem;
+        gap: 8px;
+        padding-inline: 8px;
     }
     .launcher-item .detail {
-        gap: 0.4rem;
+        gap: 4px;
     }
     .launcher-foot .launcher-key-help,
     .launcher-foot .launcher-prefix-help {
@@ -11913,7 +11925,7 @@ textarea.notes {
 .theme-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 10px;
+    gap: 8px;
 }
 
 /* A theme card draws a tiny Hyprland desktop in its own palette: the card sets the --o-* colors it uses. */
@@ -11923,7 +11935,7 @@ textarea.notes {
     flex-direction: column;
     text-align: left;
     gap: 8px;
-    padding: 8px 8px 10px;
+    padding: 8px 8px 8px;
     border-radius: var(--r-window);
     background: var(--o-bg);
     color: var(--o-fg);
@@ -11953,9 +11965,9 @@ textarea.notes {
 .tc-desk {
     display: flex;
     gap: 4px;
-    height: 62px;
-    padding: 6px;
-    border-radius: 9px;
+    height: 64px;
+    padding: 8px;
+    border-radius: 8px;
     background: var(--o-bg-darker);
 }
 
@@ -11963,8 +11975,8 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 6px;
-    border-radius: 5px;
+    padding: 8px;
+    border-radius: 4px;
     background: var(--o-bg);
     border: 1px solid color-mix(in srgb, var(--o-fg) 13%, transparent);
 }
@@ -11997,7 +12009,7 @@ textarea.notes {
     margin-top: auto;
     align-self: flex-end;
     height: 8px;
-    border-radius: 3px;
+    border-radius: 4px;
     background: var(--o-accent);
     opacity: 1;
     width: 30%;
@@ -12006,7 +12018,7 @@ textarea.notes {
 .tc-name {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 4px;
     font-size: 13px;
     font-weight: 500;
     color: var(--o-fg-bright, var(--o-fg));
@@ -12030,7 +12042,7 @@ textarea.notes {
 .tc-dots i {
     width: 10px;
     height: 10px;
-    border-radius: 3px;
+    border-radius: 4px;
 }
 
 .theme-desktop {
@@ -12042,7 +12054,7 @@ textarea.notes {
     width: 42%;
     flex: none;
     height: auto;
-    min-height: 70px;
+    min-height: 72px;
 }
 
 .theme-desktop .tc-text {
@@ -12053,7 +12065,7 @@ textarea.notes {
 }
 
 .theme-desktop .tc-note {
-    padding: 0 0 0.45rem;
+    padding: 0 0 8px;
     font-size: 12px;
     color: var(--o-fg);
     opacity: 0.75;
@@ -12063,7 +12075,7 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: calc(12px * var(--space-y)) calc(14px * var(--space-x));
+    padding: calc(12px * var(--space-y)) calc(16px * var(--space-x));
     background: var(--o-bg);
     font-size: 14px;
 }
@@ -12102,7 +12114,7 @@ textarea.notes {
 .shortcuts {
     display: grid;
     grid-template-columns: 9.5rem 1fr;
-    gap: 8px 18px;
+    gap: 8px 16px;
     margin: 0;
     font-size: 14px;
     align-items: baseline;
@@ -12110,7 +12122,7 @@ textarea.notes {
 
 .shortcuts dt {
     display: flex;
-    gap: 0.2rem;
+    gap: 4px;
     justify-content: flex-end;
 }
 
@@ -12123,7 +12135,7 @@ textarea.notes {
 .look-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: 10px;
+    gap: 8px;
 }
 
 .look-card {
@@ -12132,7 +12144,7 @@ textarea.notes {
     align-items: flex-start;
     gap: 4px;
     min-height: 64px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     text-align: left;
     border-radius: var(--r-card);
     background: var(--card);
@@ -12160,7 +12172,7 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.4rem;
+    gap: 4px;
     font-size: 14px;
     font-weight: 500;
     color: var(--text);
@@ -12202,7 +12214,7 @@ textarea.notes {
 }
 
 .signin .row {
-    padding: 6px;
+    padding: 8px;
     border: 1px solid var(--hair-2);
     border-radius: var(--r-window);
     background: var(--card);
@@ -12323,9 +12335,9 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 58px;
+    height: 56px;
     flex: none;
-    padding: 0 10px 0 16px;
+    padding: 0 8px 0 16px;
     border-bottom: 1px solid var(--hair);
 }
 
@@ -12369,8 +12381,8 @@ textarea.notes {
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    gap: 6px;
-    padding: 8px 10px 10px;
+    gap: 8px;
+    padding: 8px 8px 8px;
     overflow-y: auto;
 }
 
@@ -12386,8 +12398,8 @@ textarea.notes {
 .people-person {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px;
+    gap: 8px;
+    padding: 8px;
     border-radius: var(--r-row);
 }
 
@@ -12424,10 +12436,10 @@ textarea.notes {
 .people-turns {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin: 0 2px 2px;
-    padding: 10px 12px;
-    border-radius: calc(var(--r-control) + 1px);
+    padding: 8px 12px;
+    border-radius: var(--r-control);
     background: var(--card);
 }
 
@@ -12449,7 +12461,7 @@ textarea.notes {
 
 .people-turns .button {
     min-height: 28px;
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     padding: 0 12px;
     font-size: 12px;
     flex: none;
@@ -12462,7 +12474,7 @@ textarea.notes {
     margin: 0 2px;
     padding: 8px 12px;
     border: 1px solid var(--hair);
-    border-radius: calc(var(--r-control) + 1px);
+    border-radius: var(--r-control);
     text-align: left;
     font-size: 13px;
     color: var(--body);
@@ -12549,7 +12561,7 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.6rem;
+    gap: 8px;
     text-align: center;
     color: var(--muted);
     font-size: 13px;
@@ -12613,9 +12625,9 @@ textarea.notes {
     flex-direction: column;
     gap: 2px;
     min-width: 0;
-    padding: 12px 14px 8px;
+    padding: 12px 16px 8px;
     /* The tile's corners, inside its border: the hover fill and the focus ring follow them. */
-    border-radius: calc(var(--r-window) - 1px) calc(var(--r-window) - 1px) 0 0;
+    border-radius: var(--r-window) var(--r-window) 0 0;
     text-align: left;
     transition: background-color var(--t-hover) var(--ease-out);
 }
@@ -12663,8 +12675,8 @@ textarea.notes {
 .peek-lines {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    padding: 2px 14px 10px;
+    gap: 4px;
+    padding: 2px 16px 8px;
     cursor: pointer;
 }
 
@@ -12681,8 +12693,8 @@ textarea.notes {
     flex: none;
     display: inline-flex;
     align-items: center;
-    width: 14px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     font: 600 12px / 18px var(--mono);
     color: var(--faint);
 }
@@ -12695,13 +12707,13 @@ textarea.notes {
 .peek-mark.pi {
     display: inline-flex;
     align-items: center;
-    height: 18px;
+    height: 16px;
 }
 
 .peek-mark.pi img {
     display: block;
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border-radius: 24%;
 }
 
@@ -12767,14 +12779,14 @@ textarea.notes {
     flex-direction: column;
     gap: 2px;
     margin: 0 8px 8px;
-    padding-top: 6px;
+    padding-top: 8px;
     border-top: 1px solid var(--hair);
 }
 
 .agent-tile {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
     min-width: 0;
     padding: 8px 8px 8px;
     border: 1px solid var(--hair);
@@ -12820,7 +12832,7 @@ textarea.notes {
 .agent-tile-head {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
 }
 
@@ -12873,7 +12885,7 @@ textarea.notes {
     flex-direction: row;
     align-items: center;
     gap: 8px;
-    padding: 4px 6px;
+    padding: 4px 8px;
     border-color: transparent;
     background: transparent;
 }
@@ -12910,9 +12922,9 @@ textarea.notes {
 .agent-more {
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-height: 26px;
-    padding: 3px 6px;
+    gap: 8px;
+    min-height: 24px;
+    padding: 4px 8px;
     border: 0;
     border-radius: var(--r-control);
     background: transparent;
@@ -12949,7 +12961,7 @@ textarea.notes {
 .peek-ask {
     flex: none;
     margin: 0 10px 10px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -12961,7 +12973,7 @@ textarea.notes {
 .peek-ask-tool {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     font-size: 12px;
     font-weight: 600;
     color: var(--warn);
@@ -13015,7 +13027,7 @@ textarea.notes {
     align-items: center;
     gap: 8px;
     min-height: 44px;
-    padding: 0 10px 0 14px;
+    padding: 0 8px 0 16px;
     border-top: 1px solid var(--hair);
 }
 
@@ -13056,10 +13068,10 @@ textarea.notes {
 }
 
 .peek-actions .button.small {
-    min-height: 30px;
+    min-height: 32px;
     padding: 0 12px;
     border: 0;
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     background: var(--card-2);
     color: var(--text);
     font-size: 13px;
@@ -13073,7 +13085,7 @@ textarea.notes {
 }
 
 .peek-actions .button.small.primary {
-    padding: 0 14px;
+    padding: 0 16px;
     background: var(--accent-fill);
     color: var(--accent-ink);
     font-weight: 600;
@@ -13087,8 +13099,8 @@ textarea.notes {
 }
 
 .peek-seen {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     color: var(--ok);
 }
 
@@ -13147,7 +13159,7 @@ textarea.notes {
 
 .peek-strip .peek-head {
     padding: 8px 12px 2px;
-    border-radius: calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0;
+    border-radius: var(--r-card) var(--r-card) 0 0;
 }
 
 .peek-strip .peek-cwd {
@@ -13160,7 +13172,7 @@ textarea.notes {
 
 .peek-strip .peek-ask {
     margin: 0 8px 8px;
-    padding: 8px 10px;
+    padding: 8px 8px;
 }
 
 .peek-strip .peek-foot {
@@ -13218,8 +13230,8 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 42px;
-    padding: 0 10px;
+    min-height: 40px;
+    padding: 0 8px;
     background: var(--card);
     border-bottom: 1px solid var(--hair);
     font-size: 13px;
@@ -13239,7 +13251,7 @@ textarea.notes {
     width: 24px;
     height: 24px;
     flex: none;
-    border-radius: calc(var(--r-tag) + 1px);
+    border-radius: var(--r-tag);
     color: var(--muted);
 }
 
@@ -13255,8 +13267,8 @@ textarea.notes {
     flex: none;
     display: grid;
     place-items: center;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border-radius: var(--r-tag);
     background: var(--warn-soft);
     color: var(--warn);
@@ -13320,15 +13332,15 @@ textarea.notes {
 
 .dv-counts {
     display: inline-flex;
-    gap: 6px;
+    gap: 8px;
     flex: none;
     font: 12px var(--mono);
 }
 
 .dv-chip {
     flex: none;
-    height: 18px;
-    padding: 0 6px;
+    height: 16px;
+    padding: 0 8px;
     border-radius: var(--r-tag);
     font-size: 12px;
 }
@@ -13341,7 +13353,7 @@ textarea.notes {
 .dv-tool.icon-button {
     width: 28px;
     height: 28px;
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     font-size: 13px;
     color: var(--muted);
 }
@@ -13356,8 +13368,8 @@ textarea.notes {
 @media (pointer: coarse) {
     .dv-tool .icon,
     .file-tools .icon-button .icon {
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
     }
 }
 
@@ -13371,9 +13383,9 @@ textarea.notes {
 .dv-viewed {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex: none;
-    height: 26px;
+    height: 24px;
     padding: 0 8px 0 8px;
     border: 1px solid var(--hair-2);
     border-radius: var(--r-seg);
@@ -13409,12 +13421,12 @@ textarea.notes {
     appearance: none;
     position: relative;
     flex: none;
-    width: 13px;
-    height: 13px;
+    width: 12px;
+    height: 12px;
     margin: 0;
     padding: 0;
     border: 1.5px solid currentColor;
-    border-radius: calc(var(--r-tag) - 1px);
+    border-radius: var(--r-tag);
     background: none;
     cursor: pointer;
 }
@@ -13500,7 +13512,7 @@ textarea.notes {
 /* The code, with the sign of an added or removed line in an 18px column of its own. */
 .dv-code {
     position: relative;
-    padding: 0 12px 0 18px;
+    padding: 0 12px 0 16px;
     vertical-align: top;
     white-space: pre;
 }
@@ -13514,7 +13526,7 @@ textarea.notes {
     content: attr(data-sign);
     position: absolute;
     left: 0;
-    width: 18px;
+    width: 16px;
     text-align: center;
     user-select: none;
 }
@@ -13574,7 +13586,7 @@ textarea.notes {
 }
 
 .dv-hunk td {
-    padding: 6px 12px;
+    padding: 8px 12px;
     color: var(--accent);
     font-size: 12px;
     white-space: nowrap;
@@ -13594,8 +13606,8 @@ textarea.notes {
 }
 
 .dv-gap button {
-    padding: 2px 10px;
-    border-radius: calc(var(--r-tag) + 1px);
+    padding: 2px 8px;
+    border-radius: var(--r-tag);
     color: var(--accent);
     font: 12px var(--mono);
 }
@@ -13613,13 +13625,13 @@ textarea.notes {
 
 /* A note under a line ("No newline at end of file") starts where the code does: past the numbers, and the sign. */
 .dv-note td {
-    padding: 0 12px 0 calc(2 * var(--dv-n) + 18px);
+    padding: 0 12px 0 calc(2 * var(--dv-n) + 16px);
     color: var(--muted);
     font-style: italic;
 }
 
 .dv-table.split .dv-note td {
-    padding-left: calc(var(--dv-n) + 18px);
+    padding-left: calc(var(--dv-n) + 16px);
 }
 
 .dv-note span {
@@ -13628,7 +13640,7 @@ textarea.notes {
 
 .dv-empty {
     margin: 0;
-    padding: 10px 14px;
+    padding: 8px 16px;
     color: var(--muted);
     font-size: 13px;
 }
@@ -13642,14 +13654,14 @@ textarea.notes {
 }
 
 .dv-wait {
-    padding: 6px 14px;
+    padding: 8px 16px;
 }
 
 /* A diff in a tool card or a reply: it scrolls inside a bound, like the card's other output. */
 .dv-block {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     max-height: 60vh;
     overflow: auto;
 }
@@ -13672,8 +13684,8 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px 10px;
-    padding: 12px 14px;
+    gap: 8px 8px;
+    padding: 12px 16px;
     font-size: 13px;
     color: var(--muted);
 }
@@ -13684,11 +13696,11 @@ textarea.notes {
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    padding: 12px 14px 0;
+    padding: 12px 16px 0;
 }
 
 .dr-loop .segmented button {
-    padding: 4px 10px;
+    padding: 4px 8px;
     font-size: 12px;
 }
 
@@ -13741,7 +13753,7 @@ textarea.notes {
     max-width: 640px;
     padding: 8px;
     border: 1px solid var(--hair);
-    border-radius: 10px;
+    border-radius: 8px;
     background: var(--card);
     font-family: var(--sans);
 }
@@ -13798,7 +13810,7 @@ textarea.notes {
     gap: 4px;
     height: 20px;
     padding: 0 8px;
-    border-radius: calc(var(--r-tag) + 1px);
+    border-radius: var(--r-tag);
     background: var(--card);
     color: var(--muted);
 }
@@ -13813,7 +13825,7 @@ textarea.notes {
 .dr-stats {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .dr-stats strong {
@@ -13835,25 +13847,25 @@ textarea.notes {
     margin-left: auto;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .dr-tools {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    padding: 0 12px 10px;
+    gap: 8px;
+    padding: 0 12px 8px;
 }
 
 .dr-filter,
 .ft-filter {
     flex: 1;
     min-width: 7rem;
-    height: 30px;
-    padding: 0 10px;
+    height: 32px;
+    padding: 0 8px;
     border-color: var(--hair);
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
 }
 
 @media (pointer: fine) {
@@ -13864,18 +13876,18 @@ textarea.notes {
 }
 
 .dr-tools .chip {
-    height: 30px;
-    padding: 0 10px;
-    border-radius: calc(var(--r-row) - 1px);
+    height: 32px;
+    padding: 0 8px;
+    border-radius: var(--r-row);
     background: none;
     font-size: 12px;
 }
 
 .dr-main {
     display: grid;
-    gap: 10px;
+    gap: 8px;
     min-width: 0;
-    padding: 0 12px 14px;
+    padding: 0 12px 16px;
 }
 
 .dr.wide .dr-main {
@@ -13884,7 +13896,7 @@ textarea.notes {
 }
 
 .dr-tree {
-    padding: 6px;
+    padding: 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
     background: var(--card);
@@ -13903,10 +13915,10 @@ textarea.notes {
 .ft-row {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     width: 100%;
     min-height: 28px;
-    padding: 0 8px 0 calc(8px + var(--depth, 0) * 14px);
+    padding: 0 8px 0 calc(8px + var(--depth, 0) * 16px);
     border-radius: var(--r-seg);
     text-align: left;
     color: var(--body);
@@ -13956,14 +13968,14 @@ textarea.notes {
 
 .dr-pi {
     flex: none;
-    width: 13px;
-    height: 13px;
+    width: 12px;
+    height: 12px;
     border-radius: 24%;
 }
 
 .dr-tail {
     margin-left: auto;
-    padding-left: 6px;
+    padding-left: 8px;
     color: var(--ok);
 }
 
@@ -13974,7 +13986,7 @@ textarea.notes {
 .dr-files {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     min-width: 0;
 }
 
@@ -13992,8 +14004,8 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.4rem;
-    padding: 2.5rem 1rem;
+    gap: 4px;
+    padding: 36px 16px;
     color: var(--ok);
     font-size: 12px;
 }
@@ -14004,7 +14016,7 @@ textarea.notes {
 }
 
 .dr-pionly {
-    padding: 0 12px 14px;
+    padding: 0 12px 16px;
 }
 
 .dr-pionly .list-item {
@@ -14065,13 +14077,13 @@ textarea.notes {
     gap: 8px;
     flex: none;
     height: calc(58px + env(safe-area-inset-top));
-    padding: env(safe-area-inset-top) 10px 0 14px;
+    padding: env(safe-area-inset-top) 8px 0 16px;
     border-bottom: 1px solid var(--hair);
 }
 
 .files-bar .icon-button {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     color: var(--muted);
 }
 
@@ -14096,7 +14108,7 @@ textarea.notes {
 .dr-layout {
     display: flex;
     flex: none;
-    padding: 3px;
+    padding: 4px;
     border-radius: var(--r-control);
     background: var(--card);
 }
@@ -14105,7 +14117,7 @@ textarea.notes {
 .dr-layout button {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     height: 28px;
     padding: 0 12px;
     border-radius: var(--r-seg);
@@ -14136,8 +14148,8 @@ textarea.notes {
 }
 
 .dr-layout button {
-    height: 26px;
-    padding: 0 10px;
+    height: 24px;
+    padding: 0 8px;
     font-size: 12px;
 }
 
@@ -14194,13 +14206,13 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 10px 8px 6px 10px;
+    padding: 8px 8px 8px 8px;
 }
 
 .ft-tools .icon-button {
     width: 28px;
     height: 28px;
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     color: var(--muted);
 }
 
@@ -14214,7 +14226,7 @@ textarea.notes {
     flex: 1;
     min-height: 0;
     overflow: auto;
-    padding: 2px 6px 10px;
+    padding: 2px 8px 8px;
 }
 
 .ft-spacer {
@@ -14234,7 +14246,7 @@ textarea.notes {
 /* M, A, D: what changed in a file, at the row's end; a folder with changes inside has a dot. */
 .ft-kind {
     margin-left: auto;
-    padding-left: 6px;
+    padding-left: 8px;
     font: 600 12px var(--mono);
 }
 
@@ -14280,7 +14292,7 @@ textarea.notes {
 .ft-parent {
     min-width: 0;
     margin-left: auto;
-    padding-left: 0.6rem;
+    padding-left: 8px;
     color: var(--faint);
     font-size: 12px;
     overflow: hidden;
@@ -14289,7 +14301,7 @@ textarea.notes {
 }
 
 .ft-note {
-    padding: 0.5rem 0.8rem;
+    padding: 8px 12px;
 }
 
 .ft-view {
@@ -14309,8 +14321,8 @@ textarea.notes {
     align-items: center;
     gap: 8px;
     flex: none;
-    min-height: 42px;
-    padding: 0 10px 0 14px;
+    min-height: 40px;
+    padding: 0 8px 0 16px;
     background: var(--bg);
     border-bottom: 1px solid var(--hair);
 }
@@ -14318,7 +14330,7 @@ textarea.notes {
 .ft-view-head .icon-button {
     width: 28px;
     height: 28px;
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     color: var(--muted);
 }
 
@@ -14343,7 +14355,7 @@ textarea.notes {
 }
 
 .ft-view .file-tools {
-    padding: 6px 10px 6px 14px;
+    padding: 8px 8px 8px 16px;
 }
 
 .ft-view .file-view {
@@ -14355,7 +14367,7 @@ textarea.notes {
 .ft-empty {
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
+    gap: 4px;
     color: var(--faint);
 }
 
@@ -14363,14 +14375,14 @@ textarea.notes {
 .file-viewer {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 8px;
     min-width: 0;
 }
 
 .file-tools {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 4px;
 }
 
 .file-tools .file-path {
@@ -14439,18 +14451,18 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 4px;
-    min-height: 58px;
+    min-height: 56px;
     flex: none;
-    padding: env(safe-area-inset-top) 8px 0 10px;
+    padding: env(safe-area-inset-top) 8px 0 8px;
     border-bottom: 1px solid var(--hair);
     background: var(--bg);
 }
 
 .browser-bar .icon-button {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     flex: none;
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     color: var(--muted);
 }
 
@@ -14482,7 +14494,7 @@ textarea.notes {
     gap: 8px;
     flex: 1;
     min-width: 0;
-    height: 34px;
+    height: 32px;
     margin: 0 4px;
     padding: 0 12px;
     border: 1px solid var(--hair);
@@ -14625,9 +14637,9 @@ textarea.notes {
     transform: translateX(-50%);
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 8px;
     max-width: calc(100% - 1.2rem);
-    padding: 0.45rem 0.6rem 0.45rem 0.8rem;
+    padding: 8px 8px 8px 12px;
     background: var(--panel);
     border: 1px solid var(--err-line);
     color: var(--err);
@@ -14637,11 +14649,11 @@ textarea.notes {
 .browser-note {
     margin: auto;
     max-width: 30rem;
-    padding: 2rem 1.5rem;
+    padding: 28px 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.7rem;
+    gap: 8px;
     text-align: center;
     color: var(--muted);
 }
@@ -14657,7 +14669,7 @@ textarea.notes {
     flex-direction: column;
     align-items: stretch;
     justify-content: center;
-    gap: 14px;
+    gap: 16px;
     padding: 24px;
     overflow-y: auto;
     text-align: left;
@@ -14720,8 +14732,8 @@ textarea.notes {
 .browser-server {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
+    gap: 8px;
+    padding: 12px 16px;
     background: var(--bg);
     color: var(--text);
     text-align: left;
@@ -14752,8 +14764,8 @@ textarea.notes {
 .browser-type {
     display: flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.4rem 0.4rem calc(env(safe-area-inset-bottom) + 0.4rem);
+    gap: 4px;
+    padding: 4px 4px calc(env(safe-area-inset-bottom) + 4px);
     border-top: 1px solid var(--line);
     background: var(--panel);
 }
@@ -14772,12 +14784,12 @@ textarea.notes {
 .browser-type input {
     flex: 1;
     min-width: 0;
-    padding: 0.4rem 0.6rem;
+    padding: 4px 8px;
 }
 
 .browser-type .key {
-    min-width: 34px;
-    height: 34px;
+    min-width: 32px;
+    height: 32px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--card);
@@ -14820,14 +14832,14 @@ textarea.notes {
     flex: 1;
     min-height: 0;
     overflow: auto;
-    padding: 6px 0;
+    padding: 8px 0;
     font-size: 12px;
     line-height: 1.7;
 }
 
 .console-line {
     display: flex;
-    gap: 0.6rem;
+    gap: 8px;
     padding: 0 12px;
     white-space: pre-wrap;
     word-break: break-word;
@@ -14874,7 +14886,7 @@ textarea.notes {
 }
 
 .browser-foot {
-    padding: 0.3rem 0.8rem calc(env(safe-area-inset-bottom) + 0.3rem);
+    padding: 4px 12px calc(env(safe-area-inset-bottom) + 4px);
     border-top: 1px solid var(--line);
     text-align: center;
 }
@@ -14920,10 +14932,10 @@ textarea.notes {
     background: var(--card);
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
-    padding: 10px 14px;
+    padding: 8px 16px;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 4px;
 }
 
 .shell-card > .link {
@@ -14938,7 +14950,7 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.3rem 0.6rem;
+    gap: 4px 8px;
     font-size: 13px;
 }
 
@@ -14971,7 +14983,7 @@ textarea.notes {
 
 .voice-line {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     align-items: baseline;
     font-size: 13px;
     color: var(--muted);
@@ -15011,7 +15023,7 @@ textarea.notes {
     background: var(--code-bg);
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
-    padding: 10px 0;
+    padding: 8px 0;
     overflow-x: auto;
 }
 
@@ -15022,8 +15034,8 @@ textarea.notes {
 
 .file-line .ln {
     flex: none;
-    width: 42px;
-    padding-right: 14px;
+    width: 40px;
+    padding-right: 16px;
     text-align: right;
     color: var(--faint);
     user-select: none;
@@ -15051,7 +15063,7 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
     padding: 8px 0;
 }
 
@@ -15060,7 +15072,7 @@ textarea.notes {
     width: 100%;
     height: min(78vh, 900px);
     border: 1px solid var(--hair);
-    border-radius: 10px;
+    border-radius: 8px;
     background: #fff;
 }
 
@@ -15073,14 +15085,14 @@ textarea.notes {
 .file-entry {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 8px;
 }
 
 /* Find in session. */
 .find-input {
     width: 100%;
-    min-height: 42px;
-    border-radius: calc(var(--r-control) + 1px);
+    min-height: 40px;
+    border-radius: var(--r-control);
 }
 
 .find-search .find-input {
@@ -15101,7 +15113,7 @@ textarea.notes {
 .find-result {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 4px;
     text-align: left;
     padding: 8px 12px;
     border-radius: var(--r-control);
@@ -15218,7 +15230,7 @@ textarea.notes {
 
 .rich-tabs button,
 .rich-run {
-    height: 22px;
+    height: 24px;
     padding: 0 8px;
     border-radius: var(--r-seg);
     font: inherit;
@@ -15276,7 +15288,7 @@ textarea.notes {
     display: block;
     max-width: 100%;
     max-height: 70vh;
-    padding: 0.6rem;
+    padding: 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
     background: #fff;
@@ -15302,9 +15314,9 @@ textarea.notes {
 
 .interview-question {
     display: grid;
-    gap: 0.6rem;
+    gap: 8px;
     margin-bottom: 0.9rem;
-    padding: 0.8rem;
+    padding: 12px;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
     background: var(--card);
@@ -15316,7 +15328,7 @@ textarea.notes {
 }
 
 .interview-question.minor {
-    padding: 0.55rem 0.7rem;
+    padding: 8px 8px;
     font-size: 0.94em;
 }
 
@@ -15336,13 +15348,13 @@ textarea.notes {
 
 .interview-options {
     display: grid;
-    gap: 0.4rem;
+    gap: 4px;
 }
 
 .interview-option {
-    padding: 0.5rem 0.6rem;
+    padding: 8px 8px;
     border: 1px solid var(--hair);
-    border-radius: 10px;
+    border-radius: 8px;
 }
 
 .interview-option.on {
@@ -15352,7 +15364,7 @@ textarea.notes {
 
 .interview-option > label {
     display: flex;
-    gap: 0.55rem;
+    gap: 8px;
     align-items: center;
     min-height: 32px;
 }
@@ -15392,7 +15404,7 @@ textarea.notes {
 .interview-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
+    gap: 4px;
 }
 
 .interview-ask-button {
@@ -15406,9 +15418,9 @@ textarea.notes {
 
 .interview-asked {
     display: grid;
-    gap: 0.5rem;
+    gap: 8px;
     margin-top: 0.5rem;
-    padding-top: 0.5rem;
+    padding-top: 8px;
     border-top: 1px solid var(--hair);
 }
 
@@ -15430,9 +15442,9 @@ textarea.notes {
 }
 
 .interview-review {
-    padding: 0.6rem 0.7rem;
+    padding: 8px 8px;
     border: 1px dashed var(--accent-line);
-    border-radius: 10px;
+    border-radius: 8px;
 }
 
 .interview-review-question {
@@ -15442,7 +15454,7 @@ textarea.notes {
 
 .interview-review ul {
     margin: 0.3rem 0;
-    padding-left: 1.2rem;
+    padding-left: 16px;
 }
 
 .interview-question textarea {
@@ -15452,7 +15464,7 @@ textarea.notes {
 .interview-images {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 8px;
     align-items: center;
 }
 
@@ -15495,7 +15507,7 @@ textarea.notes {
 
 .interview-table th,
 .interview-table td {
-    padding: 0.3rem 0.55rem;
+    padding: 4px 8px;
     border: 1px solid var(--hair);
     text-align: left;
 }
@@ -15506,7 +15518,7 @@ textarea.notes {
 
 .interview-side {
     display: grid;
-    gap: 0.6rem;
+    gap: 8px;
 }
 
 @media (min-width: 721px) {
@@ -15516,7 +15528,7 @@ textarea.notes {
 }
 
 .interview-status {
-    padding-bottom: 0.4rem;
+    padding-bottom: 4px;
 }
 
 .sheet.interview .sheet-head .button {
@@ -15543,7 +15555,7 @@ textarea.notes {
 
 .machine-problem {
     margin-top: 0.35rem;
-    padding: 0.45rem 0.6rem;
+    padding: 8px 8px;
     border-radius: 8px;
     background: color-mix(in srgb, var(--warn) 12%, transparent);
     color: var(--text);
@@ -15584,7 +15596,7 @@ textarea.notes {
 
 /* A Mermaid diagram (pele), in the theme's colors: pele reads these variables, so a theme change needs no redraw. */
 .rich-diagram {
-    padding: 0.6rem;
+    padding: 8px;
     overflow: auto;
 }
 
@@ -15688,7 +15700,7 @@ textarea.notes {
 
 .rich-note {
     margin: 0;
-    padding: 0.6rem;
+    padding: 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
 }
@@ -15703,7 +15715,7 @@ textarea.notes {
 .code-more {
     display: block;
     width: 100%;
-    padding: 6px;
+    padding: 8px;
     border-top: 1px solid var(--hair);
     background: var(--card);
     color: var(--accent);
@@ -15731,7 +15743,7 @@ textarea.notes {
 .places {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
+    gap: 8px;
     padding: 8px 12px 12px;
 }
 
@@ -15743,7 +15755,7 @@ textarea.notes {
 
 .nav-menu :is(.menu-session, .group) {
     margin: 0;
-    padding: 6px 6px 8px;
+    padding: 8px 8px 8px;
     border-top: 1px solid var(--hair);
 }
 
@@ -15753,7 +15765,7 @@ textarea.notes {
 
 .nav-menu .group-title {
     margin: 0;
-    padding: 8px 10px 4px;
+    padding: 8px 8px 4px;
     color: var(--faint);
     font-size: 12px;
     font-weight: 500;
@@ -15765,10 +15777,10 @@ textarea.notes {
 .places-sheet .list-item {
     display: flex;
     align-items: baseline;
-    gap: 10px;
+    gap: 8px;
     min-height: 36px;
     margin: 0;
-    padding: 8px 10px;
+    padding: 8px 8px;
     border: 0;
     border-radius: var(--r-row);
     background: none;
@@ -15829,14 +15841,14 @@ textarea.notes {
         top: var(--menu-top, 64px);
         width: 360px;
         max-height: var(--menu-height, calc(100dvh - 72px));
-        border-radius: calc(var(--r-window) + 2px);
+        border-radius: calc(var(--r-window) + 4px);
         box-shadow: var(--pop);
         animation: pop 0.25s var(--ease-out);
     }
     .nav-menu .sheet-head {
         height: auto;
         min-height: 0;
-        padding: 10px 12px 2px 16px;
+        padding: 8px 12px 2px 16px;
         border: 0;
     }
     .nav-menu .grip,
@@ -15868,7 +15880,7 @@ textarea.notes {
     justify-content: center;
     position: relative;
     gap: 4px;
-    height: 66px;
+    height: 64px;
     padding: 8px 4px;
     border-radius: var(--r-card);
     background: var(--card);
@@ -15977,7 +15989,7 @@ textarea.notes {
     /* Room for the composer's buttons: the model's name gives way first. */
     .composer-row .model-chip {
         flex: 0 1 auto;
-        padding-inline: 6px;
+        padding-inline: 8px;
     }
     /* While Pi works, Steer and Queue take the plan chip's place (`/plan` still turns plan mode on or off). */
     .composer.busy .plan-chip,
@@ -16006,8 +16018,8 @@ textarea.notes {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
-    padding: 0 0.8rem;
+    gap: 4px;
+    padding: 0 12px;
     background: var(--panel);
     border: 1px solid var(--line-strong);
     color: var(--muted);
@@ -16123,7 +16135,7 @@ textarea.notes {
 @media (pointer: coarse) {
     .files-tabs button {
         height: 40px;
-        padding: 0 14px;
+        padding: 0 16px;
         font-size: 14px;
     }
     .ft-tools .icon-button,
@@ -16133,18 +16145,18 @@ textarea.notes {
     }
     .ft-view-head {
         min-height: 48px;
-        padding-left: 6px;
+        padding-left: 8px;
     }
     .ft-view-name {
         font-size: 14px;
     }
     .ft-filter {
-        min-height: 42px;
+        min-height: 40px;
     }
     .ft-row {
         min-height: 44px;
         gap: 8px;
-        padding-left: calc(10px + var(--depth, 0) * 16px);
+        padding-left: calc(8px + var(--depth, 0) * 16px);
         font-size: 14px;
     }
     .ft-row .icon {
@@ -16152,11 +16164,11 @@ textarea.notes {
         height: 16px;
     }
     .ft-row .chev {
-        width: 14px;
-        height: 14px;
+        width: 16px;
+        height: 16px;
     }
     .ft-spacer {
-        width: 14px;
+        width: 16px;
     }
     .dr-row {
         min-height: 40px;
@@ -16178,8 +16190,8 @@ textarea.notes {
     .browser-bar {
         flex-wrap: wrap;
         justify-content: space-between;
-        row-gap: 0.2rem;
-        padding-bottom: 0.2rem;
+        row-gap: 4px;
+        padding-bottom: 4px;
     }
     .browser-bar > .browser-close {
         order: -2;
@@ -16202,10 +16214,10 @@ textarea.notes {
     }
     .button.small {
         min-height: 40px;
-        padding-inline: 0.8rem;
+        padding-inline: 12px;
     }
     .segmented button {
-        min-height: 42px;
+        min-height: 40px;
         min-width: 40px;
     }
     /* iOS zooms into a text field under 16px as it takes focus. (The board's field is styled after this: hence
@@ -16265,7 +16277,7 @@ textarea.notes {
     .group-head::after {
         content: "";
         position: absolute;
-        inset: -4px 0 -2px;
+        inset: -4px 0;
     }
     /* The list's scope, New group, and a step of what Pi did keep their look and take a 40 px tap (PP-400). */
     .session-scope-button,
@@ -16391,9 +16403,9 @@ textarea.notes {
     .dv-viewed {
         min-height: 36px;
         /* Its label hides on a phone: the checkbox alone, centered in a thumb's width. */
-        min-width: 42px;
+        min-width: 40px;
         justify-content: center;
-        padding-inline: 10px;
+        padding-inline: 8px;
     }
     .check {
         min-height: 40px;
@@ -16432,7 +16444,7 @@ textarea.notes {
     .status-line {
         position: relative;
         z-index: 1;
-        padding-bottom: 0.6rem;
+        padding-bottom: 8px;
     }
     .answer-actions > button.answer-tool {
         height: auto;
@@ -16451,8 +16463,8 @@ textarea.notes {
     .answer-actions > button:not(.reaction) {
         min-width: 40px;
         justify-content: center;
-        padding-inline: 6px;
-        margin-inline: -6px;
+        padding-inline: 8px;
+        margin-inline: -8px;
     }
     /* The guard and the review's branch keep their small pills; an invisible layer past each takes a thumb's tap. */
     .status-line .guard,
@@ -16470,7 +16482,7 @@ textarea.notes {
         justify-content: center;
     }
     .answer-actions {
-        gap: 0.6rem 1rem;
+        gap: 8px 16px;
     }
     /* A switch and a small icon button (a chip's ×, Stop quoting) keep their size; their hit area reaches past it. */
     .switch::before,
@@ -16484,7 +16496,7 @@ textarea.notes {
     }
     .command,
     .artifact-link {
-        min-height: 42px;
+        min-height: 40px;
     }
     /* A peek tile's header opens its session; Allow, Deny, and Open answer from the tile. */
     .peek-strip .peek-head {
@@ -16511,7 +16523,7 @@ textarea.notes {
     .dv-head {
         flex-wrap: wrap;
         row-gap: 0;
-        padding-block: 3px;
+        padding-block: 4px;
     }
     .dv-head::after {
         content: "";
@@ -16556,16 +16568,16 @@ textarea.notes {
 .pi-folder {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 4px;
     animation: rise-in 0.34s var(--ease-out) backwards;
 }
 
 .pi-folder-head {
     display: flex;
     align-items: baseline;
-    gap: 0.45rem;
+    gap: 8px;
     min-width: 0;
-    padding: 0 0.15rem;
+    padding: 0 4px;
     color: var(--muted);
     font-size: 12px;
 }
@@ -16606,10 +16618,10 @@ textarea.notes {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
-    gap: 0.6rem;
+    gap: 8px;
     width: 100%;
     min-height: 3.2rem;
-    padding: 0.55rem 0.6rem 0.55rem 0.75rem;
+    padding: 8px 8px 8px 12px;
     background: none;
     border: 0;
     border-top: 1px solid var(--hair);
@@ -16644,7 +16656,7 @@ textarea.notes {
 .pi-session-text {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 4px;
     min-width: 0;
 }
 
@@ -16664,7 +16676,7 @@ textarea.notes {
     color: var(--accent);
     background: var(--accent-soft);
     border-radius: var(--r-pill);
-    padding: 0.05rem 0.5rem;
+    padding: 0.7000000000000001px 8px;
     font-size: 12px;
     white-space: nowrap;
 }
@@ -16677,9 +16689,9 @@ textarea.notes {
 .pi-facts {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.3rem 0.9rem;
+    gap: 4px 12px;
     margin: 0;
-    padding: 0.6rem 0.75rem;
+    padding: 8px 12px;
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -16711,21 +16723,21 @@ textarea.notes {
 .pi-results {
     display: flex;
     flex-direction: column;
-    gap: 0.65rem;
+    gap: 8px;
 }
 
 .pi-note {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.3rem 0.6rem;
+    gap: 4px 8px;
     font-size: 12px;
 }
 
 .pi-convo {
     display: flex;
     flex-direction: column;
-    gap: 0.55rem;
+    gap: 8px;
 }
 
 .pi-convo > .label {
@@ -16754,7 +16766,7 @@ textarea.notes {
     border: 1px solid var(--line);
     border-radius: calc(var(--r-window) + 2px) calc(var(--r-window) + 2px) var(--r-tag)
         calc(var(--r-window) + 2px);
-    padding: 10px 14px;
+    padding: 8px 16px;
 }
 
 .pi-reply {
@@ -16767,9 +16779,9 @@ textarea.notes {
     bottom: -20px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     margin: 0 -20px -20px;
-    padding: 14px 20px 20px;
+    padding: 16px 20px 20px;
     background: var(--bg);
     border-top: 1px solid var(--hair);
 }
@@ -16794,7 +16806,7 @@ textarea.notes {
 .agents-top {
     display: flex;
     align-items: center;
-    padding-right: 0.2rem;
+    padding-right: 4px;
 }
 
 .agents-summary {
@@ -16803,7 +16815,7 @@ textarea.notes {
     min-height: 36px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 0 12px;
     background: none;
     border: 0;
@@ -16815,7 +16827,7 @@ textarea.notes {
 
 .agents-dots {
     display: inline-flex;
-    gap: 3px;
+    gap: 4px;
     flex: none;
 }
 
@@ -16884,8 +16896,8 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.25rem 0.6rem;
-    padding: 0.35rem 0.75rem 0.45rem;
+    gap: 4px 8px;
+    padding: 4px 12px 8px;
     border-top: 1px solid var(--hair);
     color: var(--warn);
     font-size: 13px;
@@ -16923,8 +16935,8 @@ textarea.notes {
     min-height: 2.75rem;
     display: flex;
     align-items: flex-start;
-    gap: 0.6rem;
-    padding: 0.5rem 0.6rem;
+    gap: 8px;
+    padding: 8px 8px;
     background: none;
     border: 0;
     color: var(--text);
@@ -16968,14 +16980,14 @@ textarea.notes {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 4px;
 }
 
 .agent-head {
     display: flex;
     align-items: baseline;
     flex-wrap: wrap;
-    gap: 0.2rem 0.5rem;
+    gap: 4px 8px;
 }
 
 .agent-name {
@@ -16993,7 +17005,7 @@ textarea.notes {
     color: var(--accent);
     background: var(--accent-soft);
     border-radius: var(--r-pill);
-    padding: 0 0.45rem;
+    padding: 0 8px;
     font-size: 12px;
     white-space: nowrap;
 }
@@ -17040,7 +17052,7 @@ textarea.notes {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 1rem 1rem calc(env(safe-area-inset-bottom) + 1rem);
+    padding: 16px 16px calc(env(safe-area-inset-bottom) + 16px);
 }
 
 /*
@@ -17138,7 +17150,7 @@ textarea.notes {
 .ext-panel-tab {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex: none;
     max-width: 160px;
     overflow: hidden;
@@ -17146,7 +17158,7 @@ textarea.notes {
     white-space: nowrap;
     border: 0;
     border-radius: var(--r-seg);
-    padding: 4px 10px;
+    padding: 4px 8px;
     font-size: 13px;
     color: var(--muted);
     background: none;
@@ -17291,7 +17303,7 @@ textarea.notes {
 /* Safe mode, in the Extensions sheet: this tab loads no extension's browser part. */
 .safe-mode {
     margin: 0 0 0.75rem;
-    padding: 0.5rem 0.65rem;
+    padding: 8px 8px;
     border: 1px solid var(--warn);
 }
 
@@ -17316,8 +17328,8 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 12px;
-    min-height: 62px;
-    padding: env(safe-area-inset-top) 12px 0 22px;
+    min-height: 64px;
+    padding: env(safe-area-inset-top) 12px 0 24px;
     border-bottom: 1px solid var(--hair);
 }
 
@@ -17345,8 +17357,8 @@ textarea.notes {
     align-items: center;
     gap: 8px;
     width: 240px;
-    height: 34px;
-    padding: 0 10px;
+    height: 32px;
+    padding: 0 8px;
     border-radius: var(--r-control);
     background: var(--card);
     border: 1px solid var(--hair);
@@ -17372,7 +17384,7 @@ textarea.notes {
 
 .board-search-row {
     flex: none;
-    padding: 10px 12px 0;
+    padding: 8px 12px 0;
 }
 
 .board-search-row .board-search {
@@ -17430,14 +17442,14 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 16px 22px 0;
+    padding: 16px 24px 0;
 }
 
 .board-states {
     display: flex;
-    gap: 3px;
+    gap: 4px;
     height: 8px;
-    border-radius: calc(var(--r-tag) - 1px);
+    border-radius: var(--r-tag);
     overflow: hidden;
 }
 
@@ -17473,7 +17485,7 @@ textarea.notes {
 .board-legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 
 .board-filter {
@@ -17481,7 +17493,7 @@ textarea.notes {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 30px;
+    height: 32px;
     padding: 0 12px;
     border: 1px solid var(--hair);
     border-radius: var(--r-pill);
@@ -17506,7 +17518,7 @@ textarea.notes {
 .board-filter .board-mark {
     width: 8px;
     height: 8px;
-    border-radius: calc(var(--r-mark) - 0.5px);
+    border-radius: var(--r-mark);
 }
 
 .board-filter-count {
@@ -17520,7 +17532,7 @@ textarea.notes {
     min-height: 0;
     display: flex;
     gap: 16px;
-    padding: 16px 22px 22px;
+    padding: 16px 24px 24px;
 }
 
 .board-main {
@@ -17539,7 +17551,7 @@ textarea.notes {
 }
 
 .board-empty {
-    padding: 1.2rem 0;
+    padding: 16px 0;
     color: var(--muted);
     font-size: 12px;
 }
@@ -17549,9 +17561,9 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
     margin-bottom: 8px;
-    padding: 12px 14px;
+    padding: 12px 16px;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
     transition: opacity var(--t-fade) var(--ease-almost);
@@ -17568,7 +17580,7 @@ textarea.notes {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 8px;
-    padding-top: 10px;
+    padding-top: 8px;
     border-top: 1px solid var(--hair);
 }
 
@@ -17576,7 +17588,7 @@ textarea.notes {
     grid-column: 1 / -1;
     justify-self: start;
     min-height: 28px;
-    padding: 4px 10px;
+    padding: 4px 8px;
     border: 1px solid var(--hair);
     border-radius: 999px;
     background: transparent;
@@ -17657,7 +17669,7 @@ textarea.notes {
     flex-wrap: wrap;
     align-content: flex-start;
     justify-content: flex-end;
-    gap: 6px;
+    gap: 8px;
 }
 
 /* A session's finished subagents left off the board, counted: "+12". */
@@ -17670,12 +17682,12 @@ textarea.notes {
 
 .board-cell {
     flex: none;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     display: grid;
     place-items: center;
     border: 1px solid color-mix(in srgb, var(--state) 40%, transparent);
-    border-radius: calc(var(--r-row) - 1px);
+    border-radius: var(--r-row);
     background: color-mix(in srgb, var(--state) 14%, transparent);
     outline-offset: 2px;
     transition: opacity var(--t-fade) var(--ease-almost);
@@ -17700,7 +17712,7 @@ textarea.notes {
 .board-cell-core {
     width: 8px;
     height: 8px;
-    border-radius: calc(var(--r-mark) - 0.5px);
+    border-radius: var(--r-mark);
     background: var(--state);
     color: var(--accent-ink);
     font: 600 8px/1 var(--mono);
@@ -17715,8 +17727,8 @@ textarea.notes {
     flex: none;
     display: flex;
     align-items: center;
-    gap: 10px;
-    height: 30px;
+    gap: 8px;
+    height: 32px;
     padding: 0 4px;
     font-size: 12px;
     white-space: nowrap;
@@ -17770,7 +17782,7 @@ textarea.notes {
     width: 300px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
     overflow-y: auto;
 }
 
@@ -17853,7 +17865,7 @@ textarea.notes {
 .board-detail {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
     padding: 16px;
     border: 1px solid var(--hair);
     border-radius: var(--r-window);
@@ -17954,7 +17966,7 @@ textarea.notes {
 
 .board-actions .button {
     min-height: 36px;
-    padding: 0 14px;
+    padding: 0 16px;
     font-size: 13px;
 }
 
@@ -17993,7 +18005,7 @@ textarea.notes {
 }
 
 .board.phone .board-need {
-    gap: 0 10px;
+    gap: 0 8px;
     min-height: 44px;
     padding: 4px 8px;
 }
@@ -18044,7 +18056,7 @@ textarea.notes {
 .board.phone .board-cells {
     max-width: none;
     justify-content: flex-start;
-    gap: 6px;
+    gap: 8px;
 }
 
 .board.phone .board-cell {
@@ -18061,7 +18073,7 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 12px 12px calc(env(safe-area-inset-bottom) + 14px);
+    padding: 12px 12px calc(env(safe-area-inset-bottom) + 16px);
     border: 1px solid var(--hair-2);
     border-radius: var(--r-sheet);
     background: var(--bg);
@@ -18132,7 +18144,7 @@ textarea.notes {
 
 .board-bar-actions {
     display: flex;
-    gap: 6px;
+    gap: 8px;
 }
 
 .board-bar-actions .button {
@@ -18265,7 +18277,7 @@ textarea.notes {
     grid-template-columns: 30px minmax(0, 1fr) auto repeat(4, 40px);
     align-items: center;
     gap: 2px;
-    padding: 10px 8px 10px 16px;
+    padding: 8px 8px 8px 16px;
     position: relative;
     flex: none;
     border-bottom: 1px solid var(--hair);
@@ -18284,7 +18296,7 @@ textarea.notes {
 .pip-title-line {
     display: flex;
     align-items: baseline;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
 }
 
@@ -18300,7 +18312,7 @@ textarea.notes {
     gap: 4px;
     width: 100%;
     min-width: 0;
-    height: 22px;
+    height: 24px;
     padding: 0;
     position: relative;
     border: 0;
@@ -18381,8 +18393,8 @@ textarea.notes {
 .pip-mark {
     display: inline-grid;
     place-items: center;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: var(--accent-soft);
     color: var(--accent);
@@ -18403,7 +18415,7 @@ textarea.notes {
     padding: 12px 16px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
 }
 
 .pip-body::before {
@@ -18418,9 +18430,9 @@ textarea.notes {
 .pip-you {
     align-self: flex-end;
     max-width: 84%;
-    padding: 10px 14px;
+    padding: 8px 16px;
     background: var(--accent-soft);
-    border-radius: var(--r-sheet) var(--r-sheet) calc(var(--r-tag) + 1px) var(--r-sheet);
+    border-radius: var(--r-sheet) var(--r-sheet) var(--r-tag) var(--r-sheet);
     color: var(--text);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -18471,7 +18483,7 @@ textarea.notes {
 
 /* A report from a session PiP follows: three lines until opened. */
 .pip-report {
-    padding: 12px 14px;
+    padding: 12px 16px;
     background: var(--card);
     border: 1px solid var(--hair);
     border-radius: var(--r-window);
@@ -18520,7 +18532,7 @@ textarea.notes {
 /* What a webhook posted: as it came, shown once the card is open. */
 .pip-report-data {
     margin: 6px 0 0;
-    padding: 6px 8px;
+    padding: 8px 8px;
     max-height: 16rem;
     overflow: auto;
     background: var(--code-bg);
@@ -18572,7 +18584,7 @@ textarea.notes {
 .pip-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
     margin-top: 6px;
 }
 
@@ -18610,7 +18622,7 @@ textarea.notes {
     margin: 0 12px 6px;
     padding: 8px 12px;
     border: 1px solid var(--warn-line);
-    border-radius: calc(var(--r-control) + 1px);
+    border-radius: var(--r-control);
     background: var(--warn-soft);
     color: var(--warn);
     font-size: 13px;
@@ -18635,7 +18647,7 @@ textarea.notes {
     min-height: 44px;
     padding: 8px 12px;
     border: 0;
-    border-radius: calc(var(--r-control) + 1px);
+    border-radius: var(--r-control);
     background: var(--card);
     color: var(--body);
     font-size: 13px;
@@ -18672,17 +18684,17 @@ textarea.notes {
     max-height: 144px;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding-bottom: 6px;
+    padding-bottom: 8px;
 }
 
 .pip-attachment {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
-    padding: 4px 6px;
+    padding: 4px 8px;
     border: 1px solid var(--hair);
-    border-radius: calc(var(--r-control) + 1px);
+    border-radius: var(--r-control);
     background: var(--card);
     font-size: 12px;
 }
@@ -18747,7 +18759,7 @@ textarea.notes {
     flex: 1;
     min-width: 0;
     max-height: 160px;
-    padding: 0.55rem 0;
+    padding: 8px 0;
     resize: none;
     border: 0;
     outline: 0;
@@ -18851,7 +18863,7 @@ textarea.notes {
     }
 
     .pip-head {
-        padding: 24px 10px 10px 14px;
+        padding: 24px 8px 8px 16px;
         grid-template-columns: 32px minmax(0, 1fr) repeat(4, 40px);
     }
 
@@ -18913,8 +18925,8 @@ textarea.notes {
 .hook {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 12px 14px;
+    gap: 8px;
+    padding: 12px 16px;
     margin-top: 10px;
     border-radius: var(--r-card);
     background: var(--bg);
@@ -18925,7 +18937,7 @@ textarea.notes {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 14px;
+    padding: 16px;
     border-radius: var(--r-window);
     border: 1px solid var(--hair);
     background: var(--card);
@@ -18945,7 +18957,7 @@ textarea.notes {
 .hook-actions {
     display: flex;
     align-items: baseline;
-    gap: 0.5rem;
+    gap: 8px;
     flex-wrap: wrap;
 }
 
@@ -18972,10 +18984,10 @@ textarea.notes {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.6rem;
+    gap: 8px;
     width: 100%;
     min-height: 3.2rem;
-    padding: 0.7rem 0.6rem 0.7rem 0.85rem;
+    padding: 8px 8px 8px 12px;
     background: none;
     border: 0;
     color: var(--text);
@@ -19002,7 +19014,7 @@ textarea.notes {
 .gallery-row-text {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 4px;
     min-width: 0;
 }
 
@@ -19010,7 +19022,7 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.15rem 0.5rem;
+    gap: 4px 8px;
     min-width: 0;
 }
 
@@ -19037,7 +19049,7 @@ textarea.notes {
 .gallery-row-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.1rem 0.55rem;
+    gap: 1.4000000000000001px 8px;
     color: var(--muted);
     font-size: 12px;
     overflow-wrap: anywhere;
@@ -19052,7 +19064,7 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.35rem;
+    gap: 4px;
 }
 
 .pi-tag.gallery-on {
@@ -19074,7 +19086,7 @@ textarea.notes {
 .gallery-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 
 .gallery-tag {
@@ -19094,7 +19106,7 @@ textarea.notes {
 @media (pointer: coarse) {
     .gallery-tag {
         min-height: 40px;
-        padding: 6px 14px;
+        padding: 8px 16px;
     }
 }
 
@@ -19115,20 +19127,20 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.3rem 0.8rem;
+    gap: 4px 12px;
 }
 
 .gallery-problems,
 .gallery-notes,
 .gallery-warn ul {
     margin: 0;
-    padding-left: 1.2rem;
+    padding-left: 16px;
     overflow-wrap: anywhere;
 }
 
 .gallery-panel > .setting {
     margin: 0;
-    padding: 10px 14px;
+    padding: 8px 16px;
 }
 
 .gallery-address {
@@ -19137,7 +19149,7 @@ textarea.notes {
 }
 
 .gallery-index-form {
-    padding: 12px 14px;
+    padding: 12px 16px;
 }
 
 .gallery-wrap {
@@ -19149,7 +19161,7 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.3rem 0.6rem;
+    gap: 4px 8px;
 }
 
 .gallery-description {
@@ -19158,7 +19170,7 @@ textarea.notes {
 }
 
 .gallery-warn {
-    padding: 10px 12px;
+    padding: 8px 12px;
     border: 1px solid var(--warn-line);
     border-radius: var(--r-card);
     background: var(--warn-soft);
@@ -19179,8 +19191,8 @@ textarea.notes {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 0.6rem;
-    padding: 8px 14px;
+    gap: 8px;
+    padding: 8px 16px;
     font-size: 13px;
     overflow-wrap: anywhere;
 }
@@ -19201,7 +19213,7 @@ textarea.notes {
 .gallery-source {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
 }
 
@@ -19210,7 +19222,7 @@ textarea.notes {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.3rem 0.6rem;
+    gap: 4px 8px;
 }
 
 .gallery-entry-head .group-title {
@@ -19221,7 +19233,7 @@ textarea.notes {
 .gallery-form {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-    gap: 0.75rem 0.9rem;
+    gap: 12px 12px;
 }
 
 .gallery-field input[aria-invalid="true"] {
@@ -19236,7 +19248,7 @@ textarea.notes {
 
 pre.gallery-code {
     margin: 0;
-    padding: 10px 12px;
+    padding: 8px 12px;
     max-height: 60vh;
     overflow: auto;
     border: 1px solid var(--hair);
@@ -19286,7 +19298,7 @@ pre.gallery-code {
 .ci-row {
     display: flex;
     align-items: center;
-    padding-right: 0.2rem;
+    padding-right: 4px;
 }
 
 .ci-row + .ci-row {
@@ -19341,7 +19353,7 @@ pre.gallery-code {
 .ci-branch {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
     min-width: 0;
     flex-shrink: 1;
     max-width: 40%;
@@ -19375,7 +19387,7 @@ pre.gallery-code {
 
 .ssh-public-key {
     margin: 6px 0 0;
-    padding: 8px 10px;
+    padding: 8px 8px;
     font: 12px/1.4 var(--mono);
     white-space: pre-wrap;
     word-break: break-all;
@@ -19399,7 +19411,7 @@ pre.gallery-code {
 .ssh-key .provider-actions {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.4rem;
+    gap: 4px;
 }
 
 .ssh-key .provider-actions {
@@ -19411,7 +19423,7 @@ pre.gallery-code {
 .provider-actions .action-group {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: 4px;
 }
 
 .provider-actions .action-group:empty {
@@ -19473,13 +19485,13 @@ pre.gallery-code {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
 }
 
 /* A Windows PC's setup (sheets/machines.js): the steps, Copy, and the script, which scrolls rather than fill the sheet. */
 .windows-setup ol {
     margin: 0.5rem 0;
-    padding-left: 1.2rem;
+    padding-left: 16px;
 }
 
 .windows-setup li {
@@ -19494,15 +19506,15 @@ pre.gallery-code {
 /* Tools pi-phone installs on a machine (sheets/machines.js): a tick, the tool, where it stands. */
 .machine-tool {
     display: flex;
-    gap: 0.55rem;
+    gap: 8px;
     align-items: flex-start;
     margin: 0.35rem 0;
 }
 
 .machine-tool input[type="checkbox"] {
     flex: none;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     margin: 2px 0 0;
     accent-color: var(--accent);
 }
@@ -19513,7 +19525,7 @@ pre.gallery-code {
 
 .machine-step {
     margin-top: 8px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     background: var(--code-bg);
     border-radius: var(--r-control);
 }
@@ -19581,13 +19593,13 @@ pre.gallery-code {
 .terminal-screen {
     flex: 1;
     min-height: 0;
-    padding: 6px 4px 0 8px;
+    padding: 8px 4px 0 8px;
 }
 
 .terminal-keys {
     display: flex;
-    gap: 6px;
-    padding: 6px 8px;
+    gap: 8px;
+    padding: 8px 8px;
     overflow-x: auto;
     scrollbar-width: none;
     border-top: 1px solid var(--hair);
@@ -19596,8 +19608,8 @@ pre.gallery-code {
 .terminal-key {
     flex: none;
     min-width: 40px;
-    height: 34px;
-    padding: 0 10px;
+    height: 32px;
+    padding: 0 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-control);
     background: var(--card);
@@ -19655,8 +19667,8 @@ pre.gallery-code {
 }
 
 .rail-brand .brand-icon {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
 }
 
 .signin .pi.big .brand-icon {
@@ -19678,7 +19690,7 @@ pre.gallery-code {
     gap: 8px;
     width: 100%;
     height: 32px;
-    padding: 0 10px;
+    padding: 0 8px;
     border-radius: var(--r-row);
     color: var(--text);
     font-size: 14px;
@@ -19721,7 +19733,7 @@ pre.gallery-code {
     align-items: center;
     gap: 8px;
     width: 100%;
-    padding: 8px 10px;
+    padding: 8px 8px;
     border-radius: var(--r-row);
     color: var(--text);
     font-size: 14px;
@@ -19746,7 +19758,7 @@ pre.gallery-code {
 }
 
 .scope-sec {
-    padding: 8px 10px 3px;
+    padding: 8px 8px 4px;
     color: var(--faint);
     font-size: 12px;
 }
@@ -19760,26 +19772,27 @@ pre.gallery-code {
 /* A row: where (project, folder, machine), pin, and the time or how long it works; the title; branch or worktree. */
 .session {
     grid-template-columns: minmax(0, 1fr) 18px;
-    gap: 0 10px;
+    gap: 0 8px;
     height: auto;
     min-height: calc(24px + 12px * var(--space-y));
-    padding: calc(4px + 3px * var(--space-y)) 10px;
+    padding: calc(4px + 4px * var(--space-y)) 8px;
 }
 
 .session-lines {
     display: flex;
     flex-direction: column;
-    gap: 1px;
     min-width: 0;
 }
 
+/* Lines of whole pixels (PP-401): 16 px under the 12 px lines, 18 under the title, so a row is 52 px. */
 .session-l1,
 .session-l3 {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
     font-size: 12px;
+    line-height: 16px;
     color: var(--muted);
 }
 
@@ -19825,8 +19838,10 @@ pre.gallery-code {
     background: radial-gradient(circle at center, var(--warn) 0 1.5px, transparent 2px);
 }
 
+/* 18 px: with the 1 px border above and below, a row is 52 px. */
 .session-title {
     font-size: 14px;
+    line-height: 18px;
 }
 
 .session-l3 {
@@ -19855,13 +19870,13 @@ pre.gallery-code {
 .session-status {
     display: grid;
     place-items: center;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
 }
 
 .status-work {
-    width: 13px;
-    height: 13px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     border: 2px solid color-mix(in srgb, var(--o-cyan, var(--accent)) 28%, transparent);
     border-top-color: var(--o-cyan, var(--accent));
@@ -19910,7 +19925,7 @@ pre.gallery-code {
 /* Sections as the design has them: a small label and a hairline, the count in the label; Settled folds. */
 .sessions .session-group > .group-head {
     height: auto;
-    padding: 12px 10px 4px;
+    padding: 12px 8px 4px;
     gap: 8px;
     background: none;
 }
@@ -19944,7 +19959,7 @@ pre.gallery-code {
 
 /* A project's running task sessions, under its main session. */
 .session-row.team {
-    padding-inline-start: 18px;
+    padding-inline-start: 16px;
 }
 
 .session-row.team::before {
@@ -19965,23 +19980,23 @@ pre.gallery-code {
 .session-actions {
     top: calc(2px + 3px * var(--space-y));
     margin-top: 0;
-    gap: 3px;
+    gap: 4px;
 }
 
 .session-actions .session-act {
-    width: 22px;
-    height: 18px;
+    width: 24px;
+    height: 16px;
 }
 
 @media (hover: hover) {
     .session-row:not(.no-acts):hover .session-side,
     .session-row:not(.no-acts):has(:focus-visible) .session-side {
-        min-width: 47px;
+        min-width: 48px;
     }
 
     .session-row.one-act:hover .session-side,
     .session-row.one-act:has(:focus-visible) .session-side {
-        min-width: 22px;
+        min-width: 24px;
     }
 
     .session-row.three-acts:hover .session-side,
@@ -19991,7 +20006,7 @@ pre.gallery-code {
 
     .session-row.four-acts:hover .session-side,
     .session-row.four-acts:has(:focus-visible) .session-side {
-        min-width: 97px;
+        min-width: 96px;
     }
 }
 
@@ -20017,13 +20032,13 @@ pre.gallery-code {
 }
 
 .sessions .session-group > .group-head.sg-head {
-    padding-right: 34px;
+    padding-right: 32px;
 }
 
 .sessions .session-group > .group-head.sg-head .group-name {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .sessions .session-group > .group-head.sg-head .group-name .icon {
@@ -20058,7 +20073,7 @@ pre.gallery-code {
     display: grid;
     place-items: center;
     width: 24px;
-    height: 22px;
+    height: 24px;
     border-radius: var(--r-tag);
     color: var(--faint);
 }
@@ -20072,13 +20087,13 @@ pre.gallery-code {
 
 /* Typing a group's name, where its name shows. */
 .sessions .session-group > .group-head.sg-naming {
-    padding-right: 10px;
+    padding-right: 8px;
 }
 
 .sg-name-field {
     flex: 1;
     min-width: 0;
-    height: 26px;
+    height: 24px;
     padding: 0 8px;
     font-size: 13px;
 }
@@ -20086,13 +20101,14 @@ pre.gallery-code {
 .sg-new {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     width: 100%;
     margin: 2px 0 4px;
-    padding: 6px 10px;
+    padding: 8px 8px;
     border-radius: var(--r-control);
     color: var(--faint);
     font-size: 12px;
+    line-height: 16px;
 }
 
 @media (hover: hover) {
@@ -20108,7 +20124,7 @@ pre.gallery-code {
     align-items: center;
     flex: 0 1 auto;
     min-width: 0;
-    gap: 3px;
+    gap: 4px;
     margin-left: 4px;
     padding: 0 4px;
     overflow: hidden;
@@ -20162,7 +20178,7 @@ pre.gallery-code {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 10px 4px;
+    padding: 12px 8px 4px;
     color: var(--muted);
     font-size: 12px;
 }
@@ -20270,7 +20286,7 @@ pre.gallery-code {
     top: 0;
     z-index: 60;
     max-width: 260px;
-    padding: 6px 12px;
+    padding: 8px 12px;
     overflow: hidden;
     border-radius: var(--r-control);
     background: var(--raised);
@@ -20343,14 +20359,14 @@ pre.gallery-code {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 0 6px;
+    padding: 0 8px;
 }
 
 /* One line each, however narrow the sidebar (PP-115): the second gives way first, with an ellipsis. */
 .sg-foot .sg-new {
     flex: none;
     width: auto;
-    padding: 6px 4px;
+    padding: 8px 4px;
     white-space: nowrap;
 }
 
@@ -20404,7 +20420,7 @@ pre.gallery-code {
 
 @media (max-width: 699px) {
     .sheet.bare > .sheet-head {
-        height: 14px;
+        height: 16px;
     }
 }
 
@@ -20422,7 +20438,7 @@ pre.gallery-code {
 /* ─── Pi's browser (browser-panel.js): docks where the Files tile does (it shares its frame), covers the screen on phones */
 
 .pb-bar {
-    gap: 10px;
+    gap: 8px;
 }
 
 .pb-title {
@@ -20451,8 +20467,8 @@ pre.gallery-code {
     align-items: center;
     gap: 8px;
     flex: none;
-    min-height: 34px;
-    padding: 6px 14px;
+    min-height: 32px;
+    padding: 8px 16px;
     border-bottom: 1px solid var(--hair);
     font-size: 13px;
     color: var(--muted);
@@ -20465,7 +20481,7 @@ pre.gallery-code {
 /* What covers the window (PP-270): a small line under the status. */
 .pb-cover {
     flex: none;
-    padding: 4px 14px;
+    padding: 4px 16px;
     border-bottom: 1px solid var(--hair);
     font-size: 12px;
     color: var(--muted);
@@ -20509,7 +20525,7 @@ pre.gallery-code {
     position: relative;
     flex: none;
     width: min(100cqw, 100cqh * var(--ratio, 0.48), var(--frame-max, 460px));
-    border-radius: 10px;
+    border-radius: 8px;
     overflow: hidden;
     background: #fff;
     box-shadow: 0 0 0 1px var(--hair-2), 0 12px 32px -12px rgb(0 0 0 / 0.5);
@@ -20585,7 +20601,7 @@ pre.gallery-code {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     max-width: 300px;
     text-align: center;
     color: var(--faint);
@@ -20597,7 +20613,7 @@ pre.gallery-code {
     flex-direction: column;
     gap: 8px;
     flex: none;
-    padding: 10px 12px;
+    padding: 8px 12px;
     border-top: 1px solid var(--hair);
 }
 
@@ -20613,7 +20629,7 @@ pre.gallery-code {
 
 .pb-keys {
     display: flex;
-    gap: 6px;
+    gap: 8px;
 }
 
 .pb-key {
@@ -20631,7 +20647,7 @@ pre.gallery-code {
     justify-content: space-between;
     gap: 12px;
     flex: none;
-    padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--hair);
 }
 
@@ -20647,7 +20663,7 @@ pre.gallery-code {
 .pb-on {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
     max-width: 100%;
     font-size: 13px;
@@ -20684,7 +20700,7 @@ pre.gallery-code {
 /* Someone uses the browser's window on the machine (PP-274). */
 .pb-in-use {
     flex: none;
-    padding: 6px 14px;
+    padding: 8px 16px;
     border-bottom: 1px solid var(--hair);
     font-size: 13px;
     color: var(--text);
@@ -20720,9 +20736,9 @@ pre.gallery-code {
 .pb-preview {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin: 0 12px 8px;
-    padding: 6px 10px 6px 6px;
+    padding: 8px 8px 8px 8px;
     border-radius: 12px;
     background: var(--card-2);
     box-shadow: inset 0 0 0 1px var(--hair-2);
@@ -20731,10 +20747,10 @@ pre.gallery-code {
 }
 
 .pb-thumb {
-    width: 34px;
-    height: 70px;
+    width: 32px;
+    height: 72px;
     flex: none;
-    border-radius: 6px;
+    border-radius: 8px;
     object-fit: cover;
     object-position: top;
     background: #fff;
@@ -20743,8 +20759,8 @@ pre.gallery-code {
 /* Pi's computer (computer-panel.js, PP-178): the panel is the browser's; a window's thumb takes a window's shape, and
    the box on the element Pi last acted on sits over the picture. */
 .pb-thumb.cu-thumb {
-    width: 70px;
-    height: 37px;
+    width: 72px;
+    height: 36px;
 }
 
 .pb-frame .cu-hit {
@@ -20759,7 +20775,7 @@ pre.gallery-code {
     position: absolute;
     right: -2px;
     bottom: calc(100% + 4px);
-    padding: 2px 6px;
+    padding: 2px 8px;
     border-radius: var(--r-tag);
     background: var(--accent-fill);
     color: var(--accent-ink);
@@ -20802,7 +20818,7 @@ pre.gallery-code {
 
 .crd-steps {
     margin: 0;
-    padding-left: 1.2rem;
+    padding-left: 16px;
 }
 
 .crd-steps li {
@@ -20814,7 +20830,7 @@ pre.gallery-code {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 10px;
+    gap: 8px 8px;
     margin-top: 4px;
     min-width: 0;
 }
@@ -20894,7 +20910,7 @@ pre.gallery-code {
     display: flex;
     flex: none;
     gap: 4px;
-    padding: 6px 10px;
+    padding: 8px 8px;
     overflow-x: auto;
     border-bottom: 1px solid var(--hair);
     scrollbar-width: none;
@@ -20908,7 +20924,7 @@ pre.gallery-code {
     white-space: nowrap;
     border: 0;
     border-radius: var(--r-seg);
-    padding: 4px 10px;
+    padding: 4px 8px;
     font-size: 13px;
     color: var(--muted);
     background: none;
@@ -20923,9 +20939,9 @@ pre.gallery-code {
 .pr-card {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     margin: 2px 14px 8px calc(var(--timeline-x) + var(--step-mark-size) / 2 + var(--step-gap));
-    padding: 10px 12px;
+    padding: 8px 12px;
     border: 1px solid var(--hair);
     border-radius: var(--r-control);
     background: var(--card);
@@ -20984,7 +21000,7 @@ pre.gallery-code {
 
 .pr-steps {
     margin: 0;
-    padding-left: 22px;
+    padding-left: 24px;
     color: var(--text);
     font-size: 13px;
     line-height: 1.5;
@@ -21038,7 +21054,7 @@ pre.gallery-code {
 /* Adding a team account of a provider with a subscription sign-in: a subscription is one person's. */
 .provider .pv-team-warn {
     margin: 12px 0 0;
-    padding: 8px 10px;
+    padding: 8px 8px;
     border: 1px solid var(--warn-line);
     border-radius: var(--r-row);
     background: var(--warn-soft);
@@ -21062,7 +21078,7 @@ pre.gallery-code {
 .welcome-card {
     width: 100%;
     max-width: 560px;
-    padding: max(24px, env(safe-area-inset-top)) 22px max(22px, env(safe-area-inset-bottom));
+    padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -21078,7 +21094,7 @@ pre.gallery-code {
 
     .welcome-card {
         margin: auto;
-        padding: 30px 30px 24px;
+        padding: 32px 32px 24px;
         border: 1px solid var(--hair);
         border-radius: 16px;
         background: var(--bg);
@@ -21100,7 +21116,7 @@ pre.gallery-code {
 
 .welcome-dots {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     margin-left: auto;
 }
 
@@ -21112,7 +21128,7 @@ pre.gallery-code {
 }
 
 .welcome-dots i.on {
-    width: 18px;
+    width: 16px;
     background: var(--accent);
 }
 
@@ -21150,7 +21166,7 @@ pre.gallery-code {
     align-items: center;
     gap: 12px;
     width: 100%;
-    padding: 12px 14px;
+    padding: 12px 16px;
     border: 0;
     border-top: 1px solid var(--hair);
     background: var(--card);
@@ -21192,8 +21208,8 @@ button.welcome-row:hover {
     flex: none;
     display: grid;
     place-items: center;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border: 1.5px solid var(--line-strong);
     border-radius: 50%;
 }
@@ -21214,8 +21230,8 @@ button.welcome-row:hover {
     flex: none;
     display: grid;
     place-items: center;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 8px;
     font-size: 13px;
     font-weight: 600;
@@ -21243,7 +21259,7 @@ button.welcome-row:hover {
 .welcome-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .welcome-actions .grow {
@@ -21323,7 +21339,7 @@ button.welcome-row:hover {
 .guide-items {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     margin: 8px 0 2px;
     padding: 0;
     list-style: none;
@@ -21348,8 +21364,8 @@ button.welcome-row:hover {
     flex: none;
     display: grid;
     place-items: center;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border: 1.5px solid var(--line-strong);
     border-radius: 50%;
 }
@@ -21363,9 +21379,9 @@ button.welcome-row:hover {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin: 8px 12px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     border: 1px solid var(--hair);
     border-radius: 12px;
     background: var(--card);
@@ -21407,7 +21423,7 @@ button.welcome-row:hover {
     align-items: center;
     gap: 12px;
     margin: 8px 0 4px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     border: 1px solid var(--hair);
     border-radius: 12px;
     background: var(--card);

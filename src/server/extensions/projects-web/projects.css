@@ -45,8 +45,8 @@
 .pj-top {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 12px 6px;
+    gap: 8px;
+    padding: 8px 12px 8px;
     flex: none;
 }
 
@@ -63,13 +63,14 @@
     min-width: 0;
     /* Within the picker, which shrinks: a long name ends in … instead of running under the buttons beside it. */
     max-width: 100%;
-    padding: 4px 6px;
-    margin-left: -6px;
+    padding: 4px 8px;
+    margin-left: -8px;
     border: 0;
     border-radius: var(--r-row);
     background: none;
     color: var(--muted);
     font: inherit;
+    line-height: 24px;
     cursor: pointer;
 }
 
@@ -88,7 +89,7 @@
 
 .pj-key {
     flex: none;
-    padding: 1px 6px;
+    padding: 1px 8px;
     border-radius: var(--r-tag);
     background: var(--accent-soft);
     color: var(--accent);
@@ -115,7 +116,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
+    padding: 8px 8px;
     border: 0;
     border-radius: var(--r-row);
     background: none;
@@ -138,8 +139,8 @@
 
 .pj-chips {
     display: flex;
-    gap: 6px;
-    padding: 0 12px 10px;
+    gap: 8px;
+    padding: 0 12px 8px;
     overflow-x: auto;
     scrollbar-width: none;
     flex: none;
@@ -154,9 +155,9 @@
     flex: none;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    height: 26px;
-    padding: 0 10px;
+    gap: 8px;
+    height: 24px;
+    padding: 0 8px;
     border: 1px solid var(--hair);
     border-radius: 999px;
     background: var(--card);
@@ -208,7 +209,7 @@
     flex: 1;
     min-height: 0;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     padding: 12px;
     overflow-x: auto;
     align-items: stretch;
@@ -264,8 +265,8 @@
     justify-content: center;
     height: 20px;
     min-width: 24px;
-    padding: 0 6px;
-    border-radius: 3px;
+    padding: 0 8px;
+    border-radius: 4px;
     background: color-mix(in srgb, var(--tone) 16%, transparent);
     color: color-mix(in oklab, var(--tone) var(--tint-ink-share), var(--tint-ink-toward));
     font-size: 12px;
@@ -292,8 +293,8 @@
 .pj-fold {
     display: grid;
     place-items: center;
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     border: 0;
     border-radius: var(--r-seg);
     background: none;
@@ -312,7 +313,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 2px 8px 10px;
+    padding: 2px 8px 8px;
     overflow-y: auto;
     overflow-x: hidden;
     align-items: stretch;
@@ -326,7 +327,7 @@
     display: grid;
     place-items: center;
     border: 2px dashed color-mix(in srgb, var(--body) 14%, transparent);
-    border-radius: 3px;
+    border-radius: 4px;
     color: var(--faint);
     font-size: 12px;
 }
@@ -336,13 +337,14 @@
     align-self: stretch;
     margin: 0 8px 8px;
     min-height: 32px;
-    padding: 7px;
+    padding: 8px;
     border: 0;
     border-radius: var(--r-row);
     background: none;
     color: var(--faint);
     font: inherit;
-    font-size: 12.5px;
+    font-size: 13px;
+    line-height: 16px;
     text-align: left;
     cursor: pointer;
 }
@@ -379,7 +381,7 @@
     height: auto;
     flex: 1;
     gap: 8px;
-    padding: 10px 0;
+    padding: 8px 0;
     justify-content: flex-start;
 }
 
@@ -408,10 +410,10 @@
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    padding: 10px 11px 0;
+    gap: 8px;
+    padding: 8px 12px 0;
     border: 1px solid var(--kline);
-    border-radius: 3px;
+    border-radius: 4px;
     background: var(--kcard);
     color: var(--body);
     font: inherit;
@@ -453,16 +455,16 @@
 .pj-row {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
 }
 
 .pj-type {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    height: 19px;
-    padding: 0 6px;
-    border-radius: 3px;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 4px;
     background: color-mix(in srgb, var(--tt) 14%, transparent);
     color: var(--tt);
     font-size: 12px;
@@ -478,7 +480,7 @@
 .pj-prio {
     display: inline-flex;
     align-items: flex-end;
-    gap: 1.5px;
+    gap: 2px;
     height: 11px;
 }
 
@@ -514,9 +516,9 @@
 
 .pj-prio.urgent {
     display: inline-block;
-    width: 13px;
-    height: 13px;
-    border-radius: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 4px;
     background: var(--err);
     color: var(--bg);
     font-size: 12px;
@@ -532,7 +534,7 @@
 
 .pj-card-title {
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 1.35;
 }
 
@@ -540,10 +542,10 @@
     align-self: flex-start;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     max-width: 100%;
-    padding: 2px 7px;
-    border-radius: 3px;
+    padding: 2px 8px;
+    border-radius: 4px;
     background: color-mix(in srgb, var(--body) 7%, transparent);
     color: var(--muted);
     font-size: 12px;
@@ -592,8 +594,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 2px -11px 0;
-    padding: 8px 11px;
+    margin: 2px -12px 0;
+    padding: 8px 12px;
     border-top: 1px solid var(--kline);
     color: var(--faint);
     font-size: 12px;
@@ -692,8 +694,8 @@
 .pj-check input[type="checkbox"],
 .pj-share input[type="checkbox"] {
     flex: none;
-    width: 17px;
-    height: 17px;
+    width: 16px;
+    height: 16px;
     padding: 0;
     accent-color: var(--accent);
 }
@@ -719,7 +721,7 @@
 .pj-two {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 8px;
 }
 
 .pj-move {
@@ -731,8 +733,8 @@
 .pj-move-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 11px 12px;
+    gap: 8px;
+    padding: 12px 12px;
     border: 1px solid transparent;
     border-radius: var(--r-row);
     background: none;
@@ -762,7 +764,7 @@
     font-size: 16px;
     line-height: 1;
     cursor: pointer;
-    padding: 2px 6px;
+    padding: 2px 8px;
     border-radius: var(--r-seg);
 }
 
@@ -779,8 +781,8 @@
 .pj-share {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 6px 0;
+    gap: 8px;
+    padding: 8px 0;
 }
 
 .pj-share span:first-of-type {
@@ -798,16 +800,16 @@
 
 @media (max-width: 760px) {
     .pj-top {
-        padding: 6px 10px 6px 14px;
+        padding: 8px 8px 8px 16px;
     }
 
     .pj-chips {
-        padding: 0 14px 8px;
+        padding: 0 16px 8px;
     }
 
     .pj-tabs {
         display: flex;
-        gap: 6px;
+        gap: 8px;
         padding: 8px 12px;
         overflow-x: auto;
         scrollbar-width: none;
@@ -819,15 +821,15 @@
         flex: none;
         display: flex;
         align-items: center;
-        gap: 6px;
-        height: 30px;
-        padding: 0 10px;
+        gap: 8px;
+        height: 32px;
+        padding: 0 8px;
         border: 1px solid transparent;
         border-radius: var(--r-control);
         background: var(--card);
         color: var(--muted);
         font: inherit;
-        font-size: 12.5px;
+        font-size: 13px;
         cursor: pointer;
     }
 
@@ -878,11 +880,11 @@
     }
 
     .pj-cards {
-        padding: 10px 12px;
+        padding: 8px 12px;
     }
 
     .pj-card {
-        padding: 10px 12px 0;
+        padding: 8px 12px 0;
     }
 
     .pj-foot {
@@ -898,7 +900,7 @@
 .pj-running {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     color: var(--o-cyan);
     font-size: 12px;
 }
@@ -939,7 +941,7 @@
 .pj-team {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     padding: 12px;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
@@ -953,7 +955,7 @@
 .pj-team-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .pj-grow {
@@ -962,12 +964,12 @@
 }
 
 .pj-team-sub {
-    padding-top: 6px;
+    padding-top: 8px;
     border-top: 1px solid var(--hair);
 }
 
 .pj-place {
-    font: 12.5px var(--mono);
+    font: 13px var(--mono);
     color: var(--text);
     overflow-wrap: anywhere;
 }
@@ -1021,7 +1023,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px 8px 16px;
+    padding: 8px 8px 8px 16px;
     background: var(--bg);
     border-bottom: 1px solid var(--hair);
 }
@@ -1031,7 +1033,7 @@
     place-items: center;
     width: 24px;
     height: 24px;
-    border-radius: 7px;
+    border-radius: 8px;
     background: color-mix(in srgb, var(--tt) 14%, transparent);
     color: var(--tt);
     flex: none;
@@ -1051,13 +1053,13 @@
 .pt-state {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    height: 26px;
-    padding: 0 9px 0 8px;
+    gap: 8px;
+    height: 24px;
+    padding: 0 8px 0 8px;
     border-radius: 999px;
     background: color-mix(in srgb, var(--tone) 15%, transparent);
     color: var(--tone);
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 600;
     white-space: nowrap;
 }
@@ -1080,7 +1082,7 @@
     min-width: 210px;
     max-height: min(70vh, 460px);
     overflow-y: auto;
-    padding: 5px;
+    padding: 4px;
     border-radius: var(--r-card);
     background: var(--raised);
     box-shadow: var(--pop, 0 18px 40px -10px rgb(0 0 0 / 0.5)), 0 0 0 1px var(--hair-2);
@@ -1098,11 +1100,11 @@
 .pt-menu button {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
-    padding: 8px 10px;
+    padding: 8px 8px;
     border-radius: 8px;
-    font-size: 13.5px;
+    font-size: 14px;
     color: var(--text);
     text-align: left;
 }
@@ -1123,7 +1125,7 @@
 }
 
 .pt-menu-label {
-    padding: 8px 10px 4px;
+    padding: 8px 8px 4px;
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.04em;
@@ -1141,7 +1143,7 @@
 
 .pt-body {
     flex: 1;
-    padding: 6px 16px 20px;
+    padding: 8px 16px 20px;
 }
 
 .pt textarea.pt-title {
@@ -1152,7 +1154,7 @@
     margin-inline: -4px;
     width: calc(100% + 8px);
     border: 0;
-    border-radius: 6px;
+    border-radius: 8px;
     background: none;
     resize: none;
     overflow: hidden;
@@ -1172,9 +1174,9 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
     margin-bottom: 14px;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--faint);
 }
 
@@ -1185,7 +1187,7 @@
 
 .pt-note {
     margin-bottom: 12px;
-    padding: 9px 12px;
+    padding: 8px 12px;
     border-radius: var(--r-row);
     background: var(--card-2);
     font-size: 13px;
@@ -1195,31 +1197,31 @@
 .pt-blocked {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     margin-bottom: 14px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     border-radius: var(--r-card);
     background: var(--err-soft);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 30%, transparent);
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--err);
 }
 
 .pt-blocked input {
-    height: 34px;
-    padding: 0 10px;
+    height: 32px;
+    padding: 0 8px;
     border: 0;
     border-radius: var(--r-row);
     background: var(--bg);
     color: var(--text);
-    font: 13.5px var(--sans);
+    font: 14px var(--sans);
 }
 
 /* The run: one card that says what is happening and what to do. */
 .pt-run {
     margin-bottom: 16px;
-    padding: 12px 12px 12px 14px;
+    padding: 12px 12px 12px 16px;
     border-radius: var(--r-card);
     background: color-mix(in srgb, var(--tone) 7%, var(--card));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 28%, transparent);
@@ -1228,7 +1230,7 @@
 .pt-run-top {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
 }
 
 .pt-run-mark {
@@ -1245,8 +1247,8 @@
 }
 
 .pt-spin {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     border: 2px solid color-mix(in srgb, var(--tone) 30%, transparent);
     border-top-color: var(--tone);
@@ -1267,13 +1269,13 @@
 .pt-run-what > b {
     display: block;
     color: var(--text);
-    font-size: 14.5px;
+    font-size: 15px;
     font-weight: 600;
 }
 
 .pt-run-what > span {
     display: block;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
     overflow-wrap: anywhere;
 }
@@ -1310,9 +1312,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    height: 34px;
-    padding: 0 13px;
+    gap: 8px;
+    height: 32px;
+    padding: 0 12px;
     border-radius: var(--r-control);
     background: var(--card-2);
     color: var(--text);
@@ -1342,7 +1344,7 @@
 
 .pt .btn.small {
     height: 28px;
-    padding: 0 10px;
+    padding: 0 8px;
     font-size: 12px;
 }
 
@@ -1351,9 +1353,9 @@
     align-items: center;
     gap: 8px;
     margin-top: 10px;
-    padding-top: 10px;
+    padding-top: 8px;
     border-top: 1px solid var(--hair);
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--muted);
 }
 
@@ -1361,7 +1363,7 @@
     max-height: 50vh;
     overflow: auto;
     margin: 12px 0 0;
-    padding: 10px;
+    padding: 8px;
     border-radius: var(--r-row);
     background: var(--bg);
     font: 12px / 1.5 var(--mono);
@@ -1381,21 +1383,21 @@
     align-items: center;
     min-height: 40px;
     margin: 0;
-    padding: 6px 8px;
+    padding: 8px 8px;
 }
 
 .pt-props > dt {
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--faint);
 }
 
 .pt-props > dd {
     position: relative;
-    gap: 7px;
+    gap: 8px;
     min-width: 0;
     border-radius: var(--r-row);
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 .pt-props > dd:has(> select):hover {
@@ -1424,11 +1426,11 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    height: 26px;
-    padding: 0 10px;
+    height: 24px;
+    padding: 0 8px;
     border-radius: 999px;
     background: var(--card-2);
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--text);
 }
 
@@ -1458,20 +1460,20 @@ button.pt-chip:hover {
 }
 
 .pt-plain {
-    font-size: 13.5px;
+    font-size: 14px;
     color: inherit;
 }
 
 .pt-inline {
     flex: 1;
     min-width: 120px;
-    height: 30px;
-    padding: 0 10px;
+    height: 32px;
+    padding: 0 8px;
     border: 0;
     border-radius: var(--r-row);
     background: var(--card-2);
     color: var(--text);
-    font: 13.5px var(--sans);
+    font: 14px var(--sans);
     outline: none;
     box-shadow: 0 0 0 2px var(--accent-line);
 }
@@ -1546,12 +1548,12 @@ button.pt-chip:hover {
 
 .pt-desc {
     width: 100%;
-    padding: 10px 12px;
+    padding: 8px 12px;
     border: 0;
     border-radius: var(--r-row);
     background: var(--card-2);
     color: var(--text);
-    font: 13.5px / 1.55 var(--sans);
+    font: 14px / 1.55 var(--sans);
     resize: vertical;
     outline: none;
     box-shadow: 0 0 0 2px var(--accent-line);
@@ -1590,11 +1592,11 @@ button.pt-chip:hover {
 .pt-row-main {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
     flex: 1;
     min-width: 0;
-    padding: 7px 8px;
-    font-size: 13.5px;
+    padding: 8px 8px;
+    font-size: 14px;
     color: var(--text);
     text-align: left;
 }
@@ -1606,10 +1608,10 @@ button.pt-chip:hover {
 .pt-box {
     display: grid;
     place-items: center;
-    width: 17px;
-    height: 17px;
+    width: 16px;
+    height: 16px;
     margin-top: 2px;
-    border-radius: 5px;
+    border-radius: 4px;
     box-shadow: inset 0 0 0 1.5px var(--hair-2);
     flex: none;
 }
@@ -1649,12 +1651,12 @@ button.pt-chip:hover {
 .pt-add {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: calc(100% + 16px);
     margin: 0 -8px;
-    padding: 7px 8px;
+    padding: 8px 8px;
     border-radius: var(--r-row);
-    font-size: 13.5px;
+    font-size: 14px;
     color: var(--faint);
     text-align: left;
 }
@@ -1672,14 +1674,14 @@ button.pt-chip:hover {
 
 .pt-add-form input,
 .pt-add-form select {
-    height: 34px;
+    height: 32px;
     min-width: 0;
-    padding: 0 10px;
+    padding: 0 8px;
     border: 0;
     border-radius: var(--r-row);
     background: var(--card-2);
     color: var(--text);
-    font: 13.5px var(--sans);
+    font: 14px var(--sans);
 }
 
 .pt-add-form input {
@@ -1689,7 +1691,7 @@ button.pt-chip:hover {
 }
 
 .pt-add-form .btn {
-    height: 34px;
+    height: 32px;
 }
 
 /* Relations and sessions */
@@ -1712,7 +1714,7 @@ button.pt-chip:hover {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 13.5px;
+    font-size: 14px;
     color: var(--text);
 }
 
@@ -1723,7 +1725,7 @@ button.pt-chip:hover {
 }
 
 .pt-session {
-    gap: 10px;
+    gap: 8px;
     padding: 8px;
     text-decoration: none;
     color: inherit;
@@ -1764,8 +1766,8 @@ button.pt-chip:hover {
 }
 
 .pt-seg button {
-    padding: 2px 9px;
-    border-radius: 6px;
+    padding: 2px 8px;
+    border-radius: 8px;
     font-size: 12px;
     font-weight: 500;
     color: var(--muted);
@@ -1791,7 +1793,7 @@ button.pt-chip:hover {
 
 .pt-earlier {
     position: relative;
-    padding: 4px 0 4px 30px;
+    padding: 4px 0 4px 32px;
 }
 
 .pt-event {
@@ -1800,7 +1802,7 @@ button.pt-chip:hover {
     align-items: center;
     gap: 8px;
     padding: 4px 0;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--faint);
 }
 
@@ -1812,7 +1814,7 @@ button.pt-chip:hover {
 .pt-tick {
     display: grid;
     place-items: center;
-    width: 22px;
+    width: 24px;
     flex: none;
 }
 
@@ -1833,13 +1835,13 @@ button.pt-chip:hover {
 .pt-comment {
     position: relative;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     padding: 8px 0;
 }
 
 .pt-comment > .pj-av {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     margin-top: 1px;
     font-size: 12px;
     box-shadow: 0 0 0 3px var(--bg);
@@ -1849,7 +1851,7 @@ button.pt-chip:hover {
 .pt-comment-body {
     flex: 1;
     min-width: 0;
-    padding: 9px 12px;
+    padding: 8px 12px;
     border-radius: 4px var(--r-card) var(--r-card) var(--r-card);
     background: var(--card);
     box-shadow: inset 0 0 0 1px var(--hair);
@@ -1858,9 +1860,9 @@ button.pt-chip:hover {
 .pt-comment-who {
     display: flex;
     align-items: baseline;
-    gap: 6px;
+    gap: 8px;
     margin-bottom: 3px;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--faint);
 }
 
@@ -1870,7 +1872,7 @@ button.pt-chip:hover {
 }
 
 .pt-comment .pt-prose {
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 /* The comment box, at the foot */
@@ -1881,7 +1883,7 @@ button.pt-chip:hover {
     display: flex;
     align-items: flex-end;
     gap: 8px;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--hair);
     background: var(--bg);
 }
@@ -1890,9 +1892,9 @@ button.pt-chip:hover {
     flex: 1;
     min-height: 40px;
     max-height: 140px;
-    padding: 9px 14px;
+    padding: 8px 16px;
     border: 0;
-    border-radius: 19px;
+    border-radius: 20px;
     background: var(--card-2);
     color: var(--text);
     font: 14px / 1.4 var(--sans);
@@ -1926,7 +1928,7 @@ button.pt-chip:hover {
     display: flex;
     gap: 2px;
     margin: 0 12px 10px;
-    padding: 3px;
+    padding: 4px;
     border-radius: var(--r-control);
     background: var(--card-2);
     align-self: flex-start;
@@ -1939,10 +1941,11 @@ button.pt-chip:hover {
 .pj-views button {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 5px 11px;
-    border-radius: 7px;
+    gap: 8px;
+    padding: 4px 12px;
+    border-radius: 8px;
     font-size: 13px;
+    line-height: 20px;
     font-weight: 500;
     color: var(--muted);
     white-space: nowrap;
@@ -1962,7 +1965,7 @@ button.pt-chip:hover {
     .pj-views button {
         flex: 1;
         justify-content: center;
-        padding: 6px 4px;
+        padding: 8px 4px;
     }
 
     .pj-views svg {
@@ -2011,7 +2014,7 @@ button.pt-chip:hover {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 12px;
+    padding: 8px 12px;
     flex: none;
 }
 
@@ -2024,10 +2027,10 @@ button.pt-chip:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    min-width: 30px;
-    height: 30px;
-    padding: 0 10px;
+    gap: 8px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
     border-radius: var(--r-row);
     box-shadow: inset 0 0 0 1px var(--hair-2);
     font-size: 13px;
@@ -2040,7 +2043,7 @@ button.pt-chip:hover {
 
 .pv-empty {
     margin: 24px 16px;
-    font-size: 13.5px;
+    font-size: 14px;
     color: var(--faint);
     text-align: center;
 }
@@ -2057,7 +2060,7 @@ button.pt-chip:hover {
 .pv-label {
     display: inline-block;
     margin-right: 4px;
-    padding: 0 6px;
+    padding: 0 8px;
     border-radius: var(--r-tag);
     background: var(--card-2);
     font-size: 12px;
@@ -2081,7 +2084,7 @@ button.pt-chip:hover {
 .pv-sub {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     font-size: 12px;
     color: var(--faint);
     font-variant-numeric: tabular-nums;
@@ -2104,7 +2107,7 @@ button.pt-chip:hover {
 .pv-run {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     padding: 1px 8px;
     border-radius: 999px;
     box-shadow: inset 0 0 0 1px var(--hair-2);
@@ -2163,7 +2166,7 @@ i.live {
     position: sticky;
     top: 0;
     z-index: 1;
-    padding: 8px 10px;
+    padding: 8px 8px;
     border-bottom: 1px solid var(--hair);
     background: var(--bg);
     text-align: left;
@@ -2174,7 +2177,7 @@ i.live {
 }
 
 .pv-table td {
-    padding: 7px 10px;
+    padding: 8px 8px;
     border-bottom: 1px solid var(--hair);
     vertical-align: middle;
     white-space: nowrap;
@@ -2203,7 +2206,7 @@ i.live {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--text);
 }
@@ -2228,9 +2231,9 @@ i.live {
 .pv-who {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .pv-rows {
@@ -2249,7 +2252,7 @@ i.live {
 
     .pv-row-group {
         width: 100%;
-        padding: 9px 12px;
+        padding: 8px 12px;
         border-bottom: 1px solid var(--hair);
         background: var(--card);
         text-align: left;
@@ -2258,9 +2261,9 @@ i.live {
     .pv-row {
         display: flex;
         align-items: flex-start;
-        gap: 10px;
+        gap: 8px;
         width: 100%;
-        padding: 10px 12px;
+        padding: 8px 12px;
         border-bottom: 1px solid var(--hair);
         text-align: left;
     }
@@ -2270,8 +2273,8 @@ i.live {
     }
 
     .pv-row-prio {
-        width: 14px;
-        padding-top: 3px;
+        width: 16px;
+        padding-top: 4px;
         flex: none;
     }
 
@@ -2329,7 +2332,7 @@ i.live {
     z-index: 4;
     display: flex;
     align-items: flex-end;
-    padding: 0 12px 6px;
+    padding: 0 12px 8px;
     background: var(--bg);
     font-size: 12px;
     color: var(--faint);
@@ -2337,7 +2340,7 @@ i.live {
 
 .pv-tl-group,
 .pv-tl-gap {
-    height: 30px;
+    height: 32px;
     border-bottom: 1px solid var(--hair);
     background: var(--card);
 }
@@ -2347,7 +2350,7 @@ i.live {
     align-items: center;
     gap: 8px;
     padding: 0 12px;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--text);
 }
@@ -2407,7 +2410,7 @@ i.live {
     flex-direction: column;
     justify-content: flex-end;
     flex: none;
-    padding-bottom: 5px;
+    padding-bottom: 4px;
     border-left: 1px solid transparent;
     text-align: center;
     font-size: 12px;
@@ -2426,7 +2429,7 @@ i.live {
 
 .pv-tl-day.today b {
     align-self: center;
-    padding: 0 3px;
+    padding: 0 4px;
     border-radius: 4px;
     background: var(--accent);
     color: var(--accent-ink);
@@ -2445,7 +2448,7 @@ i.live {
 .pv-tl-month span {
     position: sticky;
     left: 238px;
-    padding: 0 6px;
+    padding: 0 8px;
 }
 
 @media (max-width: 760px) {
@@ -2483,12 +2486,12 @@ i.live {
     z-index: 2;
     display: flex;
     align-items: center;
-    gap: 6px;
-    height: 22px;
+    gap: 8px;
+    height: 24px;
     padding: 0 8px;
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--tone) 55%, transparent);
-    border-radius: 6px;
+    border-radius: 8px;
     background: color-mix(in srgb, var(--tone) 18%, var(--bg));
     font-size: 12px;
     color: var(--text);
@@ -2541,7 +2544,7 @@ i.live {
 }
 
 .pv-wd {
-    padding: 6px 8px;
+    padding: 8px 8px;
     background: var(--card);
     font-size: 12px;
     color: var(--faint);
@@ -2550,10 +2553,10 @@ i.live {
 .pv-cell {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
     min-width: 0;
     min-height: 96px;
-    padding: 5px;
+    padding: 4px;
     background: var(--bg);
 }
 
@@ -2572,13 +2575,13 @@ i.live {
 
 .pv-d {
     align-self: flex-start;
-    padding: 1px 5px;
+    padding: 1px 4px;
     font-size: 12px;
     color: var(--muted);
 }
 
 .pv-cell.today .pv-d {
-    border-radius: 5px;
+    border-radius: 4px;
     background: var(--accent);
     color: var(--accent-ink);
     font-weight: 600;
@@ -2588,9 +2591,9 @@ i.live {
     display: flex;
     align-items: center;
     width: 100%;
-    padding: 3px 6px;
+    padding: 4px 8px;
     overflow: hidden;
-    border-radius: 5px;
+    border-radius: 4px;
     background: var(--card-2);
     box-shadow: inset 3px 0 0 var(--tone);
     font-size: 12px;
@@ -2624,7 +2627,7 @@ i.live {
 }
 
 .pv-more {
-    padding: 0 6px;
+    padding: 0 8px;
     font-size: 12px;
     color: var(--muted);
     text-align: left;
@@ -2636,7 +2639,7 @@ i.live {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 10px;
+    padding: 8px;
     border: 1px solid var(--hair);
     border-radius: var(--r-card);
     background: var(--card);
@@ -2656,7 +2659,7 @@ i.live {
 @media (max-width: 760px) {
     .pv-cal {
         grid-template-columns: 1fr;
-        padding: 0 10px 12px;
+        padding: 0 8px 12px;
     }
 
     .pv-grid {
@@ -2666,14 +2669,14 @@ i.live {
     .pv-agenda {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
     }
 
     .pv-aday {
         display: flex;
         flex-direction: column;
-        gap: 6px;
-        padding: 9px 10px;
+        gap: 8px;
+        padding: 8px 8px;
         border: 1px solid var(--hair);
         border-radius: var(--r-card);
         background: var(--card);
@@ -2681,7 +2684,7 @@ i.live {
 
     .pv-aday h4 {
         margin: 0;
-        font-size: 12.5px;
+        font-size: 13px;
         font-weight: 500;
         color: var(--muted);
     }
@@ -2691,7 +2694,7 @@ i.live {
     }
 
     .pv-chip {
-        padding: 6px 8px;
+        padding: 8px 8px;
         font-size: 13px;
     }
 
@@ -2709,7 +2712,7 @@ i.live {
         grid-template-columns: repeat(7, minmax(0, 1fr));
         gap: 2px;
         margin-bottom: 12px;
-        padding: 8px 6px;
+        padding: 8px 8px;
         border: 1px solid var(--hair);
         border-radius: var(--r-card);
         background: var(--card);
@@ -2726,18 +2729,18 @@ i.live {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 3px;
+        gap: 4px;
         height: 44px;
-        padding-top: 5px;
+        padding-top: 4px;
         border-radius: var(--r-row);
     }
 
     .pv-mini-day b {
         display: grid;
         place-items: center;
-        width: 26px;
-        height: 22px;
-        border-radius: 7px;
+        width: 24px;
+        height: 24px;
+        border-radius: 8px;
         font-size: 13px;
         font-weight: 500;
         color: var(--text);
@@ -2759,7 +2762,7 @@ i.live {
 
     .pv-mini-dots {
         display: flex;
-        gap: 3px;
+        gap: 4px;
         height: 5px;
     }
 
@@ -2814,7 +2817,7 @@ i.live {
 .pj-pick-more {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     color: var(--muted);
 }
 
@@ -2822,7 +2825,7 @@ i.live {
 .pj-picker-head {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .pj-picker-search {
