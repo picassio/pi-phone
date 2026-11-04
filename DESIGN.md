@@ -890,7 +890,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **The layout check's design rules** (PP-395, from the rules a script can measure, PP-394: the unslop, design-artifact
     and html skills and the owner's UI rules; wiki `resources/pi-phone-measurable-ui-rules`). Besides spills, it finds:
     text cut by the nearest box that hides its overflow (a text node's Range past that box: more than 2 px sideways, or
-    half its font size at the bottom; an ellipsis or line clamp said; a scroller is no cut); an element over another's
+    half its font size at the bottom; an ellipsis or line clamp said; a scroller is no cut; once per box, its size
+    against the extent of all its words, as a title of several runs of words is one cut); an element over another's
     text or control (`elementFromPoint` at three points of each text's first line and each control's centre, in view
     only; not a cover when it is transparent with no words of its own, a hit area laid over a title; a dialog, menu or
     layer over 40 % of the view; or a fixed, sticky or absolute bar that content scrolls under); tap targets under

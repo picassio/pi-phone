@@ -279,7 +279,8 @@ ${PAGE_HELPERS}
   const SKIP = new Set(['script', 'style', 'noscript', 'template', 'textarea', 'option', 'title']);
   const EMOJI = /(?![\u00A9\u00AE\u2122])\p{Extended_Pictographic}\uFE0F?|[\u2713\u2717\u2718\u2605\u2606\u25A0-\u25FF]/gu;
   const walker = document.body ? document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT) : null;
-  const range = document.createRange();
+  const range = document.createRange(), whole = document.createRange();
+  const cutBoxes = new Set();
   let texts = 0;
   for (let node = walker ? walker.nextNode() : null; node && texts < 3000; node = walker.nextNode()) {
     const words = node.textContent.trim();
@@ -298,15 +299,23 @@ ${PAGE_HELPERS}
     const size = parseFloat(s.fontSize);
     sizes.add(r1(size));
     families.add(s.fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, ''));
-    // Cut: the text runs past the nearest box that hides its overflow (a scroller is not a cut).
+    // Cut: the text runs past the nearest box that hides its overflow (a scroller is not a cut). Once a box: its
+    // numbers are the box's and all of its words' (a title of several runs of words, the last one past the edge, is
+    // one cut, not each run measured against the box).
     const a = clipper(p);
-    if (a) {
+    if (a && !cutBoxes.has(a)) {
       const as = css(a), box = padBox(a);
       if (box.r - box.l > 2 && box.b - box.t > 2 && as.clip === 'auto' && as.clipPath === 'none') {
         const dx = Math.max(0, b.right - box.r) + Math.max(0, box.l - b.left), dy = Math.max(0, b.bottom - box.b) + Math.max(0, box.t - b.top);
         const ellipsis = as.textOverflow === 'ellipsis' || (as.webkitLineClamp && as.webkitLineClamp !== 'none');
-        if (/hidden|clip/.test(as.overflowX) && dx > 2) group('cut', sig(a) + '|x|' + ellipsis, () => ({ what: name(a), axis: 'x', shown: Math.round(box.r - box.l), full: Math.round(b.width), ellipsis: !!ellipsis }));
-        else if (/hidden|clip/.test(as.overflowY) && dy > size / 2) group('cut', sig(a) + '|y|' + ellipsis, () => ({ what: name(a), axis: 'y', shown: Math.round(box.b - box.t), full: Math.round(b.height), ellipsis: !!ellipsis }));
+        const x = /hidden|clip/.test(as.overflowX) && dx > 2, y = !x && /hidden|clip/.test(as.overflowY) && dy > size / 2;
+        if (x || y) {
+          cutBoxes.add(a);
+          whole.selectNodeContents(a);
+          const w = whole.getBoundingClientRect();
+          const full = x ? Math.max(w.right, box.r) - Math.min(w.left, box.l) : Math.max(w.bottom, box.b) - Math.min(w.top, box.t);
+          group('cut', sig(a) + (x ? '|x|' : '|y|') + ellipsis, () => ({ what: name(a), axis: x ? 'x' : 'y', shown: Math.round(x ? box.r - box.l : box.b - box.t), full: Math.round(full), ellipsis: !!ellipsis }));
+        }
       }
     }
     // Covered: three points along its first line, where it shows.

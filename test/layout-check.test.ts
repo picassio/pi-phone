@@ -33,6 +33,8 @@ const PAGES: Record<string, string> = {
     "/spill": `${head}<div class="col" id="box" style="overflow:visible"><div style="width:500px;background:#ccc">Wide</div></div>`,
     "/wide": `${head}<div style="width:2000px;height:20px;background:#ccc"></div>`,
     "/ellipsis": `${head}<div class="col"><div id="title" style="width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">A long session title that does not fit</div></div>`,
+    // A lead of two runs of words, the second past the edge (pi-phone's "ui-polish: Working…" read "shows 134 of 62 px").
+    "/runs": `${head}<div class="col"><div id="lead" style="width:134px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>ui-polish:</b> <span>Working on it now…</span></div></div>`,
     "/lines": `${head}<div class="col"><div id="note" style="width:200px;height:40px;overflow:hidden;line-height:20px">${words.repeat(3)}</div></div>`,
     "/covered": `${head}<div class="col" style="position:relative"><button id="send" style="width:120px;height:48px;padding:0">Send now</button><div id="toast" style="position:absolute;left:0;top:0;width:100px;height:48px;background:#eee"></div></div><div class="col" style="position:relative;margin-top:16px"><span id="name">A title the whole row opens</span><button aria-label="Open" style="position:absolute;left:0;top:0;right:0;bottom:0;background:transparent;border:0"></button></div>`,
     "/sheet": `${head}<div class="col"><p>Under the sheet</p><button style="width:120px;height:48px;padding:0">Behind</button></div><div role="dialog" style="position:fixed;left:0;top:0;right:0;bottom:0;background:#fff"><p class="col">The sheet's words</p></div>`,
@@ -166,6 +168,12 @@ test("the layout check finds cut text, overlaps, small tap targets, off-grid siz
 
         assert.ok(title !== undefined && title.what.startsWith("div#title") && title.axis === "x" && title.ellipsis && title.shown === 120 && title.full > 200, JSON.stringify(ellipsis.found));
         assert.match(describeLayout(ellipsis), /Cut text \(1\):\n- div#title "A long session title that does": cut at the side, ends in … \(shows 120 of \d+ px wide\)/);
+
+        // Several runs of words in one cut box: one cut, the box's width against all its words'.
+        const runs = of(await measured(page, "/runs"), "cut");
+
+        assert.equal(runs.length, 1, JSON.stringify(runs));
+        assert.ok(runs[0]!.what.startsWith("div#lead") && runs[0]!.count === 1 && runs[0]!.shown === 134 && runs[0]!.full > 134, JSON.stringify(runs));
 
         const lines = await measured(page, "/lines");
         const [note] = of(lines, "cut");
