@@ -55,11 +55,13 @@ import {
     type EntryRecord,
     Harness,
     type HarnessSettings,
+    hook,
     LiveDoc,
     type LiveState,
     ProviderDoc,
     type Registry,
     type Storage,
+    ToolTask,
     UsageDoc,
     type UsageState,
 } from "@earendil-works/pi-durable";
@@ -131,6 +133,7 @@ import {
 import { WebPush } from "./web-push.ts";
 import { Forwards } from "./forwards.ts";
 import { SessionControl } from "./session-control.ts";
+import { APP_DATABASE, moveAppTables } from "./app-database.ts";
 import { ExtensionSessions } from "./extension-sessions.ts";
 import { Para } from "./para.ts";
 import { CAPTURE_EXTENSION, ParaCapture } from "./para-capture.ts";
@@ -238,6 +241,8 @@ export const MAX_PEEKS = 20;
  * Durable 1.5). Stopped (`aborted`), cleared (`reset`), and replaced (`stale`) runs did not fail.
  */
 const FAILED_RUN = new Set(["model_error", "no_model", "faulted", "interrupted"]);
+/** A tool's error that a database gave (SQLite's words): logged, as a person cannot see it (PP-382). */
+const DATABASE_ERROR = /database is locked|database table is locked|SQLITE_[A-Z]|database disk image is malformed|disk I\/O error|no such table/i;
 
 /** A conversation's subagents document, as far as the app reads it. */
 type SubagentsValue = {
@@ -1148,6 +1153,13 @@ export class PocketApp {
             log: (line) => this.#log(line),
             ...(this.#lockWaitMs === undefined ? {} : { waitMs: this.#lockWaitMs }),
         });
+        // Boards and SSH keys out of Pi Durable's file, into the app's own (PP-382, `app-database.ts`): once, before both open.
+        const moved = moveAppTables(this.dataDir);
+
+        if (moved.length > 0) {
+            this.#log(`Moved the app's tables out of pocket.sqlite into ${APP_DATABASE}: ${moved.join(", ")}.`);
+        }
+
         // The keys into the agent (moved into the database first, from files, once): before anything connects.
         await this.sshKeys.open();
 
@@ -1242,6 +1254,23 @@ export class PocketApp {
                     this.shell.task,
                     this.commands.followTask,
                     this.extensionCommands.task,
+                ],
+                hooks: [
+                    // A tool that failed on a database ("database is locked") goes to the server's log too (PP-382): only the
+                    // model and the transcript saw it before.
+                    hook(ToolTask, {
+                        afterTool: (call, result, api) => {
+                            if (result.isError === true) {
+                                const text = [...(result.output ?? []).flatMap((part) => (part.type === "text" ? [part.text] : [])), ...(result.diagnostics ?? []).map((each) => each.message)].join(" ");
+
+                                if (DATABASE_ERROR.test(text)) {
+                                    this.#log(`The tool ${call.name} failed on a database in session ${String(api.conversationId)}: ${text.slice(0, 500)}`);
+                                }
+                            }
+
+                            return undefined;
+                        },
+                    }),
                 ],
             }),
         );

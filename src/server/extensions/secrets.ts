@@ -153,7 +153,8 @@ export function pathsOf(tool: string, args: Record<string, unknown>): { read: st
  * `cwd`: the session's folder, for relative paths.
  */
 export function keyStoreRefusal(tool: string, args: Record<string, unknown>, where: { dataDir: string; home: string; cwd: string }): string | undefined {
-    const stores = [join(where.dataDir, "ssh"), join(where.dataDir, "pocket.sqlite"), join(where.dataDir, "secrets.json")];
+    // The private SSH keys are in app.sqlite since PP-382; pocket.sqlite (Pi Durable's) held them before.
+    const stores = [join(where.dataDir, "ssh"), join(where.dataDir, "app.sqlite"), join(where.dataDir, "pocket.sqlite"), join(where.dataDir, "secrets.json")];
     const spell = (path: string) => [path, ...(path.startsWith(`${where.home}/`) ? [`~${path.slice(where.home.length)}`] : [])];
     const STORES = "The app keeps its keys (SSH keys, its ssh-agent, the secrets) out of Pi's tools: use machine_run, machine_copy, or a session on a machine for machines, and secrets by name in bash.";
     // The owner's drop-in extensions (PP-171): code that runs in the server with the app's host, secrets included, and

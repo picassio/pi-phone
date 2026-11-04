@@ -169,7 +169,9 @@ No Termux, no laptop, no cloud VM.
   long one folded to **Show all**.
 - **Projects** (an extension, off until you turn it on in Settings › Extensions): boards of tasks that keep work from
   being forgotten. Pi asks once before it tracks a session's work on a board ("Track this on the board?"), then keeps
-  its tasks current with `task_create`, `task_update`, and `task_comment`. Epics, Stories, Tasks, Bugs, and Sub-tasks;
+  its tasks current with `task_create`, `task_update`, and `task_comment`. Boards (and the app's SSH keys) are kept in
+  the data folder's `app.sqlite`, apart from the sessions' database, so a board change never waits on Pi's work there
+  (with Pi 1.5 several at once failed with "database is locked"); a tool's database error goes to the server's log. Epics, Stories, Tasks, Bugs, and Sub-tasks;
   Inbox → Planning → Assigned → In Progress → Testing → Review → Done, and Blocked. Only a person approves a task that
   needs it, and Pi never approves its own work. Shared with the people you choose. The Projects page (rail) shows a
   board in ACS's look: drag cards between states on a desktop; on a phone, swipe between states and long-press a card to

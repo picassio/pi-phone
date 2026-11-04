@@ -3,7 +3,7 @@
  * whatever a model does. Pi's main session orchestrates the work (what runs next, closing parents, reviews); this file
  * only keeps the data right, and never moves a task or starts work by itself.
  *
- * In the app's database (`pocket.sqlite`, backed up with the rest). A project has a key (`PP`) and its tasks are
+ * In the app's own database (`app.sqlite`, `app-database.ts`, apart from Pi Durable's; backed up with the rest). A project has a key (`PP`) and its tasks are
  * numbered within it (`PP-12`). Tasks have agent-board's five types and its parent rules (an Epic holds Stories, Tasks
  * and Bugs; a Story holds Tasks, Bugs and Sub-tasks; a Task or a Bug holds Sub-tasks; a Sub-task holds nothing), and its
  * eight states.
@@ -16,12 +16,11 @@
  * Board mode (a session's consent to use the board): sessions where the person said yes, with the project they chose.
  */
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
-import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import { APP_DATABASE, openAppDatabase } from "./app-database.ts";
 import type { Role } from "./config.ts";
 import { HttpError } from "./errors.ts";
 
-const DATABASE = "pocket.sqlite";
 
 export const STATES = ["inbox", "planning", "assigned", "in_progress", "blocked", "testing", "review", "done"] as const;
 export type TaskState = (typeof STATES)[number];
@@ -305,11 +304,14 @@ export class Projects {
     readonly #assigned = new Set<(task: Task) => void>();
     readonly #runListeners = new Set<(run: Run) => void>();
 
-    /** `people`: everyone in the app, as config has them now. */
-    constructor(dataDir: string, people: () => Person[], now: () => number = Date.now) {
+    /**
+     * `people`: everyone in the app, as config has them now. `file`: the database in `dataDir`, the app's own unless named
+     * (the team server keeps its boards in `pocket.sqlite`, where nothing else writes).
+     */
+    constructor(dataDir: string, people: () => Person[], now: () => number = Date.now, file = APP_DATABASE) {
         this.#people = people;
         this.#now = now;
-        this.#db = new DatabaseSync(join(dataDir, DATABASE), { timeout: 5000 });
+        this.#db = openAppDatabase(dataDir, file);
         this.#db.exec(`
             CREATE TABLE IF NOT EXISTS pocket_projects (
                 id TEXT PRIMARY KEY, key TEXT NOT NULL UNIQUE, name TEXT NOT NULL, folder TEXT, owner TEXT NOT NULL,

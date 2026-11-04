@@ -32,7 +32,8 @@ export class BoardService {
 
     constructor(store: GatewayStore, dir: string, now: () => number = Date.now) {
         this.#store = store;
-        this.#projects = new Projects(dir, () => this.people(), now);
+        // The team server's boards keep their file, `pocket.sqlite` in their own folder: no Pi Durable writes there.
+        this.#projects = new Projects(dir, () => this.people(), now, "pocket.sqlite");
         this.#wiki = new ProjectWiki(dir, now);
         this.#projects.onChange((projectId) => this.#changed(projectId));
     }

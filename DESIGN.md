@@ -155,8 +155,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   Stop in the bar above the message box). Survives restarts.
 - **SSH keys** (`src/server/ssh-keys.ts`, `ssh-agent.ts`, `web/sheets/ssh-keys.js`): the app's keys for machines,
   one per purpose, never as private key files.
-  - **Storage:** private keys are in the database (`pocket.sqlite`, table `pocket_ssh_keys`, beside pi-durable's
-    tables; it tracks its own schema). Public keys are in `<data>/ssh/keys/<id>.pub`, and names in `keys.json`.
+  - **Storage:** private keys are in the app's own database (`app.sqlite`, table `pocket_ssh_keys`, `app-database.ts`;
+    in Pi Durable's `pocket.sqlite` before PP-382, moved out as the app starts). Public keys are in `<data>/ssh/keys/<id>.pub`, and names in `keys.json`.
   - **The agent:** `SshAgent` runs OpenSSH's `ssh-agent -D -a <data>/ssh/agent.sock` with the server, gives it each
     key on `ssh-add -`'s stdin, and starts it again if it ends.
   - **Generating and importing:** keys are ed25519 with no passphrase (background work has nobody to ask), and pass
@@ -316,7 +316,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **The prompt:** the phone prompt names the machines (alias, address, id) and these tools, and says its bash has no
     ssh.
   - **The guard:** the secrets module (required) refuses Pi's `read`, `write`, `edit`, and `bash` on the app's key
-    stores (`<data>/ssh`, `pocket.sqlite`, `secrets.json`; `ssh-add` and `SSH_AUTH_SOCK` in commands), and every other
+    stores (`<data>/ssh`, `app.sqlite`, `pocket.sqlite`, `secrets.json`; `ssh-add` and `SSH_AUTH_SOCK` in commands), and every other
     tool that takes a file on the phone too (`pathsOf`: `browser_upload`, `machine_copy`'s phone side, `file_to_markdown`,
     `doc_image`, `wiki_ingest`, `interview`, `screenshot`, `image_markup`, the screenshot tools' and `browser_save_pdf`'s
     paths; none of them writes into `<data>/extensions`; PP-204), and treats `machine_run` as bash for secrets.
@@ -2072,8 +2072,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
   the app updates from it (section 5).
 - **Projects** (extension `extensions/projects.ts`, off by default; the store is `projects.ts`): project boards whose
   tasks people and Pi share. Tables `pocket_projects`, `pocket_project_members`, `pocket_tasks`, `pocket_task_links`,
-  `pocket_task_comments`, `pocket_task_sessions`, `pocket_task_activity`, `pocket_board_sessions` in `pocket.sqlite`
-  (so backups hold them). A project has a key (`PP`); tasks are numbered in it (`PP-12`).
+  `pocket_task_comments`, `pocket_task_sessions`, `pocket_task_activity`, `pocket_board_sessions` in the app's own
+  `app.sqlite` (backed up whole, as `pocket.sqlite` is; the team server's boards keep `pocket.sqlite` in their folder).
+  **Why a file of their own** (PP-382): in Pi Durable's `pocket.sqlite`, through connections of their own on the
+  server's one thread, a board write that ran while Pi Durable's write transaction awaited between its statements
+  waited for the lock synchronously (`DatabaseSync`'s busy timeout), so that transaction could never finish: the
+  server stood still 5 s and the write failed, "database is locked". Pi 1.5 starts the tools of one answer while it
+  still commits their starts: of 80 board tool calls made three at once, 56 failed so (0 with Pi 1.4). `moveAppTables`
+  moves every `pocket_` table, with its rows and indexes, into `app.sqlite` as the app starts (the data folder's lock
+  held, before Pi Durable opens; a row there already stays, so a start cut short finishes the next time), then drops
+  it from `pocket.sqlite`. The app's connections are synchronous: each transaction ends before another starts, so they
+  never wait on each other across an await. A tool's error that names a database ("database is locked", `SQLITE_…`)
+  also goes to the server's log (a `pocket-core` `afterTool` hook). A project has a key (`PP`); tasks are numbered in it (`PP-12`).
   - **Shared and personal parts** (PP-38, `boards.ts`):
     - **Shared:** projects, members, tasks, links, comments, activity, and who worked on what. Everything reaches it
       through the async `Boards` interface. Here that's `localBoards` on the same store; on the team server it will be

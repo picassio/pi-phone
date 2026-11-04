@@ -25,6 +25,8 @@ test("a backup restores on another phone: sessions, keys, and sign-ins, with wha
     const members = execFileSync("tar", ["-tzf", made.file], { encoding: "utf8" }).split("\n");
 
     assert.ok(members.includes(".pi-pocket/pocket.sqlite"), members.join("\n"));
+    // The app's own database (boards, SSH keys; PP-382), as a whole copy too: once, not its live file beside it.
+    assert.equal(members.filter((member) => member === ".pi-pocket/app.sqlite").length, 1, members.join("\n"));
     assert.ok(members.includes(".pi-pocket/config.json"));
     assert.ok(members.includes(".ssh/keys/k1"));
     assert.ok(members.includes(".pi/agent/auth.json"));

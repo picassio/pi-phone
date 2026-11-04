@@ -1,7 +1,7 @@
 /**
  * The app's SSH keys (DESIGN.md section 4): one per purpose, each used by the machines the owner assigns it to.
  *
- * Private keys live in the app's database (`pocket.sqlite`, table `pocket_ssh_keys`) and in its ssh-agent's memory
+ * Private keys live in the app's own database (`app.sqlite`, table `pocket_ssh_keys`, `app-database.ts`) and in its ssh-agent's memory
  * (`ssh-agent.ts`), never in files: the app's `ssh` signs through the agent, which gives no key out. Public keys, which
  * are not secret, are files in the app's `ssh/keys/<id>.pub`, for `ssh-keygen -l` and to choose the key (`IdentityFile`
  * with `IdentitiesOnly`). `keys.json` holds the names. Keys have no passphrase: background work (a session's tools on a
@@ -16,7 +16,8 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
+import { openAppDatabase } from "./app-database.ts";
 import { HttpError } from "./errors.ts";
 import type { SshAgent } from "./ssh-agent.ts";
 
@@ -60,7 +61,6 @@ export type SshKeyView = SshKey & {
 };
 
 const KEYS_FILE = "keys.json";
-const DATABASE = "pocket.sqlite";
 const MAX_NAME = 60;
 
 export class SshKeys {
@@ -85,7 +85,7 @@ export class SshKeys {
         this.#legacy = join(home, ".ssh", "keys");
         mkdirSync(this.publicDir, { recursive: true, mode: 0o700 });
         this.#keys = existsSync(this.#file) ? (JSON.parse(readFileSync(this.#file, "utf8")) as { keys: SshKey[] }).keys : [];
-        this.#database = new DatabaseSync(join(dataDir, DATABASE), { timeout: 5000 });
+        this.#database = openAppDatabase(dataDir);
         this.#database.exec(
             "CREATE TABLE IF NOT EXISTS pocket_ssh_keys (id TEXT PRIMARY KEY, private_key TEXT NOT NULL, created_at INTEGER NOT NULL) STRICT",
         );

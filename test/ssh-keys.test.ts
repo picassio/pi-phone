@@ -30,7 +30,7 @@ after(() => {
 /** The private keys the database holds, by id. */
 const stored = () =>
     Object.fromEntries(
-        (new DatabaseSync(join(data, "pocket.sqlite")).prepare("SELECT id, private_key FROM pocket_ssh_keys").all() as { id: string; private_key: string }[]).map(
+        (new DatabaseSync(join(data, "app.sqlite")).prepare("SELECT id, private_key FROM pocket_ssh_keys").all() as { id: string; private_key: string }[]).map(
             (row) => [row.id, row.private_key],
         ),
     );

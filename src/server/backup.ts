@@ -3,7 +3,8 @@
  * a new phone or a reinstall. It holds sign-ins and private keys, so it is the owner's and they are told so.
  *
  * In it, from the home folder: the data folder (`.pi-pocket`: sessions, settings, machines, themes, uploads), with the
- * database as a consistent copy (SQLite's backup, taken while it runs); SSH keys and known hosts (`.ssh`); Pi's
+ * databases (Pi Durable's `pocket.sqlite` and the app's `app.sqlite`) as consistent copies (SQLite's backup, taken while
+ * they run); SSH keys and known hosts (`.ssh`); Pi's
  * folder (`.pi/agent`: model sign-ins, settings, imported sessions); GitHub's sign-in (`.config/gh`, `.gitconfig`).
  *
  * Restore checks the archive (only those paths, nothing outside them), unpacks it beside them (`.pi-phone-restore`),
@@ -15,6 +16,7 @@ import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync }
 import { backup, DatabaseSync } from "node:sqlite";
 import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
+import { APP_DATABASE } from "./app-database.ts";
 import { HttpError } from "./errors.ts";
 
 const run = promisify(execFile);
@@ -22,6 +24,8 @@ const run = promisify(execFile);
 /** What a backup holds, under the home folder. */
 export const BACKED_UP = [".pi-pocket", ".ssh", ".pi/agent", ".config/gh", ".gitconfig"];
 const DATABASE = "pocket.sqlite";
+/** The databases copied whole, as they are while the server runs: Pi Durable's, and the app's own (PP-382). */
+const DATABASES = [DATABASE, APP_DATABASE];
 const STAGING = ".pi-phone-restore";
 const BEFORE = ".pi-phone-before-restore";
 /** The largest archive a restore takes. */
@@ -32,14 +36,18 @@ export async function makeBackup(home: string, dataDir: string, tmp: string): Pr
     const work = mkdtempSync(join(tmp, "pi-phone-backup-"));
 
     try {
-        // The database as it is now, whole: a copy of its file could be cut between two writes.
-        const database = new DatabaseSync(join(dataDir, DATABASE), { readOnly: true });
+        // The databases as they are now, whole: a copy of a file could be cut between two writes.
+        mkdirSync(join(work, ".pi-pocket"));
+        const copied = DATABASES.filter((file) => existsSync(join(dataDir, file)));
 
-        try {
-            mkdirSync(join(work, ".pi-pocket"));
-            await backup(database, join(work, ".pi-pocket", DATABASE));
-        } finally {
-            database.close();
+        for (const file of copied) {
+            const database = new DatabaseSync(join(dataDir, file), { readOnly: true });
+
+            try {
+                await backup(database, join(work, ".pi-pocket", file));
+            } finally {
+                database.close();
+            }
         }
 
         const name = `pi-phone-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.tar.gz`;
@@ -51,9 +59,7 @@ export async function makeBackup(home: string, dataDir: string, tmp: string): Pr
         await run("tar", [
             "-cf",
             archive,
-            `--exclude=${data}/${DATABASE}`,
-            `--exclude=${data}/${DATABASE}-wal`,
-            `--exclude=${data}/${DATABASE}-shm`,
+            ...DATABASES.flatMap((file) => [`--exclude=${data}/${file}`, `--exclude=${data}/${file}-wal`, `--exclude=${data}/${file}-shm`]),
             `--exclude=${data}/harness.lock`,
             `--exclude=${data}/harness.lock.identity`,
             // The copy from before Pi 1.4's upgrade (`storage-upgrade.ts`): the database above is newer and whole.
@@ -65,7 +71,9 @@ export async function makeBackup(home: string, dataDir: string, tmp: string): Pr
             data,
             ...(present.length === 0 ? [] : ["-C", home, ...present]),
         ]);
-        await run("tar", ["-rf", archive, "-C", work, `.pi-pocket/${DATABASE}`]);
+        if (copied.length > 0) {
+            await run("tar", ["-rf", archive, "-C", work, ...copied.map((file) => `.pi-pocket/${file}`)]);
+        }
         await run("gzip", ["-6", archive]);
         const file = join(tmp, name);
 

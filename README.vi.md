@@ -178,7 +178,10 @@ dự án thật.</sub>
   dạng Markdown, và tin dài được thu gọn với **Xem tất cả**.
 - **Dự án** (một tiện ích, tắt cho đến khi bạn bật trong Cài đặt › Tiện ích): các bảng tác vụ để công việc không bị
   quên. Pi hỏi một lần trước khi theo dõi công việc của một phiên trên bảng ("Theo dõi việc này trên bảng?"), rồi cập
-  nhật tác vụ bằng `task_create`, `task_update` và `task_comment`. Epic, Story, Tác vụ, Lỗi và Tác vụ con; Hộp thư đến →
+  nhật tác vụ bằng `task_create`, `task_update` và `task_comment`. Các bảng (và khóa SSH của ứng dụng) nằm trong
+  `app.sqlite` của thư mục dữ liệu, tách khỏi cơ sở dữ liệu của các phiên, nên một thay đổi trên bảng không bao giờ phải chờ
+  công việc của Pi ở đó (với Pi 1.5, nhiều lệnh cùng lúc từng lỗi "database is locked"); lỗi cơ sở dữ liệu của một công
+  cụ được ghi vào log của máy chủ. Epic, Story, Tác vụ, Lỗi và Tác vụ con; Hộp thư đến →
   Lên kế hoạch → Đã giao → Đang làm → Đang kiểm thử → Xem xét → Xong, và Bị chặn. Chỉ con người duyệt tác vụ cần duyệt,
   và Pi không bao giờ tự duyệt việc của mình. Chia sẻ với những người bạn chọn. Trang Dự án (thanh bên) hiện bảng theo
   phong cách ACS: trên máy tính kéo thẻ giữa các trạng thái; trên điện thoại vuốt giữa các trạng thái và nhấn giữ một
