@@ -6,6 +6,7 @@
  * out, and its white text); the shapes are drawn here.
  */
 import { createRequire } from "node:module";
+import type { LegendLine, RedlineShape } from "./redline.ts";
 
 type PhotonImage = {
     get_width(): number;
@@ -292,6 +293,142 @@ export function scalePicture(picture: RawPicture, width: number, height: number)
         }
     } finally {
         image.free();
+    }
+}
+
+/**
+ * Redlines on a page's picture (PP-398, `redline.ts`): translucent strips for padding and gaps, thin frames, numbered
+ * tags (a quarter arc before a radius), and a legend in a band added under the picture. Shapes are in the page's CSS
+ * pixels; `cssWidth` is the page's width (the picture may be at twice it), `top` where this picture starts on the page
+ * (a tall page comes in parts). Tags marked `first` (what is off a spec) are placed first; each moves aside when its
+ * place is taken, or stays out when there is no room near it (`dropped`), so numbers never cover each other.
+ */
+export function drawRedlines(
+    bytes: Uint8Array | RawPicture,
+    shapes: RedlineShape[],
+    legend: LegendLine[],
+    { png, cssWidth, top = 0, quality = 88 }: { png: boolean; cssWidth: number; top?: number; quality?: number },
+): { bytes: Uint8Array; width: number; height: number; placed: number; dropped: number } {
+    const source = bytes instanceof Uint8Array ? decodePicture(bytes) : bytes;
+    const { width } = source;
+    const scale = width / cssWidth;
+    const font = Math.max(12, Math.round(12 * scale));
+    const pad = Math.max(3, Math.round(3 * scale));
+    const lineHeight = Math.round(font * 1.5);
+    const chars = Math.max(20, Math.floor((width - 2 * pad - font * 1.6) / (font * 0.45)));
+    const legendLines = legend.flatMap((line) => {
+        const words = line.text.split(" ");
+        const rows: string[] = [];
+
+        for (const word of words) {
+            const last = rows.at(-1);
+
+            if (last !== undefined && last.length + word.length + 1 <= chars) {
+                rows[rows.length - 1] = `${last} ${word}`;
+            } else {
+                rows.push(word);
+            }
+        }
+
+        return rows.map((text, index) => ({ color: line.color, text, swatch: index === 0 }));
+    });
+    const band = legendLines.length === 0 ? 0 : 2 * pad + legendLines.length * lineHeight;
+    const height = source.height + band;
+    const data = new Uint8Array(width * height * 4);
+
+    data.set(source.data.subarray(0, width * source.height * 4));
+
+    const pixels = new Pixels(data, width, height);
+    const at = (x: number, y: number) => [x * scale, (y - top) * scale] as const;
+    const area = (box: [number, number, number, number]) => {
+        const [x, y] = at(box[0], box[1]);
+
+        return { x, y, width: box[2] * scale, height: Math.max(1, box[3] * scale) };
+    };
+    const inPicture = (rect: MarkArea) => rect.x < width && rect.y < source.height && rect.x + rect.width > 0 && rect.y + rect.height > 0;
+    const texts: { text: string; x: number; y: number; size: number }[] = [];
+
+    for (const shape of shapes) {
+        if (shape.kind === "fill") {
+            pixels.fill(area(shape.box), shape.color, shape.alpha);
+        } else if (shape.kind === "frame") {
+            pixels.frame(area(shape.box), shape.color, Math.max(1, Math.round(scale)));
+        }
+    }
+
+    const taken: MarkArea[] = [];
+    const overlaps = (a: MarkArea) => taken.some((b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height);
+    const labels = shapes.filter((shape) => shape.kind === "label").sort((a, b) => Number(b.first === true) - Number(a.first === true));
+    let placed = 0;
+    let dropped = 0;
+
+    for (const label of labels) {
+        const arc = label.arc === true ? Math.round(font * 0.9) : 0;
+        const w = textWidth(label.text, font) + 2 * pad + arc;
+        const h = Math.round(font * 1.4) + 2;
+        const [px, py] = at(label.x, label.y);
+        const x0 = label.anchor === "center" ? px - w / 2 : label.anchor === "end" ? px - w : px + 1;
+        const y0 = label.anchor === "center" ? py - h / 2 : label.anchor === "end" || label.anchor === "above" ? py - h - 1 : py + 1;
+        // Another part's (a tall page comes in parts).
+        if (!inPicture({ x: x0, y: y0, width: w, height: h })) {
+            continue;
+        }
+
+        const fit = (x: number, y: number) => ({ x: Math.max(0, Math.min(width - w, x)), y: Math.max(0, Math.min(source.height - h, y)), width: w, height: h });
+        const tries = [fit(x0, y0), fit(x0, y0 + h + 2), fit(x0, y0 - h - 2), fit(x0 + w / 2 + 2, y0), fit(x0 - w / 2 - 2, y0), fit(x0, y0 + 2 * h + 4)];
+        const spot = tries.find((each) => !overlaps(each));
+
+        if (spot === undefined) {
+            dropped++;
+            continue;
+        }
+
+        taken.push(spot);
+        placed++;
+        pixels.fill(spot, label.color);
+
+        if (arc > 0) {
+            // A quarter arc, as a corner: the radius's sign.
+            const r = Math.round(font * 0.5);
+            const cx = spot.x + pad + r;
+            const cy = spot.y + (h - r) / 2 + r;
+            const stroke = Math.max(1.5, 1.3 * scale);
+
+            for (let step = 0; step < 12; step++) {
+                const a0 = Math.PI + (step / 12) * (Math.PI / 2);
+                const a1 = Math.PI + ((step + 1) / 12) * (Math.PI / 2);
+
+                pixels.line(cx + r * Math.cos(a0), cy + r * Math.sin(a0), cx + r * Math.cos(a1), cy + r * Math.sin(a1), [255, 255, 255], stroke);
+            }
+        }
+
+        texts.push({ text: label.text, x: Math.round(spot.x + pad + arc), y: Math.round(spot.y + (h - font * 1.2) / 2), size: font });
+    }
+
+    if (band > 0) {
+        pixels.fill({ x: 0, y: source.height, width, height: band }, [24, 24, 30]);
+
+        for (const [index, line] of legendLines.entries()) {
+            const y = source.height + pad + index * lineHeight;
+
+            if (line.swatch) {
+                pixels.fill({ x: pad, y: y + (lineHeight - font * 0.8) / 2, width: font * 0.8, height: font * 0.8 }, line.color);
+            }
+
+            texts.push({ text: line.text, x: Math.round(pad + font * 1.4), y: Math.round(y + (lineHeight - font * 1.2) / 2), size: font });
+        }
+    }
+
+    const marked = new photon.PhotonImage(pixels.data, width, height);
+
+    try {
+        for (const each of texts) {
+            photon.draw_text(marked, each.text, each.x, each.y, each.size);
+        }
+
+        return { bytes: png ? marked.get_bytes() : marked.get_bytes_jpeg(quality), width, height, placed, dropped };
+    } finally {
+        marked.free();
     }
 }
 

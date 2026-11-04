@@ -75,10 +75,13 @@ export const TEXT_MIN = 12;
  * (`elementFromPoint`); a layer over the page (a dialog, a menu, a sheet over half the view) and a bar that content
  * scrolls under are not overlaps.
  */
-export const layoutCheck = (width?: number) => String.raw`(() => {
-  const W = ${width === undefined ? "innerWidth" : String(Math.round(width))}, VW = innerWidth, VH = innerHeight;
-  const issues = [];
-  let checked = 0, more = 0;
+/**
+ * What the page scripts share (the layout check, PP-395; the redlines, PP-398), in a script that defined `W` (the width
+ * the page is laid out at), `VW` and `VH`: element names, computed styles, opacity, the region an element's content
+ * shows in (its ancestors' boxes that hide overflow), whether an element shows, colours as Chrome writes them, the
+ * background behind an element, and what a control is.
+ */
+export const PAGE_HELPERS = String.raw`
   const trim = (s, n) => { s = (s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) : s; };
   const classes = (e) => (e.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((c) => '.' + c).join('');
   const sig = (e) => e.tagName.toLowerCase() + classes(e);
@@ -88,16 +91,8 @@ export const layoutCheck = (width?: number) => String.raw`(() => {
   };
   const styles = new Map();
   const css = (e) => { let s = styles.get(e); if (!s) { s = getComputedStyle(e); styles.set(e, s); } return s; };
-  const clipsX = (e) => { const o = css(e).overflowX; return o !== 'visible'; };
-  const add = (issue) => { if (issues.length < 12) issues.push(issue); else more++; };
-  const round = (r) => [Math.round(r.left), Math.round(r.width)];
   const r1 = (n) => Math.round(n * 10) / 10;
   const r2 = (n) => Math.round(n * 100) / 100;
-  const groups = new Map();
-  const group = (kind, key, make) => {
-    const k = kind + '|' + key, had = groups.get(k);
-    if (had) had.count++; else groups.set(k, Object.assign({ kind }, make(), { count: 1 }));
-  };
   const opacities = new Map();
   const opacityOf = (e) => {
     if (!e || e.nodeType !== 1) return 1;
@@ -124,13 +119,6 @@ export const layoutCheck = (width?: number) => String.raw`(() => {
       regions.set(e, v);
     }
     return v;
-  };
-  const clipper = (e) => { for (let a = e; a && a !== document.body && a !== document.documentElement; a = a.parentElement) if (clips(a)) return a; return null; };
-  const scrolls = (e) => { const s = css(e); return (/auto|scroll/.test(s.overflowY) && e.scrollHeight > e.clientHeight + 1) || (/auto|scroll/.test(s.overflowX) && e.scrollWidth > e.clientWidth + 1); };
-  const scroller = (e) => {
-    for (let a = e.parentElement; a && a !== document.body && a !== document.documentElement; a = a.parentElement) if (scrolls(a)) return a;
-    const d = document.scrollingElement || document.documentElement;
-    return d.scrollHeight > d.clientHeight + 1 ? d : null;
   };
   const docW = Math.max(W, document.documentElement.scrollWidth);
   const shows = (e, r) => {
@@ -160,7 +148,6 @@ export const layoutCheck = (width?: number) => String.raw`(() => {
   };
   const over = (top, under) => [0, 1, 2].map((i) => top[i] * top[3] + under[i] * (1 - top[3])).concat([1]);
   const hex = (c) => '#' + c.slice(0, 3).map((x) => Math.round(x).toString(16).padStart(2, '0')).join('');
-  const lum = (c) => { const f = c.slice(0, 3).map((x) => { x /= 255; return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
   // The background behind an element's text: its ancestors' colours, composited; a picture or gradient on the way is not measured.
   const backgrounds = new Map();
   const backdrop = (e) => {
@@ -180,9 +167,32 @@ export const layoutCheck = (width?: number) => String.raw`(() => {
     return v;
   };
   const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+  const CONTROL = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=tab],[role=checkbox],[role=switch],[role=menuitem],[role=option],[role=radio],[tabindex]:not([tabindex="-1"])';
+`;
+
+export const layoutCheck = (width?: number) => String.raw`(() => {
+  const W = ${width === undefined ? "innerWidth" : String(Math.round(width))}, VW = innerWidth, VH = innerHeight;
+  const issues = [];
+  let checked = 0, more = 0;
+${PAGE_HELPERS}
+  const clipsX = (e) => { const o = css(e).overflowX; return o !== 'visible'; };
+  const add = (issue) => { if (issues.length < 12) issues.push(issue); else more++; };
+  const round = (r) => [Math.round(r.left), Math.round(r.width)];
+  const groups = new Map();
+  const group = (kind, key, make) => {
+    const k = kind + '|' + key, had = groups.get(k);
+    if (had) had.count++; else groups.set(k, Object.assign({ kind }, make(), { count: 1 }));
+  };
+  const clipper = (e) => { for (let a = e; a && a !== document.body && a !== document.documentElement; a = a.parentElement) if (clips(a)) return a; return null; };
+  const scrolls = (e) => { const s = css(e); return (/auto|scroll/.test(s.overflowY) && e.scrollHeight > e.clientHeight + 1) || (/auto|scroll/.test(s.overflowX) && e.scrollWidth > e.clientWidth + 1); };
+  const scroller = (e) => {
+    for (let a = e.parentElement; a && a !== document.body && a !== document.documentElement; a = a.parentElement) if (scrolls(a)) return a;
+    const d = document.scrollingElement || document.documentElement;
+    return d.scrollHeight > d.clientHeight + 1 ? d : null;
+  };
+  const lum = (c) => { const f = c.slice(0, 3).map((x) => { x /= 255; return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
   const onGrid = (v) => v === 0 || v === 1 || v === 2 || (Math.abs(v - Math.round(v)) < 0.01 && Math.round(v) % 4 === 0);
   const offGrid = (e, property, v) => { v = r2(v); if (!onGrid(v)) group('off-grid', property + '|' + v, () => ({ what: name(e), property, value: v })); };
-  const CONTROL = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=tab],[role=checkbox],[role=switch],[role=menuitem],[role=option],[role=radio],[tabindex]:not([tabindex="-1"])';
   const LAYER = 'dialog,[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[role=tooltip],[aria-modal=true],[popover]';
   // Whether something at the point shows over the target: a background, a picture, a control's face or words of its own
   // (a transparent box laid over a title to make it one tap target hides nothing).

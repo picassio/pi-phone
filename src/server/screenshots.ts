@@ -28,7 +28,14 @@ export type RenderRequest = {
 };
 
 /** A picture of the page at one width: `width` × `height` CSS pixels, as JPEGs from the top, each at most 2000 tall. */
-export type Shot = { width: number; height: number; parts: Buffer[]; layout?: LayoutReport };
+export type Shot = {
+    width: number;
+    height: number;
+    parts: Buffer[];
+    layout?: LayoutReport;
+    /** What the request's script answered, as it came (another script than the layout check: the redlines' measure, PP-398). */
+    check?: string;
+};
 
 /** How long a poll waits for a request before it answers with none. */
 export const RENDER_POLL_MS = 50_000;
@@ -53,13 +60,20 @@ export class Screenshots {
     /** Render `url` at each width; resolves with one picture per width, or fails saying why. */
     render(
         url: string,
-        { widths, fullPage = true, maxHeight = 4000, settleMs = 1500, timeoutMs = 90_000 }: { widths: number[]; fullPage?: boolean; maxHeight?: number; settleMs?: number; timeoutMs?: number },
+        {
+            widths,
+            fullPage = true,
+            maxHeight = 4000,
+            settleMs = 1500,
+            timeoutMs = 90_000,
+            check = layoutCheck(),
+        }: { widths: number[]; fullPage?: boolean; maxHeight?: number; settleMs?: number; timeoutMs?: number; check?: string },
     ): Promise<Shot[]> {
         if (!this.present()) {
             return Promise.reject(new Error("No phone is rendering: screenshots need the pi-phone app's service, which polls the server on the phone itself."));
         }
 
-        const request: RenderRequest = { seq: ++this.#seq, id: crypto.randomUUID(), url, widths, fullPage, maxHeight, settleMs, check: layoutCheck() };
+        const request: RenderRequest = { seq: ++this.#seq, id: crypto.randomUUID(), url, widths, fullPage, maxHeight, settleMs, check };
 
         this.#requests.push(request);
 
@@ -137,7 +151,13 @@ export class Screenshots {
 
             const layout = parseLayout(each.check, each.width);
 
-            return { width: each.width, height: each.height, parts: (each.parts as string[]).map((part) => Buffer.from(part, "base64")), ...(layout === undefined ? {} : { layout }) };
+            return {
+                width: each.width,
+                height: each.height,
+                parts: (each.parts as string[]).map((part) => Buffer.from(part, "base64")),
+                ...(layout === undefined ? {} : { layout }),
+                ...(typeof each.check === "string" ? { check: each.check } : {}),
+            };
         });
 
         if (parsed.length === 0) {

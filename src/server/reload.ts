@@ -300,6 +300,8 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "browser_text",
     "browser_eval",
     "browser_layout_check",
+    "browser_redline",
+    "redline",
     "browser_screenshot",
     "browser_wait",
     "browser_run",

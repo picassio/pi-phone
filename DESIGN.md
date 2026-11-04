@@ -925,6 +925,29 @@ so Pi changes them through the settings tools; "the last session" is the one the
     and `resize: true` scales the picture to the reference's (Lanczos; it says when that stretches it). Up to 30
     million pixels each. Deferred (`tool_search`); the `seeing` section names it. Not in plan mode (it writes a file);
     `pathsOf` checks both pictures and the diff's place, the default one beside the picture too.
+  - **Redlines** (`redline`, `browser_redline`, `redline.ts`, PP-398): a page measured from its DOM and the numbers drawn
+    on its picture, as a designer's redlines. The measure is a page script like the layout check, sharing its helpers
+    (`PAGE_HELPERS`: names, styles, opacity, clipping regions, colours, backgrounds); `Screenshots.render` takes it as
+    `check` (the request's script, so no APK change) and the shot keeps its raw answer, and Pi's browser runs it in the
+    same step as its picture (`screenshot`'s `script`, so the card's typing stays hidden). Auto mode takes the main
+    blocks: surfaces (a background that differs from what is under it, a visible border, a shadow or a background
+    picture; the biggest 24, none over 90 % of the page) and controls (the first 24, none inside another); a selector
+    takes up to 40 elements it finds. Each block answers its box, padding, border, corner radii (a pill when one is at
+    least half its short side), the gap to its next placed sibling below or beside it (not across words, as inline code
+    in a sentence; `auto` when a `flex: 1` filler, `justify-content` or an auto margin spreads it, so it is drawn and
+    said but never checked or listed as spacing), and the type of its first words; the page answers its type styles by
+    use. `planRedline` makes the shapes in CSS pixels (padding strips green, gaps magenta, radius tags blue with a
+    quarter-arc sign, control sizes orange and tap targets under 40 px on a phone red, type tags purple above their
+    line) and the legend; `markup.ts`'s `drawRedlines` draws them on each part of the picture (a tall page's parts at
+    their offset) and adds the legend as a band under the last. Tags never cover each other: what is off a spec is
+    placed first, each tries five places around its own, and one with no room stays out (counted in the answer). A
+    spec is a plain list (`padding`, `gap`, `spacing` for both, `radius`, `font`, `weight`, `line`, `target`) or a
+    tokens.css (`--space-*`, `--radius-*` but pills, `--text-*`, `--leading-*` in px, `--weight-*`; px, rem at 16 px,
+    `var()` followed); an unknown name or a file with none of these fails, saying what it takes. Against a spec the
+    picture numbers only what is off it, in red with the spec's nearest non-zero value ("gap 23, spec 24"); the answer
+    lists the misses (one per element and value, alike elements counted), 20 at most. A picture file has no DOM: the
+    tool says so and names `image_compare`. Both tools are deferred; `pathsOf` checks the page file, a tokens.css spec
+    and `save`. `redline` is not in plan mode (it may write); `browser_redline` is, as all of Pi's browser.
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

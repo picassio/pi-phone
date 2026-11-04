@@ -344,6 +344,14 @@ dự án thật.</sub>
   thước, và một hình khác biệt lưu cạnh ảnh chụp, chỗ đổi tô đỏ, các vùng được đóng khung và đánh số. Viền khử răng cưa
   được bỏ qua trừ khi được yêu cầu; hai hình khác kích thước chỉ được so khi được yêu cầu, sau khi co về kích thước của
   hình mẫu.
+- **Đo và vẽ số (redline).** `redline` đo một trang từ DOM của nó (artifact, tệp HTML, trang web hoặc chính app, render
+  như `screenshot`) rồi vẽ số đo lên hình như redline của nhà thiết kế: padding là dải xanh lá, khoảng cách giữa các
+  khối là dải hồng tím kèm số pixel, bo góc là nhãn xanh dương, kích thước nút màu cam (vùng chạm dưới 40 px trên điện
+  thoại tô đỏ), kiểu chữ (cỡ, chiều cao dòng, độ đậm, màu) màu tím, và một bảng chú giải các giá trị đã dùng dưới hình.
+  Nó đo các khối chính, hoặc các phần tử một selector chọn; khi có spec (tokens.css của một design system, hoặc một danh
+  sách như "padding 16, radius 24/12/20, font 22/13/12") nó tô đỏ chỗ lệch kèm giá trị của spec ("gap 23, spec 24") và
+  liệt kê ra. `browser_redline` làm việc tương tự trên trang đang mở trong trình duyệt của Pi. Một tệp ảnh không có DOM:
+  hãy so nó bằng `image_compare`.
 - **Hình ảnh.** `image_generate` tạo và sửa hình ảnh (sửa tối đa năm hình một lần; tạo 1 đến 4 hình; 1:1, 16:9,
   9:16, 4:3 hoặc 3:4) bằng mô hình bạn chọn ở **Menu › Hình ảnh** (`image.model`): GPT Image 2.5 qua đăng nhập
   ChatGPT (tính vào gói, Chi phí đếm số hình), một mô hình hình ảnh của OpenRouter như Nano Banana

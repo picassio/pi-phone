@@ -372,7 +372,8 @@ export interface PocketHost {
     /** The app's own address for the phone's WebView (`http://127.0.0.1:<port>`), once it listens. */
     serverBase(): string | undefined;
     /** Pictures of a page, rendered by the app's service on the phone (`screenshots.ts`). */
-    render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number }): Promise<Shot[]>;
+    /** `check`: the script the page runs before it is pictured, whose answer comes back (default the layout check). */
+    render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number; check?: string }): Promise<Shot[]>;
     /**
      * Pi's browser for a session working in `cwd` (`browser/pi-browser.ts`): the phone's, or for a session on a machine,
      * a Chrome on that machine (`browser/machine-engine.ts`). The pages Pi reads and acts on, which the owner watches.

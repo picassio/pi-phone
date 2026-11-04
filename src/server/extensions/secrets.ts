@@ -20,6 +20,9 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { PocketHost } from "../host.ts";
 import { diffPathOf } from "../image-compare.ts";
+
+/** A redline spec that names a file (a tokens.css), not a plain list (PP-398, `redline.ts`'s `specFrom`). */
+const isSpecFile = (spec: string) => /\.css$/i.test(spec.trim()) && !/[\n,;]/.test(spec);
 import { namesIn, SECRET_NAME } from "../secrets.ts";
 import { mayUseMachines, NOT_FOR_TEAMMATES } from "./sharing.ts";
 
@@ -146,6 +149,11 @@ export function pathsOf(tool: string, args: Record<string, unknown>): { read: st
             return { read: [], write: one(args.path) };
         case "screenshot":
             return { read: one(args.path), write: one(args.save) };
+        // A spec that is a tokens.css file is read (a plain list is not a path).
+        case "redline":
+            return { read: [...one(args.path), ...one(args.spec).filter(isSpecFile)], write: one(args.save) };
+        case "browser_redline":
+            return { read: one(args.spec).filter(isSpecFile), write: one(args.save) };
         default:
             return { read: [], write: [] };
     }

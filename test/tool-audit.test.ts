@@ -62,6 +62,9 @@ test("the app's key stores are refused to every tool that takes a file on the ph
             ["image_compare", { reference: "ref.png", picture: store }],
             ["image_generate", { prompt: "x", images: ["a.png", store] }],
             ["screenshot", { path: store }],
+            ["redline", { path: store }],
+            ["redline", { url: "https://example.com", save: store }],
+            ["browser_redline", { save: store }],
             ["browser_save_pdf", { path: store }],
             ["browser_screenshot", { path: store }],
             ["phone_screenshot", { path: store }],
@@ -134,6 +137,8 @@ test("no tool writes into the drop-in extensions' folder: a copy there would loa
         ["write", { path: "/home/me/.pi-pocket/extensions/evil.ts", content: "" }],
         ["machine_copy", { from: "box:/tmp/evil.ts", to: "~/.pi-pocket/extensions/" }],
         ["browser_save_pdf", { path: "/home/me/.pi-pocket/extensions/x.pdf" }],
+        ["redline", { url: "https://example.com", save: "/home/me/.pi-pocket/extensions/r.png" }],
+        ["browser_redline", { spec: "padding 16", save: "/home/me/.pi-pocket/extensions/r.png" }],
         ["image_markup", { path: "a.png", out: "/home/me/.pi-pocket/extensions/a.png" }],
         ["image_compare", { reference: "a.png", picture: "b.png", out: "/home/me/.pi-pocket/extensions/a.png" }],
         // Its diff picture goes beside the picture by default.

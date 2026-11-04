@@ -9,6 +9,7 @@ import { defineExtension, defineTool, section } from "@earendil-works/pi-durable
 import type { PocketHost } from "../host.ts";
 import { compareImages, describeComparison, diffPathOf } from "../image-compare.ts";
 import { describeLayout } from "../layout-check.ts";
+import { isPicturePath, NO_DOM, parseRedline, redlinePictures, redlineScript, specFrom } from "../redline.ts";
 import { isPng, markUp } from "../markup.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 
@@ -31,6 +32,35 @@ const DESCRIPTION =
 export const SEEING = `Seeing your work: after you make or change an artifact, an HTML page, or an Office file, look at it with screenshot (a phone's width and a desktop's) and fix what you see before you call it done. Check app changes in the live app (http://127.0.0.1:8787/s/<id>, or a sheet by /?sheet=...), not only a test page. Go by the layout check's numbers more than the picture; when the picture, the numbers, or a test page disagree, find out why before you call it right, never explain it away. For pixel-perfect work, keep a reference picture (the mockup, or a screenshot saved with save or path once it is right) and compare each new screenshot with it with image_compare.`;
 
 export default function createScreenshot(host: PocketHost) {
+    /** The address the phone renders for an artifact of this session, a file, or a web page, and its name in answers. */
+    const pageOf = (args: { artifact?: string; path?: string; url?: string; fullPage?: boolean }, conversation: string): { url: string; what: string } | { error: string } => {
+        const base = host.serverBase();
+
+        if (base === undefined) {
+            return { error: "This server has no address for the phone to render from." };
+        }
+
+        if (args.url !== undefined) {
+            return /^https?:\/\//i.test(args.url) ? { url: args.url, what: args.url } : { error: "url is an http or https address." };
+        }
+
+        if (args.artifact !== undefined) {
+            return { url: `${base}/a/${conversation}/${encodeURIComponent(args.artifact)}/latest`, what: `artifact ${args.artifact}` };
+        }
+
+        const path = args.path!;
+        const office = /\.(docx|xlsx|pptx)$/i.test(path);
+
+        if (!office && !/\.(html?|svg)$/i.test(path)) {
+            return { error: "path is a .html, .htm, .svg, .docx, .xlsx, or .pptx file." };
+        }
+
+        // A whole workbook: every sheet in full (`wholeWorkbookPage`), as its own page shows one screen of one.
+        const whole = (args.fullPage ?? true) && /\.xlsx$/i.test(path) ? "&whole=1" : "";
+
+        return { url: `${base}/a/${office ? "office" : "file"}/${conversation}?path=${encodeURIComponent(path)}${whole}`, what: path };
+    };
+
     const screenshot = defineTool({
         name: "screenshot",
         description: DESCRIPTION,
@@ -60,39 +90,13 @@ export default function createScreenshot(host: PocketHost) {
                 return reply(`widths are 1 to 4 whole numbers from ${MIN_WIDTH} to ${MAX_WIDTH}.`, true);
             }
 
-            const base = host.serverBase();
+            const page = pageOf(args, String(api.conversationId));
 
-            if (base === undefined) {
-                return reply("This server has no address for the phone to render from.", true);
+            if ("error" in page) {
+                return reply(page.error, true);
             }
 
-            let url: string;
-            let what: string;
-
-            if (args.url !== undefined) {
-                if (!/^https?:\/\//i.test(args.url)) {
-                    return reply("url is an http or https address.", true);
-                }
-
-                url = args.url;
-                what = args.url;
-            } else if (args.artifact !== undefined) {
-                url = `${base}/a/${String(api.conversationId)}/${encodeURIComponent(args.artifact)}/latest`;
-                what = `artifact ${args.artifact}`;
-            } else {
-                const path = args.path!;
-                const office = /\.(docx|xlsx|pptx)$/i.test(path);
-
-                if (!office && !/\.(html?|svg)$/i.test(path)) {
-                    return reply("path is a .html, .htm, .svg, .docx, .xlsx, or .pptx file.", true);
-                }
-
-                // A whole workbook: every sheet in full (`wholeWorkbookPage`), as its own page shows one screen of one.
-                const whole = (args.fullPage ?? true) && /\.xlsx$/i.test(path) ? "&whole=1" : "";
-
-                url = `${base}/a/${office ? "office" : "file"}/${String(api.conversationId)}?path=${encodeURIComponent(path)}${whole}`;
-                what = path;
-            }
+            const { url, what } = page;
 
             const kind = args.save === undefined ? undefined : /\.png$/i.test(args.save) ? "png" : /\.jpe?g$/i.test(args.save) ? "jpeg" : "bad";
 
@@ -284,9 +288,127 @@ export default function createScreenshot(host: PocketHost) {
         },
     });
 
+    const redline = defineTool({
+        name: "redline",
+        description:
+            "Measure a page from its DOM and draw the numbers on its picture, as a designer's redlines: padding as green strips and gaps between blocks as magenta ones with their pixels, corner radii as blue tags, control sizes in orange (tap targets under 40 px on a phone in red), type (size/line height, weight, colour) in purple, and a legend of the values used under the picture. " +
+            "Name one of artifact (this session's), path (an .html or .htm file) or url (an http or https page, the live app too: http://127.0.0.1:8787/s/<id>, /?sheet=...); for the page in front of Pi's browser use browser_redline. " +
+            "Auto mode measures the main blocks (surfaces with a background, border or shadow, and controls); selector measures the elements it finds. " +
+            "With spec, values off it are red with the spec's nearest value (\"gap 23, spec 24\") and listed: a design system's tokens.css path (the design-system skill's `systems.ts show <id>` names it), or a plain list such as \"padding 16, gap 8/16, radius 24/12/20, font 22/13/12, weight 400/500, line 20, target 44\" (spacing sets padding and gap). " +
+            "A picture file has no DOM: compare it with image_compare.",
+        parameters: obj({
+            artifact: opt(str({ description: "An artifact of this session, by its id" })),
+            path: opt(str({ description: "An .html or .htm file" })),
+            url: opt(str({ description: "An http or https page" })),
+            width: opt(num({ description: "CSS pixels wide (default 390)" })),
+            selector: opt(str({ description: "A CSS selector: measure the elements it finds (at most 40) instead of the main blocks" })),
+            spec: opt(str({ description: "A tokens.css path, or a plain list like \"padding 16, radius 24/12/20, font 22/13/12\"" })),
+            fullPage: opt(bool({ description: "The whole page (default), or only the first screen" })),
+            settle: opt(num({ description: "Seconds to wait after loading (default 1.5, at most 10)" })),
+            save: opt(str({ description: "Save the marked picture too, .png or .jpg; a tall page's later parts get -2, -3" })),
+        }, { open: true }),
+        replay: "safe",
+        execute: async (args, api, context) => {
+            const named = [args.artifact, args.path, args.url].filter((each) => each !== undefined && each !== "");
+
+            if (named.length !== 1) {
+                return reply("Name exactly one of artifact, path, or url.", true);
+            }
+
+            if (args.path !== undefined && isPicturePath(args.path)) {
+                return reply(NO_DOM, true);
+            }
+
+            if (args.path !== undefined && !/\.html?$/i.test(args.path)) {
+                return reply("path is an .html or .htm file: redlines measure a page's DOM.", true);
+            }
+
+            const width = args.width ?? 390;
+
+            if (!Number.isInteger(width) || width < MIN_WIDTH || width > MAX_WIDTH) {
+                return reply(`width is a whole number from ${MIN_WIDTH} to ${MAX_WIDTH}.`, true);
+            }
+
+            const kind = args.save === undefined ? undefined : /\.png$/i.test(args.save) ? "png" : /\.jpe?g$/i.test(args.save) ? "jpeg" : "bad";
+
+            if (kind === "bad") {
+                return reply("Give save a path ending in .png or .jpg.", true);
+            }
+
+            const page = pageOf(args, String(api.conversationId));
+
+            if ("error" in page) {
+                return reply(page.error, true);
+            }
+
+            try {
+                const env = host.envOf((await api.agent(context)).cwd ?? "");
+                const spec = await specFrom(args.spec, async (path) => {
+                    const read = await env.readTextFile(path, context);
+
+                    if (!read.ok) {
+                        throw new Error(`Could not read the spec ${path}: ${read.error.message}`);
+                    }
+
+                    return read.value;
+                });
+                const [shot] = await host.render(page.url, {
+                    widths: [width],
+                    fullPage: args.fullPage ?? true,
+                    settleMs: Math.round(Math.max(0, Math.min(10, args.settle ?? 1.5)) * 1000),
+                    check: redlineScript({ width, ...(args.selector === undefined ? {} : { selector: args.selector }) }),
+                });
+                const measure = parseRedline(shot?.check);
+
+                if (shot === undefined || measure === undefined) {
+                    throw new Error(`${page.what} gave no measure: its script could not run there${shot?.check === undefined ? "" : ` (${shot.check.slice(0, 200)})`}.`);
+                }
+
+                const tops = shot.parts.map((_, index) => index * 2000);
+                const { pictures, text } = redlinePictures(
+                    shot.parts.map((bytes, index) => ({ bytes, top: tops[index]! })),
+                    measure,
+                    spec,
+                    { cssWidth: shot.width, cssHeight: shot.height, png: kind === "png" },
+                );
+                const saved: string[] = [];
+
+                if (args.save !== undefined) {
+                    const dot = args.save.lastIndexOf(".");
+
+                    for (const [index, picture] of pictures.entries()) {
+                        const name = index === 0 ? args.save : `${args.save.slice(0, dot)}-${index + 1}${args.save.slice(dot)}`;
+                        const absolute = await env.absolutePath(name, context);
+
+                        if (!absolute.ok) {
+                            throw new Error(`Cannot save to ${name}: ${absolute.error.message}`);
+                        }
+
+                        const written = await env.writeFile(absolute.value, picture, context);
+
+                        if (!written.ok) {
+                            throw new Error(`Could not save ${absolute.value}: ${written.error.message}`);
+                        }
+
+                        saved.push(absolute.value);
+                    }
+                }
+
+                return {
+                    output: [
+                        { type: "text" as const, text: `${page.what}, measured and pictured at ${shot.width}×${shot.height} CSS px.${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}\n${text}` },
+                        ...pictures.map((picture) => ({ type: "image" as const, data: Buffer.from(picture).toString("base64"), mimeType: kind === "png" ? "image/png" : "image/jpeg" })),
+                    ],
+                };
+            } catch (error) {
+                return reply(error instanceof Error ? error.message : String(error), true);
+            }
+        },
+    });
+
     return defineExtension({
         name: "pocket-screenshot",
-        tools: [screenshot, imageMarkup, imageCompare],
+        tools: [screenshot, imageMarkup, imageCompare, redline],
         sections: [section("seeing", () => SEEING)],
     });
 }

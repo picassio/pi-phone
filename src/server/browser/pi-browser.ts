@@ -1794,9 +1794,19 @@ export class PiBrowser {
      */
     screenshot(
         session: number,
-        { png = false, index, marks = [], full = false }: { png?: boolean; index?: number; marks?: PageMark[]; full?: boolean } = {},
+        { png = false, index, marks = [], full = false, script }: { png?: boolean; index?: number; marks?: PageMark[]; full?: boolean; script?: string } = {},
     ): Promise<
-        | { data: string; whole?: string; page?: { height: number; of: number }; title: string; url: string; viewport: { width: number; height: number }; layout?: LayoutReport | { error: string } }
+        | {
+              data: string;
+              whole?: string;
+              page?: { height: number; of: number };
+              title: string;
+              url: string;
+              viewport: { width: number; height: number };
+              layout?: LayoutReport | { error: string };
+              /** What `script` answered (the redlines' measure, PP-398), measured just before the picture, with the card's typing taken out. */
+              measured?: string;
+          }
         | { withheld: string }
     > {
         if (full && index !== undefined) {
@@ -1835,8 +1845,10 @@ export class PiBrowser {
 
             // The page measures itself just before the picture, as the screenshot tool's pages do (PP-395); a page it cannot
             // run on still gets its picture, and the answer says why there are no numbers.
+            // A script of its own (the redlines' measure) instead of the layout check, read in the same step as the picture.
+            const measured = script === undefined ? undefined : page.hideTypedJson(String(await page.evaluate<unknown>(script)));
             const layout =
-                index === undefined
+                index === undefined && script === undefined
                     ? await this.#measure(page).catch((error: unknown): { error: string } => ({ error: error instanceof Error ? error.message : String(error) }))
                     : undefined;
             // Where each mark goes, read just before the picture (PP-119); the card's hides last, over every other mark. A
@@ -1861,6 +1873,7 @@ export class PiBrowser {
                 ...(whole === undefined ? {} : { whole }),
                 ...(tall === undefined ? {} : { page: tall }),
                 ...(layout === undefined ? {} : { layout }),
+                ...(measured === undefined ? {} : { measured }),
             };
 
             if (placed.length === 0) {

@@ -15,6 +15,7 @@ import { type Decider, JevDecider, report, SessionDecider } from "../browser/run
 import type { ApprovalRequest, PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 import { describeLayout, type LayoutReport } from "../layout-check.ts";
+import { parseRedline, redlinePictures, redlineScript, specFrom } from "../redline.ts";
 
 /** The layout check of Pi's browser's page in words (PP-395): element names quote the page, so they are fenced as its data. */
 const layoutWords = (layout: LayoutReport | { error: string }): string =>
@@ -788,6 +789,89 @@ export default function createBrowser(host: PocketHost) {
                     const layout = await browser.layoutCheck(Number(api.conversationId));
 
                     return "withheld" in layout ? reply(layout.withheld, true) : reply(layoutWords(layout));
+                } catch (error) {
+                    return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
+                }
+            },
+        }),
+        defineTool({
+            name: "browser_redline",
+            description:
+                "The redline tool's measure on the page in front in Pi's browser (what is in view, at the view's width): padding and gaps between blocks as coloured strips with their pixels, corner radii, control sizes (tap targets under 40 px on a phone in red), type, and a legend of the values used, drawn on its picture. " +
+                "Auto mode measures the main blocks; selector the elements it finds. With spec (a tokens.css path, or a plain list like \"padding 16, gap 8/16, radius 24/12/20, font 22/13/12\"), values off it are red with the spec's nearest value and listed.",
+            parameters: obj({
+                selector: opt(str({ description: "A CSS selector: measure the elements it finds (at most 40) instead of the main blocks" })),
+                spec: opt(str({ description: "A tokens.css path, or a plain list like \"padding 16, radius 24/12/20, font 22/13/12\"" })),
+                save: opt(str({ description: "Save the marked picture too, .png or .jpg" })),
+            }, { open: true }),
+            replay: "safe",
+            execute: async (args, api, context) => {
+                const owner = mayBrowse(api.conversationId);
+
+                if (owner !== true) {
+                    return reply(owner, true);
+                }
+
+                const png = args.save === undefined || /\.png$/i.test(args.save);
+
+                if (args.save !== undefined && !png && !/\.jpe?g$/i.test(args.save)) {
+                    return reply("Give save a path ending in .png or .jpg.", true);
+                }
+
+                try {
+                    const env = host.envOf((await api.agent(context)).cwd ?? "");
+                    const spec = await specFrom(args.spec, async (path) => {
+                        const read = await env.readTextFile(path, context);
+
+                        if (!read.ok) {
+                            throw new Error(`Could not read the spec ${path}: ${read.error.message}`);
+                        }
+
+                        return read.value;
+                    });
+                    const browser = await browserOf(api, context);
+                    const shot = await browser.screenshot(Number(api.conversationId), { png: true, script: redlineScript(args.selector === undefined ? {} : { selector: args.selector }) });
+
+                    if ("withheld" in shot) {
+                        return reply(shot.withheld, true);
+                    }
+
+                    const measure = parseRedline(shot.measured);
+
+                    if (measure === undefined) {
+                        throw new Error("The page gave no measure: its script could not run there.");
+                    }
+
+                    const { pictures, text } = redlinePictures([{ bytes: Buffer.from(shot.data, "base64"), top: 0 }], measure, spec, {
+                        cssWidth: shot.viewport.width,
+                        cssHeight: shot.viewport.height,
+                        png,
+                    });
+                    const picture = pictures[0]!;
+                    let saved = "";
+
+                    if (args.save !== undefined) {
+                        const absolute = await env.absolutePath(args.save, context);
+
+                        if (!absolute.ok) {
+                            throw new Error(`Cannot save to ${args.save}: ${absolute.error.message}`);
+                        }
+
+                        const written = await env.writeFile(absolute.value, picture, context);
+
+                        if (!written.ok) {
+                            throw new Error(`Could not save ${absolute.value}: ${written.error.message}`);
+                        }
+
+                        saved = ` Saved as ${absolute.value}.`;
+                    }
+
+                    return {
+                        output: [
+                            { type: "text" as const, text: `${shotCaption({ title: shot.title, url: shot.url, width: shot.viewport.width, height: shot.viewport.height }, "", saved)}\n${fencedPage(text)}` },
+                            { type: "image" as const, data: Buffer.from(picture).toString("base64"), mimeType: png ? "image/png" : "image/jpeg" },
+                        ],
+                    };
                 } catch (error) {
                     return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
                 }

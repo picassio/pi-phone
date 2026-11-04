@@ -120,6 +120,11 @@ export function describeCall(call) {
 
             return { icon: "▣", label: t("Looks at"), subject: args.widths ? t("{what} at {widths} px", { what, widths: args.widths.join(", ") }) : what, mono: true };
         }
+        case "redline": {
+            const what = args.artifact ? t("artifact {id}", { id: args.artifact }) : String(args.path ?? args.url ?? "").replace(/^https?:\/\//, "");
+
+            return { icon: "▣", label: t("Redlines"), subject: args.selector ? `${what} ${args.selector}` : what, mono: true };
+        }
         // Pi's browser (extensions/browser.ts): what it did, and to what.
         case "browser_open":
             return {
@@ -145,6 +150,8 @@ export function describeCall(call) {
             return { icon: "◍", label: t("Looks at"), subject: args.full_page ? t("the whole page") : t("the page") };
         case "browser_layout_check":
             return { icon: "◍", label: t("Measures"), subject: t("the page's layout") };
+        case "browser_redline":
+            return { icon: "◍", label: t("Redlines"), subject: args.selector ?? t("the page"), mono: args.selector !== undefined };
         case "browser_click":
             return {
                 icon: "◍",
