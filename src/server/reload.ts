@@ -299,6 +299,7 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "browser_forward",
     "browser_text",
     "browser_eval",
+    "browser_layout_check",
     "browser_screenshot",
     "browser_wait",
     "browser_run",

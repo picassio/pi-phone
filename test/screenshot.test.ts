@@ -105,7 +105,16 @@ function phone(screenshots: Screenshots, seen: { url: string; widths: number[]; 
                         width,
                         height: 900,
                         parts: [JPEG.toString("base64")],
-                        check: JSON.stringify({ width, height: 900, checked: 40, issues: width < 600 ? [{ kind: "spills", what: "pre.code", box: [20, 664], limit: [20, 350] }] : [], more: 0 }),
+                        check: JSON.stringify({
+                            width,
+                            height: 900,
+                            checked: 40,
+                            issues: width < 600 ? [{ kind: "spills", what: "pre.code", box: [20, 664], limit: [20, 350] }] : [],
+                            more: 0,
+                            found: [],
+                            totals: {},
+                            summary: { fontSizes: [14], colors: ["#000000"], families: ["sans-serif"], icons: [], strokes: [] },
+                        }),
                     })),
                 });
             }

@@ -887,6 +887,29 @@ so Pi changes them through the settings tools; "the last session" is the one the
   at `/a/office/`. Without the service polling (tests, a server not on the phone) a render fails at once, saying so.
   Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
   OfficeCLI's pi-phone notes point to it.
+  - **The layout check's design rules** (PP-395, from the rules a script can measure, PP-394: the unslop, design-artifact
+    and html skills and the owner's UI rules; wiki `resources/pi-phone-measurable-ui-rules`). Besides spills, it finds:
+    text cut by the nearest box that hides its overflow (a text node's Range past that box: more than 2 px sideways, or
+    half its font size at the bottom; an ellipsis or line clamp said; a scroller is no cut); an element over another's
+    text or control (`elementFromPoint` at three points of each text's first line and each control's centre, in view
+    only; not a cover when it is transparent with no words of its own, a hit area laid over a title; a dialog, menu or
+    layer over 40 % of the view; or a fixed, sticky or absolute bar that content scrolls under); tap targets under
+    40 px at widths up to 480 (inline links in sentences, controls inside controls and labelled check boxes left out);
+    padding, gaps, corner radii and control heights off the 4 px grid or not whole pixels (0, 1 and 2 px pass as
+    hairlines and nudges, pill corners pass, svg icons need whole pixels only); text under WCAG AA contrast (4.5, 3
+    for large text) against its ancestors' background colours composited, with its own and its ancestors' opacity (a
+    background picture or gradient on the way: not measured; disabled controls exempt); text under 12 px; emoji,
+    pictographs and symbol glyphs as icons (✓, ✗, ★, geometric shapes; ©, ®, ™ pass); gradient text; uppercase or
+    capitalised labels and tracked capitals; negative tracking under 16 px; paragraphs over 90 characters a line. Only
+    what shows counts: hidden, transparent and wholly clipped elements are left out. Findings are grouped (the same
+    kind of element with the same numbers once, with a count), at most 20 groups a kind kept and 3 shown with a count
+    of the rest, so a whole app screen stays a screenful; a summary line names more than 6 font sizes or text
+    colours, more than 2 families, or icons in more than 2 sizes or stroke widths. The check is a script the server
+    sends with each render request, so a server update changes it without a new APK. Pi's browser runs the same
+    script in the page in front: `browser_screenshot` without `index` answers with it (measured just before the
+    picture; a page it cannot run on still gets its picture and the reason), and `browser_layout_check` (deferred)
+    gives it without a picture. Element names quote the page, so Pi's browser fences them as page data. Later rules
+    (equal rows, alignment, nested radii, glows, motion, copy) are listed on the wiki page.
   - **Pixel compare** (`image_compare`, `image-compare.ts`, PP-396): for pixel-perfect work, a picture against a
     reference (a mockup or design file, or a screenshot kept once it was right: `screenshot`'s save,
     `browser_screenshot`'s path). A tool of its own, not a `compare` option on the screenshot tools: one place for any

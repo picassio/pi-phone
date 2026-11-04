@@ -332,7 +332,13 @@ dự án thật.</sub>
   coi là xong. Một tệp HTML tải stylesheet, script và hình ảnh từ chính thư mục của nó, nên trang liên kết tới CSS của
   ứng dụng sẽ hiện đúng kiểu.
 - **Ảnh chụp có số đo.** Mỗi độ rộng của `screenshot` đi kèm một lượt kiểm tra bố cục mà trang chạy trước khi vẽ: thứ
-  gì tràn khỏi khung hoặc khung cha, và trang có rộng hơn màn hình không, kèm kích thước. Pi dựa vào các con số.
+  gì tràn khỏi khung hoặc khung cha, và trang có rộng hơn màn hình không, kèm kích thước. Nó còn tìm những thứ khiến
+  trang trông chưa hoàn thiện: chữ bị khung cắt (dấu ba chấm, dòng bị xén), phần tử đè lên chữ hoặc nút của phần tử
+  khác, vùng chạm nhỏ hơn 40 px trên điện thoại, padding, khoảng cách, bo góc và chiều cao nút lệch lưới 4 px hoặc
+  không tròn điểm ảnh, chữ có độ tương phản dưới chuẩn WCAG AA hoặc nhỏ hơn 12 px, emoji và ký hiệu dùng làm biểu
+  tượng, chữ gradient, nhãn viết hoa, giãn chữ âm và dòng quá dài, gom nhóm kèm số đo, và báo khi trang dùng quá nhiều
+  cỡ chữ, màu chữ hoặc cỡ biểu tượng. Trình duyệt của Pi cho cùng phép kiểm tra đó với `browser_screenshot`, và riêng
+  bằng `browser_layout_check`. Pi dựa vào các con số.
 - **So từng điểm ảnh.** Để làm giao diện chuẩn đến từng điểm ảnh, `image_compare` so một ảnh chụp mới với một hình
   mẫu (bản mockup, hoặc một ảnh chụp Pi giữ lại khi trang đã đúng): tỉ lệ điểm ảnh đổi, các vùng đổi kèm vị trí và kích
   thước, và một hình khác biệt lưu cạnh ảnh chụp, chỗ đổi tô đỏ, các vùng được đóng khung và đánh số. Viền khử răng cưa

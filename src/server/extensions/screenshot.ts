@@ -23,7 +23,7 @@ const DESCRIPTION =
     "See a page as it shows: the phone renders it off screen and gives you a picture at each width (default a phone's 390 px and a desktop's 1280 px, whole page up to 4000 px tall). " +
     "Name one of: artifact (an artifact of this session, by id, as the person opens it), path (a file: .html, .htm, .svg, or .docx/.xlsx/.pptx as OfficeCLI renders it), or url (an http or https page). " +
     "Use it after making or changing an artifact or a page, to check layout, overflow, clipped or overlapping text, and broken states, then fix what you see and look again. " +
-    "Each width comes with a measured layout check (what spills out of its box or its parent, and whether the page is wider than the screen, with sizes): trust its numbers over the picture, and when they disagree, find out why. " +
+    "Each width comes with a measured layout check, grouped with numbers: spills, a page wider than the screen, cut text, elements covering text or controls, tap targets under 40 px on a phone, sizes off the 4 px grid, text under WCAG AA contrast or 12 px, emoji as icons, gradient text, uppercase labels, long lines, too many font sizes or colours. Trust its numbers over the picture, and when they disagree, find out why. " +
     "Scripts run and the network works; give a page a moment to load what it fetches (settle). " +
     "With save, the pictures are saved as files too, to mark up with image_markup or put in documents.";
 

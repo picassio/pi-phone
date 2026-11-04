@@ -30,6 +30,7 @@ import {
     StalePage,
 } from "./page.ts";
 import { type Mark, type MarkArea, markUp } from "../markup.ts";
+import { layoutCheck, type LayoutReport, parseLayout } from "../layout-check.ts";
 
 /** A mark on a page's picture (PP-119): on a control by its number, on a text shown, or on an area of the view (CSS pixels). */
 export type PageMark = Omit<Mark, "area"> & { index?: number; text?: string; area?: MarkArea };
@@ -1754,8 +1755,38 @@ export class PiBrowser {
     }
 
     /**
+     * The screenshot tool's layout check (PP-395, `layout-check.ts`) on the page in front, at the view's width: cut text,
+     * overlaps, small tap targets, off-grid sizes, low contrast and the rest, with what the person typed on a card taken
+     * out of the element names as every read takes it out (PP-228).
+     */
+    layoutCheck(session: number): Promise<LayoutReport | { withheld: string }> {
+        return this.#run(session, "Checking the page's layout", async ({ page }) => {
+            const fills = page.cardFills();
+
+            if (fills.length > 0 && shortCardValueShowing(fills, await page.observe())) {
+                return { withheld: SHORT_VALUE_NOTE };
+            }
+
+            return this.#measure(page);
+        });
+    }
+
+    /** The layout check's report on `page`, or an error saying the page gave none. */
+    async #measure(page: BrowserPage): Promise<LayoutReport> {
+        const json = await page.evaluate<unknown>(layoutCheck());
+        const report = parseLayout(typeof json === "string" ? page.hideTypedJson(json) : json, this.#state.viewport.width);
+
+        if (report === undefined) {
+            throw new Error("The page gave no layout report: its script could not run there.");
+        }
+
+        return report;
+    }
+
+    /**
      * What is in view, as a JPEG (or a PNG, to keep); with `index`, only the dialog, menu or list that control is in, or
-     * the control (PP-118). `whole` says which.
+     * the control (PP-118). `whole` says which. Without `index`, the layout check of the page comes with it (`layout`,
+     * PP-395), measured just before the picture.
      */
     /**
      * `full` (PP-376): the whole page from its top, past the view, `FULL_PAGE_MAX` CSS pixels at most (`page`: how tall the
@@ -1764,7 +1795,10 @@ export class PiBrowser {
     screenshot(
         session: number,
         { png = false, index, marks = [], full = false }: { png?: boolean; index?: number; marks?: PageMark[]; full?: boolean } = {},
-    ): Promise<{ data: string; whole?: string; page?: { height: number; of: number }; title: string; url: string; viewport: { width: number; height: number } } | { withheld: string }> {
+    ): Promise<
+        | { data: string; whole?: string; page?: { height: number; of: number }; title: string; url: string; viewport: { width: number; height: number }; layout?: LayoutReport | { error: string } }
+        | { withheld: string }
+    > {
         if (full && index !== undefined) {
             return Promise.reject(new Error("A whole-page picture is of the whole page: leave index out, or full_page."));
         }
@@ -1799,6 +1833,12 @@ export class PiBrowser {
                 clip = { x: 0, y: 0, width: size.w, height: tall.height };
             }
 
+            // The page measures itself just before the picture, as the screenshot tool's pages do (PP-395); a page it cannot
+            // run on still gets its picture, and the answer says why there are no numbers.
+            const layout =
+                index === undefined
+                    ? await this.#measure(page).catch((error: unknown): { error: string } => ({ error: error instanceof Error ? error.message : String(error) }))
+                    : undefined;
             // Where each mark goes, read just before the picture (PP-119); the card's hides last, over every other mark. A
             // whole page's are found anywhere in it, in its coordinates.
             const anywhere = tall === undefined ? undefined : { height: tall.height };
@@ -1814,7 +1854,14 @@ export class PiBrowser {
             // The page the picture is of, read in the same step (PP-129): the caption says what the picture shows, even
             // when other calls change the page right after.
             const [title, url] = await page.evaluate<[string, string]>("[document.title, location.href]").catch(() => [this.#state.title, this.#state.url] as [string, string]);
-            const about = { title, url, viewport: { ...this.#state.viewport }, ...(whole === undefined ? {} : { whole }), ...(tall === undefined ? {} : { page: tall }) };
+            const about = {
+                title,
+                url,
+                viewport: { ...this.#state.viewport },
+                ...(whole === undefined ? {} : { whole }),
+                ...(tall === undefined ? {} : { page: tall }),
+                ...(layout === undefined ? {} : { layout }),
+            };
 
             if (placed.length === 0) {
                 return { data, ...about };

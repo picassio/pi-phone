@@ -321,7 +321,13 @@ No Termux, no laptop, no cloud VM.
   WebView, at phone and desktop widths, even with the screen off, so Pi checks a page before calling it done. An HTML
   file loads its stylesheets, scripts and pictures from its own folder, so a page linking the app's CSS shows styled.
 - **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
-  out of its box or its parent, and whether the page is wider than the screen, with sizes. Pi goes by the numbers.
+  out of its box or its parent, and whether the page is wider than the screen, with sizes. It also finds what makes a
+  page look unfinished: text cut by its box (an ellipsis, a clipped line), an element covering another's text or
+  control, tap targets under 40 px on a phone, padding, gaps, corners and control heights off the 4 px grid or not
+  whole pixels, text under WCAG AA contrast or under 12 px, emoji and symbols used as icons, gradient text, uppercase
+  labels, tight tracking and long lines, grouped with their numbers, and says when a page uses too many font sizes,
+  text colours or icon sizes. Pi's browser gives the same check with `browser_screenshot`, and alone with
+  `browser_layout_check`. Pi goes by the numbers.
 - **Pixel compare.** For pixel-perfect work, `image_compare` compares a new screenshot with a reference picture (a
   mockup, or a screenshot Pi kept once it was right): the share of changed pixels, the changed areas with their
   positions and sizes, and a diff picture saved beside it with the changes in red and the areas framed and numbered.

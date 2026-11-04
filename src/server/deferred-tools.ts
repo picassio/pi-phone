@@ -30,6 +30,7 @@ export const DEFERRED_TOOLS: readonly string[] = [
     "browser_ask_code",
     "browser_size",
     "browser_save_pdf",
+    "browser_layout_check",
     "browser_hover",
     "browser_drag",
     "browser_focus",

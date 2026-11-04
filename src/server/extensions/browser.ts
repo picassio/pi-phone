@@ -14,6 +14,15 @@ import { fencedPage } from "../fence.ts";
 import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
+import { describeLayout, type LayoutReport } from "../layout-check.ts";
+
+/** The layout check of Pi's browser's page in words (PP-395): element names quote the page, so they are fenced as its data. */
+const layoutWords = (layout: LayoutReport | { error: string }): string =>
+    "error" in layout ? `Layout check: not measured (${layout.error})` : fencedPage(describeLayout(layout));
+
+/** What the layout check measures, for the tools' descriptions. */
+const LAYOUT_NOTE =
+    "the measured layout check the screenshot tool gives (what spills out of its box, text cut by its box, elements covering another's text or control, tap targets under 40 px at a phone's width, sizes off the 4 px grid or not whole pixels, text under WCAG AA contrast or under 12 px, emoji as icons, gradient text, uppercase labels, long lines; grouped, with numbers)";
 
 /** The sign-in and code cards' field names: fixed, not the page's (a page could put its own words on the card). */
 export const FIELD_LABELS = { username: "Username or email", password: "Password", code: "Code" } as const;
@@ -681,7 +690,7 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_screenshot",
             description:
-                `See what is in view in Pi's browser as a picture (for models that take images). With path, also save it to a file where this session works (.png or .jpg), for documents (doc_image) or reports. With index, picture only the dialog, menu or list that control is in, or else the control. The picture is what is in view; with full_page, the whole page from its top, past the view (its first ${FULL_PAGE_MAX.toLocaleString("en")} CSS pixels at most; not on the phone's browser, whose pictures come from its display: scroll there), where marks and areas are in the page's coordinates. Pi's browser takes calls in the order they come: one made in the same batch as other browser calls (or a codemode script that uses the browser) may land between their steps, so take the picture after them. ${MARKS_NOTE} Each mark is on a control (index), on every place a text shows (text: for a secret that is not a control), or on an area of the view in CSS pixels; a control out of view or a text not shown is an error, never a picture with it left showing.`,
+                `See what is in view in Pi's browser as a picture (for models that take images). With path, also save it to a file where this session works (.png or .jpg), for documents (doc_image) or reports. With index, picture only the dialog, menu or list that control is in, or else the control. The picture is what is in view; with full_page, the whole page from its top, past the view (its first ${FULL_PAGE_MAX.toLocaleString("en")} CSS pixels at most; not on the phone's browser, whose pictures come from its display: scroll there), where marks and areas are in the page's coordinates. Pi's browser takes calls in the order they come: one made in the same batch as other browser calls (or a codemode script that uses the browser) may land between their steps, so take the picture after them. ${MARKS_NOTE} Each mark is on a control (index), on every place a text shows (text: for a secret that is not a control), or on an area of the view in CSS pixels; a control out of view or a text not shown is an error, never a picture with it left showing. Without index, it comes with the screenshot tool's layout check (overlaps in view).`,
             parameters: obj({
                 path: opt(str({ description: "Save it here too, ending in .png or .jpg: absolute or relative to this session's folder" })),
                 index: opt(int({ minimum: 1, description: "A control: the picture is of the dialog, menu or list it is in, or of the control" })),
@@ -753,10 +762,33 @@ export default function createBrowser(host: PocketHost) {
                         output: [
                             { type: "text" as const, text: shotCaption({ title: state.title, url: state.url, width: state.viewport.width, height: shot.page?.height ?? state.viewport.height }, what, saved) },
                             { type: "image" as const, data: shot.data, mimeType: kind === "png" ? "image/png" : "image/jpeg" },
+                            ...(shot.layout === undefined ? [] : [{ type: "text" as const, text: layoutWords(shot.layout) }]),
                         ],
                     };
                 } catch (error) {
                     // An error can name the page's controls or texts too.
+                    return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
+                }
+            },
+        }),
+        defineTool({
+            name: "browser_layout_check",
+            description: `Measure the page in front in Pi's browser without a picture: ${LAYOUT_NOTE}, at the view's width (browser_size changes it). Overlaps are measured in view: scroll to check further down.`,
+            parameters: obj({}, { open: true }),
+            replay: "safe",
+            execute: async (_args, api, context) => {
+                const owner = mayBrowse(api.conversationId);
+
+                if (owner !== true) {
+                    return reply(owner, true);
+                }
+
+                try {
+                    const browser = await browserOf(api, context);
+                    const layout = await browser.layoutCheck(Number(api.conversationId));
+
+                    return "withheld" in layout ? reply(layout.withheld, true) : reply(layoutWords(layout));
+                } catch (error) {
                     return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
                 }
             },
