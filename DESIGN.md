@@ -920,13 +920,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
     text or control (`elementFromPoint` at three points of each text's first line and each control's centre, in view
     only; not a cover when it is transparent with no words of its own, a hit area laid over a title; a dialog, menu or
     layer over 40 % of the view; or a fixed, sticky or absolute bar that content scrolls under); tap targets under
-    40 px at widths up to 480 (inline links in sentences, controls inside controls, labelled check boxes and disabled
+    40 px at widths up to 480 (the page's own width: a phone page wider than its screen stretches `innerWidth` to its
+    content, so without a width given the check goes by the root's `clientWidth`, which stays the screen's, PP-414;
+    inline links in sentences, controls inside controls, labelled check boxes and disabled
     controls left out; PP-400: a control's hit area counts, its box with an absolutely placed ::before or ::after past
     its edges and a field's label, so a small control that keeps its look with a hit layer passes);
     padding, gaps, corner radii and control heights off the 4 px grid or not whole pixels (0, 1 and 2 px pass as
     hairlines and nudges, pill corners pass, svg icons need whole pixels only); text under WCAG AA contrast (4.5, 3
-    for large text) against its ancestors' background colours composited, with its own and its ancestors' opacity (a
-    background picture or gradient on the way: not measured; disabled controls exempt); text under 12 px; emoji,
+    for large text) against its ancestors' background colours composited, with its own and its ancestors' opacity
+    (PP-414: over a linear or radial gradient, its colour is worked out from the computed style where the words sit,
+    at three points of the first line and the middle of the last, the lowest ratio kept and the finding naming the
+    element that paints it, "(gradient on section.hero)"; a glow faded to nothing under the words is no finding; a
+    background picture, a repeating or conic gradient, a colour hint, a calc() stop, background-size or a fixed
+    background: not measured, never guessed; disabled controls exempt); text under 12 px; emoji,
     pictographs and symbol glyphs as icons (✓, ✗, ★, geometric shapes; ©, ®, ™ pass); gradient text; uppercase or
     capitalised labels and tracked capitals; negative tracking under 16 px; paragraphs over 90 characters a line. Only
     what shows counts: hidden, transparent and wholly clipped elements are left out. Findings are grouped (the same

@@ -6,8 +6,8 @@
  *
  * Since PP-395 it also measures what makes a page look unfinished (the rules a script can measure, PP-394): text cut by
  * a box that hides its overflow, an element covering another's text or control, tap targets under 40 px at a phone's
- * width, sizes off the 4 px grid or not whole pixels, text under WCAG AA contrast against its background, text under
- * 12 px, emoji and symbol glyphs used as icons, gradient text, uppercase labels, tight tracking on small text, long
+ * width, sizes off the 4 px grid or not whole pixels, text under WCAG AA contrast against its background (over a linear
+ * or radial gradient, measured where the words sit, PP-414), text under 12 px, emoji and symbol glyphs used as icons, gradient text, uppercase labels, tight tracking on small text, long
  * lines, and how many font sizes, text colours, font families and icon sizes the page uses. Findings come grouped (the
  * same kind of element with the same numbers once, with a count) so the report stays short. Pi's browser runs the same
  * check (`browser_screenshot`, `browser_layout_check`).
@@ -27,7 +27,7 @@ export type LayoutFind =
     | { kind: "covered"; what: string; by: string; points: number; of: number; count: number }
     | { kind: "small-target"; what: string; size: [number, number]; count: number }
     | { kind: "off-grid"; what: string; property: string; value: number; count: number }
-    | { kind: "contrast"; what: string; color: string; background: string; ratio: number; needs: number; count: number }
+    | { kind: "contrast"; what: string; color: string; background: string; ratio: number; needs: number; gradient?: string; count: number }
     | { kind: "small-text"; what: string; size: number; count: number }
     | { kind: "emoji"; what: string; glyphs: string; count: number }
     | { kind: "gradient-text"; what: string; count: number }
@@ -65,7 +65,8 @@ export const TEXT_MIN = 12;
 
 /**
  * The script for a page laid out `width` CSS pixels wide (the width asked for: a mobile page wider than its screen
- * stretches `innerWidth` to fit; the renderer's WebView is exactly as wide as asked, so it leaves it out), as one
+ * stretches `innerWidth` to fit; the renderer's WebView is exactly as wide as asked, so it leaves it out, and whether
+ * the page is a phone's then goes by the root's `clientWidth`, which does not stretch, PP-414), as one
  * expression that returns the report as JSON text. Elements inside a box that scrolls or clips sideways may run wider
  * (a code block's long lines): only that box is checked. Fixed and absolutely placed elements (menus, toasts) are left
  * out of "outside its parent".
@@ -169,7 +170,8 @@ export const PAGE_HELPERS = String.raw`
   };
   const over = (top, under) => [0, 1, 2].map((i) => top[i] * top[3] + under[i] * (1 - top[3])).concat([1]);
   const hex = (c) => '#' + c.slice(0, 3).map((x) => Math.round(x).toString(16).padStart(2, '0')).join('');
-  // The background behind an element's text: its ancestors' colours, composited; a picture or gradient on the way is not measured.
+  // The background behind an element's text when it is the same everywhere: its ancestors' colours, composited; a
+  // picture or gradient on the way gives null here (backAt measures a gradient at a point).
   const backgrounds = new Map();
   const backdrop = (e) => {
     if (!e || e.nodeType !== 1) return [255, 255, 255, 1];
@@ -187,12 +189,158 @@ export const PAGE_HELPERS = String.raw`
     }
     return v;
   };
+  // Gradients (PP-414): what a linear or radial gradient paints at a point, from its computed style, over the box its
+  // background-origin names at that box's size (no background-size). A picture (url), a repeating or conic gradient, a
+  // colour hint, a calc() stop, a fixed background or a background-size is not measured (null), never guessed.
+  const splitTop = (v) => {
+    const out = [];
+    let depth = 0, from = 0;
+    for (let i = 0; i < v.length; i++) {
+      if (v[i] === '(') depth++;
+      else if (v[i] === ')') depth--;
+      else if (v[i] === ',' && depth === 0) { out.push(v.slice(from, i).trim()); from = i + 1; }
+    }
+    out.push(v.slice(from).trim());
+    return out;
+  };
+  // Colour stops along the gradient line (0 to 1), positions filled in as CSS does.
+  const stopsOf = (parts, length) => {
+    const stops = [];
+    for (const part of parts) {
+      const m = /^([a-z]+\([^()]*\))((?:\s+-?[\d.]+(?:%|px))*)$/i.exec(part);
+      const c = m ? colour(m[1]) : null;
+      if (!c) return null;
+      const at = m[2].trim() ? m[2].trim().split(/\s+/).map((x) => x.endsWith('%') ? parseFloat(x) / 100 : parseFloat(x) / length) : [null];
+      for (const t of at) stops.push({ c, t });
+    }
+    if (stops.length < 2) return null;
+    if (stops[0].t === null) stops[0].t = 0;
+    if (stops[stops.length - 1].t === null) stops[stops.length - 1].t = 1;
+    let most = stops[0].t;
+    for (const s of stops) if (s.t !== null) { s.t = Math.max(s.t, most); most = s.t; }
+    for (let i = 1; i < stops.length; i++) {
+      if (stops[i].t !== null) continue;
+      let j = i;
+      while (stops[j].t === null) j++;
+      for (let k = i; k < j; k++) stops[k].t = stops[i - 1].t + (stops[j].t - stops[i - 1].t) * (k - i + 1) / (j - i + 1);
+      i = j;
+    }
+    return stops;
+  };
+  // The colour at t, mixed with premultiplied alpha as browsers do.
+  const stopAt = (stops, t) => {
+    if (t <= stops[0].t) return stops[0].c;
+    for (let i = 1; i < stops.length; i++) {
+      if (t > stops[i].t) continue;
+      const a = stops[i - 1].c, b = stops[i].c, d = stops[i].t - stops[i - 1].t, f = d < 1e-9 ? 1 : (t - stops[i - 1].t) / d;
+      const alpha = a[3] + (b[3] - a[3]) * f;
+      return alpha <= 0.0001 ? [0, 0, 0, 0] : [0, 1, 2].map((k) => (a[k] * a[3] + (b[k] * b[3] - a[k] * a[3]) * f) / alpha).concat([alpha]);
+    }
+    return stops[stops.length - 1].c;
+  };
+  const SIDES = { left: 0, top: 0, center: 0.5, right: 1, bottom: 1 };
+  // One gradient layer's colour at (x, y), painted on box {l, t, r, b}.
+  const layerAt = (v, box, x, y) => {
+    const m = /^(linear|radial)-gradient\((.*)\)$/.exec(v);
+    const w = box.r - box.l, h = box.b - box.t;
+    if (!m || w < 1 || h < 1) return null;
+    const parts = splitTop(m[2]);
+    const lead = /^[a-z]+\(/i.test(parts[0]) ? null : parts.shift();
+    if (m[1] === 'linear') {
+      let dx = 0, dy = 1;
+      const angle = lead && /^(-?[\d.]+)(deg|turn|rad|grad)$/.exec(lead);
+      if (angle) {
+        const n = parseFloat(angle[1]), deg = angle[2] === 'deg' ? n : angle[2] === 'turn' ? n * 360 : angle[2] === 'rad' ? n * 180 / Math.PI : n * 0.9;
+        dx = Math.sin(deg * Math.PI / 180); dy = -Math.cos(deg * Math.PI / 180);
+      } else if (lead && /^to( (left|right|top|bottom)){1,2}$/.test(lead)) {
+        const sx = /right/.test(lead) ? 1 : /left/.test(lead) ? -1 : 0, sy = /bottom/.test(lead) ? 1 : /top/.test(lead) ? -1 : 0;
+        // To a corner: perpendicular to the line between the two corners next to it.
+        if (sx && sy) { dx = sx * h; dy = sy * w; } else { dx = sx; dy = sy; }
+        const n = Math.hypot(dx, dy);
+        dx /= n; dy /= n;
+      } else if (lead) return null;
+      const length = Math.abs(w * dx) + Math.abs(h * dy);
+      const stops = stopsOf(parts, length);
+      return stops && stopAt(stops, ((x - (box.l + box.r) / 2) * dx + (y - (box.t + box.b) / 2) * dy) / length + 0.5);
+    }
+    // Radial: [circle | ellipse] [size] [at x y].
+    const [shapeSize, place] = lead === null ? ['', ''] : (' ' + lead).split(/ at /).map((s) => s.trim());
+    const words = shapeSize ? shapeSize.split(/\s+/) : [];
+    const where = place ? place.split(/\s+/) : [];
+    if (where.length > 2 || (lead !== null && (' ' + lead).split(/ at /).length > 2)) return null;
+    if (where.length === 2 && /^(top|bottom)$/.test(where[0])) where.reverse();
+    if (where.length === 1 && /^(top|bottom)$/.test(where[0])) where.unshift('center');
+    const pos = (token, size) => token === undefined ? size / 2 : token in SIDES ? SIDES[token] * size : /^-?[\d.]+%$/.test(token) ? parseFloat(token) / 100 * size : /^-?[\d.]+px$/.test(token) ? parseFloat(token) : NaN;
+    const cx = pos(where[0], w), cy = pos(where[1], h);
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null;
+    const lengths = words.filter((s) => /^[\d.]+(px|%)$/.test(s));
+    const circle = words.includes('circle') || (!words.includes('ellipse') && lengths.length === 1);
+    const keyword = words.find((s) => /^(closest|farthest)-(side|corner)$/.test(s)) || 'farthest-corner';
+    if (words.some((s) => !/^(circle|ellipse|(closest|farthest)-(side|corner)|[\d.]+(px|%))$/.test(s))) return null;
+    const near = [Math.min(cx, w - cx), Math.min(cy, h - cy)], far = [Math.max(cx, w - cx), Math.max(cy, h - cy)];
+    let rx, ry;
+    if (lengths.length > 0) {
+      rx = /%$/.test(lengths[0]) ? parseFloat(lengths[0]) / 100 * w : parseFloat(lengths[0]);
+      ry = circle ? rx : lengths[1] === undefined ? NaN : /%$/.test(lengths[1]) ? parseFloat(lengths[1]) / 100 * h : parseFloat(lengths[1]);
+    } else {
+      const sides = keyword.startsWith('closest') ? near : far;
+      if (circle) rx = ry = keyword.endsWith('side') ? (keyword.startsWith('closest') ? Math.min(...sides) : Math.max(...sides)) : Math.hypot(sides[0], sides[1]);
+      else { const k = keyword.endsWith('corner') ? Math.SQRT2 : 1; rx = sides[0] * k; ry = sides[1] * k; }
+    }
+    if (!(rx > 0) || !(ry > 0)) return null;
+    const stops = stopsOf(parts, rx);
+    return stops && stopAt(stops, Math.hypot((x - box.l - cx) / rx, (y - box.t - cy) / ry));
+  };
+  // Two colours with alpha, one over the other.
+  const mix = (top, under) => {
+    const a = top[3] + under[3] * (1 - top[3]);
+    return a <= 0.0001 ? [0, 0, 0, 0] : [0, 1, 2].map((i) => (top[i] * top[3] + under[i] * under[3] * (1 - top[3])) / a).concat([a]);
+  };
+  // What an element's background images paint at (x, y), bottom layer first; null when one is not measured.
+  const paintAt = (e, s, x, y) => {
+    if (/url\(|repeating-|conic-|image-set|cross-fade|element\(|paint\(/.test(s.backgroundImage) || /fixed/.test(s.backgroundAttachment) || !/^auto( auto)?(, auto( auto)?)*$/.test(s.backgroundSize)) return null;
+    const r = e.getBoundingClientRect(), origin = s.backgroundOrigin.split(',')[0].trim();
+    const border = origin === 'border-box' ? [0, 0, 0, 0] : [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth].map(px);
+    const pad = origin === 'content-box' ? [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].map(px) : [0, 0, 0, 0];
+    const box = { l: r.left + border[3] + pad[3], t: r.top + border[0] + pad[0], r: r.right - border[1] - pad[1], b: r.bottom - border[2] - pad[2] };
+    let paint = [0, 0, 0, 0];
+    for (const layer of splitTop(s.backgroundImage).reverse()) {
+      const c = layerAt(layer, box, x, y);
+      if (c === null) return null;
+      paint = mix(c, paint);
+    }
+    return paint;
+  };
+  // The background at a point of the page behind element e: backdrop where it is the same everywhere, else its
+  // ancestors' colours and gradients composited at that point; null when a picture or something unmeasured is on the way.
+  const backAt = (e, x, y) => {
+    if (!e || e.nodeType !== 1) return [255, 255, 255, 1];
+    const same = backdrop(e);
+    if (same) return same;
+    const s = css(e);
+    // Gradient text paints its background in its letters, not behind them.
+    if (/text/.test(s.backgroundClip) || /text/.test(s.webkitBackgroundClip || '')) return backAt(e.parentElement, x, y);
+    const c = colour(s.backgroundColor);
+    if (c === null) return null;
+    let base = c;
+    if (c[3] < 0.999) {
+      const under = backAt(e.parentElement, x, y);
+      if (under === null) return null;
+      base = c[3] <= 0.001 ? under : over(c, under);
+    }
+    if (s.backgroundImage === 'none') return base;
+    const paint = paintAt(e, s, x, y);
+    return paint === null ? null : paint[3] <= 0.001 ? base : over(paint, base);
+  };
   const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
   const CONTROL = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=tab],[role=checkbox],[role=switch],[role=menuitem],[role=option],[role=radio],[tabindex]:not([tabindex="-1"])';
 `;
 
 export const layoutCheck = (width?: number) => String.raw`(() => {
   const W = ${width === undefined ? "innerWidth" : String(Math.round(width))}, VW = innerWidth, VH = innerHeight;
+  // The width the page is laid out for (PP-414): a phone page wider than its screen stretches innerWidth to its content
+  // (570 in a 390 px WebView), while the root's clientWidth and the media queries stay the screen's.
+  const PW = ${width === undefined ? "Math.min(innerWidth, document.documentElement.clientWidth || innerWidth)" : "W"};
   const issues = [];
   let checked = 0, more = 0;
 ${PAGE_HELPERS}
@@ -286,7 +434,7 @@ ${PAGE_HELPERS}
       const nested = e.parentElement && e.parentElement.closest(CONTROL);
       const labelled = tag === 'input' && /checkbox|radio/.test(e.type) && e.labels && e.labels.length > 0;
       if (!inline && !nested && !labelled) {
-        if (W <= ${PHONE_MAX} && !e.disabled && e.getAttribute('aria-disabled') !== 'true') {
+        if (PW <= ${PHONE_MAX} && !e.disabled && e.getAttribute('aria-disabled') !== 'true') {
           const hit = hitBox(e, r);
           if (hit.width < ${TAP_MIN} - 0.01 || hit.height < ${TAP_MIN} - 0.01) group('small-target', sig(e) + '|' + Math.round(hit.width) + 'x' + Math.round(hit.height), () => ({ what: name(e), size: [r1(hit.width), r1(hit.height)] }));
         }
@@ -365,16 +513,36 @@ ${PAGE_HELPERS}
     else if (letters.length >= 4 && letters === letters.toUpperCase() && letters !== letters.toLowerCase() && tracking > 0.5) group('uppercase', sig(p) + '|caps', () => ({ what: name(p), transform: 'capitals', tracking }));
     if (tracking < 0 && size < 16) group('tight-tracking', sig(p) + '|' + tracking, () => ({ what: name(p), size: r1(size), tracking }));
     // Contrast, WCAG AA: 4.5, or 3 for large text (24 px, or 18.66 px bold); disabled controls are exempt.
+    // Over a gradient (PP-414): measured where the words sit (three points on the first line, the middle of the last),
+    // the lowest of them, with the element that paints it.
     const fill = colour(s.webkitTextFillColor || s.color);
-    const under = backdrop(p);
     if (fill && fill[3] > 0.001) colours.add(hex(fill));
-    if (fill && under && fill[3] > 0.001 && !p.closest('[disabled],[aria-disabled=true]')) {
-      const ink = over([fill[0], fill[1], fill[2], fill[3] * opacityOf(p)], under);
-      const hi = Math.max(lum(ink), lum(under)), lo = Math.min(lum(ink), lum(under));
-      const ratio = (hi + 0.05) / (lo + 0.05);
+    if (fill && fill[3] > 0.001 && !p.closest('[disabled],[aria-disabled=true]')) {
       const large = size >= 24 || (size >= 18.66 && Number(s.fontWeight) >= 700);
       const needs = large ? 3 : 4.5;
-      if (ratio < needs - 0.005) group('contrast', hex(ink) + '|' + hex(under) + '|' + needs, () => ({ what: name(p), color: hex(ink), background: hex(under), ratio: r2(ratio), needs }));
+      const score = (under) => {
+        const ink = over([fill[0], fill[1], fill[2], fill[3] * opacityOf(p)], under);
+        const hi = Math.max(lum(ink), lum(under)), lo = Math.min(lum(ink), lum(under));
+        return { ratio: (hi + 0.05) / (lo + 0.05), ink, under };
+      };
+      const same = backdrop(p);
+      let worst = same ? score(same) : null, painter = null;
+      if (!same) {
+        for (let a = p; a && a.nodeType === 1; a = a.parentElement) if (css(a).backgroundImage !== 'none') { painter = a; break; }
+        const first = rects[0], last = rects[rects.length - 1];
+        const points = [0.25, 0.5, 0.75].map((f) => [first.left + first.width * f, first.top + first.height / 2]);
+        if (rects.length > 1) points.push([last.left + last.width / 2, last.top + last.height / 2]);
+        for (const [x, y] of points) {
+          const under = painter && backAt(p, x, y);
+          if (!under) { worst = null; break; }
+          const each = score(under);
+          if (!worst || each.ratio < worst.ratio) worst = each;
+        }
+      }
+      if (worst && worst.ratio < needs - 0.005) {
+        const w = worst;
+        group('contrast', hex(w.ink) + '|' + hex(w.under) + '|' + needs, () => Object.assign({ what: name(p), color: hex(w.ink), background: hex(w.under), ratio: r2(w.ratio), needs }, painter ? { gradient: painter.tagName.toLowerCase() + (painter.id ? '#' + painter.id : '') + classes(painter) } : {}));
+      }
     }
   }
 
@@ -430,7 +598,7 @@ function findWords(find: LayoutFind): string {
         case "off-grid":
             return `${find.property} ${find.value} px: ${find.count} element${find.count === 1 ? "" : "s"}, such as ${find.what}`;
         case "contrast":
-            return `${find.what}: ${find.color} on ${find.background}, ${find.ratio}:1 (needs ${find.needs})${times}`;
+            return `${find.what}: ${find.color} on ${find.background}${find.gradient === undefined ? "" : ` (gradient on ${find.gradient})`}, ${find.ratio}:1 (needs ${find.needs})${times}`;
         case "small-text":
             return `${find.what}: ${find.size} px${times}`;
         case "emoji":

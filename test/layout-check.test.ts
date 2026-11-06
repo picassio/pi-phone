@@ -46,6 +46,11 @@ const PAGES: Record<string, string> = {
     "/gradient": `${head}<div class="col"><p id="hype" style="background:linear-gradient(90deg,#a855f7,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent">Supercharge</p></div>`,
     "/caps": `${head}<div class="col"><p id="label" style="text-transform:uppercase;letter-spacing:2px">Navigation</p><p id="tight" style="letter-spacing:-0.5px">Squeezed words</p></div>`,
     "/long": `${head}<div style="overflow-x:auto"><p id="essay" style="width:760px;margin:0">${words.repeat(8)}</p></div>`,
+    // A phone page wider than its screen (PP-414): the browser stretches innerWidth to the content, the page is still a phone's.
+    "/overflow": `${head}<div style="width:600px;white-space:nowrap">A row wider than the phone</div><button id="tiny" style="width:28px;height:28px;padding:0">A</button>`,
+    // Words over gradients (PP-414): one colour drawn as a gradient, the dark half of a hard-stop band, and a radial
+    // glow in the far corner that has faded to nothing where the words are (no worst-stop guess).
+    "/gradient-bg": `${head}<div class="col"><div id="flat" style="background:linear-gradient(#777777,#777777);padding:8px"><span id="grey" style="color:#888888">Grey on grey</span></div><div id="band" style="background:linear-gradient(90deg,#1a1b26 0%,#1a1b26 50%,#ffffff 50%,#ffffff 100%);padding:8px 0"><span id="left" style="color:#3b3f55">Dark</span></div><div id="glow" style="background-color:#1a1b26;background-image:radial-gradient(circle at 100% 0%,#ffffff,rgba(255,255,255,0) 40px);padding:8px"><span id="calm" style="color:#c0caf5">Calm words</span></div><div id="photo" style="background:#1a1b26 url(data:image/gif;base64,R0lGODlhAQABAAAAACw=);padding:8px"><span style="color:#3b3f55">Over a picture</span></div></div>`,
 };
 let server: Server;
 let port = 0;
@@ -118,6 +123,17 @@ async function measured(page: BrowserPage, path: string, width = 390): Promise<L
     await page.navigate(`http://pi.test${path}`);
 
     const report = parseLayout(await page.evaluate<string>(layoutCheck(width)), width);
+
+    assert.ok(report !== undefined, `${path} gave a report`);
+
+    return report;
+}
+
+/** The page's report as the renderers measure it: the script without a width, the page's own (PP-414). */
+async function rendered(page: BrowserPage, path: string, width = 390): Promise<LayoutReport> {
+    await page.navigate(`http://pi.test${path}`);
+
+    const report = parseLayout(await page.evaluate<string>(layoutCheck()), width);
 
     assert.ok(report !== undefined, `${path} gave a report`);
 
@@ -227,6 +243,35 @@ test("the layout check finds cut text, overlaps, small tap targets, off-grid siz
         const [essay] = of(await measured(page, "/long"), "long-lines");
 
         assert.ok(essay !== undefined && essay.what.startsWith("p#essay") && essay.chars > 90, JSON.stringify(essay));
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a phone page wider than its screen keeps its tap-target check, and words over a gradient are measured where they sit (PP-414)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        // As the renderers run it (no width given): innerWidth is stretched to the 600 px row, the page is a phone's.
+        const overflow = await rendered(page, "/overflow");
+
+        assert.ok(overflow.issues.some((issue) => issue.kind === "page-wider"), JSON.stringify(overflow.issues));
+        assert.deepEqual(of(overflow, "small-target").map((find) => [find.what, find.size]), [['button#tiny "A"', [28, 28]]]);
+        assert.match(describeLayout(overflow), /Tap targets under 40 px \(1\):\n- button#tiny "A": 28×28 px/);
+
+        // Gradients: the colour under the words, with the element that paints it; a faded glow and a picture are not findings.
+        const gradient = await rendered(page, "/gradient-bg");
+        const contrast = of(gradient, "contrast").map((find) => [find.what, find.color, find.background, find.ratio, find.gradient]);
+
+        assert.deepEqual(contrast.sort(), [
+            ['span#grey "Grey on grey"', "#888888", "#777777", 1.26, "div#flat"],
+            ['span#left "Dark"', "#3b3f55", "#1a1b26", 1.65, "div#band"],
+        ]);
+        assert.match(describeLayout(gradient), /- span#left "Dark": #3b3f55 on #1a1b26 \(gradient on div#band\), 1\.65:1 \(needs 4\.5\)/);
     } finally {
         await engine.close();
     }
